@@ -1,0 +1,52 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Data (never commit your library or DB)
+data/
+books/
+bindery/
+library/
+incoming/
+*.db
+*.db-wal
+*.db-shm
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Env
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code
+.claude/
+
+# Docker (use docker-compose.example.yml as template)
+docker-compose.yml
+docker-compose.override.yml
+
+# Local dev docs and scratch files
+CLAUDE.md
+AGENTS.md
+PLAN.md
+local/
+temp/
+docs/transfer.md
+scripts/tome_transfer.py
