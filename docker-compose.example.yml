@@ -1,0 +1,14 @@
+services:
+  tome:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - /path/to/your/ebooks:/books:ro
+      - /path/to/bindery:/bindery
+    environment:
+      - TOME_SECRET_KEY=change-me-in-production
+      # Optional: Hardcover API token for metadata fetching
+      # - TOME_HARDCOVER_TOKEN=
+    restart: unless-stopped
