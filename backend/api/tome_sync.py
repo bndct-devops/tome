@@ -24,7 +24,7 @@ from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
 
-TOMESYNC_PLUGIN_VERSION = "2"  # bump when plugin code changes
+TOMESYNC_PLUGIN_VERSION = "3"  # bump when plugin code changes
 
 
 # ── API key auth ──────────────────────────────────────────────────────────────
@@ -529,55 +529,27 @@ function TomeSync:onReaderReady()
 
     -- If no cached mapping, try to resolve by filename
     if not self.book_id then
-        local filename = doc.file:match("([^/]+)$") or doc.file
-        logger.info("TomeSync: resolving filename:", filename)
-        local rok, result, rcode = pcall(apiRequest, "GET",
-            "/tome-sync/resolve?filename=" .. urlEncode(filename))
-        if rok and result and type(rcode) == "number" and rcode == 200 and result.book_id then
-            self.book_id = result.book_id
-            self.book_map[doc.file] = self.book_id
-            G_reader_settings:saveSetting("tomesync_book_map", self.book_map)
-            logger.info("TomeSync: resolved to book_id", self.book_id)
-        else
-            logger.dbg("TomeSync: could not resolve", filename)
-            return
-        end
+        self:_tryResolve()
     end
 
-    logger.dbg("TomeSync: book opened, id =", self.book_id)
-    self.session_start = os.time()
-    self.page_count    = 0
+    if not self.book_id then return end
 
-    local ok, pos, code = pcall(apiRequest, "GET", "/tome-sync/position/" .. self.book_id)
-    if ok and pos and code == 200 then
-        local server_pct = pos.percentage or 0
-        local local_pct  = self:_getCurrentPercentage()
-        if server_pct > (local_pct + 0.01) and server_pct < 0.99 then
-            self.progress_start = server_pct
-            UIManager:show(InfoMessage:new{{
-                text = string.format(
-                    "TomeSync: Server at %.0f%% (device: %.0f%%).",
-                    server_pct * 100, local_pct * 100
-                ),
-                timeout = 3,
-            }})
-            if pos.progress and self.ui and self.ui.rolling then
-                pcall(function()
-                    self.ui.rolling:onGotoXPointer(pos.progress, pos.progress)
-                end)
-            end
-        else
-            self.progress_start = local_pct
-        end
-    else
-        self.progress_start = self:_getCurrentPercentage()
-    end
-    self.last_progress = self.progress_start
+    self:_initSession()
 end
 
 function TomeSync:onPageUpdate(pageno)
-    if not self.enabled or not self.book_id then return end
+    if not self.enabled then return end
     if pageno == false then return end
+
+    -- Retry resolve if book wasn't matched on open (e.g. WiFi was not ready)
+    if not self.book_id then
+        self:_tryResolve()
+        if self.book_id then
+            self:_initSession()
+        end
+        return
+    end
+
     self.page_count = self.page_count + 1
     if self.page_count % HEARTBEAT_PAGES == 0 then
         local pct = self:_getCurrentPercentage()
@@ -704,6 +676,55 @@ end
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
 
+function TomeSync:_tryResolve()
+    local doc = self.ui and self.ui.document
+    if not doc then return end
+    local filename = doc.file:match("([^/]+)$") or doc.file
+    logger.info("TomeSync: resolving filename:", filename)
+    local rok, result, rcode = pcall(apiRequest, "GET",
+        "/tome-sync/resolve?filename=" .. urlEncode(filename))
+    if rok and result and type(rcode) == "number" and rcode == 200 and result.book_id then
+        self.book_id = result.book_id
+        self.book_map[doc.file] = self.book_id
+        G_reader_settings:saveSetting("tomesync_book_map", self.book_map)
+        logger.info("TomeSync: resolved to book_id", self.book_id)
+    else
+        logger.dbg("TomeSync: could not resolve", filename)
+    end
+end
+
+function TomeSync:_initSession()
+    logger.dbg("TomeSync: book opened, id =", self.book_id)
+    self.session_start = os.time()
+    self.page_count    = 0
+
+    local ok, pos, code = pcall(apiRequest, "GET", "/tome-sync/position/" .. self.book_id)
+    if ok and pos and code == 200 then
+        local server_pct = pos.percentage or 0
+        local local_pct  = self:_getCurrentPercentage()
+        if server_pct > (local_pct + 0.01) and server_pct < 0.99 then
+            self.progress_start = server_pct
+            UIManager:show(InfoMessage:new{{
+                text = string.format(
+                    "TomeSync: Server at %.0f%% (device: %.0f%%).",
+                    server_pct * 100, local_pct * 100
+                ),
+                timeout = 3,
+            }})
+            if pos.progress and self.ui and self.ui.rolling then
+                pcall(function()
+                    self.ui.rolling:onGotoXPointer(pos.progress, pos.progress)
+                end)
+            end
+        else
+            self.progress_start = local_pct
+        end
+    else
+        self.progress_start = self:_getCurrentPercentage()
+    end
+    self.last_progress = self.progress_start
+end
+
 function TomeSync:_getCurrentPercentage()
     if not self.ui or not self.ui.document then return 0 end
     local ok, result = pcall(function()
@@ -761,15 +782,19 @@ function TomeSync:addToMainMenu(menu_items)
             }},
             {{
                 text         = "Sync now",
-                enabled_func = function() return self.book_id ~= nil end,
                 callback     = function()
-                    if not self.book_id then return end
-                    local pct = self:_getCurrentPercentage()
-                    local prog = self:_getCurrentProgress()
-                    self:_pushPosition()
+                    if self.book_id then
+                        self:_pushPosition()
+                    end
                     self:_flushPendingSessions()
                     local pending = #self.pending_sessions
-                    local msg = string.format("Synced: %.1f%%", pct * 100)
+                    local msg
+                    if self.book_id then
+                        local pct = self:_getCurrentPercentage()
+                        msg = string.format("Synced: %.1f%%", pct * 100)
+                    else
+                        msg = "Book not resolved (position not synced)"
+                    end
                     if pending > 0 then
                         msg = msg .. string.format("\\n%d session(s) still pending", pending)
                     end

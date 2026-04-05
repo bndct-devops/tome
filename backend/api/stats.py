@@ -70,11 +70,17 @@ def _fill_daily(rows: list, cutoff: datetime, now: datetime) -> list[dict]:
 @router.get("/stats")
 def get_stats(
     days: int = Query(30, ge=0),
+    tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     now = datetime.utcnow()
     cutoff = _date_range(days)
+
+    # Convert JS getTimezoneOffset (minutes, negative = east of UTC) to SQLite modifier
+    # e.g. CEST = UTC+2 → JS returns -120 → we need '+2 hours'
+    offset_hours = -(tz_offset // 60)
+    tz_modifier = f"{offset_hours:+d} hours"
 
     # Base query filtered to this user
     base = db.query(ReadingSession).filter(ReadingSession.user_id == current_user.id)
@@ -104,7 +110,7 @@ def get_stats(
 
     # Streaks (all time)
     all_dates_rows = (
-        db.query(func.date(ReadingSession.started_at).label("d"))
+        db.query(func.date(ReadingSession.started_at, tz_modifier).label("d"))
         .filter(ReadingSession.user_id == current_user.id)
         .distinct()
         .all()
@@ -115,13 +121,13 @@ def get_stats(
     # Daily aggregation (for selected range)
     daily_rows = (
         base.with_entities(
-            func.date(ReadingSession.started_at).label("date"),
+            func.date(ReadingSession.started_at, tz_modifier).label("date"),
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
             func.count(ReadingSession.id).label("sessions"),
             func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
         )
-        .group_by(func.date(ReadingSession.started_at))
-        .order_by(func.date(ReadingSession.started_at))
+        .group_by(func.date(ReadingSession.started_at, tz_modifier))
+        .order_by(func.date(ReadingSession.started_at, tz_modifier))
         .all()
     )
     daily = _fill_daily(daily_rows, cutoff or (now - timedelta(days=365)), now)
@@ -135,13 +141,13 @@ def get_stats(
             ReadingSession.started_at >= heatmap_cutoff,
         )
         .with_entities(
-            func.date(ReadingSession.started_at).label("date"),
+            func.date(ReadingSession.started_at, tz_modifier).label("date"),
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
             func.count(ReadingSession.id).label("sessions"),
             func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
         )
-        .group_by(func.date(ReadingSession.started_at))
-        .order_by(func.date(ReadingSession.started_at))
+        .group_by(func.date(ReadingSession.started_at, tz_modifier))
+        .order_by(func.date(ReadingSession.started_at, tz_modifier))
         .all()
     )
     heatmap_daily = _fill_daily(heatmap_rows, heatmap_cutoff, now)
@@ -204,15 +210,15 @@ def get_stats(
         for r in category_rows
     ]
 
-    # Hourly distribution — bucket session time into hour-of-day slots
-    # SQLite strftime('%H', ...) gives 00..23
+    # Hourly distribution — bucket session time into hour-of-day slots (local time)
+    local_time_expr = func.datetime(ReadingSession.started_at, tz_modifier)
     hourly_rows = (
         base.with_entities(
-            func.cast(func.strftime('%H', ReadingSession.started_at), Integer).label("hour"),
+            func.cast(func.strftime('%H', local_time_expr), Integer).label("hour"),
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
             func.count(ReadingSession.id).label("sessions"),
         )
-        .group_by(func.strftime('%H', ReadingSession.started_at))
+        .group_by(func.strftime('%H', local_time_expr))
         .all()
     )
     hourly_map = {r.hour: {"seconds": r.seconds, "sessions": r.sessions} for r in hourly_rows}
@@ -221,11 +227,11 @@ def get_stats(
     # Weekly pattern — day-of-week aggregation (0=Sun..6=Sat in SQLite strftime('%w'))
     weekly_rows = (
         base.with_entities(
-            func.cast(func.strftime('%w', ReadingSession.started_at), Integer).label("dow"),
+            func.cast(func.strftime('%w', local_time_expr), Integer).label("dow"),
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
             func.count(ReadingSession.id).label("sessions"),
         )
-        .group_by(func.strftime('%w', ReadingSession.started_at))
+        .group_by(func.strftime('%w', local_time_expr))
         .all()
     )
     weekly_map = {r.dow: {"seconds": r.seconds, "sessions": r.sessions} for r in weekly_rows}
@@ -321,8 +327,8 @@ def get_stats(
         {
             "id": r.id,
             "title": r.title,
-            "started_at": r.started_at.isoformat(),
-            "ended_at": r.ended_at.isoformat(),
+            "started_at": r.started_at.isoformat() + "Z",
+            "ended_at": r.ended_at.isoformat() + "Z",
             "duration_seconds": r.duration_seconds,
         }
         for r in timeline_rows
@@ -392,8 +398,8 @@ def list_sessions(
                 "id": r.id,
                 "book_id": r.book_id,
                 "book_title": r.book_title or "(deleted book)",
-                "started_at": r.started_at.isoformat() if r.started_at else None,
-                "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                "started_at": (r.started_at.isoformat() + "Z") if r.started_at else None,
+                "ended_at": (r.ended_at.isoformat() + "Z") if r.ended_at else None,
                 "duration_seconds": r.duration_seconds,
                 "pages_turned": r.pages_turned,
                 "device": r.device,

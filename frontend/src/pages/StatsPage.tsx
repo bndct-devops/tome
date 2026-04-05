@@ -249,15 +249,17 @@ export function StatsPage() {
         setSessionsTotal(prev => prev - 1)
         setSessionsLoaded(prev => prev - 1)
         // Refresh stats to update totals
-        api.get<StatsResponse>(`/stats?days=${days}`).then(setData).catch(() => {})
+        api.get<StatsResponse>(`/stats?days=${days}&tz_offset=${tzOffset}`).then(setData).catch(() => {})
       })
       .catch(() => {})
       .finally(() => setDeleting(prev => { const n = new Set(prev); n.delete(id); return n }))
   }
 
+  const tzOffset = new Date().getTimezoneOffset()
+
   useEffect(() => {
     setLoading(true)
-    api.get<StatsResponse>(`/stats?days=${days}`)
+    api.get<StatsResponse>(`/stats?days=${days}&tz_offset=${tzOffset}`)
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false))
