@@ -600,8 +600,9 @@ export default function ReaderPage() {
       if (cancelled) return
 
       try {
-        if (initialCfi.current) {
-          await view.goTo(initialCfi.current)
+        const cfi = initialCfi.current
+        if (cfi && cfi.startsWith('epubcfi(')) {
+          await view.goTo(cfi)
         } else if (savedProgressPct > 0) {
           await view.goToFraction(savedProgressPct)
         } else {
