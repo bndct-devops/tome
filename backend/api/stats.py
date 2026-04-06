@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.models.user import User
-from backend.models.tome_sync import ReadingSession
+from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.book import Book
 from backend.models.user_book_status import UserBookStatus
+from backend.models.library import BookType
 
 router = APIRouter(tags=["stats"])
 
@@ -190,7 +191,6 @@ def get_stats(
     ]
 
     # By category
-    from backend.models.library import BookType
     category_rows = (
         base.filter(ReadingSession.book_id.isnot(None))
         .join(Book, Book.id == ReadingSession.book_id)
@@ -272,7 +272,6 @@ def get_stats(
     ]
 
     # Books in progress — currently reading with progress
-    from backend.models.tome_sync import TomeSyncPosition
     in_progress_rows = (
         db.query(UserBookStatus)
         .filter(
@@ -334,6 +333,74 @@ def get_stats(
         for r in timeline_rows
     ]
 
+    # ── Period comparison ─────────────────────────────────────────────────────
+    period_comparison = None
+    if days > 0:
+        start_date = cutoff  # already computed above
+        prev_start = start_date - timedelta(days=days)
+        prev_seconds = db.query(
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
+        ).filter(
+            ReadingSession.user_id == current_user.id,
+            ReadingSession.started_at >= prev_start,
+            ReadingSession.started_at < start_date,
+        ).scalar() or 0
+        pct_change = 0.0
+        if prev_seconds > 0:
+            pct_change = round(((total_seconds - prev_seconds) / prev_seconds) * 100, 1)
+        period_comparison = {
+            "current_seconds": total_seconds,
+            "previous_seconds": int(prev_seconds),
+            "pct_change": pct_change,
+        }
+
+    # ── Year summary ──────────────────────────────────────────────────────────
+    year_summary = None
+    if days >= 365 or days == 0:
+        # Top genre from finished books
+        top_genre: Optional[str] = None
+        finished_book_ids = [row.id for row in finished_books]
+        if finished_book_ids:
+            genre_row = (
+                db.query(
+                    func.coalesce(BookType.label, "Uncategorized").label("genre"),
+                    func.count(Book.id).label("cnt"),
+                )
+                .select_from(Book)
+                .filter(Book.id.in_(finished_book_ids))
+                .outerjoin(BookType, BookType.id == Book.book_type_id)
+                .group_by(func.coalesce(BookType.label, "Uncategorized"))
+                .order_by(func.count(Book.id).desc())
+                .first()
+            )
+            if genre_row:
+                top_genre = genre_row.genre
+
+        # Most active month from daily data
+        most_active_month: Optional[str] = None
+        if daily:
+            month_secs: dict[str, int] = {}
+            for entry in daily:
+                if entry["seconds"] > 0:
+                    month_key = entry["date"][:7]  # e.g. "2024-03"
+                    month_secs[month_key] = month_secs.get(month_key, 0) + entry["seconds"]
+            if month_secs:
+                best_month_key = max(month_secs, key=lambda k: month_secs[k])
+                # Parse to month name: "2024-03" → "March"
+                try:
+                    most_active_month = datetime.strptime(best_month_key, "%Y-%m").strftime("%B")
+                except ValueError:
+                    most_active_month = None
+
+        year_summary = {
+            "books_finished": books_finished_count,
+            "total_hours": round(total_seconds / 3600, 1),
+            "top_genre": top_genre,
+            "longest_streak_days": longest_streak,
+            "total_sessions": total_sessions,
+            "most_active_month": most_active_month,
+        }
+
     return {
         "range_days": days,
         "headline": {
@@ -355,7 +422,94 @@ def get_stats(
         "reading_pace": reading_pace,
         "books_in_progress": books_in_progress,
         "session_timeline": session_timeline,
+        "year_summary": year_summary,
+        "period_comparison": period_comparison,
     }
+
+
+@router.get("/stats/completion-estimates")
+def get_completion_estimates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list:
+    """Estimate days remaining for each book the user is currently reading."""
+    window_start = datetime.utcnow() - timedelta(days=30)
+
+    in_progress = (
+        db.query(UserBookStatus)
+        .filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.status == "reading",
+        )
+        .join(Book, Book.id == UserBookStatus.book_id)
+        .outerjoin(
+            TomeSyncPosition,
+            (TomeSyncPosition.book_id == Book.id) & (TomeSyncPosition.user_id == current_user.id),
+        )
+        .with_entities(
+            Book.id,
+            Book.title,
+            Book.author,
+            Book.cover_path,
+            func.coalesce(TomeSyncPosition.percentage, UserBookStatus.progress_pct, 0.0).label("progress_raw"),
+        )
+        .all()
+    )
+
+    result = []
+    for row in in_progress:
+        # Normalise progress to 0–100
+        p = row.progress_raw or 0.0
+        progress = round(p * 100, 1) if p <= 1.0 else round(p, 1)
+
+        # Sessions for this book in the last 30 days
+        session_rows = (
+            db.query(ReadingSession)
+            .filter(
+                ReadingSession.user_id == current_user.id,
+                ReadingSession.book_id == row.id,
+                ReadingSession.started_at >= window_start,
+            )
+            .with_entities(
+                func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_secs"),
+                func.count(ReadingSession.id).label("session_count"),
+            )
+            .first()
+        )
+
+        total_secs_30 = int(session_rows.total_secs) if session_rows and session_rows.total_secs else 0
+        session_count = int(session_rows.session_count) if session_rows and session_rows.session_count else 0
+
+        avg_per_day = total_secs_30 / 30  # seconds per day averaged over window
+
+        estimated_days: Optional[int] = None
+        if avg_per_day > 0 and progress > 0 and progress < 100:
+            # At current daily pace, how many more days to finish?
+            # progress_per_day = progress / 30 (assuming linear over 30-day window)
+            progress_per_day = progress / 30
+            remaining = 100.0 - progress
+            estimated_days = max(1, round(remaining / progress_per_day))
+
+        if session_count >= 5:
+            confidence = "high"
+        elif session_count >= 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        result.append({
+            "book_id": row.id,
+            "title": row.title,
+            "author": row.author,
+            "has_cover": bool(row.cover_path),
+            "progress": progress,
+            "estimated_days": estimated_days,
+            "confidence": confidence,
+        })
+
+    # Sort by progress descending (closest to finishing first)
+    result.sort(key=lambda x: x["progress"], reverse=True)
+    return result
 
 
 @router.get("/stats/sessions")

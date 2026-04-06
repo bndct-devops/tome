@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
-  Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info,
+  Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { applyTheme, getStoredTheme, THEMES, type ThemeId } from '@/lib/theme'
+import {
+  applyTheme, getStoredTheme, THEMES, type ThemeId,
+  type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
+} from '@/lib/theme'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface ApiKey {
@@ -119,10 +122,46 @@ export function SettingsPage() {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [activeTheme, setActiveTheme] = useState<ThemeId>(getStoredTheme)
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(loadCustomThemes)
 
   function handleThemeSelect(id: ThemeId) {
     applyTheme(id)
     setActiveTheme(id)
+  }
+
+  function handleDeleteCustomTheme(id: string) {
+    deleteCustomTheme(id)
+    setCustomThemes(loadCustomThemes())
+    if (activeTheme === id) {
+      applyTheme('light')
+      setActiveTheme('light')
+    }
+  }
+
+  // ── Add custom theme form ─────────────────────────────────────────────────
+  const [customFormOpen, setCustomFormOpen] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customColors, setCustomColors] = useState('')
+  const [customDark, setCustomDark] = useState(false)
+  const [customError, setCustomError] = useState<string | null>(null)
+
+  const parsedPreview = useMemo(() => parseThemeColors(customColors), [customColors])
+
+  function handleAddCustomTheme() {
+    setCustomError(null)
+    if (!customName.trim()) { setCustomError('Theme name is required'); return }
+    const vars = parseThemeColors(customColors)
+    if (!vars) { setCustomError('Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)'); return }
+    const id = `custom-${Date.now()}`
+    const theme: CustomTheme = { id, label: customName.trim(), dark: customDark, colors: customColors }
+    saveCustomTheme(theme)
+    setCustomThemes(loadCustomThemes())
+    applyTheme(id as ThemeId)
+    setActiveTheme(id as ThemeId)
+    setCustomName('')
+    setCustomColors('')
+    setCustomDark(false)
+    setCustomFormOpen(false)
   }
 
   // ── KOSync ────────────────────────────────────────────────────────────────
@@ -448,7 +487,9 @@ export function SettingsPage() {
         {/* ── Appearance ───────────────────────────────────────────────── */}
         <section>
           <SectionHeader title="Appearance" />
-          <div className="mt-4 grid grid-cols-4 sm:grid-cols-5 gap-2">
+
+          {/* Built-in themes */}
+          <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-2">
             {THEMES.map(theme => {
               const active = activeTheme === theme.id
               return (
@@ -476,6 +517,142 @@ export function SettingsPage() {
                 </button>
               )
             })}
+          </div>
+
+          {/* Custom themes */}
+          {customThemes.length > 0 && (
+            <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {customThemes.map(theme => {
+                const active = activeTheme === theme.id
+                const vars = parseThemeColors(theme.colors)
+                const bg = vars?.['--background'] ?? '#888'
+                const card = vars?.['--card'] ?? '#999'
+                const primary = vars?.['--primary'] ?? '#fff'
+                const text = vars?.['--foreground'] ?? '#fff'
+                return (
+                  <div key={theme.id} className="relative group">
+                    <button
+                      onClick={() => handleThemeSelect(theme.id as ThemeId)}
+                      className={cn(
+                        'w-full rounded-lg overflow-hidden transition-all duration-150',
+                        active
+                          ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md'
+                          : 'ring-1 ring-border hover:ring-primary/40 hover:shadow-sm'
+                      )}
+                      title={theme.label}
+                    >
+                      <div className="h-10 w-full flex items-end p-1.5 gap-1" style={{ background: bg }}>
+                        <div className="flex-1 h-4 rounded opacity-90" style={{ background: card }} />
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: primary }} />
+                      </div>
+                      <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: card }}>
+                        <span className="text-[10px] font-medium leading-tight truncate" style={{ color: text }}>
+                          {theme.label}
+                        </span>
+                        {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: primary }} />}
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCustomTheme(theme.id)}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      title="Delete theme"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Add custom theme */}
+          <div className="mt-3 rounded-xl border border-border bg-card overflow-hidden">
+            <button
+              onClick={() => setCustomFormOpen(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <Plus className="w-3.5 h-3.5" />
+                Add custom theme
+              </span>
+              {customFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {customFormOpen && (
+              <div className="border-t border-border p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Theme name</label>
+                    <input
+                      type="text"
+                      value={customName}
+                      onChange={e => setCustomName(e.target.value)}
+                      placeholder="My Theme"
+                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={customDark}
+                        onChange={e => setCustomDark(e.target.checked)}
+                        className="w-4 h-4 rounded accent-primary"
+                      />
+                      Dark theme
+                      <span className="text-xs text-muted-foreground">(enables dark: variants)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Colors <span className="font-normal">(10 hex values, comma-separated)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customColors}
+                    onChange={e => { setCustomColors(e.target.value); setCustomError(null) }}
+                    placeholder="#1E1E2E,#CDD6F4,#313244,#CBA6F7,#1E1E2E,#45475A,#A6ADC8,#313244,#585B70,#F38BA8"
+                    className="w-full text-xs font-mono bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                    spellCheck={false}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive
+                  </p>
+                </div>
+
+                {/* Live preview */}
+                {parsedPreview && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">Preview:</span>
+                    <div
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-2 border"
+                      style={{
+                        background: parsedPreview['--background'],
+                        borderColor: parsedPreview['--border'],
+                      }}
+                    >
+                      <div className="w-6 h-6 rounded" style={{ background: parsedPreview['--card'] }} />
+                      <div className="w-4 h-4 rounded-full" style={{ background: parsedPreview['--primary'] }} />
+                      <span className="text-xs font-medium" style={{ color: parsedPreview['--foreground'] }}>
+                        {customName || 'Preview'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {customError && <p className="text-xs text-destructive">{customError}</p>}
+
+                <button
+                  onClick={handleAddCustomTheme}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Theme
+                </button>
+              </div>
+            )}
           </div>
         </section>
 

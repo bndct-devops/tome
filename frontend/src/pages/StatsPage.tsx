@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Clock, Activity, BookCheck, Flame, FileText,
   BarChart3, ArrowLeft, Loader2, Trash2, ChevronDown,
+  TrendingUp, TrendingDown, Minus, Trophy, Calendar, Zap,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -35,6 +36,29 @@ interface StatsResponse {
   reading_pace: { session_id: number; title: string; date: string | null; pages_per_min: number; duration_seconds: number; pages_turned: number }[]
   books_in_progress: { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number; last_read: string | null }[]
   session_timeline: { id: number; title: string; started_at: string; ended_at: string; duration_seconds: number }[]
+  year_summary?: {
+    books_finished: number
+    total_hours: number
+    top_genre: string | null
+    longest_streak_days: number
+    total_sessions: number
+    most_active_month: string | null
+  } | null
+  period_comparison?: {
+    current_seconds: number
+    previous_seconds: number
+    pct_change: number
+  } | null
+}
+
+interface CompletionEstimate {
+  book_id: number
+  title: string
+  author: string | null
+  has_cover: boolean
+  progress: number
+  estimated_days: number | null
+  confidence: 'high' | 'medium' | 'low'
 }
 
 interface SessionEntry {
@@ -221,6 +245,11 @@ export function StatsPage() {
   const [days, setDays] = useState(30)
   const [data, setData] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [statsTab, setStatsTab] = useState<'overview' | 'insights'>('overview')
+
+  // Insights tab
+  const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
+  const [estimatesLoading, setEstimatesLoading] = useState(false)
 
   // Sessions list state
   const [sessions, setSessions] = useState<SessionEntry[]>([])
@@ -268,6 +297,17 @@ export function StatsPage() {
   // Load sessions on mount
   useEffect(() => { loadSessions(0, true) }, [])
 
+  // Lazy-load completion estimates when Insights tab is opened
+  useEffect(() => {
+    if (statsTab === 'insights' && estimates === null && !estimatesLoading) {
+      setEstimatesLoading(true)
+      api.get<CompletionEstimate[]>('/stats/completion-estimates')
+        .then(setEstimates)
+        .catch(() => setEstimates([]))
+        .finally(() => setEstimatesLoading(false))
+    }
+  }, [statsTab])
+
   const cumulativeFinished = data ? (() => {
     const sorted = [...data.books_finished].sort((a, b) => a.date.localeCompare(b.date))
     const grouped: Record<string, string[]> = {}
@@ -312,6 +352,22 @@ export function StatsPage() {
             ))}
           </div>
         </div>
+        <div className="max-w-5xl mx-auto px-4 pb-0 flex items-center gap-1">
+          {(['overview', 'insights'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setStatsTab(tab)}
+              className={cn(
+                'px-4 py-2 text-xs font-medium capitalize border-b-2 transition-all',
+                statsTab === tab
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
@@ -332,6 +388,10 @@ export function StatsPage() {
           </div>
         ) : data ? (
           <div className="flex flex-col gap-8">
+
+            {/* ── Overview Tab ─────────────────────────────────────── */}
+            {statsTab === 'overview' && (
+            <div className="flex flex-col gap-8">
 
             {/* ── Overview ─────────────────────────────────────────── */}
             <div className="flex flex-col gap-4">
@@ -794,7 +854,7 @@ export function StatsPage() {
             )}
 
             {/* ── Session Log ──────────────────────────────────────── */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4" id="session-log">
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Session Log</h2>
               <ChartCard title={sessionsTotal > 0 ? `Recent Sessions · ${sessionsTotal}` : 'Recent Sessions'}>
                 {sessions.length === 0 && !sessionsLoading ? (
@@ -862,6 +922,257 @@ export function StatsPage() {
                 )}
               </ChartCard>
             </div>
+
+            </div>
+            )} {/* end overview tab */}
+
+            {/* ── Insights Tab ─────────────────────────────────────── */}
+            {statsTab === 'insights' && (
+              <div className="flex flex-col gap-8">
+
+                {/* Period Comparison */}
+                {data.period_comparison && (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Period Comparison</h2>
+                    <div className={cn(
+                      'bg-card border border-border rounded-xl p-5 flex items-start gap-4',
+                    )}>
+                      <div className={cn(
+                        'p-2 rounded-lg shrink-0',
+                        data.period_comparison.pct_change > 0
+                          ? 'bg-emerald-500/10'
+                          : data.period_comparison.pct_change < 0
+                          ? 'bg-red-500/10'
+                          : 'bg-muted',
+                      )}>
+                        {data.period_comparison.pct_change > 0 ? (
+                          <TrendingUp className="w-5 h-5 text-emerald-500" />
+                        ) : data.period_comparison.pct_change < 0 ? (
+                          <TrendingDown className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <Minus className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          'text-lg font-bold',
+                          data.period_comparison.pct_change > 0
+                            ? 'text-emerald-500'
+                            : data.period_comparison.pct_change < 0
+                            ? 'text-red-500'
+                            : 'text-muted-foreground',
+                        )}>
+                          {data.period_comparison.pct_change === 0
+                            ? 'Same as previous period'
+                            : data.period_comparison.pct_change > 0
+                            ? `${data.period_comparison.pct_change}% more reading this period`
+                            : `${Math.abs(data.period_comparison.pct_change)}% less reading this period`}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          This period: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.current_seconds)}</span>
+                          {' '}vs previous: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.previous_seconds)}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Completion Estimates */}
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Completion Estimates</h2>
+                  {estimatesLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  ) : estimates && estimates.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {estimates.map(est => (
+                        <a
+                          key={est.book_id}
+                          href={`/books/${est.book_id}`}
+                          className="group bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:bg-accent/30 transition-colors"
+                        >
+                          <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                            {est.has_cover ? (
+                              <img src={`/api/books/${est.book_id}/cover`} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <FileText className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={cn(
+                              'text-sm font-medium truncate group-hover:text-primary transition-colors',
+                              est.confidence === 'low' ? 'text-muted-foreground' : 'text-foreground',
+                            )}>
+                              {est.title}
+                            </p>
+                            {est.author && (
+                              <p className="text-xs text-muted-foreground truncate">{est.author}</p>
+                            )}
+                            <div className="mt-2 flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-500 rounded-full"
+                                  style={{ width: `${Math.min(est.progress, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
+                            </div>
+                            <p className={cn(
+                              'text-xs mt-1.5',
+                              est.confidence === 'high'
+                                ? 'text-foreground'
+                                : est.confidence === 'medium'
+                                ? 'text-muted-foreground'
+                                : 'text-muted-foreground/60',
+                            )}>
+                              {est.estimated_days != null
+                                ? `~${est.estimated_days} day${est.estimated_days !== 1 ? 's' : ''} remaining`
+                                : 'Insufficient data'}
+                              {est.confidence === 'low' && est.estimated_days != null && (
+                                <span className="ml-1 text-muted-foreground/50">(low confidence)</span>
+                              )}
+                            </p>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : estimates !== null ? (
+                    <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
+                      No books currently in progress.
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Year in Review */}
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Year in Review</h2>
+                  {data.year_summary ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <StatCard
+                        icon={<BookCheck className="w-3.5 h-3.5" />}
+                        label="Books Finished"
+                        value={String(data.year_summary.books_finished)}
+                      />
+                      <StatCard
+                        icon={<Clock className="w-3.5 h-3.5" />}
+                        label="Total Hours"
+                        value={`${data.year_summary.total_hours}h`}
+                      />
+                      <StatCard
+                        icon={<Trophy className="w-3.5 h-3.5" />}
+                        label="Top Genre"
+                        value={data.year_summary.top_genre ?? '--'}
+                      />
+                      <StatCard
+                        icon={<Flame className="w-3.5 h-3.5" />}
+                        label="Longest Streak"
+                        value={`${data.year_summary.longest_streak_days}d`}
+                      />
+                      <StatCard
+                        icon={<Activity className="w-3.5 h-3.5" />}
+                        label="Total Sessions"
+                        value={String(data.year_summary.total_sessions)}
+                      />
+                      <StatCard
+                        icon={<Calendar className="w-3.5 h-3.5" />}
+                        label="Most Active Month"
+                        value={data.year_summary.most_active_month ?? '--'}
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-border rounded-xl p-5 text-center text-muted-foreground text-xs">
+                      Select <span className="font-medium text-foreground">1 Year</span> or <span className="font-medium text-foreground">All Time</span> to see your year in review.
+                    </div>
+                  )}
+                </div>
+
+                {/* Reading Speed Trend */}
+                {data.reading_pace.length >= 4 && (() => {
+                  const paceData = [...data.reading_pace].reverse()
+                  const half = Math.floor(paceData.length / 2)
+                  const firstHalf = paceData.slice(0, half)
+                  const secondHalf = paceData.slice(half)
+                  const avg = (arr: typeof paceData) =>
+                    arr.reduce((s, p) => s + p.pages_per_min, 0) / arr.length
+                  const firstAvg = avg(firstHalf)
+                  const secondAvg = avg(secondHalf)
+                  const pctDiff = firstAvg > 0 ? Math.round(((secondAvg - firstAvg) / firstAvg) * 100) : 0
+                  const trending = pctDiff > 3 ? 'up' : pctDiff < -3 ? 'down' : 'steady'
+                  return (
+                    <div className="flex flex-col gap-4">
+                      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Reading Speed Trend</h2>
+                      <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                          {trending === 'up' ? (
+                            <TrendingUp className="w-4 h-4 text-emerald-500" />
+                          ) : trending === 'down' ? (
+                            <TrendingDown className="w-4 h-4 text-red-500" />
+                          ) : (
+                            <Zap className="w-4 h-4 text-muted-foreground" />
+                          )}
+                          <span className={cn(
+                            'text-sm font-semibold',
+                            trending === 'up' ? 'text-emerald-500' : trending === 'down' ? 'text-red-500' : 'text-muted-foreground',
+                          )}>
+                            {trending === 'up'
+                              ? `Reading speed up ${pctDiff}%`
+                              : trending === 'down'
+                              ? `Reading speed down ${Math.abs(pctDiff)}%`
+                              : 'Reading speed steady'}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({secondAvg.toFixed(1)} vs {firstAvg.toFixed(1)} pages/min)
+                          </span>
+                        </div>
+                        <ResponsiveContainer width="100%" height={140}>
+                          <AreaChart data={paceData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                            <XAxis
+                              dataKey="date"
+                              tickFormatter={formatDate}
+                              tick={{ fontSize: 10, fill: '#94a3b8' }}
+                              interval="preserveStartEnd"
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 10, fill: '#94a3b8' }}
+                              width={36}
+                              axisLine={false}
+                              tickLine={false}
+                              tickFormatter={(v: number) => v.toFixed(1)}
+                            />
+                            <Tooltip
+                              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                              wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+                              isAnimationActive={false}
+                              content={({ active, payload }) => {
+                                if (!active || !payload?.length) return null
+                                const d = payload[0].payload
+                                return (
+                                  <ChartTooltip>
+                                    <div className="font-medium">{d.title}</div>
+                                    <div>{d.pages_per_min} pages/min</div>
+                                  </ChartTooltip>
+                                )
+                              }}
+                            />
+                            <Area
+                              dataKey="pages_per_min"
+                              fill="#10b981"
+                              fillOpacity={0.15}
+                              stroke="#10b981"
+                              strokeWidth={2}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+              </div>
+            )} {/* end insights tab */}
 
           </div>
         ) : null}

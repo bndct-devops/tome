@@ -1,19 +1,30 @@
 import { Moon, Sun } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { applyTheme, getStoredTheme, THEMES } from '@/lib/theme'
+import { applyTheme, getStoredTheme, THEMES, loadCustomThemes } from '@/lib/theme'
 
 export function ThemeToggle({ className }: { className?: string }) {
   const [themeId, setThemeId] = useState(getStoredTheme)
 
   function toggle() {
-    const def = THEMES.find(t => t.id === themeId)
-    const next = def?.dark ? 'light' : 'dark'
+    // Determine whether the current theme is "dark"
+    const builtIn = THEMES.find(t => t.id === themeId)
+    let isDark = builtIn?.dark ?? false
+    if (!builtIn && themeId.startsWith('custom-')) {
+      const custom = loadCustomThemes().find(t => t.id === themeId)
+      isDark = custom?.dark ?? false
+    }
+    const next = isDark ? 'light' : 'dark'
     applyTheme(next)
     setThemeId(next)
   }
 
-  const isDark = THEMES.find(t => t.id === themeId)?.dark ?? false
+  const builtIn = THEMES.find(t => t.id === themeId)
+  let isDark = builtIn?.dark ?? false
+  if (!builtIn && themeId.startsWith('custom-')) {
+    const custom = loadCustomThemes().find(t => t.id === themeId)
+    isDark = custom?.dark ?? false
+  }
 
   return (
     <button
