@@ -18,6 +18,7 @@ import { api } from '@/lib/api'
 import type { Book, Library, SavedFilter, ReadingStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
+import { useShiftSelect } from '@/lib/useShiftSelect'
 import { cn } from '@/lib/utils'
 
 type SortField = 'title' | 'author' | 'year' | 'added_at'
@@ -372,7 +373,14 @@ export function DashboardPage() {
     }, { replace })
   }
 
-  function clearFilters() { setSearchParams({}) }
+  function clearFilters() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams()
+      const t = prev.get('tab')
+      if (t) next.set('tab', t)
+      return next
+    })
+  }
 
   const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterReadingStatus || filterMissing)
 
@@ -399,6 +407,7 @@ export function DashboardPage() {
   useEffect(() => { setSearchInput(search) }, [search])
 
   // ── Multi-select + bulk actions ──────────────────────────────────────────
+  const [selectionMode, setSelectionMode] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkLibMenu, setBulkLibMenu] = useState(false)
   const [bulkPending, setBulkPending] = useState(false)
@@ -412,15 +421,15 @@ export function DashboardPage() {
   const [bulkMetaSaving, setBulkMetaSaving] = useState(false)
   const bookTypes = useBookTypes()
 
-  function toggleSelect(id: number) {
+  function toggleSelect(id: number, shiftKey: boolean) {
     setSelected(prev => {
-      const s = new Set(prev)
-      s.has(id) ? s.delete(id) : s.add(id)
-      return s
+      const index = books.findIndex(b => b.id === id)
+      return handleToggle(id, index, shiftKey, prev)
     })
   }
   function selectAll() { setSelected(new Set(books.map(b => b.id))) }
   function clearSelection() { setSelected(new Set()) }
+  function exitSelectionMode() { setSelectionMode(false); setSelected(new Set()) }
 
   async function bulkDownload() {
     if (!selected.size) return
@@ -517,6 +526,7 @@ export function DashboardPage() {
 
   // ── Books + facets ────────────────────────────────────────────────────────
   const [books, setBooks] = useState<Book[]>([])
+  const { handleToggle } = useShiftSelect(books.map(b => b.id))
   const [totalCount, setTotalCount] = useState<number | null>(null)
   const [readingStatuses, setReadingStatuses] = useState<Record<number, { status: ReadingStatus; progress_pct: number | null }>>({})
   const [facets, setFacets] = useState<Facets>({ series: [], authors: [], tags: [], formats: [] })
@@ -862,7 +872,7 @@ export function DashboardPage() {
                       const status = readingStatuses[book.id]
                       return (
                         <BookCard
-                          key={book.id}
+                          key={`${view}-${book.id}`}
                           book={book}
                           view={view}
                           index={i}
@@ -1286,20 +1296,43 @@ export function DashboardPage() {
 
             {/* Select mode toggle */}
             {books.length > 0 && (
-              <button
-                onClick={() => selected.size > 0 ? clearSelection() : selectAll()}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                  selected.size > 0
-                    ? 'border-primary/40 bg-primary/10 text-primary'
-                    : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    if (!selectionMode) {
+                      setSelectionMode(true)
+                      selectAll()
+                    } else if (selected.size > 0) {
+                      clearSelection()
+                    } else {
+                      selectAll()
+                    }
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                    selectionMode
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  {selectionMode
+                    ? selected.size > 0
+                      ? <><XSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Deselect all</span></>
+                      : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Select all</span></>
+                    : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Select</span></>
+                  }
+                </button>
+                {selectionMode && (
+                  <button
+                    onClick={exitSelectionMode}
+                    title="Exit selection mode"
+                    aria-label="Exit selection mode"
+                    className="p-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
-              >
-                {selected.size > 0
-                  ? <><XSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Deselect all</span></>
-                  : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Select</span></>
-                }
-              </button>
+              </div>
             )}
 
             <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
@@ -1392,13 +1425,13 @@ export function DashboardPage() {
           )}
 
           {/* ── Bulk action bar ──────────────────────────────────────────── */}
-          {selected.size > 0 && (
+          {selectionMode && (
             <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/5 border border-primary/20">
               <span className="text-xs font-medium text-primary">{selected.size} selected</span>
               <div className="flex-1" />
               <button
                 onClick={bulkDownload}
-                disabled={bulkPending}
+                disabled={bulkPending || selected.size === 0}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -1406,7 +1439,7 @@ export function DashboardPage() {
               </button>
               <button
                 onClick={() => { setBulkMetaOpen(true); api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }}
-                disabled={bulkPending}
+                disabled={bulkPending || selected.size === 0}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -1416,7 +1449,7 @@ export function DashboardPage() {
                 <div className="relative">
                   <button
                     onClick={() => setBulkLibMenu(o => !o)}
-                    disabled={bulkPending}
+                    disabled={bulkPending || selected.size === 0}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                   >
                     <LibraryIcon className="w-3.5 h-3.5" />
@@ -1443,14 +1476,14 @@ export function DashboardPage() {
               )}
               <button
                 onClick={() => setDeleteModalOpen(true)}
-                disabled={bulkPending}
+                disabled={bulkPending || selected.size === 0}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
               </button>
-              <button onClick={clearSelection} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Cancel
+              <button onClick={exitSelectionMode} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Done
               </button>
             </div>
           )}
@@ -1495,13 +1528,13 @@ export function DashboardPage() {
             <div className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')}>
               {books.map((book, i) => (
                 <BookCard
-                  key={book.id}
+                  key={`${view}-${book.id}`}
                   book={book}
                   view={view}
                   index={i}
                   selected={selected.has(book.id)}
                   focused={focusedIndex === i}
-                  onSelect={selected.size > 0 ? (e) => { e.preventDefault(); toggleSelect(book.id) } : undefined}
+                  onSelect={selectionMode ? (e) => { e.preventDefault(); toggleSelect(book.id, e.shiftKey) } : undefined}
                   onTagClick={tag => setFilter('tag', tag)}
                   onSeriesClick={series => setFilter('series', series)}
                   onAuthorClick={author => setFilter('author', author)}

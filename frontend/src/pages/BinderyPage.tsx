@@ -11,6 +11,7 @@ import { useToast } from '@/contexts/ToastContext'
 import type { MetadataCandidate, BookType } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { cn } from '@/lib/utils'
+import { useShiftSelect } from '@/lib/useShiftSelect'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -565,12 +566,12 @@ export function BinderyPage() {
   // Selection
   // ---------------------------------------------------------------------------
 
-  function toggleSelect(path: string) {
+  const { handleToggle } = useShiftSelect(items.map(i => i.path))
+
+  function toggleSelect(path: string, shiftKey: boolean) {
     setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
+      const index = items.findIndex(i => i.path === path)
+      return handleToggle(path, index, shiftKey, prev)
     })
   }
 
@@ -985,7 +986,7 @@ export function BinderyPage() {
         <input
           type="checkbox"
           checked={isSelected}
-          onChange={() => toggleSelect(item.path)}
+          onChange={e => toggleSelect(item.path, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
           onClick={e => e.stopPropagation()}
           className="shrink-0 rounded border-border cursor-pointer"
         />
@@ -1038,7 +1039,7 @@ export function BinderyPage() {
           }
         `}</style>
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4 safe-top">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-6 pt-6 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link to="/" className="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
@@ -1117,15 +1118,15 @@ export function BinderyPage() {
         )}
 
         {/* Content */}
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {loading && (
-            <div className="flex items-center justify-center py-24">
+            <div className="flex flex-1 items-center justify-center py-24">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
           {!loading && items.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="flex flex-1 flex-col items-center justify-center text-center">
               <Inbox
                 className="h-12 w-12 text-muted-foreground/30 mb-3"
                 style={{ animation: 'gentle-pulse 3s ease-in-out infinite' }}
@@ -1314,7 +1315,7 @@ export function BinderyPage() {
   return (
     <div className={cn('flex flex-col h-full min-h-screen bg-background transition-opacity duration-150', viewTransition ? 'opacity-0' : 'opacity-100')}>
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-3 safe-top">
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 pt-5 pb-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => transitionTo('list')}

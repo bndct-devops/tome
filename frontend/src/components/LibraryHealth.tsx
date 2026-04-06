@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useShiftSelect } from '@/lib/useShiftSelect'
 import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, ChevronRight, Trash } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -145,12 +146,10 @@ export function LibraryHealthTab() {
     setGroups(prev => prev.map((g, i) => i === groupIdx ? { ...g, collapsed } : g))
   }
 
-  function toggleFile(fileId: number) {
+  function toggleFile(fileId: number, shiftKey: boolean) {
     setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(fileId)) next.delete(fileId)
-      else next.add(fileId)
-      return next
+      const index = allFileIds.indexOf(fileId)
+      return handleToggle(fileId, index, shiftKey, prev)
     })
   }
 
@@ -166,6 +165,7 @@ export function LibraryHealthTab() {
   }
 
   const allFileIds = healthData?.issues.map(i => i.file_id) ?? []
+  const { handleToggle } = useShiftSelect(allFileIds)
 
   return (
     <div className="space-y-4">
@@ -354,7 +354,7 @@ export function LibraryHealthTab() {
                     {group.issues.map(issue => (
                       <li key={issue.file_id} className="flex items-start gap-3 px-4 py-3">
                         <div
-                          onClick={() => toggleFile(issue.file_id)}
+                          onClick={e => toggleFile(issue.file_id, e.shiftKey)}
                           className={cn(
                             'mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer shrink-0',
                             selected.has(issue.file_id) ? 'bg-primary border-primary' : 'border-border'

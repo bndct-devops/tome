@@ -9,6 +9,7 @@ import type { BookDetail, BookType, Library, MetadataCandidate } from '@/lib/boo
 import { cn } from '@/lib/utils'
 import { BulkMetadataReviewModal } from './BulkMetadataReviewModal'
 import { UploadModal } from './UploadModal'
+import { useShiftSelect } from '@/lib/useShiftSelect'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -1097,11 +1098,12 @@ export function MetadataManager() {
     return sortDir === 'asc' ? cmp : -cmp
   })
 
-  function toggleSelect(id: number) {
+  const { handleToggle } = useShiftSelect(sorted.map(b => b.id))
+
+  function toggleSelect(id: number, shiftKey: boolean) {
     setSelected(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
+      const index = sorted.findIndex(b => b.id === id)
+      return handleToggle(id, index, shiftKey, prev)
     })
   }
 
@@ -1442,7 +1444,7 @@ export function MetadataManager() {
                     <input
                       type="checkbox"
                       checked={selected.has(book.id)}
-                      onChange={() => toggleSelect(book.id)}
+                      onChange={e => toggleSelect(book.id, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
                       className="rounded border-border"
                     />
                   </td>
