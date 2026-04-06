@@ -21,10 +21,11 @@ interface UnreviewedBook {
   id: number
   title: string
   author: string | null
+  series: string | null
+  series_index: number | null
   cover_path: string | null
   added_at: string
-  book_type_label: string | null
-  files: { format: string }[]
+  format: string | null
 }
 
 interface BinderyItem {
@@ -1241,7 +1242,7 @@ export function BinderyPage() {
               {/* Cards grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
                 {unreviewed.map(book => {
-                  const format = book.files[0]?.format?.toUpperCase() ?? ''
+                  const format = book.format?.toUpperCase() ?? ''
                   const addedAt = new Date(book.added_at)
                   const diffMs = Date.now() - addedAt.getTime()
                   const diffHrs = Math.floor(diffMs / 1000 / 60 / 60)

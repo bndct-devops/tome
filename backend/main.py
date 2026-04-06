@@ -101,7 +101,12 @@ async def _auto_import_loop() -> None:
 
 
 async def _run_auto_import() -> None:
-    """Scan the incoming directory and auto-import any new supported files."""
+    """Scan the incoming directory and auto-import any new supported files.
+
+    Split into two phases per file so the event loop stays free:
+      1. Ingest (sync, in thread): hash, move, extract metadata, create DB record
+      2. Enrich (async): fetch external metadata, then apply + download cover in thread
+    """
     import shutil
     import httpx
     from backend.core.database import SessionLocal
@@ -135,189 +140,217 @@ async def _run_auto_import() -> None:
 
     logger.info("Auto-import: found %d file(s) in bindery", len(files_to_import))
 
-    with SessionLocal() as db:
-        # Resolve the first admin user to set as added_by
-        admin_user = db.query(User).filter(User.is_admin == True).first()  # noqa: E712
-        added_by_id: int | None = admin_user.id if admin_user else None
+    # ------------------------------------------------------------------
+    # Phase 1 helper — runs in a thread so it never blocks the event loop
+    # ------------------------------------------------------------------
 
-        for file_path in sorted(files_to_import):
-            try:
-                suffix = file_path.suffix.lower().lstrip(".")
-                content_hash = sha256_file(file_path)
+    def _ingest_file(file_path: Path) -> tuple[Book, str, str | None] | None:
+        """Hash, move, extract metadata, create Book row. Returns (book, content_hash, admin_username) or None to skip."""
+        with SessionLocal() as db:
+            admin_user = db.query(User).filter(User.is_admin == True).first()  # noqa: E712
+            added_by_id: int | None = admin_user.id if admin_user else None
+            admin_username: str | None = admin_user.username if admin_user else None
 
-                # Skip if already in DB (by content hash)
-                existing = db.query(Book).filter(Book.content_hash == content_hash).first()
-                if existing:
-                    logger.info(
-                        "Auto-import: skipping %s — already imported as book #%d",
-                        file_path.name, existing.id,
-                    )
-                    continue
+            suffix = file_path.suffix.lower().lstrip(".")
+            content_hash = sha256_file(file_path)
 
-                # Also check by absolute file path (BookFile)
-                abs_path = str(file_path.resolve())
-                existing_file = db.query(BookFile).filter(BookFile.file_path == abs_path).first()
-                if existing_file:
-                    logger.info("Auto-import: skipping %s — file path already registered", file_path.name)
-                    continue
-
-                # Extract embedded metadata
-                meta = extract_metadata(file_path, settings.covers_dir)
-
-                # Determine destination in library
-                rel_lib = get_library_path(meta, file_path.name)
-                dest = resolve_unique_path(settings.library_dir, rel_lib)
-                dest.parent.mkdir(parents=True, exist_ok=True)
-
-                # Move the file
-                shutil.move(str(file_path), str(dest))
-                logger.info("Auto-import: moved %s → %s", file_path.name, dest)
-
-                file_size = dest.stat().st_size
-                cover_path: str | None = meta.get("cover_path")
-
-                # Create Book with is_reviewed=False
-                book = Book(
-                    title=meta.get("title", dest.stem),
-                    author=meta.get("author"),
-                    series=meta.get("series"),
-                    series_index=meta.get("series_index"),
-                    isbn=meta.get("isbn"),
-                    publisher=meta.get("publisher"),
-                    description=meta.get("description"),
-                    language=meta.get("language"),
-                    year=meta.get("year"),
-                    cover_path=cover_path,
-                    content_hash=content_hash,
-                    content_type="volume",
-                    status="active",
-                    added_by=added_by_id,
-                    is_reviewed=False,
+            # Skip if already in DB (by content hash)
+            existing = db.query(Book).filter(Book.content_hash == content_hash).first()
+            if existing:
+                logger.info(
+                    "Auto-import: skipping %s — already imported as book #%d",
+                    file_path.name, existing.id,
                 )
-                db.add(book)
-                db.flush()
+                return None
 
-                db.add(BookFile(
-                    book_id=book.id,
-                    file_path=str(dest.resolve()),
-                    format=suffix,
-                    file_size=file_size,
-                    content_hash=content_hash,
-                ))
+            # Also check by absolute file path (BookFile)
+            abs_path = str(file_path.resolve())
+            existing_file = db.query(BookFile).filter(BookFile.file_path == abs_path).first()
+            if existing_file:
+                logger.info("Auto-import: skipping %s — file path already registered", file_path.name)
+                return None
 
-                # Auto-assign book type
-                if not book.book_type_id:
-                    from backend.models.library import BookType
-                    if meta.get("_is_manga"):
-                        manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
-                        if manga_type:
-                            book.book_type_id = manga_type.id
-                    elif suffix in ("cbz", "cbr"):
-                        comic_type = db.query(BookType).filter(BookType.slug == "comic").first()
-                        if comic_type:
-                            book.book_type_id = comic_type.id
+            # Extract embedded metadata
+            meta = extract_metadata(file_path, settings.covers_dir)
 
-                # Genre tags from ComicInfo
-                if meta.get("_genres"):
-                    for genre in meta["_genres"]:
-                        db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
+            # Determine destination in library
+            rel_lib = get_library_path(meta, file_path.name)
+            dest = resolve_unique_path(settings.library_dir, rel_lib)
+            dest.parent.mkdir(parents=True, exist_ok=True)
 
-                db.commit()
+            # Move the file
+            shutil.move(str(file_path), str(dest))
+            logger.info("Auto-import: moved %s → %s", file_path.name, dest)
 
-                # Assign to book-type library
-                if book.book_type_id:
-                    from backend.models.library import BookType
-                    bt = db.get(BookType, book.book_type_id)
-                    if bt:
-                        assign_book_to_type_library(db, book, bt)
+            file_size = dest.stat().st_size
+            cover_path: str | None = meta.get("cover_path")
 
-                db.refresh(book)
+            # Create Book with is_reviewed=False
+            book = Book(
+                title=meta.get("title", dest.stem),
+                author=meta.get("author"),
+                series=meta.get("series"),
+                series_index=meta.get("series_index"),
+                isbn=meta.get("isbn"),
+                publisher=meta.get("publisher"),
+                description=meta.get("description"),
+                language=meta.get("language"),
+                year=meta.get("year"),
+                cover_path=cover_path,
+                content_hash=content_hash,
+                content_type="volume",
+                status="active",
+                added_by=added_by_id,
+                is_reviewed=False,
+            )
+            db.add(book)
+            db.flush()
 
-                audit(
-                    db,
-                    "auto_import.imported",
-                    user_id=added_by_id,
-                    username=admin_user.username if admin_user else "system",
-                    resource_type="book",
-                    resource_id=book.id,
-                    resource_title=book.title,
-                    details={"format": suffix, "source": "auto_import"},
-                )
+            db.add(BookFile(
+                book_id=book.id,
+                file_path=str(dest.resolve()),
+                format=suffix,
+                file_size=file_size,
+                content_hash=content_hash,
+            ))
 
-                # Try metadata fetch and apply best match automatically
+            # Auto-assign book type
+            if not book.book_type_id:
+                from backend.models.library import BookType
+                if meta.get("_is_manga"):
+                    manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
+                    if manga_type:
+                        book.book_type_id = manga_type.id
+                elif suffix in ("cbz", "cbr"):
+                    comic_type = db.query(BookType).filter(BookType.slug == "comic").first()
+                    if comic_type:
+                        book.book_type_id = comic_type.id
+
+            # Genre tags from ComicInfo
+            if meta.get("_genres"):
+                for genre in meta["_genres"]:
+                    db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
+
+            db.commit()
+
+            # Assign to book-type library
+            if book.book_type_id:
+                from backend.models.library import BookType
+                bt = db.get(BookType, book.book_type_id)
+                if bt:
+                    assign_book_to_type_library(db, book, bt)
+
+            db.refresh(book)
+
+            audit(
+                db,
+                "auto_import.imported",
+                user_id=added_by_id,
+                username=admin_username or "system",
+                resource_type="book",
+                resource_id=book.id,
+                resource_title=book.title,
+                details={"format": suffix, "source": "auto_import"},
+            )
+
+            # Clean up empty dirs left behind in bindery
+            _cleanup_empty_dir(file_path.parent, incoming)
+
+            logger.info(
+                "Auto-import: imported book #%d '%s' (is_reviewed=False)",
+                book.id, book.title,
+            )
+
+            # Detach identifiers needed for phase 2
+            return book.id, book.title, book.author, book.isbn, book.series, book.series_index, content_hash
+
+    # ------------------------------------------------------------------
+    # Phase 2 helper — apply metadata + cover (sync, in thread)
+    # ------------------------------------------------------------------
+
+    def _apply_metadata(book_id: int, best, content_hash: str) -> None:
+        with SessionLocal() as db:
+            book = db.get(Book, book_id)
+            if not book:
+                return
+            book.title = best.title or book.title
+            book.author = best.author or book.author
+            if best.description and not book.description:
+                book.description = best.description
+            if best.publisher and not book.publisher:
+                book.publisher = best.publisher
+            if best.year and not book.year:
+                book.year = best.year
+            if best.isbn and not book.isbn:
+                book.isbn = best.isbn
+            if best.language and not book.language:
+                book.language = best.language
+            if best.series and not book.series:
+                book.series = best.series
+            if best.series_index is not None and book.series_index is None:
+                book.series_index = best.series_index
+            # Download cover if we don't have one
+            if best.cover_url and not book.cover_path:
                 try:
-                    fetch_result = await fetch_candidates(
-                        title=book.title,
-                        author=book.author,
-                        isbn=book.isbn,
-                        series=book.series,
-                        series_index=book.series_index,
+                    with httpx.Client(follow_redirects=True, timeout=15) as client:
+                        resp = client.get(best.cover_url)
+                        resp.raise_for_status()
+                    from backend.services.metadata import save_cover
+                    book.cover_path = save_cover(
+                        resp.content, settings.covers_dir, content_hash
                     )
-                    if fetch_result.candidates:
-                        best = fetch_result.candidates[0]
-                        # Only auto-apply if we have at least title + author (basic confidence)
-                        if best.title and best.author:
-                            book.title = best.title or book.title
-                            book.author = best.author or book.author
-                            if best.description and not book.description:
-                                book.description = best.description
-                            if best.publisher and not book.publisher:
-                                book.publisher = best.publisher
-                            if best.year and not book.year:
-                                book.year = best.year
-                            if best.isbn and not book.isbn:
-                                book.isbn = best.isbn
-                            if best.language and not book.language:
-                                book.language = best.language
-                            if best.series and not book.series:
-                                book.series = best.series
-                            if best.series_index is not None and book.series_index is None:
-                                book.series_index = best.series_index
-                            # Download cover if we don't have one
-                            if best.cover_url and not book.cover_path:
-                                try:
-                                    with httpx.Client(follow_redirects=True, timeout=15) as client:
-                                        resp = client.get(best.cover_url)
-                                        resp.raise_for_status()
-                                    from backend.services.metadata import save_cover
-                                    book.cover_path = save_cover(
-                                        resp.content, settings.covers_dir, content_hash
-                                    )
-                                except Exception as exc:
-                                    logger.warning(
-                                        "Auto-import: failed to download cover for %s: %s",
-                                        book.title, exc,
-                                    )
-                            # Add tags from metadata source
-                            for tag_str in best.tags:
-                                tag_str = tag_str.strip()
-                                if tag_str:
-                                    db.add(BookTag(
-                                        book_id=book.id,
-                                        tag=tag_str,
-                                        source=best.source,
-                                    ))
-                            db.commit()
-                            logger.info(
-                                "Auto-import: applied metadata from %s for book #%d '%s'",
-                                best.source, book.id, book.title,
-                            )
                 except Exception as exc:
                     logger.warning(
-                        "Auto-import: metadata fetch failed for %s: %s", book.title, exc
+                        "Auto-import: failed to download cover for %s: %s",
+                        book.title, exc,
                     )
+            # Add tags from metadata source
+            for tag_str in best.tags:
+                tag_str = tag_str.strip()
+                if tag_str:
+                    db.add(BookTag(
+                        book_id=book.id,
+                        tag=tag_str,
+                        source=best.source,
+                    ))
+            db.commit()
+            logger.info(
+                "Auto-import: applied metadata from %s for book #%d '%s'",
+                best.source, book.id, book.title,
+            )
 
-                # Clean up empty dirs left behind in bindery
-                _cleanup_empty_dir(file_path.parent, incoming)
+    # ------------------------------------------------------------------
+    # Process each file: ingest in thread, fetch async, apply in thread
+    # ------------------------------------------------------------------
 
-                logger.info(
-                    "Auto-import: imported book #%d '%s' (is_reviewed=False)",
-                    book.id, book.title,
+    for file_path in sorted(files_to_import):
+        try:
+            result = await asyncio.to_thread(_ingest_file, file_path)
+            if result is None:
+                continue
+
+            book_id, title, author, isbn, series, series_index, content_hash = result
+
+            # Phase 2: fetch metadata (async — uses httpx.AsyncClient internally)
+            try:
+                fetch_result = await fetch_candidates(
+                    title=title,
+                    author=author,
+                    isbn=isbn,
+                    series=series,
+                    series_index=series_index,
+                )
+                if fetch_result.candidates:
+                    best = fetch_result.candidates[0]
+                    if best.title and best.author:
+                        await asyncio.to_thread(_apply_metadata, book_id, best, content_hash)
+            except Exception as exc:
+                logger.warning(
+                    "Auto-import: metadata fetch failed for %s: %s", title, exc
                 )
 
-            except Exception:
-                logger.exception("Auto-import: failed to import %s", file_path.name)
-                db.rollback()
+        except Exception:
+            logger.exception("Auto-import: failed to import %s", file_path.name)
 
 
 def _cleanup_empty_dir(start: Path, stop_at: Path) -> None:
