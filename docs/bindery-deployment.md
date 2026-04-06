@@ -10,6 +10,17 @@ The Bindery is an inbox for incoming books. Files land in a watched directory, T
 
 Both Tome and any external tools (e.g. download automation) mount the **same host directory** for the bindery. External tools write, Tome reads and triages.
 
+### Auto-import
+
+By default, files placed in the bindery directory must be manually accepted through the UI. You can enable auto-import to have Tome automatically ingest files on a schedule:
+
+```
+TOME_AUTO_IMPORT=true
+TOME_AUTO_IMPORT_INTERVAL=300   # seconds between scans, default 300 (5 minutes)
+```
+
+When auto-import is enabled, new files are imported automatically with metadata fetched from external sources. They appear in the Bindery as **unreviewed** — the inbox shows them so you can inspect, correct metadata, or reject any unwanted imports. The manual review-and-accept flow is still available; auto-import just removes the need to click "Accept" for every file.
+
 ---
 
 ## 1. Create the bindery directory on the host
@@ -42,11 +53,13 @@ volumes:
   - /path/to/bindery:/bindery           # bindery inbox
 ```
 
-Environment variables are unchanged:
+Environment variables:
 
 ```
 TOME_SECRET_KEY=<your-secret>
-TOME_HARDCOVER_TOKEN=<your-token>   # optional but recommended
+TOME_HARDCOVER_TOKEN=<your-token>       # optional but recommended
+TOME_AUTO_IMPORT=true                   # optional: auto-ingest new files
+TOME_AUTO_IMPORT_INTERVAL=300           # optional: scan interval in seconds (default 300)
 ```
 
 ### Run the database migration
@@ -57,12 +70,10 @@ After starting the new container:
 docker exec -it tome alembic upgrade head
 ```
 
-This renames the `can_approve_bookdrop` column to `can_approve_bindery` in the `user_permissions` table. Existing permission values are preserved.
-
-If Alembic fails because tables already exist (common when the DB was created by `create_all()` rather than migrations), run the rename directly:
+If Alembic fails because tables already exist (common when the DB was created by `create_all()` rather than migrations), run the upgrade directly:
 
 ```bash
-sqlite3 /path/to/appdata/tome.db "ALTER TABLE user_permissions RENAME COLUMN can_approve_bookdrop TO can_approve_bindery;"
+docker exec -it tome python -c "from backend.core.database import engine; from backend.models import Base; Base.metadata.create_all(engine)"
 ```
 
 ### Verify
@@ -113,4 +124,4 @@ If something goes wrong:
 - If Alembic complains about existing tables, use the direct SQLite command shown above.
 
 **Permission denied on accept:**
-- User needs admin role or `can_approve_bindery` permission (set in Admin > Users)
+- User needs Admin role (set in Admin > Users)

@@ -32,16 +32,17 @@ Each PIN is independent -- you can have one per device and revoke any of them wi
 
 ## Themes
 
-Tome ships with 9 themes:
+Tome ships with three built-in themes:
 
 - Light
 - Dark
-- Catppuccin Latte, Frappe, Macchiato, Mocha
-- Nord
-- Neon
-- 8-bit
+- Amber
 
 Switch themes in **Settings > Appearance**. The theme is stored per-browser, so different devices can use different themes.
+
+### Custom Themes
+
+You can create a fully custom theme by pasting 10 comma-separated hex color values in **Settings > Appearance > Custom Theme**. The 10 values map to the theme's color palette in order. Custom themes are stored per-browser alongside your theme preference.
 
 ---
 
@@ -79,28 +80,52 @@ Click any book's cover to open the cover picker. Search Google Books and OpenLib
 
 ---
 
-## Authentication and Permissions
+## Authentication and Roles
 
 - JWT-based auth with first-run setup wizard
-- Admin user management with granular permissions per user
+- Role-based user management (Admin / Member / Guest)
 - Force password change on first login
 - Admin impersonation (act as another user for debugging)
 
-### Permission List
+### Roles
 
-| Permission | Default | Description |
-|---|---|---|
-| Upload | off | Upload new books |
-| Download | on | Download book files |
-| Edit metadata | off | Modify book metadata |
-| Delete books | off | Remove books from library |
-| Manage libraries | off | Create/edit/delete libraries |
-| Manage tags | off | Edit book tags |
-| Manage series | off | Edit series assignments |
-| Manage users | off | Admin: manage other users |
-| Approve bindery | off | Review incoming books |
-| View stats | on | Access reading statistics |
-| Use OPDS | on | Access OPDS feed |
-| Use KOSync | on | Sync reading positions |
-| Share | off | Share books/lists |
-| Bulk operations | off | Multi-select actions |
+| Role | What they can do |
+|---|---|
+| **Admin** | Everything — full access to all books, settings, users, bindery, and admin tools |
+| **Member** | Upload books, download, edit/delete their own books, manage libraries, use OPDS/KOSync, view stats, bulk operations |
+| **Guest** | Browse, download, and read books; access the OPDS feed |
+
+### Per-User Book Visibility
+
+- **Admins** see all books in the library
+- **Members** see books added by admins, their own uploads, and books in libraries they have been assigned to. The dashboard shows a "My Books / Shared Library" filter to switch between the two views
+- **Guests** see books added by admins and books in public libraries
+
+Admins have an additional uploader dropdown filter on the dashboard to view books by a specific user.
+
+---
+
+## Shelves
+
+Shelves (formerly called Saved Filters) let you save any combination of active dashboard filters — search text, book type, library, series, tags, sort order — as a named entry in the sidebar. Click a shelf to instantly restore that view.
+
+Shelves are per-user and private. Each shelf can have a custom icon chosen from the icon picker.
+
+---
+
+## Reading Stats
+
+The Stats page has two tabs:
+
+### Overview
+
+Session history, reading streaks, total pages/time, and time-of-day activity heatmap powered by KOReader session data via TomeSync.
+
+### Insights
+
+Deeper analysis of your reading patterns:
+
+- **Completion estimates** — projected finish dates for books currently in progress, based on your recent reading pace
+- **Year in review** — summary of books read, pages turned, and time spent in a given year
+- **Period comparison** — compare your reading activity across two time periods (e.g. this month vs last month)
+- **Reading speed trend** — how your pages-per-hour has changed over time

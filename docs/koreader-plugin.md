@@ -44,6 +44,10 @@ If no match is found, the plugin silently skips sync for that book.
 | **Close a book** | Pushes final position and records a reading session. |
 | **"Sync now" in menu** | Manual push of current position and flushes pending offline sessions. |
 
+### Web Reader → KOReader Sync
+
+Progress saved in Tome's built-in web reader is written to `TomeSyncPosition` on the server. When you next open the same book in KOReader, the plugin detects the server is ahead and jumps to the position you left off at in the browser. This makes the web reader and KOReader fully bidirectional — you can switch between them without losing your place.
+
 ### Reading Sessions
 
 Every time you close the lid or close a book, the plugin records a session with:
