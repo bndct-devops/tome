@@ -1038,7 +1038,7 @@ export function BinderyPage() {
           }
         `}</style>
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4 safe-top">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link to="/" className="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
@@ -1314,7 +1314,7 @@ export function BinderyPage() {
   return (
     <div className={cn('flex flex-col h-full min-h-screen bg-background transition-opacity duration-150', viewTransition ? 'opacity-0' : 'opacity-100')}>
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-3">
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-3 safe-top">
         <div className="flex items-center gap-3">
           <button
             onClick={() => transitionTo('list')}

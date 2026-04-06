@@ -279,7 +279,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         </button>
 
         {open && (
-          <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-4">
+          <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-4 overscroll-contain">
             <div>
               <button
                 onClick={onOpenHomeView}
@@ -417,11 +417,13 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             onClick={onMobileClose}
           />
           {/* Drawer panel */}
-          <div className={cn(
-            'fixed inset-y-0 left-0 z-50 w-72 flex flex-col border-r border-border bg-card',
-            'transition-transform duration-200',
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
-          )}>
+          <div
+            className={cn(
+              'fixed inset-y-0 left-0 z-50 w-72 flex flex-col border-r border-border bg-card safe-top',
+              mobileOpen ? 'translate-x-0' : '-translate-x-full'
+            )}
+            style={{ transition: 'transform 0.35s var(--spring)' }}
+          >
             {/* Header with close button */}
             <div className="flex items-center justify-between px-3 h-14 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
@@ -436,7 +438,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4">
+            <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4 overscroll-contain">
               <div>
                 <button
                   onClick={() => { onOpenHomeView(); onMobileClose() }}

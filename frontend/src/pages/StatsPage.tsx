@@ -163,8 +163,8 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
   const svgH = 20 + 7 * (CELL + GAP)
 
   return (
-    <div className="relative overflow-x-auto flex justify-center">
-      <svg width={svgW} height={svgH} style={{ display: 'block' }}>
+    <div className="relative overflow-x-auto">
+      <svg width={svgW} height={svgH} className="mx-auto" style={{ display: 'block', minWidth: svgW }}>
         {monthLabels.map(({ x, label }) => (
           <text key={label + x} x={x} y={10} fontSize={9} fill="#94a3b8">{label}</text>
         ))}
@@ -195,7 +195,7 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
       {tooltip && (
         <div
           className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
-          style={{ left: tooltip.x + 12, top: tooltip.y - 44 }}
+          style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 180), top: tooltip.y - 44 }}
         >
           <div className="font-medium">{formatDate(tooltip.date)}</div>
           <div className="text-muted-foreground">{formatDuration(tooltip.seconds)}</div>
@@ -288,7 +288,7 @@ export function StatsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <Link to="/" className="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4" />

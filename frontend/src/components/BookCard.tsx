@@ -148,7 +148,7 @@ export function BookCard({
     )
 
     const cls = cn(
-      'group flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card transition-all duration-150',
+      'group flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card transition-all duration-150 touch-feedback',
       selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent hover:border-primary/20',
       focused && 'ring-2 ring-blue-500 ring-offset-1 ring-offset-background',
     )
@@ -194,7 +194,7 @@ export function BookCard({
   return (
     <div
       ref={cardRef as React.RefObject<HTMLDivElement>}
-      className="group flex flex-col cursor-pointer animate-card-appear"
+      className="group flex flex-col cursor-pointer animate-card-appear touch-feedback"
       style={{ animationDelay: `${Math.min(index * 30, 400)}ms`, perspective: '600px' }}
       onClick={onSelect ? onSelect : () => navigate(`/books/${book.id}`)}
       onMouseMove={handleMouseMove}

@@ -47,7 +47,7 @@ export function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-top">
       <style>{`
         @keyframes fade-in-up {
           from { opacity: 0; transform: translateY(12px); }

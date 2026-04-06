@@ -301,7 +301,7 @@ export function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 safe-top">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link

@@ -285,7 +285,7 @@ export function BookDetailPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 safe-top">
         <div className="max-w-5xl mx-auto px-4 py-2 sm:py-0 sm:h-14 flex items-center justify-between gap-2 min-h-14">
           <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 shrink">
             <Link to="/?tab=books" className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0">

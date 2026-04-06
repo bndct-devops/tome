@@ -777,7 +777,7 @@ export default function ReaderPage() {
         {/* Top toolbar (auto-hide) */}
         <div
           className={cn(
-            'flex items-center gap-3 px-4 h-12 shrink-0 border-b z-10 transition-transform duration-200',
+            'flex items-center gap-3 px-4 h-12 shrink-0 border-b z-10 transition-transform duration-200 safe-top',
             showToolbar ? 'translate-y-0' : '-translate-y-full'
           )}
           style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
@@ -1024,7 +1024,7 @@ export default function ReaderPage() {
     >
       {/* Top bar */}
       <div
-        className={cn('flex items-center gap-3 px-4 h-12 shrink-0 border-b z-10')}
+        className={cn('flex items-center gap-3 px-4 h-12 shrink-0 border-b z-10 safe-top')}
         style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
       >
         <button

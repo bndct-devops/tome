@@ -279,6 +279,33 @@
   100% { background-position: 200% 0; }
 }
 
+/* iOS safe area utilities */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* iOS-style spring curve */
+:root {
+  --spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Touch feedback for interactive elements */
+.touch-feedback {
+  transition: transform 0.2s var(--spring);
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-feedback:active {
+  transform: scale(0.97);
+}
+
+/* Contain overscroll in nested scrollables */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
 * {
   box-sizing: border-box;
   border-color: var(--border);

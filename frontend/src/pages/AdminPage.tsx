@@ -1573,7 +1573,7 @@ export function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
         <div className={cn('flex items-center px-4 h-14 mx-auto', (tab === 'metadata' || tab === 'library') ? 'max-w-full' : 'max-w-4xl')}>
           <div className="flex items-center gap-3">
             <Link to="/" className="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">

@@ -126,7 +126,7 @@ export function LoginPage() {
   const fmtTime = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-top">
       <style>{`
         @keyframes fade-in-up {
           from { opacity: 0; transform: translateY(12px); }

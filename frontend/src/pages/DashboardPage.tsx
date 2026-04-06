@@ -747,7 +747,7 @@ export function DashboardPage() {
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* ── Navbar ──────────────────────────────────────────────────────── */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 shrink-0">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 shrink-0 safe-top">
         <div className="px-4 h-14 flex items-center gap-3">
           <button
             className="md:hidden flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted shrink-0"
@@ -780,7 +780,7 @@ export function DashboardPage() {
           <div className="flex items-center gap-1.5 ml-auto">
             {(user?.is_admin || user?.permissions?.can_upload) && (
               <button onClick={() => setUploadModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all">
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all touch-feedback">
                 <Upload className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Upload</span>
               </button>
