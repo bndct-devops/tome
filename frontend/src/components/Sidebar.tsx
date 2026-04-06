@@ -217,7 +217,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   }
 
   function openEditFilterModal(sf: SavedFilter) {
-    setModalTitle('Edit Saved Filter')
+    setModalTitle('Edit Shelf')
     setModalInitialName(sf.name)
     setModalInitialIcon(sf.icon ?? 'Bookmark')
     setModalDefaultIcon('Bookmark')
@@ -379,7 +379,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             </Section>
 
             <Section
-              title="Saved Filters"
+              title="Shelves"
               icon={<Bookmark className="w-3 h-3" />}
             >
               {savedFilters.map(sf => (
@@ -517,7 +517,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               </Section>
 
               <Section
-                title="Saved Filters"
+                title="Shelves"
                 icon={<Bookmark className="w-3 h-3" />}
               >
                 {savedFilters.map(sf => (

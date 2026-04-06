@@ -10,7 +10,7 @@ from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
-from backend.models.tome_sync import ReadingSession
+from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.services.audit import audit
 
 router = APIRouter()
@@ -91,6 +91,29 @@ def set_book_status(
         db.add(row)
     db.commit()
     db.refresh(row)
+
+    # ── Sync position to TomeSyncPosition (for KOReader pickup) ─────────────
+    if body.progress_pct is not None or body.cfi is not None:
+        pos = db.query(TomeSyncPosition).filter(
+            TomeSyncPosition.user_id == current_user.id,
+            TomeSyncPosition.book_id == book_id,
+        ).first()
+        if pos:
+            if body.progress_pct is not None:
+                pos.percentage = body.progress_pct / 100.0
+            if body.cfi is not None:
+                pos.progress = body.cfi
+            pos.device = "web"
+            pos.updated_at = datetime.utcnow()
+        else:
+            db.add(TomeSyncPosition(
+                user_id=current_user.id,
+                book_id=book_id,
+                percentage=(body.progress_pct or 0) / 100.0,
+                progress=body.cfi,
+                device="web",
+            ))
+        db.commit()
 
     # ── Web reader session tracking ──────────────────────────────────────────
     _track_web_reading_session(
