@@ -603,6 +603,8 @@ def get_completion_estimates(
             .with_entities(
                 func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_secs"),
                 func.count(ReadingSession.id).label("session_count"),
+                func.min(ReadingSession.started_at).label("first_session"),
+                func.min(ReadingSession.progress_start).label("earliest_progress"),
             )
             .first()
         )
@@ -610,13 +612,17 @@ def get_completion_estimates(
         total_secs_30 = int(session_rows.total_secs) if session_rows and session_rows.total_secs else 0
         session_count = int(session_rows.session_count) if session_rows and session_rows.session_count else 0
 
-        avg_per_day = total_secs_30 / 30  # seconds per day averaged over window
-
         estimated_days: Optional[int] = None
-        if avg_per_day > 0 and progress > 0 and progress < 100:
-            # At current daily pace, how many more days to finish?
-            # progress_per_day = progress / 30 (assuming linear over 30-day window)
-            progress_per_day = progress / 30
+        if session_count > 0 and progress > 0 and progress < 100:
+            # Calculate progress gained during the window
+            earliest_pct = session_rows.earliest_progress or 0.0
+            # Normalise earliest_pct the same way as progress (0-1 → 0-100)
+            earliest_pct = round(earliest_pct * 100, 1) if earliest_pct <= 1.0 else round(earliest_pct, 1)
+            progress_gained = max(progress - earliest_pct, 0.1)  # floor to avoid div-by-zero
+
+            # Use actual days elapsed since first session, not fixed 30
+            days_elapsed = max(1, (datetime.utcnow() - session_rows.first_session).days) if session_rows.first_session else 30
+            progress_per_day = progress_gained / days_elapsed
             remaining = 100.0 - progress
             estimated_days = max(1, round(remaining / progress_per_day))
 
