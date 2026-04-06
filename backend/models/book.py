@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -29,6 +29,7 @@ class Book(Base):
     book_type_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("book_types.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
     content_type: Mapped[str] = mapped_column(String(16), default="volume", server_default="volume", nullable=False)
+    is_reviewed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     added_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"))
     added_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

@@ -2,13 +2,18 @@
 Bindery API — manage files in the incoming/ drop zone.
 
 Endpoints:
-  GET  /api/bindery/count    — lightweight badge count
-  GET  /api/bindery          — list pending files with parsed metadata
-  POST /api/bindery/preview  — fetch metadata candidates for a single file
-  POST /api/bindery/accept   — accept files into the library
-  POST /api/bindery/reject   — delete files from the bindery
+  GET    /api/bindery/count        — lightweight badge count
+  GET    /api/bindery              — list pending files with parsed metadata
+  POST   /api/bindery/preview      — fetch metadata candidates for a single file
+  POST   /api/bindery/accept       — accept files into the library
+  POST   /api/bindery/reject       — delete files from the bindery
+  GET    /api/bindery/unreviewed   — list auto-imported books awaiting review
+  PUT    /api/bindery/review-all   — mark all unreviewed books as reviewed
+  PUT    /api/bindery/review/{id}  — mark a single book as reviewed
+  DELETE /api/bindery/reject/{id}  — reject (delete) an unreviewed book
 """
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -420,3 +425,99 @@ def bindery_reject(
             errors.append({"path": rel_path, "error": str(exc)})
 
     return {"rejected": rejected, "errors": errors}
+
+
+# ---------------------------------------------------------------------------
+# Unreviewed books (auto-import inbox)
+# NOTE: These routes must appear before any `{path}` catch-all routes.
+# ---------------------------------------------------------------------------
+
+@router.get("/unreviewed")
+def list_unreviewed(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Return all books that were auto-imported and have not yet been reviewed."""
+    _require_bindery(current_user)
+    books = (
+        db.query(Book)
+        .filter(Book.is_reviewed == False)  # noqa: E712
+        .order_by(Book.added_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "series": b.series,
+            "series_index": b.series_index,
+            "cover_path": b.cover_path,
+            "added_at": b.added_at.isoformat() if b.added_at else None,
+            "format": b.files[0].format if b.files else None,
+        }
+        for b in books
+    ]
+
+
+@router.put("/review-all")
+def mark_all_reviewed(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Mark all unreviewed auto-imported books as reviewed."""
+    _require_bindery(current_user)
+    updated = (
+        db.query(Book)
+        .filter(Book.is_reviewed == False)  # noqa: E712
+        .update({"is_reviewed": True})
+    )
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+
+@router.put("/review/{book_id}")
+def mark_reviewed(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Mark a single auto-imported book as reviewed."""
+    _require_bindery(current_user)
+    book = db.get(Book, book_id)
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    book.is_reviewed = True
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/reject/{book_id}")
+def reject_book(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Reject an auto-imported book: delete its files from disk and remove it from the DB."""
+    _require_bindery(current_user)
+    book = db.get(Book, book_id)
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+
+    # Delete files from disk
+    for f in book.files:
+        try:
+            os.remove(f.file_path)
+        except OSError as exc:
+            logger.warning("Could not remove file %s: %s", f.file_path, exc)
+
+    # Delete cover from disk
+    if book.cover_path:
+        try:
+            os.remove(book.cover_path)
+        except OSError:
+            pass
+
+    db.delete(book)
+    db.commit()
+    return {"ok": True}

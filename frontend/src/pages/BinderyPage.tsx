@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
   ChevronRight, ChevronDown, ArrowLeft, FolderOpen,
@@ -16,6 +16,16 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface UnreviewedBook {
+  id: number
+  title: string
+  author: string | null
+  cover_path: string | null
+  added_at: string
+  book_type_label: string | null
+  files: { format: string }[]
+}
 
 interface BinderyItem {
   path: string
@@ -476,6 +486,7 @@ function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destruc
 export function BinderyPage() {
   const { toast } = useToast()
   const bookTypes = useBookTypes()
+  const navigate = useNavigate()
 
   // List view state
   const [view, setView] = useState<View>('list')
@@ -483,6 +494,13 @@ export function BinderyPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+
+  // Unreviewed (auto-imported) books
+  const [unreviewed, setUnreviewed] = useState<UnreviewedBook[]>([])
+  const [unreviewedLoading, setUnreviewedLoading] = useState(false)
+  const [confirmRejectUnreviewed, setConfirmRejectUnreviewed] = useState<number | null>(null)
+  const [rejectingUnreviewed, setRejectingUnreviewed] = useState(false)
+  const [reviewingAll, setReviewingAll] = useState(false)
 
   // Reject confirmation
   const [confirmReject, setConfirmReject] = useState<string[] | null>(null)
@@ -537,6 +555,19 @@ export function BinderyPage() {
   // Fetch helpers
   // ---------------------------------------------------------------------------
 
+  const fetchUnreviewed = useCallback(async () => {
+    setUnreviewedLoading(true)
+    try {
+      const data = await api.get<UnreviewedBook[]>('/bindery/unreviewed')
+      setUnreviewed(data)
+    } catch {
+      // Non-fatal — endpoint may not exist yet or returns empty
+      setUnreviewed([])
+    } finally {
+      setUnreviewedLoading(false)
+    }
+  }, [])
+
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
@@ -549,9 +580,13 @@ export function BinderyPage() {
     }
   }, [toast])
 
+  const fetchAll = useCallback(async () => {
+    await Promise.all([fetchItems(), fetchUnreviewed()])
+  }, [fetchItems, fetchUnreviewed])
+
   useEffect(() => {
-    fetchItems()
-  }, [fetchItems])
+    fetchAll()
+  }, [fetchAll])
 
   // ---------------------------------------------------------------------------
   // Grouping
@@ -932,6 +967,47 @@ export function BinderyPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Unreviewed book actions
+  // ---------------------------------------------------------------------------
+
+  async function acceptUnreviewed(bookId: number) {
+    try {
+      await api.put(`/bindery/review/${bookId}`)
+      setUnreviewed(prev => prev.filter(b => b.id !== bookId))
+      toast.success('Book accepted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Accept failed')
+    }
+  }
+
+  async function doRejectUnreviewed(bookId: number) {
+    setRejectingUnreviewed(true)
+    try {
+      await api.delete(`/bindery/reject/${bookId}`)
+      setUnreviewed(prev => prev.filter(b => b.id !== bookId))
+      toast.success('Book rejected and removed')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Reject failed')
+    } finally {
+      setRejectingUnreviewed(false)
+      setConfirmRejectUnreviewed(null)
+    }
+  }
+
+  async function reviewAll() {
+    setReviewingAll(true)
+    try {
+      await api.put('/bindery/review-all')
+      setUnreviewed([])
+      toast.success('All imported books accepted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Review all failed')
+    } finally {
+      setReviewingAll(false)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Review navigation
   // ---------------------------------------------------------------------------
 
@@ -1049,16 +1125,20 @@ export function BinderyPage() {
               <div>
                 <h1 className="text-sm font-semibold">Bindery</h1>
                 <p className="text-xs text-muted-foreground">
-                  {loading ? 'Loading...' : `${items.length} file${items.length !== 1 ? 's' : ''} waiting for review`}
+                  {loading || unreviewedLoading
+                    ? 'Loading...'
+                    : unreviewed.length > 0
+                      ? `${unreviewed.length} imported + ${items.length} incoming`
+                      : `${items.length} file${items.length !== 1 ? 's' : ''} waiting for review`}
                 </p>
               </div>
             </div>
             <button
-              onClick={fetchItems}
-              disabled={loading}
+              onClick={fetchAll}
+              disabled={loading || unreviewedLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+              <RefreshCw className={cn('h-3.5 w-3.5', (loading || unreviewedLoading) && 'animate-spin')} />
               Refresh
             </button>
           </div>
@@ -1125,7 +1205,7 @@ export function BinderyPage() {
             </div>
           )}
 
-          {!loading && items.length === 0 && (
+          {!loading && !unreviewedLoading && items.length === 0 && unreviewed.length === 0 && (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
               <Inbox
                 className="h-12 w-12 text-muted-foreground/30 mb-3"
@@ -1135,6 +1215,96 @@ export function BinderyPage() {
               <p className="text-sm text-muted-foreground/60 mt-1">
                 Drop files in the incoming folder to get started
               </p>
+            </div>
+          )}
+
+          {/* Recently Imported — unreviewed auto-imported books */}
+          {!unreviewedLoading && unreviewed.length > 0 && (
+            <div className="border-b border-border">
+              {/* Section header */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Recently Imported</span>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                    {unreviewed.length}
+                  </span>
+                </div>
+                <button
+                  onClick={reviewAll}
+                  disabled={reviewingAll}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                >
+                  {reviewingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  Accept All
+                </button>
+              </div>
+              {/* Cards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+                {unreviewed.map(book => {
+                  const format = book.files[0]?.format?.toUpperCase() ?? ''
+                  const addedAt = new Date(book.added_at)
+                  const diffMs = Date.now() - addedAt.getTime()
+                  const diffHrs = Math.floor(diffMs / 1000 / 60 / 60)
+                  const diffMins = Math.floor(diffMs / 1000 / 60)
+                  const timeAgo = diffHrs >= 24
+                    ? `${Math.floor(diffHrs / 24)}d ago`
+                    : diffHrs >= 1
+                      ? `${diffHrs}h ago`
+                      : diffMins >= 1
+                        ? `${diffMins}m ago`
+                        : 'just now'
+
+                  return (
+                    <div
+                      key={book.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 cursor-pointer hover:bg-accent/50 transition-colors group animate-fade-in-up"
+                      onClick={() => navigate(`/books/${book.id}`)}
+                    >
+                      {/* Cover */}
+                      <div className="shrink-0 h-16 w-11 rounded overflow-hidden bg-muted flex items-center justify-center">
+                        {book.cover_path ? (
+                          <img
+                            src={`/api/books/${book.id}/cover`}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <BookOpen className="h-5 w-5 text-muted-foreground/40" />
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{book.title}</p>
+                        {book.author && (
+                          <p className="text-xs text-muted-foreground truncate">{book.author}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">Added {timeAgo}</p>
+                      </div>
+                      {/* Badges + Actions */}
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        {format && <FormatBadge format={format} />}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={e => { e.stopPropagation(); acceptUnreviewed(book.id) }}
+                            className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors"
+                            title="Accept"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); setConfirmRejectUnreviewed(book.id) }}
+                            className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Reject"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -1290,7 +1460,7 @@ export function BinderyPage() {
           </div>
         )}
 
-        {/* Confirm reject dialog */}
+        {/* Confirm reject dialog for raw files */}
         <ConfirmDialog
           open={confirmReject !== null}
           title="Reject files"
@@ -1299,6 +1469,17 @@ export function BinderyPage() {
           destructive
           onConfirm={() => confirmReject && doReject(confirmReject)}
           onCancel={() => setConfirmReject(null)}
+        />
+
+        {/* Confirm reject dialog for unreviewed (imported) books */}
+        <ConfirmDialog
+          open={confirmRejectUnreviewed !== null}
+          title="Reject imported book"
+          message="Delete this book from the library? The file will be removed and this cannot be undone."
+          confirmLabel={rejectingUnreviewed ? 'Deleting...' : 'Delete'}
+          destructive
+          onConfirm={() => confirmRejectUnreviewed !== null && doRejectUnreviewed(confirmRejectUnreviewed)}
+          onCancel={() => setConfirmRejectUnreviewed(null)}
         />
       </div>
     )

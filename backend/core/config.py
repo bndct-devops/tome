@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     port: int = 8080
     hardcover_token: str | None = None
 
+    # Auto-import settings
+    auto_import: bool = False
+    auto_import_interval: int = 300  # seconds
+
     # JWT settings
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
