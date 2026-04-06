@@ -6,10 +6,11 @@ import {
   RefreshCw, FolderInput, HardDrive, Database,
   BookOpen, Folder, Trash, Tag, LogIn,
   Activity, ChevronsUpDown, Copy, GitMerge,
+  User, Eye,
 } from 'lucide-react'
 import { MetadataManager } from '@/components/MetadataManager'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { IconPicker } from '@/components/Sidebar'
@@ -18,23 +19,6 @@ import { invalidateBookTypesCache } from '@/lib/bookTypes'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-interface PermissionsData {
-  can_upload: boolean
-  can_download: boolean
-  can_edit_metadata: boolean
-  can_delete_books: boolean
-  can_manage_libraries: boolean
-  can_manage_tags: boolean
-  can_manage_series: boolean
-  can_manage_users: boolean
-  can_approve_bindery: boolean
-  can_view_stats: boolean
-  can_use_opds: boolean
-  can_use_kosync: boolean
-  can_share: boolean
-  can_bulk_operations: boolean
-}
-
 interface UserData {
   id: number
   username: string
@@ -42,7 +26,7 @@ interface UserData {
   is_active: boolean
   is_admin: boolean
   created_at: string
-  permissions: PermissionsData | null
+  role: 'admin' | 'member' | 'guest'
 }
 
 interface AdminStats {
@@ -65,23 +49,6 @@ interface ScanResult {
   errors?: number
 }
 
-const PERMISSION_LABELS: Record<keyof PermissionsData, string> = {
-  can_upload: 'Upload books',
-  can_download: 'Download books',
-  can_edit_metadata: 'Edit metadata',
-  can_delete_books: 'Delete books',
-  can_manage_libraries: 'Manage libraries',
-  can_manage_tags: 'Manage tags',
-  can_manage_series: 'Manage series',
-  can_manage_users: 'Manage users',
-  can_approve_bindery: 'Approve Bindery',
-  can_view_stats: 'View stats',
-  can_use_opds: 'Use OPDS',
-  can_use_kosync: 'Use KOSync',
-  can_share: 'Share books',
-  can_bulk_operations: 'Bulk operations',
-}
-
 // ── UserModal ─────────────────────────────────────────────────────────────
 
 function UserModal({ user, onClose, onSaved }: {
@@ -93,7 +60,7 @@ function UserModal({ user, onClose, onSaved }: {
   const [username, setUsername] = useState(user?.username ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
   const [password, setPassword] = useState('')
-  const [isAdmin, setIsAdmin] = useState(user?.is_admin ?? false)
+  const [role, setRole] = useState<'admin' | 'member' | 'guest'>(user?.role ?? 'guest')
   const [isActive, setIsActive] = useState(user?.is_active ?? true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -106,8 +73,8 @@ function UserModal({ user, onClose, onSaved }: {
     setSaving(true)
     try {
       const saved = user
-        ? await api.put<UserData>(`/users/${user.id}`, { username, email, ...(password ? { password } : {}), is_admin: isAdmin, is_active: isActive })
-        : await api.post<UserData>('/users', { username, email, password, is_admin: isAdmin })
+        ? await api.put<UserData>(`/users/${user.id}`, { username, email, ...(password ? { password } : {}), role, is_admin: role === 'admin', is_active: isActive })
+        : await api.post<UserData>('/users', { username, email, password, role, is_admin: role === 'admin' })
       onSaved(saved)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save')
@@ -115,6 +82,12 @@ function UserModal({ user, onClose, onSaved }: {
       setSaving(false)
     }
   }
+
+  const roles: { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[] = [
+    { value: 'guest', label: 'Guest', Icon: Eye },
+    { value: 'member', label: 'Member', Icon: User },
+    { value: 'admin', label: 'Admin', Icon: Shield },
+  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -146,14 +119,27 @@ function UserModal({ user, onClose, onSaved }: {
               className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               placeholder={user ? '••••••••' : 'password'} />
           </div>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <div onClick={() => setIsAdmin(v => !v)}
-              className={cn('w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer',
-                isAdmin ? 'bg-primary border-primary' : 'border-border')}>
-              {isAdmin && <Check className="w-3 h-3 text-primary-foreground" />}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Role</label>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              {roles.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setRole(value)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium transition-colors',
+                    role === value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <span className="text-sm">Admin</span>
-          </label>
+          </div>
           {user && !isSelf && (
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <div onClick={() => setIsActive(v => !v)}
@@ -230,15 +216,13 @@ function UsersTab() {
     } finally { setDeleting(null) }
   }
 
-  async function togglePermission(userId: number, key: keyof PermissionsData, current: boolean) {
-    const u = users.find(x => x.id === userId)
-    if (!u?.permissions) return
+  async function updateRole(userId: number, role: 'admin' | 'member' | 'guest') {
     setPermSaving(userId)
     try {
-      const saved = await api.put<UserData>(`/users/${userId}/permissions`, { ...u.permissions, [key]: !current })
+      const saved = await api.put<UserData>(`/users/${userId}`, { role, is_admin: role === 'admin' })
       setUsers(prev => prev.map(x => x.id === userId ? saved : x))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save permissions')
+      setError(e instanceof Error ? e.message : 'Failed to save role')
     } finally { setPermSaving(null) }
   }
 
@@ -269,13 +253,13 @@ function UsersTab() {
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold',
-                    u.is_admin ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+                    u.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
                     {u.username[0].toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium truncate">{u.username}</span>
-                      {u.is_admin && (
+                      {u.role === 'admin' && (
                         <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                           <Shield className="w-2.5 h-2.5" /> Admin
                         </span>
@@ -295,7 +279,7 @@ function UsersTab() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
-                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title="Permissions">
+                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title="Role">
                     {expandedId === u.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                   <button onClick={() => { setModalUser(u); setModalOpen(true) }}
@@ -333,34 +317,32 @@ function UsersTab() {
               </div>
               {expandedId === u.id && (
                 <div className="border-t border-border px-4 py-3 bg-muted/30">
-                  {u.is_admin ? (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Shield className="w-3.5 h-3.5 text-primary" /> Admin users have all permissions.
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">Role</span>
+                    <div className="flex rounded-lg border border-border overflow-hidden">
+                      {([
+                        { value: 'guest', label: 'Guest', Icon: Eye },
+                        { value: 'member', label: 'Member', Icon: User },
+                        { value: 'admin', label: 'Admin', Icon: Shield },
+                      ] as { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[]).map(({ value, label, Icon }) => (
+                        <button
+                          key={value}
+                          onClick={() => updateRole(u.id, value)}
+                          disabled={permSaving === u.id}
+                          className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                            u.role === value
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          )}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {label}
+                        </button>
+                      ))}
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {(Object.keys(PERMISSION_LABELS) as (keyof PermissionsData)[]).map(key => {
-                        const val = u.permissions?.[key] ?? false
-                        return (
-                          <button key={key} onClick={() => togglePermission(u.id, key, val)} disabled={permSaving === u.id}
-                            className={cn('flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs transition-colors text-left',
-                              val ? 'bg-primary/10 border-primary/20 text-primary'
-                                : 'bg-background border-border text-muted-foreground hover:bg-accent hover:text-foreground')}>
-                            <div className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
-                              val ? 'bg-primary border-primary' : 'border-border')}>
-                              {val && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                            </div>
-                            {PERMISSION_LABELS[key]}
-                          </button>
-                        )
-                      })}
-                      {permSaving === u.id && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Saving...
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {permSaving === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                  </div>
                 </div>
               )}
             </div>
@@ -1549,7 +1531,7 @@ export function AdminPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('users')
 
-  if (!user?.is_admin) {
+  if (!isAdmin(user)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3">
         <Shield className="w-10 h-10 text-muted-foreground" />

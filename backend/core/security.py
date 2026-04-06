@@ -98,6 +98,4 @@ def get_current_user_basic(
         matched_pin.last_used_at = _dt.utcnow()
         db.commit()
 
-    if user.permissions and not user.permissions.can_use_opds:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="OPDS access disabled")
     return user

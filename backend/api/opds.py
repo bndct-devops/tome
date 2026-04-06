@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.core.database import get_db
 from backend.core.security import get_current_user_basic
 from backend.core.config import settings
+from backend.core.permissions import is_admin as _is_admin
 from backend.models.book import Book, BookFile
 from backend.models.library import Library
 from backend.models.user import User
@@ -33,7 +34,7 @@ def _base_url(request: Request) -> str:
 
 def _apply_visibility(query, user: User):
     """Replicate the same visibility rules as the main books API."""
-    if user.is_admin:
+    if _is_admin(user):
         return query
     return query.join(Book.libraries).filter(
         (Library.is_public == True) |  # noqa: E712
@@ -256,7 +257,7 @@ def opds_libraries(
     user: User = Depends(get_current_user_basic),
 ):
     base = _base_url(request)
-    if user.is_admin:
+    if _is_admin(user):
         libs = db.query(Library).order_by(Library.sort_order.asc(), Library.name.asc()).all()
     else:
         libs = (
@@ -292,7 +293,7 @@ def opds_library_books(
     lib = db.get(Library, library_id)
     if not lib:
         raise HTTPException(status_code=404, detail="Library not found")
-    if not user.is_admin and not lib.is_public:
+    if not _is_admin(user) and not lib.is_public:
         if not any(u.id == user.id for u in lib.assigned_users):
             raise HTTPException(status_code=403)
 
@@ -370,9 +371,6 @@ def opds_download(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_basic),
 ):
-    if not user.is_admin and not (user.permissions and user.permissions.can_download):
-        raise HTTPException(status_code=403, detail="Download permission required")
-
     book = db.get(Book, book_id)
     if not book or book.status != "active":
         raise HTTPException(status_code=404)

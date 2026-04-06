@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.security import get_current_user
+from backend.core.permissions import require_role
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user import User
 from backend.services.audit import audit
@@ -40,14 +41,7 @@ SUPPORTED_EXTENSIONS = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
 # ---------------------------------------------------------------------------
 
 def _require_bindery(current_user: User) -> None:
-    if current_user.is_admin:
-        return
-    if current_user.permissions and current_user.permissions.can_approve_bindery:
-        return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Bindery permission required",
-    )
+    require_role(current_user, "admin")
 
 
 # ---------------------------------------------------------------------------

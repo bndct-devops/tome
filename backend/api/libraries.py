@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import get_current_user
+from backend.core.permissions import require_role, is_admin as _is_admin
 from backend.models.book import Book
 from backend.models.library import Library, SavedFilter, BookType
 from backend.models.user import User
@@ -135,7 +136,7 @@ def reorder_libraries(
 ):
     for i, lib_id in enumerate(body.ids):
         lib = db.query(Library).filter(Library.id == lib_id).first()
-        if lib and (lib.owner_id == current_user.id or current_user.is_admin):
+        if lib and (lib.owner_id == current_user.id or _is_admin(current_user)):
             lib.sort_order = i
     db.commit()
 
@@ -185,8 +186,7 @@ def assign_user_to_library(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     lib = _get_library(lib_id, current_user, db)
     user = db.query(User).filter(User.id == body.user_id).first()
     if not user:
@@ -203,8 +203,7 @@ def remove_user_from_library(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     lib = _get_library(lib_id, current_user, db)
     user = db.query(User).filter(User.id == user_id).first()
     if user and user in lib.assigned_users:
@@ -289,6 +288,6 @@ def _get_library(lib_id: int, user: User, db: Session) -> Library:
     lib = db.query(Library).filter(Library.id == lib_id).first()
     if not lib:
         raise HTTPException(status_code=404, detail="Library not found")
-    if lib.owner_id is not None and lib.owner_id != user.id and not user.is_admin:
+    if lib.owner_id is not None and lib.owner_id != user.id and not _is_admin(user):
         raise HTTPException(status_code=403, detail="Not your library")
     return lib

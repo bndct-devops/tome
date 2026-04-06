@@ -38,6 +38,7 @@ def setup(body: SetupRequest, db: Session = Depends(get_db)):
         email=body.email,
         hashed_password=hash_password(body.password),
         is_admin=True,
+        role="admin",
         is_active=True,
     )
     db.add(user)

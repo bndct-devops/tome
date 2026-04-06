@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import get_current_user
+from backend.core.permissions import require_role
 from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
@@ -346,8 +347,7 @@ def link_kosync_document(
 # ── User management (admin only) ────────────────────────────────────────────
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_admin:
-        raise HTTPException(403, "Admin only")
+    require_role(current_user, "admin")
     return current_user
 
 
@@ -376,6 +376,7 @@ class UserOut(BaseModel):
     email: str
     is_active: bool
     is_admin: bool
+    role: str
     created_at: str
     permissions: Optional[PermissionsSchema]
 
@@ -387,6 +388,7 @@ class UserCreate(BaseModel):
     email: str
     password: str
     is_admin: bool = False
+    role: str = "guest"
 
 
 class UserUpdate(BaseModel):
@@ -395,6 +397,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
+    role: Optional[str] = None
 
 
 @router.get("/users", response_model=list[UserOut])
@@ -410,6 +413,7 @@ def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
                 email=u.email,
                 is_active=u.is_active,
                 is_admin=u.is_admin,
+                role="admin" if u.is_admin else u.role,
                 created_at=str(u.created_at),
                 permissions=PermissionsSchema.model_validate(perms) if perms else None,
             )
@@ -418,17 +422,21 @@ def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
-def create_user(body: UserCreate, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def create_user(body: UserCreate, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(400, "Username already taken")
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(400, "Email already taken")
     hashed = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    # Keep is_admin and role in sync
+    effective_is_admin = body.is_admin or body.role == "admin"
+    effective_role = "admin" if effective_is_admin else body.role
     user = User(
         username=body.username,
         email=body.email,
         hashed_password=hashed,
-        is_admin=body.is_admin,
+        is_admin=effective_is_admin,
+        role=effective_role,
         must_change_password=True,  # Force password change on first login
     )
     db.add(user)
@@ -437,15 +445,16 @@ def create_user(body: UserCreate, db: Session = Depends(get_db), _: User = Depen
     db.add(perms)
     db.commit()
     db.refresh(user)
-    audit(db, "users.created", user_id=current_user.id, username=current_user.username,
+    audit(db, "users.created", user_id=admin.id, username=admin.username,
           resource_type="user", resource_id=user.id, resource_title=user.username,
-          details={"is_admin": body.is_admin})
+          details={"is_admin": user.is_admin, "role": user.role})
     return UserOut(
         id=user.id,
         username=user.username,
         email=user.email,
         is_active=user.is_active,
         is_admin=user.is_admin,
+        role="admin" if user.is_admin else user.role,
         created_at=str(user.created_at),
         permissions=PermissionsSchema.model_validate(user.permissions),
     )
@@ -469,8 +478,19 @@ def update_user(
         user.hashed_password = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
     if body.is_active is not None:
         user.is_active = body.is_active
-    if body.is_admin is not None:
+    # Keep is_admin and role in sync
+    if body.role is not None and body.is_admin is None:
+        # role changed without explicit is_admin — derive is_admin from new role
+        user.role = body.role
+        user.is_admin = body.role == "admin"
+    elif body.is_admin is not None and body.role is None:
+        # is_admin changed without explicit role — derive role from is_admin
         user.is_admin = body.is_admin
+        user.role = "admin" if body.is_admin else ("guest" if user.role == "admin" else user.role)
+    elif body.is_admin is not None and body.role is not None:
+        # Both specified — honour both; role wins for the role field
+        user.is_admin = body.is_admin or body.role == "admin"
+        user.role = "admin" if user.is_admin else body.role
     db.commit()
     db.refresh(user)
     audit(db, "users.updated", user_id=admin.id, username=admin.username,
@@ -482,6 +502,7 @@ def update_user(
         email=user.email,
         is_active=user.is_active,
         is_admin=user.is_admin,
+        role="admin" if user.is_admin else user.role,
         created_at=str(user.created_at),
         permissions=PermissionsSchema.model_validate(user.permissions) if user.permissions else None,
     )
@@ -548,6 +569,7 @@ def set_permissions(
         email=user.email,
         is_active=user.is_active,
         is_admin=user.is_admin,
+        role="admin" if user.is_admin else user.role,
         created_at=str(user.created_at),
         permissions=PermissionsSchema.model_validate(user.permissions),
     )
@@ -558,8 +580,7 @@ def get_sync_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list:
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     from backend.models.book import Book
     from backend.models.tome_sync import TomeSyncPosition
     from sqlalchemy import or_
@@ -633,8 +654,7 @@ def delete_sync_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     from backend.models.tome_sync import TomeSyncPosition, ReadingSession
 
     tsp = db.query(TomeSyncPosition).filter(
@@ -666,8 +686,7 @@ def get_audit_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     from backend.models.audit_log import AuditLog
     from datetime import datetime, timedelta
     q = db.query(AuditLog).order_by(AuditLog.created_at.desc())
@@ -708,8 +727,7 @@ def get_admin_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     from backend.models.book import Book
     from backend.core.config import settings
     import os
@@ -742,8 +760,7 @@ def clear_covers_cache(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin only")
+    require_role(current_user, "admin")
     import shutil, os
     from backend.core.config import settings
     covers_dir = os.path.join(settings.data_dir, "covers")

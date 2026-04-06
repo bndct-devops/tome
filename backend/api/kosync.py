@@ -29,9 +29,10 @@ def _get_kosync_user(
         raise HTTPException(status_code=401, detail="Unauthorized")
     # Check Tome permission if linked
     if user.user_id:
+        from backend.core.permissions import has_role
         tome_user = db.get(User, user.user_id)
-        if tome_user and tome_user.permissions and not tome_user.permissions.can_use_kosync:
-            raise HTTPException(status_code=403, detail="KOSync access disabled")
+        if tome_user and not has_role(tome_user, "member"):
+            raise HTTPException(status_code=403, detail="KOSync access requires member role or above")
     return user
 
 

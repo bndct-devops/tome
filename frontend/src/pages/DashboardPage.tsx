@@ -7,7 +7,7 @@ import {
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
   Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2,
 } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
 import { Sidebar } from '@/components/Sidebar'
@@ -788,7 +788,7 @@ export function DashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-1.5 ml-auto">
-            {(user?.is_admin || user?.permissions?.can_upload) && (
+            {isMember(user) && (
               <button onClick={() => setUploadModalOpen(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all touch-feedback">
                 <Upload className="w-3.5 h-3.5" />

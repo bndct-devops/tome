@@ -6,7 +6,7 @@ import {
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon
 } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
@@ -83,8 +83,8 @@ export function BookDetailPage() {
 
 
   const isDirty = editing && book != null && JSON.stringify(draft) !== JSON.stringify(book)
-  const canEdit = user?.is_admin || user?.permissions?.can_edit_metadata
-  const canDelete = user?.is_admin || user?.permissions?.can_delete_books
+  const canEdit = isMember(user)
+  const canDelete = isMember(user)
 
   useEffect(() => {
     if (!isDirty) return

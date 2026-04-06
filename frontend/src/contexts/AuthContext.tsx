@@ -27,6 +27,19 @@ export interface AuthUser {
   must_change_password: boolean
   created_at: string
   permissions: Permissions | null
+  role: 'admin' | 'member' | 'guest'
+}
+
+export function isAdmin(user: AuthUser | null): boolean {
+  return user?.is_admin || user?.role === 'admin' || false
+}
+
+export function isMember(user: AuthUser | null): boolean {
+  return isAdmin(user) || user?.role === 'member' || false
+}
+
+export function isGuest(user: AuthUser | null): boolean {
+  return user?.role === 'guest' || false
 }
 
 interface AuthContextValue {

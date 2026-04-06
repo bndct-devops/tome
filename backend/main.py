@@ -37,6 +37,17 @@ async def lifespan(app: FastAPI):
         if "content_type" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN content_type VARCHAR(16) DEFAULT 'volume' NOT NULL"))
             conn.commit()
+        user_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
+        if "role" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(16) NOT NULL DEFAULT 'guest'"))
+            conn.execute(text("UPDATE users SET role = 'admin' WHERE is_admin = 1"))
+            conn.execute(text(
+                "UPDATE users SET role = 'member' "
+                "WHERE is_admin = 0 AND id IN ("
+                "  SELECT user_id FROM user_permissions WHERE can_upload = 1"
+                ")"
+            ))
+            conn.commit()
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()

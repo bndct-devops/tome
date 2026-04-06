@@ -11,7 +11,7 @@ import { api } from '@/lib/api'
 import type { Library, SavedFilter } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { applyTheme, getStoredTheme, THEMES } from '@/lib/theme'
 
 const SIDEBAR_KEY = 'tome_sidebar'
@@ -153,7 +153,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   const [badgePulse, setBadgePulse] = useState(false)
 
   useEffect(() => {
-    if (!user?.is_admin && !user?.permissions?.can_approve_bindery) return
+    if (!isAdmin(user)) return
     const fetchCount = () => {
       api.get<{ count: number }>('/bindery/count')
         .then(d => setBinderyCount(d.count))
@@ -330,7 +330,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 <BarChart3 className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
                 <span className="truncate">Stats</span>
               </Link>
-              {(user?.is_admin || user?.permissions?.can_approve_bindery) && (
+              {isAdmin(user) && (
                 <Link
                   to="/bindery"
                   className={cn(
@@ -547,7 +547,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{user?.username}</p>
-                  {user?.is_admin && <p className="text-[11px] text-muted-foreground">Admin</p>}
+                  {isAdmin(user) && <p className="text-[11px] text-muted-foreground">Admin</p>}
                 </div>
               </div>
               {/* Actions */}
@@ -561,7 +561,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   <Settings className="w-5 h-5 shrink-0" />
                   Settings
                 </Link>
-                {user?.is_admin && (
+                {isAdmin(user) && (
                   <Link
                     to="/admin"
                     onClick={onMobileClose}
@@ -610,7 +610,7 @@ function MobileThemeToggle() {
   )
 }
 
-function UserMenu({ user, logout }: { user: { username: string; is_admin?: boolean } | null; logout: () => void }) {
+function UserMenu({ user, logout }: { user: { username: string; is_admin?: boolean; role?: string } | null; logout: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const [isDark, setIsDark] = useState(() => {
@@ -666,7 +666,7 @@ function UserMenu({ user, logout }: { user: { username: string; is_admin?: boole
             <Settings className="w-4 h-4 shrink-0" />
             Settings
           </Link>
-          {user?.is_admin && (
+          {(user?.is_admin || user?.role === 'admin') && (
             <Link to="/admin" onClick={() => setOpen(false)} className={menuItem}>
               <Shield className="w-4 h-4 shrink-0" />
               Admin

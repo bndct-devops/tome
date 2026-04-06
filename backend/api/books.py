@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.security import get_current_user
+from backend.core.permissions import require_role
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
@@ -49,10 +50,7 @@ def trigger_import(
     current_user: User = Depends(get_current_user),
 ):
     """Import new files from incoming/ into the library."""
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_upload
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Import permission required")
+    require_role(current_user, "member")
 
     result = import_incoming(
         incoming_dir=settings.incoming_dir,
@@ -72,10 +70,7 @@ def trigger_scan(
     current_user: User = Depends(get_current_user),
 ):
     """Scan library/ for files not yet in the DB (e.g. manually added)."""
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_upload
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Scan permission required")
+    require_role(current_user, "member")
 
     result = scan_library(
         library_dir=settings.library_dir,
@@ -133,7 +128,8 @@ def list_books(
     query = db.query(Book).filter(Book.status == "active")
 
     # Visibility: non-admins only see books in public libraries or libraries they're assigned to
-    if not current_user.is_admin:
+    from backend.core.permissions import is_admin as _is_admin
+    if not _is_admin(current_user):
         query = query.join(Book.libraries).filter(
             (Library.is_public == True) |
             Library.assigned_users.any(User.id == current_user.id)
@@ -546,8 +542,7 @@ def standardize_titles(
     current_user: User = Depends(get_current_user),
 ):
     """Preview title standardization proposals. Does NOT apply changes."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    require_role(current_user, "admin")
 
     books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
     return [_standardize_book_title(b) for b in books]
@@ -566,8 +561,7 @@ def purge_empty_dirs(
     current_user: User = Depends(get_current_user),
 ):
     """Walk library_dir bottom-up and remove dirs that contain only hidden files. Admin only."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    require_role(current_user, "admin")
 
     removed: list[str] = []
     # Walk bottom-up so child dirs are processed before parents
@@ -616,8 +610,7 @@ def library_health(
     current_user: User = Depends(get_current_user),
 ):
     """Compare actual file locations against organizer rules. Admin only."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    require_role(current_user, "admin")
 
     from sqlalchemy.orm import joinedload as _jl
     books = (
@@ -669,8 +662,7 @@ def reorganize_files(
     current_user: User = Depends(get_current_user),
 ):
     """Move book files to match current metadata. Admin only."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    require_role(current_user, "admin")
 
     files = db.query(BookFile).filter(BookFile.id.in_(req.file_ids)).all()
     book_ids = {bf.book_id for bf in files}
@@ -734,8 +726,7 @@ def metadata_audit(
     current_user: User = Depends(get_current_user),
 ):
     """Returns all books with completeness scores for the admin metadata manager."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    require_role(current_user, "admin")
 
     from sqlalchemy.orm import joinedload as _jl
     books = (
@@ -956,10 +947,7 @@ async def bulk_fetch_candidates(
     current_user: User = Depends(get_current_user),
 ):
     """Fetch metadata candidates for multiple books for user review. Does not apply anything."""
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_edit_metadata
-    ):
-        raise HTTPException(status_code=403, detail="Edit metadata permission required")
+    require_role(current_user, "member")
 
     if len(body.book_ids) > 100:
         raise HTTPException(status_code=400, detail="Too many books (max 100)")
@@ -1017,10 +1005,7 @@ async def bulk_fetch_metadata(
     current_user: User = Depends(get_current_user),
 ):
     """For each book, fetch the best metadata candidate and fill any empty fields."""
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_edit_metadata
-    ):
-        raise HTTPException(status_code=403, detail="Edit metadata permission required")
+    require_role(current_user, "member")
 
     if len(body.book_ids) > 100:
         raise HTTPException(status_code=400, detail="Too many books (max 100)")
@@ -1111,10 +1096,7 @@ def bulk_update_metadata(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_edit_metadata
-    ):
-        raise HTTPException(status_code=403, detail="Edit metadata permission required")
+    require_role(current_user, "member")
 
     bt = None
     if body.book_type_id is not None:
@@ -1162,10 +1144,7 @@ def update_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_edit_metadata
-    ):
-        raise HTTPException(status_code=403, detail="Edit metadata permission required")
+    require_role(current_user, "member")
 
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
@@ -1285,10 +1264,7 @@ async def set_book_cover(
     current_user: User = Depends(get_current_user),
 ):
     """Replace a book's cover — accepts either a remote URL or a file upload."""
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_edit_metadata
-    ):
-        raise HTTPException(status_code=403, detail="Edit metadata permission required")
+    require_role(current_user, "member")
 
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
@@ -1333,11 +1309,6 @@ def download_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_download
-    ):
-        raise HTTPException(status_code=403, detail="Download permission required")
-
     book_file = (
         db.query(BookFile)
         .filter(BookFile.id == file_id, BookFile.book_id == book_id)
@@ -1609,10 +1580,7 @@ def delete_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_delete_books
-    ):
-        raise HTTPException(status_code=403, detail="Delete permission required")
+    require_role(current_user, "member")
 
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
@@ -1650,10 +1618,7 @@ def upload_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_upload
-    ):
-        raise HTTPException(status_code=403, detail="Upload permission required")
+    require_role(current_user, "member")
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename")
@@ -1804,10 +1769,7 @@ async def apply_metadata(
     current_user: User = Depends(get_current_user),
 ):
     """Apply only the explicitly passed fields from a chosen candidate."""
-    if not current_user.is_admin and not (
-        current_user.permissions and current_user.permissions.can_edit_metadata
-    ):
-        raise HTTPException(status_code=403, detail="Edit metadata permission required")
+    require_role(current_user, "member")
 
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:

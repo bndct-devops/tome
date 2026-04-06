@@ -53,6 +53,7 @@ class UserOut(BaseModel):
     email: str
     is_active: bool
     is_admin: bool
+    role: str = "guest"
     must_change_password: bool = False
     created_at: datetime
     permissions: Optional[PermissionsOut] = None
