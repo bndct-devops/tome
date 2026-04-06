@@ -351,7 +351,7 @@ export function BookDetailPage() {
                   </button>
                   <button
                     onClick={() => setConfirmDelete(false)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                   >
                     <X className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Cancel</span>

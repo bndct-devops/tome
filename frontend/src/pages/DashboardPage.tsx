@@ -1128,6 +1128,7 @@ export function DashboardPage() {
                                   onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
                                   className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                                   title="Read"
+                                  aria-label="Read"
                                 >
                                   <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
                                     <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
@@ -1307,7 +1308,7 @@ export function DashboardPage() {
                 { mode: 'small' as ViewMode, Icon: LayoutList, title: 'Small covers' },
                 { mode: 'list' as ViewMode, Icon: List, title: 'List view' },
               ]).map(({ mode, Icon, title }) => (
-                <button key={mode} onClick={() => persistView(mode)} title={title}
+                <button key={mode} onClick={() => persistView(mode)} title={title} aria-label={title}
                   className={cn('p-1.5 rounded-md transition-all',
                     view === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
                   <Icon className="w-3.5 h-3.5" />

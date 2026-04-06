@@ -298,7 +298,7 @@ export function BookCard({
       </div>
 
       {/* Info — bare below the cover, no border/card wrapper */}
-      <div className={cn('flex flex-col gap-0.5', view === 'large' ? 'pt-2 px-0.5' : 'pt-2 px-0.5')}>
+      <div className="flex flex-col gap-0.5 pt-2 px-0.5">
         <p className={cn(
           'font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary',
           view === 'large' ? 'text-[13px]' : 'text-xs'

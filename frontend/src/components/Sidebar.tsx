@@ -65,11 +65,12 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
         onClick={() => { setOpen(o => !o); setSearch('') }}
         className="flex items-center justify-center w-7 h-7 rounded-md border border-border bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
         title="Choose icon"
+        aria-label="Choose icon"
       >
         <Curr className="w-3.5 h-3.5" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-xl p-2 w-72">
+        <div className="absolute left-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl p-2 w-72">
           <input
             ref={searchRef}
             value={search}

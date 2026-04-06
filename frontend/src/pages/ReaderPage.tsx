@@ -261,6 +261,7 @@ function StreamingComicReader({
           alt={`Page ${currentPage + 1}`}
           style={spread ? { maxHeight: '100%', maxWidth: hasSecondPage ? '50%' : '100%', objectFit: 'contain' } : imgStyle}
           onLoad={() => setImageLoaded(true)}
+          onError={() => setImageLoaded(true)}
           draggable={false}
         />
         {hasSecondPage && (
@@ -961,7 +962,7 @@ export default function ReaderPage() {
                       ? 'bg-primary text-primary-foreground'
                       : isDarkTheme
                         ? 'bg-white/10 text-white/50 hover:bg-white/20'
-                        : 'bg-black/8 text-black/40 hover:bg-black/15'
+                        : 'bg-black/10 text-black/40 hover:bg-black/20'
                   )}
                 >
                   {i + 1}
