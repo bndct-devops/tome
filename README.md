@@ -1,6 +1,8 @@
 # Tome
 
-A self-hosted ebook library server. Scan, upload, browse, and read your entire collection from any device.
+A self-hosted ebook library server that knows how you read -- not just what you own.
+
+Most library servers stop at file management. Tome connects to your e-reader via a custom [KOReader](https://koreader.rocks) plugin, records every reading session with page-level granularity, syncs positions bidirectionally between device and browser, and turns all of it into stats that get sharper the more you read. Pair that with best-in-class metadata from [Hardcover](https://hardcover.app) and you get a library that actually understands your reading habits.
 
 Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 
@@ -11,12 +13,12 @@ Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 
 ## Highlights
 
-- **Built-in reader** -- EPUBs, manga (CBZ/CBR), and PDFs render directly in the browser. Two-page spread, RTL mode, webtoon scroll, pinch-to-zoom on mobile. [Details](docs/reader.md)
-- **KOReader sync** -- custom TomeSync plugin syncs reading positions and sessions, works fully offline. [Details](docs/koreader-plugin.md)
-- **Bindery** -- an inbox for incoming books. Drop files in a folder, review pre-filled metadata, accept into your library. [Details](docs/bindery-deployment.md)
+- **TomeSync** -- custom KOReader plugin records reading sessions, syncs positions bidirectionally (device to web, web to device), and works fully offline. This is what makes Tome different. [Details](docs/koreader-plugin.md)
+- **Reading stats** -- session tracking, streaks, time-of-day heatmaps, reading pace, completion estimates, genre trends, monthly comparisons, and per-book breakdowns -- all powered by real session data from your e-reader
 - **Metadata from 3 sources** -- fetch and compare metadata from [Hardcover](https://hardcover.app), Google Books, and OpenLibrary with a side-by-side diff UI
-- **OPDS feed** -- browse and download from [KOReader](https://koreader.rocks), Panels, Chunky, or any OPDS client
-- **Reading stats** -- session tracking, streaks, time-of-day heatmaps, and charts
+- **Built-in reader** -- EPUBs, manga (CBZ/CBR), and PDFs render directly in the browser. Two-page spread, RTL mode, webtoon scroll, pinch-to-zoom on mobile. [Details](docs/reader.md)
+- **Bindery** -- an inbox for incoming books. Drop files in a folder, review pre-filled metadata, accept into your library. Optional auto-import on a schedule. [Details](docs/bindery-deployment.md)
+- **OPDS feed** -- browse and download from KOReader, Panels, Chunky, or any OPDS client
 - **Themes** -- 3 built-in (light, dark, amber) plus fully custom themes via 10-value hex palette
 
 Plus: series browsing, bulk operations, libraries with icons, shelves (saved filters), Quick Connect (6-char code sign-in), OPDS PINs (e-ink-friendly passwords), role-based access control, per-user book visibility, audit logging, and a bulk import script. [Full feature list](docs/features.md)
