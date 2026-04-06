@@ -46,7 +46,7 @@ SUPPORTED_EXTENSIONS = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
 # ---------------------------------------------------------------------------
 
 def _require_bindery(current_user: User) -> None:
-    require_role(current_user, "admin")
+    require_role(current_user, "member")
 
 
 # ---------------------------------------------------------------------------

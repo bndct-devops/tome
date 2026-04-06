@@ -38,6 +38,7 @@ def _make_non_admin(
         is_active=True,
         is_admin=False,
         must_change_password=False,
+        role="member" if can_approve_bindery else "guest",
     )
     db.add(user)
     db.flush()
