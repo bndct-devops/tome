@@ -122,18 +122,53 @@ def list_books(
     reading_status: Optional[str] = Query(None, description="Filter by reading status: unread, reading, read"),
     missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any"),
     content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
+    added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
+    ownership: Optional[str] = Query(None, description="Ownership filter: 'mine' or 'shared' (member only)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from backend.core.permissions import is_admin as _is_admin
+    from sqlalchemy import or_
+
     query = db.query(Book).filter(Book.status == "active")
 
-    # Visibility: non-admins only see books in public libraries or libraries they're assigned to
-    from backend.core.permissions import is_admin as _is_admin
+    # ── Role-based visibility ────────────────────────────────────────────────
     if not _is_admin(current_user):
-        query = query.join(Book.libraries).filter(
-            (Library.is_public == True) |
-            Library.assigned_users.any(User.id == current_user.id)
-        )
+        from backend.models.library import library_users_table
+        # Collect admin user IDs (NULL added_by also treated as admin-uploaded)
+        admin_ids = [
+            u.id for u in db.query(User).filter(
+                (User.is_admin == True) | (User.role == "admin")
+            ).all()
+        ]
+        if current_user.role == "member":
+            # Member sees: admin-uploaded books + own uploads + books in assigned libraries
+            assigned_lib_ids = [
+                row[1] for row in db.execute(
+                    library_users_table.select().where(
+                        library_users_table.c.user_id == current_user.id
+                    )
+                ).fetchall()
+            ]
+            visibility_conditions = [
+                Book.added_by.in_(admin_ids),
+                Book.added_by.is_(None),        # legacy books without uploader = shared
+                Book.added_by == current_user.id,
+            ]
+            if assigned_lib_ids:
+                visibility_conditions.append(
+                    Book.libraries.any(Library.id.in_(assigned_lib_ids))
+                )
+            query = query.filter(or_(*visibility_conditions))
+        else:
+            # Guest sees: admin-uploaded books + books in public libraries
+            query = query.filter(
+                or_(
+                    Book.added_by.in_(admin_ids),
+                    Book.added_by.is_(None),    # legacy books without uploader = shared
+                    Book.libraries.any(Library.is_public == True),
+                )
+            )
 
     if q:
         from sqlalchemy import text as sa_text
@@ -195,6 +230,26 @@ def list_books(
 
     if content_type:
         query = query.filter(Book.content_type == content_type)
+
+    # ── Ownership / uploader filters ─────────────────────────────────────────
+    from backend.core.permissions import is_admin as _is_admin_check
+    if added_by is not None and _is_admin_check(current_user):
+        query = query.filter(Book.added_by == added_by)
+    if ownership == "mine":
+        query = query.filter(Book.added_by == current_user.id)
+    elif ownership == "shared":
+        from sqlalchemy import or_ as _or_
+        shared_admin_ids = [
+            u.id for u in db.query(User).filter(
+                (User.is_admin == True) | (User.role == "admin")
+            ).all()
+        ]
+        query = query.filter(
+            _or_(
+                Book.added_by.in_(shared_admin_ids),
+                Book.added_by.is_(None),
+            )
+        )
 
     # When filtering by a specific series, always sort by series_index
     if series:
@@ -829,11 +884,40 @@ def get_adjacent_books(
 def get_book(
     book_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    from backend.core.permissions import is_admin as _is_admin
+    from sqlalchemy import or_
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
+    # Visibility check for non-admins
+    if not _is_admin(current_user):
+        from backend.models.library import library_users_table
+        admin_ids = {
+            u.id for u in db.query(User).filter(
+                (User.is_admin == True) | (User.role == "admin")
+            ).all()
+        }
+        is_admin_book = book.added_by is None or book.added_by in admin_ids
+        is_own_book = book.added_by == current_user.id
+        if current_user.role == "member":
+            assigned_lib_ids = {
+                row[1] for row in db.execute(
+                    library_users_table.select().where(
+                        library_users_table.c.user_id == current_user.id
+                    )
+                ).fetchall()
+            }
+            book_lib_ids = {lib.id for lib in book.libraries}
+            in_assigned_library = bool(assigned_lib_ids & book_lib_ids)
+            if not (is_admin_book or is_own_book or in_assigned_library):
+                raise HTTPException(status_code=404, detail="Book not found")
+        else:
+            # Guest
+            in_public_library = any(lib.is_public for lib in book.libraries)
+            if not (is_admin_book or in_public_library):
+                raise HTTPException(status_code=404, detail="Book not found")
     return book
 
 
@@ -1149,6 +1233,11 @@ def update_book(
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
+
+    # Members can only edit their own uploads; admins can edit any book
+    from backend.core.permissions import is_admin as _is_admin
+    if not _is_admin(current_user) and book.added_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit books you uploaded")
 
     data = body.model_dump(exclude_unset=True)
     tags = data.pop("tags", None)
@@ -1585,6 +1674,11 @@ def delete_book(
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
+
+    # Members can only delete their own uploads; admins can delete any book
+    from backend.core.permissions import is_admin as _is_admin
+    if not _is_admin(current_user) and book.added_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete books you uploaded")
 
     # Remove book files from disk
     for bf in book.files:

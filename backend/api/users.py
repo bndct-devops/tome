@@ -400,6 +400,24 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
 
 
+@router.get("/users/list")
+def list_users_simple(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return minimal user list for filter dropdowns. Admin only."""
+    require_role(current_user, "admin")
+    users = db.query(User).filter(User.is_active == True).all()
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "role": "admin" if u.is_admin else u.role,
+        }
+        for u in users
+    ]
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     users = db.query(User).order_by(User.created_at).all()

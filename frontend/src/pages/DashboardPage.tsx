@@ -7,7 +7,7 @@ import {
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
   Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2,
 } from 'lucide-react'
-import { useAuth, isMember } from '@/contexts/AuthContext'
+import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
 import { Sidebar } from '@/components/Sidebar'
@@ -361,6 +361,17 @@ export function DashboardPage() {
   const filterLibrary = searchParams.get('library_id') ? Number(searchParams.get('library_id')) : null
   const filterReadingStatus = searchParams.get('reading_status') ?? ''
   const filterMissing = searchParams.get('missing') ?? ''
+  const filterOwnership = searchParams.get('ownership') ?? ''
+  const filterAddedBy = searchParams.get('added_by') ? Number(searchParams.get('added_by')) : null
+
+  // ── User list for admin uploader filter ──────────────────────────────────
+  interface SimpleUser { id: number; username: string; role: string }
+  const [userList, setUserList] = useState<SimpleUser[]>([])
+  useEffect(() => {
+    if (isAdmin(user)) {
+      api.get<SimpleUser[]>('/users/list').then(setUserList).catch(() => {})
+    }
+  }, [user])
 
   function setFilter(key: string, value: string, replace = false) {
     setSearchParams(prev => {
@@ -382,7 +393,7 @@ export function DashboardPage() {
     })
   }
 
-  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterReadingStatus || filterMissing)
+  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterReadingStatus || filterMissing || filterOwnership || filterAddedBy)
 
   // ── Debounced search ──────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState(search)
@@ -584,6 +595,8 @@ export function DashboardPage() {
     if (filterReadingStatus) params.set('reading_status', filterReadingStatus)
     if (filterMissing) params.set('missing', filterMissing)
     if (contentType) params.set('content_type', contentType)
+    if (filterOwnership) params.set('ownership', filterOwnership)
+    if (filterAddedBy) params.set('added_by', String(filterAddedBy))
     api.getWithHeaders<Book[]>(`/books?${params}`, signal)
       .then(({ data: newBooks, headers }) => {
         if (signal?.aborted) return
@@ -617,7 +630,7 @@ export function DashboardPage() {
         if (reset) { setLoading(false); setRefreshing(false) }
         else setLoadingMore(false)
       })
-  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLibrary, filterReadingStatus, filterMissing, contentType])
+  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLibrary, filterReadingStatus, filterMissing, contentType, filterOwnership, filterAddedBy])
 
   useEffect(() => { loadBooks() }, [loadBooks])
 
@@ -735,6 +748,8 @@ export function DashboardPage() {
     ...(filterFormat ? [{ label: `Format: ${filterFormat.toUpperCase()}`, key: 'format' }] : []),
     ...(filterReadingStatus ? [{ label: `Status: ${filterReadingStatus.charAt(0).toUpperCase() + filterReadingStatus.slice(1)}`, key: 'reading_status' }] : []),
     ...(filterMissing ? [{ label: `Missing: ${filterMissing.charAt(0).toUpperCase() + filterMissing.slice(1)}`, key: 'missing' }] : []),
+    ...(filterOwnership === 'mine' ? [{ label: 'My Books', key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: 'Shared Library', key: 'ownership' }] : []),
+    ...(filterAddedBy ? [{ label: `Uploader: ${userList.find(u => u.id === filterAddedBy)?.username ?? filterAddedBy}`, key: 'added_by' }] : []),
   ]
 
   // Params to pass to SaveFilterButton (excludes library_id — that belongs in sidebar)
@@ -1409,6 +1424,46 @@ export function DashboardPage() {
                   </button>
                 ))}
               </div>
+              {/* Ownership filter — members only (not admin) */}
+              {isMember(user) && !isAdmin(user) && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-medium w-14">Books</span>
+                  {([
+                    { value: '', label: 'All' },
+                    { value: 'mine', label: 'My Books' },
+                    { value: 'shared', label: 'Shared Library' },
+                  ] as const).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setFilter('ownership', value)}
+                      className={cn(
+                        'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
+                        filterOwnership === value
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Uploader filter — admins only */}
+              {isAdmin(user) && userList.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-medium w-14">Uploader</span>
+                  <select
+                    value={filterAddedBy ?? ''}
+                    onChange={e => setFilter('added_by', e.target.value)}
+                    className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">All users</option>
+                    {userList.map(u => (
+                      <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground font-medium w-14">Type</span>
                 <select
