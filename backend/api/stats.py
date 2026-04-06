@@ -404,6 +404,130 @@ def get_stats(
             "most_active_month": most_active_month,
         }
 
+    # ── Per-book time breakdown (full list, no limit) ────────────────────────
+    per_book_rows = (
+        base.filter(ReadingSession.book_id.isnot(None))
+        .join(Book, Book.id == ReadingSession.book_id)
+        .with_entities(
+            ReadingSession.book_id,
+            Book.title,
+            Book.author,
+            Book.cover_path,
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+            func.count(ReadingSession.id).label("sessions"),
+            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
+        )
+        .group_by(ReadingSession.book_id, Book.title, Book.author, Book.cover_path)
+        .order_by(func.sum(ReadingSession.duration_seconds).desc())
+        .all()
+    )
+    per_book_time = [
+        {
+            "book_id": r.book_id,
+            "title": r.title,
+            "author": r.author,
+            "has_cover": bool(r.cover_path),
+            "seconds": r.seconds,
+            "sessions": r.sessions,
+            "pages_turned": r.pages_turned,
+        }
+        for r in per_book_rows
+    ]
+
+    # ── Monthly comparison (last 12 months) ───────────────────────────────
+    month_cutoff = now - timedelta(days=365)
+    month_expr = func.strftime('%Y-%m', func.datetime(ReadingSession.started_at, tz_modifier))
+
+    monthly_session_rows = (
+        db.query(ReadingSession)
+        .filter(
+            ReadingSession.user_id == current_user.id,
+            ReadingSession.started_at >= month_cutoff,
+        )
+        .with_entities(
+            month_expr.label("month"),
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+            func.count(ReadingSession.id).label("sessions"),
+        )
+        .group_by(month_expr)
+        .all()
+    )
+    month_session_map: dict[str, dict] = {
+        r.month: {"seconds": int(r.seconds), "sessions": int(r.sessions)}
+        for r in monthly_session_rows
+    }
+
+    # Books finished per month
+    month_finished_rows = (
+        db.query(
+            func.strftime('%Y-%m', UserBookStatus.updated_at).label("month"),
+            func.count(UserBookStatus.id).label("cnt"),
+        )
+        .filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.status == "read",
+            UserBookStatus.updated_at >= month_cutoff,
+        )
+        .group_by(func.strftime('%Y-%m', UserBookStatus.updated_at))
+        .all()
+    )
+    month_finished_map = {r.month: int(r.cnt) for r in month_finished_rows}
+
+    # Build 12-month list
+    monthly_comparison = []
+    for i in range(11, -1, -1):
+        d = now - timedelta(days=i * 30)
+        month_key = d.strftime("%Y-%m")
+        label = d.strftime("%b")
+        sdata = month_session_map.get(month_key, {"seconds": 0, "sessions": 0})
+        monthly_comparison.append({
+            "month": month_key,
+            "label": label,
+            "books_finished": month_finished_map.get(month_key, 0),
+            "reading_hours": round(sdata["seconds"] / 3600, 1),
+            "sessions": sdata["sessions"],
+            "reading_seconds": sdata["seconds"],
+        })
+
+    # ── Genre over time (last 12 months, stacked) ─────────────────────────
+    genre_month_expr = func.strftime('%Y-%m', func.datetime(ReadingSession.started_at, tz_modifier))
+    genre_time_rows = (
+        db.query(ReadingSession)
+        .filter(
+            ReadingSession.user_id == current_user.id,
+            ReadingSession.started_at >= month_cutoff,
+            ReadingSession.book_id.isnot(None),
+        )
+        .join(Book, Book.id == ReadingSession.book_id)
+        .outerjoin(BookType, BookType.id == Book.book_type_id)
+        .with_entities(
+            genre_month_expr.label("month"),
+            func.coalesce(BookType.label, "Uncategorized").label("category"),
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+        )
+        .group_by(genre_month_expr, func.coalesce(BookType.label, "Uncategorized"))
+        .all()
+    )
+
+    # Pivot: each row = { month, Cat1: secs, Cat2: secs, ... }
+    genre_month_map: dict[str, dict[str, int]] = {}
+    all_categories: set[str] = set()
+    for r in genre_time_rows:
+        if r.month not in genre_month_map:
+            genre_month_map[r.month] = {}
+        genre_month_map[r.month][r.category] = int(r.seconds)
+        all_categories.add(r.category)
+
+    genre_over_time = []
+    for i in range(11, -1, -1):
+        d = now - timedelta(days=i * 30)
+        month_key = d.strftime("%Y-%m")
+        entry: dict[str, int | str] = {"month": month_key}
+        cat_data = genre_month_map.get(month_key, {})
+        for cat in sorted(all_categories):
+            entry[cat] = cat_data.get(cat, 0)
+        genre_over_time.append(entry)
+
     return {
         "range_days": days,
         "headline": {
@@ -427,6 +551,9 @@ def get_stats(
         "session_timeline": session_timeline,
         "year_summary": year_summary,
         "period_comparison": period_comparison,
+        "per_book_time": per_book_time,
+        "monthly_comparison": monthly_comparison,
+        "genre_over_time": genre_over_time,
     }
 
 

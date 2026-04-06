@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Clock, Activity, BookCheck, Flame, FileText,
-  BarChart3, ArrowLeft, Loader2, Trash2, ChevronDown,
+  BarChart3, ArrowLeft, Loader2, Trash2, ChevronDown, ChevronUp,
   TrendingUp, TrendingDown, Minus, Trophy, Calendar, Zap,
+  ArrowUpDown,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -49,6 +50,9 @@ interface StatsResponse {
     previous_seconds: number
     pct_change: number | null
   } | null
+  per_book_time: { book_id: number; title: string; author: string | null; has_cover: boolean; seconds: number; sessions: number; pages_turned: number }[]
+  monthly_comparison: { month: string; label: string; books_finished: number; reading_hours: number; sessions: number; reading_seconds: number }[]
+  genre_over_time: { month: string; [category: string]: number | string }[]
 }
 
 interface CompletionEstimate {
@@ -235,6 +239,200 @@ function ChartTooltip({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs">
       {children}
+    </div>
+  )
+}
+
+// ── Per-Book Time Table ──────────────────────────────────────────────────
+
+type BookTimeSortKey = 'seconds' | 'sessions' | 'pages_turned'
+
+function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'] }) {
+  const [sortKey, setSortKey] = useState<BookTimeSortKey>('seconds')
+  const [sortAsc, setSortAsc] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const handleSort = (key: BookTimeSortKey) => {
+    if (sortKey === key) {
+      setSortAsc(!sortAsc)
+    } else {
+      setSortKey(key)
+      setSortAsc(false)
+    }
+  }
+
+  const sorted = [...data].sort((a, b) => {
+    const diff = a[sortKey] - b[sortKey]
+    return sortAsc ? diff : -diff
+  })
+
+  const visible = expanded ? sorted : sorted.slice(0, 10)
+  const hasMore = sorted.length > 10
+
+  const SortIcon = ({ col }: { col: BookTimeSortKey }) => {
+    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 opacity-30" />
+    return sortAsc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Per-Book Breakdown</h2>
+      <ChartCard title="All Books by Reading Time">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="text-left py-2 px-2 w-10" />
+                <th className="text-left py-2 px-2">Title</th>
+                <th className="text-left py-2 px-2 hidden sm:table-cell">Author</th>
+                <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('seconds')}>
+                  <span className="inline-flex items-center gap-1">Time <SortIcon col="seconds" /></span>
+                </th>
+                <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('sessions')}>
+                  <span className="inline-flex items-center gap-1">Sessions <SortIcon col="sessions" /></span>
+                </th>
+                <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('pages_turned')}>
+                  <span className="inline-flex items-center gap-1">Pages <SortIcon col="pages_turned" /></span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((b, idx) => (
+                <tr
+                  key={b.book_id}
+                  className={cn(
+                    'hover:bg-accent/30 transition-colors',
+                    idx % 2 === 0 ? 'bg-muted/20' : ''
+                  )}
+                >
+                  <td className="py-1.5 px-2">
+                    <div className="w-8 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                      {b.has_cover ? (
+                        <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-1.5 px-2">
+                    <a href={`/books/${b.book_id}`} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">
+                      {b.title}
+                    </a>
+                  </td>
+                  <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">
+                    {b.author || '--'}
+                  </td>
+                  <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{formatDuration(b.seconds)}</td>
+                  <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.sessions}</td>
+                  <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.pages_turned}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {hasMore && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center justify-center gap-1.5 py-2 text-xs text-primary hover:text-primary/80 transition-colors"
+          >
+            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
+            <span>{expanded ? 'Show less' : `Show all (${sorted.length} books)`}</span>
+          </button>
+        )}
+      </ChartCard>
+    </div>
+  )
+}
+
+// ── Genre Over Time Chart ────────────────────────────────────────────────
+
+const GENRE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6', '#f97316', '#a855f7']
+
+function GenreOverTimeChart({ data }: { data: StatsResponse['genre_over_time'] }) {
+  // Extract category names from the data (all keys except "month")
+  const categories = Array.from(
+    new Set(data.flatMap(d => Object.keys(d).filter(k => k !== 'month')))
+  ).sort()
+
+  if (categories.length === 0) return null
+
+  // Convert seconds to hours for display
+  const chartData = data.map(d => {
+    const entry: Record<string, number | string> = { month: d.month as string }
+    for (const cat of categories) {
+      entry[cat] = Math.round(((d[cat] as number) || 0) / 60) // minutes for better granularity
+    }
+    return entry
+  })
+
+  const formatMonth = (m: string) => {
+    try {
+      const d = new Date(m + '-01T00:00:00')
+      return d.toLocaleDateString(undefined, { month: 'short' })
+    } catch {
+      return m
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Genre Over Time</h2>
+      <ChartCard title="Reading by Category — Last 12 Months">
+        <ResponsiveContainer width="100%" height={280}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+            <XAxis
+              dataKey="month"
+              tickFormatter={formatMonth}
+              tick={{ fontSize: 10, fill: '#94a3b8' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: '#94a3b8' }}
+              width={36}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v: number) => v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`}
+            />
+            <Tooltip
+              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+              wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+              isAnimationActive={false}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null
+                const month = payload[0]?.payload?.month
+                return (
+                  <ChartTooltip>
+                    <div className="font-medium mb-1">{formatMonth(month)}</div>
+                    {payload
+                      .filter(p => (p.value as number) > 0)
+                      .sort((a, b) => (b.value as number) - (a.value as number))
+                      .map(p => (
+                        <div key={p.dataKey as string} className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                          <span>{p.dataKey as string}: {(p.value as number) >= 60 ? `${Math.round((p.value as number) / 60)}h ${(p.value as number) % 60}m` : `${p.value}m`}</span>
+                        </div>
+                      ))}
+                  </ChartTooltip>
+                )
+              }}
+            />
+            <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+            {categories.map((cat, i) => (
+              <Area
+                key={cat}
+                type="monotone"
+                dataKey={cat}
+                stackId="1"
+                fill={GENRE_COLORS[i % GENRE_COLORS.length]}
+                fillOpacity={0.6}
+                stroke={GENRE_COLORS[i % GENRE_COLORS.length]}
+                strokeWidth={1.5}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   )
 }
@@ -798,6 +996,11 @@ export function StatsPage() {
               </div>
             </div>
 
+            {/* ── Per-Book Time Breakdown ─────────────────────────── */}
+            {data.per_book_time.length > 0 && (
+              <PerBookTimeTable data={data.per_book_time} />
+            )}
+
             {/* ── Milestones ───────────────────────────────────────── */}
             {cumulativeFinished.length > 0 && (
               <div className="flex flex-col gap-4">
@@ -1180,6 +1383,65 @@ export function StatsPage() {
                     </div>
                   )
                 })()}
+
+                {/* Monthly Comparison */}
+                {data.monthly_comparison.length > 0 && (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Monthly Comparison</h2>
+                    <ChartCard title="Reading Hours & Books Finished — Last 12 Months">
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={data.monthly_comparison} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            yAxisId="hours"
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            width={36}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(v: number) => `${v}h`}
+                          />
+                          <YAxis
+                            yAxisId="books"
+                            orientation="right"
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            width={30}
+                            axisLine={false}
+                            tickLine={false}
+                            allowDecimals={false}
+                          />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                            wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+                            isAnimationActive={false}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null
+                              const d = payload[0].payload
+                              return (
+                                <ChartTooltip>
+                                  <div className="font-medium">{d.month}</div>
+                                  <div>{d.reading_hours}h reading</div>
+                                  <div>{d.books_finished} book{d.books_finished !== 1 ? 's' : ''} finished</div>
+                                  <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
+                                </ChartTooltip>
+                              )
+                            }}
+                          />
+                          <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                          <Bar yAxisId="hours" dataKey="reading_hours" name="Reading Hours" fill="#6366f1" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
+                          <Bar yAxisId="books" dataKey="books_finished" name="Books Finished" fill="#8b5cf6" fillOpacity={0.55} radius={[3, 3, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </ChartCard>
+                  </div>
+                )}
+
+                {/* Genre Over Time */}
+                <GenreOverTimeChart data={data.genre_over_time} />
 
               </div>
             )} {/* end insights tab */}
