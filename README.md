@@ -2,7 +2,7 @@
 
 A self-hosted ebook library server that knows how you read -- not just what you own.
 
-Most library servers stop at file management. Tome connects to your e-reader via a custom [KOReader](https://koreader.rocks) plugin, records every reading session with page-level granularity, syncs positions bidirectionally between device and browser, and turns all of it into stats that get sharper the more you read. Pair that with best-in-class metadata from [Hardcover](https://hardcover.app) and you get a library that actually understands your reading habits.
+Most library servers stop at file management. Tome connects to your e-reader via a custom [KOReader](https://koreader.rocks) plugin, records every reading session with page-level granularity, syncs positions bidirectionally between device and browser, and turns all of it into stats that get sharper the more you read.
 
 Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 
