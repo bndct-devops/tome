@@ -6,7 +6,7 @@ import {
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon
 } from 'lucide-react'
-import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
+import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
