@@ -47,7 +47,7 @@ interface StatsResponse {
   period_comparison?: {
     current_seconds: number
     previous_seconds: number
-    pct_change: number
+    pct_change: number | null
   } | null
 }
 
@@ -352,21 +352,21 @@ export function StatsPage() {
             ))}
           </div>
         </div>
-        <div className="max-w-5xl mx-auto px-4 pb-0 flex items-center gap-1">
-          {(['overview', 'insights'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setStatsTab(tab)}
-              className={cn(
-                'px-4 py-2 text-xs font-medium capitalize border-b-2 transition-all',
-                statsTab === tab
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="overflow-x-auto border-t border-border/50">
+          <div className="flex items-center gap-1 px-4 py-1.5 max-w-5xl mx-auto">
+            {(['overview', 'insights'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setStatsTab(tab)}
+                className={cn(
+                  'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap capitalize',
+                  statsTab === tab ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -934,18 +934,20 @@ export function StatsPage() {
                 {data.period_comparison && (
                   <div className="flex flex-col gap-4">
                     <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Period Comparison</h2>
-                    <div className={cn(
-                      'bg-card border border-border rounded-xl p-5 flex items-start gap-4',
-                    )}>
+                    <div className="bg-card border border-border rounded-xl p-5 flex items-start gap-4">
                       <div className={cn(
                         'p-2 rounded-lg shrink-0',
-                        data.period_comparison.pct_change > 0
+                        data.period_comparison.pct_change === null
+                          ? 'bg-muted'
+                          : data.period_comparison.pct_change > 0
                           ? 'bg-emerald-500/10'
                           : data.period_comparison.pct_change < 0
                           ? 'bg-red-500/10'
                           : 'bg-muted',
                       )}>
-                        {data.period_comparison.pct_change > 0 ? (
+                        {data.period_comparison.pct_change === null ? (
+                          <Minus className="w-5 h-5 text-muted-foreground" />
+                        ) : data.period_comparison.pct_change > 0 ? (
                           <TrendingUp className="w-5 h-5 text-emerald-500" />
                         ) : data.period_comparison.pct_change < 0 ? (
                           <TrendingDown className="w-5 h-5 text-red-500" />
@@ -956,13 +958,19 @@ export function StatsPage() {
                       <div className="flex-1 min-w-0">
                         <p className={cn(
                           'text-lg font-bold',
-                          data.period_comparison.pct_change > 0
+                          data.period_comparison.pct_change === null
+                            ? 'text-muted-foreground'
+                            : data.period_comparison.pct_change > 0
                             ? 'text-emerald-500'
                             : data.period_comparison.pct_change < 0
                             ? 'text-red-500'
                             : 'text-muted-foreground',
                         )}>
-                          {data.period_comparison.pct_change === 0
+                          {data.period_comparison.pct_change === null
+                            ? 'No previous data to compare'
+                            : data.period_comparison.pct_change === 0 && data.period_comparison.current_seconds === 0
+                            ? 'No reading data'
+                            : data.period_comparison.pct_change === 0
                             ? 'Same as previous period'
                             : data.period_comparison.pct_change > 0
                             ? `${data.period_comparison.pct_change}% more reading this period`
@@ -970,7 +978,9 @@ export function StatsPage() {
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           This period: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.current_seconds)}</span>
-                          {' '}vs previous: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.previous_seconds)}</span>
+                          {data.period_comparison.pct_change !== null && (
+                            <>{' '}vs previous: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.previous_seconds)}</span></>
+                          )}
                         </p>
                       </div>
                     </div>

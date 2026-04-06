@@ -345,9 +345,12 @@ def get_stats(
             ReadingSession.started_at >= prev_start,
             ReadingSession.started_at < start_date,
         ).scalar() or 0
-        pct_change = 0.0
+        pct_change: Optional[float] = 0.0
         if prev_seconds > 0:
             pct_change = round(((total_seconds - prev_seconds) / prev_seconds) * 100, 1)
+        elif total_seconds > 0:
+            # Current period has data but previous has none — not a meaningful percentage
+            pct_change = None
         period_comparison = {
             "current_seconds": total_seconds,
             "previous_seconds": int(prev_seconds),
