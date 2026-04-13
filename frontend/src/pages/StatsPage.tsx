@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Clock, Activity, BookCheck, Flame, FileText,
@@ -132,6 +132,10 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 
 function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; date: string; seconds: number } | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+  }, [])
 
   const map = new Map(data.map(d => [d.date, d.seconds]))
 
@@ -191,7 +195,7 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
   const svgH = 20 + 7 * (CELL + GAP)
 
   return (
-    <div className="relative overflow-x-auto">
+    <div ref={scrollRef} className="relative overflow-x-auto">
       <svg width={svgW} height={svgH} className="mx-auto" style={{ display: 'block', minWidth: svgW }}>
         {monthLabels.map(({ x, label }) => (
           <text key={label + x} x={x} y={10} fontSize={9} fill="#94a3b8">{label}</text>
@@ -232,6 +236,7 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
     </div>
   )
 }
+
 
 // ── Custom Tooltip ────────────────────────────────────────────────────────────
 
@@ -656,22 +661,6 @@ export function StatsPage() {
                 </ChartCard>
               )}
 
-              <ChartCard title="Reading Activity — Last 365 Days">
-                <HeatmapChart data={data.heatmap_daily} />
-                <div className="flex items-center gap-2 justify-end mt-1">
-                  <span className="text-[10px] text-muted-foreground">Less</span>
-                  {[
-                    'rgba(148, 163, 184, 0.1)',
-                    'rgba(99, 102, 241, 0.25)',
-                    'rgba(99, 102, 241, 0.45)',
-                    'rgba(99, 102, 241, 0.7)',
-                    '#6366f1',
-                  ].map((c, i) => (
-                    <div key={i} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: c }} />
-                  ))}
-                  <span className="text-[10px] text-muted-foreground">More</span>
-                </div>
-              </ChartCard>
             </div>
 
             {/* ── Patterns ─────────────────────────────────────────── */}
@@ -1133,6 +1122,26 @@ export function StatsPage() {
             {statsTab === 'insights' && (
               <div className="flex flex-col gap-8">
 
+                {/* Reading Activity Heatmap */}
+                <div className="flex flex-col gap-4">
+                  <ChartCard title="Reading Activity — Last 365 Days">
+                    <HeatmapChart data={data.heatmap_daily} />
+                    <div className="flex items-center gap-2 justify-end mt-1">
+                      <span className="text-[10px] text-muted-foreground">Less</span>
+                      {[
+                        'rgba(148, 163, 184, 0.1)',
+                        'rgba(99, 102, 241, 0.25)',
+                        'rgba(99, 102, 241, 0.45)',
+                        'rgba(99, 102, 241, 0.7)',
+                        '#6366f1',
+                      ].map((c, i) => (
+                        <div key={i} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: c }} />
+                      ))}
+                      <span className="text-[10px] text-muted-foreground">More</span>
+                    </div>
+                  </ChartCard>
+                </div>
+
                 {/* Period Comparison */}
                 {data.period_comparison && (
                   <div className="flex flex-col gap-4">
@@ -1241,7 +1250,7 @@ export function StatsPage() {
                             )}>
                               {est.estimated_days != null
                                 ? `~${est.estimated_days} day${est.estimated_days !== 1 ? 's' : ''} remaining`
-                                : 'Insufficient data'}
+                                : 'Just started'}
                               {est.confidence === 'low' && est.estimated_days != null && (
                                 <span className="ml-1 text-muted-foreground/50">(low confidence)</span>
                               )}

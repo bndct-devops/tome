@@ -613,7 +613,7 @@ def get_completion_estimates(
         session_count = int(session_rows.session_count) if session_rows and session_rows.session_count else 0
 
         estimated_days: Optional[int] = None
-        if session_count > 0 and progress > 0 and progress < 100:
+        if session_count > 0 and progress >= 5 and progress < 100:
             # Calculate progress gained during the window
             earliest_pct = session_rows.earliest_progress or 0.0
             # Normalise earliest_pct the same way as progress (0-1 → 0-100)
