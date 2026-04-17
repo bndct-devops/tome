@@ -523,6 +523,29 @@ local lfs              = require("libs/libkoreader-lfs")
 local util             = require("util")
 local Menu             = require("ui/widget/menu")
 
+-- ── Register in wrench menu (tools tab, after calibre) ──────────────────────
+-- Runs once per KOReader process via require() caching.
+do
+    local reader_order = require("ui/elements/reader_menu_order")
+    local fm_order = require("ui/elements/filemanager_menu_order")
+    local function insert_after(order_table, section, after_item, new_item)
+        local list = order_table[section]
+        if not list then return end
+        for _, v in ipairs(list) do
+            if v == new_item then return end  -- already present
+        end
+        for i, v in ipairs(list) do
+            if v == after_item then
+                table.insert(list, i + 1, new_item)
+                return
+            end
+        end
+        table.insert(list, new_item)  -- fallback: append
+    end
+    insert_after(reader_order, "tools", "calibre", "tomesync")
+    insert_after(fm_order, "tools", "calibre", "tomesync")
+end
+
 -- ── Config (baked in at download time) ───────────────────────────────────────
 
 local SERVER_URL = "{server_url}"
@@ -935,11 +958,20 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index)
     local series_dir = base_dir .. "/" .. safe_name
     lfs.mkdir(series_dir)
 
+    -- Build reverse lookup: book_id → local path (to skip already-downloaded books)
+    local id_to_path = {{}}
+    for path, bid in pairs(self.book_map) do
+        id_to_path[bid] = path
+    end
+
     local downloaded, skipped, failed = 0, 0, 0
 
     for _, book in ipairs(books) do
         -- Skip books at or before min_index (for "download rest")
         if min_index and book.series_index and book.series_index <= min_index then
+            skipped = skipped + 1
+        -- Skip if already in book_map (already on device)
+        elseif id_to_path[book.id] and lfs.attributes(id_to_path[book.id]) then
             skipped = skipped + 1
         else
             local file = pickBestFile(book.files)
@@ -950,7 +982,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index)
                 local fname = util.getSafeFilename(book.title .. "." .. ext)
                 local dest = series_dir .. "/" .. fname
 
-                -- Skip if already exists
+                -- Skip if file with same name already exists
                 if lfs.attributes(dest) then
                     skipped = skipped + 1
                 else
@@ -1198,7 +1230,6 @@ function TomeSync:addToMainMenu(menu_items)
 
     menu_items.tomesync = {{
         text         = "TomeSync",
-        sorting_hint = "search",
         sub_item_table = sub_items,
     }}
 end
