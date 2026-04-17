@@ -1111,6 +1111,7 @@ function TomeSync:addToMainMenu(menu_items)
     }})
     table.insert(sub_items, {{
         text     = "About",
+        separator = in_book,
         callback = function()
             UIManager:show(InfoMessage:new{{
                 text    = "TomeSync v" .. PLUGIN_VERSION
@@ -1122,7 +1123,6 @@ function TomeSync:addToMainMenu(menu_items)
 
     -- In-book items
     if in_book then
-        table.insert(sub_items, "---")
         table.insert(sub_items, {{
             text     = "Download full series",
             callback = function() self:_downloadCurrentBookSeries(false) end,
