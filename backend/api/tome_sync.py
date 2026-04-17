@@ -9,10 +9,13 @@ import zipfile
 from datetime import datetime
 from typing import Optional
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel as PydanticBaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from backend.core.database import get_db
 from backend.core.security import get_current_user
@@ -24,7 +27,7 @@ from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
 
-TOMESYNC_PLUGIN_VERSION = "3"  # bump when plugin code changes
+TOMESYNC_PLUGIN_VERSION = "4"  # bump when plugin code changes
 
 
 # ── API key auth ──────────────────────────────────────────────────────────────
@@ -277,6 +280,107 @@ def post_session(
     return {"session_id": session.id}
 
 
+# ── Series endpoints (API-key-authed, for the plugin) ────────────────────────
+
+@router.get("/tome-sync/series")
+def list_series(
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """List all series for the series browser menu."""
+    rows = (
+        db.query(Book.series, func.count(Book.id).label("book_count"))
+        .filter(Book.status == "active", Book.series.isnot(None))
+        .group_by(Book.series)
+        .order_by(Book.series)
+        .all()
+    )
+
+    result = []
+    for series_name, book_count in rows:
+        first_book = (
+            db.query(Book)
+            .filter(Book.status == "active", Book.series == series_name)
+            .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
+            .first()
+        )
+        result.append({
+            "name": series_name,
+            "book_count": book_count,
+            "author": first_book.author if first_book else None,
+            "first_book_id": first_book.id if first_book else None,
+        })
+
+    return result
+
+
+@router.get("/tome-sync/series/{book_id}")
+def get_series_books(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Given a book_id, return all books in the same series with file info."""
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+    if not book.series:
+        raise HTTPException(status_code=404, detail="Book has no series")
+
+    books = (
+        db.query(Book)
+        .options(joinedload(Book.files))
+        .filter(Book.status == "active", Book.series == book.series)
+        .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
+        .all()
+    )
+
+    return {
+        "series_name": book.series,
+        "books": [
+            {
+                "id": b.id,
+                "title": b.title,
+                "series_index": b.series_index,
+                "author": b.author,
+                "files": [
+                    {"id": f.id, "format": f.format, "file_size": f.file_size}
+                    for f in b.files
+                ],
+            }
+            for b in books
+        ],
+    }
+
+
+@router.get("/tome-sync/download/{book_id}/{file_id}")
+def download_book_via_api_key(
+    book_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Stream a book file using API key auth (for the plugin)."""
+    book_file = (
+        db.query(BookFile)
+        .filter(BookFile.id == file_id, BookFile.book_id == book_id)
+        .first()
+    )
+    if not book_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_path = Path(book_file.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File no longer on disk")
+
+    filename = f"{book_file.book.title}.{book_file.format}"
+    return FileResponse(
+        str(file_path),
+        media_type="application/octet-stream",
+        filename=filename,
+    )
+
+
 # ── API key management (JWT-authed, for the web UI) ───────────────────────────
 
 @router.get("/plugin/api-keys")
@@ -399,6 +503,7 @@ def _main_lua(server_url: str, api_key: str, username: str) -> str:
     return f'''--[[
 TomeSync KOReader Plugin — single-file build
 Syncs reading progress and sessions with a Tome library server.
+Browse and download series. Tracks reading sessions and syncs position across devices.
 
 Installation: copy tomesync.koplugin/ into koreader/plugins/ and restart.
 ]]
@@ -414,6 +519,9 @@ local NetworkMgr       = require("ui/network/manager")
 local http             = require("socket.http")
 local ltn12            = require("ltn12")
 local rapidjson        = require("rapidjson")
+local lfs              = require("libs/libkoreader-lfs")
+local util             = require("util")
+local Menu             = require("ui/widget/menu")
 
 -- ── Config (baked in at download time) ───────────────────────────────────────
 
@@ -499,11 +607,58 @@ local function apiRequest(method, path, body)
     return nil, code
 end
 
+-- ── Format preference & download helpers ────────────────────────────────────
+
+local FORMAT_PREFERENCE = {{"epub", "kepub.epub", "cbz", "pdf", "mobi", "azw3"}}
+
+local function pickBestFile(files)
+    if not files or #files == 0 then return nil end
+    for _, fmt in ipairs(FORMAT_PREFERENCE) do
+        for _, f in ipairs(files) do
+            if f.format == fmt then return f end
+        end
+    end
+    return files[1]
+end
+
+local function downloadFile(book_id, file_id, dest_path)
+    if not NetworkMgr:isConnected() then
+        return false, "offline"
+    end
+
+    local url = SERVER_URL .. "/api/tome-sync/download/" .. book_id .. "/" .. file_id
+    local fh = io.open(dest_path, "wb")
+    if not fh then
+        return false, "cannot open file for writing"
+    end
+
+    local saved_timeout = http.TIMEOUT
+    http.TIMEOUT = 60
+
+    local ok, code = http.request({{
+        url     = url,
+        method  = "GET",
+        headers = {{
+            ["Authorization"] = "Bearer " .. API_KEY,
+        }},
+        sink = ltn12.sink.file(fh),
+    }})
+
+    http.TIMEOUT = saved_timeout
+
+    if not ok or (type(code) == "number" and code >= 300) then
+        os.remove(dest_path)
+        return false, tostring(code or "request failed")
+    end
+
+    return true
+end
+
 -- ── Plugin widget ────────────────────────────────────────────────────────────
 
 local TomeSync = WidgetContainer:extend{{
     name        = "tomesync",
-    is_doc_only = true,
+    is_doc_only = false,
 }}
 
 function TomeSync:init()
@@ -763,119 +918,288 @@ function TomeSync:registerBookId(file_path, book_id)
     logger.info("TomeSync: registered book_id", book_id, "for", file_path)
 end
 
+-- ── Series download ─────────────────────────────────────────────────────────
+
+function TomeSync:_downloadSeriesBooks(series_name, books, min_index)
+    local base_dir = G_reader_settings:readSetting("download_dir")
+                  or G_reader_settings:readSetting("lastdir")
+    if not base_dir then
+        UIManager:show(InfoMessage:new{{
+            text = "No download directory configured.",
+            timeout = 4,
+        }})
+        return
+    end
+
+    local safe_name = util.getSafeFilename(series_name)
+    local series_dir = base_dir .. "/" .. safe_name
+    lfs.mkdir(series_dir)
+
+    local downloaded, skipped, failed = 0, 0, 0
+
+    for _, book in ipairs(books) do
+        -- Skip books at or before min_index (for "download rest")
+        if min_index and book.series_index and book.series_index <= min_index then
+            skipped = skipped + 1
+        else
+            local file = pickBestFile(book.files)
+            if not file then
+                failed = failed + 1
+            else
+                local ext = file.format or "epub"
+                local fname = util.getSafeFilename(book.title .. "." .. ext)
+                local dest = series_dir .. "/" .. fname
+
+                -- Skip if already exists
+                if lfs.attributes(dest) then
+                    skipped = skipped + 1
+                else
+                    local ok, err = downloadFile(book.id, file.id, dest)
+                    if ok then
+                        downloaded = downloaded + 1
+                        -- Register in book_map so sync works
+                        self.book_map[dest] = book.id
+                    else
+                        logger.warn("TomeSync: download failed for", book.title, err)
+                        failed = failed + 1
+                    end
+                end
+            end
+        end
+    end
+
+    -- Persist book_map
+    G_reader_settings:saveSetting("tomesync_book_map", self.book_map)
+
+    UIManager:show(InfoMessage:new{{
+        text = string.format(
+            "%s\\n\\nDownloaded: %d\\nSkipped: %d\\nFailed: %d\\n\\nSaved to: %s",
+            series_name, downloaded, skipped, failed, series_dir
+        ),
+        timeout = 8,
+    }})
+end
+
+function TomeSync:_browseSeriesMenu()
+    if not NetworkMgr:isConnected() then
+        UIManager:show(InfoMessage:new{{
+            text = "WiFi not connected.",
+            timeout = 3,
+        }})
+        return
+    end
+
+    local ok, series_list, code = pcall(apiRequest, "GET", "/tome-sync/series")
+    if not ok or not series_list or (type(code) == "number" and code >= 300) then
+        UIManager:show(InfoMessage:new{{
+            text = "Failed to load series list.",
+            timeout = 4,
+        }})
+        return
+    end
+
+    local items = {{}}
+    for _, s in ipairs(series_list) do
+        local text = s.name .. " (" .. s.book_count .. ")"
+        if s.author then
+            text = text .. " - " .. s.author
+        end
+        table.insert(items, {{
+            text = text,
+            callback = function()
+                -- Fetch books in this series
+                local ok2, data, code2 = pcall(apiRequest, "GET",
+                    "/tome-sync/series/" .. s.first_book_id)
+                if ok2 and data and data.books then
+                    self:_downloadSeriesBooks(data.series_name, data.books, nil)
+                else
+                    UIManager:show(InfoMessage:new{{
+                        text = "Failed to load series books.",
+                        timeout = 4,
+                    }})
+                end
+            end,
+        }})
+    end
+
+    local menu = Menu:new{{
+        title = "Series Browser",
+        item_table = items,
+        width = Device.screen:getWidth() - 20,
+        height = Device.screen:getHeight() - 20,
+        show_parent = self.ui or UIManager,
+    }}
+    UIManager:show(menu)
+end
+
+function TomeSync:_downloadCurrentBookSeries(rest_only)
+    if not self.book_id then
+        UIManager:show(InfoMessage:new{{
+            text = "No book resolved. Open a book first.",
+            timeout = 3,
+        }})
+        return
+    end
+
+    local ok, data, code = pcall(apiRequest, "GET",
+        "/tome-sync/series/" .. self.book_id)
+    if not ok or not data or not data.books then
+        UIManager:show(InfoMessage:new{{
+            text = "Failed to load series (book may not belong to one).",
+            timeout = 4,
+        }})
+        return
+    end
+
+    local min_index = nil
+    if rest_only then
+        -- Find current book's series_index
+        for _, b in ipairs(data.books) do
+            if b.id == self.book_id then
+                min_index = b.series_index
+                break
+            end
+        end
+    end
+
+    self:_downloadSeriesBooks(data.series_name, data.books, min_index)
+end
+
 -- ── Menu ─────────────────────────────────────────────────────────────────────
 
 function TomeSync:addToMainMenu(menu_items)
-    menu_items.tomesync = {{
-        text         = "TomeSync",
-        sorting_hint = "tools",
-        sub_item_table = {{
-            {{
-                text = self.enabled and "Enabled (tap to disable)" or "Disabled (tap to enable)",
-                callback = function()
-                    self.enabled = not self.enabled
+    local in_book = self.ui and self.ui.document
+
+    local sub_items = {{}}
+
+    -- Always-visible items
+    table.insert(sub_items, {{
+        text     = "Browse series",
+        callback = function() self:_browseSeriesMenu() end,
+    }})
+    table.insert(sub_items, {{
+        text     = "Test connection",
+        callback = function()
+            local ok, result, code = pcall(apiRequest, "GET", "/health")
+            if ok and type(code) == "number" and code >= 200 and code < 300 then
+                UIManager:show(InfoMessage:new{{
+                    text = "Connected to " .. SERVER_URL
+                           .. "\\nUser: " .. USERNAME,
+                    timeout = 4,
+                }})
+            else
+                local err = tostring(result or "unknown error")
+                UIManager:show(InfoMessage:new{{
+                    text = "Connection failed!\\n" .. SERVER_URL
+                           .. "\\nError: " .. err,
+                    timeout = 6,
+                }})
+            end
+        end,
+    }})
+    table.insert(sub_items, {{
+        text     = "Re-resolve all books",
+        callback = function()
+            self.book_map = {{}}
+            self.book_id = nil
+            G_reader_settings:saveSetting("tomesync_book_map", {{}})
+            UIManager:show(InfoMessage:new{{
+                text = "All book mappings cleared.\\nRe-open a book to re-resolve.",
+                timeout = 3,
+            }})
+        end,
+    }})
+    table.insert(sub_items, {{
+        text     = "About",
+        callback = function()
+            UIManager:show(InfoMessage:new{{
+                text    = "TomeSync v" .. PLUGIN_VERSION
+                          .. "\\nSyncs with your Tome library.",
+                timeout = 4,
+            }})
+        end,
+    }})
+
+    -- In-book items
+    if in_book then
+        table.insert(sub_items, "---")
+        table.insert(sub_items, {{
+            text     = "Download full series",
+            callback = function() self:_downloadCurrentBookSeries(false) end,
+        }})
+        table.insert(sub_items, {{
+            text     = "Download rest of series",
+            callback = function() self:_downloadCurrentBookSeries(true) end,
+        }})
+        table.insert(sub_items, {{
+            text         = "Sync now",
+            callback     = function()
+                if self.book_id then
+                    self:_pushPosition()
+                end
+                self:_flushPendingSessions()
+                local pending = #self.pending_sessions
+                local msg
+                if self.book_id then
+                    local pct = self:_getCurrentPercentage()
+                    msg = string.format("Synced: %.1f%%", pct * 100)
+                else
+                    msg = "Book not resolved (position not synced)"
+                end
+                if pending > 0 then
+                    msg = msg .. string.format("\\n%d session(s) still pending", pending)
+                end
+                UIManager:show(InfoMessage:new{{
+                    text = msg,
+                    timeout = 4,
+                }})
+            end,
+        }})
+        table.insert(sub_items, {{
+            text = self.enabled and "Enabled (tap to disable)" or "Disabled (tap to enable)",
+            callback = function()
+                self.enabled = not self.enabled
+                UIManager:show(InfoMessage:new{{
+                    text    = "TomeSync " .. (self.enabled and "enabled" or "disabled"),
+                    timeout = 2,
+                }})
+            end,
+        }})
+        table.insert(sub_items, {{
+            text_func = function()
+                local n = #self.pending_sessions
+                if n > 0 then
+                    return string.format("Pending sessions (%d)", n)
+                end
+                return "Pending sessions (0)"
+            end,
+            callback = function()
+                local n = #self.pending_sessions
+                if n == 0 then
                     UIManager:show(InfoMessage:new{{
-                        text    = "TomeSync " .. (self.enabled and "enabled" or "disabled"),
-                        timeout = 2,
-                    }})
-                end,
-            }},
-            {{
-                text         = "Sync now",
-                callback     = function()
-                    if self.book_id then
-                        self:_pushPosition()
-                    end
-                    self:_flushPendingSessions()
-                    local pending = #self.pending_sessions
-                    local msg
-                    if self.book_id then
-                        local pct = self:_getCurrentPercentage()
-                        msg = string.format("Synced: %.1f%%", pct * 100)
-                    else
-                        msg = "Book not resolved (position not synced)"
-                    end
-                    if pending > 0 then
-                        msg = msg .. string.format("\\n%d session(s) still pending", pending)
-                    end
-                    UIManager:show(InfoMessage:new{{
-                        text = msg,
-                        timeout = 4,
-                    }})
-                end,
-            }},
-            {{
-                text     = "Test connection",
-                callback = function()
-                    local ok, result, code = pcall(apiRequest, "GET", "/health")
-                    if ok and type(code) == "number" and code >= 200 and code < 300 then
-                        UIManager:show(InfoMessage:new{{
-                            text = "Connected to " .. SERVER_URL
-                                   .. "\\nUser: " .. USERNAME,
-                            timeout = 4,
-                        }})
-                    else
-                        local err = tostring(result or "unknown error")
-                        UIManager:show(InfoMessage:new{{
-                            text = "Connection failed!\\n" .. SERVER_URL
-                                   .. "\\nError: " .. err,
-                            timeout = 6,
-                        }})
-                    end
-                end,
-            }},
-            {{
-                text     = "Clear book mappings",
-                callback = function()
-                    self.book_map = {{}}
-                    self.book_id = nil
-                    G_reader_settings:saveSetting("tomesync_book_map", {{}})
-                    UIManager:show(InfoMessage:new{{
-                        text = "All book mappings cleared.\\nRe-open a book to re-resolve.",
+                        text = "No pending sessions.",
                         timeout = 3,
                     }})
-                end,
-            }},
-            {{
-                text_func = function()
-                    local n = #self.pending_sessions
-                    if n > 0 then
-                        return string.format("Pending sessions (%d)", n)
+                else
+                    local lines = string.format("%d session(s) waiting to sync.\\n", n)
+                    for i, s in ipairs(self.pending_sessions) do
+                        if i > 5 then lines = lines .. "\\n..."; break end
+                        lines = lines .. string.format("\\n%s (%s)",
+                            s.started_at or "?", s.device or "?")
                     end
-                    return "Pending sessions (0)"
-                end,
-                callback = function()
-                    local n = #self.pending_sessions
-                    if n == 0 then
-                        UIManager:show(InfoMessage:new{{
-                            text = "No pending sessions.",
-                            timeout = 3,
-                        }})
-                    else
-                        local lines = string.format("%d session(s) waiting to sync.\\n", n)
-                        for i, s in ipairs(self.pending_sessions) do
-                            if i > 5 then lines = lines .. "\\n..."; break end
-                            lines = lines .. string.format("\\n%s (%s)",
-                                s.started_at or "?", s.device or "?")
-                        end
-                        UIManager:show(InfoMessage:new{{
-                            text = lines,
-                            timeout = 8,
-                        }})
-                    end
-                end,
-            }},
-            {{
-                text     = "About",
-                callback = function()
                     UIManager:show(InfoMessage:new{{
-                        text    = "TomeSync v" .. PLUGIN_VERSION
-                                  .. "\\nSyncs with your Tome library.",
-                        timeout = 4,
+                        text = lines,
+                        timeout = 8,
                     }})
-                end,
-            }},
-        }},
+                end
+            end,
+        }})
+    end
+
+    menu_items.tomesync = {{
+        text         = "TomeSync",
+        sorting_hint = "search",
+        sub_item_table = sub_items,
     }}
 end
 
