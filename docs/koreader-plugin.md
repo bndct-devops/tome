@@ -95,9 +95,10 @@ The plugin can browse and download entire series directly to your device.
 
 **How downloads work:**
 
-- Books are saved to `<download_dir>/<Series Name>/` (uses KOReader's configured download directory)
+- Books are organized by book type and series: `<download_dir>/<book_type>/<Series Name>/` (e.g. `books/manga/One Piece/`, `books/light_novel/Black Summoner/`)
+- The book type (manga, light_novel, book, comic) comes from Tome's metadata
 - Format preference: epub > kepub.epub > cbz > pdf > mobi > azw3
-- Files that already exist on disk are skipped
+- Books already on the device are skipped (matched by book ID, not filename)
 - Downloaded books are automatically registered in the book map, so sync works immediately when you open them
 - A summary shows downloaded/skipped/failed counts when finished
 
@@ -133,7 +134,7 @@ Sessions also flush when you tap "Sync now" in the menu, or when WiFi reconnects
 
 ## Menu
 
-The plugin menu is context-aware. It lives in the **wrench menu** under **TomeSync** and shows different options depending on whether a book is open.
+The plugin menu is context-aware. It self-registers in the **wrench menu** (after Calibre) under **TomeSync** and shows different options depending on whether a book is open.
 
 ### Always visible
 
@@ -206,7 +207,7 @@ The downloaded plugin has your server URL and API key baked in, so there is noth
 - Re-download the plugin if your server address changed
 
 **Wrong book matched:**
-- Use "Clear book mappings" in the plugin menu, then re-open the book
+- Use "Re-resolve all books" in the plugin menu, then re-open the book
 - The resolve endpoint matches by title and volume number; ambiguous titles may match incorrectly
 
 **Progress shows 0% on the web after syncing:**

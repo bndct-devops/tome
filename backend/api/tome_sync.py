@@ -329,14 +329,18 @@ def get_series_books(
 
     books = (
         db.query(Book)
-        .options(joinedload(Book.files))
+        .options(joinedload(Book.files), joinedload(Book.book_type))
         .filter(Book.status == "active", Book.series == book.series)
         .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
         .all()
     )
 
+    # Use the first book's type as the series type
+    book_type_slug = books[0].book_type.slug if books and books[0].book_type else "book"
+
     return {
         "series_name": book.series,
+        "book_type": book_type_slug,
         "books": [
             {
                 "id": b.id,
@@ -943,7 +947,7 @@ end
 
 -- ── Series download ─────────────────────────────────────────────────────────
 
-function TomeSync:_downloadSeriesBooks(series_name, books, min_index)
+function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
     local base_dir = G_reader_settings:readSetting("download_dir")
                   or G_reader_settings:readSetting("lastdir")
     if not base_dir then
@@ -954,8 +958,11 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index)
         return
     end
 
+    -- Organize by book type subfolder, then series
+    local type_dir = base_dir .. "/" .. (book_type or "book")
+    lfs.mkdir(type_dir)
     local safe_name = util.getSafeFilename(series_name)
-    local series_dir = base_dir .. "/" .. safe_name
+    local series_dir = type_dir .. "/" .. safe_name
     lfs.mkdir(series_dir)
 
     -- Build reverse lookup: book_id → local path (to skip already-downloaded books)
@@ -1043,7 +1050,7 @@ function TomeSync:_browseSeriesMenu()
                 local ok2, data, code2 = pcall(apiRequest, "GET",
                     "/tome-sync/series/" .. s.first_book_id)
                 if ok2 and data and data.books then
-                    self:_downloadSeriesBooks(data.series_name, data.books, nil)
+                    self:_downloadSeriesBooks(data.series_name, data.books, nil, data.book_type)
                 else
                     UIManager:show(InfoMessage:new{{
                         text = "Failed to load series books.",
@@ -1094,7 +1101,7 @@ function TomeSync:_downloadCurrentBookSeries(rest_only)
         end
     end
 
-    self:_downloadSeriesBooks(data.series_name, data.books, min_index)
+    self:_downloadSeriesBooks(data.series_name, data.books, min_index, data.book_type)
 end
 
 -- ── Menu ─────────────────────────────────────────────────────────────────────
