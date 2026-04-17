@@ -246,6 +246,7 @@ export function BookDetailPage() {
         year: draft.year,
         tags: draftTags,
         book_type_id: draftBookTypeId,
+        content_type: draft.content_type,
       })
       setBook(updated)
       setDraftTags(updated.tags.map(t => t.tag))
@@ -706,6 +707,25 @@ export function BookDetailPage() {
                     <p className="text-sm text-foreground">
                       {bookTypes.find(bt => bt.id === book.book_type_id)?.label ?? <span className="text-muted-foreground/50 italic">None</span>}
                     </p>
+                  )}
+                </div>
+              </div>
+              {/* Content Type */}
+              <div className="flex items-start gap-2">
+                <span className="text-muted-foreground mt-0.5 shrink-0"><FileText className="w-3.5 h-3.5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground/70 mb-1.5">Content</p>
+                  {editing ? (
+                    <select
+                      value={draft.content_type ?? 'volume'}
+                      onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))}
+                      className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="volume">Volume</option>
+                      <option value="chapter">Chapter</option>
+                    </select>
+                  ) : (
+                    <p className="text-sm text-foreground capitalize">{book.content_type ?? 'volume'}</p>
                   )}
                 </div>
               </div>
