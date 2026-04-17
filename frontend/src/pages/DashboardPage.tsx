@@ -781,8 +781,8 @@ export function DashboardPage() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2 mr-2 shrink-0">
-            <BookOpen className="w-5 h-5 text-primary" />
+          <div className="flex items-center gap-2 mr-2 shrink-0 group cursor-default">
+            <BookOpen className="w-5 h-5 text-primary transition-transform duration-300 group-hover:rotate-[-12deg] group-hover:scale-110" />
             <span className="font-semibold text-sm">Tome</span>
           </div>
           <div className="relative flex-1 sm:max-w-md">

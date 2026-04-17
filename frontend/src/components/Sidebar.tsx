@@ -427,8 +427,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           >
             {/* Header with close button */}
             <div className="flex items-center justify-between px-3 h-14 border-b border-border shrink-0">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-2 group cursor-default">
+                <BookOpen className="w-5 h-5 text-primary transition-transform duration-300 group-hover:rotate-[-12deg] group-hover:scale-110" />
                 <span className="font-semibold text-sm">Tome</span>
               </div>
               <button
