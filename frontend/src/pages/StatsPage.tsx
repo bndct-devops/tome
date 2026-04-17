@@ -13,6 +13,14 @@ import {
 } from 'recharts'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { StatCard } from '@/components/stats/StatCard'
+import { CompletionRateCard } from '@/components/stats/CompletionRateCard'
+import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
+import { PaceByFormat } from '@/components/stats/PaceByFormat'
+import { SeriesCompletionGrid } from '@/components/stats/SeriesCompletionGrid'
+import { AuthorAffinity } from '@/components/stats/AuthorAffinity'
+import { CompletionByType } from '@/components/stats/CompletionByType'
+import { LibraryGrowthChart } from '@/components/stats/LibraryGrowthChart'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,8 +40,6 @@ interface StatsResponse {
   books_finished: { date: string; book_id: number; title: string }[]
   top_books: { book_id: number; title: string; seconds: number; sessions: number }[]
   by_category: { category: string; seconds: number; sessions: number; book_count: number }[]
-  hourly: { hour: number; seconds: number; sessions: number }[]
-  weekly: { day: string; seconds: number; sessions: number }[]
   reading_pace: { session_id: number; title: string; date: string | null; pages_per_min: number; duration_seconds: number; pages_turned: number }[]
   books_in_progress: { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number; last_read: string | null }[]
   session_timeline: { id: number; title: string; started_at: string; ended_at: string; duration_seconds: number }[]
@@ -53,6 +59,13 @@ interface StatsResponse {
   per_book_time: { book_id: number; title: string; author: string | null; has_cover: boolean; seconds: number; sessions: number; pages_turned: number }[]
   monthly_comparison: { month: string; label: string; books_finished: number; reading_hours: number; sessions: number; reading_seconds: number }[]
   genre_over_time: { month: string; [category: string]: number | string }[]
+  hour_dow_heatmap: { dow: number; hour: number; seconds: number; sessions: number }[]
+  series_completion: { series: string; total: number; read: number; reading: number; pct: number; sample_book_id: number }[]
+  author_affinity: { author: string; seconds: number; sessions: number; book_count: number; books_finished: number }[]
+  completion_rate: { started: number; finished: number; pct: number }
+  completion_by_type: { category: string; started: number; finished: number; pct: number }[]
+  pace_by_format: { format: string; pages_per_min: number; sessions: number; pages: number; seconds: number }[]
+  library_growth: { month: string; total: number; [category: string]: number | string }[]
 }
 
 interface CompletionEstimate {
@@ -111,19 +124,6 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
     <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{title}</h3>
       {children}
-    </div>
-  )
-}
-
-function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        {icon}
-        <span className="text-xs">{label}</span>
-      </div>
-      <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
 }
@@ -237,7 +237,6 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
   )
 }
 
-
 // ── Custom Tooltip ────────────────────────────────────────────────────────────
 
 function ChartTooltip({ children }: { children: React.ReactNode }) {
@@ -281,7 +280,6 @@ function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Per-Book Breakdown</h2>
       <ChartCard title="All Books by Reading Time">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -354,18 +352,16 @@ function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'] }) {
 const GENRE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6', '#f97316', '#a855f7']
 
 function GenreOverTimeChart({ data }: { data: StatsResponse['genre_over_time'] }) {
-  // Extract category names from the data (all keys except "month")
   const categories = Array.from(
     new Set(data.flatMap(d => Object.keys(d).filter(k => k !== 'month')))
   ).sort()
 
   if (categories.length === 0) return null
 
-  // Convert seconds to hours for display
   const chartData = data.map(d => {
     const entry: Record<string, number | string> = { month: d.month as string }
     for (const cat of categories) {
-      entry[cat] = Math.round(((d[cat] as number) || 0) / 60) // minutes for better granularity
+      entry[cat] = Math.round(((d[cat] as number) || 0) / 60)
     }
     return entry
   })
@@ -380,65 +376,62 @@ function GenreOverTimeChart({ data }: { data: StatsResponse['genre_over_time'] }
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Genre Over Time</h2>
-      <ChartCard title="Reading by Category — Last 12 Months">
-        <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <XAxis
-              dataKey="month"
-              tickFormatter={formatMonth}
-              tick={{ fontSize: 10, fill: '#94a3b8' }}
-              axisLine={false}
-              tickLine={false}
+    <ChartCard title="Reading by Category — Last 12 Months">
+      <ResponsiveContainer width="100%" height={280}>
+        <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <XAxis
+            dataKey="month"
+            tickFormatter={formatMonth}
+            tick={{ fontSize: 10, fill: '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#94a3b8' }}
+            width={36}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) => v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`}
+          />
+          <Tooltip
+            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+            isAnimationActive={false}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null
+              const month = payload[0]?.payload?.month
+              return (
+                <ChartTooltip>
+                  <div className="font-medium mb-1">{formatMonth(month)}</div>
+                  {payload
+                    .filter(p => (p.value as number) > 0)
+                    .sort((a, b) => (b.value as number) - (a.value as number))
+                    .map(p => (
+                      <div key={p.dataKey as string} className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                        <span>{p.dataKey as string}: {(p.value as number) >= 60 ? `${Math.round((p.value as number) / 60)}h ${(p.value as number) % 60}m` : `${p.value}m`}</span>
+                      </div>
+                    ))}
+                </ChartTooltip>
+              )
+            }}
+          />
+          <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+          {categories.map((cat, i) => (
+            <Area
+              key={cat}
+              type="monotone"
+              dataKey={cat}
+              stackId="1"
+              fill={GENRE_COLORS[i % GENRE_COLORS.length]}
+              fillOpacity={0.6}
+              stroke={GENRE_COLORS[i % GENRE_COLORS.length]}
+              strokeWidth={1.5}
             />
-            <YAxis
-              tick={{ fontSize: 10, fill: '#94a3b8' }}
-              width={36}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v: number) => v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`}
-            />
-            <Tooltip
-              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-              wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-              isAnimationActive={false}
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                const month = payload[0]?.payload?.month
-                return (
-                  <ChartTooltip>
-                    <div className="font-medium mb-1">{formatMonth(month)}</div>
-                    {payload
-                      .filter(p => (p.value as number) > 0)
-                      .sort((a, b) => (b.value as number) - (a.value as number))
-                      .map(p => (
-                        <div key={p.dataKey as string} className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                          <span>{p.dataKey as string}: {(p.value as number) >= 60 ? `${Math.round((p.value as number) / 60)}h ${(p.value as number) % 60}m` : `${p.value}m`}</span>
-                        </div>
-                      ))}
-                  </ChartTooltip>
-                )
-              }}
-            />
-            <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-            {categories.map((cat, i) => (
-              <Area
-                key={cat}
-                type="monotone"
-                dataKey={cat}
-                stackId="1"
-                fill={GENRE_COLORS[i % GENRE_COLORS.length]}
-                fillOpacity={0.6}
-                stroke={GENRE_COLORS[i % GENRE_COLORS.length]}
-                strokeWidth={1.5}
-              />
-            ))}
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartCard>
-    </div>
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    </ChartCard>
   )
 }
 
@@ -448,13 +441,11 @@ export function StatsPage() {
   const [days, setDays] = useState(30)
   const [data, setData] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [statsTab, setStatsTab] = useState<'overview' | 'insights'>('overview')
+  const [statsTab, setStatsTab] = useState<'overview' | 'habits' | 'library'>('overview')
 
-  // Insights tab
   const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
   const [estimatesLoading, setEstimatesLoading] = useState(false)
 
-  // Sessions list state
   const [sessions, setSessions] = useState<SessionEntry[]>([])
   const [sessionsTotal, setSessionsTotal] = useState(0)
   const [sessionsLoaded, setSessionsLoaded] = useState(0)
@@ -480,7 +471,6 @@ export function StatsPage() {
         setSessions(prev => prev.filter(s => s.id !== id))
         setSessionsTotal(prev => prev - 1)
         setSessionsLoaded(prev => prev - 1)
-        // Refresh stats to update totals
         api.get<StatsResponse>(`/stats?days=${days}&tz_offset=${tzOffset}`).then(setData).catch(() => {})
       })
       .catch(() => {})
@@ -497,12 +487,10 @@ export function StatsPage() {
       .finally(() => setLoading(false))
   }, [days])
 
-  // Load sessions on mount
   useEffect(() => { loadSessions(0, true) }, [])
 
-  // Lazy-load completion estimates when Insights tab is opened
   useEffect(() => {
-    if (statsTab === 'insights' && estimates === null && !estimatesLoading) {
+    if (statsTab === 'habits' && estimates === null && !estimatesLoading) {
       setEstimatesLoading(true)
       api.get<CompletionEstimate[]>('/stats/completion-estimates')
         .then(setEstimates)
@@ -557,7 +545,7 @@ export function StatsPage() {
         </div>
         <div className="overflow-x-auto border-t border-border/50">
           <div className="flex items-center gap-1 px-4 py-1.5 max-w-5xl mx-auto">
-            {(['overview', 'insights'] as const).map(tab => (
+            {(['overview', 'habits', 'library'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setStatsTab(tab)}
@@ -592,304 +580,81 @@ export function StatsPage() {
         ) : data ? (
           <div className="flex flex-col gap-8">
 
-            {/* ── Overview Tab ─────────────────────────────────────── */}
+            {/* ── Overview Tab ─────────────────────────────────────────── */}
             {statsTab === 'overview' && (
-            <div className="flex flex-col gap-8">
+              <div className="flex flex-col gap-8">
 
-            {/* ── Overview ─────────────────────────────────────────── */}
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <StatCard
-                  icon={<Clock className="w-3.5 h-3.5" />}
-                  label="Reading Time"
-                  value={formatDuration(data.headline.total_reading_seconds)}
-                  sub={`avg ${formatDuration(data.headline.avg_session_seconds)} / session`}
-                />
-                <StatCard
-                  icon={<Activity className="w-3.5 h-3.5" />}
-                  label="Sessions"
-                  value={String(data.headline.total_sessions)}
-                />
-                <StatCard
-                  icon={<BookCheck className="w-3.5 h-3.5" />}
-                  label="Books Finished"
-                  value={String(data.headline.books_finished)}
-                />
-                <StatCard
-                  icon={<Flame className="w-3.5 h-3.5" />}
-                  label="Streak"
-                  value={`${data.headline.current_streak_days}d`}
-                  sub={`Longest: ${data.headline.longest_streak_days}d`}
-                />
-                <StatCard
-                  icon={<FileText className="w-3.5 h-3.5" />}
-                  label="Pages Turned"
-                  value={data.headline.pages_turned.toLocaleString()}
-                />
-              </div>
+                {/* Headline stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <StatCard
+                    icon={<Clock className="w-3.5 h-3.5" />}
+                    label="Reading Time"
+                    value={formatDuration(data.headline.total_reading_seconds)}
+                    sub={`avg ${formatDuration(data.headline.avg_session_seconds)} / session`}
+                  />
+                  <StatCard
+                    icon={<Activity className="w-3.5 h-3.5" />}
+                    label="Sessions"
+                    value={String(data.headline.total_sessions)}
+                  />
+                  <StatCard
+                    icon={<BookCheck className="w-3.5 h-3.5" />}
+                    label="Books Finished"
+                    value={String(data.headline.books_finished)}
+                  />
+                  <StatCard
+                    icon={<Flame className="w-3.5 h-3.5" />}
+                    label="Streak"
+                    value={`${data.headline.current_streak_days}d`}
+                    sub={`Longest: ${data.headline.longest_streak_days}d`}
+                  />
+                  <StatCard
+                    icon={<FileText className="w-3.5 h-3.5" />}
+                    label="Pages Turned"
+                    value={data.headline.pages_turned.toLocaleString()}
+                  />
+                  <CompletionRateCard data={data.completion_rate} />
+                </div>
 
-              {data.books_in_progress.length > 0 && (
-                <ChartCard title="Currently Reading">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {data.books_in_progress.map(b => (
-                      <a key={b.book_id} href={`/books/${b.book_id}`} className="group flex items-center gap-3 hover:bg-accent/30 rounded-lg p-2 transition-colors">
-                        <div className="w-8 h-11 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                          {b.has_cover ? (
-                            <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <FileText className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                            {b.title}
+                {/* Books in progress */}
+                {data.books_in_progress.length > 0 && (
+                  <ChartCard title="Currently Reading">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {data.books_in_progress.map(b => (
+                        <a key={b.book_id} href={`/books/${b.book_id}`} className="group flex items-center gap-3 hover:bg-accent/30 rounded-lg p-2 transition-colors">
+                          <div className="w-8 h-11 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                            {b.has_cover ? (
+                              <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <FileText className="w-4 h-4 text-muted-foreground" />
+                            )}
                           </div>
-                          {b.author && <div className="text-xs text-muted-foreground truncate">{b.author}</div>}
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-indigo-500 rounded-full transition-all"
-                                style={{ width: `${Math.min(b.progress, 100)}%` }}
-                              />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                              {b.title}
                             </div>
-                            <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{b.progress}%</span>
-                          </div>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </ChartCard>
-              )}
-
-            </div>
-
-            {/* ── Patterns ─────────────────────────────────────────── */}
-            <div className="flex flex-col gap-4">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">When You Read</h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ChartCard title="Time of Day">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={data.hourly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                      <XAxis
-                        dataKey="hour"
-                        tickFormatter={(h: number) => `${h}:00`}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        interval={2}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tickFormatter={formatDuration}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        width={42}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                        wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-                        isAnimationActive={false}
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null
-                          const d = payload[0].payload
-                          return (
-                            <ChartTooltip>
-                              <div className="font-medium">{d.hour}:00 - {d.hour}:59</div>
-                              <div>{formatDuration(d.seconds)}</div>
-                              <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
-                            </ChartTooltip>
-                          )
-                        }}
-                      />
-                      <Bar dataKey="seconds" fill="#8b5cf6" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-
-                <ChartCard title="Weekly Pattern">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={data.weekly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tickFormatter={formatDuration}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        width={42}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                        wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-                        isAnimationActive={false}
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null
-                          const d = payload[0].payload
-                          return (
-                            <ChartTooltip>
-                              <div className="font-medium">{d.day}</div>
-                              <div>{formatDuration(d.seconds)}</div>
-                              <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
-                            </ChartTooltip>
-                          )
-                        }}
-                      />
-                      <Bar dataKey="seconds" fill="#ec4899" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-              </div>
-
-              {data.session_timeline.length > 0 && (
-                <ChartCard title="Session Timeline">
-                  <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
-                    {(() => {
-                      const grouped: Record<string, typeof data.session_timeline> = {}
-                      for (const s of data.session_timeline) {
-                        const d = s.started_at.slice(0, 10)
-                        if (!grouped[d]) grouped[d] = []
-                        grouped[d].push(s)
-                      }
-                      return Object.entries(grouped)
-                        .sort(([a], [b]) => b.localeCompare(a))
-                        .slice(0, 14)
-                        .map(([dateStr, daySessions]) => (
-                          <div key={dateStr} className="flex items-center gap-3 py-1">
-                            <span className="text-[10px] text-muted-foreground w-16 shrink-0 text-right">
-                              {formatDate(dateStr)}
-                            </span>
-                            <div className="flex-1 relative h-6 bg-muted/30 rounded overflow-hidden">
-                              {daySessions.map(s => {
-                                const start = new Date(s.started_at)
-                                const end = new Date(s.ended_at)
-                                const dayStart = start.getHours() * 60 + start.getMinutes()
-                                const dayEnd = end.getHours() * 60 + end.getMinutes()
-                                const left = (dayStart / 1440) * 100
-                                const width = Math.max(((dayEnd - dayStart) / 1440) * 100, 0.8)
-                                return (
-                                  <div
-                                    key={s.id}
-                                    className="absolute top-0.5 bottom-0.5 rounded-sm bg-indigo-500/70 hover:bg-indigo-500 transition-colors"
-                                    style={{ left: `${left}%`, width: `${width}%` }}
-                                    title={`${s.title} — ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${formatDuration(s.duration_seconds)})`}
-                                  />
-                                )
-                              })}
-                              {[6, 12, 18].map(h => (
+                            {b.author && <div className="text-xs text-muted-foreground truncate">{b.author}</div>}
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                 <div
-                                  key={h}
-                                  className="absolute top-0 bottom-0 border-l border-border/40"
-                                  style={{ left: `${(h / 24) * 100}%` }}
+                                  className="h-full bg-indigo-500 rounded-full transition-all"
+                                  style={{ width: `${Math.min(b.progress, 100)}%` }}
                                 />
-                              ))}
-                            </div>
-                            <div className="flex gap-3 text-[9px] text-muted-foreground shrink-0 w-20">
-                              <span>6</span><span>12</span><span>18</span><span>24</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{b.progress}%</span>
                             </div>
                           </div>
-                        ))
-                    })()}
-                  </div>
-                </ChartCard>
-              )}
-            </div>
+                        </a>
+                      ))}
+                    </div>
+                  </ChartCard>
+                )}
 
-            {/* ── Activity ─────────────────────────────────────────── */}
-            <div className="flex flex-col gap-4">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Activity</h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ChartCard title="Reading Time per Day">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                      <XAxis
-                        dataKey="date"
-                        tickFormatter={formatDate}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        interval="preserveStartEnd"
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tickFormatter={formatDuration}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        width={42}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                        wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-                        isAnimationActive={false}
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null
-                          const d = payload[0].payload
-                          return (
-                            <ChartTooltip>
-                              <div className="font-medium">{formatDate(d.date)}</div>
-                              <div>{formatDuration(d.seconds)}</div>
-                              <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
-                            </ChartTooltip>
-                          )
-                        }}
-                      />
-                      <Bar dataKey="seconds" fill="#6366f1" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-
-                <ChartCard title="Category Breakdown">
-                  {data.by_category.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-12">No category data.</p>
-                  ) : (
+                {/* Daily chart */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ChartCard title="Reading Time per Day">
                     <ResponsiveContainer width="100%" height={200}>
-                      <PieChart>
-                        <Pie
-                          data={data.by_category}
-                          dataKey="seconds"
-                          nameKey="category"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={72}
-                          label={false}
-                          stroke="none"
-                        >
-                          {data.by_category.map((_, i) => (
-                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          cursor={false}
-                          wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-                          isAnimationActive={false}
-                          content={({ active, payload }) => {
-                            if (!active || !payload?.length) return null
-                            const d = payload[0].payload
-                            const total = data.by_category.reduce((s, c) => s + c.seconds, 0)
-                            return (
-                              <ChartTooltip>
-                                <div className="font-medium">{d.category}</div>
-                                <div>{formatDuration(d.seconds)} ({total > 0 ? Math.round(d.seconds / total * 100) : 0}%)</div>
-                                <div className="text-muted-foreground">{d.book_count} book{d.book_count !== 1 ? 's' : ''}</div>
-                              </ChartTooltip>
-                            )
-                          }}
-                        />
-                        <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </ChartCard>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {data.reading_pace.length > 0 && (
-                  <ChartCard title="Reading Pace">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <AreaChart data={[...data.reading_pace].reverse()} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                         <XAxis
                           dataKey="date"
                           tickFormatter={formatDate}
@@ -899,65 +664,9 @@ export function StatsPage() {
                           tickLine={false}
                         />
                         <YAxis
-                          tick={{ fontSize: 10, fill: '#94a3b8' }}
-                          width={36}
-                          axisLine={false}
-                          tickLine={false}
-                          tickFormatter={(v: number) => v.toFixed(1)}
-                        />
-                        <Tooltip
-                          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                          wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-                          isAnimationActive={false}
-                          content={({ active, payload }) => {
-                            if (!active || !payload?.length) return null
-                            const d = payload[0].payload
-                            return (
-                              <ChartTooltip>
-                                <div className="font-medium">{d.title}</div>
-                                <div>{d.pages_per_min} pages/min</div>
-                                <div className="text-muted-foreground">{d.pages_turned} pages in {formatDuration(d.duration_seconds)}</div>
-                              </ChartTooltip>
-                            )
-                          }}
-                        />
-                        <Area
-                          dataKey="pages_per_min"
-                          fill="#10b981"
-                          fillOpacity={0.15}
-                          stroke="#10b981"
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-muted-foreground text-center">
-                      avg {(data.reading_pace.reduce((s, p) => s + p.pages_per_min, 0) / data.reading_pace.length).toFixed(1)} pages/min
-                    </p>
-                  </ChartCard>
-                )}
-
-                <ChartCard title="Top Books by Reading Time">
-                  {data.top_books.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-12">No reading sessions recorded.</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={Math.max(180, data.top_books.length * 32)}>
-                      <BarChart
-                        data={data.top_books}
-                        layout="vertical"
-                        margin={{ top: 0, right: 8, bottom: 0, left: 8 }}
-                      >
-                        <XAxis
-                          type="number"
                           tickFormatter={formatDuration}
                           tick={{ fontSize: 10, fill: '#94a3b8' }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="title"
-                          width={140}
-                          tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          width={42}
                           axisLine={false}
                           tickLine={false}
                         />
@@ -970,346 +679,346 @@ export function StatsPage() {
                             const d = payload[0].payload
                             return (
                               <ChartTooltip>
-                                <div className="font-medium">{d.title}</div>
+                                <div className="font-medium">{formatDate(d.date)}</div>
                                 <div>{formatDuration(d.seconds)}</div>
                                 <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
                               </ChartTooltip>
                             )
                           }}
                         />
-                        <Bar dataKey="seconds" fill="#6366f1" fillOpacity={0.85} radius={[0, 3, 3, 0]} />
+                        <Bar dataKey="seconds" fill="#6366f1" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                  )}
-                </ChartCard>
-              </div>
-            </div>
+                  </ChartCard>
 
-            {/* ── Per-Book Time Breakdown ─────────────────────────── */}
-            {data.per_book_time.length > 0 && (
-              <PerBookTimeTable data={data.per_book_time} />
-            )}
-
-            {/* ── Milestones ───────────────────────────────────────── */}
-            {cumulativeFinished.length > 0 && (
-              <div className="flex flex-col gap-4">
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Milestones</h2>
-                <ChartCard title="Books Finished">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <AreaChart data={cumulativeFinished} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                      <XAxis
-                        dataKey="date"
-                        tickFormatter={formatDate}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        interval="preserveStartEnd"
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                        width={30}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                        wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-                        isAnimationActive={false}
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null
-                          const d = payload[0].payload
-                          return (
-                            <ChartTooltip>
-                              <div className="text-muted-foreground mb-1">{formatDate(d.date)}</div>
-                              {d.titles.map((t: string) => (
-                                <div key={t} className="font-medium">{t}</div>
-                              ))}
-                              <div className="text-muted-foreground mt-1">
-                                {d.daily} finished &middot; {d.count} total
-                              </div>
-                            </ChartTooltip>
-                          )
-                        }}
-                      />
-                      <Area
-                        dataKey="count"
-                        fill="#6366f1"
-                        fillOpacity={0.15}
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-              </div>
-            )}
-
-            {/* ── Session Log ──────────────────────────────────────── */}
-            <div className="flex flex-col gap-4" id="session-log">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Session Log</h2>
-              <ChartCard title={sessionsTotal > 0 ? `Recent Sessions · ${sessionsTotal}` : 'Recent Sessions'}>
-                {sessions.length === 0 && !sessionsLoading ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No sessions recorded.</p>
-                ) : (
-                  <div className="flex flex-col gap-0">
-                    <div className="hidden sm:grid grid-cols-[1fr_120px_80px_80px_40px] gap-2 px-2 pb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
-                      <span>Book</span>
-                      <span>Date</span>
-                      <span>Duration</span>
-                      <span>Device</span>
-                      <span />
-                    </div>
-                    {sessions.map((s, idx) => (
-                      <div
-                        key={s.id}
-                        className={cn(
-                          'grid grid-cols-1 sm:grid-cols-[1fr_120px_80px_80px_40px] gap-1 sm:gap-2 px-2 py-2 items-center hover:bg-accent/30 transition-colors text-xs rounded',
-                          idx % 2 === 0 ? 'bg-muted/20' : ''
-                        )}
-                      >
-                        <div className="font-medium text-foreground truncate">
-                          {s.book_id ? (
-                            <a href={`/books/${s.book_id}`} className="hover:text-primary transition-colors">{s.book_title}</a>
-                          ) : (
-                            <span className="text-muted-foreground">{s.book_title}</span>
-                          )}
-                        </div>
-                        <div className="text-muted-foreground">
-                          {s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
-                        </div>
-                        <div className="text-muted-foreground">
-                          {s.duration_seconds != null ? formatDuration(s.duration_seconds) : '--'}
-                        </div>
-                        <div className="text-muted-foreground truncate">{s.device || '--'}</div>
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => deleteSession(s.id)}
-                            disabled={deleting.has(s.id)}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                            title="Delete session"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {sessionsLoaded < sessionsTotal && (
-                      <button
-                        onClick={() => loadSessions(sessionsLoaded, false)}
-                        disabled={sessionsLoading}
-                        className="flex items-center justify-center gap-1.5 py-3 text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
-                      >
-                        {sessionsLoading ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <>
-                            <ChevronDown className="w-3.5 h-3.5" />
-                            <span>Show more ({sessionsTotal - sessionsLoaded} remaining)</span>
-                          </>
-                        )}
-                      </button>
+                  <ChartCard title="Top Books by Reading Time">
+                    {data.top_books.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-12">No reading sessions recorded.</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={Math.max(180, data.top_books.length * 32)}>
+                        <BarChart
+                          data={data.top_books}
+                          layout="vertical"
+                          margin={{ top: 0, right: 8, bottom: 0, left: 8 }}
+                        >
+                          <XAxis
+                            type="number"
+                            tickFormatter={formatDuration}
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="title"
+                            width={140}
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                            wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+                            isAnimationActive={false}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null
+                              const d = payload[0].payload
+                              return (
+                                <ChartTooltip>
+                                  <div className="font-medium">{d.title}</div>
+                                  <div>{formatDuration(d.seconds)}</div>
+                                  <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
+                                </ChartTooltip>
+                              )
+                            }}
+                          />
+                          <Bar dataKey="seconds" fill="#6366f1" fillOpacity={0.85} radius={[0, 3, 3, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
                     )}
+                  </ChartCard>
+                </div>
+
+                {/* 365-day heatmap */}
+                <ChartCard title="Reading Activity — Last 365 Days">
+                  <HeatmapChart data={data.heatmap_daily} />
+                  <div className="flex items-center gap-2 justify-end mt-1">
+                    <span className="text-[10px] text-muted-foreground">Less</span>
+                    {[
+                      'rgba(148, 163, 184, 0.1)',
+                      'rgba(99, 102, 241, 0.25)',
+                      'rgba(99, 102, 241, 0.45)',
+                      'rgba(99, 102, 241, 0.7)',
+                      '#6366f1',
+                    ].map((c, i) => (
+                      <div key={i} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: c }} />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground">More</span>
                   </div>
+                </ChartCard>
+
+                {/* Milestones */}
+                {cumulativeFinished.length > 0 && (
+                  <ChartCard title="Books Finished">
+                    <ResponsiveContainer width="100%" height={200}>
+                      <AreaChart data={cumulativeFinished} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatDate}
+                          tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          interval="preserveStartEnd"
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          width={30}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                          wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+                          isAnimationActive={false}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null
+                            const d = payload[0].payload
+                            return (
+                              <ChartTooltip>
+                                <div className="text-muted-foreground mb-1">{formatDate(d.date)}</div>
+                                {d.titles.map((t: string) => (
+                                  <div key={t} className="font-medium">{t}</div>
+                                ))}
+                                <div className="text-muted-foreground mt-1">
+                                  {d.daily} finished &middot; {d.count} total
+                                </div>
+                              </ChartTooltip>
+                            )
+                          }}
+                        />
+                        <Area
+                          dataKey="count"
+                          fill="#6366f1"
+                          fillOpacity={0.15}
+                          stroke="#6366f1"
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
                 )}
-              </ChartCard>
-            </div>
 
-            </div>
-            )} {/* end overview tab */}
+                {/* Session log */}
+                <div className="flex flex-col gap-4" id="session-log">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Session Log</h2>
+                  <ChartCard title={sessionsTotal > 0 ? `Recent Sessions · ${sessionsTotal}` : 'Recent Sessions'}>
+                    {sessions.length === 0 && !sessionsLoading ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">No sessions recorded.</p>
+                    ) : (
+                      <div className="flex flex-col gap-0">
+                        <div className="hidden sm:grid grid-cols-[1fr_120px_80px_80px_40px] gap-2 px-2 pb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+                          <span>Book</span>
+                          <span>Date</span>
+                          <span>Duration</span>
+                          <span>Device</span>
+                          <span />
+                        </div>
+                        {sessions.map((s, idx) => (
+                          <div
+                            key={s.id}
+                            className={cn(
+                              'grid grid-cols-1 sm:grid-cols-[1fr_120px_80px_80px_40px] gap-1 sm:gap-2 px-2 py-2 items-center hover:bg-accent/30 transition-colors text-xs rounded',
+                              idx % 2 === 0 ? 'bg-muted/20' : ''
+                            )}
+                          >
+                            <div className="font-medium text-foreground truncate">
+                              {s.book_id ? (
+                                <a href={`/books/${s.book_id}`} className="hover:text-primary transition-colors">{s.book_title}</a>
+                              ) : (
+                                <span className="text-muted-foreground">{s.book_title}</span>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {s.duration_seconds != null ? formatDuration(s.duration_seconds) : '--'}
+                            </div>
+                            <div className="text-muted-foreground truncate">{s.device || '--'}</div>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => deleteSession(s.id)}
+                                disabled={deleting.has(s.id)}
+                                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                                title="Delete session"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {sessionsLoaded < sessionsTotal && (
+                          <button
+                            onClick={() => loadSessions(sessionsLoaded, false)}
+                            disabled={sessionsLoading}
+                            className="flex items-center justify-center gap-1.5 py-3 text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                          >
+                            {sessionsLoading ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <ChevronDown className="w-3.5 h-3.5" />
+                                <span>Show more ({sessionsTotal - sessionsLoaded} remaining)</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </ChartCard>
+                </div>
 
-            {/* ── Insights Tab ─────────────────────────────────────── */}
-            {statsTab === 'insights' && (
+              </div>
+            )}
+
+            {/* ── Habits Tab ───────────────────────────────────────────── */}
+            {statsTab === 'habits' && (
               <div className="flex flex-col gap-8">
 
-                {/* Reading Activity Heatmap */}
+                {/* Hour x DOW heatmap */}
                 <div className="flex flex-col gap-4">
-                  <ChartCard title="Reading Activity — Last 365 Days">
-                    <HeatmapChart data={data.heatmap_daily} />
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">When You Read</h2>
+                  <ChartCard title="Reading Intensity by Hour and Day">
+                    <HourDowHeatmap data={data.hour_dow_heatmap} />
                     <div className="flex items-center gap-2 justify-end mt-1">
                       <span className="text-[10px] text-muted-foreground">Less</span>
-                      {[
-                        'rgba(148, 163, 184, 0.1)',
-                        'rgba(99, 102, 241, 0.25)',
-                        'rgba(99, 102, 241, 0.45)',
-                        'rgba(99, 102, 241, 0.7)',
-                        '#6366f1',
-                      ].map((c, i) => (
-                        <div key={i} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: c }} />
+                      {[0.15, 0.37, 0.58, 0.79, 1.0].map(o => (
+                        <div
+                          key={o}
+                          className="w-3 h-3 rounded-sm border border-border/30"
+                          style={{ backgroundColor: `rgba(99, 102, 241, ${o})` }}
+                        />
                       ))}
                       <span className="text-[10px] text-muted-foreground">More</span>
                     </div>
                   </ChartCard>
                 </div>
 
-                {/* Period Comparison */}
-                {data.period_comparison && (
-                  <div className="flex flex-col gap-4">
-                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Period Comparison</h2>
-                    <div className="bg-card border border-border rounded-xl p-5 flex items-start gap-4">
-                      <div className={cn(
-                        'p-2 rounded-lg shrink-0',
-                        data.period_comparison.pct_change === null
-                          ? 'bg-muted'
-                          : data.period_comparison.pct_change > 0
-                          ? 'bg-emerald-500/10'
-                          : data.period_comparison.pct_change < 0
-                          ? 'bg-red-500/10'
-                          : 'bg-muted',
-                      )}>
-                        {data.period_comparison.pct_change === null ? (
-                          <Minus className="w-5 h-5 text-muted-foreground" />
-                        ) : data.period_comparison.pct_change > 0 ? (
-                          <TrendingUp className="w-5 h-5 text-emerald-500" />
-                        ) : data.period_comparison.pct_change < 0 ? (
-                          <TrendingDown className="w-5 h-5 text-red-500" />
-                        ) : (
-                          <Minus className="w-5 h-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={cn(
-                          'text-lg font-bold',
-                          data.period_comparison.pct_change === null
-                            ? 'text-muted-foreground'
-                            : data.period_comparison.pct_change > 0
-                            ? 'text-emerald-500'
-                            : data.period_comparison.pct_change < 0
-                            ? 'text-red-500'
-                            : 'text-muted-foreground',
-                        )}>
-                          {data.period_comparison.pct_change === null
-                            ? 'No previous data to compare'
-                            : data.period_comparison.pct_change === 0 && data.period_comparison.current_seconds === 0
-                            ? 'No reading data'
-                            : data.period_comparison.pct_change === 0
-                            ? 'Same as previous period'
-                            : data.period_comparison.pct_change > 0
-                            ? `${data.period_comparison.pct_change}% more reading this period`
-                            : `${Math.abs(data.period_comparison.pct_change)}% less reading this period`}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          This period: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.current_seconds)}</span>
-                          {data.period_comparison.pct_change !== null && (
-                            <>{' '}vs previous: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.previous_seconds)}</span></>
-                          )}
-                        </p>
-                      </div>
+                {/* Session timeline */}
+                {data.session_timeline.length > 0 && (
+                  <ChartCard title="Session Timeline">
+                    <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
+                      {(() => {
+                        const grouped: Record<string, typeof data.session_timeline> = {}
+                        for (const s of data.session_timeline) {
+                          const d = s.started_at.slice(0, 10)
+                          if (!grouped[d]) grouped[d] = []
+                          grouped[d].push(s)
+                        }
+                        return Object.entries(grouped)
+                          .sort(([a], [b]) => b.localeCompare(a))
+                          .slice(0, 14)
+                          .map(([dateStr, daySessions]) => (
+                            <div key={dateStr} className="flex items-center gap-3 py-1">
+                              <span className="text-[10px] text-muted-foreground w-16 shrink-0 text-right">
+                                {formatDate(dateStr)}
+                              </span>
+                              <div className="flex-1 relative h-6 bg-muted/30 rounded overflow-hidden">
+                                {daySessions.map(s => {
+                                  const start = new Date(s.started_at)
+                                  const end = new Date(s.ended_at)
+                                  const dayStart = start.getHours() * 60 + start.getMinutes()
+                                  const dayEnd = end.getHours() * 60 + end.getMinutes()
+                                  const left = (dayStart / 1440) * 100
+                                  const width = Math.max(((dayEnd - dayStart) / 1440) * 100, 0.8)
+                                  return (
+                                    <div
+                                      key={s.id}
+                                      className="absolute top-0.5 bottom-0.5 rounded-sm bg-indigo-500/70 hover:bg-indigo-500 transition-colors"
+                                      style={{ left: `${left}%`, width: `${width}%` }}
+                                      title={`${s.title} — ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${formatDuration(s.duration_seconds)})`}
+                                    />
+                                  )
+                                })}
+                                {[6, 12, 18].map(h => (
+                                  <div
+                                    key={h}
+                                    className="absolute top-0 bottom-0 border-l border-border/40"
+                                    style={{ left: `${(h / 24) * 100}%` }}
+                                  />
+                                ))}
+                              </div>
+                              <div className="flex gap-3 text-[9px] text-muted-foreground shrink-0 w-20">
+                                <span>6</span><span>12</span><span>18</span><span>24</span>
+                              </div>
+                            </div>
+                          ))
+                      })()}
                     </div>
-                  </div>
+                  </ChartCard>
                 )}
 
-                {/* Completion Estimates */}
-                <div className="flex flex-col gap-4">
-                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Completion Estimates</h2>
-                  {estimatesLoading ? (
-                    <div className="flex justify-center py-10">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    </div>
-                  ) : estimates && estimates.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {estimates.map(est => (
-                        <a
-                          key={est.book_id}
-                          href={`/books/${est.book_id}`}
-                          className="group bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:bg-accent/30 transition-colors"
-                        >
-                          <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                            {est.has_cover ? (
-                              <img src={`/api/books/${est.book_id}/cover`} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <FileText className="w-4 h-4 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={cn(
-                              'text-sm font-medium truncate group-hover:text-primary transition-colors',
-                              est.confidence === 'low' ? 'text-muted-foreground' : 'text-foreground',
-                            )}>
-                              {est.title}
-                            </p>
-                            {est.author && (
-                              <p className="text-xs text-muted-foreground truncate">{est.author}</p>
-                            )}
-                            <div className="mt-2 flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-500 rounded-full"
-                                  style={{ width: `${Math.min(est.progress, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
-                            </div>
-                            <p className={cn(
-                              'text-xs mt-1.5',
-                              est.confidence === 'high'
-                                ? 'text-foreground'
-                                : est.confidence === 'medium'
-                                ? 'text-muted-foreground'
-                                : 'text-muted-foreground/60',
-                            )}>
-                              {est.estimated_days != null
-                                ? `~${est.estimated_days} day${est.estimated_days !== 1 ? 's' : ''} remaining`
-                                : 'Just started'}
-                              {est.confidence === 'low' && est.estimated_days != null && (
-                                <span className="ml-1 text-muted-foreground/50">(low confidence)</span>
-                              )}
-                            </p>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  ) : estimates !== null ? (
-                    <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
-                      No books currently in progress.
-                    </div>
-                  ) : null}
-                </div>
+                {/* Reading pace + pace by format */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {data.reading_pace.length > 0 && (
+                    <ChartCard title="Reading Pace">
+                      <ResponsiveContainer width="100%" height={200}>
+                        <AreaChart data={[...data.reading_pace].reverse()} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                          <XAxis
+                            dataKey="date"
+                            tickFormatter={formatDate}
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            interval="preserveStartEnd"
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            width={36}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(v: number) => v.toFixed(1)}
+                          />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                            wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+                            isAnimationActive={false}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null
+                              const d = payload[0].payload
+                              return (
+                                <ChartTooltip>
+                                  <div className="font-medium">{d.title}</div>
+                                  <div>{d.pages_per_min} pages/min</div>
+                                  <div className="text-muted-foreground">{d.pages_turned} pages in {formatDuration(d.duration_seconds)}</div>
+                                </ChartTooltip>
+                              )
+                            }}
+                          />
+                          <Area
+                            dataKey="pages_per_min"
+                            fill="#10b981"
+                            fillOpacity={0.15}
+                            stroke="#10b981"
+                            strokeWidth={2}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                      <p className="text-xs text-muted-foreground text-center">
+                        avg {(data.reading_pace.reduce((s, p) => s + p.pages_per_min, 0) / data.reading_pace.length).toFixed(1)} pages/min
+                      </p>
+                    </ChartCard>
+                  )}
 
-                {/* Year in Review */}
-                <div className="flex flex-col gap-4">
-                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Year in Review</h2>
-                  {data.year_summary ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <StatCard
-                        icon={<BookCheck className="w-3.5 h-3.5" />}
-                        label="Books Finished"
-                        value={String(data.year_summary.books_finished)}
-                      />
-                      <StatCard
-                        icon={<Clock className="w-3.5 h-3.5" />}
-                        label="Total Hours"
-                        value={`${data.year_summary.total_hours}h`}
-                      />
-                      <StatCard
-                        icon={<Trophy className="w-3.5 h-3.5" />}
-                        label="Top Genre"
-                        value={data.year_summary.top_genre ?? '--'}
-                      />
-                      <StatCard
-                        icon={<Flame className="w-3.5 h-3.5" />}
-                        label="Longest Streak"
-                        value={`${data.year_summary.longest_streak_days}d`}
-                      />
-                      <StatCard
-                        icon={<Activity className="w-3.5 h-3.5" />}
-                        label="Total Sessions"
-                        value={String(data.year_summary.total_sessions)}
-                      />
-                      <StatCard
-                        icon={<Calendar className="w-3.5 h-3.5" />}
-                        label="Most Active Month"
-                        value={data.year_summary.most_active_month ?? '--'}
-                      />
-                    </div>
-                  ) : (
-                    <div className="bg-card border border-border rounded-xl p-5 text-center text-muted-foreground text-xs">
-                      Select <span className="font-medium text-foreground">1 Year</span> or <span className="font-medium text-foreground">All Time</span> to see your year in review.
-                    </div>
+                  {data.pace_by_format.length > 0 && (
+                    <ChartCard title="Pace by Format">
+                      <PaceByFormat data={data.pace_by_format} />
+                    </ChartCard>
                   )}
                 </div>
 
-                {/* Reading Speed Trend */}
+                {/* Reading speed trend */}
                 {data.reading_pace.length >= 4 && (() => {
                   const paceData = [...data.reading_pace].reverse()
                   const half = Math.floor(paceData.length / 2)
@@ -1393,7 +1102,131 @@ export function StatsPage() {
                   )
                 })()}
 
-                {/* Monthly Comparison */}
+                {/* Completion estimates */}
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Completion Estimates</h2>
+                  {estimatesLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  ) : estimates && estimates.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {estimates.map(est => (
+                        <a
+                          key={est.book_id}
+                          href={`/books/${est.book_id}`}
+                          className="group bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:bg-accent/30 transition-colors"
+                        >
+                          <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                            {est.has_cover ? (
+                              <img src={`/api/books/${est.book_id}/cover`} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <FileText className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={cn(
+                              'text-sm font-medium truncate group-hover:text-primary transition-colors',
+                              est.confidence === 'low' ? 'text-muted-foreground' : 'text-foreground',
+                            )}>
+                              {est.title}
+                            </p>
+                            {est.author && (
+                              <p className="text-xs text-muted-foreground truncate">{est.author}</p>
+                            )}
+                            <div className="mt-2 flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-500 rounded-full"
+                                  style={{ width: `${Math.min(est.progress, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
+                            </div>
+                            <p className={cn(
+                              'text-xs mt-1.5',
+                              est.confidence === 'high'
+                                ? 'text-foreground'
+                                : est.confidence === 'medium'
+                                ? 'text-muted-foreground'
+                                : 'text-muted-foreground/60',
+                            )}>
+                              {est.estimated_days != null
+                                ? `~${est.estimated_days} day${est.estimated_days !== 1 ? 's' : ''} remaining`
+                                : 'Just started'}
+                              {est.confidence === 'low' && est.estimated_days != null && (
+                                <span className="ml-1 text-muted-foreground/50">(low confidence)</span>
+                              )}
+                            </p>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : estimates !== null ? (
+                    <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
+                      No books currently in progress.
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Period comparison */}
+                {data.period_comparison && (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Period Comparison</h2>
+                    <div className="bg-card border border-border rounded-xl p-5 flex items-start gap-4">
+                      <div className={cn(
+                        'p-2 rounded-lg shrink-0',
+                        data.period_comparison.pct_change === null
+                          ? 'bg-muted'
+                          : data.period_comparison.pct_change > 0
+                          ? 'bg-emerald-500/10'
+                          : data.period_comparison.pct_change < 0
+                          ? 'bg-red-500/10'
+                          : 'bg-muted',
+                      )}>
+                        {data.period_comparison.pct_change === null ? (
+                          <Minus className="w-5 h-5 text-muted-foreground" />
+                        ) : data.period_comparison.pct_change > 0 ? (
+                          <TrendingUp className="w-5 h-5 text-emerald-500" />
+                        ) : data.period_comparison.pct_change < 0 ? (
+                          <TrendingDown className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <Minus className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          'text-lg font-bold',
+                          data.period_comparison.pct_change === null
+                            ? 'text-muted-foreground'
+                            : data.period_comparison.pct_change > 0
+                            ? 'text-emerald-500'
+                            : data.period_comparison.pct_change < 0
+                            ? 'text-red-500'
+                            : 'text-muted-foreground',
+                        )}>
+                          {data.period_comparison.pct_change === null
+                            ? 'No previous data to compare'
+                            : data.period_comparison.pct_change === 0 && data.period_comparison.current_seconds === 0
+                            ? 'No reading data'
+                            : data.period_comparison.pct_change === 0
+                            ? 'Same as previous period'
+                            : data.period_comparison.pct_change > 0
+                            ? `${data.period_comparison.pct_change}% more reading this period`
+                            : `${Math.abs(data.period_comparison.pct_change)}% less reading this period`}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          This period: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.current_seconds)}</span>
+                          {data.period_comparison.pct_change !== null && (
+                            <>{' '}vs previous: <span className="text-foreground font-medium">{formatDuration(data.period_comparison.previous_seconds)}</span></>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Monthly comparison */}
                 {data.monthly_comparison.length > 0 && (
                   <div className="flex flex-col gap-4">
                     <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Monthly Comparison</h2>
@@ -1449,11 +1282,144 @@ export function StatsPage() {
                   </div>
                 )}
 
-                {/* Genre Over Time */}
+              </div>
+            )}
+
+            {/* ── Library Tab ──────────────────────────────────────────── */}
+            {statsTab === 'library' && (
+              <div className="flex flex-col gap-8">
+
+                {/* Year summary */}
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Year in Review</h2>
+                  {data.year_summary ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <StatCard
+                        icon={<BookCheck className="w-3.5 h-3.5" />}
+                        label="Books Finished"
+                        value={String(data.year_summary.books_finished)}
+                      />
+                      <StatCard
+                        icon={<Clock className="w-3.5 h-3.5" />}
+                        label="Total Hours"
+                        value={`${data.year_summary.total_hours}h`}
+                      />
+                      <StatCard
+                        icon={<Trophy className="w-3.5 h-3.5" />}
+                        label="Top Genre"
+                        value={data.year_summary.top_genre ?? '--'}
+                      />
+                      <StatCard
+                        icon={<Flame className="w-3.5 h-3.5" />}
+                        label="Longest Streak"
+                        value={`${data.year_summary.longest_streak_days}d`}
+                      />
+                      <StatCard
+                        icon={<Activity className="w-3.5 h-3.5" />}
+                        label="Total Sessions"
+                        value={String(data.year_summary.total_sessions)}
+                      />
+                      <StatCard
+                        icon={<Calendar className="w-3.5 h-3.5" />}
+                        label="Most Active Month"
+                        value={data.year_summary.most_active_month ?? '--'}
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-border rounded-xl p-5 text-center text-muted-foreground text-xs">
+                      Select <span className="font-medium text-foreground">1 Year</span> or <span className="font-medium text-foreground">All Time</span> to see your year in review.
+                    </div>
+                  )}
+                </div>
+
+                {/* Series completion */}
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Series Completion <span className="text-muted-foreground/60 normal-case tracking-normal font-normal ml-1">· all time</span></h2>
+                  <SeriesCompletionGrid data={data.series_completion} />
+                </div>
+
+                {/* Author affinity */}
+                {data.author_affinity.length > 0 && (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Author Affinity</h2>
+                    <ChartCard title="Top Authors by Reading Time">
+                      <AuthorAffinity data={data.author_affinity} />
+                    </ChartCard>
+                  </div>
+                )}
+
+                {/* Completion by type */}
+                {data.completion_by_type.length > 0 && (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Completion by Type <span className="text-muted-foreground/60 normal-case tracking-normal font-normal ml-1">· all time</span></h2>
+                    <ChartCard title="Finish Rate per Book Category">
+                      <CompletionByType data={data.completion_by_type} />
+                    </ChartCard>
+                  </div>
+                )}
+
+                {/* By category pie */}
+                <ChartCard title="Category Breakdown">
+                  {data.by_category.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-12">No category data.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={data.by_category}
+                          dataKey="seconds"
+                          nameKey="category"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={72}
+                          label={false}
+                          stroke="none"
+                        >
+                          {data.by_category.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          cursor={false}
+                          wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
+                          isAnimationActive={false}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null
+                            const d = payload[0].payload
+                            const total = data.by_category.reduce((s, c) => s + c.seconds, 0)
+                            return (
+                              <ChartTooltip>
+                                <div className="font-medium">{d.category}</div>
+                                <div>{formatDuration(d.seconds)} ({total > 0 ? Math.round(d.seconds / total * 100) : 0}%)</div>
+                                <div className="text-muted-foreground">{d.book_count} book{d.book_count !== 1 ? 's' : ''}</div>
+                              </ChartTooltip>
+                            )
+                          }}
+                        />
+                        <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </ChartCard>
+
+                {/* Genre over time */}
                 <GenreOverTimeChart data={data.genre_over_time} />
 
+                {/* Library growth */}
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Library Growth</h2>
+                  <ChartCard title="Cumulative Books Added — Last 24 Months">
+                    <LibraryGrowthChart data={data.library_growth} />
+                  </ChartCard>
+                </div>
+
+                {/* Per-book time table */}
+                {data.per_book_time.length > 0 && (
+                  <PerBookTimeTable data={data.per_book_time} />
+                )}
+
               </div>
-            )} {/* end insights tab */}
+            )}
 
           </div>
         ) : null}

@@ -1,16 +1,18 @@
 """Personal reading statistics endpoint. TomeSync data only."""
+from collections import defaultdict
 from datetime import datetime, timedelta, date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import func, Integer
+from sqlalchemy import func, Integer, case
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.permissions import book_visibility_filter
 from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
-from backend.models.book import Book
+from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.library import BookType
 
@@ -210,35 +212,7 @@ def get_stats(
         for r in category_rows
     ]
 
-    # Hourly distribution — bucket session time into hour-of-day slots (local time)
     local_time_expr = func.datetime(ReadingSession.started_at, tz_modifier)
-    hourly_rows = (
-        base.with_entities(
-            func.cast(func.strftime('%H', local_time_expr), Integer).label("hour"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-        )
-        .group_by(func.strftime('%H', local_time_expr))
-        .all()
-    )
-    hourly_map = {r.hour: {"seconds": r.seconds, "sessions": r.sessions} for r in hourly_rows}
-    hourly = [{"hour": h, "seconds": hourly_map.get(h, {}).get("seconds", 0), "sessions": hourly_map.get(h, {}).get("sessions", 0)} for h in range(24)]
-
-    # Weekly pattern — day-of-week aggregation (0=Sun..6=Sat in SQLite strftime('%w'))
-    weekly_rows = (
-        base.with_entities(
-            func.cast(func.strftime('%w', local_time_expr), Integer).label("dow"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-        )
-        .group_by(func.strftime('%w', local_time_expr))
-        .all()
-    )
-    weekly_map = {r.dow: {"seconds": r.seconds, "sessions": r.sessions} for r in weekly_rows}
-    # Reorder to Mon(1)..Sun(0)
-    dow_order = [1, 2, 3, 4, 5, 6, 0]
-    dow_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    weekly = [{"day": dow_labels[i], "seconds": weekly_map.get(d, {}).get("seconds", 0), "sessions": weekly_map.get(d, {}).get("sessions", 0)} for i, d in enumerate(dow_order)]
 
     # Reading pace — per session, pages/minute
     pace_rows = (
@@ -528,6 +502,214 @@ def get_stats(
             entry[cat] = cat_data.get(cat, 0)
         genre_over_time.append(entry)
 
+    # ── Hour × day-of-week heatmap (168 cells) ───────────────────────────────
+    hour_dow_rows = (
+        base.with_entities(
+            func.cast(func.strftime('%w', local_time_expr), Integer).label("dow"),
+            func.cast(func.strftime('%H', local_time_expr), Integer).label("hour"),
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+            func.count(ReadingSession.id).label("sessions"),
+        )
+        .group_by("dow", "hour")
+        .all()
+    )
+    hour_dow_map = {(r.dow, r.hour): (r.seconds, r.sessions) for r in hour_dow_rows}
+    hour_dow_heatmap = [
+        {
+            "dow": d,
+            "hour": h,
+            "seconds": hour_dow_map.get((d, h), (0, 0))[0],
+            "sessions": hour_dow_map.get((d, h), (0, 0))[1],
+        }
+        for d in range(7) for h in range(24)
+    ]
+
+    # ── Series completion ─────────────────────────────────────────────────────
+    series_rows = (
+        db.query(
+            Book.series.label("series"),
+            func.count(Book.id).label("total"),
+            func.sum(
+                case((UserBookStatus.status == "read", 1), else_=0)
+            ).label("read_count"),
+            func.sum(
+                case((UserBookStatus.status == "reading", 1), else_=0)
+            ).label("reading_count"),
+            func.min(Book.id).label("sample_book_id"),
+        )
+        .outerjoin(
+            UserBookStatus,
+            (UserBookStatus.book_id == Book.id)
+            & (UserBookStatus.user_id == current_user.id),
+        )
+        .filter(
+            Book.status == "active",
+            book_visibility_filter(db, current_user),
+            Book.series.isnot(None),
+            Book.series != "",
+        )
+        .group_by(Book.series)
+        .having(
+            func.sum(case((UserBookStatus.status.in_(("read", "reading")), 1), else_=0)) > 0
+        )
+        .order_by(func.max(UserBookStatus.updated_at).desc().nullslast())
+        .all()
+    )
+    series_completion = [
+        {
+            "series": r.series,
+            "total": int(r.total),
+            "read": int(r.read_count or 0),
+            "reading": int(r.reading_count or 0),
+            "pct": round((int(r.read_count or 0) / int(r.total)) * 100, 1) if r.total else 0,
+            "sample_book_id": r.sample_book_id,
+        }
+        for r in series_rows
+    ]
+
+    # ── Author affinity ───────────────────────────────────────────────────────
+    author_rows = (
+        base.filter(ReadingSession.book_id.isnot(None))
+        .join(Book, Book.id == ReadingSession.book_id)
+        .filter(Book.author.isnot(None), Book.author != "")
+        .with_entities(
+            Book.author.label("author"),
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+            func.count(func.distinct(ReadingSession.book_id)).label("book_count"),
+            func.count(ReadingSession.id).label("sessions"),
+        )
+        .group_by(Book.author)
+        .order_by(func.sum(ReadingSession.duration_seconds).desc())
+        .limit(10)
+        .all()
+    )
+    finished_by_author = dict(
+        db.query(Book.author, func.count(Book.id))
+        .join(UserBookStatus, UserBookStatus.book_id == Book.id)
+        .filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.status == "read",
+        )
+        .group_by(Book.author)
+        .all()
+    )
+    author_affinity = [
+        {
+            "author": r.author,
+            "seconds": int(r.seconds),
+            "sessions": int(r.sessions),
+            "book_count": int(r.book_count),
+            "books_finished": int(finished_by_author.get(r.author, 0)),
+        }
+        for r in author_rows
+    ]
+
+    # ── Completion rate ───────────────────────────────────────────────────────
+    touched_q = db.query(UserBookStatus).filter(
+        UserBookStatus.user_id == current_user.id,
+        UserBookStatus.status.in_(("reading", "read")),
+    )
+    started_count = touched_q.count()
+    finished_count_all = db.query(UserBookStatus).filter(
+        UserBookStatus.user_id == current_user.id,
+        UserBookStatus.status == "read",
+    ).count()
+    completion_rate = {
+        "started": started_count,
+        "finished": finished_count_all,
+        "pct": round((finished_count_all / started_count) * 100, 1) if started_count else 0.0,
+    }
+
+    completion_by_type_rows = (
+        db.query(
+            func.coalesce(BookType.label, "Uncategorized").label("category"),
+            func.sum(case((UserBookStatus.status.in_(("reading", "read")), 1), else_=0)).label("started"),
+            func.sum(case((UserBookStatus.status == "read", 1), else_=0)).label("finished"),
+        )
+        .select_from(UserBookStatus)
+        .join(Book, Book.id == UserBookStatus.book_id)
+        .outerjoin(BookType, BookType.id == Book.book_type_id)
+        .filter(UserBookStatus.user_id == current_user.id)
+        .group_by(func.coalesce(BookType.label, "Uncategorized"))
+        .all()
+    )
+    completion_by_type = [
+        {
+            "category": r.category,
+            "started": int(r.started or 0),
+            "finished": int(r.finished or 0),
+            "pct": round((int(r.finished or 0) / int(r.started or 0)) * 100, 1) if (r.started or 0) else 0.0,
+        }
+        for r in completion_by_type_rows
+        if (r.started or 0) > 0
+    ]
+
+    # ── Pace by format ────────────────────────────────────────────────────────
+    pace_format_rows = (
+        base.filter(
+            ReadingSession.duration_seconds > 60,
+            ReadingSession.pages_turned > 0,
+            ReadingSession.book_id.isnot(None),
+        )
+        .join(Book, Book.id == ReadingSession.book_id)
+        .join(BookFile, BookFile.book_id == Book.id)
+        .with_entities(
+            BookFile.format.label("format"),
+            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+            func.count(ReadingSession.id).label("sessions"),
+        )
+        .group_by(BookFile.format)
+        .all()
+    )
+    pace_by_format = [
+        {
+            "format": r.format,
+            "pages_per_min": round((r.pages / (r.seconds / 60)), 2) if r.seconds else 0,
+            "sessions": int(r.sessions),
+            "pages": int(r.pages),
+            "seconds": int(r.seconds),
+        }
+        for r in pace_format_rows
+    ]
+
+    # ── Library growth timeline (last 24 months) ──────────────────────────────
+    growth_cutoff = now - timedelta(days=365 * 2)
+    growth_rows = (
+        db.query(
+            func.strftime('%Y-%m', Book.added_at).label("month"),
+            func.coalesce(BookType.label, "Uncategorized").label("category"),
+            func.count(Book.id).label("added"),
+        )
+        .outerjoin(BookType, BookType.id == Book.book_type_id)
+        .filter(
+            Book.status == "active",
+            Book.added_at >= growth_cutoff,
+            book_visibility_filter(db, current_user),
+        )
+        .group_by(func.strftime('%Y-%m', Book.added_at), func.coalesce(BookType.label, "Uncategorized"))
+        .order_by("month")
+        .all()
+    )
+
+    monthly_added: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    all_growth_cats: set[str] = set()
+    for r in growth_rows:
+        monthly_added[r.month][r.category] += int(r.added)
+        all_growth_cats.add(r.category)
+
+    library_growth: list[dict] = []
+    running_total: dict[str, int] = {c: 0 for c in all_growth_cats}
+    for i in range(23, -1, -1):
+        d = now - timedelta(days=i * 30)
+        month_key = d.strftime("%Y-%m")
+        for cat, added in monthly_added.get(month_key, {}).items():
+            running_total[cat] += added
+        entry: dict = {"month": month_key, "total": sum(running_total.values())}
+        for cat in sorted(all_growth_cats):
+            entry[cat] = running_total[cat]
+        library_growth.append(entry)
+
     return {
         "range_days": days,
         "headline": {
@@ -544,8 +726,6 @@ def get_stats(
         "books_finished": books_finished_list,
         "top_books": top_books,
         "by_category": by_category,
-        "hourly": hourly,
-        "weekly": weekly,
         "reading_pace": reading_pace,
         "books_in_progress": books_in_progress,
         "session_timeline": session_timeline,
@@ -554,6 +734,13 @@ def get_stats(
         "per_book_time": per_book_time,
         "monthly_comparison": monthly_comparison,
         "genre_over_time": genre_over_time,
+        "hour_dow_heatmap": hour_dow_heatmap,
+        "series_completion": series_completion,
+        "author_affinity": author_affinity,
+        "completion_rate": completion_rate,
+        "completion_by_type": completion_by_type,
+        "pace_by_format": pace_by_format,
+        "library_growth": library_growth,
     }
 
 

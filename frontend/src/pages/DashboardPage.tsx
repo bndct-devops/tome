@@ -73,6 +73,15 @@ interface ActivityEntry {
   pages_turned: number
 }
 
+interface ForgottenBook {
+  book_id: number
+  title: string
+  author: string | null
+  has_cover: boolean
+  last_read: string | null
+  days_ago: number | null
+}
+
 const SORT_LABELS: Record<SortField, string> = {
   title: 'Title', author: 'Author', year: 'Year', added_at: 'Date Added',
 }
@@ -561,6 +570,8 @@ export function DashboardPage() {
   const [recentlyFinished, setRecentlyFinished] = useState<Book[]>([])
   const [recentlyAdded, setRecentlyAdded] = useState<Book[]>([])
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([])
+  const [forgottenBooks, setForgottenBooks] = useState<ForgottenBook[]>([])
+  const [forgottenDismissed, setForgottenDismissed] = useState(false)
 
   const PAGE_SIZE = 60
 
@@ -735,6 +746,7 @@ export function DashboardPage() {
     api.get<Book[]>('/books?reading_status=read&sort=status_updated&order=desc&limit=6').then(setRecentlyFinished).catch(() => {})
     api.get<Book[]>('/books?sort=added_at&order=desc&limit=6').then(setRecentlyAdded).catch(() => {})
     api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
+    api.get<ForgottenBook[]>('/home/forgotten-books').then(setForgottenBooks).catch(() => {})
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
 
@@ -868,6 +880,49 @@ export function DashboardPage() {
                     label="pages (30d)"
                   />
                 </div>
+              )}
+
+              {/* ── Forgotten Books ───────────────────────────────────────── */}
+              {!forgottenDismissed && forgottenBooks.length > 0 && (
+                <section className="rounded-lg border border-border bg-muted/30 p-4">
+                  <header className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-medium">Pick up where you left off</h2>
+                    <button
+                      onClick={() => setForgottenDismissed(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </header>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {forgottenBooks.map(b => (
+                      <a
+                        key={b.book_id}
+                        href={`/books/${b.book_id}`}
+                        className="group flex flex-col gap-1.5 hover:opacity-90 transition-opacity"
+                      >
+                        <div className="aspect-[2/3] rounded-md bg-muted overflow-hidden flex items-center justify-center">
+                          {b.has_cover ? (
+                            <img
+                              src={`/api/books/${b.book_id}/cover`}
+                              alt={b.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <BookOpen className="w-6 h-6 text-muted-foreground" />
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                          {b.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {b.days_ago != null ? `${b.days_ago}d ago` : 'A while ago'}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </section>
               )}
 
               {/* ── Continue Reading ──────────────────────────────────────── */}

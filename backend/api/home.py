@@ -123,3 +123,36 @@ def get_home_activity(
         }
         for r in rows
     ]
+
+
+@router.get("/forgotten-books")
+def forgotten_books(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Return books marked 'reading' that haven't been touched in 30+ days."""
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    rows = (
+        db.query(UserBookStatus, Book)
+        .join(Book, Book.id == UserBookStatus.book_id)
+        .filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.status == "reading",
+            UserBookStatus.updated_at < cutoff,
+            Book.status == "active",
+        )
+        .order_by(UserBookStatus.updated_at.asc())
+        .limit(6)
+        .all()
+    )
+    return [
+        {
+            "book_id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "has_cover": bool(book.cover_path),
+            "last_read": status.updated_at.isoformat() if status.updated_at else None,
+            "days_ago": (datetime.utcnow() - status.updated_at).days if status.updated_at else None,
+        }
+        for status, book in rows
+    ]
