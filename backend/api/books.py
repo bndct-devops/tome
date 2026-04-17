@@ -10,6 +10,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Form, status
+from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -1137,13 +1138,11 @@ async def bulk_fetch_metadata(
             # Download cover only if book has none
             if best.cover_url and not book.cover_path:
                 try:
-                    async with httpx.AsyncClient(timeout=15) as client:
-                        r = await client.get(best.cover_url)
-                        r.raise_for_status()
+                    cover_data = await fetch_safe_image(best.cover_url)
                     cover_filename = f"book_{book.id}_fetched.jpg"
                     cover_path = settings.covers_dir / cover_filename
                     cover_path.parent.mkdir(parents=True, exist_ok=True)
-                    cover_path.write_bytes(r.content)
+                    cover_path.write_bytes(cover_data)
                     book.cover_path = cover_filename
                     changed = True
                 except Exception:
@@ -1373,12 +1372,12 @@ async def set_book_cover(
 
     if url:
         try:
-            async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-                r = await client.get(url, headers={"User-Agent": "Tome/1.0"})
-                r.raise_for_status()
-            cover_path.write_bytes(r.content)
-        except Exception as exc:
+            data = await fetch_safe_image(url)
+        except UnsafeURLError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid cover URL: {exc}")
+        except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"Cover download failed: {exc}")
+        cover_path.write_bytes(data)
     else:
         data = await file.read()
         cover_path.write_bytes(data)
@@ -1404,6 +1403,10 @@ def download_book(
         .first()
     )
     if not book_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    from backend.core.permissions import user_can_see_book
+    if not user_can_see_book(db, current_user, book_file.book):
         raise HTTPException(status_code=404, detail="File not found")
 
     file_path = Path(book_file.file_path)
@@ -1549,11 +1552,11 @@ def get_comic_page(
 def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
     """Serve CBZ/CBR file for the comic reader."""
     from jose import JWTError, jwt as jose_jwt
-    from backend.core.config import settings
+    from backend.core.security import _signing_key
     from backend.models.user import User as UserModel
 
     try:
-        payload = jose_jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jose_jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
         user_id = int(payload.get("sub", 0))
     except (JWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -1568,6 +1571,10 @@ def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db
         BookFile.format.in_(["cbz", "cbr"])
     ).first()
     if not comic_file:
+        raise HTTPException(status_code=404, detail="No comic file for this book")
+
+    from backend.core.permissions import user_can_see_book
+    if not user_can_see_book(db, user, comic_file.book):
         raise HTTPException(status_code=404, detail="No comic file for this book")
 
     file_path = Path(comic_file.file_path)
@@ -1599,11 +1606,11 @@ def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db
 def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
     """Serve PDF file for the reader."""
     from jose import JWTError, jwt as jose_jwt
-    from backend.core.config import settings
+    from backend.core.security import _signing_key
     from backend.models.user import User as UserModel
 
     try:
-        payload = jose_jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jose_jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
         user_id = int(payload.get("sub", 0))
     except (JWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -1617,6 +1624,10 @@ def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db
         BookFile.format == "pdf"
     ).first()
     if not pdf_file:
+        raise HTTPException(status_code=404, detail="No PDF file for this book")
+
+    from backend.core.permissions import user_can_see_book
+    if not user_can_see_book(db, user, pdf_file.book):
         raise HTTPException(status_code=404, detail="No PDF file for this book")
 
     file_path = Path(pdf_file.file_path)
@@ -1635,11 +1646,11 @@ def read_epub(
     """Serve the EPUB file for in-browser reading. Accepts JWT as a query param
     so epub.js can fetch it by URL (it cannot send Authorization headers)."""
     from jose import JWTError, jwt as jose_jwt
-    from backend.core.config import settings
+    from backend.core.security import _signing_key
     from backend.models.user import User as UserModel
 
     try:
-        payload = jose_jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jose_jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
         user_id = int(payload.get("sub", 0))
     except (JWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -1654,6 +1665,10 @@ def read_epub(
         .first()
     )
     if not epub_file:
+        raise HTTPException(status_code=404, detail="No EPUB file for this book")
+
+    from backend.core.permissions import user_can_see_book
+    if not user_can_see_book(db, user, epub_file.book):
         raise HTTPException(status_code=404, detail="No EPUB file for this book")
 
     file_path = Path(epub_file.file_path)
@@ -1887,25 +1902,22 @@ async def apply_metadata(
     # Download and replace cover if requested
     if body.cover_url:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(body.cover_url)
-                r.raise_for_status()
-                cover_data = r.content
-
-            cover_filename = f"book_{book_id}_fetched.jpg"
-            cover_path = settings.covers_dir / cover_filename
-            cover_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Remove old cover if it exists
-            if book.cover_path:
-                old = settings.covers_dir / book.cover_path
-                old.unlink(missing_ok=True)
-
-            cover_path.write_bytes(cover_data)
-            book.cover_path = cover_filename
-        except Exception as exc:
-            logger.warning("Failed to download cover from %s: %s", body.cover_url, exc)
+            cover_data = await fetch_safe_image(body.cover_url)
+        except UnsafeURLError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid cover URL: {exc}")
+        except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"Cover download failed: {exc}")
+
+        cover_filename = f"book_{book_id}_fetched.jpg"
+        cover_path = settings.covers_dir / cover_filename
+        cover_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if book.cover_path:
+            old = settings.covers_dir / book.cover_path
+            old.unlink(missing_ok=True)
+
+        cover_path.write_bytes(cover_data)
+        book.cover_path = cover_filename
 
     db.commit()
     db.refresh(book)

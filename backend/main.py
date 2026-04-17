@@ -8,6 +8,7 @@ from pathlib import Path
 
 from backend.core.database import engine, Base, init_fts, backfill_fts
 from backend.core.config import settings
+from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ async def lifespan(app: FastAPI):
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()
+    settings.resolve_secret_key()
     # Seed default book types (no-op if already seeded)
     from backend.core.database import SessionLocal
     from backend.services.book_types import seed_book_types
@@ -108,7 +110,6 @@ async def _run_auto_import() -> None:
       2. Enrich (async): fetch external metadata, then apply + download cover in thread
     """
     import shutil
-    import httpx
     from backend.core.database import SessionLocal
     from backend.models.book import Book, BookFile, BookTag
     from backend.models.user import User
@@ -292,14 +293,10 @@ async def _run_auto_import() -> None:
             # Download cover if we don't have one
             if best.cover_url and not book.cover_path:
                 try:
-                    with httpx.Client(follow_redirects=True, timeout=15) as client:
-                        resp = client.get(best.cover_url)
-                        resp.raise_for_status()
+                    cover_data = asyncio.run(fetch_safe_image(best.cover_url))
                     from backend.services.metadata import save_cover
-                    book.cover_path = save_cover(
-                        resp.content, settings.covers_dir, content_hash
-                    )
-                except Exception as exc:
+                    book.cover_path = save_cover(cover_data, settings.covers_dir, content_hash)
+                except (UnsafeURLError, Exception) as exc:
                     logger.warning(
                         "Auto-import: failed to download cover for %s: %s",
                         book.title, exc,

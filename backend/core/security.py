@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Optional
 
 import bcrypt
@@ -13,6 +14,11 @@ from backend.core.database import get_db
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
+@lru_cache(maxsize=1)
+def _signing_key() -> str:
+    return settings.resolve_secret_key()
+
+
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
@@ -24,12 +30,12 @@ def hash_password(plain: str) -> str:
 def create_access_token(subject: str | int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     payload = {"sub": str(subject), "exp": expire}
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, _signing_key(), algorithm=settings.jwt_algorithm)
 
 
 def decode_token(token: str) -> Optional[str]:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
         return payload.get("sub")
     except JWTError:
         return None

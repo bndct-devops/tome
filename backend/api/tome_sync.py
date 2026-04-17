@@ -18,6 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.database import get_db
+from backend.core.permissions import user_can_see_book
 from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.book import Book, BookFile
@@ -371,6 +372,9 @@ def download_book_via_api_key(
         .first()
     )
     if not book_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if not user_can_see_book(db, user, book_file.book):
         raise HTTPException(status_code=404, detail="File not found")
 
     file_path = Path(book_file.file_path)

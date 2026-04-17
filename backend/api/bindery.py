@@ -17,7 +17,6 @@ import os
 import shutil
 from pathlib import Path
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -34,6 +33,7 @@ from backend.services.filename_parser import parse_filename
 from backend.services.metadata import extract_metadata, sha256_file
 from backend.services.metadata_fetch import fetch_candidates
 from backend.services.organizer import get_library_path, resolve_unique_path
+from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 
 router = APIRouter(tags=["bindery"])
 logger = logging.getLogger(__name__)
@@ -311,12 +311,11 @@ def bindery_accept(
             cover_path: str | None = meta.get("cover_path")
             if item.cover_url:
                 try:
-                    with httpx.Client(follow_redirects=True, timeout=15) as client:
-                        resp = client.get(item.cover_url)
-                        resp.raise_for_status()
+                    import asyncio as _asyncio
+                    cover_data = _asyncio.run(fetch_safe_image(item.cover_url))
                     from backend.services.metadata import save_cover
-                    cover_path = save_cover(resp.content, settings.covers_dir, content_hash)
-                except Exception as exc:
+                    cover_path = save_cover(cover_data, settings.covers_dir, content_hash)
+                except (UnsafeURLError, Exception) as exc:
                     logger.warning("Failed to download cover from %s: %s", item.cover_url, exc)
 
             # Create Book record

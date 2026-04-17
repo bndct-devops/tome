@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.permissions import book_visibility_filter, is_admin as _is_admin
 from backend.core.security import get_current_user
 from backend.models.book import Book
 from backend.models.user import User
@@ -23,14 +24,17 @@ class DownloadRequest(BaseModel):
 def bulk_download(
     body: DownloadRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     if not body.book_ids:
         raise HTTPException(400, "No books selected")
     if len(body.book_ids) > 200:
         raise HTTPException(400, "Too many books (max 200)")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    q = db.query(Book).filter(Book.id.in_(body.book_ids))
+    if not _is_admin(current_user):
+        q = q.filter(book_visibility_filter(db, current_user))
+    books = q.all()
     if not books:
         raise HTTPException(404, "No books found")
 
