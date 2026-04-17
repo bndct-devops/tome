@@ -18,6 +18,15 @@ The plugin is pre-configured with your server URL and API key. No manual configu
 
 ---
 
+## Features
+
+- **Reading sync** -- position, progress, and reading sessions sync between KOReader and Tome's web reader
+- **Series browser** -- browse your library's series and download entire series to your device in one tap
+- **Offline-safe** -- everything works seamlessly when your server is unreachable; sessions queue and flush later
+- **Context-aware menu** -- different options when a book is open vs. from the home screen
+
+---
+
 ## How It Works
 
 ### Book Matching
@@ -69,6 +78,29 @@ The server automatically updates the book's reading status based on progress:
 - **unread** to **reading** when progress > 0%
 - **reading** to **read** when progress >= 99%
 
+### Series Download
+
+The plugin can browse and download entire series directly to your device.
+
+**From the home screen (no book open):**
+
+1. Open the wrench menu, find **TomeSync > Browse series**
+2. A list shows all series in your Tome library with book counts and authors
+3. Tap a series to download all books in it
+
+**From inside a book:**
+
+- **Download full series** -- downloads every book in the current book's series
+- **Download rest of series** -- downloads only books after your current volume (based on series_index)
+
+**How downloads work:**
+
+- Books are saved to `<download_dir>/<Series Name>/` (uses KOReader's configured download directory)
+- Format preference: epub > kepub.epub > cbz > pdf > mobi > azw3
+- Files that already exist on disk are skipped
+- Downloaded books are automatically registered in the book map, so sync works immediately when you open them
+- A summary shows downloaded/skipped/failed counts when finished
+
 ---
 
 ## Offline and Unreachable Server
@@ -101,16 +133,26 @@ Sessions also flush when you tap "Sync now" in the menu, or when WiFi reconnects
 
 ## Menu
 
-Open a book, then go to the **wrench/tools menu** (second page, below "More tools"):
+The plugin menu is context-aware. It lives in the **wrench menu** under **TomeSync** and shows different options depending on whether a book is open.
+
+### Always visible
 
 | Option | Description |
 |---|---|
-| **Enabled / Disabled** | Toggle sync on or off. |
-| **Sync now** | Pushes current position and flushes any pending offline sessions. Shows pending count if any remain. |
+| **Browse series** | Opens the series browser. Lists all series with book count and author. Tap to download. |
 | **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
-| **Clear book mappings** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
-| **Pending sessions (N)** | Shows how many sessions are queued for sync. Tap for details. |
+| **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
 | **About** | Version info. |
+
+### Only when a book is open
+
+| Option | Description |
+|---|---|
+| **Download full series** | Downloads all books in the current book's series. |
+| **Download rest of series** | Downloads books after the current volume only. |
+| **Sync now** | Pushes current position and flushes any pending offline sessions. |
+| **Enabled / Disabled** | Toggle sync on or off. |
+| **Pending sessions (N)** | Shows how many sessions are queued for sync. Tap for details. |
 
 ---
 
