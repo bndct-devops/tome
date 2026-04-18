@@ -275,9 +275,127 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           onClick={toggleOpen}
           className="flex items-center justify-center h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground transition-colors self-end"
           title={open ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           {open ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
+
+        {!open && (
+          <div className="flex flex-col items-center flex-1 overflow-y-auto py-1 space-y-0.5 overscroll-contain">
+            <button
+              onClick={onOpenHomeView}
+              title="Home"
+              aria-label="Home"
+              className={cn(
+                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                isHomeTab
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <Home className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+            </button>
+            <button
+              onClick={selectAllBooks}
+              title="All Books"
+              aria-label="All Books"
+              className={cn(
+                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                isAllBooks
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <BookOpen className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+            </button>
+            <button
+              onClick={onOpenSeriesView}
+              title="Series"
+              aria-label="Series"
+              className={cn(
+                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                isSeriesTab
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <Layers className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+            </button>
+            <Link
+              to="/stats"
+              title="Stats"
+              aria-label="Stats"
+              className={cn(
+                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                location.pathname === '/stats'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <BarChart3 className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+            </Link>
+            {isAdmin(user) && (
+              <Link
+                to="/bindery"
+                title="Bindery"
+                aria-label="Bindery"
+                className={cn(
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  location.pathname === '/bindery'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <BookPlus className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+                {binderyCount > 0 && (
+                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
+                )}
+              </Link>
+            )}
+            {libraries.length > 0 && (
+              <div className="w-6 h-px bg-border my-0.5" />
+            )}
+            {libraries.map(lib => (
+              <button
+                key={lib.id}
+                onClick={() => selectLibrary(lib.id)}
+                title={lib.name}
+                aria-label={lib.name}
+                className={cn(
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  activeLibrary === lib.id
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <span className="w-4 h-4 flex items-center justify-center group-hover:animate-[wiggle_0.4s_ease-in-out]">
+                  {getIcon(lib.icon ?? 'Library', 'w-4 h-4')}
+                </span>
+              </button>
+            ))}
+            {savedFilters.length > 0 && (
+              <div className="w-6 h-px bg-border my-0.5" />
+            )}
+            {savedFilters.map(sf => (
+              <button
+                key={sf.id}
+                onClick={() => selectSavedFilter(sf)}
+                title={sf.name}
+                aria-label={sf.name}
+                className={cn(
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  activeSavedFilter === sf.id
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <span className="w-4 h-4 flex items-center justify-center group-hover:animate-[wiggle_0.4s_ease-in-out]">
+                  {getIcon(sf.icon ?? 'Bookmark', 'w-4 h-4')}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {open && (
           <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-4 overscroll-contain">
@@ -405,6 +523,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         {open && (
           <UserMenu user={user} logout={logout} />
         )}
+        {!open && (
+          <CollapsedUserMenu user={user} logout={logout} />
+        )}
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -434,6 +555,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               <button
                 onClick={onMobileClose}
                 className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
+                aria-label="Close navigation"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -610,6 +732,56 @@ function MobileThemeToggle() {
   )
 }
 
+function CollapsedUserMenu({ user, logout }: { user: { username: string; is_admin?: boolean; role?: string } | null; logout: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const menuItem = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-[13px] rounded-md transition-colors hover:bg-accent text-foreground/80 hover:text-foreground'
+  const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
+
+  return (
+    <div ref={ref} className="relative shrink-0 border-t border-border flex justify-center py-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        title={user?.username ?? 'User menu'}
+        aria-label={user?.username ?? 'User menu'}
+        className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent/60 transition-colors"
+      >
+        <div className="flex w-6 h-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary ring-2 ring-primary/20">
+          {(user?.username ?? '?').slice(0, 2).toUpperCase()}
+        </div>
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-1 right-1 mb-1 bg-card border border-border rounded-lg shadow-lg py-1.5 z-50 w-40">
+          <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
+            <Settings className="w-4 h-4 shrink-0" />
+            Settings
+          </Link>
+          {(user?.is_admin || user?.role === 'admin') && (
+            <Link to="/admin" onClick={() => setOpen(false)} className={menuItem}>
+              <Shield className="w-4 h-4 shrink-0" />
+              Admin
+            </Link>
+          )}
+          <div className="my-1 h-px bg-border mx-2" />
+          <button onClick={logout} className={destructive}>
+            <LogOut className="w-4 h-4 shrink-0" />
+            Log out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UserMenu({ user, logout }: { user: { username: string; is_admin?: boolean; role?: string } | null; logout: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -642,6 +814,7 @@ function UserMenu({ user, logout }: { user: { username: string; is_admin?: boole
         <button
           onClick={toggleTheme}
           title={isDark ? 'Switch to light' : 'Switch to dark'}
+          aria-label={isDark ? 'Switch to light' : 'Switch to dark'}
           className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-accent/60 transition-colors text-muted-foreground hover:text-foreground shrink-0"
         >
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
