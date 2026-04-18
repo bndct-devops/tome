@@ -95,10 +95,12 @@ The plugin can browse and download entire series directly to your device.
 
 **How downloads work:**
 
-- Books are organized by book type and series: `<download_dir>/<book_type>/<Series Name>/` (e.g. `books/manga/One Piece/`, `books/light_novel/Black Summoner/`)
+- Books are organized by book type and series: `<home_dir>/<book_type>/<Series Name>/` (e.g. `books/manga/One Piece/`, `books/light_novel/Black Summoner/`). The base directory is KOReader's home folder if set, falling back to `download_dir` then `lastdir`.
 - The book type (manga, light_novel, book, comic) comes from Tome's metadata
+- Filenames mirror Tome's OPDS naming: `Vol. N — Title.ext` for volumes in a series, plain `Title.ext` otherwise. This keeps light-novel volumes that share a title from clobbering each other.
 - Format preference: epub > kepub.epub > cbz > pdf > mobi > azw3
 - Books already on the device are skipped (matched by book ID, not filename)
+- A live progress popup shows "Downloading N of M — Title" as each book is fetched
 - Downloaded books are automatically registered in the book map, so sync works immediately when you open them
 - A summary shows downloaded/skipped/failed counts when finished
 

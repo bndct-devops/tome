@@ -115,17 +115,30 @@ Shelves are per-user and private. Each shelf can have a custom icon chosen from 
 
 ## Reading Stats
 
-The Stats page has two tabs:
+The Stats page has three tabs, all powered by KOReader session data via TomeSync.
 
 ### Overview
 
-Session history, reading streaks, total pages/time, and time-of-day activity heatmap powered by KOReader session data via TomeSync.
+Top-line numbers — total reading time, sessions, pages turned, streak — plus the recent session log and a "currently reading" panel.
 
-### Insights
+### Habits
 
-Deeper analysis of your reading patterns:
+When and how you read:
 
-- **Completion estimates** — projected finish dates for books currently in progress, based on your recent reading pace
-- **Year in review** — summary of books read, pages turned, and time spent in a given year
-- **Period comparison** — compare your reading activity across two time periods (e.g. this month vs last month)
+- **When You Read** — hour × day-of-week heatmap
+- **Session timeline** — per-day session ribbons across the last two weeks
+- **Reading pace** — pages per hour over time, plus pace by format
 - **Reading speed trend** — how your pages-per-hour has changed over time
+- **Completion estimates** — projected finish dates for in-progress books based on recent pace
+- **Period & monthly comparison** — compare two time windows side by side
+
+### Library
+
+How your collection grows and what you finish:
+
+- **Year in review** — books read, pages, and time spent in a given year
+- **Series completion** — how far you are through each series
+- **Author affinity** — most-read authors
+- **Completion by type** — finish rates per book type
+- **Per-book time table** — total time, sessions, and pages turned for every book
+- **Library growth** — books added over time
