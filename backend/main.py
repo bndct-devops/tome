@@ -145,6 +145,8 @@ async def _run_auto_import() -> None:
     # Phase 1 helper — runs in a thread so it never blocks the event loop
     # ------------------------------------------------------------------
 
+    from backend.services.filename_parser import parse_filename
+
     def _ingest_file(file_path: Path) -> tuple[Book, str, str | None] | None:
         """Hash, move, extract metadata, create Book row. Returns (book, content_hash, admin_username) or None to skip."""
         with SessionLocal() as db:
@@ -171,6 +173,11 @@ async def _run_auto_import() -> None:
                 logger.info("Auto-import: skipping %s — file path already registered", file_path.name)
                 return None
 
+            # Detect chapters/ subdir and parse filename for series/index/content_type
+            rel_parts = file_path.relative_to(incoming).parts
+            in_chapters_dir = len(rel_parts) > 1 and rel_parts[0].lower() == "chapters"
+            parsed = parse_filename(file_path.name, in_chapters_dir=in_chapters_dir)
+
             # Extract embedded metadata
             meta = extract_metadata(file_path, settings.covers_dir)
 
@@ -186,12 +193,13 @@ async def _run_auto_import() -> None:
             file_size = dest.stat().st_size
             cover_path: str | None = meta.get("cover_path")
 
-            # Create Book with is_reviewed=False
+            # Merge: embedded metadata wins, filename parse fills gaps
+            meta_series_index = meta.get("series_index")
             book = Book(
-                title=meta.get("title", dest.stem),
+                title=meta.get("title") or parsed.title or dest.stem,
                 author=meta.get("author"),
-                series=meta.get("series"),
-                series_index=meta.get("series_index"),
+                series=meta.get("series") or parsed.series,
+                series_index=meta_series_index if meta_series_index is not None else parsed.series_index,
                 isbn=meta.get("isbn"),
                 publisher=meta.get("publisher"),
                 description=meta.get("description"),
@@ -199,7 +207,7 @@ async def _run_auto_import() -> None:
                 year=meta.get("year"),
                 cover_path=cover_path,
                 content_hash=content_hash,
-                content_type="volume",
+                content_type=parsed.content_type,
                 status="active",
                 added_by=added_by_id,
                 is_reviewed=False,
@@ -218,7 +226,11 @@ async def _run_auto_import() -> None:
             # Auto-assign book type
             if not book.book_type_id:
                 from backend.models.library import BookType
-                if meta.get("_is_manga"):
+                if in_chapters_dir:
+                    manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
+                    if manga_type:
+                        book.book_type_id = manga_type.id
+                elif meta.get("_is_manga"):
                     manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
                     if manga_type:
                         book.book_type_id = manga_type.id
@@ -263,7 +275,7 @@ async def _run_auto_import() -> None:
             )
 
             # Detach identifiers needed for phase 2
-            return book.id, book.title, book.author, book.isbn, book.series, book.series_index, content_hash
+            return book.id, book.title, book.author, book.isbn, book.series, book.series_index, content_hash, book.content_type
 
     # ------------------------------------------------------------------
     # Phase 2 helper — apply metadata + cover (sync, in thread)
@@ -326,7 +338,11 @@ async def _run_auto_import() -> None:
             if result is None:
                 continue
 
-            book_id, title, author, isbn, series, series_index, content_hash = result
+            book_id, title, author, isbn, series, series_index, content_hash, content_type = result
+
+            # Phase 2: skip external fetch for chapters — APIs return wrong volume results
+            if content_type == "chapter":
+                continue
 
             # Phase 2: fetch metadata (async — uses httpx.AsyncClient internally)
             try:
