@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend import __version__
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.core.permissions import require_role
@@ -768,7 +769,7 @@ def get_admin_stats(
         "library_dir": str(settings.library_dir),
         "data_dir": str(settings.data_dir),
         "incoming_dir": str(settings.incoming_dir),
-        "tome_version": "0.1.0",
+        "tome_version": __version__,
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     }
 
