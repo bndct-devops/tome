@@ -28,7 +28,7 @@ from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
 
-TOMESYNC_PLUGIN_VERSION = "5"  # bump when plugin code changes
+TOMESYNC_PLUGIN_VERSION = "6"  # bump when plugin code changes
 
 
 # ── API key auth ──────────────────────────────────────────────────────────────
@@ -992,7 +992,15 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
                 table.insert(queue, {{book = book, file = nil, dest = nil}})
             else
                 local ext = file.format or "epub"
-                local fname = util.getSafeFilename(book.title .. "." .. ext)
+                local display_title
+                if book.series_index then
+                    local vol = book.series_index
+                    if vol == math.floor(vol) then vol = math.floor(vol) end
+                    display_title = "Vol. " .. tostring(vol) .. " — " .. book.title
+                else
+                    display_title = book.title
+                end
+                local fname = util.getSafeFilename(display_title .. "." .. ext)
                 local dest = series_dir .. "/" .. fname
                 if lfs.attributes(dest) then
                     skipped = skipped + 1
