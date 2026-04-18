@@ -28,7 +28,7 @@ from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
 
-TOMESYNC_PLUGIN_VERSION = "4"  # bump when plugin code changes
+TOMESYNC_PLUGIN_VERSION = "5"  # bump when plugin code changes
 
 
 # ── API key auth ──────────────────────────────────────────────────────────────
@@ -952,7 +952,10 @@ end
 -- ── Series download ─────────────────────────────────────────────────────────
 
 function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
-    local base_dir = G_reader_settings:readSetting("download_dir")
+    -- home_dir is the user-set library root (File Manager → long-press → "Set as HOME").
+    -- Fall back to download_dir / lastdir for installs where home_dir isn't set.
+    local base_dir = G_reader_settings:readSetting("home_dir")
+                  or G_reader_settings:readSetting("download_dir")
                   or G_reader_settings:readSetting("lastdir")
     if not base_dir then
         UIManager:show(InfoMessage:new{{
@@ -975,41 +978,72 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
         id_to_path[bid] = path
     end
 
-    local downloaded, skipped, failed = 0, 0, 0
-
+    -- Pre-compute the download queue so progress counts only real work.
+    local queue = {{}}
+    local skipped = 0
     for _, book in ipairs(books) do
-        -- Skip books at or before min_index (for "download rest")
         if min_index and book.series_index and book.series_index <= min_index then
             skipped = skipped + 1
-        -- Skip if already in book_map (already on device)
         elseif id_to_path[book.id] and lfs.attributes(id_to_path[book.id]) then
             skipped = skipped + 1
         else
             local file = pickBestFile(book.files)
             if not file then
-                failed = failed + 1
+                table.insert(queue, {{book = book, file = nil, dest = nil}})
             else
                 local ext = file.format or "epub"
                 local fname = util.getSafeFilename(book.title .. "." .. ext)
                 local dest = series_dir .. "/" .. fname
-
-                -- Skip if file with same name already exists
                 if lfs.attributes(dest) then
                     skipped = skipped + 1
                 else
-                    local ok, err = downloadFile(book.id, file.id, dest)
-                    if ok then
-                        downloaded = downloaded + 1
-                        -- Register in book_map so sync works
-                        self.book_map[dest] = book.id
-                    else
-                        logger.warn("TomeSync: download failed for", book.title, err)
-                        failed = failed + 1
-                    end
+                    table.insert(queue, {{book = book, file = file, dest = dest}})
                 end
             end
         end
     end
+
+    if #queue == 0 then
+        UIManager:show(InfoMessage:new{{
+            text = string.format(
+                "%s\\n\\nNothing to download.\\nSkipped: %d",
+                series_name, skipped
+            ),
+            timeout = 5,
+        }})
+        return
+    end
+
+    -- Live progress popup — replace the message between each book.
+    -- forceRePaint guarantees the widget is drawn before the blocking HTTP call.
+    local progress_msg
+    local function showProgress(text)
+        if progress_msg then UIManager:close(progress_msg) end
+        progress_msg = InfoMessage:new{{ text = text }}
+        UIManager:show(progress_msg)
+        UIManager:forceRePaint()
+    end
+
+    local downloaded, failed = 0, 0
+    for i, item in ipairs(queue) do
+        showProgress(string.format(
+            "%s\\n\\nDownloading %d of %d\\n%s",
+            series_name, i, #queue, item.book.title
+        ))
+        if not item.file then
+            failed = failed + 1
+        else
+            local ok, err = downloadFile(item.book.id, item.file.id, item.dest)
+            if ok then
+                downloaded = downloaded + 1
+                self.book_map[item.dest] = item.book.id
+            else
+                logger.warn("TomeSync: download failed for", item.book.title, err)
+                failed = failed + 1
+            end
+        end
+    end
+    if progress_msg then UIManager:close(progress_msg) end
 
     -- Persist book_map
     G_reader_settings:saveSetting("tomesync_book_map", self.book_map)
