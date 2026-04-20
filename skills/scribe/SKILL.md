@@ -887,10 +887,12 @@ ones, and apply fixes with user approval.
 
 ### Trigger forms
 
-- `/scribe audit` — all books
+- `/scribe audit` — all books (null/missing fields + series drift)
+- `/scribe audit years [scope]` — publication-year drift check (see "Year-drift audit" subsection below)
 - "audit metadata" / "find books with missing metadata"
 - "audit the manga library" / "audit books in Light Novels"
 - "audit books by X"
+- "audit years", "check publication years", "verify years for tarzan"
 
 Narrow scope is parsed with the same natural-language interpretation as
 Update mode Step U1.
@@ -909,9 +911,123 @@ A book is **weak** if any of the following are true:
 | `year` | null |
 | `cover_path` | null or empty string |
 | Series title drift | within a series, titles are inconsistent across books (see drift detection rule below) |
+| Year drift | stored `year` differs from Open Library's `first_publish_year` by more than 3 years (requires fetch — see Year-drift audit below) |
 
 Do **not** flag missing `isbn`, `publisher`, or `subtitle` — these are
 legitimately absent on many books.
+
+---
+
+### Year-drift audit (trigger: `/scribe audit years [scope]`)
+
+**Motivation:** embedded/ingested metadata often has the *edition* or *reprint*
+year, not the *first publication* year.  For a classic like Tarzan, stored
+year might be `2008` (Penguin reprint) when the book was actually first
+published in `1914`.  This matters if we later embed Tome metadata into the
+files on disk — we want the real year baked in.
+
+**Trigger forms:**
+- `/scribe audit years` — check every book
+- `/scribe audit years <scope>` — narrow scope, same natural-language parsing
+  as Update mode Step U1 (series, author, library, free-text)
+- "audit years", "check years for tarzan", "verify publication years in
+  Classics library"
+
+**How year trust works per source:**
+
+| Source | Year field meaning | Trust for first-pub? |
+|--------|--------------------|----------------------|
+| Open Library | `first_publish_year` (already parsed as `year` in the candidate dataclass) | **Authoritative** — use for drift detection |
+| Hardcover | `release_year` (edition, not first-pub) | Not reliable — ignore for drift |
+| Google Books | edition year parsed from `publishedDate` | Not reliable — ignore for drift |
+
+**Detection is fetch-based, not scan-based.**  Unlike null/missing fields,
+year drift cannot be detected from the DB alone — it requires comparing
+stored values against external sources.  So year-drift audit always runs
+`fetch-metadata` on every book in scope, regardless of whether other weak
+criteria apply.
+
+**Procedure:**
+
+1. Resolve scope via the same natural-language parsing as Update mode Step U1.
+   Confirm with the user before fetching if scope has more than ~20 books
+   (time estimate: `ceil(count / 10)` minutes).
+
+2. For each book in scope, call `GET /api/books/<book_id>/fetch-metadata`
+   concurrently (batches of 10).
+
+3. For each response, find the **first Open Library candidate** in the list
+   (identified by `source == "open_library"`).  If no OL candidate exists,
+   mark the book `no_ol_candidate` and move on — do not use Hardcover or
+   Google year for drift.
+
+4. Compare `stored_year` against `ol_candidate.year`:
+   - Both present and `abs(stored - ol) > 3` → **drift**
+   - Stored missing and OL present → **missing year** (normal weak case, not
+     drift — handled by the regular audit flow)
+   - OL missing → `no_signal`, skip
+
+5. Write a state file at `~/.cache/tome-scribe/.scribe-audit-years-<profile>-<timestamp>.json`
+   (same directory convention as other audit/update state files).  Persist
+   after each fetch so the run is resumable.  Schema:
+
+```json
+{
+  "mode": "audit-years",
+  "profile": "<active profile name>",
+  "scope": "<description>",
+  "run_at": "ISO timestamp",
+  "books": [
+    {
+      "book_id": 42,
+      "title": "Tarzan, Vol. 1",
+      "stored_year": 2008,
+      "ol_year": 1912,
+      "delta": 96,
+      "status": "pending|drift|match|no_ol_candidate|no_signal|applied|skipped"
+    }
+  ]
+}
+```
+
+6. Present drift cases in a compact block, grouped by magnitude:
+
+```
+34 books scanned · 8 drift · 22 match · 3 no OL candidate · 1 no signal
+
+Year drift (OL first_publish_year vs. stored):
+  #id=42  "Tarzan, Vol. 1"       2008 → 1912   (Δ 96y)
+  #id=55  "A Princess of Mars"   2011 → 1912   (Δ 99y)
+  #id=71  "The Gods of Mars"     2010 → 1913   (Δ 97y)
+  #id=88  "Sherlock Holmes v3"   1995 → 1892   (Δ 103y)
+  ...
+
+Apply? Options:
+  "accept all"       — update all drift cases
+  "skip #N"          — exclude a specific book
+  "show #N"          — verbose: print all OL candidate fields
+  "threshold 10"     — re-filter to only drift > 10 years (drop noise)
+  "cancel"           — discard without applying
+```
+
+7. On `accept all` or selective apply, use `POST /api/books/{id}/apply-metadata`
+   with `{"year": <ol_year>}` only — **never** pull other fields from the OL
+   candidate here.  This step corrects year only; other fields stay as-is.
+
+8. Final summary:
+   ```
+   Year audit complete. 34 scanned · 8 drift · 7 corrected · 1 skipped · 0 errors
+   ```
+   Delete the state file on clean completion.
+
+**Edge case — ranges and approximate dates:** OL occasionally returns wide
+ranges or centuries for old works (e.g. `first_publish_year: 1605` for a
+modern edition of Don Quixote).  Trust OL in these cases — ancient/classic
+first-pub years are usually correct in OL even if pre-modern.
+
+**Never** auto-apply year corrections without surfacing them.  Even perfect
+confidence requires explicit user approval — same rule as series title
+drift.
 
 ---
 
