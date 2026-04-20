@@ -381,9 +381,12 @@ def download_book_via_api_key(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File no longer on disk")
 
+    from backend.services.metadata_embed import get_baked_path
+    serve_path = get_baked_path(book_file.book, book_file)
+
     filename = f"{book_file.book.title}.{book_file.format}"
     return FileResponse(
-        str(file_path),
+        str(serve_path),
         media_type="application/octet-stream",
         filename=filename,
     )

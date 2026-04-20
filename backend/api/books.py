@@ -1413,12 +1413,15 @@ def download_book(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File no longer on disk")
 
+    from backend.services.metadata_embed import get_baked_path
+    serve_path = get_baked_path(book_file.book, book_file)
+
     filename = f"{book_file.book.title}.{book_file.format}"
     audit(db, "books.downloaded", user_id=current_user.id, username=current_user.username,
           resource_type="book", resource_id=book_id, resource_title=book_file.book.title,
           details={"format": book_file.format, "filename": filename})
     return FileResponse(
-        str(file_path),
+        str(serve_path),
         media_type="application/octet-stream",
         filename=filename,
     )
@@ -1711,6 +1714,9 @@ def delete_book(
         cover_file = settings.covers_dir / book.cover_path
         if cover_file.exists():
             cover_file.unlink(missing_ok=True)
+
+    from backend.services.metadata_embed import purge_book_cache
+    purge_book_cache(book.id)
 
     audit(db, "books.deleted", user_id=current_user.id, username=current_user.username,
           resource_type="book", resource_id=book.id, resource_title=book.title)

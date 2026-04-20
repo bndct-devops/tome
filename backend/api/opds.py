@@ -403,6 +403,9 @@ def opds_download(
     except Exception:
         pass
 
+    from backend.services.metadata_embed import get_baked_path
+    serve_path = get_baked_path(book, book_file)
+
     media_type = FORMAT_MIME.get(book_file.format, "application/octet-stream")
     filename = f"{book.title}.{book_file.format}"
-    return FileResponse(str(file_path), media_type=media_type, filename=filename)
+    return FileResponse(str(serve_path), media_type=media_type, filename=filename)
