@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import List
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +24,9 @@ class User(Base):
 
     permissions: Mapped["UserPermission"] = relationship(
         "UserPermission", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    api_tokens: Mapped[List["ApiToken"]] = relationship(
+        "ApiToken", back_populates="user", cascade="all, delete-orphan"
     )
 
 

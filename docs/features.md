@@ -16,6 +16,34 @@ Codes expire after a few minutes and can only be used once.
 
 ---
 
+## API Tokens
+
+User-level API tokens let scripts and external tools (including [Scribe](scribe.md)) authenticate against Tome without embedding a username and password.
+
+To create one:
+
+1. Go to **Settings → API Tokens** and click **Create Token**.
+2. Give it a descriptive name (e.g. `scribe-laptop`, `nightly-backup`).
+3. Copy the token — the full value is shown **once**. It cannot be retrieved later.
+
+Tokens look like `tome_<32 random chars>` and can be revoked at any time. Every `/api/*` endpoint accepts either a JWT or a `tome_*` bearer token, and a token inherits the role and visibility of the user that created it — so tokens are as powerful as the user behind them.
+
+Admins can view all users' tokens via the same page for auditing.
+
+---
+
+## Scribe
+
+Scribe is a Claude Code Skill shipped with Tome (`skills/scribe/`) that turns [Claude Code](https://claude.ai/code) into a conversational ingest and metadata-curation tool. It talks to your Tome instance over HTTP using an API token, and supports three modes:
+
+- **Ingest** — batch-upload a folder of new books, dedupe by content hash, fetch metadata, and apply high-confidence picks automatically.
+- **Update** — refresh metadata on books already in Tome via free-text queries like `"update descriptions for the Classics library"`.
+- **Audit** — scan for weak metadata (missing descriptions, years, covers) and series title drift, then propose bulk fixes.
+
+Install with `./skills/scribe/install.sh`. Full setup and usage in [docs/scribe.md](scribe.md).
+
+---
+
 ## OPDS PINs
 
 OPDS PINs are short app-specific passwords for authenticating OPDS clients (KOReader, Panels, Chunky, etc.). Typing a full password on an e-ink keyboard is painful -- a 6-character PIN is much easier.

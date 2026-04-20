@@ -18,10 +18,11 @@ Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 - **Metadata from 3 sources** -- fetch and compare metadata from [Hardcover](https://hardcover.app), Google Books, and OpenLibrary with a side-by-side diff UI
 - **Built-in reader** -- EPUBs, manga (CBZ/CBR), and PDFs render directly in the browser. Two-page spread, RTL mode, webtoon scroll, pinch-to-zoom on mobile. [Details](docs/reader.md)
 - **Bindery** -- an inbox for incoming books. Drop files in a folder, review pre-filled metadata, accept into your library. Optional auto-import on a schedule. [Details](docs/bindery-deployment.md)
+- **Scribe** -- a Claude Code Skill for conversational batch ingest, metadata refresh, and series-wide audits. Uses API tokens for auth and talks to Tome over HTTP. [Details](docs/scribe.md)
 - **OPDS feed** -- browse and download from KOReader, Panels, Chunky, or any OPDS client
 - **Themes** -- 3 built-in (light, dark, amber) plus fully custom themes via 10-value hex palette
 
-Plus: series browsing, bulk operations, libraries with icons, shelves (saved filters), Quick Connect (6-char code sign-in), OPDS PINs (e-ink-friendly passwords), role-based access control, per-user book visibility, audit logging, and a bulk import script. [Full feature list](docs/features.md)
+Plus: series browsing, bulk operations, libraries with icons, shelves (saved filters), Quick Connect (6-char code sign-in), OPDS PINs (e-ink-friendly passwords), role-based access control, per-user book visibility, user-level API tokens, audit logging, and a bulk import script. [Full feature list](docs/features.md)
 
 ![Dashboard](docs/screenshots/dashboard.png)
 *Filter, sort, and browse your library. Bulk select for metadata edits, library assignment, or export.*
@@ -115,8 +116,9 @@ Built with [Claude Code](https://claude.ai/code).
 - [Reader](docs/reader.md) -- EPUB, comic/manga reader, keyboard shortcuts, ComicInfo.xml
 - [KOReader Plugin](docs/koreader-plugin.md) -- TomeSync setup, sync behavior, offline support
 - [Bindery](docs/bindery-deployment.md) -- setting up the incoming book inbox
-- [Import Script](docs/import.md) -- bulk importing an existing collection
-- [Features](docs/features.md) -- Quick Connect, OPDS PINs, permissions, themes, and more
+- [Scribe](docs/scribe.md) -- Claude Code Skill for batch ingest, metadata refresh, and series audits
+- [Import Script](docs/import.md) -- bulk importing an existing collection from filenames
+- [Features](docs/features.md) -- Quick Connect, OPDS PINs, permissions, themes, API tokens, and more
 
 ## Acknowledgements
 

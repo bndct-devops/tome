@@ -1843,6 +1843,219 @@ def upload_book(
     return book
 
 
+# ── Scribe: batch-import helpers ──────────────────────────────────────────────
+
+class CheckHashesRequest(PydanticBaseModel):
+    hashes: list[str]
+
+
+class CheckHashesResponse(PydanticBaseModel):
+    existing: dict[str, int]  # hash -> book_id
+
+
+@router.post("/check-hashes", response_model=CheckHashesResponse)
+def check_hashes(
+    body: CheckHashesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return a map of content_hash -> book_id for hashes that already exist and
+    are visible to the calling user.  Used by the Scribe batch-import skill to
+    skip files that Tome already knows about."""
+    from backend.core.permissions import book_visibility_filter
+
+    if not body.hashes:
+        return CheckHashesResponse(existing={})
+
+    # Check Book.content_hash
+    visibility = book_visibility_filter(db, current_user)
+    book_rows = (
+        db.query(Book.id, Book.content_hash)
+        .filter(
+            Book.status == "active",
+            Book.content_hash.in_(body.hashes),
+            visibility,
+        )
+        .all()
+    )
+
+    existing: dict[str, int] = {}
+    for book_id, h in book_rows:
+        if h and h not in existing:
+            existing[h] = book_id
+
+    # Also check BookFile.content_hash for hashes not already matched
+    remaining = [h for h in body.hashes if h not in existing]
+    if remaining:
+        file_rows = (
+            db.query(BookFile.content_hash, BookFile.book_id)
+            .join(Book, Book.id == BookFile.book_id)
+            .filter(
+                Book.status == "active",
+                BookFile.content_hash.in_(remaining),
+                visibility,
+            )
+            .all()
+        )
+        for h, book_id in file_rows:
+            if h and h not in existing:
+                existing[h] = book_id
+
+    return CheckHashesResponse(existing=existing)
+
+
+class IngestMetadata(PydanticBaseModel):
+    title: str
+    subtitle: Optional[str] = None
+    author: Optional[str] = None
+    series: Optional[str] = None
+    series_index: Optional[float] = None
+    isbn: Optional[str] = None
+    publisher: Optional[str] = None
+    description: Optional[str] = None
+    language: Optional[str] = None
+    year: Optional[int] = None
+    tags: Optional[list[str]] = None
+    library_ids: Optional[list[int]] = None
+    book_type_id: Optional[int] = None
+
+
+@router.post("/ingest", response_model=BookDetailOut, status_code=status.HTTP_201_CREATED)
+def ingest_book(
+    file: UploadFile = File(...),
+    metadata: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Scribe endpoint: upload a file with caller-supplied metadata (no auto-extraction).
+
+    - Caller is authoritative for all metadata fields.
+    - Deduplication: if the file's content_hash already exists in DB, returns 409.
+    - Library assignment: uses library_ids if provided, else the book_type's auto-library,
+      else leaves unassigned.
+    - Sets is_reviewed=True (caller has already reviewed the book).
+    - Writes a ``book.ingest`` audit entry.
+    """
+    require_role(current_user, "member")
+
+    # Parse the metadata JSON blob
+    try:
+        meta = IngestMetadata.model_validate_json(metadata)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid metadata JSON: {exc}") from exc
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename")
+
+    suffix = Path(file.filename).suffix.lower().lstrip(".")
+    if suffix not in ALLOWED_FORMATS:
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {suffix}")
+
+    # Write to a temp location so we can compute hash before deciding path
+    tmp_dir = settings.incoming_dir / ".tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = tmp_dir / file.filename
+    try:
+        with open(tmp_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    finally:
+        file.file.close()
+
+    # Deduplicate by content hash
+    content_hash = sha256_file(tmp_path)
+    existing_book = (
+        db.query(Book)
+        .filter(
+            (Book.content_hash == content_hash) | Book.files.any(BookFile.content_hash == content_hash)
+        )
+        .first()
+    )
+    if existing_book:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=409,
+            detail={"detail": "duplicate", "existing_id": existing_book.id},
+        )
+
+    # Determine library path using organizer (same as upload endpoint)
+    path_meta: dict = {
+        "title": meta.title,
+        "author": meta.author,
+        "series": meta.series,
+        "series_index": meta.series_index,
+        "year": meta.year,
+    }
+    rel = get_library_path(path_meta, file.filename)
+    dest = resolve_unique_path(settings.library_dir, rel)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(tmp_path), str(dest))
+
+    book = Book(
+        title=meta.title,
+        subtitle=meta.subtitle,
+        author=meta.author,
+        series=meta.series,
+        series_index=meta.series_index,
+        isbn=meta.isbn,
+        publisher=meta.publisher,
+        description=meta.description,
+        language=meta.language,
+        year=meta.year,
+        content_hash=content_hash,
+        status="active",
+        is_reviewed=True,
+        added_by=current_user.id,
+        book_type_id=meta.book_type_id,
+    )
+    db.add(book)
+    db.flush()
+
+    db.add(BookFile(
+        book_id=book.id,
+        file_path=str(dest.resolve()),
+        format=suffix,
+        file_size=dest.stat().st_size,
+        content_hash=content_hash,
+    ))
+
+    # Tags
+    if meta.tags:
+        for tag_str in meta.tags:
+            tag_str = tag_str.strip()
+            if tag_str:
+                db.add(BookTag(book_id=book.id, tag=tag_str, source="user"))
+
+    db.commit()
+
+    # Library assignment
+    if meta.library_ids:
+        from backend.models.library import Library as Lib
+        libs = db.query(Lib).filter(Lib.id.in_(meta.library_ids)).all()
+        for lib in libs:
+            if lib not in book.libraries:
+                book.libraries.append(lib)
+        db.commit()
+    elif meta.book_type_id:
+        from backend.models.library import BookType as BT
+        from backend.services.book_types import assign_book_to_type_library
+        bt = db.get(BT, meta.book_type_id)
+        if bt:
+            assign_book_to_type_library(db, book, bt)
+
+    db.refresh(book)
+    audit(
+        db,
+        "book.ingest",
+        user_id=current_user.id,
+        username=current_user.username,
+        resource_type="book",
+        resource_id=book.id,
+        resource_title=book.title,
+        details={"format": suffix},
+    )
+    return book
+
+
 # ── Fetch metadata candidates ─────────────────────────────────────────────────
 
 @router.get("/{book_id}/fetch-metadata", response_model=list[MetadataCandidateOut])

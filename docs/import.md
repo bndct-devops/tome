@@ -11,6 +11,13 @@ Title - Author (Year).epub
 Series Title Volume 3 - Author (Year).epub
 ```
 
+> **Alternative: [Scribe](scribe.md).** If you use [Claude Code](https://claude.ai/code)
+> locally, Scribe is the newer, more capable path: it reads embedded metadata
+> from the files themselves, dedupes by content hash, fetches external
+> candidates with diff previews, and can also refresh/audit metadata on books
+> already in Tome. This script remains the best choice when you have a clean
+> filename convention and do not use Claude Code.
+
 ---
 
 ## Prerequisites

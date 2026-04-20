@@ -48,6 +48,7 @@ def _init_test_db():
     import backend.models.tome_sync  # noqa: F401
     import backend.models.opds_pin  # noqa: F401
     import backend.models.quick_connect  # noqa: F401
+    import backend.models.api_token  # noqa: F401
 
     Base.metadata.create_all(bind=test_engine)
 

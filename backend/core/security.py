@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Optional
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, HTTPBasic, HTTPBasicCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -42,16 +42,43 @@ def decode_token(token: str) -> Optional[str]:
 
 
 async def get_current_user(
+    request: Request,
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
     from backend.models.user import User
+    from backend.models.api_token import ApiToken
 
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if token.startswith("tome_"):
+        import hashlib
+        from datetime import datetime as _dt
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        api_token = (
+            db.query(ApiToken)
+            .filter(ApiToken.token_hash == token_hash, ApiToken.revoked_at.is_(None))
+            .first()
+        )
+        if api_token is None:
+            raise credentials_exc
+        user = db.query(User).filter(User.id == api_token.user_id).first()
+        if user is None or not user.is_active:
+            raise credentials_exc
+        # Update last_used_at (fire-and-forget)
+        try:
+            api_token.last_used_at = _dt.utcnow()
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Stash token id on request.state for audit logging
+        request.state.api_token_id = api_token.id
+        return user
+
     user_id = decode_token(token)
     if user_id is None:
         raise credentials_exc

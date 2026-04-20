@@ -38,6 +38,9 @@ Thumbs.db
 # Claude Code
 .claude/
 
+# Scribe
+.scribe-state.json
+
 # Docker (use docker-compose.example.yml as template)
 docker-compose.yml
 docker-compose.override.yml

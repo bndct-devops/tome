@@ -3,10 +3,15 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
+  AlertTriangle,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import {
+  listTokens, createToken, revokeToken,
+  type ApiTokenListItem,
+} from '@/lib/tokens'
 import {
   applyTheme, getStoredTheme, THEMES, type ThemeId,
   type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
@@ -306,6 +311,67 @@ export function SettingsPage() {
     } finally {
       setPinRevoking(null)
     }
+  }
+
+  // ── API Tokens ────────────────────────────────────────────────────────────
+  const [apiTokens, setApiTokens] = useState<ApiTokenListItem[]>([])
+  const [apiTokensAllUsers, setApiTokensAllUsers] = useState(false)
+  const [apiTokensLoading, setApiTokensLoading] = useState(false)
+  const [tokenNewName, setTokenNewName] = useState('')
+  const [tokenFormOpen, setTokenFormOpen] = useState(false)
+  const [tokenCreating, setTokenCreating] = useState(false)
+  const [tokenCreateError, setTokenCreateError] = useState<string | null>(null)
+  const [tokenRevealPlaintext, setTokenRevealPlaintext] = useState<string | null>(null)
+  const [tokenCopied, setTokenCopied] = useState(false)
+  const [tokenRevoking, setTokenRevoking] = useState<number | null>(null)
+  useEffect(() => {
+    setApiTokensLoading(true)
+    listTokens(apiTokensAllUsers)
+      .then(setApiTokens)
+      .catch(() => {})
+      .finally(() => setApiTokensLoading(false))
+  }, [apiTokensAllUsers])
+
+  async function handleCreateToken(e: React.FormEvent) {
+    e.preventDefault()
+    const name = tokenNewName.trim()
+    if (!name) return
+    setTokenCreateError(null)
+    setTokenCreating(true)
+    try {
+      const res = await createToken(name)
+      setTokenRevealPlaintext(res.token)
+      setTokenNewName('')
+      setTokenFormOpen(false)
+      const updated = await listTokens(apiTokensAllUsers)
+      setApiTokens(updated)
+    } catch (err) {
+      setTokenCreateError(err instanceof Error ? err.message : 'Failed to create token')
+    } finally {
+      setTokenCreating(false)
+    }
+  }
+
+  async function handleRevokeApiToken(id: number) {
+    if (!confirm('Revoke this token? Any scripts or tools using it will stop working immediately.')) return
+    setTokenRevoking(id)
+    try {
+      await revokeToken(id)
+      const updated = await listTokens(apiTokensAllUsers)
+      setApiTokens(updated)
+    } catch {
+      // ignore
+    } finally {
+      setTokenRevoking(null)
+    }
+  }
+
+  function handleCopyToken() {
+    if (!tokenRevealPlaintext) return
+    navigator.clipboard.writeText(tokenRevealPlaintext).then(() => {
+      setTokenCopied(true)
+      setTimeout(() => setTokenCopied(false), 2000)
+    })
   }
 
   // ── Export ────────────────────────────────────────────────────────────────
@@ -892,6 +958,183 @@ export function SettingsPage() {
           </div>
         </section>
 
+        {/* ── API Tokens ───────────────────────────────────────────────── */}
+        <section>
+          <SectionHeader title="API Tokens" />
+          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-5 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {user?.is_admin && apiTokens.length > 0 && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={apiTokensAllUsers}
+                        onChange={e => setApiTokensAllUsers(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded accent-primary"
+                      />
+                      All users
+                    </label>
+                  )}
+                  <button
+                    onClick={() => { setTokenFormOpen(v => !v); setTokenCreateError(null) }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                  >
+                    <Plus className="w-3 h-3" />
+                    New Token
+                  </button>
+                </div>
+              </div>
+
+              {/* Create form */}
+              {tokenFormOpen && (
+                <form onSubmit={handleCreateToken} className="flex items-end gap-2 rounded-lg bg-muted/50 border border-border p-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Token name</label>
+                    <input
+                      type="text"
+                      value={tokenNewName}
+                      onChange={e => { setTokenNewName(e.target.value); setTokenCreateError(null) }}
+                      placeholder="e.g. scribe-laptop"
+                      autoFocus
+                      className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={tokenCreating || !tokenNewName.trim()}
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                  >
+                    {tokenCreating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {tokenCreating ? 'Creating...' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setTokenFormOpen(false); setTokenNewName(''); setTokenCreateError(null) }}
+                    className="flex items-center h-9 px-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              )}
+              {tokenCreateError && <p className="text-xs text-destructive">{tokenCreateError}</p>}
+
+              {/* One-time token reveal */}
+              {tokenRevealPlaintext && (
+                <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                      This is the only time you will see this token. Store it somewhere safe — it cannot be recovered.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-md bg-background border border-border px-3 py-2">
+                    <code className="text-xs font-mono text-foreground break-all flex-1 select-all">
+                      {tokenRevealPlaintext}
+                    </code>
+                    <button
+                      onClick={handleCopyToken}
+                      className="p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0"
+                      title="Copy token"
+                    >
+                      {tokenCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => { setTokenRevealPlaintext(null); setTokenCopied(false) }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+
+              {/* Token list */}
+              {apiTokensLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Loading...
+                </div>
+              ) : apiTokens.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  No API tokens yet. Create one to use Scribe or scripts against Tome.
+                </p>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  {/* Header */}
+                  <div className={cn(
+                    'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
+                    apiTokensAllUsers && user?.is_admin ? 'grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'grid-cols-[1fr_7rem_7rem_6rem_2rem]'
+                  )}>
+                    <span>Name</span>
+                    <span>Prefix</span>
+                    <span>Last used</span>
+                    <span>Created</span>
+                    {apiTokensAllUsers && user?.is_admin && <span>Owner</span>}
+                    <span />
+                  </div>
+                  {apiTokens.map(tok => {
+                    const isRevoked = tok.revoked_at !== null
+                    return (
+                      <div
+                        key={tok.id}
+                        className={cn(
+                          'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
+                          apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'sm:grid-cols-[1fr_7rem_7rem_6rem_2rem]',
+                          isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
+                          {tok.name}
+                          {isRevoked && (
+                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                              Revoked
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-mono text-muted-foreground shrink-0">
+                          tome_{tok.prefix}…
+                        </span>
+                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                          {tok.last_used_at ? relativeTime(tok.last_used_at) : 'Never'}
+                        </span>
+                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                          {new Date(tok.created_at).toLocaleDateString()}
+                        </span>
+                        {apiTokensAllUsers && user?.is_admin && (
+                          <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
+                            {tok.username}
+                          </span>
+                        )}
+                        <div className="flex items-center justify-end shrink-0">
+                          {!isRevoked && (
+                            <button
+                              onClick={() => handleRevokeApiToken(tok.id)}
+                              disabled={tokenRevoking === tok.id}
+                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Revoke token"
+                            >
+                              {tokenRevoking === tok.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Trash2 className="w-3.5 h-3.5" />
+                              }
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* ── Export ───────────────────────────────────────────────────── */}
         <section>
           <SectionHeader title="Export" subtle />
@@ -926,6 +1169,21 @@ export function SettingsPage() {
       </main>
     </div>
   )
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const seconds = Math.floor(diff / 1000)
+  if (seconds < 60) return 'Just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
