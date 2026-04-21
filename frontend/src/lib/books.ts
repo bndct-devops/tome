@@ -103,6 +103,24 @@ export interface SavedFilter {
 
 export type ReadingStatus = 'unread' | 'reading' | 'read'
 
+export interface Arc {
+  id: number
+  series_name: string
+  name: string
+  start_index: number
+  end_index: number
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type SeriesStatus = 'ongoing' | 'finished' | 'hiatus' | 'unknown'
+
+export interface SeriesMeta {
+  series_name: string
+  status: SeriesStatus
+}
+
 export interface BookStatus {
   book_id: number
   status: ReadingStatus

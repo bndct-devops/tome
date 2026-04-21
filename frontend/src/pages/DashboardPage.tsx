@@ -5,7 +5,7 @@ import {
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, LayoutList, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2,
+  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2,
 } from 'lucide-react'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -15,8 +15,9 @@ import { Sidebar } from '@/components/Sidebar'
 import { SaveFilterButton } from '@/components/SaveFilterButton'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { UploadModal } from '@/components/UploadModal'
+import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { api } from '@/lib/api'
-import type { Book, Library, SavedFilter, ReadingStatus } from '@/lib/books'
+import type { Book, Library, SavedFilter, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useShiftSelect } from '@/lib/useShiftSelect'
@@ -267,6 +268,12 @@ export function DashboardPage() {
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   const [contentType, setContentType] = useState<string>('volume')
+  // Series meta (status badges) — keyed by series name
+  const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
+  // Arcs for the currently open series detail
+  const [seriesArcs, setSeriesArcs] = useState<Arc[]>([])
+  // Manage series modal
+  const [manageSeriesOpen, setManageSeriesOpen] = useState(false)
 
   function setTab(value: 'home' | 'books' | 'series') {
     setSearchParams(prev => {
@@ -277,13 +284,32 @@ export function DashboardPage() {
     })
   }
 
+  function fetchSeriesMetaForList(list: SeriesItem[]) {
+    const realSeries = list.filter(s => s.name !== '__unserialized__')
+    Promise.allSettled(
+      realSeries.map(s =>
+        api.get<SeriesMeta>(`/series/${encodeURIComponent(s.name)}/meta`)
+      )
+    ).then(results => {
+      const map: Record<string, SeriesStatus> = {}
+      realSeries.forEach((s, i) => {
+        const r = results[i]
+        if (r.status === 'fulfilled') map[s.name] = r.value.status
+      })
+      setSeriesMetaMap(map)
+    }).catch(() => {})
+  }
+
   function openSeriesTab() {
     setTab('series')
     setExpandedSeries(null)
     setSeriesDetail(null)
     setSeriesLoading(true)
     api.get<SeriesItem[]>('/books/series')
-      .then(setSeriesList)
+      .then(list => {
+        setSeriesList(list)
+        fetchSeriesMetaForList(list)
+      })
       .catch(() => {})
       .finally(() => setSeriesLoading(false))
   }
@@ -292,13 +318,21 @@ export function DashboardPage() {
     if (expandedSeries === seriesName) {
       setExpandedSeries(null)
       setSeriesDetail(null)
+      setSeriesArcs([])
       return
     }
     setExpandedSeries(seriesName)
     setSeriesDetailLoading(true)
     setSeriesDetail(null)
-    api.get<SeriesDetail>(`/books/series-detail?name=${encodeURIComponent(seriesName)}`)
-      .then(detail => { setSeriesDetail(detail) })
+    setSeriesArcs([])
+    Promise.all([
+      api.get<SeriesDetail>(`/books/series-detail?name=${encodeURIComponent(seriesName)}`),
+      api.get<Arc[]>(`/series/${encodeURIComponent(seriesName)}/arcs`),
+    ])
+      .then(([detail, arcs]) => {
+        setSeriesDetail(detail)
+        setSeriesArcs(arcs)
+      })
       .catch(() => {})
       .finally(() => setSeriesDetailLoading(false))
   }
@@ -313,6 +347,7 @@ export function DashboardPage() {
     api.get<SeriesItem[]>('/books/series')
       .then(list => {
         setSeriesList(list)
+        fetchSeriesMetaForList(list)
         setSeriesLoading(false)
         openSeriesDetail(detailName)
       })
@@ -331,6 +366,47 @@ export function DashboardPage() {
       }
     }
     return books.find(b => b.reading_status === 'unread') ?? null
+  }
+
+  function groupVolumesByArc(books: SeriesDetailBook[], arcs: Arc[]): Array<{
+    label: string
+    description: string | null
+    volumes: SeriesDetailBook[]
+  }> {
+    if (arcs.length === 0) return [{ label: '', description: null, volumes: books }]
+    const sorted = [...arcs].sort((a, b) => a.start_index - b.start_index)
+    const sections: Array<{ label: string; description: string | null; volumes: SeriesDetailBook[] }> = sorted.map(arc => ({
+      label: `${arc.name} · Vol. ${arc.start_index}–${arc.end_index}`,
+      description: arc.description ?? null,
+      volumes: books.filter(v =>
+        v.series_index != null &&
+        v.series_index >= arc.start_index &&
+        v.series_index <= arc.end_index
+      ),
+    }))
+    const unassigned = books.filter(v =>
+      v.series_index == null ||
+      !sorted.some(a => v.series_index! >= a.start_index && v.series_index! <= a.end_index)
+    )
+    if (unassigned.length > 0) {
+      sections.push({ label: 'Unassigned', description: null, volumes: unassigned })
+    }
+    return sections.filter(s => s.volumes.length > 0)
+  }
+
+  function SeriesStatusBadge({ status }: { status: SeriesStatus | undefined }) {
+    if (!status || status === 'unknown') return null
+    const cls =
+      status === 'ongoing'
+        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+        : status === 'finished'
+        ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+        : /* hiatus */ 'bg-muted text-muted-foreground'
+    return (
+      <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide leading-none', cls)}>
+        {status}
+      </span>
+    )
   }
 
   async function markAllRead(books: SeriesDetailBook[]) {
@@ -828,6 +904,24 @@ export function DashboardPage() {
         onDone={() => { loadBooks(); loadFacets() }}
       />
 
+      {manageSeriesOpen && expandedSeries && (
+        <ManageSeriesModal
+          seriesName={expandedSeries}
+          onClose={() => setManageSeriesOpen(false)}
+          onSaved={() => {
+            // Refresh meta map and arcs for the open series
+            if (expandedSeries) {
+              api.get<SeriesMeta>(`/series/${encodeURIComponent(expandedSeries)}/meta`)
+                .then(m => setSeriesMetaMap(prev => ({ ...prev, [expandedSeries]: m.status })))
+                .catch(() => {})
+              api.get<Arc[]>(`/series/${encodeURIComponent(expandedSeries)}/arcs`)
+                .then(setSeriesArcs)
+                .catch(() => {})
+            }
+          }}
+        />
+      )}
+
       {/* ── Body (sidebar + main) ────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -1106,7 +1200,10 @@ export function DashboardPage() {
                         {/* Header */}
                         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                           <div className="flex-1 min-w-0">
-                            <h2 className="text-lg font-bold text-foreground leading-tight">{seriesDetail.name}</h2>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h2 className="text-lg font-bold text-foreground leading-tight">{seriesDetail.name}</h2>
+                              <SeriesStatusBadge status={seriesMetaMap[seriesDetail.name]} />
+                            </div>
                             {seriesDetail.author && (
                               <p className="text-sm text-muted-foreground mt-0.5">{seriesDetail.author}</p>
                             )}
@@ -1133,7 +1230,7 @@ export function DashboardPage() {
                               <p className="text-xs text-muted-foreground leading-relaxed mt-3 line-clamp-3">{seriesDetail.description}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
                             {(() => {
                               const continueBook = getContinueBook(seriesDetail.books)
                               if (!continueBook) return null
@@ -1157,61 +1254,92 @@ export function DashboardPage() {
                               {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
                               Mark all read
                             </button>
+                            {isAdmin(user) && (
+                              <button
+                                onClick={() => setManageSeriesOpen(true)}
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-all"
+                                title="Manage series"
+                              >
+                                <Settings2 className="w-3.5 h-3.5" />
+                                Manage
+                              </button>
+                            )}
                           </div>
                         </div>
 
-                        {/* Volume grid */}
-                        <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                          {seriesDetail.books.map(vol => (
-                            <div
-                              key={vol.id}
-                              onClick={() => navigate(`/books/${vol.id}`)}
-                              title={vol.title}
-                              className="group relative flex flex-col rounded-lg overflow-hidden border bg-muted transition-all duration-150 hover:shadow-md hover:scale-105 cursor-pointer"
-                              style={{
-                                borderColor: vol.reading_status === 'read'
-                                  ? 'rgb(34 197 94 / 0.6)'
-                                  : vol.reading_status === 'reading'
-                                  ? 'rgb(59 130 246 / 0.6)'
-                                  : undefined,
-                              }}
-                            >
-                              <div className="relative aspect-[2/3] w-full overflow-hidden">
-                                <CoverImage
-                                  src={vol.cover_path ? `/api/books/${vol.id}/cover` : null}
-                                  alt={vol.title}
-                                  iconClassName="w-4 h-4"
-                                />
-                                {/* Quick-read play button — top-left corner on hover */}
-                                <button
-                                  onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
-                                  className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                  title="Read"
-                                  aria-label="Read"
-                                >
-                                  <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
-                                    <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
+                        {/* Volume grid — grouped by arc when arcs exist */}
+                        {(() => {
+                          const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
+                          const hasArcs = seriesArcs.length > 0
+                          return (
+                            <div className="flex flex-col gap-5">
+                              {sections.map((section, si) => (
+                                <div key={si} className="flex flex-col gap-2">
+                                  {hasArcs && (
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs font-semibold text-foreground whitespace-nowrap">{section.label}</span>
+                                      <div className="flex-1 h-px bg-border" />
+                                    </div>
+                                  )}
+                                  {hasArcs && section.description && (
+                                    <p className="text-[11px] text-muted-foreground -mt-1">{section.description}</p>
+                                  )}
+                                  <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                                    {section.volumes.map(vol => (
+                                      <div
+                                        key={vol.id}
+                                        onClick={() => navigate(`/books/${vol.id}`)}
+                                        title={vol.title}
+                                        className="group relative flex flex-col rounded-lg overflow-hidden border bg-muted transition-all duration-150 hover:shadow-md hover:scale-105 cursor-pointer"
+                                        style={{
+                                          borderColor: vol.reading_status === 'read'
+                                            ? 'rgb(34 197 94 / 0.6)'
+                                            : vol.reading_status === 'reading'
+                                            ? 'rgb(59 130 246 / 0.6)'
+                                            : undefined,
+                                        }}
+                                      >
+                                        <div className="relative aspect-[2/3] w-full overflow-hidden">
+                                          <CoverImage
+                                            src={vol.cover_path ? `/api/books/${vol.id}/cover` : null}
+                                            alt={vol.title}
+                                            iconClassName="w-4 h-4"
+                                          />
+                                          {/* Quick-read play button — top-left corner on hover */}
+                                          <button
+                                            onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
+                                            className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            title="Read"
+                                            aria-label="Read"
+                                          >
+                                            <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
+                                              <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
+                                            </div>
+                                          </button>
+                                          {/* Status dot */}
+                                          {vol.reading_status !== 'unread' && (
+                                            <div className={cn(
+                                              'absolute top-1 right-1 w-2 h-2 rounded-full ring-1 ring-background',
+                                              vol.reading_status === 'read' ? 'bg-green-500' : 'bg-blue-500'
+                                            )} />
+                                          )}
+                                          {/* Volume number overlay */}
+                                          {vol.series_index != null && (
+                                            <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5">
+                                              <span className="text-[9px] font-bold text-white leading-none">
+                                                Vol. {vol.series_index}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
-                                </button>
-                                {/* Status dot */}
-                                {vol.reading_status !== 'unread' && (
-                                  <div className={cn(
-                                    'absolute top-1 right-1 w-2 h-2 rounded-full ring-1 ring-background',
-                                    vol.reading_status === 'read' ? 'bg-green-500' : 'bg-blue-500'
-                                  )} />
-                                )}
-                                {/* Volume number overlay */}
-                                {vol.series_index != null && (
-                                  <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5">
-                                    <span className="text-[9px] font-bold text-white leading-none">
-                                      Vol. {vol.series_index}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
@@ -1251,9 +1379,12 @@ export function DashboardPage() {
                             </div>
                           </div>
                           <div className="px-3 py-2.5 flex flex-col gap-0.5 min-w-0">
-                            <span className="text-xs font-semibold text-foreground leading-tight line-clamp-2">
-                              {isUnserialized ? 'No Series' : s.name}
-                            </span>
+                            <div className="flex items-start gap-1.5 flex-wrap">
+                              <span className="text-xs font-semibold text-foreground leading-tight line-clamp-2">
+                                {isUnserialized ? 'No Series' : s.name}
+                              </span>
+                              {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
+                            </div>
                             {!isUnserialized && s.author && <span className="text-[10px] text-muted-foreground truncate">{s.author}</span>}
                             {!isUnserialized && s.description && (
                               <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
