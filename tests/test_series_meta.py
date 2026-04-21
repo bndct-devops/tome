@@ -325,3 +325,35 @@ def test_member_can_read_meta(client: TestClient, db: Session):
     _member, member_token = _make_member(db, username="member_meta2")
     resp = client.get("/api/series/Berserk/meta", headers=_auth(member_token))
     assert resp.status_code == 200, resp.text
+
+
+def test_meta_map_returns_all_statuses(client: TestClient):
+    """GET /api/series/meta-map returns a {name: status} dict covering every SeriesMeta row."""
+    client.put("/api/series/Berserk/meta", json={"status": "ongoing"})
+    client.put("/api/series/Tarzan/meta", json={"status": "finished"})
+    client.put("/api/series/Barsoom/meta", json={"status": "hiatus"})
+    resp = client.get("/api/series/meta-map")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["Berserk"] == "ongoing"
+    assert data["Tarzan"] == "finished"
+    assert data["Barsoom"] == "hiatus"
+
+
+def test_meta_map_excludes_series_without_row(client: TestClient):
+    """Series with no SeriesMeta row is absent from meta-map (not 'unknown')."""
+    client.put("/api/series/Berserk/meta", json={"status": "ongoing"})
+    resp = client.get("/api/series/meta-map")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert "Berserk" in data
+    assert "SomeOtherUnsetSeries" not in data
+
+
+def test_meta_map_does_not_shadow_name_route(client: TestClient):
+    """The literal /series/meta-map path must not be swallowed by /series/{name}/meta."""
+    # Without any rows, meta-map should return {} — not a 200 with {status:'unknown'}
+    # (which would indicate meta-map got parsed as name='meta-map').
+    resp = client.get("/api/series/meta-map")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {}

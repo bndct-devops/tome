@@ -285,20 +285,12 @@ export function DashboardPage() {
     })
   }
 
-  function fetchSeriesMetaForList(list: SeriesItem[]) {
-    const realSeries = list.filter(s => s.name !== '__unserialized__')
-    Promise.allSettled(
-      realSeries.map(s =>
-        api.get<SeriesMeta>(`/series/${encodeURIComponent(s.name)}/meta`)
-      )
-    ).then(results => {
-      const map: Record<string, SeriesStatus> = {}
-      realSeries.forEach((s, i) => {
-        const r = results[i]
-        if (r.status === 'fulfilled') map[s.name] = r.value.status
-      })
-      setSeriesMetaMap(map)
-    }).catch(() => {})
+  function fetchSeriesMetaForList(_list: SeriesItem[]) {
+    // Single batch call — previously fired one GET per series which
+    // exhausted the DB connection pool on libraries with many series.
+    api.get<Record<string, SeriesStatus>>('/series/meta-map')
+      .then(map => setSeriesMetaMap(map))
+      .catch(() => {})
   }
 
   function openSeriesTab() {

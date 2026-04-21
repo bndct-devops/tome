@@ -176,6 +176,21 @@ def bulk_upsert_arcs(
 
 # ── SeriesMeta endpoints ──────────────────────────────────────────────────────
 
+@router.get("/series/meta-map", response_model=dict[str, str])
+def list_series_meta_map(
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Return a {series_name: status} dict for every SeriesMeta row.
+
+    Cheap one-shot lookup for dashboards that render a status badge per
+    series — avoids N parallel GET /series/{name}/meta calls that can
+    exhaust the DB connection pool.
+    """
+    rows = db.query(SeriesMeta.series_name, SeriesMeta.status).all()
+    return {r.series_name: r.status for r in rows}
+
+
 @router.get("/series/{name}/meta", response_model=SeriesMetaOut)
 def get_series_meta(
     name: str,
