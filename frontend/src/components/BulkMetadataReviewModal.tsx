@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, BookOpen, Check, ChevronDown, ChevronUp, Loader2, Search, Sparkles, X } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, ChevronUp, Loader2, Search, Sparkles, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { MetadataCandidate } from '@/lib/books'

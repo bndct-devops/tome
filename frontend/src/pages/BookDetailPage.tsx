@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  BookOpen, Camera, Download, Edit2, Save, X,
+  Camera, Download, Edit2, Save, X,
   Calendar, Globe, Hash, Building2, AlignLeft, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon
