@@ -25,6 +25,7 @@ from backend.api import admin_duplicates
 from backend.api import home
 from backend.api import bindery
 from backend.api import api_tokens
+from backend.api import series as series_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
@@ -33,6 +34,7 @@ from backend.models.audit_log import AuditLog  # noqa: F401
 from backend.models.quick_connect import QuickConnectCode  # noqa: F401
 from backend.models.duplicate_dismissal import DuplicateDismissal  # noqa: F401
 from backend.models.api_token import ApiToken  # noqa: F401
+from backend.models.series_meta import Arc, SeriesMeta  # noqa: F401
 
 
 @asynccontextmanager
@@ -420,6 +422,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_duplicates.router, prefix="/api")
     app.include_router(bindery.router, prefix="/api/bindery", tags=["bindery"])
     app.include_router(api_tokens.router, prefix="/api")
+    app.include_router(series_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
