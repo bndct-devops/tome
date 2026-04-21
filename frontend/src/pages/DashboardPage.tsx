@@ -274,6 +274,7 @@ export function DashboardPage() {
   const [seriesArcs, setSeriesArcs] = useState<Arc[]>([])
   // Manage series modal
   const [manageSeriesOpen, setManageSeriesOpen] = useState(false)
+  const [seriesDescExpanded, setSeriesDescExpanded] = useState(false)
 
   function setTab(value: 'home' | 'books' | 'series') {
     setSearchParams(prev => {
@@ -325,6 +326,7 @@ export function DashboardPage() {
     setSeriesDetailLoading(true)
     setSeriesDetail(null)
     setSeriesArcs([])
+    setSeriesDescExpanded(false)
     Promise.all([
       api.get<SeriesDetail>(`/books/series-detail?name=${encodeURIComponent(seriesName)}`),
       api.get<Arc[]>(`/series/${encodeURIComponent(seriesName)}/arcs`),
@@ -907,6 +909,13 @@ export function DashboardPage() {
       {manageSeriesOpen && expandedSeries && (
         <ManageSeriesModal
           seriesName={expandedSeries}
+          volumes={
+            seriesDetail
+              ? seriesDetail.books
+                  .map(b => b.series_index)
+                  .filter((n): n is number => n != null)
+              : []
+          }
           onClose={() => setManageSeriesOpen(false)}
           onSaved={() => {
             // Refresh meta map and arcs for the open series
@@ -1227,7 +1236,22 @@ export function DashboardPage() {
                               )
                             })()}
                             {seriesDetail.description && (
-                              <p className="text-xs text-muted-foreground leading-relaxed mt-3 line-clamp-3">{seriesDetail.description}</p>
+                              <div className="mt-3">
+                                <p className={cn(
+                                  "text-xs text-muted-foreground leading-relaxed whitespace-pre-line",
+                                  !seriesDescExpanded && "line-clamp-3"
+                                )}>
+                                  {seriesDetail.description}
+                                </p>
+                                {seriesDetail.description.length > 240 && (
+                                  <button
+                                    onClick={() => setSeriesDescExpanded(v => !v)}
+                                    className="text-xs font-medium text-primary hover:opacity-80 mt-1 transition-opacity"
+                                  >
+                                    {seriesDescExpanded ? 'Show less' : 'Show more'}
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0 flex-wrap">

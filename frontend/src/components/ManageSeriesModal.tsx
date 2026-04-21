@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   seriesName: string
+  /** All series_index values that currently exist for this series (for Start/End dropdowns). */
+  volumes: number[]
   onClose: () => void
   onSaved: () => void
 }
@@ -40,7 +42,22 @@ function isInvalid(row: ArcRow): boolean {
   return row.start_index > row.end_index
 }
 
-export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
+function formatVol(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(n)
+}
+
+/**
+ * Build the options list for a Start/End dropdown.
+ * Includes all known volume indexes, plus the current value so historical arcs
+ * referencing a now-missing volume still render correctly. Sorted ascending.
+ */
+function buildVolumeOptions(volumes: number[], current: number): number[] {
+  const set = new Set<number>(volumes)
+  set.add(current)
+  return [...set].sort((a, b) => a - b)
+}
+
+export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('series')
 
   // Series tab state
@@ -76,8 +93,14 @@ export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
   }, [seriesName])
 
   function addRow() {
-    const maxEnd = arcRows.reduce((m, r) => Math.max(m, r.end_index), 0)
-    const nextStart = arcRows.length === 0 ? 1 : maxEnd + 1
+    const sortedVols = [...volumes].sort((a, b) => a - b)
+    const first = sortedVols[0] ?? 1
+    const last = sortedVols[sortedVols.length - 1] ?? 1
+    const maxEnd = arcRows.reduce((m, r) => Math.max(m, r.end_index), -Infinity)
+    // Next start: first volume after the last arc's end, else first volume
+    const nextStart = arcRows.length === 0
+      ? first
+      : sortedVols.find(v => v > maxEnd) ?? last
     setArcRows(prev => [...prev, {
       name: '',
       start_index: nextStart,
@@ -138,7 +161,7 @@ export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-2xl bg-card rounded-xl border border-border shadow-xl flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-3xl bg-card rounded-xl border border-border shadow-xl flex flex-col max-h-[90vh] min-h-[420px]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
@@ -207,9 +230,15 @@ export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {sortedRows.length === 0 && (
+                {sortedRows.length === 0 && volumes.length > 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     No arcs defined yet. Click &ldquo;Add arc&rdquo; to create one.
+                  </p>
+                )}
+                {volumes.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    This series has no volumes with a numeric index yet. Add
+                    volumes before defining arcs.
                   </p>
                 )}
                 {sortedRows.length > 0 && (
@@ -238,24 +267,30 @@ export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
                                   value={row.name}
                                   onChange={e => updateRow(originalIdx, { name: e.target.value })}
                                   placeholder="Arc name"
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
                                 />
                               </td>
                               <td className="py-1.5 pr-3">
-                                <input
-                                  type="number"
+                                <select
                                   value={row.start_index}
                                   onChange={e => updateRow(originalIdx, { start_index: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
+                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
+                                >
+                                  {buildVolumeOptions(volumes, row.start_index).map(v => (
+                                    <option key={v} value={v}>{formatVol(v)}</option>
+                                  ))}
+                                </select>
                               </td>
                               <td className="py-1.5 pr-3">
-                                <input
-                                  type="number"
+                                <select
                                   value={row.end_index}
                                   onChange={e => updateRow(originalIdx, { end_index: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
+                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
+                                >
+                                  {buildVolumeOptions(volumes, row.end_index).map(v => (
+                                    <option key={v} value={v}>{formatVol(v)}</option>
+                                  ))}
+                                </select>
                               </td>
                               <td className="py-1.5 pr-3">
                                 <input
@@ -263,7 +298,7 @@ export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
                                   value={row.description}
                                   onChange={e => updateRow(originalIdx, { description: e.target.value })}
                                   placeholder="Optional"
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
                                 />
                               </td>
                               <td className="py-1.5">
@@ -284,7 +319,8 @@ export function ManageSeriesModal({ seriesName, onClose, onSaved }: Props) {
                 )}
                 <button
                   onClick={addRow}
-                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors self-start"
+                  disabled={volumes.length === 0}
+                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors self-start disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add arc
