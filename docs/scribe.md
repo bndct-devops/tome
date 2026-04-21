@@ -8,13 +8,14 @@ If you are looking for the older filename-based one-shot bulk importer, see [`do
 
 ## What Scribe does
 
-Three modes, all invoked conversationally inside Claude Code:
+Four modes, all invoked conversationally inside Claude Code:
 
 | Mode | Trigger | Purpose |
 |------|---------|---------|
 | Ingest | `/scribe <path>` | Upload a folder of new books, dedupe, fetch metadata, apply |
 | Update | `/scribe update <query>` | Refresh metadata on books already in Tome |
 | Audit | `/scribe audit [scope]` | Find weak metadata and unify series titles |
+| Series | `/scribe series <name>` | Fill series-level metadata (story arcs, publication status) from Claude's knowledge |
 
 Scribe never reads or writes your database directly. Everything goes through Tome's HTTP API, authenticated with a user-level API token.
 
@@ -161,6 +162,36 @@ Proceed with candidate fetch on 68 weak books?
 For missing descriptions that the external metadata sources also don't have, Scribe falls back to a `WebSearch` + `WebFetch` against trusted sources (Goodreads, Wikipedia, publisher pages) and proposes the extracted synopsis.
 
 Title drift is **never** auto-applied — Scribe always surfaces outliers for explicit confirmation, because titles are the most user-visible field.
+
+---
+
+## Series mode
+
+Fill series-level metadata — publication status and story arcs — from Claude's own knowledge of the work:
+
+```
+/scribe series Berserk
+/scribe series "A Certain Magical Index"
+```
+
+Scribe reads the current series state, asks Claude for a proposal, and renders a diff you can accept or edit row-by-row before anything is written:
+
+```
+Series: Berserk
+Status:   hiatus → ongoing
+
+Arcs (new):
+  #1  Black Swordsman                  Vol. 1–2    Guts, marked by a demonic brand, hunts apostles of the Godhand.
+  #2  Golden Age                       Vol. 3–13   Flashback to Guts' time in the Band of the Hawk.
+  #3  Lost Children                    Vol. 14     A haunted forest, elfin creatures, and a twisted faerie threat.
+  ...
+
+Apply? ("yes"/"apply", row-level correction, or "no"/"abort")
+```
+
+Row-level corrections are natural language — `change arc 3 end to 20`, `drop arc 5`, `rename #2 to Lost Children Arc`. Chain them until the proposal looks right, then apply.
+
+If Claude doesn't have confident knowledge of the series, Scribe refuses rather than guessing. Writes require an admin token; arcs can also be edited manually via the Manage modal on the series detail page.
 
 ---
 

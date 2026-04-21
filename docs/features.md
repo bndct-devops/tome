@@ -82,6 +82,8 @@ The sidebar shows all series in your library. Click a series to open an inline d
 - Per-volume progress bars
 - Continue reading button (jumps to the next unfinished volume)
 - Mark all as read
+- Publication status badge (ongoing, finished, hiatus, unknown) shown in the series list and detail header
+- Story arcs — admins can split the volume grid into named sections (e.g. Berserk's Golden Age, Conviction, Fantasia) via the Manage button. Each arc has a name, volume range, and optional description; volumes outside any arc fall into an Unassigned section. Arcs can be filled in bulk from Claude's knowledge with `/scribe series <name>`.
 
 ---
 
