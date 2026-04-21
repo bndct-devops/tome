@@ -721,15 +721,21 @@ export function DashboardPage() {
   const refreshingRef = useRef(false)
   useEffect(() => { refreshingRef.current = refreshing }, [refreshing])
 
-  useEffect(() => {
-    if (!sentinelRef.current) return
+  const observerInstanceRef = useRef<IntersectionObserver | null>(null)
+  const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
+    if (observerInstanceRef.current) {
+      observerInstanceRef.current.disconnect()
+      observerInstanceRef.current = null
+    }
+    sentinelRef.current = node
+    if (!node) return
     const observer = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && !loadingMoreRef.current && !loadingRef.current && !refreshingRef.current && hasMoreRef.current) {
         loadBooks(false)
       }
     }, { rootMargin: '200px' })
-    observer.observe(sentinelRef.current)
-    return () => observer.disconnect()
+    observer.observe(node)
+    observerInstanceRef.current = observer
   }, [loadBooks])
 
   function loadFacets() { api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }
@@ -1484,7 +1490,11 @@ export function DashboardPage() {
 
             <div className="flex-1" />
             <span className="text-xs text-muted-foreground hidden sm:block">
-              {loading ? '…' : `${books.length} book${books.length !== 1 ? 's' : ''}`}
+              {loading
+                ? '…'
+                : totalCount !== null && totalCount > books.length
+                  ? `${books.length} of ${totalCount} books`
+                  : `${books.length} book${books.length !== 1 ? 's' : ''}`}
             </span>
 
             {/* Select mode toggle */}
@@ -1778,7 +1788,7 @@ export function DashboardPage() {
             </div>
           )}
           {/* Infinite scroll sentinel */}
-          <div ref={sentinelRef} className="h-1 mt-2" />
+          <div ref={sentinelCallback} className="h-1 mt-2" />
           {loadingMore && (
             <div className="flex justify-center py-4">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
