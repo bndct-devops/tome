@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { BulkMetadataReviewModal } from './BulkMetadataReviewModal'
 import { UploadModal } from './UploadModal'
 import { useShiftSelect } from '@/lib/useShiftSelect'
+import { CoverImage } from './CoverImage'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -376,17 +377,13 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           {/* Left: current metadata */}
           <div className="w-full lg:w-[420px] shrink-0 border-b lg:border-b-0 lg:border-r border-border overflow-y-auto p-4 lg:p-6 space-y-4 max-h-[40vh] lg:max-h-none">
             <div className="flex gap-4">
-              {book.cover_path ? (
-                <img
-                  src={`${API}/api/books/${book.id}/cover`}
+              <div className="relative w-20 h-28 rounded border border-border overflow-hidden shrink-0">
+                <CoverImage
+                  src={book.cover_path ? `${API}/api/books/${book.id}/cover` : null}
                   alt=""
-                  className="w-20 h-28 object-cover rounded border border-border shrink-0"
+                  iconClassName="w-6 h-6"
                 />
-              ) : (
-                <div className="w-20 h-28 rounded border border-border bg-muted flex items-center justify-center shrink-0">
-                  <BookOpen className="w-6 h-6 text-muted-foreground" />
-                </div>
-              )}
+              </div>
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-snug">{book.title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{book.author || <span className="italic">No author</span>}</p>

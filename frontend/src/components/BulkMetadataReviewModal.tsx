@@ -3,6 +3,7 @@ import { AlertCircle, BookOpen, Check, ChevronDown, ChevronUp, Loader2, Search, 
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { MetadataCandidate } from '@/lib/books'
+import { CoverImage } from './CoverImage'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -290,18 +291,12 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                       />
 
                       {/* Current book */}
-                      <div className="w-8 shrink-0">
-                        {result.book_cover_path ? (
-                          <img
-                            src={`${API}/api/books/${result.book_id}/cover`}
-                            alt=""
-                            className="w-8 h-12 object-cover rounded border border-border"
-                          />
-                        ) : (
-                          <div className="w-8 h-12 rounded bg-muted border border-border flex items-center justify-center">
-                            <BookOpen className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        )}
+                      <div className="relative w-8 h-12 shrink-0 rounded border border-border overflow-hidden">
+                        <CoverImage
+                          src={result.book_cover_path ? `${API}/api/books/${result.book_id}/cover` : null}
+                          alt=""
+                          iconClassName="h-3 w-3"
+                        />
                       </div>
 
                       <div className="flex-1 min-w-0">

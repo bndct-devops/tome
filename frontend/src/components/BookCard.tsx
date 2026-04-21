@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn } from '@/lib/utils'
+import { CoverImage } from '@/components/CoverImage'
 
 const COLOR_CLASSES: Record<string, string> = {
   blue: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -212,31 +213,11 @@ export function BookCard({
         )}
         style={{ transition: isHovering ? 'transform 0.05s ease-out, box-shadow 0.2s ease-out' : 'transform 0.3s ease-out, box-shadow 0.2s ease-out' }}
       >
-        {coverUrl ? (
-          <>
-            <img
-              src={coverUrl}
-              alt={book.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.querySelector('.cover-fallback')?.classList.remove('hidden') }}
-            />
-            <div className="cover-fallback hidden w-full h-full flex items-center justify-center absolute inset-0">
-              <BookOpen className={cn('text-muted-foreground/30', view === 'large' ? 'w-12 h-12' : 'w-8 h-8')} />
-            </div>
-          </>
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center relative"
-            style={{
-              background: 'linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%)',
-              backgroundSize: '200% 100%',
-              animation: 'shimmer 1.5s infinite',
-            }}
-          >
-            <BookOpen className={cn('text-muted-foreground/30 relative z-10', view === 'large' ? 'w-12 h-12' : 'w-8 h-8')} />
-          </div>
-        )}
+        <CoverImage
+          src={coverUrl}
+          alt={book.title}
+          iconClassName={view === 'large' ? 'w-12 h-12' : 'w-8 h-8'}
+        />
 
         {/* Shine/glare overlay — follows mouse */}
         {tiltEnabled && (

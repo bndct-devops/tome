@@ -10,6 +10,7 @@ import {
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
+import { CoverImage } from '@/components/CoverImage'
 import { Sidebar } from '@/components/Sidebar'
 import { SaveFilterButton } from '@/components/SaveFilterButton'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
@@ -154,18 +155,13 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
                 const primaryFile = book.files[0] ?? null
                 return (
                   <div key={book.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                    {book.cover_path ? (
-                      <img
-                        src={`/api/books/${book.id}/cover`}
+                    <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
+                      <CoverImage
+                        src={book.cover_path ? `/api/books/${book.id}/cover` : null}
                         alt={book.title}
-                        className="w-8 h-11 rounded object-cover shrink-0 border border-border"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        iconClassName="w-3.5 h-3.5"
                       />
-                    ) : (
-                      <div className="w-8 h-11 rounded bg-muted border border-border shrink-0 flex items-center justify-center">
-                        <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                      </div>
-                    )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground truncate leading-tight">{book.title}</p>
                       {book.author && (
@@ -901,17 +897,12 @@ export function DashboardPage() {
                         href={`/books/${b.book_id}`}
                         className="group flex flex-col gap-1.5 hover:opacity-90 transition-opacity"
                       >
-                        <div className="aspect-[2/3] rounded-md bg-muted overflow-hidden flex items-center justify-center">
-                          {b.has_cover ? (
-                            <img
-                              src={`/api/books/${b.book_id}/cover`}
-                              alt={b.title}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <BookOpen className="w-6 h-6 text-muted-foreground" />
-                          )}
+                        <div className="relative aspect-[2/3] rounded-md bg-muted overflow-hidden">
+                          <CoverImage
+                            src={b.has_cover ? `/api/books/${b.book_id}/cover` : null}
+                            alt={b.title}
+                            iconClassName="w-6 h-6"
+                          />
                         </div>
                         <p className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">
                           {b.title}
@@ -1046,18 +1037,13 @@ export function DashboardPage() {
                   <div className="flex flex-col gap-1">
                     {activityLog.map((entry, i) => (
                       <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors">
-                        {entry.book_cover_path ? (
-                          <img
-                            src={`/api/books/${entry.book_id}/cover`}
+                        <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
+                          <CoverImage
+                            src={entry.book_cover_path ? `/api/books/${entry.book_id}/cover` : null}
                             alt={entry.book_title}
-                            className="w-8 h-11 rounded object-cover shrink-0 border border-border"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            iconClassName="w-3.5 h-3.5"
                           />
-                        ) : (
-                          <div className="w-8 h-11 rounded bg-muted border border-border shrink-0 flex items-center justify-center">
-                            <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                        )}
+                        </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-foreground truncate">{entry.book_title}</p>
                           <p className="text-[10px] text-muted-foreground">{formatReadingTime(entry.duration_seconds)}</p>
@@ -1191,18 +1177,11 @@ export function DashboardPage() {
                               }}
                             >
                               <div className="relative aspect-[2/3] w-full overflow-hidden">
-                                {vol.cover_path ? (
-                                  <img
-                                    src={`/api/books/${vol.id}/cover`}
-                                    alt={vol.title}
-                                    className="w-full h-full object-cover"
-                                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-muted">
-                                    <BookOpen className="w-4 h-4 text-muted-foreground" />
-                                  </div>
-                                )}
+                                <CoverImage
+                                  src={vol.cover_path ? `/api/books/${vol.id}/cover` : null}
+                                  alt={vol.title}
+                                  iconClassName="w-4 h-4"
+                                />
                                 {/* Quick-read play button — top-left corner on hover */}
                                 <button
                                   onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
@@ -1260,14 +1239,11 @@ export function DashboardPage() {
                           className="group flex flex-col text-left rounded-xl overflow-hidden border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-150"
                         >
                           <div className="relative aspect-[2/3] bg-muted overflow-hidden">
-                            {s.cover_book_id && (
-                              <img
-                                src={`/api/books/${s.cover_book_id}/cover`}
-                                alt={isUnserialized ? 'Unserialized' : s.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                              />
-                            )}
+                            <CoverImage
+                              src={s.cover_book_id ? `/api/books/${s.cover_book_id}/cover` : null}
+                              alt={isUnserialized ? 'Unserialized' : s.name}
+                              imgClassName="group-hover:scale-105"
+                            />
                             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-2">
                               <span className="text-[10px] font-semibold text-white/90">
                                 {s.book_count} {s.book_count === 1 ? 'book' : 'books'}

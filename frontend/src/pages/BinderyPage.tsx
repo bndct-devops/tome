@@ -12,6 +12,7 @@ import type { MetadataCandidate, BookType } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { useShiftSelect } from '@/lib/useShiftSelect'
+import { CoverImage } from '@/components/CoverImage'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1262,17 +1263,12 @@ export function BinderyPage() {
                       onClick={() => navigate(`/books/${book.id}`)}
                     >
                       {/* Cover */}
-                      <div className="shrink-0 h-16 w-11 rounded overflow-hidden bg-muted flex items-center justify-center">
-                        {book.cover_path ? (
-                          <img
-                            src={`/api/books/${book.id}/cover`}
-                            alt=""
-                            className="h-full w-full object-cover"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                          />
-                        ) : (
-                          <BookOpen className="h-5 w-5 text-muted-foreground/40" />
-                        )}
+                      <div className="relative shrink-0 h-16 w-11 rounded overflow-hidden bg-muted">
+                        <CoverImage
+                          src={book.cover_path ? `/api/books/${book.id}/cover` : null}
+                          alt=""
+                          iconClassName="h-5 w-5"
+                        />
                       </div>
                       {/* Info */}
                       <div className="flex-1 min-w-0">

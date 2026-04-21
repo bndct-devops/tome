@@ -14,6 +14,7 @@ import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { IconPicker } from '@/components/Sidebar'
+import { CoverImage } from '@/components/CoverImage'
 import type { BookType } from '@/lib/books'
 import { invalidateBookTypesCache } from '@/lib/bookTypes'
 
@@ -1467,18 +1468,12 @@ function DuplicatesTab() {
                             className="mt-0.5 shrink-0 accent-primary"
                           />
                           {/* Cover */}
-                          <div className="w-10 h-14 rounded bg-muted shrink-0 overflow-hidden">
-                            {book.cover_path ? (
-                              <img
-                                src={`/api/books/${book.id}/cover`}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <BookOpen className="w-4 h-4 text-muted-foreground/40" />
-                              </div>
-                            )}
+                          <div className="relative w-10 h-14 rounded bg-muted shrink-0 overflow-hidden">
+                            <CoverImage
+                              src={book.cover_path ? `/api/books/${book.id}/cover` : null}
+                              alt=""
+                              iconClassName="w-4 h-4"
+                            />
                           </div>
                           {/* Meta */}
                           <div className="flex flex-col gap-0.5 min-w-0 flex-1">

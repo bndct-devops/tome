@@ -11,6 +11,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
+import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { api } from '@/lib/api'
 import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingStatus } from '@/lib/books'
@@ -485,17 +486,12 @@ export function BookDetailPage() {
               )}
               onClick={() => canEdit && setCoverPickerOpen(true)}
             >
-              {book.cover_path ? (
-                <img
-                  src={`/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}`}
-                  alt={book.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <BookOpen className="w-12 h-12 text-muted-foreground/30" />
-                </div>
-              )}
+              <CoverImage
+                src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
+                alt={book.title}
+                loading="eager"
+                iconClassName="w-12 h-12"
+              />
               {canEdit && (
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <Camera className="w-8 h-8 text-white drop-shadow" />
