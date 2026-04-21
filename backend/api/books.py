@@ -271,7 +271,23 @@ def list_books(
         if sort != "title":
             query = query.order_by(sort_expr, Book.title.asc())
         else:
-            query = query.order_by(sort_expr)
+            # Natural sort for titles: group series together (primary = series or own
+            # title), then by series_index so Vol. 2 precedes Vol. 10 instead of
+            # lexical "Vol. 10" < "Vol. 2".
+            from sqlalchemy import func as _func
+            primary = _func.coalesce(Book.series, Book.title)
+            if order == "asc":
+                query = query.order_by(
+                    primary.asc(),
+                    Book.series_index.asc().nullslast(),
+                    Book.title.asc(),
+                )
+            else:
+                query = query.order_by(
+                    primary.desc(),
+                    Book.series_index.desc().nullslast(),
+                    Book.title.desc(),
+                )
 
     total = query.distinct().count()
     response.headers["X-Total-Count"] = str(total)
