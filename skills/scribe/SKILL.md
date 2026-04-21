@@ -451,6 +451,7 @@ better.  Use this consistently — do not invent a different scorer at runtime.
 
 | Condition | Points |
 |-----------|--------|
+| `candidate.title` matches `pinned_fields.title_template` exactly (case-insensitive, index substituted) | +8 |
 | `candidate.author` matches `pinned_fields.author` (case-insensitive) | +5 |
 | `candidate.author` matches filename-hint author (case-insensitive) | +5 |
 | `candidate.series_index` equals parsed filename/embedded volume number | +4 |
@@ -458,6 +459,11 @@ better.  Use this consistently — do not invent a different scorer at runtime.
 | `candidate.year` is within ±1 of embedded/filename year | +2 |
 | `candidate.author` disagrees with any pinned field | -3 |
 | `candidate.series` disagrees with `pinned_fields.series` (both present, clearly different) | -3 |
+| `candidate.title` contains a foreign-edition keyword (regex `\b(max\|deluxe\|gigante\|band\|maximum\|edizione\|integrale\|kanzenban)\b`, case-insensitive) and the pinned language is English | -8 |
+
+**Why the foreign-edition penalty:** without it, candidates like "Berserk Max
+Band 12" tie with "Berserk, Vol. 12" on series-index + author, and source
+tie-break picks the wrong one.  The penalty breaks the tie decisively.
 
 **Tie-break:** prefer source order **Hardcover > Google Books > Open Library**.
 This matches the backend's actual fetch order in `backend/services/metadata_fetch.py`
@@ -533,6 +539,64 @@ the stored description clean.
 
 Add `"web_fallback_source": "<url or null>"` to the per-book state entry when
 a web fallback is used.  This allows the run to be audited later.
+
+---
+
+## Cover placeholder detection and fallback
+
+This subsection applies whenever a cover is being applied from a
+fetch-metadata candidate or a `cover-candidates` result — during ingest
+(Step 4d/4f), update mode, or audit mode.
+
+**Why it exists:** Hardcover and Google Books occasionally return generic
+placeholder images instead of real covers — a blank grey/blue JPEG, a
+series-logo stock card, or the publisher's default-cover art.  Applied blindly,
+these replace decent embedded covers with worse ones.
+
+**Placeholder signals (check the fetched image, not the URL):**
+
+1. File size is suspiciously small or suspiciously uniform across volumes:
+   - Under ~20 KB is almost always a placeholder.
+   - Identical byte size across multiple volumes of the same series is a
+     strong signal the source is returning the same stock image.
+2. Image dimensions are tiny (< 200px on the shorter edge) or exactly square
+   for a format that is normally portrait (manga/comics are ~2:3).
+3. The image is visually a solid color — low variance across pixels.  A
+   quick heuristic: if the first-byte histogram of a JPEG is dominated by a
+   single byte run, it is probably solid-fill.
+4. The same cover URL / same content-hash appears for multiple adjacent
+   volumes in the same series (the source is repeating stock art).
+
+**Fallback order when a placeholder is detected:**
+
+1. Try the next candidate in source-rank order: **Hardcover → Google Books
+   → Open Library**.  Skip any candidate that matches the placeholder signals
+   above.
+2. If all `fetch-metadata` candidates fail, call
+   `GET /api/books/{id}/cover-candidates` — this is a separate endpoint that
+   aggregates cover art specifically, and sometimes returns options that the
+   metadata fetcher omitted.
+3. If that also fails, do a `WebSearch` for the publisher's official product
+   page: `"<series>" vol <N> <publisher> cover`.  Prefer Dark Horse, VIZ, Yen
+   Press, Seven Seas, Kodansha, Tor, Del Rey over retailer pages.  `WebFetch`
+   the page and extract the canonical cover asset URL.
+4. Apply via `POST /api/books/{id}/cover` with form field `url=<image_url>`.
+   The backend downloads and caches the image under `data/covers/`.
+5. If no good cover is findable after steps 1-3, leave the existing cover
+   (or keep the field empty) and note `"cover_fallback": "failed"` in the
+   state file.  Do not keep trying.
+
+**Source attribution in reports:**
+
+```
+#12 Berserk, Vol. 19  [id=506]
+  cover:  (placeholder, 8.2 KB) → 412 KB  [from Dark Horse]
+```
+
+**State file field:**
+
+Add `"cover_fallback_source": "<url or null>"` to the per-book state entry
+when a cover fallback is used.
 
 ---
 
@@ -1102,6 +1166,15 @@ curl -sf -H "Authorization: Bearer $TOKEN" \
 
 Run these concurrently to build the weak set faster.  For year (null), there
 is no `missing=year` param — paginate normally and filter client-side.
+
+**Critical gotcha — do NOT compute "missing description" from list responses.**
+`GET /api/books` returns `BookOut`, which **omits the `description` field
+entirely**.  If you iterate the list and check `item.get('description')`, every
+book will look empty and you will report "N / N missing description" — a false
+positive across the whole scope.  Always use `?missing=description` for this
+signal, or fetch individual books via `GET /api/books/{id}` (which returns
+`BookDetailOut` with the field populated).  The same applies to any other
+`BookDetailOut`-only fields — prefer the `missing=*` filters for scan-time checks.
 
 ---
 
