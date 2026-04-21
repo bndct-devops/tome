@@ -10,6 +10,13 @@ Import a folder of ebooks into a running Tome instance.  Claude reads this
 file and executes the workflow step-by-step.  The user never has to write
 curl commands or parse JSON manually.
 
+## Modes
+
+- `/scribe <path>` — ingest a folder or set of files into Tome
+- `/scribe update <query>` — refresh metadata on existing books by free-text query
+- `/scribe audit [scope]` — scan for weak metadata and series title drift; offer bulk fixes
+- `/scribe series <name>` — fill series-level metadata (status + arcs) from LLM knowledge
+
 ## Output discipline
 
 Default mode is TERSE.  Never echo full metadata in the main flow.  Never
@@ -736,6 +743,20 @@ Clean up `/tmp/scribe_*.json` temp files.
 - Auth header for all requests: `Authorization: Bearer <token>` where token
   was created in Tome → Settings → API Tokens.
 
+- `GET /api/series/{name}/meta` — returns `{series_name, status}`.  Never
+  404s; returns `status: "unknown"` if no row exists yet.
+
+- `PUT /api/series/{name}/meta` — admin only.  Body `{"status": "ongoing"|"finished"|"hiatus"|"unknown"}`.
+  Returns the updated meta object.
+
+- `GET /api/series/{name}/arcs` — returns list of arcs sorted by `start_index`.
+  Each arc: `{id, series_name, name, start_index, end_index, description, created_at, updated_at}`.
+
+- `POST /api/series/{name}/arcs/bulk` — admin only.  Body is an array of arc
+  objects.  Diffs against existing by `name` field: same name = update, name
+  absent from payload = delete, new names = create.  Returns the new canonical
+  arc list.
+
 **Mismatch with original spec:** The spec described `POST /api/books/fetch-metadata`
 (standalone, no book_id).  That endpoint does not exist.  The actual endpoint
 is `GET /api/books/{book_id}/fetch-metadata`, so books must be ingested before
@@ -1318,6 +1339,252 @@ Series drift: 3 series normalized, 1 skipped.
 ```
 
 Delete the state file on clean completion.
+
+---
+
+## Step S — `/scribe series <name>` — series metadata
+
+Fill series-level metadata — publication status and story arcs — from Claude's
+own knowledge.  A required confirm-diff step precedes every write.
+
+### Trigger forms
+
+- `/scribe series Berserk`
+- `/scribe series "A Certain Magical Index"`
+- "fill arcs for berserk"
+- "set series status for One Piece"
+- "add arc data to the Berserk series"
+
+Profile selection (Step 0d) applies before any API call is made.
+
+---
+
+### Step S1 — Resolve the series
+
+Parse the series name out of the command (strip quotes if present).
+URL-encode the name for use in API calls.
+
+Confirm the series exists in the library and gather its volumes:
+
+```bash
+curl -sf -H "Authorization: Bearer $TOKEN" \
+  "$URL/api/books?series=<url-encoded-name>&limit=500" \
+  > /tmp/scribe_series_books.json
+```
+
+Extract the list of `{id, title, series_index}` from the response.
+Sort by `series_index` ascending.
+
+If zero books are returned, abort:
+`"No books found for series '<name>'. Check the series name and try again."`
+
+Print nothing else at this stage.
+
+---
+
+### Step S2 — Read existing metadata
+
+Fetch current series state in parallel:
+
+```bash
+# Meta (status)
+curl -sf -H "Authorization: Bearer $TOKEN" \
+  "$URL/api/series/<url-encoded-name>/meta" \
+  > /tmp/scribe_series_meta.json
+
+# Arcs
+curl -sf -H "Authorization: Bearer $TOKEN" \
+  "$URL/api/series/<url-encoded-name>/arcs" \
+  > /tmp/scribe_series_arcs.json
+```
+
+Record `existing_status` (from meta) and `existing_arcs` (from arcs, may be
+an empty list).
+
+---
+
+### Step S3 — Handle existing arcs
+
+If `existing_arcs` is non-empty, prompt the user before generating a proposal:
+
+```
+This series already has N arc(s):
+  #1  <arc name>  Vol. <start>–<end>
+  ...
+Replace all / merge (keep existing, add proposed as new names only) / abort?
+```
+
+Wait for the user's choice before continuing.
+
+- **Replace all** — the proposal will replace every existing arc.
+- **Merge** — existing arcs are carried through verbatim into the payload; the
+  proposal only adds arcs whose names do not already exist.  Because
+  `POST /api/series/{name}/arcs/bulk` deletes any arc absent from the payload,
+  merge mode must include existing entries unchanged alongside any new ones.
+- **Abort** — print `"Aborted. No changes written."` and stop.
+
+If `existing_arcs` is empty, skip this step entirely.
+
+---
+
+### Step S4 — LLM proposal
+
+Claude generates a proposal from its own knowledge of the series.  No external
+API calls are made at this step.
+
+Required shape:
+```json
+{
+  "status": "ongoing" | "finished" | "hiatus" | "unknown",
+  "arcs": [
+    {
+      "name": "Arc Name",
+      "start_index": 1.0,
+      "end_index": 2.0,
+      "description": "One short sentence or null."
+    }
+  ]
+}
+```
+
+Rules:
+
+- **Confidence gate:** if Claude does not have confident, specific knowledge of
+  this series (cannot name at least the major arcs and their approximate volume
+  ranges), refuse and stop:
+  `"I don't have confident knowledge of '<name>' — please add arcs manually via the Tome UI."`
+  Do not attempt a partial or guessed proposal.
+- `status: "unknown"` is acceptable when the current publication state is
+  genuinely unclear.
+- `arcs` may be an empty array `[]` only if the series is a standalone work
+  with no distinct story arcs.  If this is the case, state it explicitly:
+  `"<name> has no distinct arcs — only status will be set."` and show the
+  status diff only (Step S5).
+- Arc `start_index` and `end_index` must be floats matching Tome's
+  `series_index` type (e.g. `1.0`, `13.5`).
+- Descriptions: one sentence, under 200 characters.  Describe the arc's
+  premise without spoiling major plot resolutions.  Use `null` if no neutral
+  one-sentence summary is possible.
+
+Do not print the proposal JSON.  Proceed to Step S5.
+
+---
+
+### Step S5 — Present diff
+
+Render the proposal side-by-side with existing state in a compact, human-readable
+block:
+
+```
+Series: Berserk
+Status:   unknown → ongoing
+
+Arcs (new):
+  #1  Black Swordsman      Vol. 1.0–2.0    Guts' lone hunts for apostles.
+  #2  Golden Age           Vol. 3.0–14.0   Flashback: origin of the Band of the Hawk.
+  #3  Conviction           Vol. 14.0–21.0  Guts' journey through a war-torn land.
+  #4  Falcon of the Millennium Empire  Vol. 22.0–35.0  Griffith reborn and war on two fronts.
+  #5  Fantasia             Vol. 35.0–41.0  The world transformed; Guts' final pursuit.
+```
+
+If Step S3 was "merge", label the section:
+```
+Arcs (merged — existing kept, additions shown with *):
+  #1  Black Swordsman  Vol. 1.0–2.0   [existing]
+  #2  Golden Age       Vol. 3.0–14.0  [existing]
+  #3  Lost Children    Vol. 14.0–17.0 * (new)
+```
+
+**Mismatch / gap flags (print below the arc list; do not abort):**
+
+- If the proposal's maximum `end_index` is less than the library's maximum
+  `series_index`, list the unaccounted volumes:
+  `"Library has Vol. up to X; proposal ends at Y — unassigned: Vol. Z1, Z2, ..."`
+- If any library `series_index` value falls between two arc ranges (a gap) or
+  beyond the last arc:
+  `"Vol. X.5 is in the library but falls outside all proposed arcs."`
+- These warnings are informational only.  The user decides whether to adjust.
+
+If `status` is unchanged (existing equals proposed), omit the Status line.
+If arcs is empty (standalone work), omit the Arcs block entirely.
+
+---
+
+### Step S6 — Confirm and apply
+
+After the diff, prompt:
+
+```
+Apply? ("yes"/"apply", row-level correction, or "no"/"abort")
+```
+
+**"yes" / "apply":**
+
+1. Write status:
+```bash
+curl -sf -X PUT "$URL/api/series/<url-encoded-name>/meta" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "<proposed_status>"}'
+```
+
+2. Write arcs (skip if arcs array is empty):
+```bash
+curl -sf -X POST "$URL/api/series/<url-encoded-name>/arcs/bulk" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '<arcs array JSON>'
+```
+
+   In merge mode, include existing arcs verbatim in the array alongside any
+   new ones, so the bulk endpoint does not delete them.
+
+3. On HTTP 403 for either call: `"Permission denied — the active token is not
+   admin. No changes written."` and stop.
+
+4. On success, print one line:
+   `"Applied: status=<status>, <N> arcs."`
+   (If only status was changed and arcs were empty: `"Applied: status=<status>."`)
+
+**Row-level correction** — the user modifies the proposal in natural language
+before applying.  Examples:
+- `"change arc 3 end to 20"` → update `end_index` on arc #3 in the in-memory
+  proposal
+- `"drop arc 5"` → remove arc #5 from the proposal
+- `"rename #2 to Lost Children Arc"` → update `name` on arc #2
+- `"set start of arc 4 to 22.5"` → update `start_index` on arc #4
+
+Parse the correction, update the in-memory proposal, re-render only the changed
+rows plus a one-line summary of what changed, then re-prompt for confirmation:
+
+```
+Updated arc #3: end_index 14.0 → 20.0
+Re-confirm? ("yes"/"apply", further corrections, or "no"/"abort")
+```
+
+Corrections may be chained — keep accepting corrections and re-prompting until
+the user says "yes"/"apply" or "no"/"abort".
+
+**"no" / "abort":**
+`"Aborted. No changes written."` and stop.
+
+---
+
+### Cross-cutting rules for series mode
+
+- **Output discipline:** terse throughout.  Never echo the proposal JSON.
+  The diff in Step S5 is the only substantive human-readable output.  All other
+  messages are one-line status, prompts, or warnings.
+- **Writes require admin.** A 403 from either write endpoint must be surfaced
+  cleanly as `"Permission denied — the active token is not admin."` — do not
+  retry or fall back silently.
+- **Step S3 merge invariant:** when merge mode is active, the arcs payload
+  sent to `POST .../arcs/bulk` must always contain the full set of arcs that
+  should exist after the call — existing arcs included verbatim, new arcs
+  appended.  Never send a partial payload in merge mode.
+- **No state file for series mode.** The workflow is interactive and short
+  enough that a crash-resumable state file adds complexity without benefit.
+  If something goes wrong, the user simply re-runs `/scribe series <name>`.
 
 ---
 
