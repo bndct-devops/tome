@@ -400,6 +400,45 @@ export function SettingsPage() {
     }
   }
 
+  // ── Personal backup ───────────────────────────────────────────────────────
+  const [backingUp, setBackingUp] = useState(false)
+
+  async function handleBackup() {
+    setBackingUp(true)
+    try {
+      const token = localStorage.getItem('tome_token')
+      const res = await fetch('/api/auth/me/backup', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Backup failed')
+      const serverData = await res.json()
+
+      // Merge client-side preferences (theme, view modes, filters) so the
+      // backup is a complete picture of "what makes Tome feel like mine".
+      const clientPreferences: Record<string, string | null> = {}
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (!key || key === 'tome_token') continue
+        if (!key.startsWith('tome_') && !key.startsWith('theme') && !key.startsWith('reader')) continue
+        clientPreferences[key] = localStorage.getItem(key)
+      }
+      const payload = { ...serverData, client_preferences: clientPreferences }
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const date = new Date().toISOString().slice(0, 10)
+      a.download = `tome-backup-${user?.username ?? 'me'}-${date}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
   const origin = window.location.origin
   const opdsUrl = `${origin}/opds`
   const kosyncUrl = `${origin}/api/v1`
@@ -1146,6 +1185,27 @@ export function SettingsPage() {
               <ExportButton format="json" label="JSON" exporting={exporting} onExport={handleExport} />
               <ExportButton format="csv" label="CSV" exporting={exporting} onExport={handleExport} />
             </div>
+          </div>
+        </section>
+
+        {/* ── Personal backup ─────────────────────────────────────────── */}
+        <section>
+          <SectionHeader title="Backup" subtle />
+          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
+            <p className="text-xs text-muted-foreground mb-4">
+              Download a JSON snapshot of <strong>your personal data</strong>: reading status,
+              every reading session, sync positions, shelves, and your local preferences.
+              Book files themselves are not included — Tome only references them on disk.
+              API tokens and KOReader keys are also excluded so the file isn't a credential.
+            </p>
+            <button
+              onClick={handleBackup}
+              disabled={backingUp}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed transition-all touch-feedback"
+            >
+              {backingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {backingUp ? 'Preparing…' : 'Download my data'}
+            </button>
           </div>
         </section>
 

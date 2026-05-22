@@ -250,3 +250,198 @@ def my_stats(
     counts["total"] = total_books
     counts["untracked"] = total_books - sum(v for k, v in counts.items() if k not in ("total", "untracked"))
     return counts
+
+
+@router.get("/me/backup")
+def export_my_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export all of the current user's data as a JSON download.
+
+    Includes: profile, reading status, reading sessions, sync positions,
+    shelves, and legacy KOSync progress/history. Excludes: API tokens,
+    KOReader plugin keys, OPDS PINs, KOSync userkey (anything credential-
+    bearing). Book content itself is not included — Tome only references
+    the files on disk.
+
+    Each book reference includes title, author, and content_hash so the
+    export remains human-readable and restoration can match books across
+    databases (where IDs may differ but content hashes don't).
+    """
+    from fastapi.responses import JSONResponse
+    from datetime import datetime as _dt
+
+    from backend import __version__
+    from backend.models.book import Book, BookFile
+    from backend.models.user_book_status import UserBookStatus
+    from backend.models.tome_sync import ReadingSession, TomeSyncPosition
+    from backend.models.library import SavedFilter
+    from backend.models.kosync import (
+        KOSyncUser,
+        KOSyncProgress,
+        KOSyncDocumentMap,
+        ReadingHistory,
+    )
+
+    # Pre-load book metadata for every book the user has touched, so we can
+    # decorate references with title/author/content_hash without N+1.
+    touched_book_ids: set[int] = set()
+    statuses = db.query(UserBookStatus).filter(UserBookStatus.user_id == current_user.id).all()
+    touched_book_ids.update(s.book_id for s in statuses if s.book_id)
+    sessions = (
+        db.query(ReadingSession)
+        .filter(ReadingSession.user_id == current_user.id)
+        .order_by(ReadingSession.started_at)
+        .all()
+    )
+    touched_book_ids.update(s.book_id for s in sessions if s.book_id)
+    positions = (
+        db.query(TomeSyncPosition)
+        .filter(TomeSyncPosition.user_id == current_user.id)
+        .all()
+    )
+    touched_book_ids.update(p.book_id for p in positions if p.book_id)
+
+    book_index: dict[int, dict] = {}
+    if touched_book_ids:
+        books = db.query(Book).filter(Book.id.in_(touched_book_ids)).all()
+        for b in books:
+            first_file = b.files[0] if b.files else None
+            book_index[b.id] = {
+                "title": b.title,
+                "author": b.author,
+                "content_hash": first_file.content_hash if first_file else None,
+            }
+
+    def book_ref(book_id: int | None) -> dict:
+        if book_id is None:
+            return {"book_id": None}
+        meta = book_index.get(book_id)
+        return {
+            "book_id": book_id,
+            "book_title": meta.get("title") if meta else None,
+            "book_author": meta.get("author") if meta else None,
+            "book_content_hash": meta.get("content_hash") if meta else None,
+        }
+
+    shelves = (
+        db.query(SavedFilter)
+        .filter(SavedFilter.owner_id == current_user.id)
+        .order_by(SavedFilter.sort_order, SavedFilter.id)
+        .all()
+    )
+
+    # Legacy KOSync (if the user ever linked the upstream KOSync client)
+    kosync_user = (
+        db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
+    )
+    kosync_progress_rows: list[KOSyncProgress] = []
+    if kosync_user:
+        kosync_progress_rows = (
+            db.query(KOSyncProgress).filter(KOSyncProgress.user_id == kosync_user.id).all()
+        )
+    kosync_doc_map = (
+        db.query(KOSyncDocumentMap)
+        .filter(KOSyncDocumentMap.tome_user_id == current_user.id)
+        .all()
+    )
+    reading_history = (
+        db.query(ReadingHistory)
+        .filter(ReadingHistory.user_id == current_user.id)
+        .order_by(ReadingHistory.synced_at)
+        .all()
+    )
+
+    payload = {
+        "schema_version": 1,
+        "tome_version": __version__,
+        "exported_at": _dt.utcnow().isoformat() + "Z",
+        "user": {
+            "username": current_user.username,
+            "email": current_user.email,
+            "role": current_user.role,
+            "is_admin": current_user.is_admin,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        },
+        "reading_status": [
+            {
+                **book_ref(s.book_id),
+                "status": s.status,
+                "progress_pct": s.progress_pct,
+                "cfi": s.cfi,
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+            }
+            for s in statuses
+        ],
+        "reading_sessions": [
+            {
+                "id": s.id,
+                **book_ref(s.book_id),
+                "started_at": s.started_at.isoformat() if s.started_at else None,
+                "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+                "duration_seconds": s.duration_seconds,
+                "progress_start": s.progress_start,
+                "progress_end": s.progress_end,
+                "pages_turned": s.pages_turned,
+                "device": s.device,
+                "session_uuid": s.session_uuid,
+            }
+            for s in sessions
+        ],
+        "sync_positions": [
+            {
+                **book_ref(p.book_id),
+                "progress": p.progress,
+                "percentage": p.percentage,
+                "device": p.device,
+                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+            }
+            for p in positions
+        ],
+        "shelves": [
+            {
+                "name": sh.name,
+                "icon": sh.icon,
+                "params": sh.params,
+                "sort_order": sh.sort_order,
+                "created_at": sh.created_at.isoformat() if sh.created_at else None,
+            }
+            for sh in shelves
+        ],
+        "kosync_legacy": {
+            "linked": kosync_user is not None,
+            "progress": [
+                {
+                    "document": p.document,
+                    "progress": p.progress,
+                    "percentage": p.percentage,
+                    "device": p.device,
+                    "device_id": p.device_id,
+                    "timestamp": p.timestamp,
+                }
+                for p in kosync_progress_rows
+            ],
+            "document_map": [
+                {"document": m.document, **book_ref(m.book_id)}
+                for m in kosync_doc_map
+            ],
+            "history": [
+                {
+                    **book_ref(h.book_id),
+                    "document": h.document,
+                    "percentage": h.percentage,
+                    "device": h.device,
+                    "synced_at": h.synced_at.isoformat() if h.synced_at else None,
+                }
+                for h in reading_history
+            ],
+        },
+    }
+
+    date_str = _dt.utcnow().strftime("%Y-%m-%d")
+    filename = f"tome-backup-{current_user.username}-{date_str}.json"
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
