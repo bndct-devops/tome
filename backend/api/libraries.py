@@ -86,6 +86,7 @@ def create_library(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    require_role(current_user, "member")
     lib = Library(name=body.name.strip(), icon=body.icon, is_public=body.is_public, owner_id=current_user.id)
     db.add(lib)
     db.commit()
@@ -288,6 +289,11 @@ def _get_library(lib_id: int, user: User, db: Session) -> Library:
     lib = db.query(Library).filter(Library.id == lib_id).first()
     if not lib:
         raise HTTPException(status_code=404, detail="Library not found")
-    if lib.owner_id is not None and lib.owner_id != user.id and not _is_admin(user):
+    # Global libraries (owner_id IS NULL) are admin-only for mutations.
+    # Personal libraries: owner or admin.
+    if lib.owner_id is None:
+        if not _is_admin(user):
+            raise HTTPException(status_code=403, detail="Global libraries are admin-only")
+    elif lib.owner_id != user.id and not _is_admin(user):
         raise HTTPException(status_code=403, detail="Not your library")
     return lib

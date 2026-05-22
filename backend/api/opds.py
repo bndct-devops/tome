@@ -371,8 +371,10 @@ def opds_download(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_basic),
 ):
+    from backend.core.permissions import user_can_see_book
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status != "active" or not user_can_see_book(db, user, book):
+        # 404 (not 403) to avoid leaking existence of books the user can't see
         raise HTTPException(status_code=404)
 
     book_file = db.query(BookFile).filter(

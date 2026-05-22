@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.security import get_current_user
-from backend.core.permissions import require_role
+from backend.core.permissions import require_role, user_can_see_book
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
@@ -1478,6 +1478,9 @@ def get_comic_pages(
     current_user: User = Depends(get_current_user),
 ):
     """Get page list for a comic book (CBZ/CBR)."""
+    book = db.get(Book, book_id)
+    if not book or not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
     comic_file = db.query(BookFile).filter(
         BookFile.book_id == book_id,
         BookFile.format.in_(["cbz", "cbr"]),
@@ -1516,16 +1519,20 @@ def get_comic_page(
     Uses ?token= query param auth (img tags can't send Authorization headers)."""
     from jose import JWTError, jwt as jose_jwt
     from backend.core.config import settings as app_settings
+    from backend.core.security import _signing_key
     from backend.models.user import User as UserModel
 
     try:
-        payload = jose_jwt.decode(token, app_settings.secret_key, algorithms=[app_settings.jwt_algorithm])
+        payload = jose_jwt.decode(token, _signing_key(), algorithms=[app_settings.jwt_algorithm])
         user_id = int(payload.get("sub", 0))
     except (JWTError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
     user = db.get(UserModel, user_id)
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
+    book = db.get(Book, book_id)
+    if not book or not user_can_see_book(db, user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
     comic_file = db.query(BookFile).filter(
         BookFile.book_id == book_id,
         BookFile.format.in_(["cbz", "cbr"]),
@@ -1761,7 +1768,13 @@ def upload_book(
     # Write to a temp location first so we can extract metadata before deciding the path
     tmp_dir = settings.incoming_dir / ".tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    tmp_path = tmp_dir / file.filename
+    safe_name = Path(file.filename).name  # strip any path components from client filename
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    tmp_path = tmp_dir / safe_name
+    # Defense in depth: confirm resolved path stays inside tmp_dir
+    if tmp_dir.resolve() not in tmp_path.resolve().parents:
+        raise HTTPException(status_code=400, detail="Invalid filename")
     try:
         with open(tmp_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
@@ -1976,7 +1989,12 @@ def ingest_book(
     # Write to a temp location so we can compute hash before deciding path
     tmp_dir = settings.incoming_dir / ".tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    tmp_path = tmp_dir / file.filename
+    safe_name = Path(file.filename).name
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    tmp_path = tmp_dir / safe_name
+    if tmp_dir.resolve() not in tmp_path.resolve().parents:
+        raise HTTPException(status_code=400, detail="Invalid filename")
     try:
         with open(tmp_path, "wb") as f:
             shutil.copyfileobj(file.file, f)

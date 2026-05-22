@@ -510,10 +510,11 @@ def reject_book(
         except OSError as exc:
             logger.warning("Could not remove file %s: %s", f.file_path, exc)
 
-    # Delete cover from disk
+    # Delete cover from disk — cover_path is a relative filename inside covers_dir
     if book.cover_path:
+        cover_full = settings.covers_dir / book.cover_path
         try:
-            os.remove(book.cover_path)
+            cover_full.unlink()
         except OSError:
             pass
 

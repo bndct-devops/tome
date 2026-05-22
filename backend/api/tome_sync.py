@@ -39,8 +39,10 @@ def _get_api_key_user(
 ) -> User:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
-    key = authorization.removeprefix("Bearer ").strip()
-    api_key = db.query(ApiKey).filter(ApiKey.key == key).first()
+    plaintext = authorization.removeprefix("Bearer ").strip()
+    # Hash the incoming plaintext and look up by hash. Plaintext is never stored.
+    key_hash = ApiKey.hash_key(plaintext)
+    api_key = db.query(ApiKey).filter(ApiKey.key_hash == key_hash).first()
     if not api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
     user = db.get(User, api_key.user_id)
@@ -404,7 +406,7 @@ def list_api_keys(
         {
             "id": k.id,
             "label": k.label,
-            "key_preview": k.key[:8] + "…",
+            "key_preview": (k.key_prefix or "tk_") + "…",
             "created_at": k.created_at.isoformat(),
             "last_used_at": k.last_used_at.isoformat() if k.last_used_at else None,
         }
@@ -423,7 +425,12 @@ def create_api_key(
     current_user: User = Depends(get_current_user),
 ):
     key_value = ApiKey.generate()
-    api_key = ApiKey(user_id=current_user.id, key=key_value, label=body.label)
+    api_key = ApiKey(
+        user_id=current_user.id,
+        key_hash=ApiKey.hash_key(key_value),
+        key_prefix=key_value[:11],
+        label=body.label,
+    )
     db.add(api_key)
     db.commit()
     db.refresh(api_key)
@@ -468,14 +475,18 @@ def download_plugin(
     server_url: str | None = None,
 ):
     """Generate and download a pre-configured tomesync.koplugin ZIP."""
-    # Auto-create an API key if none exists
-    existing_keys = db.query(ApiKey).filter(ApiKey.user_id == current_user.id).all()
-    if existing_keys:
-        api_key_value = existing_keys[0].key
-    else:
-        api_key_value = ApiKey.generate()
-        db.add(ApiKey(user_id=current_user.id, key=api_key_value, label="KOReader Plugin"))
-        db.commit()
+    # Always mint a fresh key for this download. Plaintext is never stored
+    # (only its sha256 hash), so we can't recover a previously-issued plaintext.
+    # Existing installs keep working — they have their own plaintext that still
+    # hashes to a row in api_keys. Users can revoke unused rows in Settings.
+    api_key_value = ApiKey.generate()
+    db.add(ApiKey(
+        user_id=current_user.id,
+        key_hash=ApiKey.hash_key(api_key_value),
+        key_prefix=api_key_value[:11],
+        label="KOReader Plugin",
+    ))
+    db.commit()
 
     # Use explicit server_url if provided (frontend passes it to avoid vite proxy issues)
     if not server_url:

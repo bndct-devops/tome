@@ -16,7 +16,12 @@ class ApiKey(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    key: Mapped[str] = mapped_column(String(44), unique=True, nullable=False, index=True)
+    # SHA-256 hex digest of the plaintext key. Plaintext is never stored —
+    # only returned at provision time. See backend/api/tome_sync.py.
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    # First ~11 chars of plaintext (e.g. "tk_a1b2c3d4") shown in the UI so users
+    # can identify which device's key this is. Not a credential — too short to brute-force the rest.
+    key_prefix: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     label: Mapped[str] = mapped_column(String(100), nullable=False, default="KOReader Plugin")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -25,8 +30,13 @@ class ApiKey(Base):
 
     @staticmethod
     def generate() -> str:
-        """Generate a new API key with tk_ prefix."""
+        """Generate a new plaintext API key with tk_ prefix. Hash before storing."""
         return "tk_" + secrets.token_hex(20)  # tk_ + 40 hex chars = 43 chars total
+
+    @staticmethod
+    def hash_key(plaintext: str) -> str:
+        import hashlib
+        return hashlib.sha256(plaintext.encode()).hexdigest()
 
 
 class ReadingSession(Base):

@@ -62,6 +62,31 @@ async def lifespan(app: FastAPI):
                 ")"
             ))
             conn.commit()
+        # Migrate api_keys.key (plaintext) → key_hash (sha256) + key_prefix (display)
+        # so a DB leak doesn't compromise any KOReader plugin install. One-way: existing
+        # installed plugins keep working because they send the plaintext, we hash on lookup.
+        ak_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_keys)")).fetchall()}
+        if "key" in ak_cols and "key_hash" not in ak_cols:
+            import hashlib as _hashlib
+            conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_hash VARCHAR(64)"))
+            conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(16)"))
+            rows = conn.execute(text("SELECT id, key FROM api_keys")).fetchall()
+            for row in rows:
+                key_id, plaintext = row[0], row[1]
+                if not plaintext:
+                    continue
+                conn.execute(
+                    text("UPDATE api_keys SET key_hash = :h, key_prefix = :p WHERE id = :i"),
+                    {
+                        "h": _hashlib.sha256(plaintext.encode()).hexdigest(),
+                        "p": plaintext[:11],
+                        "i": key_id,
+                    },
+                )
+            # Drop the old plaintext column (requires SQLite 3.35+, released 2021)
+            conn.execute(text("ALTER TABLE api_keys DROP COLUMN key"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_key_hash ON api_keys (key_hash)"))
+            conn.commit()
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()

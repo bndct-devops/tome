@@ -22,10 +22,13 @@ def _get_kosync_user(
     x_auth_user: str | None = Header(None),
     x_auth_key: str | None = Header(None),
 ) -> KOSyncUser:
+    import hmac
     if not x_auth_user or not x_auth_key:
         raise HTTPException(status_code=401, detail="Missing auth headers")
     user = db.query(KOSyncUser).filter(KOSyncUser.username == x_auth_user).first()
-    if not user or user.userkey != x_auth_key:
+    # Constant-time compare to prevent timing-side-channel discovery of the userkey.
+    # (The userkey is an MD5 supplied by KOReader's protocol; we still want timing-safe compare.)
+    if not user or not hmac.compare_digest(user.userkey, x_auth_key):
         raise HTTPException(status_code=401, detail="Unauthorized")
     # Check Tome permission if linked
     if user.user_id:
