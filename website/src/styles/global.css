@@ -1,0 +1,371 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+}
+
+/* Light (default) — Tome brand purple */
+:root {
+  --bg: oklch(0.99 0 0);
+  --fg: oklch(0.18 0 0);
+  --muted: oklch(0.5 0 0);
+  --card: oklch(1 0 0);
+  --border: oklch(0.92 0 0);
+  --accent: #863bff;
+  --accent-soft: #863bff33;
+  --accent-fg: oklch(0.99 0 0);
+}
+
+html.theme-dark {
+  --bg: oklch(0.13 0 0);
+  --fg: oklch(0.97 0 0);
+  --muted: oklch(0.62 0 0);
+  --card: oklch(0.17 0 0);
+  --border: oklch(0.24 0 0);
+  --accent: #a166ff;
+  --accent-soft: #a166ff33;
+  --accent-fg: oklch(0.1 0 0);
+}
+
+html.theme-amber {
+  --bg: oklch(0.97 0.025 80);
+  --fg: oklch(0.25 0.04 50);
+  --muted: oklch(0.5 0.04 60);
+  --card: oklch(0.99 0.02 80);
+  --border: oklch(0.88 0.04 70);
+  --accent: oklch(0.62 0.18 50);
+  --accent-soft: oklch(0.62 0.18 50 / 0.2);
+  --accent-fg: oklch(0.99 0 0);
+}
+
+html, body {
+  background-color: var(--bg);
+  color: var(--fg);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+html { scroll-behavior: smooth; }
+* { border-color: var(--border); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Reveal on scroll ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.reveal.revealed { opacity: 1; transform: translateY(0); }
+
+/* ── Themed-shot fade-in ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fade-in 0.4s ease-out both; }
+
+/* ── Hover lift for screenshots (also signals clickability) ── */
+.screenshot-card {
+  cursor: zoom-in;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.4s ease;
+}
+.screenshot-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 30px 60px -20px var(--accent-soft);
+}
+
+/* ── Hero gradient drift ── */
+@keyframes accent-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.35; }
+  50%      { transform: translate(8%, -4%) scale(1.1); opacity: 0.45; }
+}
+.accent-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 40% at 50% 30%, var(--accent-soft), transparent 70%);
+  animation: accent-drift 12s ease-in-out infinite;
+  z-index: -1;
+}
+
+/* ── Mobile screenshots — clean rounded card, no fake-device frame ── */
+.mobile-shot {
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 20px 40px -12px rgba(0,0,0,0.25);
+}
+.mobile-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ── Floating stat callout (used on the stats section) ── */
+.stat-callout {
+  position: absolute;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 12px 32px -8px var(--accent-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.stat-callout .stat-value { color: var(--accent); font-weight: 700; font-size: 20px; }
+
+/* ── Lightbox ── */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(0.05 0 0 / 0.85);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 4vh 4vw;
+  animation: fade-in 0.2s ease-out;
+  cursor: zoom-out;
+}
+.lightbox-content {
+  max-width: min(1400px, 92vw);
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 40px 80px -10px rgba(0,0,0,0.5);
+  cursor: default;
+}
+.lightbox-close {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: background 0.2s ease;
+}
+.lightbox-close:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* ── View Transitions for theme switch (Chromium-only graceful enhancement) ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.4s;
+}
+
+/* ── TomeSync setup compare cards ── */
+.setup-card {
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+}
+.setup-card-them {
+  background: var(--card);
+}
+.setup-card-us {
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  box-shadow: 0 12px 32px -16px var(--accent-soft);
+}
+.setup-card-header { margin-bottom: 16px; }
+.setup-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.setup-card-us .setup-card-label { color: var(--accent); }
+.setup-steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+.setup-steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 10px 12px 10px 44px;
+  border-radius: 10px;
+  background: oklch(0 0 0 / 0.025);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+html.theme-dark .setup-steps li { background: oklch(1 0 0 / 0.04); }
+.setup-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--muted);
+  color: var(--bg);
+  opacity: 0.5;
+}
+.setup-card-us .setup-steps li::before {
+  background: var(--accent);
+  color: var(--accent-fg);
+  opacity: 1;
+}
+.setup-steps code {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+.setup-card-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Comparison: 5-column card-strip layout ── */
+.comparison-layout {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(4, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+.cmp-labels {
+  display: flex;
+  flex-direction: column;
+}
+.cmp-header-spacer { min-height: 110px; }
+.cmp-row-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+  padding: 16px 20px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  border-bottom: 1px solid transparent;
+}
+.cmp-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.cmp-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px -12px var(--accent-soft);
+}
+.cmp-card.primary {
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  box-shadow: 0 20px 50px -16px var(--accent-soft);
+}
+.cmp-card-header {
+  position: relative;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 18px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.cmp-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+.cmp-name { font-weight: 700; font-size: 1.15rem; }
+.cmp-card.primary .cmp-name { color: var(--accent); }
+.cmp-tagline { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+.cmp-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px;
+  text-align: center;
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+.cmp-cell:first-of-type { border-top: none; }
+.cmp-cell-text {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+.cmp-card.primary .cmp-cell-text { color: var(--fg); font-weight: 600; font-style: normal; }
+.cmp-icon { width: 22px; height: 22px; }
+.cmp-icon-yes  { color: oklch(0.7 0.18 150); }   /* emerald */
+.cmp-icon-no   { color: var(--muted); opacity: 0.35; }
+.cmp-icon-part { color: oklch(0.78 0.16 80); }   /* amber */
+
+/* Mobile: horizontal scroll, labels stay on left via min-width on container */
+@media (max-width: 768px) {
+  .comparison-layout {
+    grid-template-columns: 1.2fr repeat(4, 0.9fr);
+    min-width: 720px;
+  }
+  .cmp-row-label { font-size: 0.8rem; padding: 12px 14px; }
+}
+.comparison-scroll-wrapper {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  /* Room for the floating "FOR …" badge above the Tome card */
+  padding-top: 20px;
+  padding-bottom: 12px;
+  /* Negative margin top so the visual section padding isn't doubled */
+  margin-top: -8px;
+}

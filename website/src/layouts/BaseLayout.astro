@@ -1,0 +1,37 @@
+---
+import '../styles/global.css'
+
+interface Props {
+  title: string
+  description?: string
+}
+
+const { title, description = 'A self-hosted ebook library that knows how you read.' } = Astro.props
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <!-- No-flash theme init: runs before paint, sets the class from storage or system pref -->
+    <script is:inline>
+      (function () {
+        try {
+          const stored = localStorage.getItem('tome_site_theme')
+          const valid = stored === 'light' || stored === 'dark' || stored === 'amber'
+          const t = valid
+            ? stored
+            : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          document.documentElement.classList.add('theme-' + t)
+        } catch (e) {
+          document.documentElement.classList.add('theme-light')
+        }
+      })()
+    </script>
+  </head>
+  <body class="min-h-screen antialiased">
+    <slot />
+  </body>
+</html>

@@ -1,0 +1,290 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { ThemeToggle } from '../components/ThemeToggle'
+import { ThemedShot } from '../components/ThemedShot'
+import { RevealOnScroll } from '../components/RevealOnScroll'
+import { CopyButton } from '../components/CopyButton'
+
+const shipCommand = `docker run -d \\
+  --name tome \\
+  --restart unless-stopped \\
+  -p 8080:8080 \\
+  -v ./data:/data \\
+  -v ./books:/books \\
+  -v ./bindery:/bindery \\
+  ghcr.io/bndct-devops/tome:latest`
+
+const features = [
+  {
+    name: 'home',
+    title: 'A home that knows your habits',
+    body: 'Continue where you left off, see your streak, glance at what just landed in the library. Built from real reading-session data — not just file metadata.',
+  },
+  {
+    name: 'series-detail',
+    title: 'Series, not just files',
+    body: 'Manga, light novels, multi-volume sagas — Tome groups volumes into arcs, tracks progress per book, and remembers which arc you finished. Status badges show ongoing vs completed.',
+  },
+  {
+    name: 'stats-overview',
+    title: 'Stats that get sharper the more you read',
+    body: 'Streaks, time-of-day heatmaps, reading pace, completion estimates. Every minute on your e-reader feeds back into actionable insight, not vanity metrics.',
+  },
+]
+
+// Comparison data — cells are one of: 'yes' | 'no' | 'partial' | string (custom text)
+// Fact-checked against current docs: Kavita 2-way KOReader sync (v0.8.7+),
+// Komga has KOREADER_SYNC role, vanilla Calibre-Web lacks KOSync but the
+// Calibre-Web Automated (CWA) fork adds it.
+const compareFeatures = [
+  'Reading-session tracking (time, pages, streaks)',
+  'Zero-config KOReader plugin install',
+  'Bidirectional KOReader position sync',
+  'Built-in EPUB + comic reader',
+  'Stats & reading insights',
+  'Modern, theme-aware UI',
+]
+const competitors = [
+  { name: 'Tome',         tagline: 'E-reader-first',         primary: true,  badge: 'KOReader users',
+    cells: ['yes', 'yes', 'yes', 'yes', 'rich', 'yes'] },
+  { name: 'Calibre-Web',  tagline: 'Largest ecosystem',
+    cells: ['no', 'no', 'via CWA fork', 'yes', 'basic shelves', 'dated'] },
+  { name: 'Komga',        tagline: 'Comics powerhouse',
+    cells: ['no', 'no', 'yes', 'comics-first', 'session logs', 'functional'] },
+  { name: 'Kavita',       tagline: 'Featureful all-rounder',
+    cells: ['no', 'no', 'yes (v0.8.7+)', 'yes', 'progress only', 'polished'] },
+]
+---
+<BaseLayout title="Tome — A self-hosted ebook library that knows how you read">
+  <!-- Header -->
+  <header class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-[var(--bg)]/70 border-b border-[var(--border)]">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5 font-semibold text-lg">
+        <img src="/favicon.svg" alt="" width="28" height="28" class="rounded-md" />
+        Tome
+      </a>
+      <div class="flex items-center gap-4">
+        <a href="https://github.com/bndct-devops/tome" class="text-sm text-[var(--muted)] hover:text-[var(--fg)] transition-colors">GitHub</a>
+        <ThemeToggle client:load />
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative max-w-6xl mx-auto px-6 pt-32 pb-24 text-center">
+    <div class="accent-glow"></div>
+    <p class="reveal inline-block px-3 py-1 mb-6 rounded-full text-xs font-medium bg-[var(--card)] border text-[var(--muted)]">
+      v0.2 · early release · self-hosted
+    </p>
+    <h1 class="reveal text-5xl md:text-7xl font-bold tracking-tight mb-6 max-w-4xl mx-auto leading-[1.05]">
+      A self-hosted ebook library that <span class="text-[var(--accent)]">knows how you read</span>.
+    </h1>
+    <p class="reveal text-lg md:text-xl text-[var(--muted)] mb-10 max-w-2xl mx-auto leading-relaxed">
+      Most library servers stop at file management. Tome connects to your e-reader, records every reading session,
+      syncs positions both ways, and turns it into stats that get sharper the more you read.
+    </p>
+    <div class="reveal flex items-center justify-center gap-3 mb-16">
+      <a href="https://github.com/bndct-devops/tome#quick-start" class="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[var(--accent)] text-[var(--accent-fg)] font-medium hover:opacity-90 hover:scale-[1.02] transition-all">
+        Quick start
+      </a>
+      <a href="https://github.com/bndct-devops/tome" class="inline-flex items-center gap-2 px-5 py-3 rounded-lg border bg-[var(--card)] font-medium hover:bg-[var(--bg)] hover:scale-[1.02] transition-all">
+        View on GitHub
+      </a>
+    </div>
+
+    <div class="reveal max-w-5xl mx-auto screenshot-card rounded-xl overflow-hidden border shadow-2xl shadow-[var(--accent-soft)]">
+      <ThemedShot name="home" alt="Tome home screen" client:load className="w-full block" />
+    </div>
+    <p class="reveal mt-4 text-sm text-[var(--muted)]">Click any screenshot to zoom · use the theme switcher above to flip every shot.</p>
+  </section>
+
+  <!-- Features (with TomeSync section inserted between the first feature and the rest) -->
+  {features.map((feat, i) => (
+    <>
+      <section class="max-w-6xl mx-auto px-6 py-24">
+        <div class={`grid md:grid-cols-2 gap-12 items-center ${i % 2 === 1 ? 'md:[&>*:first-child]:order-2' : ''}`}>
+          <div class="reveal">
+            <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-5">{feat.title}</h2>
+            <p class="text-lg md:text-xl text-[var(--muted)] leading-relaxed">{feat.body}</p>
+          </div>
+          <div class="reveal screenshot-card rounded-xl overflow-hidden border bg-[var(--card)] shadow-xl">
+            <ThemedShot name={feat.name} alt={feat.title} client:load className="w-full block" />
+          </div>
+        </div>
+      </section>
+
+      {i === 0 && (
+        <!-- TomeSync: prominent break after the first feature -->
+        <section class="max-w-6xl mx-auto px-6 py-24">
+          <div class="text-center mb-12 reveal">
+            <span class="inline-block px-3 py-1 mb-4 rounded-full text-xs font-medium bg-[var(--accent-soft)] text-[var(--accent)] uppercase tracking-wide">TomeSync</span>
+            <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">30 seconds to KOReader sync.</h2>
+            <p class="text-lg md:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed">
+              Other tools document how to set up KOSync. Tome ships a plugin pre-configured
+              with your server URL and a fresh API key — no manual entry, no account, no guessing.
+            </p>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-6 reveal max-w-4xl mx-auto">
+            <div class="setup-card setup-card-them">
+              <div class="setup-card-header">
+                <span class="setup-card-label">With KOSync (everyone else)</span>
+              </div>
+              <ol class="setup-steps">
+                <li>Install the KOSync KOReader plugin</li>
+                <li>Open it, enter your server URL</li>
+                <li>Register a username</li>
+                <li>Enter and confirm a password</li>
+                <li>Configure auto-sync intervals</li>
+                <li>Hope the connection works</li>
+              </ol>
+            </div>
+            <div class="setup-card setup-card-us">
+              <div class="setup-card-header">
+                <span class="setup-card-label">With TomeSync</span>
+              </div>
+              <ol class="setup-steps">
+                <li>Click <strong>Download Plugin</strong> in Tome's Settings</li>
+                <li>Drop the <code>.koplugin</code> into KOReader's plugins folder</li>
+                <li>Restart KOReader. Done.</li>
+              </ol>
+              <div class="setup-card-footer">
+                Self-registers in the wrench menu. Server URL and API key are baked in.
+              </div>
+            </div>
+          </div>
+
+          <!-- Benefit cards: 2x2 grid -->
+          <div class="grid md:grid-cols-2 gap-4 mt-12 max-w-4xl mx-auto reveal">
+            <div class="rounded-xl border bg-[var(--card)] p-5">
+              <div class="font-semibold mb-1.5">Records sessions, not just position</div>
+              <p class="text-sm text-[var(--muted)] leading-relaxed">
+                Time on page, pages turned, device — every reading minute feeds your stats.
+                Plain KOSync only syncs where you stopped.
+              </p>
+            </div>
+            <div class="rounded-xl border bg-[var(--card)] p-5">
+              <div class="font-semibold mb-1.5">Browse and download series from KOReader</div>
+              <p class="text-sm text-[var(--muted)] leading-relaxed">
+                Open the wrench menu, pick a series, hit "Download rest". Files arrive
+                organised by book-type folder with proper filenames. No OPDS gymnastics.
+              </p>
+            </div>
+            <div class="rounded-xl border bg-[var(--card)] p-5">
+              <div class="font-semibold mb-1.5">Web reader and KOReader stay in lockstep</div>
+              <p class="text-sm text-[var(--muted)] leading-relaxed">
+                Read on the couch in the browser, pick up on KOReader in bed, come back
+                to the browser the next morning. Bidirectional. Offline-first — sessions
+                queue and flush when you're back online.
+              </p>
+            </div>
+            <div class="rounded-xl border bg-[var(--card)] p-5">
+              <div class="font-semibold mb-1.5">Stable book IDs, not file hashes</div>
+              <p class="text-sm text-[var(--muted)] leading-relaxed">
+                KOSync identifies books by MD5 of the file — edit metadata, re-save,
+                redownload and the sync history orphans. Tome resolves to a canonical
+                book ID. Your reading history survives file changes.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+    </>
+  ))}
+
+  <!-- Mobile / PWA — phone-frame trio -->
+  <section class="max-w-6xl mx-auto px-6 py-24">
+    <div class="text-center mb-16 reveal">
+      <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">Pin it to your home screen.</h2>
+      <p class="text-lg md:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed">
+        Tome ships as a PWA. Install it like a native app — sidebar nav, full-bleed reader, sync status in your pocket.
+      </p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 reveal max-w-4xl mx-auto">
+      <div class="mobile-shot screenshot-card">
+        <ThemedShot name="mobile-home" alt="Mobile home" client:load className="w-full block" />
+      </div>
+      <div class="mobile-shot screenshot-card">
+        <ThemedShot name="mobile-reader" alt="Mobile reader" client:load className="w-full block" />
+      </div>
+      <div class="mobile-shot screenshot-card">
+        <ThemedShot name="mobile-stats" alt="Mobile stats" client:load className="w-full block" />
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison -->
+  <section class="max-w-5xl mx-auto px-6 py-24">
+    <div class="text-center mb-12 reveal">
+      <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">How Tome is different.</h2>
+      <p class="text-lg md:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed">
+        Several self-hosted ebook tools exist — here's where Tome sits.
+      </p>
+    </div>
+    <div class="reveal comparison-scroll-wrapper">
+      <div class="comparison-layout">
+        <!-- Labels column -->
+        <div class="cmp-labels">
+          <div class="cmp-header-spacer"></div>
+          {compareFeatures.map((f) => (
+            <div class="cmp-row-label">{f}</div>
+          ))}
+        </div>
+
+        <!-- One card per competitor -->
+        {competitors.map((c) => (
+          <div class={`cmp-card ${c.primary ? 'primary' : ''}`}>
+            <div class="cmp-card-header">
+              {c.primary && c.badge && <span class="cmp-badge">For {c.badge}</span>}
+              <div class="cmp-name">{c.name}</div>
+              <div class="cmp-tagline">{c.tagline}</div>
+            </div>
+            {c.cells.map((cell) => (
+              <div class="cmp-cell">
+                {cell === 'yes' ? (
+                  <svg class="cmp-icon cmp-icon-yes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-label="yes"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                ) : cell === 'no' ? (
+                  <svg class="cmp-icon cmp-icon-no" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-label="no"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                ) : cell === 'partial' ? (
+                  <svg class="cmp-icon cmp-icon-part" viewBox="0 0 24 24" aria-label="partial">
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 3 A9 9 0 0 1 12 21 Z" fill="currentColor"/>
+                  </svg>
+                ) : (
+                  <span class="cmp-cell-text">{cell}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+    <p class="reveal mt-6 text-center text-sm text-[var(--muted)] max-w-2xl mx-auto">
+      Pick <strong>Calibre-Web</strong> for the largest ecosystem. <strong>Komga</strong> if you're comics-only.
+      <strong>Kavita</strong> for a featureful all-rounder. <strong>Tome</strong> if reading-session tracking and
+      KOReader integration are what you actually want.
+    </p>
+  </section>
+
+  <!-- Closing CTA -->
+  <section class="max-w-3xl mx-auto px-6 py-24 text-center">
+    <h2 class="reveal text-3xl md:text-5xl font-bold tracking-tight mb-4">Ship it in 60 seconds.</h2>
+    <p class="reveal text-lg text-[var(--muted)] mb-8">One Docker image. SQLite under the hood. No external services required.</p>
+    <div class="reveal relative">
+      <pre class="text-left rounded-lg p-5 pr-20 bg-[var(--card)] border text-sm overflow-x-auto"><code set:html={shipCommand}></code></pre>
+      <div class="absolute top-3 right-3">
+        <CopyButton text={shipCommand} client:load />
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-[var(--border)]">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-[var(--muted)]">
+      <div>AGPL-3.0 · <a href="https://github.com/bndct-devops/tome" class="hover:text-[var(--fg)] transition-colors">bndct-devops/tome</a></div>
+      <div>Made for KOReader users who actually read.</div>
+    </div>
+  </footer>
+
+  <RevealOnScroll client:load />
+</BaseLayout>
