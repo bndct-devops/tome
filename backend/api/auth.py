@@ -203,7 +203,9 @@ def my_kosync_status(
     return {
         "linked": True,
         "synced_documents": max(ts_count, kosync_count),
-        "last_sync": last_sync,
+        # Explicit UTC marker — naive ISO strings get parsed as local time
+        # by JS, which would offset the relative-time display by the local TZ.
+        "last_sync": last_sync.isoformat() + "Z" if last_sync else None,
         "last_device": last_device,
     }
 
