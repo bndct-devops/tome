@@ -65,12 +65,22 @@ async def lifespan(app: FastAPI):
         # Migrate api_keys.key (plaintext) → key_hash (sha256) + key_prefix (display)
         # so a DB leak doesn't compromise any KOReader plugin install. One-way: existing
         # installed plugins keep working because they send the plaintext, we hash on lookup.
+        #
+        # Idempotent: handles partial-prior-attempt states (e.g. container restart mid
+        # migration) by re-backfilling any rows that are missing key_hash.
+        import hashlib as _hashlib
         ak_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_keys)")).fetchall()}
-        if "key" in ak_cols and "key_hash" not in ak_cols:
-            import hashlib as _hashlib
+        if "key_hash" not in ak_cols:
             conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_hash VARCHAR(64)"))
+            ak_cols.add("key_hash")
+        if "key_prefix" not in ak_cols:
             conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(16)"))
-            rows = conn.execute(text("SELECT id, key FROM api_keys")).fetchall()
+            ak_cols.add("key_prefix")
+        # If the old plaintext column still exists, backfill any rows missing key_hash.
+        if "key" in ak_cols:
+            rows = conn.execute(
+                text("SELECT id, key FROM api_keys WHERE key_hash IS NULL OR key_hash = ''")
+            ).fetchall()
             for row in rows:
                 key_id, plaintext = row[0], row[1]
                 if not plaintext:
@@ -83,10 +93,19 @@ async def lifespan(app: FastAPI):
                         "i": key_id,
                     },
                 )
-            # Drop the old plaintext column (requires SQLite 3.35+, released 2021)
+            # Drop the old plaintext column. The legacy model had index=True on
+            # `key`, leaving behind ix_api_keys_key that blocks DROP COLUMN unless
+            # we kill it first. Same for the UNIQUE constraint's implicit index.
+            conn.execute(text("DROP INDEX IF EXISTS ix_api_keys_key"))
+            conn.execute(text("DROP INDEX IF EXISTS sqlite_autoindex_api_keys_1"))
             conn.execute(text("ALTER TABLE api_keys DROP COLUMN key"))
-            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_key_hash ON api_keys (key_hash)"))
-            conn.commit()
+        # Safety: any rows still missing key_hash after this point are leftovers from a
+        # failed migration attempt (e.g. when the original `key` column was already dropped
+        # but the backfill didn't run). They can never authenticate — drop them so users
+        # can regenerate fresh keys via Settings → Download Plugin.
+        conn.execute(text("DELETE FROM api_keys WHERE key_hash IS NULL OR key_hash = ''"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_key_hash ON api_keys (key_hash)"))
+        conn.commit()
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()
