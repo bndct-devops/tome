@@ -36,7 +36,7 @@ export function useKosyncStatus(): KosyncStatus | null {
     async function fetchStatus() {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return
       try {
-        const r = await api.get<ApiResponse>('/me/kosync')
+        const r = await api.get<ApiResponse>('/auth/me/kosync')
         if (cancelled) return
         setStatus({
           linked: r.linked,

@@ -155,22 +155,56 @@ def my_kosync_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Latest KOReader sync info for the current user, considering both
+    TomeSync (in-house plugin) and legacy KOSync clients.
+    """
     from backend.models.kosync import KOSyncUser, KOSyncProgress
-    kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
-    if not kosync_user:
-        return {"linked": False}
-    latest = (
-        db.query(KOSyncProgress)
-        .filter(KOSyncProgress.user_id == kosync_user.id)
-        .order_by(KOSyncProgress.timestamp.desc())
+    from backend.models.tome_sync import ReadingSession, TomeSyncPosition
+
+    # TomeSync side: most recent non-web reading session = last KOReader push
+    ts_latest = (
+        db.query(ReadingSession)
+        .filter(ReadingSession.user_id == current_user.id)
+        .filter((ReadingSession.device != "web") | (ReadingSession.device.is_(None)))
+        .order_by(ReadingSession.started_at.desc())
         .first()
     )
-    count = db.query(KOSyncProgress).filter(KOSyncProgress.user_id == kosync_user.id).count()
+    ts_count = (
+        db.query(TomeSyncPosition)
+        .filter(TomeSyncPosition.user_id == current_user.id)
+        .count()
+    )
+
+    # Legacy KOSync side
+    kosync_latest = None
+    kosync_count = 0
+    kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
+    if kosync_user:
+        kosync_latest = (
+            db.query(KOSyncProgress)
+            .filter(KOSyncProgress.user_id == kosync_user.id)
+            .order_by(KOSyncProgress.timestamp.desc())
+            .first()
+        )
+        kosync_count = db.query(KOSyncProgress).filter(KOSyncProgress.user_id == kosync_user.id).count()
+
+    # Pick whichever has the more recent timestamp
+    candidates: list[tuple] = []
+    if ts_latest:
+        candidates.append((ts_latest.started_at, ts_latest.device))
+    if kosync_latest:
+        candidates.append((kosync_latest.timestamp, kosync_latest.device))
+
+    if not candidates:
+        return {"linked": False}
+
+    candidates.sort(reverse=True, key=lambda x: x[0])
+    last_sync, last_device = candidates[0]
     return {
         "linked": True,
-        "synced_documents": count,
-        "last_sync": latest.timestamp if latest else None,
-        "last_device": latest.device if latest else None,
+        "synced_documents": max(ts_count, kosync_count),
+        "last_sync": last_sync,
+        "last_device": last_device,
     }
 
 
