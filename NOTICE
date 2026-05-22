@@ -1,0 +1,65 @@
+Tome — Third-Party Notices
+==========================
+
+Tome itself is licensed under the GNU Affero General Public License v3.0
+(see LICENSE). This file documents third-party content shipped in this
+repository for illustrative, demo, and showcase purposes.
+
+
+Book covers (docs/seed/covers/, docs/screenshots/, website/public/shots/)
+-------------------------------------------------------------------------
+
+The book covers shown in screenshots, marketing materials, and the
+showcase seed dataset remain the property of their respective publishers
+and rights-holders. They are reproduced here, at thumbnail resolution,
+solely to illustrate the Tome application — they are not redistributed
+as standalone artwork, and their inclusion is consistent with the
+standard practice across self-hosted ebook software (Calibre-Web,
+Komga, Kavita, Audiobookshelf, etc.).
+
+If you are a rights-holder and would like a specific cover removed,
+open an issue at https://github.com/bndct-devops/tome/issues and we
+will swap it.
+
+Sources used for cover acquisition:
+  - Hardcover (https://hardcover.app)            — most novel and manga covers
+  - Open Library (https://openlibrary.org)       — backup novel covers
+  - Wikimedia Commons (https://commons.wikimedia.org) — comic first-issues
+  - The maintainer's own Tome instance covers     — for series we already had
+
+
+Frankenstein EPUB (docs/seed/library/frankenstein.epub)
+-------------------------------------------------------
+
+The text of Frankenstein by Mary Shelley (1818) is in the public domain.
+The specific EPUB file shipped in this repository is sourced from
+Project Gutenberg (eBook #84, https://www.gutenberg.org/ebooks/84) and
+is distributed under the Project Gutenberg License
+(https://www.gutenberg.org/policy/license.html).
+
+The Project Gutenberg License permits free redistribution of unaltered
+texts. The Project Gutenberg trademark is retained by the Project
+Gutenberg Literary Archive Foundation.
+
+
+KOReader plugin protocol (backend/api/kosync.py)
+------------------------------------------------
+
+Tome implements compatibility with the KOReader sync protocol (KOSync).
+The protocol itself is documented at:
+  https://github.com/koreader/koreader-sync-server
+
+Tome ships no KOReader code; the KOReader plugin is licensed AGPL-3.0
+(same as Tome) and developed independently.
+
+
+Bundled JavaScript and Python dependencies
+------------------------------------------
+
+See frontend/package.json and pyproject.toml for the full dependency list.
+Major bundled libraries and their licenses:
+  - foliate-js (EPUB rendering)       MIT
+  - React, Vite, Tailwind             MIT
+  - FastAPI, SQLAlchemy, Pydantic     MIT / BSD
+  - Astro (website only)              MIT
+  - lucide-react (icons)              ISC

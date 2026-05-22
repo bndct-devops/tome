@@ -39,6 +39,10 @@ if (!PASS && !TOKEN) {
 const DESKTOP = { width: 1600, height: 1000, deviceScaleFactor: 2 }
 const MOBILE = devices['iPhone 13']  // 390×844, scale 3, mobile UA, touch
 
+// Populated at startup via the API — book IDs shift across re-seeds so we
+// can't hardcode them. See `resolveBookIds()`.
+const bookIds = {}
+
 /** @type {Array<{name: string, path: string, viewport?: any, mobile?: boolean, waitFor?: string, settle?: number}>} */
 const SHOTS = [
   // Desktop
@@ -58,25 +62,31 @@ const SHOTS = [
   { name: 'mobile-series', path: '/?tab=series', mobile: true, settle: 800 },
   {
     name: 'mobile-reader',
-    path: '/reader/62',
+    // Resolved at runtime from the showcase DB (Frankenstein's id can shift across re-seeds).
+    path: () => `/reader/${bookIds.frankenstein ?? 1}`,
     mobile: true,
-    settle: 1500,
+    settle: 2500,  // foliate-view needs time to render the EPUB inside its iframe
     after: async (page) => {
+      // First wait for the EPUB to actually be loaded by foliate-view —
+      // its inner iframe appears once content is ready.
+      await page.waitForSelector('foliate-view', { timeout: 8000 }).catch(() => {})
+      await page.waitForTimeout(2000)
       // Turn a few pages so the screenshot shows real prose, not the cover.
-      // foliate-view listens for taps on the right edge for "next page".
       const viewport = page.viewportSize() || { width: 390, height: 844 }
       const x = viewport.width * 0.85
       const y = viewport.height * 0.5
       for (let i = 0; i < 10; i++) {
         await page.touchscreen.tap(x, y)
-        await page.waitForTimeout(280)
+        await page.waitForTimeout(350)
       }
     },
     // After the screenshot is captured, reset Frankenstein to unread so the
     // showcase stays consistent across re-runs (the reader's auto-track would
     // otherwise leave it marked as `reading` with stale progress).
     cleanup: async (token, api) => {
-      await fetch(`${api}/api/books/62/status`, {
+      const id = bookIds.frankenstein
+      if (!id) return
+      await fetch(`${api}/api/books/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: 'unread' }),
@@ -106,6 +116,24 @@ async function login() {
   return j.access_token
 }
 
+async function resolveBookIds(token) {
+  // Look up book IDs by title. Keeps the script working across re-seeds.
+  const wanted = { frankenstein: 'Frankenstein' }
+  try {
+    const r = await fetch(`${API}/api/books?q=Frankenstein&per_page=5`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await r.json()
+    const list = Array.isArray(data) ? data : (data.books ?? [])
+    for (const [key, title] of Object.entries(wanted)) {
+      const hit = list.find(b => b.title === title)
+      if (hit) bookIds[key] = hit.id
+    }
+  } catch (e) {
+    console.warn('  ! Could not resolve book IDs:', e.message)
+  }
+}
+
 async function captureShot(browser, token, shot) {
   const context = await browser.newContext(shot.mobile ? MOBILE : { viewport: shot.viewport })
   const theme = THEME ?? shot.theme ?? 'light'
@@ -113,7 +141,8 @@ async function captureShot(browser, token, shot) {
   // Reader has its own theme (light/sepia/dark) stored separately. For shots
   // that render the reader, mirror the app theme — amber → sepia (amber isn't
   // a valid reader theme).
-  if (shot.syncReaderTheme || shot.path.startsWith('/reader/')) {
+  const pathStr = typeof shot.path === 'function' ? shot.path() : shot.path
+  if (shot.syncReaderTheme || pathStr.startsWith('/reader/')) {
     prefs.reader_theme = theme === 'amber' ? 'sepia' : theme
   }
   await context.addInitScript(({ t, theme, prefs }) => {
@@ -122,7 +151,7 @@ async function captureShot(browser, token, shot) {
     for (const [k, v] of Object.entries(prefs)) localStorage.setItem(k, v)
   }, { t: token, theme, prefs })
   const page = await context.newPage()
-  await page.goto(`${BASE}${shot.path}`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}${pathStr}`, { waitUntil: 'domcontentloaded' })
   if (shot.waitFor) {
     await page.waitForSelector(shot.waitFor, { timeout: 10000 }).catch(() => {})
   }
@@ -150,6 +179,11 @@ async function main() {
     token = await login()
   } else {
     console.log('Using TOME_SCREENSHOT_TOKEN (skipping /login)')
+  }
+
+  await resolveBookIds(token)
+  if (Object.keys(bookIds).length) {
+    console.log(`Resolved book IDs:`, bookIds)
   }
 
   console.log(`Capturing ${shots.length} shot(s) → ${OUT}`)
