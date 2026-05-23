@@ -8,6 +8,11 @@ interface Props {
 }
 
 const { title, description = 'A self-hosted ebook library that knows how you read.' } = Astro.props
+// Canonical URL for the current page; falls back to the site root if Astro.site
+// isn't set (e.g. during certain build modes).
+const siteUrl = Astro.site?.toString().replace(/\/$/, '') ?? 'https://tome.bndct.sh'
+const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString()
+const ogImage = `${siteUrl}${withBase('/og.png')}`
 ---
 <!doctype html>
 <html lang="en">
@@ -20,6 +25,24 @@ const { title, description = 'A self-hosted ebook library that knows how you rea
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph (Slack, Discord, iMessage, LinkedIn, Facebook, …) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Tome" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Tome — a self-hosted ebook library that knows how you read." />
+
+    <!-- Twitter / X — use the big-image card layout -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
     <!-- No-flash theme init: ?theme=… query param wins (passed from the Tome
          app so we continue in the same theme), then localStorage, then
          system pref. After applying, strip the query param for a clean URL. -->

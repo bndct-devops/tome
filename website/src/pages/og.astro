@@ -1,0 +1,135 @@
+---
+// 1200×630 Open Graph card source. Not linked from the site — its only job is
+// to be screenshotted by `scripts/render-og.mjs` into `public/og.png`.
+// Re-run the script whenever the composition or branding changes.
+---
+<html lang="en" style="background:#f5f1ea">
+  <head>
+    <meta charset="utf-8" />
+    <title>OG card</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <style>
+      :root { color-scheme: light only; }
+      /* Hide Astro's dev toolbar — only visible during dev server, but it
+         bleeds into the screenshot otherwise. */
+      astro-dev-toolbar { display: none !important; }
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        background: #f5f1ea;
+        color: #1a1714;
+        font-family: 'Onest', system-ui, sans-serif;
+        position: relative;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+      .card {
+        position: absolute;
+        inset: 0;
+        padding: 88px 96px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .mark-row {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .mark-row svg { color: #1a1714; }
+      .wordmark {
+        font-size: 44px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      .kicker {
+        font-size: 22px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        color: #b8470c;
+        margin-bottom: 28px;
+      }
+      .headline-block {
+        margin-bottom: 28px;
+      }
+      h1 {
+        font-size: 80px;
+        font-weight: 700;
+        line-height: 1.04;
+        letter-spacing: -0.025em;
+        margin: 0;
+        max-width: 1000px;
+      }
+      h1 .accent { color: #b8470c; }
+      .footer {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 32px;
+      }
+      .pills {
+        display: flex;
+        gap: 12px;
+      }
+      .pill {
+        font-size: 22px;
+        font-weight: 600;
+        padding: 10px 22px;
+        border-radius: 999px;
+        background: #1a1714;
+        color: #f5f1ea;
+      }
+      .pill.outline {
+        background: transparent;
+        color: #1a1714;
+        box-shadow: inset 0 0 0 2px #1a1714;
+      }
+      .url {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 22px;
+        color: #6b6660;
+      }
+      /* Subtle accent glow in the top-right, mirrors the landing-page hero */
+      .glow {
+        position: absolute;
+        right: -160px;
+        top: -160px;
+        width: 560px;
+        height: 560px;
+        background: radial-gradient(circle, rgba(184, 71, 12, 0.18), transparent 65%);
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="card">
+      <div class="mark-row">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <path d="M4 18 Q 4 14 8 14 L 28 18 Q 32 19 32 22 Q 32 19 36 18 L 56 14 Q 60 14 60 18 L 60 46 Q 60 49 56 49 L 36 49 Q 32 50 32 52 Q 32 50 28 49 L 8 49 Q 4 49 4 46 Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+          <line x1="32" y1="22" x2="32" y2="52" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <span class="wordmark">Tome</span>
+      </div>
+
+      <div class="headline-block">
+        <p class="kicker">Made for KOReader users who actually read.</p>
+        <h1>A self-hosted ebook library that <span class="accent">knows how you read</span>.</h1>
+      </div>
+
+      <div class="footer">
+        <div class="pills">
+          <span class="pill">KOReader sync</span>
+          <span class="pill outline">Reading stats</span>
+          <span class="pill outline">Self-hosted</span>
+        </div>
+        <span class="url">tome.bndct.sh</span>
+      </div>
+    </div>
+  </body>
+</html>
