@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/screenshots/banner.png" alt="Tome — a self-hosted ebook library that knows how you read" />
+</p>
+
 # Tome
 
 [![Build](https://github.com/bndct-devops/tome/actions/workflows/docker.yml/badge.svg)](https://github.com/bndct-devops/tome/actions/workflows/docker.yml)

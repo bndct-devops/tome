@@ -5,28 +5,32 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 
 const url = process.argv[2] || 'http://localhost:4321/og'
-const out = resolve(process.cwd(), 'public/og.png')
 
-mkdirSync(dirname(out), { recursive: true })
+// Render two variants from the same source page:
+//   - 1200×630 → public/og.png             (Open Graph standard, used in meta tags)
+//   - 1280×640 → public/og-github.png      (GitHub social-preview recommended size)
+const targets = [
+  { width: 1200, height: 630, out: resolve(process.cwd(), 'public/og.png') },
+  { width: 1280, height: 640, out: resolve(process.cwd(), 'public/og-github.png') },
+]
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({
-  viewport: { width: 1200, height: 630 },
-  deviceScaleFactor: 2,
-})
-const page = await ctx.newPage()
-await page.goto(url, { waitUntil: 'networkidle' })
-// Wait for the web font to render so the wordmark/h1 aren't substituted
-await page.evaluate(() => document.fonts.ready)
-// Astro 5 dev toolbar inserts a custom element at the bottom of the page —
-// nuke it before screenshotting.
-await page.evaluate(() => {
-  document.querySelectorAll('astro-dev-toolbar, astro-dev-overlay').forEach(el => el.remove())
-})
-await page.waitForTimeout(300)
-await page.screenshot({ path: out, type: 'png', clip: { x: 0, y: 0, width: 1200, height: 630 } })
-await browser.close()
-console.log(`og.png → ${out}`)
-if (!existsSync(out)) {
-  process.exit(1)
+for (const { width, height, out } of targets) {
+  mkdirSync(dirname(out), { recursive: true })
+  const ctx = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: 2,
+  })
+  const page = await ctx.newPage()
+  await page.goto(url, { waitUntil: 'networkidle' })
+  await page.evaluate(() => document.fonts.ready)
+  await page.evaluate(() => {
+    document.querySelectorAll('astro-dev-toolbar, astro-dev-overlay').forEach(el => el.remove())
+  })
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: out, type: 'png', clip: { x: 0, y: 0, width, height } })
+  await ctx.close()
+  console.log(`${width}×${height} → ${out}`)
+  if (!existsSync(out)) process.exit(1)
 }
+await browser.close()
