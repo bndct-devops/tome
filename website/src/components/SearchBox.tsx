@@ -34,7 +34,8 @@ export function SearchBox() {
     if (!open || pagefind) return
     ;(async () => {
       try {
-        const path = '/' + '_pagefind/pagefind.js'  // split to dodge Vite static analysis
+        const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+        const path = base + '/' + '_pagefind/pagefind.js'  // split to dodge Vite static analysis
         const m = await import(/* @vite-ignore */ path)
         setPagefind(m)
       } catch {
