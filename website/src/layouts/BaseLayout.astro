@@ -17,16 +17,34 @@ const { title, description = 'A self-hosted ebook library that knows how you rea
     <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <!-- No-flash theme init: runs before paint, sets the class from storage or system pref -->
+    <!-- No-flash theme init: ?theme=… query param wins (passed from the Tome
+         app so we continue in the same theme), then localStorage, then
+         system pref. After applying, strip the query param for a clean URL. -->
     <script is:inline>
       (function () {
         try {
-          const stored = localStorage.getItem('tome_site_theme')
-          const valid = stored === 'light' || stored === 'dark' || stored === 'amber'
-          const t = valid
-            ? stored
-            : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          const params = new URLSearchParams(window.location.search)
+          const param = params.get('theme')
+          const validParam = param === 'light' || param === 'dark' || param === 'amber'
+          let t
+          if (validParam) {
+            t = param
+            localStorage.setItem('tome_site_theme', t)
+          } else {
+            const stored = localStorage.getItem('tome_site_theme')
+            const valid = stored === 'light' || stored === 'dark' || stored === 'amber'
+            t = valid
+              ? stored
+              : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          }
           document.documentElement.classList.add('theme-' + t)
+          // Strip ?theme= for a clean URL once we've taken it on board.
+          if (validParam && window.history && window.history.replaceState) {
+            params.delete('theme')
+            const search = params.toString()
+            const clean = window.location.pathname + (search ? '?' + search : '') + window.location.hash
+            window.history.replaceState({}, '', clean)
+          }
         } catch (e) {
           document.documentElement.classList.add('theme-light')
         }

@@ -4,8 +4,9 @@ import {
   Clock, Activity, BookCheck, Flame, FileText,
   BarChart3, ArrowLeft, Loader2, Trash2, ChevronDown, ChevronUp,
   TrendingUp, TrendingDown, Minus, Trophy, Calendar, Zap,
-  ArrowUpDown,
+  ArrowUpDown, HelpCircle,
 } from 'lucide-react'
+import { DOCS, docsLink } from '@/lib/docs'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -524,6 +525,15 @@ export function StatsPage() {
           </Link>
           <BarChart3 className="w-4 h-4 text-muted-foreground" />
           <span className="text-sm font-semibold hidden sm:inline">Reading Stats</span>
+          <a
+            href={docsLink(DOCS.stats)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="What do these mean? — read the stats docs"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+          </a>
           <div className="ml-auto flex items-center gap-2">
             <SyncStatusBadge />
             <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">

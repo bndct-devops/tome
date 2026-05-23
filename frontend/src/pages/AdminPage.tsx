@@ -6,8 +6,9 @@ import {
   RefreshCw, FolderInput, HardDrive, Database,
   BookOpen, Folder, Trash, Tag, LogIn,
   Activity, ChevronsUpDown, Copy, GitMerge,
-  User, Eye,
+  User, Eye, ExternalLink,
 } from 'lucide-react'
+import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
@@ -235,8 +236,18 @@ function UsersTab() {
           <button onClick={() => setError(null)} className="shrink-0 hover:opacity-70 transition-opacity"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">{users.length} user{users.length !== 1 ? 's' : ''}</p>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <p className="text-sm text-muted-foreground">{users.length} user{users.length !== 1 ? 's' : ''}</p>
+          <a
+            href={docsLink(DOCS.usersAndRoles)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            Roles guide <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
         <button onClick={() => { setModalUser(null); setModalOpen(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
           <Plus className="w-3.5 h-3.5" /> New User
@@ -1551,7 +1562,7 @@ export function AdminPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
-        <div className={cn('flex items-center px-4 h-14 mx-auto', (tab === 'metadata' || tab === 'library') ? 'max-w-full' : 'max-w-4xl')}>
+        <div className="flex items-center px-4 h-14 mx-auto max-w-4xl">
           <div className="flex items-center gap-3">
             <Link to="/" className="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-4 h-4" />
@@ -1563,7 +1574,7 @@ export function AdminPage() {
           </div>
         </div>
         <div className="overflow-x-auto border-t border-border/50">
-          <div className={cn('flex items-center gap-1 px-4 py-1.5 mx-auto', (tab === 'metadata' || tab === 'library') ? 'max-w-full' : 'max-w-4xl')}>
+          <div className="flex items-center gap-1 px-4 py-1.5 mx-auto max-w-4xl">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={cn(
@@ -1577,7 +1588,7 @@ export function AdminPage() {
         </div>
       </header>
 
-      <main className={cn('mx-auto px-4 py-6', tab === 'metadata' ? 'max-w-full' : 'max-w-4xl')}>
+      <main className={cn('mx-auto px-4 py-6', tab === 'metadata' ? 'max-w-7xl' : 'max-w-4xl')}>
         {tab === 'users' && <UsersTab />}
         {tab === 'scanner' && <ScannerTab />}
         {tab === 'server' && <ServerTab />}

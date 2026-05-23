@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
-  AlertTriangle,
+  AlertTriangle, ExternalLink,
 } from 'lucide-react'
+import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -768,11 +769,16 @@ export function SettingsPage() {
 
             {/* OPDS Catalog */}
             <div className="p-6 space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">OPDS Catalog</p>
-                <p className="text-xs text-muted-foreground">
-                  Browse and download your library from KOReader or any OPDS client.
-                </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">OPDS Catalog</p>
+                  <p className="text-xs text-muted-foreground">
+                    Browse and download your library from KOReader or any OPDS client.
+                  </p>
+                </div>
+                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Learn more <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
               <ConnectBlock rows={[
                 { label: 'URL', value: opdsUrl, copy: true },
@@ -916,14 +922,19 @@ export function SettingsPage() {
 
             {/* TomeSync Plugin */}
             <div className="p-6 space-y-4">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">TomeSync Plugin</p>
                   <p className="text-xs text-muted-foreground">
                     Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync.
                   </p>
                 </div>
-                <PluginVersion />
+                <div className="flex items-center gap-3 shrink-0">
+                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                    Learn more <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <PluginVersion />
+                </div>
               </div>
 
               <button
@@ -1005,7 +1016,10 @@ export function SettingsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.
+                    Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.{' '}
+                    <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
+                      Learn more <ExternalLink className="w-3 h-3" />
+                    </a>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

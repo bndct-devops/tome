@@ -4,7 +4,7 @@ import * as LucideIcons from 'lucide-react'
 import {
   BookOpen, Plus, Pencil, Trash2,
   ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
-  Settings, Shield, LogOut, ChevronsUpDown, Sun, Moon, Lock, X, BookPlus,
+  Settings, Shield, LogOut, ChevronsUpDown, Sun, Moon, Lock, X, BookPlus, ExternalLink,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { applyTheme, getStoredTheme, THEMES } from '@/lib/theme'
+import { DOCS, docsLink } from '@/lib/docs'
 
 const SIDEBAR_KEY = 'tome_sidebar'
 
@@ -693,6 +694,17 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     Admin
                   </Link>
                 )}
+                <a
+                  href={docsLink(DOCS.home)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onMobileClose}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <BookOpen className="w-5 h-5 shrink-0" />
+                  <span className="flex-1">Docs</span>
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-60" />
+                </a>
                 <button
                   onClick={() => { logout(); onMobileClose() }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-colors"
@@ -771,6 +783,11 @@ function CollapsedUserMenu({ user, logout }: { user: { username: string; is_admi
               Admin
             </Link>
           )}
+          <a href={docsLink(DOCS.home)} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className={menuItem}>
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span className="flex-1">Docs</span>
+            <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
+          </a>
           <div className="my-1 h-px bg-border mx-2" />
           <button onClick={logout} className={destructive}>
             <LogOut className="w-4 h-4 shrink-0" />
@@ -845,6 +862,11 @@ function UserMenu({ user, logout }: { user: { username: string; is_admin?: boole
               Admin
             </Link>
           )}
+          <a href={docsLink(DOCS.home)} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className={menuItem}>
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span className="flex-1">Docs</span>
+            <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
+          </a>
           <div className="my-1 h-px bg-border mx-2" />
           <button onClick={logout} className={destructive}>
             <LogOut className="w-4 h-4 shrink-0" />

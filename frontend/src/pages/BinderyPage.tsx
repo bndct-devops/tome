@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
   ChevronRight, ChevronDown, ArrowLeft, FolderOpen,
-  Inbox, Zap, Eye, BookPlus,
+  Inbox, Zap, Eye, BookPlus, HelpCircle,
 } from 'lucide-react'
+import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useToast } from '@/contexts/ToastContext'
@@ -1134,6 +1135,15 @@ export function BinderyPage() {
                       : `${items.length} file${items.length !== 1 ? 's' : ''} waiting for review`}
                 </p>
               </div>
+              <a
+                href={docsLink(DOCS.bindery)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Bindery flow explained — open docs"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+              </a>
             </div>
             <button
               onClick={fetchAll}
