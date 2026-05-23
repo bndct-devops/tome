@@ -1,0 +1,132 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { Tabs } from '../../components/Tabs'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+
+const manualEnv = `# docker-compose.yml — manual review (default)
+services:
+  tome:
+    image: ghcr.io/bndct-devops/tome:latest
+    volumes:
+      - ./data:/data
+      - ./books:/books
+      - ./bindery:/bindery   # ← drop files here
+    # No TOME_AUTO_IMPORT — manual is the default`
+
+const autoEnv = `# docker-compose.yml — auto-import
+services:
+  tome:
+    image: ghcr.io/bndct-devops/tome:latest
+    volumes:
+      - ./data:/data
+      - ./books:/books
+      - ./bindery:/bindery
+    environment:
+      - TOME_AUTO_IMPORT=true
+      - TOME_AUTO_IMPORT_INTERVAL=300   # seconds`
+---
+<DocsLayout title="Bindery (auto-import)">
+  <SectionHero section="features" />
+  <h1>Bindery</h1>
+  <p>
+    Bindery is Tome's incoming-file pipeline. Drop EPUBs, CBZs, CBRs, or PDFs into the directory
+    mounted at <code>/bindery</code> (or wherever <code>TOME_INCOMING_DIR</code> points) and Tome
+    handles metadata extraction, cover fetch, duplicate detection, and library assignment. You
+    decide whether ingestion is gated on a manual review or runs automatically on a timer.
+  </p>
+  <DocsMeta />
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="bindery" alt="Bindery review queue" />
+  </div>
+
+  <h2>Two modes</h2>
+  <Tabs client:load tabs={[
+    { label: 'Manual (default)', code: manualEnv },
+    { label: 'Auto-import',      code: autoEnv },
+  ]} />
+
+  <h3>Manual review</h3>
+  <p>
+    Default behavior, recommended for any library you care about. Files arrive in
+    <code>/bindery</code>, get parsed, and queue up in <strong>Admin → Unreviewed</strong>. An
+    admin opens each entry, eyeballs the detected metadata, edits if necessary, and clicks
+    <strong>Accept</strong> — only then does the book move into the canonical library folder and
+    become visible to non-admin users.
+  </p>
+
+  <Steps>
+    <li>Copy files into <code>/bindery</code> (cp, rsync, smb, whatever).</li>
+    <li>Tome detects them within a few seconds and parses metadata from the file + filename.</li>
+    <li>They appear in <strong>Admin → Unreviewed</strong> with a counter badge in the sidebar.</li>
+    <li>Open each, check the detected title / author / series / volume. Use <strong>Fetch metadata</strong> to populate description and cover.</li>
+    <li>Click <strong>Accept</strong> to publish, or <strong>Reject</strong> to delete the file from <code>/bindery</code>.</li>
+  </Steps>
+
+  <h3>Auto-import</h3>
+  <p>
+    Set <code>TOME_AUTO_IMPORT=true</code> and Tome scans <code>/bindery</code> on a schedule
+    (default every 5 minutes). Detected files get accepted automatically — but they still land
+    marked <code>is_reviewed=false</code> so they show up in the Unreviewed queue for sanity
+    checking after the fact.
+  </p>
+
+  <Callout variant="warning" title="Don't point auto-import at a noisy folder">
+    Auto-import treats every readable EPUB/CBZ/PDF as a candidate. If your <code>/bindery</code>
+    volume is also the destination for downloads from torrent clients, rsync syncs, or anything
+    else that produces transient files, you'll get garbage in your library. Use a dedicated
+    folder.
+  </Callout>
+
+  <h2>What Tome extracts on ingest</h2>
+  <ul>
+    <li><strong>Title, author, publisher, language, year</strong> — from EPUB's OPF, CBZ's ComicInfo.xml, or PDF metadata when present.</li>
+    <li><strong>Series + volume index</strong> — from filename patterns. See <a href={withBase("/docs/series#how-series-are-detected")}>series detection rules</a>.</li>
+    <li><strong>Cover</strong> — embedded cover from the file. If missing, a placeholder is set and you can fetch a cover later.</li>
+    <li><strong>Content hash</strong> — sha256 of the file bytes. Used for duplicate detection across re-uploads.</li>
+    <li><strong>Book type</strong> — guessed from format and metadata (novel, manga, comic, etc.). Determines which auto-library it lands in.</li>
+  </ul>
+
+  <h2>Filename conventions Tome understands</h2>
+  <p>
+    The cleaner your filenames, the less hand-editing you do. Recommended patterns:
+  </p>
+  <ul>
+    <li>Standalone fiction: <code>Title - Author (Year).epub</code></li>
+    <li>Series volume: <code>Series Name v01.cbz</code> or <code>Series Name - Vol. 01.epub</code></li>
+    <li>Manga chapter: <code>Series Name c042.cbz</code> (Tome groups chapters separately from volumes)</li>
+  </ul>
+
+  <Callout variant="info" title="Chapters vs volumes (manga)">
+    Files matching the chapter pattern (<code>c001</code>, <code>chapter 1</code>, etc.) are
+    grouped under the series but kept distinct from volumes. Useful for following ongoing
+    scanlations alongside the official tankōbon releases.
+  </Callout>
+
+  <h2>Duplicate handling</h2>
+  <p>
+    On ingest, Tome compares the new file's content hash against every existing <code>BookFile</code>.
+    Exact match → the new file is silently skipped (and removed from <code>/bindery</code> if
+    auto-import). Near-duplicates (same series + volume, different format) are flagged in the
+    Admin → Duplicates view; you can attach the new file to the existing book record or keep it
+    as a separate entry.
+  </p>
+
+  <h2>Rejecting and cleaning up</h2>
+  <p>
+    Rejecting a book deletes the source file from <code>/bindery</code>. If you only want to keep
+    the file out of the library but preserve it on disk, move it elsewhere instead of clicking
+    Reject.
+  </p>
+
+  <p>
+    Once accepted, books live in <code>TOME_LIBRARY_DIR</code> under a series or author folder
+    (see <a href={withBase("/docs/series#organise-on-disk-by-series-not-by-author")}>series organisation</a>).
+    The original drop in <code>/bindery</code> is removed.
+  </p>
+</DocsLayout>

@@ -1,0 +1,105 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import Kbd from '../../components/Kbd.astro'
+import { Tabs } from '../../components/Tabs'
+import fs from 'node:fs'
+import path from 'node:path'
+import { withBase } from '../../lib/path'
+const syncFlowSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagrams/sync-flow.svg'), 'utf-8')
+
+const unixSnippet    = 'cd ~/.koreader/plugins\ncp ~/Downloads/tomesync.koplugin.zip .\nunzip tomesync.koplugin.zip'
+const windowsSnippet = '# In PowerShell:\ncd $env:USERPROFILE\\.koreader\\plugins\nExpand-Archive $env:USERPROFILE\\Downloads\\tomesync.koplugin.zip'
+const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.zip -d /Volumes/KOBOeReader/.adds/koreader/plugins/\n# eject and restart KOReader'
+---
+<DocsLayout title="KOReader plugin (TomeSync)">
+  <SectionHero section="integrations" />
+  <h1>KOReader plugin</h1>
+  <p>
+    TomeSync is Tome's KOReader plugin. It records reading sessions (time, pages, device),
+    syncs your position both ways with the web reader, lets you browse and download whole series
+    from inside KOReader, and survives offline reading.
+  </p>
+  <DocsMeta />
+
+  <h2>30-second install</h2>
+  <Steps>
+    <li>In Tome, open <strong>Settings → KOReader</strong>.</li>
+    <li>Click <strong>Download Plugin</strong>. You'll get a <code>.koplugin</code> file pre-configured with your server URL and a fresh API key.</li>
+    <li>Drop it into KOReader's <code>plugins/</code> folder.</li>
+    <li>Restart KOReader. TomeSync registers itself in the wrench menu.</li>
+  </Steps>
+
+  <Callout variant="tip" title="No manual config">
+    Other tools document KOSync setup. Tome ships a plugin pre-configured. No URL entry, no
+    account registration, no key pasting. Press <Kbd>⌘</Kbd>+<Kbd>K</Kbd> if you can't find
+    Settings.
+  </Callout>
+
+  <h2>What it does</h2>
+
+  <h3>Reading-session tracking</h3>
+  <p>
+    Every time you read, TomeSync records the session — start time, end time, pages turned,
+    device. This is what powers the stats screens: streaks, time-of-day heatmaps, reading pace,
+    completion estimates. Plain KOSync only syncs <em>where</em> you stopped; TomeSync tracks
+    <em>what</em> you did to get there.
+  </p>
+
+  <h3>Bidirectional position sync</h3>
+  <p>
+    Read on KOReader in bed, pick up on the web reader in the morning, come back to KOReader the
+    next night. Position follows you both directions automatically.
+  </p>
+
+  <div class="docs-diagram" set:html={syncFlowSvg} />
+
+  <h3>Offline-first</h3>
+  <p>
+    Sessions queue locally on your device and flush to Tome the moment you're back online. Plane,
+    metro, basement — no data lost.
+  </p>
+
+  <Callout variant="info" title="Currently supported devices">
+    Any KOReader-compatible device: Kobo, Kindle (via KUAL/KOReader), reMarkable, PocketBook,
+    Boox. KOReader 2024.04 or later.
+  </Callout>
+
+  <h3>Browse and download series</h3>
+  <p>
+    Open the wrench menu → <strong>TomeSync → Browse Series</strong>. Pick a series, hit
+    "Download rest of series". Files arrive organised by book-type folder, properly named.
+  </p>
+
+  <h2>Stable book IDs (vs KOSync hashes)</h2>
+  <p>
+    KOSync identifies books by the MD5 of the file. Edit metadata, re-save, redownload — the
+    hash changes and the sync history orphans. TomeSync uses Tome's canonical book ID, resolved
+    from the filename via <code>/api/tome-sync/resolve</code>. Your reading history survives
+    file changes.
+  </p>
+
+  <Callout variant="warning" title="Don't manually rename downloads">
+    TomeSync's filename resolver expects the original filename from the OPDS download. Renaming
+    on the device breaks the lookup until you re-download.
+  </Callout>
+
+  <h2>Manual install (advanced)</h2>
+  <p>If for some reason you want to install the plugin manually:</p>
+
+  <Tabs client:load tabs={[
+    { label: 'macOS / Linux', code: unixSnippet },
+    { label: 'Windows',       code: windowsSnippet },
+    { label: 'Kobo / Kindle', code: deviceSnippet },
+  ]} />
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><strong>"Test connection" fails</strong> — most often the server URL is wrong or the API key was revoked. Re-download the plugin from Settings.</li>
+    <li><strong>Reading sessions not showing in stats</strong> — sessions flush on next sync. Pull-to-refresh in KOReader's TomeSync menu.</li>
+    <li>See <a href={withBase("/docs/troubleshooting")}>full troubleshooting</a>.</li>
+  </ul>
+</DocsLayout>

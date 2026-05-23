@@ -1,0 +1,92 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="OPDS feed">
+  <SectionHero section="integrations" />
+  <h1>OPDS feed</h1>
+  <p>
+    OPDS — the Open Publication Distribution System — is the e-reader equivalent of an RSS feed:
+    a standard Atom-based catalogue that any compliant reader app can browse and download from.
+    Tome exposes one at <code>/opds/</code>, secured with HTTP Basic Auth.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="info" title="Most people don't need this">
+    If you're using KOReader, install <a href={withBase("/docs/koreader")}>the TomeSync plugin</a> instead.
+    It does everything OPDS does plus position sync, session tracking, and series-aware
+    downloads. OPDS is here for other clients (Moon+ Reader, KyBook, Foliate, Marvin) and for
+    anyone who specifically wants a standards-based feed.
+  </Callout>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="settings-opds" alt="OPDS catalog section in Settings" />
+  </div>
+
+  <h2>OPDS PINs</h2>
+  <p>
+    OPDS clients send Basic Auth on every request — which means your password gets typed into
+    each device. Instead, Tome lets you generate a short <strong>OPDS PIN</strong> per user that
+    works in place of the password, scoped to OPDS only.
+  </p>
+
+  <Steps>
+    <li>In Tome, open <strong>Settings → OPDS</strong>.</li>
+    <li>Click <strong>Generate PIN</strong>. A 6-digit code appears.</li>
+    <li>Use your username + the PIN as Basic Auth credentials in your OPDS client.</li>
+    <li>The PIN doesn't expire automatically. Revoke it from the same page when you're done.</li>
+  </Steps>
+
+  <Callout variant="warning" title="HTTPS or nothing">
+    Basic Auth sends credentials base64-encoded on every request — trivially decodable from
+    plaintext HTTP. Don't expose <code>/opds/</code> to the internet without TLS. Behind a Caddy
+    or Nginx reverse proxy with Let's Encrypt is fine.
+  </Callout>
+
+  <h2>Pointing a client at Tome</h2>
+
+  <h3>KOReader</h3>
+  <p>
+    Even if you've installed the TomeSync plugin, KOReader's native OPDS still works as a fallback.
+    From the wrench menu → <strong>Search → OPDS Catalog → Add catalog</strong>:
+  </p>
+  <ul>
+    <li><strong>Catalog name:</strong> Tome</li>
+    <li><strong>Catalog URL:</strong> <code>https://your-tome.example.com/opds/</code></li>
+    <li><strong>Username:</strong> your Tome username</li>
+    <li><strong>Password:</strong> your OPDS PIN (not your account password)</li>
+  </ul>
+
+  <h3>Other clients (Moon+, KyBook, Foliate, etc.)</h3>
+  <p>
+    Every OPDS client takes the same three inputs: a URL, a username, and a password. Use
+    <code>https://your-tome/opds/</code>, your username, and the PIN. If a client asks for
+    "atom feed URL" vs "catalog URL," they're the same thing.
+  </p>
+
+  <h2>What the feed exposes</h2>
+  <ul>
+    <li>The <strong>root catalog</strong> lists libraries you can see (subject to the same visibility rules as the web UI).</li>
+    <li>Inside each library, books are listed flat or grouped by series.</li>
+    <li>Each book entry links to its EPUB / CBZ / PDF download, plus a cover thumbnail.</li>
+    <li>Downloads are streamed straight from <code>TOME_LIBRARY_DIR</code> — no transcoding, no rebuild.</li>
+  </ul>
+
+  <Callout variant="info" title="Visibility still applies">
+    A guest using OPDS sees the same books they'd see in the web UI — public libraries plus
+    admin-uploaded books. Members see their assigned libraries. The feed honours the
+    <a href={withBase("/docs/users-and-roles")}>role rules</a>.
+  </Callout>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><strong>"401 Unauthorized"</strong> — wrong username or PIN. Re-issue the PIN from Settings.</li>
+    <li><strong>Empty catalog</strong> — your role probably doesn't have access to any libraries yet. Check Users → your account → assigned libraries.</li>
+    <li><strong>Downloads fail in the client</strong> — some clients can't follow auth across redirects. Make sure your reverse proxy isn't redirecting <code>/opds/</code> to <code>/opds</code> or vice versa.</li>
+  </ul>
+</DocsLayout>

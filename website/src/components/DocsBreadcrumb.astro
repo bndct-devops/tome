@@ -1,0 +1,19 @@
+---
+import { findAdjacent } from './docs-nav'
+import { withBase, stripBase } from '../lib/path'
+const path = stripBase(Astro.url.pathname)
+const { current } = findAdjacent(path)
+---
+{current && (
+  <nav class="docs-crumbs" aria-label="Breadcrumb">
+    <a href={withBase('/docs')}>Docs</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="docs-crumbs-sep"><polyline points="9 18 15 12 9 6"/></svg>
+    <span class="docs-crumbs-section">{current.groupLabel}</span>
+    {current.href !== '/docs' && (
+      <>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="docs-crumbs-sep"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="docs-crumbs-current">{current.title}</span>
+      </>
+    )}
+  </nav>
+)}

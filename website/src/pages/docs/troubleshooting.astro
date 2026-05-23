@@ -1,0 +1,118 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Troubleshooting">
+  <SectionHero section="reference" />
+  <h1>Troubleshooting</h1>
+  <p>
+    Common problems and how to fix them. If yours isn't here, search
+    <a href="https://github.com/bndct-devops/tome/issues">existing issues</a> or
+    <a href="https://github.com/bndct-devops/tome/issues/new">open a new one</a>.
+  </p>
+  <DocsMeta />
+
+  <h2>Books aren't appearing after upload</h2>
+  <p>
+    Three likely causes:
+  </p>
+  <ul>
+    <li><strong>The scan is still running.</strong> Watch the progress bar at the top of the dashboard — a fresh scan of a few thousand files can take a minute.</li>
+    <li><strong>The file format isn't supported.</strong> Tome handles EPUB, CBZ, CBR, and PDF. Anything else gets ignored silently.</li>
+    <li><strong>Filesystem permissions.</strong> The container runs as UID 1000. If your <code>/books</code> mount is owned by root with mode 700, Tome can't read it. Fix the host-side ownership.</li>
+  </ul>
+
+  <h2>Covers are missing</h2>
+  <p>
+    The metadata fetch couldn't find anything, or the file had no embedded cover. Open the book
+    detail page, click the cover, and use the <strong>Cover picker</strong> — it searches Google
+    Books and Open Library, or you can upload a cover from disk.
+  </p>
+
+  <h2>KOReader "test connection" fails</h2>
+  <p>
+    Almost always one of:
+  </p>
+  <ul>
+    <li>The server URL baked into the plugin no longer matches your actual Tome URL (you moved to HTTPS, changed domains, etc.).</li>
+    <li>The API key was revoked from Tome's Settings page.</li>
+  </ul>
+  <p>
+    Fix: re-download the plugin from <strong>Settings → KOReader</strong>. The new
+    <code>.koplugin</code> gets your current URL and a fresh key baked in. Replace the file in
+    KOReader's <code>plugins/</code> folder and restart.
+  </p>
+
+  <h2>Position not syncing between KOReader and web reader</h2>
+  <p>
+    Whichever side wrote most recently wins. If KOReader was offline for a while and then synced
+    after you'd already advanced past that point in the web reader, the older KOReader position
+    is rejected. Open the book again and the position will be correct.
+  </p>
+  <p>
+    If sync is silently broken, check <strong>Settings → KOReader → Recent sessions</strong>.
+    Empty or stale entries mean the plugin isn't reaching the server.
+  </p>
+
+  <h2>Series view shows wrong volumes</h2>
+  <p>
+    Tome groups by the <code>series</code> + <code>series_index</code> on each book. If filename
+    parsing got those wrong, the grouping will be wrong. Two fixes:
+  </p>
+  <ul>
+    <li>Edit metadata on the misgrouped book (book detail → <strong>Edit</strong> → Series fields).</li>
+    <li>Bulk-fix via <a href={withBase("/docs/scribe")}>Scribe</a>: <code>/scribe update "Series Name"</code>.</li>
+  </ul>
+
+  <h2>"Book not found" or 404 in the reader</h2>
+  <p>
+    The underlying file moved or was deleted from disk. Either restore the file to its previous
+    path, or re-scan the library (<strong>Settings → Library → Re-scan</strong>) so Tome picks
+    up the new layout.
+  </p>
+
+  <h2>Forgot admin password</h2>
+  <p>
+    Shell into the container and run the reset CLI:
+  </p>
+  <pre><code>docker exec -it tome python -m backend.cli reset-password &lt;username&gt;</code></pre>
+  <p>
+    You'll be prompted for a new password. Existing JWTs survive (only the hash changed), so
+    other devices stay signed in.
+  </p>
+
+  <h2>Reverse proxy 502 / 504</h2>
+  <p>
+    Usually one of:
+  </p>
+  <ul>
+    <li>Uvicorn took longer than the proxy's <code>proxy_read_timeout</code>. Bump it to 300s for endpoints that hit Hardcover / OpenLibrary or that scan large libraries.</li>
+    <li>Tome is not actually running. <code>docker ps</code> + <code>docker logs tome</code>.</li>
+    <li>Wrong upstream port — Tome serves on 8080 inside the container regardless of how you mapped it host-side.</li>
+  </ul>
+
+  <h2>Stats page is slow</h2>
+  <p>
+    Stats query the <code>reading_sessions</code> table, which grows linearly with use. SQLite
+    handles up to ~hundreds of thousands of rows fine; beyond that, expect a second or two of
+    aggregation. There's no flag to make it faster yet — but the indices are in place, so it's a
+    constant factor, not a runaway query.
+  </p>
+
+  <h2>Permission errors on /books</h2>
+  <p>
+    The container runs as UID 1000 (user <code>tome</code>). If the host-side owner of your
+    library folder is different, you'll see <code>PermissionError</code> in the logs and books
+    won't import. Either <code>chown -R 1000:1000 /path/to/books</code> on the host, or pass
+    <code>user: "&lt;your-uid&gt;:&lt;your-gid&gt;"</code> in your compose file to override.
+  </p>
+
+  <Callout variant="info" title="Still stuck?">
+    Logs first: <code>docker logs -f tome</code>. Then either <a
+    href="https://github.com/bndct-devops/tome/issues">search the issues</a> or open a new one
+    with the log output and your <code>docker compose</code> file (with secrets redacted).
+  </Callout>
+</DocsLayout>

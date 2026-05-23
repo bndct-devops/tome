@@ -1,0 +1,107 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { Tabs } from '../../components/Tabs'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+
+const curlSnippet = `# Replace TOKEN with your tome_… secret
+curl -H "Authorization: Bearer $TOKEN" \\
+     https://your-tome.example.com/api/books?limit=5`
+
+const pythonSnippet = `import os, httpx
+
+client = httpx.Client(
+    base_url="https://your-tome.example.com",
+    headers={"Authorization": f"Bearer {os.environ['TOME_TOKEN']}"},
+)
+
+r = client.get("/api/books", params={"limit": 5})
+r.raise_for_status()
+for book in r.json()["items"]:
+    print(book["title"])`
+
+const jsSnippet = `const TOKEN = process.env.TOME_TOKEN
+const res = await fetch('https://your-tome.example.com/api/books?limit=5', {
+  headers: { Authorization: \`Bearer \${TOKEN}\` },
+})
+const { items } = await res.json()
+items.forEach(b => console.log(b.title))`
+---
+<DocsLayout title="API tokens">
+  <SectionHero section="integrations" />
+  <h1>API tokens</h1>
+  <p>
+    User-scoped API tokens let you call any <code>/api/*</code> endpoint from your own scripts
+    without doing the JWT login dance. They're what powers <a href={withBase("/docs/scribe")}>Scribe</a>, but
+    you can issue your own for cron jobs, importers, dashboards, anything.
+  </p>
+  <DocsMeta />
+
+  <h2>Format</h2>
+  <p>
+    Tokens look like <code>tome_AbCdEf123…</code>. The <code>tome_</code> prefix is constant; the
+    body is 32 random URL-safe bytes. Server-side, only the sha256 hash is stored — the secret
+    itself is shown exactly once at creation time and never again.
+  </p>
+
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="settings-api-tokens" alt="API tokens section in Settings" />
+  </div>
+
+  <h2>Creating a token</h2>
+  <Steps>
+    <li>Open <strong>Settings → API tokens</strong>.</li>
+    <li>Click <strong>New token</strong>, give it a name (so future-you remembers what it's for).</li>
+    <li>The full <code>tome_…</code> secret appears <em>once</em>. Copy it now.</li>
+    <li>Store it somewhere safe (a password manager, an env var, an <code>.env</code> file your VCS ignores).</li>
+  </Steps>
+
+  <Callout variant="danger" title="Shown once, then gone">
+    Closing the create-token dialog without copying the secret is unrecoverable — there's no
+    "show again" button. Revoke the token and make a new one if you lose it.
+  </Callout>
+
+  <h2>Universal scope</h2>
+  <p>
+    A token authenticates as the user who created it. Every <code>/api/*</code> endpoint accepts
+    either a JWT (from a logged-in browser) or a <code>tome_…</code> bearer token — they're
+    interchangeable. There are no per-scope tokens (yet): an admin's token has admin powers, a
+    guest's token has guest powers.
+  </p>
+
+  <Callout variant="warning" title="Treat tokens like passwords">
+    A token == the user's full session. Don't commit them, don't paste them into a Slack
+    channel, don't run them through public LLM APIs. If a token leaks, revoke it from Settings
+    → API tokens immediately.
+  </Callout>
+
+  <h2>Using a token</h2>
+  <p>
+    Send it as a bearer token in the <code>Authorization</code> header. Examples in three flavours:
+  </p>
+
+  <Tabs client:load tabs={[
+    { label: 'curl',   code: curlSnippet },
+    { label: 'Python', code: pythonSnippet },
+    { label: 'JS',     code: jsSnippet },
+  ]} />
+
+  <h2>Revoking</h2>
+  <p>
+    In <strong>Settings → API tokens</strong>, find the token by name or prefix and click
+    <strong>Revoke</strong>. The hash is deleted; any further calls with that secret 401
+    immediately. Revocation is irreversible.
+  </p>
+
+  <h2>Admin view</h2>
+  <p>
+    Admins can see — and revoke — every user's tokens from <strong>Admin → Users → [user] →
+    Tokens</strong>. Useful when an account is compromised or a member leaves the household and
+    you want to nuke their scripts. Admins cannot view the secret (it's only the hash) but they
+    can kill it.
+  </p>
+</DocsLayout>

@@ -32,7 +32,8 @@ export function ThemedShot({ name, alt, className, fallback = 'light', clickable
   }, [open])
 
   const variant = theme || fallback
-  const src = `/shots/${variant}/${name}.png`
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+  const src = `${base}/shots/${variant}/${name}.png`
 
   return (
     <>

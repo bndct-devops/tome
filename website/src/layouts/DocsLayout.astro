@@ -1,0 +1,30 @@
+---
+import BaseLayout from './BaseLayout.astro'
+import SiteHeader from '../components/SiteHeader.astro'
+import DocsSidebar from '../components/DocsSidebar.astro'
+import DocsBreadcrumb from '../components/DocsBreadcrumb.astro'
+import DocsPrevNext from '../components/DocsPrevNext.astro'
+import { DocsToc } from '../components/DocsToc'
+
+interface Props { title: string; description?: string }
+const { title, description } = Astro.props
+---
+<BaseLayout title={`${title} — Tome docs`} description={description}>
+  <SiteHeader />
+  <div class="docs-shell">
+    <DocsSidebar />
+    <main class="docs-content">
+      <DocsBreadcrumb />
+      <article class="docs-article">
+        <slot />
+      </article>
+      <DocsPrevNext />
+      <footer class="docs-foot">
+        <a href="https://github.com/bndct-devops/tome" class="docs-foot-link">Edit on GitHub</a>
+        <span>·</span>
+        <a href="https://github.com/bndct-devops/tome/issues/new" class="docs-foot-link">Report an issue</a>
+      </footer>
+    </main>
+    <DocsToc client:idle />
+  </div>
+</BaseLayout>

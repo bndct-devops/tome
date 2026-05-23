@@ -1,5 +1,5 @@
 import { FileText } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useChartAccent } from '@/lib/useChartAccent'
 
 interface SeriesCompletion {
   series: string
@@ -11,6 +11,7 @@ interface SeriesCompletion {
 }
 
 export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
+  const accent = useChartAccent()
   if (!data || data.length === 0) {
     return (
       <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
@@ -55,11 +56,11 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
-                  className={cn(
-                    'h-full rounded-full transition-all',
-                    s.pct >= 100 ? 'bg-emerald-500' : 'bg-indigo-500',
-                  )}
-                  style={{ width: `${Math.min(s.pct, 100)}%` }}
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(s.pct, 100)}%`,
+                    backgroundColor: s.pct >= 100 ? '#10b981' : accent,
+                  }}
                 />
               </div>
               <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">

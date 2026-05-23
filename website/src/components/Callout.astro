@@ -1,0 +1,31 @@
+---
+// Themed callout box. Variants: info | tip | warning | danger | note.
+//
+// Usage:
+//   <Callout variant="warning" title="Don't expose this port">
+//     /api/docs is unauthenticated by default.
+//   </Callout>
+type Variant = 'info' | 'tip' | 'warning' | 'danger' | 'note'
+interface Props { variant?: Variant; title?: string }
+const { variant = 'note', title } = Astro.props as Props
+
+const config: Record<Variant, { label: string; icon: string }> = {
+  info:    { label: 'Info',    icon: 'M12 16v-4m0-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z' },
+  tip:     { label: 'Tip',     icon: 'M9 18h6m-6 0v-2a4 4 0 014-4h-2a4 4 0 014-4V8a6 6 0 10-12 0v8' },
+  warning: { label: 'Warning', icon: 'M12 9v4m0 4h.01M5.07 19h13.86a2 2 0 001.74-2.99l-6.93-12a2 2 0 00-3.48 0l-6.93 12A2 2 0 005.07 19z' },
+  danger:  { label: 'Danger',  icon: 'M12 9v4m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z' },
+  note:    { label: 'Note',    icon: 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h4' },
+}
+const c = config[variant]
+---
+<aside class={`callout callout-${variant}`} role="note">
+  <div class="callout-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d={c.icon} />
+    </svg>
+  </div>
+  <div class="callout-body">
+    <div class="callout-title">{title ?? c.label}</div>
+    <div class="callout-content"><slot /></div>
+  </div>
+</aside>

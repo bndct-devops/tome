@@ -1,0 +1,111 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Configuration & environment variables">
+  <SectionHero section="reference" />
+  <h1>Configuration</h1>
+  <p>
+    Tome is configured entirely through environment variables. None are strictly required — even
+    <code>TOME_SECRET_KEY</code> is auto-generated to <code>/data/secret.key</code> on first boot
+    if you don't set one. Everything else has a sensible default.
+  </p>
+  <DocsMeta />
+
+  <h2>Quick reference</h2>
+  <table class="docs-table">
+    <thead>
+      <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>TOME_SECRET_KEY</code></td><td>auto-generated</td><td>JWT signing key</td></tr>
+      <tr><td><code>TOME_DATA_DIR</code></td><td><code>/data</code></td><td>SQLite DB, covers, secret key</td></tr>
+      <tr><td><code>TOME_LIBRARY_DIR</code></td><td><code>/books</code></td><td>Ebook library root</td></tr>
+      <tr><td><code>TOME_INCOMING_DIR</code></td><td><code>/bindery</code></td><td>Inbox for new files</td></tr>
+      <tr><td><code>TOME_PORT</code></td><td><code>8080</code></td><td>HTTP listen port</td></tr>
+      <tr><td><code>TOME_HARDCOVER_TOKEN</code></td><td>—</td><td>Hardcover API token (optional)</td></tr>
+      <tr><td><code>TOME_AUTO_IMPORT</code></td><td><code>false</code></td><td>Auto-ingest from Bindery</td></tr>
+      <tr><td><code>TOME_AUTO_IMPORT_INTERVAL</code></td><td><code>300</code></td><td>Seconds between scans</td></tr>
+      <tr><td><code>TOME_JWT_ALGORITHM</code></td><td><code>HS256</code></td><td>JWT algorithm</td></tr>
+      <tr><td><code>TOME_JWT_EXPIRE_MINUTES</code></td><td><code>10080</code></td><td>JWT lifetime (7 days)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The secret key</h2>
+  <p>
+    <code>TOME_SECRET_KEY</code> signs every JWT and every API token. If unset, Tome generates a
+    cryptographically random 64-byte key on first boot and writes it to
+    <code>{`<data_dir>/secret.key`}</code> with mode <code>0600</code>. Subsequent boots reuse it.
+  </p>
+
+  <Callout variant="warning" title="Rotating the key invalidates everything">
+    If you change <code>TOME_SECRET_KEY</code> (or delete <code>secret.key</code>) every existing
+    JWT is rejected — all users log out, all API tokens stop working. Re-issue tokens after
+    rotation.
+  </Callout>
+
+  <Callout variant="danger" title="The literal 'change-me-in-production' is blocked">
+    Older READMEs suggested setting <code>TOME_SECRET_KEY=change-me-in-production</code>. Tome
+    refuses to start with that exact value. Either unset it (to auto-generate) or use a real
+    random string.
+  </Callout>
+
+  <h2>Paths</h2>
+  <p>
+    The three path variables tell Tome where to keep state, where your library lives, and where
+    to pick up incoming files.
+  </p>
+  <ul>
+    <li><code>TOME_DATA_DIR</code> — SQLite database, cover cache, baked downloads, secret key. Defaults to <code>/data</code> in Docker. Must be persistent across restarts.</li>
+    <li><code>TOME_LIBRARY_DIR</code> — your ebook collection. Read-write so Tome can organise files (move into <code>Series/</code> or <code>Author/</code> folders). Defaults to <code>/books</code>.</li>
+    <li><code>TOME_INCOMING_DIR</code> — the Bindery drop folder. Files appear here, then get reviewed (or auto-imported) into the library. Defaults to <code>/bindery</code>.</li>
+  </ul>
+
+  <Callout variant="info" title="Local-dev defaults differ">
+    Outside Docker, the defaults are <code>./data</code>, <code>./library</code>, and
+    <code>./bindery</code> (relative to the working directory). The Docker image sets the
+    container-friendly absolute paths.
+  </Callout>
+
+  <h2>Hardcover metadata</h2>
+  <p>
+    <code>TOME_HARDCOVER_TOKEN</code> turns on the Hardcover lookup path during metadata fetch.
+    Hardcover has the best coverage for modern fiction and manga. Grab a free token from
+    <a href="https://hardcover.app/account/api">hardcover.app/account/api</a> and pass it in.
+  </p>
+  <p>
+    With no token set, Tome still fetches metadata via Google Books and Open Library — Hardcover
+    just gets skipped.
+  </p>
+
+  <h2>Auto-import (Bindery)</h2>
+  <ul>
+    <li><code>TOME_AUTO_IMPORT</code> — set to <code>true</code> to ingest files dropped in <code>/bindery</code> on a schedule. Default is <code>false</code> (manual review queue).</li>
+    <li><code>TOME_AUTO_IMPORT_INTERVAL</code> — seconds between scans. Default <code>300</code> (5 min).</li>
+  </ul>
+  <p>
+    Even with auto-import on, books land marked <code>is_reviewed=false</code> and surface in the
+    "Unreviewed" queue so an admin can sanity-check the detected metadata. See
+    <a href={withBase("/docs/bindery")}>Bindery</a>.
+  </p>
+
+  <h2>JWT lifetime</h2>
+  <p>
+    <code>TOME_JWT_EXPIRE_MINUTES</code> sets how long a browser session stays signed in. Default
+    is one week. <code>TOME_JWT_ALGORITHM</code> is the JWS algorithm (default <code>HS256</code>);
+    leave it alone unless you have a very specific reason.
+  </p>
+
+  <h2>Production checklist</h2>
+  <Callout variant="tip" title="Before you expose it to the internet">
+    <ul>
+      <li>Mount durable volumes for <code>/data</code> and <code>/books</code> — backups should cover both.</li>
+      <li>Put Tome behind HTTPS (Caddy / Nginx / Traefik / Cloudflare Tunnel).</li>
+      <li>Let Tome auto-generate the secret key, or set a real random value — never a literal placeholder.</li>
+      <li>If you enable <code>TOME_AUTO_IMPORT</code>, make sure only trusted sources can write to <code>/bindery</code>.</li>
+    </ul>
+  </Callout>
+</DocsLayout>

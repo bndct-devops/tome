@@ -1,0 +1,155 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import fs from 'node:fs'
+import path from 'node:path'
+const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagrams/visibility-rules.svg'), 'utf-8')
+---
+<DocsLayout title="Users, roles & libraries">
+  <SectionHero section="reference" />
+  <h1>Users, roles & libraries</h1>
+  <p>
+    Tome is built around a three-tier role model — admin, member, guest — combined with a
+    library-membership system that controls who sees which books. The intent: one Tome instance
+    can comfortably serve a solo reader, a family with kids, or a small group of friends with
+    overlapping but not identical libraries.
+  </p>
+  <DocsMeta />
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="users-list" alt="Admin users management page" />
+  </div>
+
+  <h2>The three roles</h2>
+
+  <table>
+    <thead>
+      <tr><th>Capability</th><th>Admin</th><th>Member</th><th>Guest</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Browse and read</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      <tr><td>Download files</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      <tr><td>OPDS feed</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      <tr><td>KOReader sync (TomeSync)</td><td>yes</td><td>yes</td><td>—</td></tr>
+      <tr><td>Upload new books</td><td>yes</td><td>yes</td><td>—</td></tr>
+      <tr><td>Edit metadata on own books</td><td>yes</td><td>yes</td><td>—</td></tr>
+      <tr><td>Edit metadata on any book</td><td>yes</td><td>—</td><td>—</td></tr>
+      <tr><td>Manage libraries</td><td>yes</td><td>own only</td><td>—</td></tr>
+      <tr><td>Approve / reject Bindery imports</td><td>yes</td><td>—</td><td>—</td></tr>
+      <tr><td>Manage users</td><td>yes</td><td>—</td><td>—</td></tr>
+      <tr><td>Impersonate other users</td><td>yes</td><td>—</td><td>—</td></tr>
+      <tr><td>View per-user stats</td><td>yes</td><td>own</td><td>own</td></tr>
+    </tbody>
+  </table>
+
+  <Callout variant="info" title="Roles replace the old permission flags">
+    Tome used to ship with 14 granular permission booleans. They're deprecated — the
+    <code>role</code> field is the source of truth now. The flags are still in the schema for
+    backwards-compatibility but new permission logic should branch on role.
+  </Callout>
+
+  <h2>Per-user book visibility</h2>
+  <p>
+    Visibility is enforced on the server. Every list endpoint filters books before returning them,
+    so a guest literally cannot see (or download via OPDS) a private member book — not just
+    "hidden in the UI."
+  </p>
+
+  <div class="docs-diagram" set:html={visibilitySvg} />
+
+  <h3>The rules in words</h3>
+  <ul>
+    <li><strong>Admins see everything.</strong> No filtering.</li>
+    <li><strong>Members</strong> see: books uploaded by any admin, books they uploaded themselves, and books in libraries they're explicitly assigned to.</li>
+    <li><strong>Guests</strong> see: books uploaded by any admin, and books in libraries marked <code>is_public = true</code>.</li>
+  </ul>
+  <p>
+    The dashboard has a "My books / Shared library" toggle for members so they can flip between
+    "only books I uploaded" and "everything I have access to."
+  </p>
+
+  <h2>Libraries</h2>
+  <p>
+    Libraries are how books get grouped and how visibility gets scoped. Every book belongs to one
+    or more libraries (it's a many-to-many relationship).
+  </p>
+  <ul>
+    <li><strong>Global libraries</strong> (<code>owner_id</code> is null) — typically book-type buckets like "Novels", "Manga", "Comics" that Tome creates automatically when seeding book types.</li>
+    <li><strong>User-owned libraries</strong> — created by a member or admin, optionally assigned to specific other users.</li>
+    <li><strong>Public libraries</strong> (<code>is_public = true</code>) — visible to guests.</li>
+    <li><strong>Private libraries</strong> — only visible to the owner, assigned users, and admins.</li>
+  </ul>
+
+  <Callout variant="tip" title="A library is just a tag with permissions">
+    Don't overthink it. Make one library per "shelf" you'd want a person to see (kids' books,
+    work books, a friend's manga collection). Libraries can overlap freely — a single book can
+    be in five libraries.
+  </Callout>
+
+  <h2>Quick Connect</h2>
+  <p>
+    Quick Connect is the way to sign in on a new device — a phone, a tablet, an e-reader — without
+    typing your password into a possibly-untrusted keyboard.
+  </p>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="settings-quick-connect" alt="Quick Connect block in Settings" />
+  </div>
+  <Steps>
+    <li>On the new device, open Tome and click <strong>Use a Quick Connect code</strong>.</li>
+    <li>A 6-character code appears (e.g. <code>JX7-Q9P</code>). The code is good for 5 minutes.</li>
+    <li>On a device you're already signed in on, open <strong>Settings → Quick Connect</strong>, enter the code, and confirm.</li>
+    <li>The new device gets a fresh JWT and signs in. The code is single-use.</li>
+  </Steps>
+
+  <h2>Force password change</h2>
+  <p>
+    When an admin creates a new user, they pick a temporary password and Tome flags the user
+    <code>must_change_password</code>. On first login, the user can't access anything until they
+    pick a new password. Reduces the "I sent it in Slack and forgot" risk.
+  </p>
+
+  <h2>Impersonation</h2>
+  <p>
+    Admins can impersonate any non-admin user from the user management page — useful for "the UI
+    is broken for them, but works for me" debugging. The session banner across the top makes it
+    obvious you're impersonating, and the audit log records both the impersonator and the
+    impersonated account on every action taken.
+  </p>
+
+  <Callout variant="warning" title="Impersonation isn't quiet">
+    Every write while impersonating is logged against both accounts. Use it for debugging, not
+    for editing someone's data behind their back.
+  </Callout>
+
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="users-create-modal" alt="New user modal with role dropdown" />
+  </div>
+
+  <h2>Setting up a family share — worked example</h2>
+  <p>
+    The most common multi-user setup. Parent is the admin, kids are guests.
+  </p>
+  <Steps>
+    <li>Sign in as the admin (you).</li>
+    <li>In <strong>Users</strong>, create one guest account per kid. Tick <strong>Must change password on first login</strong>.</li>
+    <li>In <strong>Libraries</strong>, create a "Kids" library, mark it <code>is_public = true</code>. Add the age-appropriate books to it.</li>
+    <li>Your existing library (uploaded by you, the admin) is automatically visible to guests — adult titles will leak in unless you put them in a non-public library. Move anything you don't want kids browsing into a private member-or-admin-only library.</li>
+    <li>Hand each kid their device, get them past the force-password-change screen, and you're done.</li>
+  </Steps>
+
+  <h2>Setting up a friend group — worked example</h2>
+  <p>
+    Co-admins, opt-in shared shelves.
+  </p>
+  <Steps>
+    <li>Make each friend a <strong>member</strong>, not admin (unless you trust them to manage users).</li>
+    <li>Each member uploads their own books. By default those books are visible only to admins and the uploader — not to other members.</li>
+    <li>For books you want to <em>share</em>, the uploader creates a library, assigns the relevant friends, and adds the book to that library.</li>
+    <li>Each member can browse "All books I have access to" or filter to "Just mine" on the dashboard.</li>
+  </Steps>
+</DocsLayout>

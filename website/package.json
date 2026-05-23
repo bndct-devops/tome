@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "astro build && pagefind --site dist --output-subdir _pagefind",
     "preview": "astro preview"
   },
   "dependencies": {
@@ -16,8 +16,12 @@
     "@types/react-dom": "^19.0.0",
     "astro": "^5.0.0",
     "lucide-react": "^0.460.0",
+    "pagefind": "^1.5.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.0.0"
+  },
+  "devDependencies": {
+    "roughjs": "^4.6.6"
   }
 }

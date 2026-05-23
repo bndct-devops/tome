@@ -23,7 +23,6 @@ export function CompletionByType({ data }: { data: CompletionByTypeEntry[] }) {
           value={`${c.pct}%`}
           pct={c.pct}
           sub={`${c.finished} of ${c.started} finished`}
-          color="#ec4899"
         />
       ))}
     </div>

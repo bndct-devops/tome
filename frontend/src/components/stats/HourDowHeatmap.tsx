@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useChartAccent } from '@/lib/useChartAccent'
 
 interface HourDowCell {
   dow: number
@@ -18,6 +19,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
+  const accent = useChartAccent()
   const [tooltip, setTooltip] = useState<{
     x: number
     y: number
@@ -35,10 +37,9 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
 
   const maxSeconds = Math.max(...data.map(c => c.seconds), 1)
 
-  function getFill(seconds: number): string {
-    if (seconds === 0) return 'rgba(148, 163, 184, 0.08)'
-    const opacity = 0.2 + (seconds / maxSeconds) * 0.8
-    return `rgba(99, 102, 241, ${opacity.toFixed(2)})`
+  function getFillOpacity(seconds: number): number {
+    if (seconds === 0) return 0
+    return 0.2 + (seconds / maxSeconds) * 0.8
   }
 
   const CELL = 14
@@ -90,7 +91,8 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
             width={CELL}
             height={CELL}
             rx={2}
-            fill={getFill(cell.seconds)}
+            fill={cell.seconds === 0 ? 'rgba(148, 163, 184, 0.08)' : accent}
+            fillOpacity={getFillOpacity(cell.seconds)}
             style={{ cursor: cell.seconds > 0 ? 'default' : 'default' }}
             onMouseEnter={e =>
               setTooltip({

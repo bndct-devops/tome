@@ -1,0 +1,28 @@
+---
+// Small accent banner above the H1 of a docs page. Identifies which section
+// of the docs this page belongs to.
+interface Props { section: 'getting-started' | 'features' | 'integrations' | 'reference'; eyebrow?: string }
+const { section, eyebrow } = Astro.props as Props
+
+// Lucide-style 24px icons (single path per section)
+const icons: Record<Props['section'], string> = {
+  'getting-started': 'M14 2l5 5-9 9H5v-5l9-9zM12 4l3 3',
+  'features':        'M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7l3-7z',
+  'integrations':    'M12 2v6m0 8v6m10-10h-6m-8 0H2m15-7l-4 4m-6 6l-4 4m14 0l-4-4m-6-6L3 3',
+  'reference':       'M4 6h16M4 12h16M4 18h10',
+}
+const labels: Record<Props['section'], string> = {
+  'getting-started': 'Getting started',
+  'features':        'Features',
+  'integrations':    'Integrations',
+  'reference':       'Reference',
+}
+---
+<div class="docs-eyebrow">
+  <span class="docs-eyebrow-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d={icons[section]} />
+    </svg>
+  </span>
+  <span class="docs-eyebrow-label">{eyebrow ?? labels[section]}</span>
+</div>

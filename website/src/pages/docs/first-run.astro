@@ -1,0 +1,79 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="First-run setup">
+  <SectionHero section="getting-started" />
+  <h1>First-run setup</h1>
+  <p>
+    The first time you load Tome, a setup wizard creates your admin account. From there it's a
+    short hop to scanning your library and seeing books on the dashboard.
+  </p>
+  <DocsMeta />
+
+  <h2>Create the admin account</h2>
+  <Steps>
+    <li>Open <code>http://localhost:8080</code> (or wherever your reverse proxy points).</li>
+    <li>Fill in username, email, password.</li>
+    <li>Submit. You're logged in as the admin.</li>
+  </Steps>
+
+  <Callout variant="info" title="Only the first user gets the setup screen">
+    Once an account exists, the setup wizard never reappears. Subsequent users get created from
+    <strong>Admin → Users</strong> by the admin. See <a href={withBase("/docs/users-and-roles")}>Users &
+    roles</a>.
+  </Callout>
+
+  <h2>Scan your library</h2>
+  <p>
+    Whatever you mounted at <code>/books</code> (or pointed <code>TOME_LIBRARY_DIR</code> at) is
+    your library root. From the dashboard, click <strong>Scan library</strong> — Tome walks the
+    directory tree and imports every EPUB, CBZ, CBR, and PDF it finds.
+  </p>
+  <p>
+    Metadata is pulled from the file itself (EPUB OPF, CBZ ComicInfo.xml, PDF info), with the
+    filename used as a fallback for title, author, series, and volume index.
+  </p>
+
+  <Callout variant="tip" title="Organise on disk before the first scan">
+    The cleaner your folder structure, the cleaner your library. Series in their own folders
+    (<code>library/Berserk/Berserk v01.cbz</code>), standalones by author
+    (<code>library/Brandon Sanderson/Mistborn (2006).epub</code>). See the
+    <a href={withBase("/docs/series#how-series-are-detected")}>series detection rules</a>.
+  </Callout>
+
+  <h2>Fetch richer metadata (optional)</h2>
+  <p>
+    Tome can fetch description and cover art from Hardcover, Google Books, and Open Library.
+    Hardcover has the best coverage for modern fiction and manga — grab a free API token at
+    <a href="https://hardcover.app/account/api">hardcover.app/account/api</a> and set
+    <code>TOME_HARDCOVER_TOKEN</code> in your compose file.
+  </p>
+  <p>
+    Without a Hardcover token, Tome still uses Google Books and Open Library — the lookup just
+    skips one source.
+  </p>
+
+  <h2>Hook up KOReader</h2>
+  <p>
+    The single thing that makes Tome more than "another web library" — the KOReader plugin. 30
+    seconds, no manual config:
+  </p>
+  <Steps>
+    <li>In Tome, open <strong>Settings → KOReader</strong>.</li>
+    <li>Click <strong>Download Plugin</strong>. You get a <code>.koplugin</code> file pre-baked with your server URL and a fresh API key.</li>
+    <li>Drop it into your reader's <code>plugins/</code> folder, restart KOReader.</li>
+    <li>Reading sessions start syncing immediately. <a href={withBase("/docs/koreader")}>Full instructions</a>.</li>
+  </Steps>
+
+  <h2>Where to go next</h2>
+  <ul>
+    <li><a href={withBase("/docs/users-and-roles")}>Invite users</a> — turn this into a family / friend share.</li>
+    <li><a href={withBase("/docs/bindery")}>Bindery</a> — set up the drop folder so future imports happen without re-scanning.</li>
+    <li><a href={withBase("/docs/stats")}>Reading stats</a> — once a few sessions have landed, the dashboards start filling in.</li>
+  </ul>
+</DocsLayout>

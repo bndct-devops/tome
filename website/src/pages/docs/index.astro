@@ -1,0 +1,81 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Welcome" description="A self-hosted ebook library that knows how you read.">
+  <SectionHero section="getting-started" />
+  <h1>Welcome to Tome</h1>
+  <p>
+    Most library servers stop at file management. Tome connects to your e-reader, records every
+    reading session, syncs positions both ways, and turns it into stats that get sharper the more
+    you read. These docs are how you get there.
+  </p>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="dashboard" alt="Tome dashboard" />
+  </div>
+
+  <h2>Pick a path</h2>
+  <ul class="docs-card-grid">
+    <li>
+      <a href={withBase("/docs/installation")} class="docs-card">
+        <div class="docs-card-eyebrow">Step 1</div>
+        <h3 class="docs-card-title">Install</h3>
+        <p class="docs-card-body">One Docker image, three volume mounts, no external services. 5 minutes.</p>
+      </a>
+    </li>
+    <li>
+      <a href={withBase("/docs/first-run")} class="docs-card">
+        <div class="docs-card-eyebrow">Step 2</div>
+        <h3 class="docs-card-title">First-run setup</h3>
+        <p class="docs-card-body">Admin account, library scan, your first book on the dashboard.</p>
+      </a>
+    </li>
+    <li>
+      <a href={withBase("/docs/koreader")} class="docs-card">
+        <div class="docs-card-eyebrow">Step 3</div>
+        <h3 class="docs-card-title">KOReader plugin</h3>
+        <p class="docs-card-body">Pre-configured download, drop in, done. The thing that makes Tome more than just a library.</p>
+      </a>
+    </li>
+    <li>
+      <a href={withBase("/docs/stats")} class="docs-card">
+        <div class="docs-card-eyebrow">Step 4</div>
+        <h3 class="docs-card-title">Reading stats</h3>
+        <p class="docs-card-body">Streaks, heatmaps, completion estimates. What every minute of reading turns into.</p>
+      </a>
+    </li>
+  </ul>
+
+  <h2>If you already have Tome running</h2>
+  <ul>
+    <li><a href={withBase("/docs/series")}>Series & arcs</a> — how Tome groups manga, light novels, and multi-volume sagas.</li>
+    <li><a href={withBase("/docs/bindery")}>Bindery</a> — the drop folder for automatic and manual imports.</li>
+    <li><a href={withBase("/docs/reader")}>Built-in reader</a> — EPUB + CBZ readers, with position sync to KOReader.</li>
+    <li><a href={withBase("/docs/users-and-roles")}>Users & roles</a> — share with family, friends, or kids without leaking the adult shelf.</li>
+  </ul>
+
+  <h2>Power users</h2>
+  <ul>
+    <li><a href={withBase("/docs/scribe")}>Scribe</a> — a Claude Code skill for bulk ingest, metadata audits, and series-level annotation. Alpha.</li>
+    <li><a href={withBase("/docs/api-tokens")}>API tokens</a> — use any <code>/api/*</code> endpoint from your own scripts.</li>
+    <li><a href={withBase("/docs/opds")}>OPDS feed</a> — point any OPDS-aware reader at Tome.</li>
+    <li><a href={withBase("/docs/configuration")}>Configuration</a> — every environment variable and what it does.</li>
+  </ul>
+
+  <h2>Stuck?</h2>
+  <p>
+    Check <a href={withBase("/docs/troubleshooting")}>Troubleshooting</a> first — most common issues are
+    listed there with a fix. If yours isn't, search
+    <a href="https://github.com/bndct-devops/tome/issues">existing issues</a> or open a new one.
+  </p>
+
+  <Callout variant="tip" title="The opinionated path">
+    If you don't want to read this whole site, the three pages that matter most are:
+    <a href={withBase("/docs/installation")}>Installation</a>, <a href={withBase("/docs/koreader")}>KOReader plugin</a>,
+    and <a href={withBase("/docs/users-and-roles")}>Users & roles</a>. Everything else is reference.
+  </Callout>
+</DocsLayout>

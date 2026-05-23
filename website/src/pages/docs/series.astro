@@ -1,0 +1,111 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import fs from 'node:fs'
+import path from 'node:path'
+import { withBase } from '../../lib/path'
+const detectionSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagrams/series-detection.svg'), 'utf-8')
+---
+<DocsLayout title="Series & arcs">
+  <SectionHero section="features" />
+  <h1>Series & arcs</h1>
+  <p>
+    Long-running series — manga, light novels, multi-volume sagas — are first-class in Tome.
+    Volumes group automatically, optional arcs subdivide an enormous series into readable chunks,
+    and a status badge tells you at a glance whether more is coming.
+  </p>
+  <DocsMeta />
+
+  <h2>How series are detected</h2>
+  <p>
+    On scan and on upload, Tome inspects the filename for a series name and volume index. Books
+    that match get a <code>series</code> + <code>series_index</code> set on their record; books
+    that don't end up in the <strong>"No Series"</strong> virtual bucket.
+  </p>
+
+  <div class="docs-diagram" set:html={detectionSvg} />
+
+  <p>Filename patterns Tome understands:</p>
+  <table>
+    <thead><tr><th>Pattern</th><th>Becomes</th></tr></thead>
+    <tbody>
+      <tr><td><code>Berserk v01 (1990).cbz</code></td><td>Series "Berserk", index 1</td></tr>
+      <tr><td><code>Berserk - Vol. 02.cbz</code></td><td>Series "Berserk", index 2</td></tr>
+      <tr><td><code>One Piece 105.cbz</code></td><td>Series "One Piece", index 105</td></tr>
+      <tr><td><code>Title - Author (Year).epub</code></td><td>Standalone (no series)</td></tr>
+    </tbody>
+  </table>
+
+  <Callout variant="tip" title="Organise on disk by series, not by author">
+    For manga and light novels, name your library folder after the <em>series</em>, not the
+    author: <code>library/Berserk/Berserk v01.cbz</code>, not
+    <code>library/Kentaro Miura/Berserk v01.cbz</code>. Tome handles both, but series-grouping
+    is what most multi-volume books actually want.
+  </Callout>
+
+  <h2>The series page</h2>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="series-detail" alt="Berserk series page with arcs and progress" />
+  </div>
+
+  <p>
+    Every series gets its own page at <code>/series/{`{name}`}</code>. It shows:
+  </p>
+  <ul>
+    <li>A grid of all volumes, in order</li>
+    <li>Reading progress per volume (unread / reading / read), aggregated into a series-wide progress bar</li>
+    <li>A status badge — <strong>ongoing</strong>, <strong>finished</strong>, <strong>hiatus</strong>, or <strong>unknown</strong> — pulled from <code>SeriesMeta</code></li>
+    <li>If arcs are defined, volumes group into arc sections with a per-arc description</li>
+  </ul>
+
+  <h2>Arcs</h2>
+  <p>
+    Arcs are how you subdivide a long series. Berserk's 40+ volumes split naturally into
+    <em>Black Swordsman</em>, <em>Golden Age</em>, <em>Conviction</em>, etc. — defining those as
+    arcs lets readers see structure instead of an undifferentiated wall of 40 covers.
+  </p>
+
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="series-arcs-modal" alt="Manage Series modal — Arcs tab" />
+  </div>
+
+  <h3>Creating arcs</h3>
+  <Steps>
+    <li>Open the series page as an admin.</li>
+    <li>Click <strong>Manage arcs</strong> in the header.</li>
+    <li>Add an arc: name, start volume, end volume, optional description.</li>
+    <li>Arcs can be inclusive ranges (e.g. 1–3 means volumes 1, 2, and 3) and can use fractional indices for half-volumes.</li>
+    <li>Volumes outside any arc still show up in a default "Other volumes" section.</li>
+  </Steps>
+
+  <Callout variant="info" title="Arcs are admin-only">
+    Anyone can see arcs once they're defined, but creating and editing them requires admin
+    access. They're metadata about the series itself, not a per-user thing.
+  </Callout>
+
+  <h2>Series status</h2>
+  <p>
+    A series can be marked <code>ongoing</code>, <code>finished</code>, <code>hiatus</code>, or
+    <code>unknown</code>. The badge appears on the series page and on the dashboard's series
+    grid. Admins set status manually, or let <a href={withBase("/docs/scribe")}>Scribe</a> populate it from
+    LLM knowledge via <code>/scribe series &lt;name&gt;</code>.
+  </p>
+
+  <h2>The "No Series" bucket</h2>
+  <p>
+    Standalone fiction — most western novels — ends up here. It's a virtual sidebar entry, not a
+    real series; the books inside it still have all the usual library/type assignments.
+  </p>
+
+  <Callout variant="warning" title="If your series shows wrong volumes">
+    Re-scanning is non-destructive. If a series is grouping incorrectly, edit the
+    <code>series</code> + <code>series_index</code> fields on the offending books directly
+    (Edit metadata on the book detail page), or use Scribe to bulk-fix:
+    <code>/scribe update &lt;query&gt;</code>.
+  </Callout>
+</DocsLayout>

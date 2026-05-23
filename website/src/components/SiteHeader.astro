@@ -1,0 +1,30 @@
+---
+// Shared top header used by both the landing page and the docs.
+// Highlights the active section based on the current URL.
+import ThemeToggle from './ThemeToggle.astro'
+import Logo from './Logo.astro'
+import { SearchBox } from './SearchBox'
+import { withBase, stripBase } from '../lib/path'
+const path = stripBase(Astro.url.pathname)
+const isDocs = path.startsWith('/docs')
+---
+<header class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-[var(--bg)]/70 border-b border-[var(--border)]">
+  <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <a href={withBase('/')} class="flex items-center gap-2.5 font-semibold text-lg">
+      <Logo />
+      Tome
+    </a>
+    <nav class="flex items-center gap-3 md:gap-5">
+      <a
+        href={withBase('/docs')}
+        class={`text-sm transition-colors ${isDocs ? 'text-[var(--fg)] font-medium' : 'text-[var(--muted)] hover:text-[var(--fg)]'}`}
+      >Docs</a>
+      <a
+        href="https://github.com/bndct-devops/tome"
+        class="text-sm text-[var(--muted)] hover:text-[var(--fg)] transition-colors hidden sm:inline"
+      >GitHub</a>
+      <SearchBox client:idle />
+      <ThemeToggle />
+    </nav>
+  </div>
+</header>

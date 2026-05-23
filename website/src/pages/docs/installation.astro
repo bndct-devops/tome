@@ -1,0 +1,134 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { Tabs } from '../../components/Tabs'
+import { CopyButton } from '../../components/CopyButton'
+import { withBase } from '../../lib/path'
+
+const dockerRun = `docker run -d \\
+  --name tome \\
+  --restart unless-stopped \\
+  -p 8080:8080 \\
+  -v ./data:/data \\
+  -v ./books:/books \\
+  -v ./bindery:/bindery \\
+  ghcr.io/bndct-devops/tome:latest`
+
+const composeFile = `services:
+  tome:
+    image: ghcr.io/bndct-devops/tome:latest
+    container_name: tome
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./books:/books
+      - ./bindery:/bindery
+    environment:
+      # Optional. Auto-generated if unset — see /docs/configuration
+      # - TOME_SECRET_KEY=
+      # Optional. Better metadata. Get a free token at hardcover.app
+      # - TOME_HARDCOVER_TOKEN=
+    restart: unless-stopped`
+
+const composeRun = `git clone https://github.com/bndct-devops/tome.git
+cd tome
+docker compose up -d`
+
+const caddySnippet = `tome.example.com {
+    reverse_proxy localhost:8080
+}`
+
+const nginxSnippet = `server {
+    listen 443 ssl http2;
+    server_name tome.example.com;
+    # ssl_certificate / ssl_certificate_key here
+
+    client_max_body_size 500M;  # uploads can be chunky
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+    }
+}`
+---
+<DocsLayout title="Installation">
+  <SectionHero section="getting-started" />
+  <h1>Installation</h1>
+  <p>
+    One Docker image, three volume mounts, no external services. The image bundles the Python
+    backend, the React frontend, and SQLite. Works on amd64 and arm64 — Raspberry Pi 4+, M-series
+    Macs, modern NASes, anything Docker runs on.
+  </p>
+  <DocsMeta />
+
+  <h2>Pick a path</h2>
+  <Tabs client:load tabs={[
+    { label: 'docker compose (recommended)', code: composeFile },
+    { label: 'docker run',                    code: dockerRun },
+    { label: 'git clone + compose',           code: composeRun },
+  ]} />
+
+  <h3>docker compose, end to end</h3>
+  <Steps>
+    <li>Save the compose snippet above as <code>docker-compose.yml</code> in an empty directory.</li>
+    <li>Create the volume folders next to it: <code>mkdir -p data books bindery</code>.</li>
+    <li>Run <code>docker compose up -d</code>. Tome pulls the image and starts.</li>
+    <li>Open <code>http://localhost:8080</code> — the first-run setup wizard greets you.</li>
+  </Steps>
+
+  <Callout variant="tip" title="No secret key needed up front">
+    Skip <code>TOME_SECRET_KEY</code> in your compose file — Tome auto-generates one to
+    <code>./data/secret.key</code> on first boot. Set it explicitly only if you want to manage
+    rotation yourself.
+  </Callout>
+
+  <h2>Volume mounts</h2>
+  <ul>
+    <li><code>/data</code> — SQLite DB, cover cache, baked downloads, secret key. Back this up.</li>
+    <li><code>/books</code> — your ebook library. Read-write so Tome can organise files into series / author folders.</li>
+    <li><code>/bindery</code> — incoming drop folder. New files arrive here and either auto-import or queue for review.</li>
+  </ul>
+
+  <h2>Reverse proxy</h2>
+  <p>
+    Tome speaks plain HTTP. For anything beyond localhost, put it behind a reverse proxy with TLS.
+  </p>
+
+  <Tabs client:load tabs={[
+    { label: 'Caddy', code: caddySnippet },
+    { label: 'Nginx', code: nginxSnippet },
+  ]} />
+
+  <Callout variant="warning" title="Allow large request bodies">
+    Uploads can be hundreds of MB (manga volumes, PDF scans). If you see 413 errors during
+    upload, bump <code>client_max_body_size</code> in nginx or the equivalent in your proxy.
+    Caddy doesn't impose a default limit.
+  </Callout>
+
+  <h2>Updating</h2>
+  <p>Pull the latest image and recreate the container:</p>
+  <div style="position: relative;">
+    <pre><code>docker compose pull && docker compose up -d</code></pre>
+    <div style="position: absolute; top: 12px; right: 12px;">
+      <CopyButton text="docker compose pull && docker compose up -d" client:load />
+    </div>
+  </div>
+  <p>
+    Schema migrations run automatically on startup. Your data persists in <code>/data</code>.
+  </p>
+
+  <h2>Next</h2>
+  <ul>
+    <li><a href={withBase("/docs/first-run")}>First-run setup</a> — create your admin account and scan your library.</li>
+    <li><a href={withBase("/docs/configuration")}>Configuration</a> — every environment variable and what it does.</li>
+    <li><a href={withBase("/docs/koreader")}>KOReader plugin</a> — set up TomeSync on your e-reader.</li>
+  </ul>
+</DocsLayout>

@@ -22,6 +22,8 @@ import { AuthorAffinity } from '@/components/stats/AuthorAffinity'
 import { CompletionByType } from '@/components/stats/CompletionByType'
 import { LibraryGrowthChart } from '@/components/stats/LibraryGrowthChart'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
+import { useChartAccent } from '@/lib/useChartAccent'
+import { useChartPalette } from '@/lib/useChartPalette'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -116,8 +118,6 @@ const RANGES = [
   { days: 0, label: 'All' },
 ]
 
-const PIE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6']
-
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -132,6 +132,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 // ── Heatmap ───────────────────────────────────────────────────────────────────
 
 function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
+  const accent = useChartAccent()
   const [tooltip, setTooltip] = useState<{ x: number; y: number; date: string; seconds: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -164,19 +165,13 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
   const CELL = 12
   const GAP = 3
 
-  const FILL_COLORS = [
-    'rgba(148, 163, 184, 0.1)',
-    'rgba(99, 102, 241, 0.25)',
-    'rgba(99, 102, 241, 0.45)',
-    'rgba(99, 102, 241, 0.7)',
-    '#6366f1',
-  ]
-  function getColor(secs: number) {
-    if (secs === 0) return FILL_COLORS[0]
-    if (secs < 900) return FILL_COLORS[1]
-    if (secs < 1800) return FILL_COLORS[2]
-    if (secs < 3600) return FILL_COLORS[3]
-    return FILL_COLORS[4]
+  const EMPTY_FILL = 'rgba(148, 163, 184, 0.1)'
+  function getOpacity(secs: number) {
+    if (secs === 0) return 0
+    if (secs < 900) return 0.25
+    if (secs < 1800) return 0.45
+    if (secs < 3600) return 0.7
+    return 1
   }
 
   const monthLabels: { x: number; label: string }[] = []
@@ -216,7 +211,8 @@ function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
                 width={CELL}
                 height={CELL}
                 rx={2}
-                fill={getColor(secs)}
+                fill={secs === 0 ? EMPTY_FILL : accent}
+                fillOpacity={getOpacity(secs)}
                 onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, date: day, seconds: secs })}
                 onMouseLeave={() => setTooltip(null)}
                 style={{ cursor: 'default' }}
@@ -350,9 +346,8 @@ function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'] }) {
 
 // ── Genre Over Time Chart ────────────────────────────────────────────────
 
-const GENRE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6', '#f97316', '#a855f7']
-
 function GenreOverTimeChart({ data }: { data: StatsResponse['genre_over_time'] }) {
+  const palette = useChartPalette()
   const categories = Array.from(
     new Set(data.flatMap(d => Object.keys(d).filter(k => k !== 'month')))
   ).sort()
@@ -424,9 +419,9 @@ function GenreOverTimeChart({ data }: { data: StatsResponse['genre_over_time'] }
               type="monotone"
               dataKey={cat}
               stackId="1"
-              fill={GENRE_COLORS[i % GENRE_COLORS.length]}
+              fill={palette[i % palette.length]}
               fillOpacity={0.6}
-              stroke={GENRE_COLORS[i % GENRE_COLORS.length]}
+              stroke={palette[i % palette.length]}
               strokeWidth={1.5}
             />
           ))}
@@ -439,6 +434,8 @@ function GenreOverTimeChart({ data }: { data: StatsResponse['genre_over_time'] }
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function StatsPage() {
+  const accent = useChartAccent()
+  const palette = useChartPalette()
   const [days, setDays] = useState(30)
   const [data, setData] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -641,8 +638,8 @@ export function StatsPage() {
                             <div className="mt-1.5 flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-indigo-500 rounded-full transition-all"
-                                  style={{ width: `${Math.min(b.progress, 100)}%` }}
+                                  className="h-full rounded-full transition-all"
+                                  style={{ width: `${Math.min(b.progress, 100)}%`, backgroundColor: accent }}
                                 />
                               </div>
                               <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{b.progress}%</span>
@@ -690,7 +687,7 @@ export function StatsPage() {
                             )
                           }}
                         />
-                        <Bar dataKey="seconds" fill="#6366f1" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="seconds" fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -736,7 +733,7 @@ export function StatsPage() {
                               )
                             }}
                           />
-                          <Bar dataKey="seconds" fill="#6366f1" fillOpacity={0.85} radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="seconds" fill={accent} fillOpacity={0.85} radius={[0, 3, 3, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -748,14 +745,14 @@ export function StatsPage() {
                   <HeatmapChart data={data.heatmap_daily} />
                   <div className="flex items-center gap-2 justify-end mt-1">
                     <span className="text-[10px] text-muted-foreground">Less</span>
-                    {[
-                      'rgba(148, 163, 184, 0.1)',
-                      'rgba(99, 102, 241, 0.25)',
-                      'rgba(99, 102, 241, 0.45)',
-                      'rgba(99, 102, 241, 0.7)',
-                      '#6366f1',
-                    ].map((c, i) => (
-                      <div key={i} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: c }} />
+                    {[0, 0.25, 0.45, 0.7, 1].map((op, i) => (
+                      <div
+                        key={i}
+                        className="w-3 h-3 rounded-sm border border-border/30"
+                        style={op === 0
+                          ? { backgroundColor: 'rgba(148, 163, 184, 0.1)' }
+                          : { backgroundColor: accent, opacity: op }}
+                      />
                     ))}
                     <span className="text-[10px] text-muted-foreground">More</span>
                   </div>
@@ -803,9 +800,9 @@ export function StatsPage() {
                         />
                         <Area
                           dataKey="count"
-                          fill="#6366f1"
+                          fill={accent}
                           fillOpacity={0.15}
-                          stroke="#6366f1"
+                          stroke={accent}
                           strokeWidth={2}
                         />
                       </AreaChart>
@@ -901,7 +898,7 @@ export function StatsPage() {
                         <div
                           key={o}
                           className="w-3 h-3 rounded-sm border border-border/30"
-                          style={{ backgroundColor: `rgba(99, 102, 241, ${o})` }}
+                          style={{ backgroundColor: accent, opacity: o }}
                         />
                       ))}
                       <span className="text-[10px] text-muted-foreground">More</span>
@@ -939,8 +936,8 @@ export function StatsPage() {
                                   return (
                                     <div
                                       key={s.id}
-                                      className="absolute top-0.5 bottom-0.5 rounded-sm bg-indigo-500/70 hover:bg-indigo-500 transition-colors"
-                                      style={{ left: `${left}%`, width: `${width}%` }}
+                                      className="absolute top-0.5 bottom-0.5 rounded-sm transition-colors"
+                                      style={{ left: `${left}%`, width: `${width}%`, backgroundColor: accent, opacity: 0.7 }}
                                       title={`${s.title} — ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${formatDuration(s.duration_seconds)})`}
                                     />
                                   )
@@ -1141,8 +1138,8 @@ export function StatsPage() {
                             <div className="mt-2 flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-indigo-500 rounded-full"
-                                  style={{ width: `${Math.min(est.progress, 100)}%` }}
+                                  className="h-full rounded-full"
+                                  style={{ width: `${Math.min(est.progress, 100)}%`, backgroundColor: accent }}
                                 />
                               </div>
                               <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
@@ -1278,8 +1275,8 @@ export function StatsPage() {
                             }}
                           />
                           <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                          <Bar yAxisId="hours" dataKey="reading_hours" name="Reading Hours" fill="#6366f1" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
-                          <Bar yAxisId="books" dataKey="books_finished" name="Books Finished" fill="#8b5cf6" fillOpacity={0.55} radius={[3, 3, 0, 0]} />
+                          <Bar yAxisId="hours" dataKey="reading_hours" name="Reading Hours" fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} />
+                          <Bar yAxisId="books" dataKey="books_finished" name="Books Finished" fill={accent} fillOpacity={0.45} radius={[3, 3, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </ChartCard>
@@ -1380,7 +1377,7 @@ export function StatsPage() {
                           stroke="none"
                         >
                           {data.by_category.map((_, i) => (
-                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            <Cell key={i} fill={palette[i % palette.length]} />
                           ))}
                         </Pie>
                         <Tooltip

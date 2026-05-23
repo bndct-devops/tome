@@ -1,0 +1,153 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { Tabs } from '../../components/Tabs'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+
+const installSnippet = `# In your local Tome checkout:
+./skills/scribe/install.sh
+
+# That symlinks skills/scribe into ~/.claude/skills/scribe so Claude Code
+# picks up the /scribe slash command on next launch.`
+
+const configSnippet = `# ~/.config/tome/scribe.json — multi-profile config
+{
+  "profiles": {
+    "dev": {
+      "base_url": "http://localhost:8080",
+      "token":    "tome_dev_…"
+    },
+    "prod": {
+      "base_url": "https://tome.example.com",
+      "token":    "tome_prod_…"
+    }
+  },
+  "default": "dev"
+}`
+
+const ingestSnippet = `# In Claude Code:
+/scribe ~/Downloads/manga-batch
+# → extracts metadata, dedupes by hash, ingests, fetches candidates`
+
+const updateSnippet = `# Refresh metadata on existing books by natural-language query
+/scribe update "Berserk volumes 1 through 10"
+/scribe update "everything in the Manga library by Kentaro Miura"`
+
+const auditSnippet = `# Scan for weak metadata + offer fixes
+/scribe audit                     # everything
+/scribe audit manga              # only Manga library / type
+/scribe audit "Vinland Saga"     # only the Vinland Saga series`
+
+const seriesSnippet = `# Fill series-level metadata (status + arcs) from LLM knowledge
+/scribe series "Berserk"
+/scribe series "One Piece"`
+---
+<DocsLayout title="Scribe (CLI)">
+  <SectionHero section="integrations" />
+  <h1>Scribe</h1>
+  <p>
+    Scribe is Tome's Claude Code Skill — an LLM-driven ingest and metadata tool that runs as a
+    slash command inside Claude Code. It dedupes by content hash, looks up canonical
+    series/author/type from existing books, fetches metadata candidates, applies high-confidence
+    matches automatically, and surfaces ambiguous ones for review.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="warning" title="Alpha — expect breakage">
+    Scribe is under active development. Command syntax, config format, and the auto-apply
+    thresholds may change between versions. If you're going to use it on a library you care
+    about, dry-run on a copy first.
+  </Callout>
+
+  <Callout variant="info" title="Power-user feature">
+    Scribe is meant for people running Tome who also use Claude Code. If neither of those
+    sentences describes you, the regular <a href={withBase("/docs/bindery")}>Bindery</a> drop-folder
+    workflow does most of the same things — just without the LLM-assisted matching.
+  </Callout>
+
+  <h2>Install</h2>
+  <Steps>
+    <li>Make sure Claude Code is installed locally.</li>
+    <li>From your Tome checkout, run the install script — it symlinks <code>skills/scribe</code> into <code>~/.claude/skills/scribe</code>.</li>
+    <li>Restart Claude Code. <code>/scribe</code> appears as a slash command.</li>
+  </Steps>
+
+  <pre><code>{installSnippet}</code></pre>
+
+  <h2>Authentication</h2>
+  <p>
+    Scribe needs an <a href={withBase("/docs/api-tokens")}>API token</a> to talk to your Tome server. Issue
+    one in <strong>Settings → API tokens</strong>, then drop it into
+    <code>~/.config/tome/scribe.json</code>.
+  </p>
+
+  <pre><code>{configSnippet}</code></pre>
+
+  <p>
+    Profiles let you point Scribe at multiple Tome instances. When more than one profile is
+    defined, Scribe asks which to use before every run — it never guesses with "dev" then
+    blasts your prod library.
+  </p>
+
+  <h2>The four modes</h2>
+  <Tabs client:load tabs={[
+    { label: '/scribe <path>',          code: ingestSnippet },
+    { label: '/scribe update <query>',  code: updateSnippet },
+    { label: '/scribe audit [scope]',   code: auditSnippet },
+    { label: '/scribe series <name>',   code: seriesSnippet },
+  ]} />
+
+  <h3>Ingest — <code>/scribe &lt;path&gt;</code></h3>
+  <p>
+    Walks a folder, extracts metadata from each file (EPUB OPF, CBZ ComicInfo.xml, PDF info),
+    deduplicates against existing books by content hash, looks up canonical
+    author/series/book-type from siblings already in your library, then POSTs each new book to
+    <code>/api/books/ingest</code>. Per book, Scribe fetches description and cover candidates
+    from Hardcover / Google Books / Open Library — high-confidence matches auto-apply, ambiguous
+    ones get surfaced for your review.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="scribe-ingest" alt="Sample /scribe ingest terminal output" />
+  </div>
+
+  <h3>Update — <code>/scribe update &lt;query&gt;</code></h3>
+  <p>
+    Re-fetches metadata for existing books matching a natural-language query. Scribe shows a diff
+    before applying — old vs new title, description, cover URL — so you can reject bad matches.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="scribe-update" alt="Sample /scribe update terminal output" />
+  </div>
+
+  <h3>Audit — <code>/scribe audit [scope]</code></h3>
+  <p>
+    Scans your library for weak metadata (missing description, missing year, missing cover) and
+    for series-name drift (volumes that don't agree on the canonical series spelling). For
+    missing descriptions, Scribe falls back to a web search on Goodreads / Wikipedia / the
+    publisher's site when the metadata APIs come up empty. Fixes are batched into a single
+    approve-or-reject pass.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="scribe-audit" alt="Sample /scribe audit terminal output" />
+  </div>
+
+  <h3>Series — <code>/scribe series &lt;name&gt;</code></h3>
+  <p>
+    Fills <code>SeriesMeta</code> (status: ongoing / finished / hiatus) and creates Arc records
+    from LLM knowledge of the series. Good for Berserk-class long runners where defining arcs
+    by hand is tedious.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="scribe-series" alt="Sample /scribe series terminal output" />
+  </div>
+
+  <Callout variant="tip" title="Run audit before update">
+    The typical workflow is: <code>/scribe &lt;path&gt;</code> for fresh imports, then
+    occasionally <code>/scribe audit</code> to clean up the long tail, then <code>/scribe
+    update</code> for targeted refreshes when you notice a series with bad metadata.
+  </Callout>
+</DocsLayout>

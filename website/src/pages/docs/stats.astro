@@ -1,0 +1,230 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Reading stats">
+  <SectionHero section="features" />
+  <h1>Reading stats</h1>
+  <p>
+    Tome's stats screens are built from real session data — every minute logged by the web reader
+    and every session the TomeSync KOReader plugin reports. No estimates from page counts, no
+    fudge factors, no guessing. If a chart is empty, it's because the data isn't there yet.
+  </p>
+  <DocsMeta />
+
+  <h2>Where the data comes from</h2>
+  <p>
+    Two writers, one table. The web reader and the
+    <a href={withBase("/docs/koreader")}>TomeSync plugin</a> both POST to <code>reading_sessions</code>: start
+    time, end time, pages turned, device. The stats endpoints aggregate from there. The
+    <code>UserBookStatus</code> table provides finished-book counts (<code>status = "read"</code>)
+    and the <code>TomeSyncPosition</code> table provides current-progress percentages.
+  </p>
+
+  <Callout variant="info" title="The 4-hour rollover">
+    A session that starts at 02:30 counts against the previous calendar day, not the new one. So
+    bedtime reads don't fragment your streak, and "a day of reading" matches what feels like a
+    day to you. Implemented in <code>backend/services/streaks.py</code> as a tz-aware date
+    bucket.
+  </Callout>
+
+  <Callout variant="warning" title="Time zones matter">
+    The frontend sends your browser's <code>getTimezoneOffset</code> with every stats request.
+    Hour-of-day buckets, streak boundaries, and daily aggregates all use <em>your</em> local time.
+    Two users in different time zones see different "today."
+  </Callout>
+
+  <h2>Overview tab</h2>
+  <p>The "where am I right now?" dashboard. Designed to be glanceable.</p>
+
+  <h3>Totals + streak</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-totals" alt="Six top-level metric cards" />
+  </div>
+  <p>
+    Six counters across the top, scoped to the period selector (default 30d, options 7d / 30d /
+    90d / 365d / all). Sum of <code>duration_seconds</code>, count of session rows, finished books,
+    current streak, pages turned, completion rate. Average session length is shown under
+    Reading Time.
+  </p>
+  <p>
+    Streak is in local-with-rollover days, with a one-day grace: if you haven't read yet today,
+    the streak still shows yesterday's value instead of dropping to zero. Once midnight (plus
+    rollover) passes without a session, the streak breaks.
+  </p>
+
+  <h3>Currently reading</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-currently-reading" alt="Currently reading books with progress bars" />
+  </div>
+  <p>
+    Books with <code>UserBookStatus.status = "reading"</code>, ordered by most-recently-read.
+    Progress comes from <code>TomeSyncPosition.percentage</code> when KOReader has reported in,
+    else <code>UserBookStatus.progress_pct</code> from the web reader.
+  </p>
+
+  <h3>Reading time per day</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-time-per-day" alt="Bar chart: reading time per day" />
+  </div>
+  <p>
+    One bar per day in the selected period. Tallest spike is your biggest session day. Useful
+    to spot binges (single tall bar) vs steady consistency (many short bars).
+  </p>
+
+  <h3>Top books</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-top-books" alt="Top 10 books by reading time" />
+  </div>
+  <p>
+    Top 10 books by total reading time in the period. Joins <code>reading_sessions</code> against
+    <code>books</code> and groups by book_id. The big numbers usually surface a book you've been
+    chewing on for weeks.
+  </p>
+
+  <h3>365-day activity grid</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-activity-grid" alt="GitHub-style 365-day reading activity grid" />
+  </div>
+  <p>
+    GitHub-style annual heatmap of daily reading minutes. Cells go from empty (no session) to
+    full accent (1h+ in a day). Useful to spot patterns — vacation blocks, work-week droughts,
+    weekend regulars.
+  </p>
+
+  <h2>Habits tab</h2>
+  <p>The "when and how do I read?" dashboard.</p>
+
+  <h3>Hour × day-of-week heatmap</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-heatmap" alt="Hour-by-day-of-week reading intensity heatmap" />
+  </div>
+  <p>
+    A 7×24 grid. Each cell is "minutes read in this hour of this weekday, summed across the
+    selected period." The colour scale is per-user: the darkest cell is your peak, everything
+    else is relative to it.
+  </p>
+  <p>
+    The interpretation: find your reading windows. If Monday 21:00 lights up but Monday 09:00 is
+    blank, you read at night, not before work. If Saturday morning blooms after a few months of
+    use, you read more on weekends than you thought. The point isn't the absolute numbers, it's
+    the <em>shape</em>.
+  </p>
+
+  <h3>Session timeline</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-session-timeline" alt="Recent session timeline on a 24h axis per day" />
+  </div>
+  <p>
+    Recent sessions plotted as horizontal bars on a time axis — start time on the x-axis,
+    duration as bar length, one row per date. Lets you see binge sessions (long bars) vs nibble
+    sessions (short bars), and at a glance whether you read in one big block or many small ones.
+  </p>
+
+  <h3>Reading pace</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-pace" alt="Pages-per-minute over recent sessions" />
+  </div>
+  <p>
+    Pages per minute, computed per-session from sessions with
+    <code>duration_seconds &gt; 60</code> and <code>pages_turned &gt; 0</code>.
+  </p>
+  <p>
+    Two things this catches: format effects (manga clocks 5+ ppm, dense literary fiction
+    sometimes 1 ppm) and tiredness (your evening pace usually drops below your morning pace).
+    Don't compare your number to anyone else's — pace is a fingerprint, not a benchmark.
+  </p>
+
+  <h3>Monthly comparison</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-monthly-comparison" alt="Bar chart of reading hours and books finished per month" />
+  </div>
+  <p>
+    Reading hours + books finished by month, last 12 months. Smooths out the day-to-day noise —
+    month-on-month is more legible than week-on-week.
+  </p>
+
+  <h2>Library tab</h2>
+  <p>The "what have I been reading?" dashboard. Focused on books, not on time.</p>
+
+  <h3>Series completion ladder</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-series-completion" alt="Series completion cards with per-series progress bars" />
+  </div>
+  <p>
+    For every series you have at least one volume in, a card showing volumes you own vs volumes
+    you've finished. Standalones are skipped — they're not a ladder.
+  </p>
+
+  <Callout variant="tip" title="The natural to-read queue">
+    Sort by "owned but unread" and it doubles as a "what should I read next?" list — series
+    you're partway through, with the next volume already on the shelf.
+  </Callout>
+
+  <h3>Author affinity</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-author-affinity" alt="Top authors by total reading time" />
+  </div>
+  <p>
+    Authors ranked by total minutes spent in their books. Distinct from "most books read" — an
+    author you've read three short novels by ranks lower than one whose 1500-page tome you've
+    finished.
+  </p>
+
+  <h3>Completion by type</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-completion-by-type" alt="Finish rate per book type" />
+  </div>
+  <p>
+    For each <code>BookType</code> (Novels, Manga, Comics, etc.) — total books started vs finished.
+    Quick way to see "I'm a manga reader who pretends to read novels" or vice versa.
+  </p>
+
+  <h3>Category breakdown</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-category-breakdown" alt="Pie chart of reading time per book type" />
+  </div>
+  <p>
+    Reading time split by book type — pie chart format. Pairs with completion-by-type to show
+    not just how much you finish but how much time you sink in each format.
+  </p>
+
+  <h3>Library growth</h3>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-library-growth" alt="Cumulative books added over time, split by book type" />
+  </div>
+  <p>
+    A cumulative line chart of <code>books.added_at</code> grouped by month and split by book
+    type. Not about reading — about hoarding. Goes up and to the right. Useful for noticing
+    acquisition sprees you'd otherwise forget about.
+  </p>
+
+  <h2>Charts that aren't here yet</h2>
+  <p>
+    Things explicitly considered and not built:
+  </p>
+  <ul>
+    <li><strong>Per-chapter pace</strong> within a book — too noisy for the current data shape; sessions cross chapters and chapter boundaries aren't tracked.</li>
+    <li><strong>Sleep-quality correlation</strong> — we have the data (late-night session detection) but no second data source to correlate against.</li>
+    <li><strong>Multi-user leaderboards</strong> — stats are per-user only by design. Tome isn't trying to gamify reading across a household.</li>
+  </ul>
+
+  <h2>API access</h2>
+  <p>
+    All the data behind these charts is reachable via the API. Useful for one-off scripts:
+  </p>
+  <ul>
+    <li><code>GET /api/stats?days=30&amp;tz_offset=-120</code> — the main bundle (everything on this page).</li>
+    <li><code>GET /api/stats/completion-estimates</code> — projected finish dates for in-progress books.</li>
+    <li><code>GET /api/stats/sessions</code> — paged session list, oldest first.</li>
+    <li><code>DELETE /api/stats/sessions/{`{id}`}</code> — delete a misfire.</li>
+  </ul>
+  <p>
+    Authenticate with an <a href={withBase("/docs/api-tokens")}>API token</a> or a JWT. Times are UTC in the
+    payload; bucketing happens server-side using the <code>tz_offset</code> you pass.
+  </p>
+</DocsLayout>

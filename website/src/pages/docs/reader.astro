@@ -1,0 +1,90 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Kbd from '../../components/Kbd.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Built-in reader">
+  <SectionHero section="features" />
+  <h1>Built-in reader</h1>
+  <p>
+    EPUBs, manga (CBZ/CBR), and PDFs render directly in the browser. No external app required.
+    Position is tracked at page granularity and syncs both ways with KOReader via
+    <a href={withBase("/docs/koreader")}>TomeSync</a>.
+  </p>
+  <DocsMeta />
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="reader-epub" alt="EPUB reader rendering Frankenstein" />
+  </div>
+
+  <h2>EPUB reader</h2>
+  <p>
+    Built on <a href="https://github.com/johnfactotum/foliate-js">foliate-js</a>, the same engine
+    that powers Foliate on the desktop. Pagination, not infinite scroll — pages re-flow to your
+    viewport.
+  </p>
+
+  <h3>Controls</h3>
+  <ul>
+    <li><strong>Themes:</strong> light, sepia, dark. Independent of the app theme — you can read in sepia inside a dark Tome.</li>
+    <li><strong>Font:</strong> system serif, sans, or monospace, sized 12–28px.</li>
+    <li><strong>Table of contents:</strong> drawer on the left. Click to jump.</li>
+    <li><strong>Position memory:</strong> EPUB position is a CFI (Canonical Fragment Identifier) — resilient against re-flow, so resuming on a different device with a different font size lands you on the same paragraph, not the same pixel offset.</li>
+  </ul>
+
+  <Callout variant="info" title="Position syncs with KOReader, even from the web">
+    Read a chapter in your browser at lunch, switch to your Kobo on the commute home — KOReader
+    opens at the right paragraph. The reverse works too: web reader picks up where KOReader left off.
+    See <a href={withBase("/docs/koreader")}>TomeSync</a>.
+  </Callout>
+
+  <h3>Keyboard shortcuts</h3>
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><Kbd>→</Kbd> or <Kbd>Space</Kbd></td><td>Next page</td></tr>
+      <tr><td><Kbd>←</Kbd></td><td>Previous page</td></tr>
+      <tr><td><Kbd>t</Kbd></td><td>Toggle TOC drawer</td></tr>
+      <tr><td><Kbd>s</Kbd></td><td>Toggle settings panel</td></tr>
+      <tr><td><Kbd>Esc</Kbd></td><td>Close drawer / exit reader</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Manga / CBZ reader</h2>
+  <p>
+    Custom streaming reader — pages are fetched on demand from the server, so you can open a 2 GB
+    manga volume without downloading the archive. Works for CBZ; CBR support requires
+    <code>unrar-free</code> server-side (already in the Docker image).
+  </p>
+
+  <h3>Layout modes</h3>
+  <ul>
+    <li><strong>Page mode</strong> — one page (or two-page spread) at a time, click or arrow to advance.</li>
+    <li><strong>Webtoon mode</strong> — vertical infinite scroll. Best for Korean / Chinese vertical comics.</li>
+  </ul>
+
+  <h3>Per-volume options</h3>
+  <ul>
+    <li><strong>Reading direction:</strong> LTR (default) or RTL. RTL flips arrow keys and spread order — important for Japanese manga.</li>
+    <li><strong>Fit:</strong> width, height, or original.</li>
+    <li><strong>Single vs spread:</strong> spread mode pairs pages 2-3, 4-5, etc. The cover stays solo.</li>
+    <li><strong>Theme:</strong> light, dark, sepia background — useful for matte e-ink screens reading in low light.</li>
+  </ul>
+
+  <Callout variant="tip" title="Mobile gestures work too">
+    Tap left/right thirds of the screen to turn pages, tap centre for the controls overlay.
+    Pinch-zoom is supported in page mode.
+  </Callout>
+
+  <h2>PDF</h2>
+  <p>
+    Served as <code>application/pdf</code>; the browser's built-in viewer handles rendering.
+    Position is tracked at the page level — no CFI equivalent, since PDFs are fixed-layout. If
+    you want a richer PDF experience, send the file to KOReader (it does PDF reflow well) and
+    your position still syncs.
+  </p>
+</DocsLayout>

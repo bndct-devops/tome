@@ -1,0 +1,103 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Changelog">
+  <SectionHero section="reference" />
+  <h1>Changelog</h1>
+  <p>
+    Release notes per version, newest first. Tome's release codenames follow a "synonyms for
+    tome" theme — Codex, Grimoire, Atlas, Folio, and so on. The canonical source is
+    <a href="https://github.com/bndct-devops/tome/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>
+    in the repo; this page mirrors it.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="info" title="Pre-1.0 history is intentionally not here">
+    The 0.x line was the build-it-and-see phase — schema churn, half-finished features, breaking
+    changes between minor versions. Anything from before 1.0 isn't documented here because it
+    isn't a path anyone should be on; just upgrade to the latest 1.x.
+  </Callout>
+
+  <h2>v1.0 — "Codex"</h2>
+  <p>
+    The first release that calls itself done. Stable schema, opinionated defaults, a coherent
+    docs site. If you've been running Tome from <code>main</code>, this is where the floor stops
+    moving.
+  </p>
+
+  <h3>Highlights</h3>
+  <ul>
+    <li>
+      <strong>TomeSync KOReader plugin (v4):</strong> bidirectional position sync, reading-session
+      tracking, in-plugin series browser, series download. Zero-config install — download the
+      pre-baked <code>.koplugin</code> from Settings.
+    </li>
+    <li>
+      <strong>Web reader:</strong> EPUB (foliate-js) and CBZ (custom streaming) with themes, font
+      controls, RTL toggle, spread mode, position memory via CFI.
+    </li>
+    <li>
+      <strong>Reading stats:</strong> three tabs (Overview / Habits / Library), 4-hour streak
+      rollover, hour×DOW heatmap, period and monthly comparisons, completion estimates, per-book
+      time, library growth.
+    </li>
+    <li>
+      <strong>Series & arcs:</strong> SeriesMeta status badge, admin Arc CRUD, series-wide
+      progress aggregation, chapter vs volume detection for manga.
+    </li>
+    <li>
+      <strong>Roles & visibility:</strong> three-tier admin / member / guest model with
+      server-enforced per-book visibility rules. Quick Connect for new devices.
+    </li>
+    <li>
+      <strong>Bindery:</strong> drop-folder ingestion with manual review (default) or auto-import
+      on a timer. Content-hash dedup, filename-based series detection, metadata fetch from
+      Hardcover / Google Books / Open Library.
+    </li>
+    <li>
+      <strong>Scribe (alpha):</strong> Claude Code skill for bulk ingest, metadata audits, and
+      series-level annotation. <a href={withBase("/docs/scribe")}>Docs</a>.
+    </li>
+    <li>
+      <strong>API tokens:</strong> universal-scope <code>tome_*</code> bearer tokens for every
+      <code>/api/*</code> endpoint.
+    </li>
+    <li>
+      <strong>OPDS feed:</strong> standards-compliant Atom catalogue with per-user PINs.
+    </li>
+    <li>
+      <strong>Themes:</strong> light, dark, amber, plus user-defined 10-value palettes.
+    </li>
+    <li>
+      <strong>PWA:</strong> installable on iOS and Android with manifest + offline icons.
+    </li>
+  </ul>
+
+  <h3>Stable surfaces</h3>
+  <p>
+    The following are considered stable as of 1.0 — backwards-incompatible changes will get a
+    major-version bump:
+  </p>
+  <ul>
+    <li>The HTTP API at <code>/api/*</code>.</li>
+    <li>The OPDS feed at <code>/opds/</code>.</li>
+    <li>The TomeSync KOReader plugin protocol.</li>
+    <li>The environment variable names listed in <a href={withBase("/docs/configuration")}>Configuration</a>.</li>
+    <li>The on-disk library layout (<code>Series/</code> and <code>Author/</code> folders).</li>
+  </ul>
+
+  <h3>Things still labelled alpha</h3>
+  <ul>
+    <li><a href={withBase("/docs/scribe")}>Scribe</a> command surface — syntax and config format may change.</li>
+  </ul>
+
+  <Callout variant="tip" title="Upgrading from 0.x">
+    Pull the latest image and recreate the container. Migrations run on startup. Your data in
+    <code>/data</code> and <code>/books</code> stays put. Existing JWTs survive; API tokens
+    survive; KOReader plugins should be re-downloaded only if their server URL changed.
+  </Callout>
+</DocsLayout>

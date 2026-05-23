@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro'
-import { ThemeToggle } from '../components/ThemeToggle'
+import SiteHeader from '../components/SiteHeader.astro'
 import { ThemedShot } from '../components/ThemedShot'
 import { RevealOnScroll } from '../components/RevealOnScroll'
 import { CopyButton } from '../components/CopyButton'
@@ -56,19 +56,8 @@ const competitors = [
 ]
 ---
 <BaseLayout title="Tome — A self-hosted ebook library that knows how you read">
-  <!-- Header -->
-  <header class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-[var(--bg)]/70 border-b border-[var(--border)]">
-    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-      <a href="/" class="flex items-center gap-2.5 font-semibold text-lg">
-        <img src="/favicon.svg" alt="" width="28" height="28" class="rounded-md" />
-        Tome
-      </a>
-      <div class="flex items-center gap-4">
-        <a href="https://github.com/bndct-devops/tome" class="text-sm text-[var(--muted)] hover:text-[var(--fg)] transition-colors">GitHub</a>
-        <ThemeToggle client:load />
-      </div>
-    </div>
-  </header>
+  <SiteHeader />
+
 
   <!-- Hero -->
   <section class="relative max-w-6xl mx-auto px-6 pt-32 pb-24 text-center">

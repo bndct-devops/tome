@@ -1,0 +1,27 @@
+---
+import { DOCS_NAV } from './docs-nav'
+import { withBase, stripBase } from '../lib/path'
+const path = stripBase(Astro.url.pathname)
+const isActive = (href: string) => path === href || (href !== '/docs' && path.startsWith(href))
+---
+<aside class="docs-sidebar">
+  <nav class="docs-nav">
+    {DOCS_NAV.map(group => (
+      <div class="docs-nav-group">
+        <div class="docs-nav-label">{group.label}</div>
+        <ul>
+          {group.items.map(item => (
+            <li>
+              <a
+                href={withBase(item.href)}
+                class={`docs-nav-link ${isActive(item.href) ? 'is-active' : ''}`}
+              >
+                {item.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </nav>
+</aside>

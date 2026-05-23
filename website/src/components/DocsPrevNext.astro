@@ -1,0 +1,21 @@
+---
+import { findAdjacent } from './docs-nav'
+import { withBase, stripBase } from '../lib/path'
+const { prev, next } = findAdjacent(stripBase(Astro.url.pathname))
+---
+{(prev || next) && (
+  <nav class="docs-prevnext" aria-label="Page navigation">
+    {prev ? (
+      <a href={withBase(prev.href)} class="docs-prevnext-card docs-prevnext-prev">
+        <span class="docs-prevnext-label">← Previous</span>
+        <span class="docs-prevnext-title">{prev.title}</span>
+      </a>
+    ) : <span></span>}
+    {next ? (
+      <a href={withBase(next.href)} class="docs-prevnext-card docs-prevnext-next">
+        <span class="docs-prevnext-label">Next →</span>
+        <span class="docs-prevnext-title">{next.title}</span>
+      </a>
+    ) : <span></span>}
+  </nav>
+)}

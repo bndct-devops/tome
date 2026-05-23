@@ -34,7 +34,6 @@ export function AuthorAffinity({ data }: { data: AuthorAffinityEntry[] }) {
           value={formatDuration(a.seconds)}
           pct={(a.seconds / maxSeconds) * 100}
           sub={`${a.books_finished} finished · ${a.book_count} book${a.book_count !== 1 ? 's' : ''} read`}
-          color="#8b5cf6"
         />
       ))}
     </div>

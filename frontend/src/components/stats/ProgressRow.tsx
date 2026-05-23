@@ -1,9 +1,11 @@
+import { useChartAccent } from '@/lib/useChartAccent'
+
 export function ProgressRow({
   label,
   value,
   pct,
   sub,
-  color = '#6366f1',
+  color,
 }: {
   label: string
   value: string
@@ -11,6 +13,8 @@ export function ProgressRow({
   sub?: string
   color?: string
 }) {
+  const accent = useChartAccent()
+  const fill = color ?? accent
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
@@ -21,7 +25,7 @@ export function ProgressRow({
       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all"
-          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
+          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: fill }}
         />
       </div>
     </div>

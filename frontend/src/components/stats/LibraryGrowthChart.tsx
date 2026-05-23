@@ -7,23 +7,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { useChartPalette } from '@/lib/useChartPalette'
 
 interface GrowthEntry {
   month: string
   total: number
   [category: string]: number | string
 }
-
-const GROWTH_COLORS = [
-  '#6366f1',
-  '#8b5cf6',
-  '#ec4899',
-  '#f59e0b',
-  '#10b981',
-  '#3b82f6',
-  '#ef4444',
-  '#14b8a6',
-]
 
 function formatMonth(m: string): string {
   try {
@@ -42,6 +32,7 @@ function ChartTooltip({ children }: { children: React.ReactNode }) {
 }
 
 export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
+  const palette = useChartPalette()
   if (!data || data.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">No library growth data.</p>
@@ -107,9 +98,9 @@ export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
             type="monotone"
             dataKey={cat}
             stackId="1"
-            fill={GROWTH_COLORS[i % GROWTH_COLORS.length]}
+            fill={palette[i % palette.length]}
             fillOpacity={0.6}
-            stroke={GROWTH_COLORS[i % GROWTH_COLORS.length]}
+            stroke={palette[i % palette.length]}
             strokeWidth={1.5}
           />
         ))}

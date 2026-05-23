@@ -48,6 +48,7 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  --chart-accent: oklch(0.585 0.187 277);
 }
 
 .dark {
@@ -69,6 +70,7 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --chart-accent: oklch(0.685 0.187 277);
 }
 
 /* Amber (warm parchment) theme */
@@ -91,6 +93,7 @@
   --border: oklch(0.89 0.012 70);
   --input: oklch(0.87 0.013 70);
   --ring: oklch(0.50 0.155 52);
+  --chart-accent: oklch(0.56 0.155 52);
 }
 
 /* Card stagger entrance animation */

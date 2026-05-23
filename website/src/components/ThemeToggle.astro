@@ -1,0 +1,54 @@
+---
+// Server-rendered theme toggle. The inline init script in BaseLayout sets
+// html.theme-X before paint; the CSS below highlights the right button via
+// that class. No React, no hydration, no flicker — the correct button is
+// active from the very first frame on every navigation.
+---
+<div class="theme-toggle" role="group" aria-label="Theme">
+  <button type="button" data-theme-set="light" aria-label="Light theme">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+  <button type="button" data-theme-set="dark" aria-label="Dark theme">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  </button>
+  <button type="button" data-theme-set="amber" aria-label="Amber theme">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/>
+    </svg>
+  </button>
+</div>
+<script>
+  // Click handlers (added after first paint; the toggle is fully usable
+  // by the time someone could possibly click it).
+  function applyTheme(theme: string, originX?: number, originY?: number) {
+    try { localStorage.setItem('tome_site_theme', theme) } catch {}
+    const root = document.documentElement
+    const apply = () => {
+      root.classList.remove('theme-light', 'theme-dark', 'theme-amber')
+      root.classList.add('theme-' + theme)
+      document.dispatchEvent(new CustomEvent('tome:theme', { detail: theme }))
+    }
+    const vt = (document as any).startViewTransition?.bind(document)
+    if (originX !== undefined && originY !== undefined) {
+      root.style.setProperty('--vt-origin-x', `${originX}px`)
+      root.style.setProperty('--vt-origin-y', `${originY}px`)
+    }
+    if (vt) vt(apply); else apply()
+  }
+  document.querySelectorAll('.theme-toggle button[data-theme-set]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const target = e.currentTarget as HTMLElement
+      const theme = target.getAttribute('data-theme-set') || 'light'
+      const rect = target.getBoundingClientRect()
+      applyTheme(theme, rect.left + rect.width / 2, rect.top + rect.height / 2)
+    })
+  })
+</script>

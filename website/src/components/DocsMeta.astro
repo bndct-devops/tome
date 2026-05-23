@@ -1,0 +1,39 @@
+---
+// Page metadata strip — last updated + reading time.
+// Reading time is derived from the rendered article DOM at build time via a
+// small inline script so any markup-heavy page is approximated correctly.
+import fs from 'node:fs'
+import path from 'node:path'
+
+interface Props { sourcePath?: string }
+const { sourcePath } = Astro.props as Props
+
+let updated: string | null = null
+try {
+  const filePath = sourcePath
+    ? path.resolve(process.cwd(), sourcePath)
+    : path.resolve(process.cwd(), 'src/pages', `${Astro.url.pathname.replace(/^\//, '')}.astro`)
+  if (fs.existsSync(filePath)) {
+    const mtime = fs.statSync(filePath).mtime
+    updated = mtime.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+} catch { /* ignore */ }
+---
+<div class="docs-meta">
+  {updated && <span><span class="docs-meta-label">Updated</span> {updated}</span>}
+  <span id="docs-reading-time" class="docs-meta-hidden">
+    <span class="docs-meta-label">Reading time</span> <span class="docs-meta-value">—</span>
+  </span>
+</div>
+<script>
+  // Estimate reading time from the rendered article text (build-stable per page).
+  const article = document.querySelector('.docs-article')
+  const slot = document.querySelector('#docs-reading-time .docs-meta-value')
+  const wrapper = document.querySelector('#docs-reading-time')
+  if (article && slot && wrapper) {
+    const words = (article.textContent || '').trim().split(/\s+/).length
+    const minutes = Math.max(1, Math.round(words / 220))
+    slot.textContent = `${minutes} min`
+    wrapper.classList.remove('docs-meta-hidden')
+  }
+</script>
