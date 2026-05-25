@@ -187,6 +187,27 @@ html { scroll-behavior: smooth; }
 }
 .lightbox-close:hover { background: rgba(255, 255, 255, 0.2); }
 
+/* ── Docs anchor links on headings ── */
+.docs-article .heading-anchor {
+  margin-left: 0.4em;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 400;
+  font-size: 0.6em;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.docs-article h2:hover .heading-anchor,
+.docs-article h3:hover .heading-anchor,
+.docs-article .heading-anchor:focus {
+  opacity: 0.4;
+}
+.docs-article .heading-anchor:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
 /* ── Docs shell ── */
 .docs-shell {
   display: grid;
@@ -268,7 +289,25 @@ html { scroll-behavior: smooth; }
 .docs-article p, .docs-article ul, .docs-article ol {
   margin-bottom: 16px;
 }
-.docs-article ul, .docs-article ol { padding-left: 24px; }
+.docs-article ul { padding-left: 8px; list-style: none; }
+.docs-article ul > li {
+  position: relative;
+  padding-left: 18px;
+  margin-bottom: 10px;
+  line-height: 1.55;
+}
+.docs-article ul > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.5;
+}
+.docs-article ol { padding-left: 24px; }
 .docs-article li { margin-bottom: 6px; }
 .docs-article code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1013,6 +1052,7 @@ html.theme-dark .setup-steps li { background: oklch(1 0 0 / 0.04); }
   .cmp-row-label { font-size: 0.8rem; padding: 12px 14px; }
 }
 .comparison-scroll-wrapper {
+  position: relative;
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
@@ -1021,4 +1061,15 @@ html.theme-dark .setup-steps li { background: oklch(1 0 0 / 0.04); }
   padding-bottom: 12px;
   /* Negative margin top so the visual section padding isn't doubled */
   margin-top: -8px;
+}
+/* Scroll hint: right-edge fade on mobile when content overflows */
+@media (max-width: 768px) {
+  .comparison-scroll-wrapper {
+    mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+  }
+  .comparison-scroll-wrapper.scrolled-end {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
 }

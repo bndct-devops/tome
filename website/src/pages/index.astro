@@ -25,18 +25,19 @@ const compareFeatures = [
   'Zero-config KOReader plugin install',
   'Bidirectional KOReader position sync',
   'Built-in EPUB + comic reader',
+  'OPDS catalog',
   'Stats & reading insights',
   'Modern, theme-aware UI',
 ]
 const competitors = [
   { name: 'Tome',         tagline: 'E-reader-first',         primary: true,  badge: 'KOReader users',
-    cells: ['yes', 'yes', 'yes', 'yes', 'rich', 'yes'] },
+    cells: ['yes', 'yes', 'yes', 'yes', 'yes', 'rich', 'yes'] },
   { name: 'Calibre-Web',  tagline: 'Largest ecosystem',
-    cells: ['no', 'no', 'via CWA fork', 'yes', 'basic shelves', 'dated'] },
+    cells: ['no', 'no', 'via CWA fork', 'yes', 'yes', 'basic shelves', 'dated'] },
   { name: 'Komga',        tagline: 'Comics powerhouse',
-    cells: ['no', 'no', 'yes', 'comics-first', 'session logs', 'functional'] },
+    cells: ['no', 'no', 'yes', 'comics-first', 'yes', 'session logs', 'functional'] },
   { name: 'Kavita',       tagline: 'Featureful all-rounder',
-    cells: ['no', 'no', 'yes (v0.8.7+)', 'yes', 'progress only', 'polished'] },
+    cells: ['no', 'no', 'yes (v0.8.7+)', 'yes', 'yes', 'progress only', 'polished'] },
 ]
 ---
 <BaseLayout title="Tome — A self-hosted ebook library that knows how you read">
@@ -160,6 +161,10 @@ const competitors = [
         </p>
       </div>
     </div>
+
+    <p class="reveal text-center text-sm text-[var(--muted)] mt-8 max-w-2xl mx-auto">
+      Not using KOReader? Tome also serves an <a href="/docs/opds" class="text-[var(--accent)] hover:underline">OPDS catalog</a> for any reader that supports it.
+    </p>
   </section>
 
   <!-- Feature 2: series & arcs (keeps the static screenshot) -->
@@ -310,11 +315,58 @@ const competitors = [
 
   <!-- Footer -->
   <footer class="border-t border-[var(--border)]">
-    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-[var(--muted)]">
-      <div>AGPL-3.0 · <a href="https://github.com/bndct-devops/tome" class="hover:text-[var(--fg)] transition-colors">bndct-devops/tome</a></div>
-      <div>v1.0 · Codex</div>
+    <div class="max-w-6xl mx-auto px-6 py-10">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Product</h4>
+          <ul class="space-y-2 text-sm text-[var(--muted)]">
+            <li><a href="/docs" class="hover:text-[var(--fg)] transition-colors">Docs</a></li>
+            <li><a href="/docs/installation" class="hover:text-[var(--fg)] transition-colors">Installation</a></li>
+            <li><a href="/docs/changelog" class="hover:text-[var(--fg)] transition-colors">Changelog</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Features</h4>
+          <ul class="space-y-2 text-sm text-[var(--muted)]">
+            <li><a href="/docs/koreader" class="hover:text-[var(--fg)] transition-colors">KOReader / TomeSync</a></li>
+            <li><a href="/docs/opds" class="hover:text-[var(--fg)] transition-colors">OPDS</a></li>
+            <li><a href="/docs/stats" class="hover:text-[var(--fg)] transition-colors">Stats</a></li>
+            <li><a href="/docs/reader" class="hover:text-[var(--fg)] transition-colors">Web Reader</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Admin</h4>
+          <ul class="space-y-2 text-sm text-[var(--muted)]">
+            <li><a href="/docs/users-and-roles" class="hover:text-[var(--fg)] transition-colors">Users &amp; Roles</a></li>
+            <li><a href="/docs/bindery" class="hover:text-[var(--fg)] transition-colors">Bindery</a></li>
+            <li><a href="/docs/api-tokens" class="hover:text-[var(--fg)] transition-colors">API Tokens</a></li>
+            <li><a href="/docs/configuration" class="hover:text-[var(--fg)] transition-colors">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Community</h4>
+          <ul class="space-y-2 text-sm text-[var(--muted)]">
+            <li><a href="https://github.com/bndct-devops/tome" class="hover:text-[var(--fg)] transition-colors">GitHub</a></li>
+            <li><a href="https://github.com/bndct-devops/tome/issues" class="hover:text-[var(--fg)] transition-colors">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="flex flex-col md:flex-row items-center justify-between gap-3 pt-6 border-t border-[var(--border)] text-sm text-[var(--muted)]">
+        <div>AGPL-3.0 · <a href="https://github.com/bndct-devops/tome" class="hover:text-[var(--fg)] transition-colors">bndct-devops/tome</a></div>
+        <div>v1.0 · Codex</div>
+      </div>
     </div>
   </footer>
 
   <RevealOnScroll client:load />
+
+  <script>
+    const wrapper = document.querySelector('.comparison-scroll-wrapper')
+    if (wrapper) {
+      wrapper.addEventListener('scroll', () => {
+        const atEnd = wrapper.scrollLeft + wrapper.clientWidth >= wrapper.scrollWidth - 10
+        wrapper.classList.toggle('scrolled-end', atEnd)
+      })
+    }
+  </script>
 </BaseLayout>

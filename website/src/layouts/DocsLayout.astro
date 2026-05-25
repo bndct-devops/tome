@@ -27,4 +27,25 @@ const { title, description } = Astro.props
     </main>
     <DocsToc client:idle />
   </div>
+
+  <script>
+    const article = document.querySelector('.docs-article')
+    if (article) {
+      article.querySelectorAll('h2, h3').forEach(h => {
+        if (!h.id) {
+          h.id = (h.textContent || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .trim()
+            .replace(/\s+/g, '-')
+        }
+        const a = document.createElement('a')
+        a.className = 'heading-anchor'
+        a.href = `#${h.id}`
+        a.textContent = '#'
+        a.setAttribute('aria-label', `Link to ${h.textContent}`)
+        h.append(a)
+      })
+    }
+  </script>
 </BaseLayout>

@@ -43,6 +43,21 @@ const ogImage = `${siteUrl}${withBase('/og.png')}`
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
+
+    <!-- Structured data -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Tome",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Linux, Docker",
+      "description": description,
+      "url": siteUrl,
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@type": "Person", "name": "bndct-devops", "url": "https://github.com/bndct-devops" },
+      "screenshot": `${siteUrl}/shots/light/home.png`,
+    })} />
     <!-- No-flash theme init: ?theme=… query param wins (passed from the Tome
          app so we continue in the same theme), then localStorage, then
          system pref. After applying, strip the query param for a clean URL. -->
