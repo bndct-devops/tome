@@ -4,7 +4,10 @@ All notable changes to Tome are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] — 2026-05-25 — "Codex"
+
+First stable release. Schema, API, and plugin protocol are now stable —
+breaking changes get a major-version bump.
 
 ### Security
 - Closed exploitable path-traversal in the upload/ingest endpoints (file
@@ -36,11 +39,30 @@ All notable changes to Tome are documented here. Format loosely follows
 - Unified reading-streak calculation: Dashboard and Stats now agree, with
   a 4-hour rollover so late-night reading sessions count toward the
   previous day.
+- Download metadata embedding: EPUB downloads get OPF `dc:*` +
+  `calibre:series`; CBZ downloads get `ComicInfo.xml` + prepended cover.
+  Cached at `data/baked/`; auto-invalidates on metadata update.
+- API tokens: user-level `tome_*` bearer tokens accepted on every `/api/*`
+  endpoint. Created/revoked in Settings; admins can view all users' tokens.
+- Admin duplicate detection: 4 strategies (content hash, ISBN,
+  author+series+index, fuzzy title+author >85%). Merge or dismiss.
+- Library health tool: lists misplaced files, one-click reorganise.
+- Keyboard shortcuts modal (`?` to open).
+- Scribe: Claude Code skill for batch ingest, metadata audits, series
+  annotation. Alpha — command surface may change.
+- Home tab with landing-page summary endpoints.
+- Arcs and SeriesMeta with admin CRUD; volumes group by arc on series page.
 
 ### Fixed
 - Infinite scroll re-attaches after switching dashboard tabs.
 - SQLite connection-pool exhaustion under load (switched to NullPool).
 - Comic reader view settings persist; final page now reports 100%.
+- Session endpoint now updates reading status as safety net — catches up
+  when position PUTs fail but queued sessions flush later.
+- Progress scale normalised to 0–1 everywhere (was 0–100 from web reader).
+- Web reader no longer overwrites KOSync progress with 0 on initial load.
+- Fixed crash when opening KOReader-synced books (XPointer vs epubcfi).
+- Naive datetime timestamps now include Z suffix for correct timezone display.
 
 ## [0.2.0] — 2026-04-17
 
@@ -107,6 +129,6 @@ First public release.
 - Mobile-responsive PWA.
 - Single Docker image (FastAPI + React + SQLite).
 
-[Unreleased]: https://github.com/bndct-devops/tome/compare/v0.2.0...HEAD
+[1.0.0]: https://github.com/bndct-devops/tome/releases/tag/v1.0.0
 [0.2.0]: https://github.com/bndct-devops/tome/releases/tag/v0.2.0
 [0.1.0]: https://github.com/bndct-devops/tome/releases/tag/v0.1.0
