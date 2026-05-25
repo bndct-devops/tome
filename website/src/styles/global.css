@@ -53,6 +53,7 @@ html.theme-amber {
 html, body {
   background-color: var(--bg);
   color: var(--fg);
+  overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
   /* Body + display — Onest. Humanist sans; warmer than Inter, less cliquey
      than Geist. Used everywhere; H1/H2 just bump weight + size. */

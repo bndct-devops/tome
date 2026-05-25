@@ -19,11 +19,11 @@ const isBlog = path.startsWith('/blog')
     <nav class="flex items-center gap-3 md:gap-5">
       <a
         href={withBase('/why')}
-        class={`text-sm transition-colors ${isWhy ? 'text-[var(--fg)] font-medium' : 'text-[var(--muted)] hover:text-[var(--fg)]'}`}
+        class={`text-sm transition-colors hidden sm:inline ${isWhy ? 'text-[var(--fg)] font-medium' : 'text-[var(--muted)] hover:text-[var(--fg)]'}`}
       >Why Tome?</a>
       <a
         href={withBase('/blog')}
-        class={`text-sm transition-colors ${isBlog ? 'text-[var(--fg)] font-medium' : 'text-[var(--muted)] hover:text-[var(--fg)]'}`}
+        class={`text-sm transition-colors hidden sm:inline ${isBlog ? 'text-[var(--fg)] font-medium' : 'text-[var(--muted)] hover:text-[var(--fg)]'}`}
       >Blog</a>
       <a
         href={withBase('/docs')}
