@@ -1,0 +1,445 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import SiteHeader from '../components/SiteHeader.astro'
+import { RevealOnScroll } from '../components/RevealOnScroll'
+---
+<BaseLayout title="Why Tome — How it compares to every self-hosted ebook server" description="An honest, opinionated comparison of Tome against Calibre-Web, Kavita, Komga, and every other self-hosted ebook tool.">
+  <SiteHeader />
+
+  <article class="why-article">
+    <!-- Hero -->
+    <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-16 text-center">
+      <div class="accent-glow"></div>
+      <p class="reveal inline-block mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+        An opinionated comparison
+      </p>
+      <h1 class="reveal text-4xl md:text-6xl font-bold tracking-tight mb-6 leading-[1.1]">
+        Why Tome?
+      </h1>
+      <p class="reveal text-lg md:text-xl text-[var(--muted)] leading-relaxed max-w-2xl mx-auto">
+        There are several good self-hosted ebook servers. This page explains what Tome does
+        differently, how every alternative compares, and where each one is the better choice.
+      </p>
+    </header>
+
+    <!-- The problem -->
+    <section class="why-section reveal">
+      <h2 id="the-problem">The problem</h2>
+      <p>
+        Most self-hosted library servers were built to <em>serve files</em>. They're very good at
+        it — scanning folders, extracting metadata, exposing an OPDS catalog, rendering pages
+        in a browser. What they don't do is care whether you actually <em>read</em> any of it.
+      </p>
+      <p>
+        Tome was built around a different premise: a library server should know how you read.
+        When you pick up your Kobo at night and read for an hour, Tome should record that session,
+        sync your position to the web reader, update your streak, and surface it in stats the next
+        morning. That's the foundation — not a feature bolted on later.
+      </p>
+    </section>
+
+    <!-- What Tome does -->
+    <section class="why-section reveal">
+      <h2 id="what-tome-does">What Tome does</h2>
+
+      <h3>TomeSync — a real KOReader plugin, not just a protocol</h3>
+      <p>
+        Every other self-hosted library that supports KOReader does it the same way: they implement
+        the KOSync protocol on the server side, and you point KOReader's built-in sync plugin at it.
+        That gets you progress sync — where you left off — and nothing else. CWA ships a plugin, but
+        it's a lightly modified clone of the stock KOSync plugin with different auth. Kavita, Komga,
+        and Stump all just expose KOSync-compatible endpoints.
+      </p>
+      <p>
+        Tome ships <strong>TomeSync</strong>, a purpose-built <code>.koplugin</code> that goes
+        well beyond progress sync:
+      </p>
+      <ul>
+        <li><strong>Reading-session recording</strong> — every time you close the lid or close a book, TomeSync records a session: start time, end time, duration, pages turned, device. This is what powers Tome's stats (streaks, heatmaps, pace, completion estimates). No other tool captures this data from KOReader.</li>
+        <li><strong>Series browser</strong> — browse your entire library's series from inside KOReader. Tap a series to bulk-download every volume, organized into folders by book type and series name (<code>manga/One Piece/Vol. 1 — One Piece.epub</code>). Or download just the rest of a series from your current volume forward.</li>
+        <li><strong>Bidirectional position sync</strong> — read on your Kobo, pick up on the web reader, come back to KOReader the next night. Position follows you both directions automatically.</li>
+        <li><strong>Stable book IDs</strong> — TomeSync matches books by Tome's internal IDs, not MD5 file hashes. Rename a file, re-download it, reorganize your library — the link doesn't break.</li>
+        <li><strong>Offline-first</strong> — when your server is unreachable, sync silently skips with zero delay. Sessions are saved locally and flush automatically when the connection returns. Up to 50 sessions can queue offline.</li>
+        <li><strong>Pre-configured</strong> — download the plugin from Tome's settings page and it comes with your server URL and API key baked in. No manual configuration.</li>
+      </ul>
+
+      <h3>Stats</h3>
+      <p>
+        Stats aren't an afterthought. Three tabs: Overview (totals, streak,
+        currently reading, daily pace), Habits (hour-by-day-of-week heatmap, session timeline,
+        reading pace, monthly comparison), Library (series completion, author affinity, completion
+        by type, library growth). A 365-day heatmap shows your year at a glance. All of it built
+        on actual session data from your e-reader, not estimated from page counts.
+      </p>
+
+      <h3>Series</h3>
+      <p>
+        Books group into series, series have statuses (ongoing, completed, hiatus), and volumes
+        can be organized into arcs within a series. This matters for manga and light novels where
+        you might have 30+ volumes in a single series spread across multiple story arcs.
+      </p>
+
+      <h3>Free metadata</h3>
+      <p>
+        Metadata fetching is free and built in. Google Books, OpenLibrary, and Hardcover (with an
+        optional API key) — no subscription required. The Scribe tool (a Claude Code skill) can
+        batch-ingest hundreds of books, auto-match metadata, and audit your library for weak spots.
+      </p>
+
+      <h3>The stack</h3>
+      <p>
+        Python/FastAPI on the backend, React 19 with Tailwind CSS 4 on the frontend, SQLite under
+        the hood. One Docker image, three volume mounts, no external services. It runs on a
+        Raspberry Pi.
+      </p>
+    </section>
+
+    <!-- What Tome doesn't do -->
+    <section class="why-section reveal">
+      <h2 id="what-tome-doesnt-do">What Tome doesn't do</h2>
+      <p>
+        Before getting into comparisons — an honest list of things other tools handle that Tome
+        currently does not:
+      </p>
+      <ul>
+        <li><strong>Calibre integration</strong> — Tome has its own database. It won't read an existing Calibre library.</li>
+        <li><strong>Kobo device sync</strong> — Tome syncs via the TomeSync KOReader plugin, not the Kobo store API.</li>
+        <li><strong>Send-to-Kindle / email delivery</strong> — no email integration.</li>
+        <li><strong>Format conversion</strong> — Tome serves what you upload.</li>
+        <li><strong>LDAP / OIDC / SSO</strong> — JWT auth with three roles (admin, member, guest) and Quick Connect codes.</li>
+        <li><strong>Annotations and highlights</strong> — the web reader doesn't persist highlights.</li>
+        <li><strong>Reading lists</strong> — Tome has libraries and shelves (saved filters), not ordered cross-series playlists.</li>
+        <li><strong>Scrobbling</strong> — no sync to AniList or other tracking services.</li>
+        <li><strong>Age rating restrictions</strong> — visibility is library-based, not rating-based.</li>
+        <li><strong>Localisation</strong> — the UI is English only.</li>
+      </ul>
+      <p>
+        Some of these will land eventually. Some won't — they're outside the scope of what Tome is
+        trying to be. If any of them are dealbreakers, keep reading — one of the tools below is a
+        better fit.
+      </p>
+    </section>
+
+    <!-- Calibre-Web -->
+    <section class="why-section reveal">
+      <h2 id="calibre-web">Calibre-Web</h2>
+      <div class="why-meta">
+        <span>17k+ stars</span>
+        <span>Python / Flask / Bootstrap 3</span>
+        <span>GPL-3.0</span>
+      </div>
+      <p>
+        <a href="https://github.com/janeczku/calibre-web">Calibre-Web</a> is the default
+        recommendation on every self-hosting forum, and for good reason. It wraps an existing
+        Calibre database in a web UI, supports OPDS, has built-in readers for EPUB, PDF, CBZ,
+        and even DJVU and audiobooks, offers send-to-Kindle, Google Drive hosting, LDAP and OAuth
+        login, and speaks 20+ languages. Its ecosystem is massive.
+      </p>
+      <p>
+        The trade-off is that Calibre-Web is fundamentally a <em>database viewer</em>. It reads
+        Calibre's <code>metadata.db</code> and presents it in a browser. The UI is Bootstrap 3
+        (released 2013) with Jinja2 server-rendered templates. There are no reading sessions, no
+        time tracking, no streaks, no stats beyond "how many books and authors do I have." The
+        web EPUB reader stores your position in browser localStorage — not on the server. Switch
+        browsers and you lose your place.
+      </p>
+      <p>
+        There's no native KOReader support. KOSync doesn't exist in stock Calibre-Web. It does
+        have Kobo device sync (emulating the Kobo store API), which is a feature Tome doesn't have.
+      </p>
+
+      <h3 id="calibre-web-automated">The CWA fork</h3>
+      <p>
+        <a href="https://github.com/crocodilestick/Calibre-Web-Automated">Calibre-Web Automated</a>
+        (5.7k stars) is a more ambitious fork that adds a lot of what stock Calibre-Web lacks:
+        KOSync support with a downloadable KOReader plugin, automatic file ingest with format
+        conversion, metadata enforcement that writes changes back into actual ebook files, smart
+        duplicate detection, magic shelves with dynamic rules, and a multi-tab stats center with
+        ECharts charts and CSV export. It's a serious project.
+      </p>
+      <p>
+        But it's still built on the same Flask/Bootstrap 3 foundation. The roadmap lists a
+        Svelte-based frontend rewrite as a high priority, which tells you where the current UI
+        stands. And the core requirement remains: you need a Calibre <code>metadata.db</code> to
+        start. Tome has its own database schema and doesn't depend on any external binary.
+      </p>
+
+      <div class="why-verdict">
+        <strong>Pick Calibre-Web if</strong> you already live in the Calibre ecosystem, want
+        send-to-Kindle, need LDAP/OAuth, or want the broadest format support (DJVU, audiobooks).
+        Pick the CWA fork if you want that plus auto-import, format conversion, and KOSync.
+      </div>
+    </section>
+
+    <!-- Kavita -->
+    <section class="why-section reveal">
+      <h2 id="kavita">Kavita</h2>
+      <div class="why-meta">
+        <span>10.7k stars</span>
+        <span>C# / .NET / Angular / SQLite</span>
+        <span>GPL-3.0</span>
+      </div>
+      <p>
+        <a href="https://github.com/Kareadita/Kavita">Kavita</a> is the most feature-rich
+        self-hosted reading server available. It has everything: built-in readers for EPUB,
+        comics, and PDF, OPDS with page streaming, reading lists, collections, smart filters
+        with 30+ criteria, dashboard streams, EPUB annotations and highlights, reading profiles,
+        age rating restrictions, OIDC single sign-on, custom themes with a community theme
+        browser, real-time UI updates via SignalR, and i18n.
+      </p>
+      <p>
+        Since v0.8.9 (January 2026), Kavita also tracks reading sessions — time spent, pages read,
+        words read (EPUB only), daily activity graphs, and reading pace. It's the only other
+        self-hosted tool that takes session tracking seriously.
+      </p>
+      <p>
+        KOReader sync landed in v0.8.7 (July 2025) via the standard KOSync protocol — there's no
+        custom plugin, just server-side endpoints that KOReader's built-in sync connects to. It
+        supports EPUBs, CBZ/CBR, and PDF. Worth noting: Kavita's own wiki includes the warning
+        <em>"The automatic sync can potentially undo reading progress. We strongly advise against
+        using it."</em> The protocol relies on MD5 file hashes for book matching — rename or
+        re-download a file and the link breaks. No session recording, no series browsing from
+        the device.
+      </p>
+      <p>
+        The biggest caveat is metadata. Kavita's free tier only reads embedded metadata from your
+        files (ComicInfo.xml, OPF). External metadata fetching — looking up covers, descriptions,
+        and tags from AniList, MAL, or Hardcover — requires <strong>Kavita+</strong>, a paid
+        subscription. Scrobbling to AniList is also behind the paywall. Tome fetches metadata from
+        Google Books and OpenLibrary for free, no subscription needed.
+      </p>
+      <p>
+        Kavita is a .NET/Angular application. If you're comfortable with that stack and want the
+        widest feature set, it's an excellent choice. It does things Tome doesn't — annotations,
+        reading lists, OIDC, age restrictions, scrobbling — and probably always will, because
+        those aren't on Tome's roadmap.
+      </p>
+
+      <div class="why-verdict">
+        <strong>Pick Kavita if</strong> you want the most features in a single package, need
+        annotations or reading lists, want OIDC/SSO, or manage a library with age-restricted
+        content. Be aware that external metadata and scrobbling require a paid subscription.
+      </div>
+    </section>
+
+    <!-- Komga -->
+    <section class="why-section reveal">
+      <h2 id="komga">Komga</h2>
+      <div class="why-meta">
+        <span>6.3k stars</span>
+        <span>Kotlin / Spring Boot / Vue 2 / SQLite</span>
+        <span>MIT</span>
+      </div>
+      <p>
+        <a href="https://github.com/gotson/komga">Komga</a> is purpose-built for comics and
+        manga, and within that niche it's arguably the best tool available. Its comic reader
+        supports left-to-right, right-to-left, vertical scroll, and webtoon modes with spread
+        layouts. It has Collections (group related series) and Read Lists (ordered book playlists
+        across series). It handles one-shots as a first-class concept, detects duplicate pages
+        within archives, and offers both OPDS v1.2 and v2 with page streaming extensions.
+      </p>
+      <p>
+        KOReader sync is supported via the standard KOSync protocol (no custom plugin) with a
+        significant limitation: EPUB progress syncs at <em>chapter boundaries only</em>, not
+        mid-chapter. For comics and PDFs, page-level accuracy works fine. No session recording,
+        no series downloading from the device. Kobo sync is also built in (EPUB only).
+      </p>
+      <p>
+        What Komga doesn't have: stats. No reading sessions, no time tracking, no heatmaps, no
+        reading pace, no streak counter. The only insight it offers is read/unread/in-progress
+        badges. It also has no external metadata fetching — no Google Books, no OpenLibrary, no
+        AniList lookups. Metadata comes entirely from embedded sources (ComicInfo.xml, EPUB OPF,
+        Mylar series.json).
+      </p>
+      <p>
+        The frontend is Vue 2 with Vuetify 2 — Vue 2 reached end-of-life in December 2023. The
+        EPUB reader uses a Readium 2 fork and is functional but minimal compared to dedicated EPUB
+        tools (two themes only: white and black). Development is steady with a single dedicated
+        maintainer and only 18 open issues, which speaks to code quality.
+      </p>
+
+      <div class="why-verdict">
+        <strong>Pick Komga if</strong> your library is primarily comics and manga, you want the
+        best comic reader experience, or you value a clean MIT-licensed codebase with very few
+        open issues. Don't pick it for ebooks or if you care about reading stats.
+      </div>
+    </section>
+
+    <!-- Other tools -->
+    <section class="why-section reveal">
+      <h2 id="others">Other tools worth knowing about</h2>
+      <p>
+        The three above are the main alternatives for a general-purpose self-hosted ebook library.
+        These are more specialised:
+      </p>
+
+      <h3 id="audiobookshelf">Audiobookshelf</h3>
+      <p>
+        <a href="https://github.com/advplyr/audiobookshelf">Audiobookshelf</a> (12.9k stars) is
+        the dominant self-hosted audiobook server, and it handles ebooks too — EPUB, PDF, and
+        CBZ/CBR. But ebook support is explicitly described as "basic." There's no OPDS, no
+        KOReader sync, and the stats system is built around listening time, not reading. If your
+        library is primarily audiobooks with some ebooks on the side, it's a great choice. For an
+        ebook-first library, look elsewhere.
+      </p>
+
+      <h3 id="stump">Stump</h3>
+      <p>
+        <a href="https://github.com/stumpapp/stump">Stump</a> (2.4k stars) is the most
+        interesting newcomer. It's written in Rust with a React frontend, has KOReader sync, OPDS
+        v1.2 and experimental v2, reading session tracking, and a clean architecture. The README
+        is honest: <em>"under active development and is an ongoing WIP. DO NOT expect a fully
+        featured or bug-free experience."</em> At v0.1.3 it's not production-ready, but it's one
+        to watch.
+      </p>
+
+      <h3 id="lanraragi">LANraragi</h3>
+      <p>
+        <a href="https://github.com/Difegue/LANraragi">LANraragi</a> (3k stars) has been around
+        for 12 years and is excellent at one thing: managing manga and doujinshi archives. It has
+        a plugin system for metadata scraping, tag namespaces, Prometheus metrics export, and OPDS
+        with page streaming. The limitation is single-user only — one admin password for the whole
+        instance. If you're a solo manga reader with a large archive, it's battle-tested.
+      </p>
+
+      <h3 id="ubooquity">Ubooquity</h3>
+      <p>
+        <a href="https://vaemendis.net/ubooquity/">Ubooquity</a> is a closed-source Java
+        application that was popular years ago. It still runs — the LinuxServer.io Docker image
+        is maintained — but development appears stagnant, the documentation site is mostly broken,
+        and there's no public source code. Not recommended for new setups.
+      </p>
+    </section>
+
+    <!-- Closing -->
+    <section class="why-section reveal" style="border-bottom: none;">
+      <h2 id="try-it">Try it</h2>
+      <p>
+        Tome is free, open-source (AGPL-3.0), and deploys in under a minute.
+      </p>
+      <div class="why-cta">
+        <a href="/docs/installation" class="why-cta-btn primary">Installation guide</a>
+        <a href="https://github.com/bndct-devops/tome" class="why-cta-btn">View on GitHub</a>
+      </div>
+    </section>
+  </article>
+
+  <RevealOnScroll client:load />
+</BaseLayout>
+
+<style>
+  .why-article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+    font-size: 1.05rem;
+    line-height: 1.75;
+  }
+  .why-section {
+    padding-bottom: 48px;
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  .why-section h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 16px;
+  }
+  .why-section h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 10px;
+  }
+  .why-section p {
+    margin-bottom: 16px;
+    color: var(--fg);
+  }
+  .why-section a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-color: var(--accent-soft);
+    text-underline-offset: 2px;
+    transition: text-decoration-color 0.15s;
+  }
+  .why-section a:hover {
+    text-decoration-color: var(--accent);
+  }
+  .why-section ul {
+    padding-left: 1.5em;
+    margin-bottom: 16px;
+  }
+  .why-section li {
+    margin-bottom: 10px;
+  }
+  .why-section li::marker {
+    color: var(--accent);
+  }
+  .why-section code {
+    font-size: 0.88em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .why-section em {
+    font-style: italic;
+    color: var(--fg);
+  }
+  .why-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .why-meta span {
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .why-verdict {
+    margin-top: 20px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    font-size: 0.95rem;
+    color: var(--fg);
+  }
+  .why-cta {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .why-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none !important;
+    transition: opacity 0.15s, transform 0.15s;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--fg) !important;
+  }
+  .why-cta-btn:hover {
+    transform: translateY(-1px);
+    opacity: 0.9;
+  }
+  .why-cta-btn.primary {
+    background: var(--accent);
+    color: var(--accent-fg) !important;
+    border-color: transparent;
+  }
+  @media (max-width: 640px) {
+    .why-cta { flex-direction: column; }
+    .why-section h2 { font-size: 1.5rem; }
+  }
+</style>

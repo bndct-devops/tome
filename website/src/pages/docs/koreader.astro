@@ -19,9 +19,11 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <SectionHero section="integrations" />
   <h1>KOReader plugin</h1>
   <p>
-    TomeSync is Tome's KOReader plugin. It records reading sessions (time, pages, device),
-    syncs your position both ways with the web reader, lets you browse and download whole series
-    from inside KOReader, and survives offline reading.
+    TomeSync is Tome's purpose-built KOReader plugin — not a KOSync wrapper. Other self-hosted
+    servers implement the KOSync protocol on the server and have you configure KOReader's built-in
+    sync. TomeSync is a dedicated <code>.koplugin</code> that records reading sessions, syncs
+    positions bidirectionally with the web reader, lets you browse and bulk-download series
+    directly from your e-reader, and survives offline reading.
   </p>
   <DocsMeta />
 
@@ -59,8 +61,11 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
 
   <h3>Offline-first</h3>
   <p>
-    Sessions queue locally on your device and flush to Tome the moment you're back online. Plane,
-    metro, basement — no data lost.
+    When your server is unreachable, sync silently skips with zero delay — no freezing, no error
+    dialogs. Sessions save to disk and flush automatically the next time you open the lid with a
+    working connection. Up to 50 sessions can queue offline, surviving KOReader restarts. After 3
+    consecutive failures, the plugin backs off for the rest of the session to avoid unnecessary
+    timeouts.
   </p>
 
   <Callout variant="info" title="Currently supported devices">
@@ -68,11 +73,39 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     Boox. KOReader 2024.04 or later.
   </Callout>
 
-  <h3>Browse and download series</h3>
+  <h3>Series browser and bulk download</h3>
   <p>
-    Open the wrench menu → <strong>TomeSync → Browse Series</strong>. Pick a series, hit
-    "Download rest of series". Files arrive organised by book-type folder, properly named.
+    TomeSync lets you browse and download your library's series directly from KOReader — no
+    browser needed.
   </p>
+  <p><strong>From the home screen</strong> (no book open): open the wrench menu →
+    <strong>TomeSync → Browse Series</strong>. A list shows every series in your library with
+    book counts and authors. Tap a series to download all volumes at once.
+  </p>
+  <p><strong>From inside a book:</strong></p>
+  <ul>
+    <li><strong>Download full series</strong> — every book in the current book's series.</li>
+    <li><strong>Download rest of series</strong> — only volumes after your current one (based on series index).</li>
+  </ul>
+  <p>
+    Downloads are organized by book type and series:
+    <code>&lt;home_dir&gt;/&lt;book_type&gt;/&lt;Series Name&gt;/Vol. N — Title.ext</code>
+    (e.g. <code>books/manga/One Piece/Vol. 1 — One Piece.epub</code>).
+    Format preference is epub → kepub.epub → cbz → pdf → mobi → azw3. Books already on the
+    device are skipped. A live progress popup shows each download, and a summary reports
+    downloaded/skipped/failed counts when finished.
+  </p>
+
+  <h3>When it syncs</h3>
+  <p>TomeSync hooks into KOReader's lifecycle events:</p>
+  <ul>
+    <li><strong>Open a book</strong> — pulls the latest position from the server. If the server is ahead, jumps there.</li>
+    <li><strong>Every 50 page turns</strong> — heartbeat push of current position.</li>
+    <li><strong>Close the lid (suspend)</strong> — pushes position and records a reading session.</li>
+    <li><strong>Open the lid (resume)</strong> — starts a new session, pushes position, flushes any queued offline sessions.</li>
+    <li><strong>Close a book</strong> — pushes final position and records a session.</li>
+  </ul>
+  <p>Sessions shorter than 10 seconds are filtered out.</p>
 
   <h2>Stable book IDs (vs KOSync hashes)</h2>
   <p>
