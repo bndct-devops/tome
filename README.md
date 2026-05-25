@@ -15,7 +15,7 @@ Most library servers stop at file management. Tome connects to your e-reader via
 
 Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 
-> **Early release** -- actively developed, expect rough edges.
+> **[Documentation](https://tome.bndct.sh/docs)** · **[Why Tome?](https://tome.bndct.sh/why)** · **[Blog](https://tome.bndct.sh/blog)**
 
 ## Highlights
 
@@ -42,7 +42,7 @@ There are several self-hosted ebook tools — here's where Tome sits.
 | **Stats / reading insights** | ✅ rich | minimal | minimal | minimal |
 | **Single-binary deploy** | ✅ Docker, FastAPI + SQLite | requires Calibre install | ✅ | ✅ |
 | **Comics & novels in one place** | ✅ | EPUB-focused | comics-focused | ✅ |
-| **Maturity** | new (v0.2) | mature, dated UI | mature | mature |
+| **Maturity** | v1.0 | mature, dated UI | mature | mature |
 
 Pick **Calibre-Web** if you want the largest ecosystem and don't mind the dated UI. **Komga** if you're comics/manga-only. **Kavita** if you want a featureful all-rounder. **Tome** if reading-session tracking and KOReader integration are what you actually want — that's what it's built around.
 
