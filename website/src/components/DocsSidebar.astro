@@ -2,7 +2,8 @@
 import { DOCS_NAV } from './docs-nav'
 import { withBase, stripBase } from '../lib/path'
 const path = stripBase(Astro.url.pathname)
-const isActive = (href: string) => path === href || (href !== '/docs' && path.startsWith(href))
+const normalize = (p: string) => p.replace(/\/$/, '')
+const isActive = (href: string) => normalize(path) === normalize(href)
 ---
 <aside class="docs-sidebar">
   <nav class="docs-nav">

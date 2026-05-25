@@ -1,0 +1,89 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Admin tools" description="Detect duplicates, merge books, and reorganise misplaced library files.">
+  <SectionHero section="reference" />
+  <h1>Admin tools</h1>
+  <p>
+    The admin panel (<strong>/admin</strong>) has tools for maintaining a clean library at scale:
+    duplicate detection and library health checks. Both are admin-only.
+  </p>
+  <DocsMeta />
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="admin-page" alt="Admin panel" />
+  </div>
+
+  <h2>Duplicate detection</h2>
+  <p>
+    Tome scans the library for potential duplicates using four strategies, from most to least
+    confident:
+  </p>
+  <table>
+    <thead><tr><th>Strategy</th><th>What it matches</th><th>Use case</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Content hash</strong></td>
+        <td>Identical file contents</td>
+        <td>Exact same file imported twice</td>
+      </tr>
+      <tr>
+        <td><strong>ISBN</strong></td>
+        <td>Same ISBN across books</td>
+        <td>Different files of the same edition</td>
+      </tr>
+      <tr>
+        <td><strong>Author + series + index</strong></td>
+        <td>Same author, series name, and volume number</td>
+        <td>Different formats of the same volume (EPUB + CBZ)</td>
+      </tr>
+      <tr>
+        <td><strong>Fuzzy title + author</strong></td>
+        <td>Title similarity &gt; 85% with same author</td>
+        <td>Slightly different titles ("Vol. 1" vs "Volume 1")</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Resolving duplicates</h3>
+  <p>
+    For each duplicate group, you have two options:
+  </p>
+  <ul>
+    <li><strong>Merge</strong> — keep one book, delete the others. Reading status and sessions are
+      preserved on the kept book.</li>
+    <li><strong>Dismiss</strong> — mark the pair as not-a-duplicate. Dismissed pairs are stored
+      permanently and excluded from future scans.</li>
+  </ul>
+
+  <Callout variant="info" title="Fuzzy matches need review">
+    The fuzzy title strategy intentionally casts a wide net. It may flag different volumes of the
+    same series as duplicates. Use dismiss liberally — it's what it's there for.
+  </Callout>
+
+  <h2>Library health</h2>
+  <p>
+    The Library Health tab scans the filesystem for books whose on-disk path doesn't match their
+    expected location based on current metadata. This happens when you rename a series, change an
+    author, or import books before their metadata was corrected.
+  </p>
+  <p>
+    Misplaced files are grouped by series and author. For each one, Tome shows the current path
+    and where it should be. You can:
+  </p>
+  <ul>
+    <li><strong>Preview</strong> — dry-run the reorganisation to see what would move</li>
+    <li><strong>Reorganise</strong> — move files to their correct paths and clean up empty folders</li>
+  </ul>
+
+  <Callout variant="warning" title="Reorganise moves files on disk">
+    This physically moves files in your <code>TOME_LIBRARY_DIR</code>. The database updates to
+    match. If you mount <code>/books</code> as read-only, reorganise will fail — remount as
+    read-write first.
+  </Callout>
+</DocsLayout>

@@ -193,7 +193,7 @@ html { scroll-behavior: smooth; }
   color: var(--muted);
   text-decoration: none;
   font-weight: 400;
-  font-size: 0.6em;
+  font-size: 0.75em;
   vertical-align: middle;
   opacity: 0;
   transition: opacity 0.15s;
@@ -604,6 +604,45 @@ html { scroll-behavior: smooth; }
 .callout-warning { --callout-accent: oklch(0.70 0.18 75);  --callout-bg: oklch(0.70 0.18 75 / 0.10); }
 .callout-danger  { --callout-accent: oklch(0.60 0.22 25);  --callout-bg: oklch(0.60 0.22 25 / 0.10); }
 .callout-note    { --callout-accent: var(--accent);        --callout-bg: var(--accent-soft); }
+
+/* ── Collapsible details ── */
+.docs-article details {
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  overflow: hidden;
+}
+.docs-article details summary {
+  padding: 12px 18px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--fg);
+  list-style: none;
+  transition: background 0.15s;
+}
+.docs-article details summary::-webkit-details-marker { display: none; }
+.docs-article details summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.2s;
+  color: var(--muted);
+}
+.docs-article details[open] summary::before { transform: rotate(90deg); }
+.docs-article details summary:hover { background: var(--accent-soft); }
+.docs-article details > *:not(summary) { padding: 0 24px; }
+.docs-article details > *:last-child { padding-bottom: 24px; }
+.docs-article details h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 14px 0 6px;
+  color: var(--muted);
+}
+.docs-article details pre {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+}
 
 /* ── Inline keystroke chip ── */
 .kbd {

@@ -454,7 +454,7 @@ function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destruc
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-sm mx-4 p-6">
         <h2 className="text-base font-semibold mb-2">{title}</h2>
         <p className="text-sm text-muted-foreground mb-6">{message}</p>
@@ -1429,7 +1429,7 @@ export function BinderyPage() {
         {/* Quick accept detail modal */}
         {qaModalOpen && qaProgress && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setQaModalOpen(false)} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQaModalOpen(false)} />
             <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <span className="text-sm font-semibold">Quick Accept Progress</span>

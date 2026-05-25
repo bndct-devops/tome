@@ -1,0 +1,109 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Managing books" description="Upload, scan, edit metadata, fetch covers, and manage books in bulk.">
+  <SectionHero section="features" />
+  <h1>Managing books</h1>
+  <p>
+    Books enter Tome in three ways: uploading through the browser, scanning a folder on disk, or
+    dropping files into the <a href={withBase("/docs/bindery")}>Bindery</a>. Once they're in, you
+    can edit metadata, fetch covers, and operate on many books at once.
+  </p>
+  <DocsMeta />
+
+  <h2>Uploading books</h2>
+  <p>
+    Click <strong>Upload</strong> in the top bar. Drag files into the modal or click to browse.
+    Tome accepts EPUB, PDF, CBZ, CBR, MOBI, and AZW3. You can upload multiple files at once and
+    assign them all to a book type before confirming.
+  </p>
+  <p>
+    On upload, Tome extracts whatever metadata it can from the file itself — title, author, ISBN,
+    series, cover image. You can refine it afterward.
+  </p>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="upload-modal" alt="Upload modal with drag-drop area and type selector" />
+  </div>
+
+  <Callout variant="tip" title="Bulk type assignment">
+    If you're uploading a batch of manga volumes, set the type to "Manga" in the upload modal
+    before confirming. Every file in the batch gets that type, and each one lands in the
+    matching auto-created library.
+  </Callout>
+
+  <h2>Scanning the library folder</h2>
+  <p>
+    If you add files directly to the <code>/books</code> volume (or however you mounted
+    <code>TOME_LIBRARY_DIR</code>), click <strong>Scan</strong> in the top bar to pick them up.
+    Tome walks the folder tree, skips files it already knows about (by content hash), and imports
+    new ones with metadata extracted from the filename and embedded file data.
+  </p>
+
+  <Callout variant="info" title="Filename parsing">
+    Tome understands patterns like <code>Berserk v01 (1990).cbz</code> and
+    <code>Title - Author (Year).epub</code>. See <a href={withBase("/docs/series")}>Series & arcs</a>
+    for the full list of supported patterns.
+  </Callout>
+
+  <h2>Editing metadata</h2>
+  <p>
+    Open a book's detail page and click <strong>Edit</strong>. The inline editor lets you change
+    title, author, subtitle, series, series index, year, publisher, language, ISBN, description,
+    and tags. Changes save immediately.
+  </p>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="book-detail-edit" alt="Book detail page with metadata editor open" />
+  </div>
+
+  <h2>Fetching metadata</h2>
+  <p>
+    Click <strong>Fetch metadata</strong> on a book's detail page. Tome queries Hardcover, Google
+    Books, and Open Library, then shows you a side-by-side diff of each candidate against your
+    current data. You pick which fields to apply — nothing changes until you confirm.
+  </p>
+  <p>
+    Each source is labeled (HC, Google, OpenLib) so you can see where the data comes from.
+    Description, cover, tags, year, and publisher are the fields most often worth fetching.
+  </p>
+
+  <h2>Cover picker</h2>
+  <p>
+    Click the cover image on any book detail page to open the cover picker. It searches Hardcover,
+    Google Books, and Open Library for matching covers. You can also paste a URL or upload an image
+    from your device. The new cover applies immediately.
+  </p>
+
+  <h2>Bulk operations</h2>
+  <p>
+    On the dashboard, click the checkbox on any book card to enter multi-select mode.
+    Shift-click to select a range. The toolbar shows available actions:
+  </p>
+  <ul>
+    <li><strong>Add to library</strong> — assign all selected books to a library</li>
+    <li><strong>Edit metadata</strong> — bulk-change author, series, book type, or tags across the selection</li>
+    <li><strong>Fetch metadata</strong> — fetch and review candidates for up to 100 books at once, with a review modal that lets you cherry-pick per book</li>
+    <li><strong>Download</strong> — download all selected books as a ZIP</li>
+    <li><strong>Delete</strong> — remove selected books from the library</li>
+  </ul>
+
+  <Callout variant="warning" title="Bulk fetch limit">
+    Bulk metadata fetch is capped at 100 books per request. For larger batches, consider
+    <a href={withBase("/docs/scribe")}>Scribe</a> which handles thousands.
+  </Callout>
+
+  <h2>Reading status</h2>
+  <p>
+    Every book has a per-user reading status: <strong>unread</strong>, <strong>reading</strong>, or
+    <strong>read</strong>. Click the status badge on a book card or the detail page to cycle through
+    them. If you're using <a href={withBase("/docs/koreader")}>TomeSync</a>, status updates
+    automatically based on your reading sessions.
+  </p>
+</DocsLayout>

@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { X, FileText, Layers, Upload, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -118,24 +118,45 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded }: Props) {
     }
   }
 
+  const [closing, setClosing] = useState(false)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setClosing(false)
+      requestAnimationFrame(() => setVisible(true))
+    }
+  }, [isOpen])
+
   function handleClose() {
     if (uploading) return
-    setItems([])
-    setBulkType('')
-    setSummary(null)
-    onClose()
+    setClosing(true)
+    setVisible(false)
+    setTimeout(() => {
+      setClosing(false)
+      setItems([])
+      setBulkType('')
+      setSummary(null)
+      onClose()
+    }, 200)
   }
 
-  if (!isOpen) return null
+  if (!isOpen && !closing) return null
 
   const pendingCount = items.filter(it => it.status === 'pending').length
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200',
+        visible ? 'bg-black/40 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-0'
+      )}
       onMouseDown={e => { if (e.target === e.currentTarget) handleClose() }}
     >
-      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft w-full max-w-lg flex flex-col max-h-[90vh]">
+      <div className={cn(
+        'bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft w-full max-w-lg flex flex-col max-h-[90vh] transition-all duration-200',
+        visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+      )}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-base font-semibold flex items-center gap-2">

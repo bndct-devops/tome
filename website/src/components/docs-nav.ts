@@ -15,10 +15,13 @@ export const DOCS_NAV: DocGroup[] = [
   {
     label: 'Features',
     items: [
+      { href: '/docs/books',              title: 'Managing books' },
+      { href: '/docs/libraries',          title: 'Libraries & shelves' },
       { href: '/docs/reader',             title: 'Built-in reader' },
       { href: '/docs/series',             title: 'Series & arcs' },
       { href: '/docs/stats',              title: 'Reading stats' },
       { href: '/docs/bindery',            title: 'Bindery (auto-import)' },
+      { href: '/docs/themes',             title: 'Themes & shortcuts' },
     ],
   },
   {
@@ -28,13 +31,15 @@ export const DOCS_NAV: DocGroup[] = [
       { href: '/docs/opds',               title: 'OPDS feed' },
       { href: '/docs/scribe',             title: 'Scribe (CLI)' },
       { href: '/docs/api-tokens',         title: 'API tokens' },
+      { href: '/docs/api',                title: 'API reference' },
     ],
   },
   {
     label: 'Reference',
     items: [
       { href: '/docs/configuration',      title: 'Configuration & env vars' },
-      { href: '/docs/users-and-roles',    title: 'Users, roles, libraries' },
+      { href: '/docs/users-and-roles',    title: 'Users, roles & visibility' },
+      { href: '/docs/admin',              title: 'Admin tools' },
       { href: '/docs/troubleshooting',    title: 'Troubleshooting' },
       { href: '/docs/changelog',          title: 'Changelog' },
     ],

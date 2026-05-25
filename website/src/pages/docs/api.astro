@@ -1,0 +1,197 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="API reference" description="HTTP endpoints for scripting, automation, and third-party integrations with Tome.">
+  <SectionHero section="integrations" />
+  <h1>API reference</h1>
+  <p>
+    Every endpoint lives under <code>/api</code> and accepts either a JWT (from login) or a
+    <code>tome_*</code> bearer token. See <a href={withBase("/docs/api-tokens")}>API tokens</a>
+    for how to create one. All request/response bodies are JSON unless noted.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="info" title="Base URL">
+    All paths below are relative to your Tome instance, e.g.
+    <code>https://tome.example.com/api/books</code>.
+  </Callout>
+
+  <h2>Auth</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>Authenticate, returns JWT</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current user profile</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/auth/me</code></td><td>Update username / email</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/auth/me/password</code></td><td>Change password</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/auth/me/stats</code></td><td>Reading stats for current user</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/auth/me/backup</code></td><td>Export user data as JSON</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Books</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/books</code></td><td>List books (supports <code>?q=</code>, <code>?series=</code>, <code>?author=</code>, <code>?library_id=</code>, <code>?per_page=</code>)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;</code></td><td>Book detail with files, tags, libraries</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/books/&#123;id&#125;</code></td><td>Update metadata fields</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/books/&#123;id&#125;</code></td><td>Delete a book and its files</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/upload</code></td><td>Upload a file (multipart form, <code>file</code> + optional <code>book_type_id</code>)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/scan</code></td><td>Scan <code>TOME_LIBRARY_DIR</code> for new files</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/import</code></td><td>Import from <code>TOME_INCOMING_DIR</code></td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/ingest</code></td><td>Programmatic ingest (used by Scribe)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/check-hashes</code></td><td>Check content hashes for deduplication</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Metadata</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/fetch-metadata</code></td><td>Fetch candidates from Hardcover / Google / OpenLibrary</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/&#123;id&#125;/apply-metadata</code></td><td>Apply selected metadata fields from a candidate</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/books/bulk-metadata</code></td><td>Bulk-update metadata on multiple books</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/bulk-fetch-candidates</code></td><td>Fetch metadata candidates for up to 100 books</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/bulk-fetch-metadata</code></td><td>Auto-fill empty fields from best match</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Covers</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/cover</code></td><td>Serve cover image</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/cover-candidates</code></td><td>Search for cover images (<code>?q=</code>)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/&#123;id&#125;/cover</code></td><td>Set cover from URL or file upload</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Downloads &amp; reading</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/download/&#123;file_id&#125;</code></td><td>Download a book file (with embedded metadata)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/downloads</code></td><td>Bulk download as streaming ZIP</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/read.epub</code></td><td>Stream EPUB for web reader</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/read.cbz</code></td><td>Stream CBZ for comic reader</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/read.pdf</code></td><td>Stream PDF for viewer</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Reading status</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/books/&#123;id&#125;/status</code></td><td>Get reading status for current user</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/books/&#123;id&#125;/status</code></td><td>Set status (<code>unread</code> / <code>reading</code> / <code>read</code>), progress, CFI</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/statuses</code></td><td>Batch get statuses for multiple book IDs</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Series &amp; facets</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/books/series</code></td><td>List all series with volume counts</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/series-detail</code></td><td>Full series page data (<code>?name=</code>)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/facets</code></td><td>Aggregated filter options (authors, tags, formats, etc.)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/export</code></td><td>Export library as JSON or CSV</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Libraries</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/libraries</code></td><td>List libraries visible to current user</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/libraries</code></td><td>Create library (name, icon, is_public)</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/libraries/&#123;id&#125;</code></td><td>Update library</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/libraries/&#123;id&#125;</code></td><td>Delete library (books are unlinked, not deleted)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/libraries/&#123;id&#125;/books</code></td><td>Add books to library (body: <code>&#123;"book_ids": [...]&#125;</code>)</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/libraries/&#123;id&#125;/books/&#123;book_id&#125;</code></td><td>Remove book from library</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/libraries/&#123;id&#125;/users</code></td><td>Assign user to library (admin)</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/libraries/&#123;id&#125;/users/&#123;user_id&#125;</code></td><td>Remove user from library (admin)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Shelves (saved filters)</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/saved-filters</code></td><td>List current user's shelves</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/saved-filters</code></td><td>Save current filter params as a shelf</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/saved-filters/&#123;id&#125;</code></td><td>Update shelf name / icon</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/saved-filters/&#123;id&#125;</code></td><td>Delete shelf</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Book types</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/book-types</code></td><td>List all book types</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/book-types</code></td><td>Create book type (admin)</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/book-types/&#123;id&#125;</code></td><td>Update book type</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/book-types/&#123;id&#125;</code></td><td>Delete book type</td></tr>
+    </tbody>
+  </table>
+
+  <h2>TomeSync (KOReader)</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/tome-sync/resolve</code></td><td>Resolve a file hash to a canonical book ID</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/tome-sync/position/&#123;book_id&#125;</code></td><td>Get reading position for a book</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/tome-sync/position/&#123;book_id&#125;</code></td><td>Update reading position</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/tome-sync/session</code></td><td>Record a reading session</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/tome-sync/series</code></td><td>List series available for download</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/tome-sync/download/&#123;book_id&#125;/&#123;file_id&#125;</code></td><td>Download file (KOReader format)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Home</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/home/stats</code></td><td>Dashboard summary (streak, pages, reading time)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/home/activity</code></td><td>Recent reading activity</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/home/forgotten-books</code></td><td>Books started but not touched recently</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Users (admin)</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/users</code></td><td>List all users</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/users</code></td><td>Create user</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/users/&#123;id&#125;</code></td><td>Update user role / active status</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/users/&#123;id&#125;</code></td><td>Delete user</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/users/&#123;id&#125;/impersonate</code></td><td>Impersonate user (returns their JWT)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Admin</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/admin/duplicates</code></td><td>Detect duplicate books</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/admin/duplicates/merge</code></td><td>Merge duplicate pair</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/admin/duplicates/dismiss</code></td><td>Dismiss duplicate pair</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/admin/audit-logs</code></td><td>Audit log entries</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/admin/stats</code></td><td>System-wide reading stats</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/books/library-health</code></td><td>Misplaced files report</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/reorganize</code></td><td>Move files to canonical paths</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/books/purge-empty-dirs</code></td><td>Clean up empty directories</td></tr>
+    </tbody>
+  </table>
+
+  <Callout variant="tip" title="Quick test">
+    Verify your token works: <code>curl -H "Authorization: Bearer $TOKEN" https://your-tome/api/auth/me</code>
+  </Callout>
+</DocsLayout>

@@ -130,6 +130,55 @@ const SHOTS = [
     element: 'div.p-5:has(p:text-is("Quick Connect"))',
   },
   {
+    name: 'settings-themes',
+    path: '/settings',
+    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 },
+    settle: 1000,
+    after: async (page) => {
+      await page.locator('span:text-is("Appearance")').first().scrollIntoViewIfNeeded().catch(() => {})
+      await page.waitForTimeout(300)
+      // Add padding around the section element by expanding its box via a wrapper
+      await page.evaluate(() => {
+        const section = document.querySelector('section:has(span)')
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Appearance')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    element: 'section:has(span:text-is("Appearance"))',
+  },
+  {
+    name: 'book-detail-edit',
+    path: '/books/1',
+    viewport: { width: 1600, height: 1400, deviceScaleFactor: 2 },
+    settle: 1000,
+    after: async (page) => {
+      await page.locator('button:has-text("Edit")').first().click().catch(() => {})
+      await page.waitForTimeout(600)
+    },
+    autoCrop: true,
+  },
+  {
+    name: 'upload-modal',
+    path: '/',
+    viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 },
+    settle: 1000,
+    after: async (page) => {
+      await page.locator('button:has-text("Upload")').first().click().catch(() => {})
+      await page.waitForTimeout(500)
+      await maskModalBackdrop(page)
+    },
+    element: 'div.max-w-lg:has(h2:has-text("Upload"))',
+  },
+  {
+    name: 'sidebar-libraries',
+    path: '/?tab=books',
+    viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 },
+    settle: 1000,
+    prefs: { tome_sidebar: 'open' },
+    element: 'aside',
+  },
+  {
     name: 'users-create-modal',
     path: '/users',
     viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 },
@@ -279,6 +328,15 @@ async function maskModalBackdrop(page) {
     const bg = themeBg[theme]
     document.querySelectorAll('.fixed.inset-0').forEach(el => {
       el.style.background = bg
+      el.style.backdropFilter = 'none'
+      el.style.webkitBackdropFilter = 'none'
+    })
+    document.querySelectorAll('.absolute.inset-0').forEach(el => {
+      if (el.className.includes('bg-black')) {
+        el.style.background = bg
+        el.style.backdropFilter = 'none'
+        el.style.webkitBackdropFilter = 'none'
+      }
     })
   })
 }

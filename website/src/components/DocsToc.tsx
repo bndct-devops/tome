@@ -13,13 +13,15 @@ export function DocsToc() {
     const nodes = Array.from(article.querySelectorAll('h2, h3')) as HTMLElement[]
     const items: Heading[] = nodes.map(n => {
       if (!n.id) {
-        n.id = (n.textContent || '')
+        const rawText = Array.from(n.childNodes).filter(c => !(c instanceof HTMLAnchorElement && c.classList.contains('heading-anchor'))).map(c => c.textContent).join('')
+        n.id = rawText
           .toLowerCase()
           .replace(/[^a-z0-9\s-]/g, '')
           .trim()
           .replace(/\s+/g, '-')
       }
-      return { id: n.id, text: n.textContent || '', level: n.tagName === 'H2' ? 2 : 3 }
+      const text = Array.from(n.childNodes).filter(c => !(c instanceof HTMLAnchorElement && c.classList.contains('heading-anchor'))).map(c => c.textContent).join('').trim()
+      return { id: n.id, text, level: n.tagName === 'H2' ? 2 : 3 }
     })
     setHeadings(items)
 

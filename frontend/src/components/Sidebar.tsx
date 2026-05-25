@@ -996,7 +996,7 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, onSave
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft max-w-sm w-full mx-4 p-6 space-y-4">

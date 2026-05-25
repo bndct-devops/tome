@@ -1,0 +1,114 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { CopyButton } from '../../components/CopyButton'
+import { withBase } from '../../lib/path'
+
+const palettes = [
+  { name: 'Nord', colors: '#2E3440, #D8DEE9, #3B4252, #88C0D0, #2E3440, #4C566A, #D8DEE9, #81A1C1, #4C566A, #BF616A' },
+  { name: 'Catppuccin Mocha', colors: '#1E1E2E, #CDD6F4, #313244, #CBA6F7, #1E1E2E, #45475A, #A6ADC8, #B4BEFE, #45475A, #F38BA8' },
+  { name: 'Solarized Light', colors: '#FDF6E3, #657B83, #EEE8D5, #268BD2, #FDF6E3, #EEE8D5, #93A1A1, #2AA198, #93A1A1, #DC322F' },
+  { name: 'Rosé Pine', colors: '#191724, #E0DEF4, #1F1D2E, #C4A7E7, #191724, #26233A, #908CAA, #F6C177, #26233A, #EB6F92' },
+]
+---
+<DocsLayout title="Themes & shortcuts" description="Three built-in themes, custom palettes, and keyboard shortcuts.">
+  <SectionHero section="features" />
+  <h1>Themes & shortcuts</h1>
+  <p>
+    Tome ships with three built-in themes and supports fully custom colour palettes. Keyboard
+    shortcuts are available on every page for quick navigation.
+  </p>
+  <DocsMeta />
+
+  <h2>Built-in themes</h2>
+  <p>
+    Switch between <strong>Light</strong>, <strong>Dark</strong>, and <strong>Amber</strong> from
+    the user menu in the sidebar (desktop) or the bottom drawer (mobile). The active theme is
+    stored per-browser in localStorage.
+  </p>
+  <ul>
+    <li><strong>Light</strong> — crisp whites with brand purple accents</li>
+    <li><strong>Dark</strong> — near-black backgrounds, easy on late-night reading</li>
+    <li><strong>Amber</strong> — warm cream and burnt orange, a parchment feel</li>
+  </ul>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="settings-themes" alt="Theme picker in Settings" />
+  </div>
+
+  <h2>Custom themes</h2>
+  <p>
+    In <strong>Settings</strong>, scroll to the theme section and click <strong>New custom
+    theme</strong>. You provide 10 hex colour values that define every surface in the UI:
+  </p>
+  <ul>
+    <li>Background, foreground, card</li>
+    <li>Primary, primary foreground</li>
+    <li>Muted, muted foreground</li>
+    <li>Accent, border, destructive</li>
+  </ul>
+  <p>
+    Name your theme, mark it as dark or light (so Tailwind's <code>dark:</code> variants apply
+    correctly), and save. Custom themes appear in the theme picker alongside the built-in ones.
+  </p>
+
+  <Callout variant="tip" title="Live preview">
+    The UI updates in real time as you edit hex values, so you can see exactly what your theme
+    looks like before saving.
+  </Callout>
+
+  <details>
+    <summary><strong>Example palettes</strong> — copy and paste into the color input</summary>
+    <p>The 10 values map to: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive.</p>
+    {palettes.map(p => (
+      <div>
+        <h4>{p.name}</h4>
+        <div class="relative">
+          <pre><code>{p.colors}</code></pre>
+          <div class="absolute top-2 right-2">
+            <CopyButton text={p.colors} client:load />
+          </div>
+        </div>
+      </div>
+    ))}
+  </details>
+
+  <h2>Keyboard shortcuts</h2>
+  <p>
+    Press <code>?</code> anywhere to open the keyboard shortcuts modal. Here's the full list:
+  </p>
+
+  <h3>Dashboard</h3>
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code>/</code></td><td>Focus search</td></tr>
+      <tr><td><code>j</code> or <code>↓</code></td><td>Next book</td></tr>
+      <tr><td><code>k</code> or <code>↑</code></td><td>Previous book</td></tr>
+      <tr><td><code>Enter</code></td><td>Open selected book</td></tr>
+      <tr><td><code>Esc</code></td><td>Clear selection / blur search</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Book detail</h3>
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code>r</code></td><td>Open reader</td></tr>
+      <tr><td><code>e</code></td><td>Toggle metadata editor</td></tr>
+      <tr><td><code>Esc</code></td><td>Go back</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Reader</h3>
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code>←</code> or <code>↑</code></td><td>Previous page</td></tr>
+      <tr><td><code>→</code> or <code>↓</code></td><td>Next page</td></tr>
+    </tbody>
+  </table>
+</DocsLayout>

@@ -66,7 +66,7 @@ function UserModal({ user, onClose, onSaved }: UserModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-sm font-semibold">{user ? 'Edit User' : 'New User'}</h2>

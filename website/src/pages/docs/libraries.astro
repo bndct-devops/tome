@@ -1,0 +1,86 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Libraries & shelves" description="Organise books into libraries, control visibility, and save filter presets as shelves.">
+  <SectionHero section="features" />
+  <h1>Libraries & shelves</h1>
+  <p>
+    Libraries group books by whatever makes sense to you — genre, format, reading pile, a friend's
+    recommendations. Shelves are saved filter presets that let you jump to a specific view with one
+    click. Both appear in the sidebar.
+  </p>
+  <DocsMeta />
+
+  <h2>Libraries</h2>
+
+  <h3>Creating a library</h3>
+  <p>
+    Click the <strong>+</strong> next to "Libraries" in the sidebar. Give it a name, pick a Lucide
+    icon, and choose whether it's public or private. Public libraries are visible to all users;
+    private ones are only visible to the owner and explicitly assigned users.
+  </p>
+
+  <h3>Adding books</h3>
+  <p>
+    There are two ways to add books to a library:
+  </p>
+  <ul>
+    <li>On a book's detail page, use the library assignment dropdown</li>
+    <li>On the dashboard, multi-select books and use <strong>Add to library</strong> in the bulk toolbar</li>
+  </ul>
+  <p>
+    A book can belong to multiple libraries at once. Removing a book from a library doesn't delete
+    the book — it only unlinks it.
+  </p>
+
+  <h3>Private libraries</h3>
+  <p>
+    When you create a library with <strong>Public</strong> toggled off, only you and users you
+    explicitly assign can see the books in it. Admins can assign users to any library from the
+    library's edit modal.
+  </p>
+
+  <Callout variant="info" title="Book types auto-create libraries">
+    Each book type (Novels, Manga, Comics, etc.) automatically gets its own library. These
+    system-created libraries can't be deleted, but you can rename them and change their icons.
+  </Callout>
+
+  <h3>Reordering</h3>
+  <p>
+    Libraries appear in the sidebar in sort order. Drag to reorder them, or edit the sort order
+    value directly.
+  </p>
+
+  <h2>Shelves</h2>
+  <p>
+    A shelf is a saved filter. Set up any combination of filters on the dashboard — series, author,
+    tag, format, reading status, library, or missing fields — then click <strong>Save as
+    shelf</strong> in the filter bar. The shelf appears in the sidebar under "Shelves" and
+    restores those exact filters when clicked.
+  </p>
+  <p>
+    Use shelves for views you return to often: "Unread manga", "Books missing covers", "Everything
+    by Brandon Sanderson".
+  </p>
+
+  <Callout variant="tip" title="Shelves are per-user">
+    Each user has their own shelves. They don't affect what other users see.
+  </Callout>
+
+  <h2>Visibility rules</h2>
+  <p>
+    Who sees what depends on role and library membership. For the full breakdown, see
+    <a href={withBase("/docs/users-and-roles")}>Users, roles & visibility</a>.
+  </p>
+  <ul>
+    <li><strong>Admins</strong> see all books in all libraries</li>
+    <li><strong>Members</strong> see admin-uploaded books + their own uploads + books in assigned libraries</li>
+    <li><strong>Guests</strong> see admin-uploaded books + books in public libraries</li>
+  </ul>
+</DocsLayout>
