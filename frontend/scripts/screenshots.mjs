@@ -237,6 +237,29 @@ const SHOTS = [
     path: '/settings',
     viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
     settle: 1200,
+    after: async (page) => {
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  {
+    name: 'settings-send-to-device-guide',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.locator('button:has-text("How to set it up")').first().click().catch(() => {})
+      await page.waitForTimeout(500)
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
     element: 'section:has(span:text-is("Send to Device"))',
   },
   {
