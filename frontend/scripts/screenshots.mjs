@@ -231,6 +231,26 @@ const SHOTS = [
     },
   },
 
+  // Send to Device
+  {
+    name: 'settings-send-to-device',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  {
+    name: 'admin-email',
+    path: '/admin',
+    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.locator('button:has-text("Email")').first().click().catch(() => {})
+      await page.waitForTimeout(800)
+    },
+    autoCrop: true,
+  },
+
   // Mobile (PWA)
   { name: 'mobile-home', path: '/', mobile: true, waitFor: 'h2, h3, [class*="streak"]' },
   { name: 'mobile-stats', path: '/stats', mobile: true, settle: 1200 },

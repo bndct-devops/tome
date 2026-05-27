@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     port: int = 8080
     hardcover_token: str | None = None
 
+    # SMTP (send-to-device)
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_daily_limit: int = 50
+
     # Auto-import settings
     auto_import: bool = False
     auto_import_interval: int = 300  # seconds
@@ -25,6 +35,14 @@ class Settings(BaseSettings):
     # JWT settings
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+
+    @property
+    def smtp_from_address(self) -> str:
+        return self.smtp_from or self.smtp_user or ""
 
     @property
     def db_path(self) -> Path:

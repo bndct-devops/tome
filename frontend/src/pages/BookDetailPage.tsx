@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  Camera, Download, Edit2, Save, X,
+  Camera, Download, Edit2, Save, X, Send,
   Calendar, Globe, Hash, Building2, AlignLeft, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon
@@ -11,6 +11,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
+import { SendToDeviceModal } from '@/components/SendToDeviceModal'
 import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { api } from '@/lib/api'
@@ -61,6 +62,7 @@ export function BookDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [fetchModalOpen, setFetchModalOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
+  const [sendModalOpen, setSendModalOpen] = useState(false)
   const [libraries, setLibraries] = useState<LibraryType[]>([])
   const [libMenuOpen, setLibMenuOpen] = useState(false)
   const libMenuRef = useRef<HTMLDivElement>(null)
@@ -543,6 +545,17 @@ export function BookDetailPage() {
                 ))}
               </div>
             )}
+
+            {/* Send to Device */}
+            {isMember(user) && book.files.length > 0 && (
+              <button
+                onClick={() => setSendModalOpen(true)}
+                className="mt-2 flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-sm border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm transition-all duration-200"
+              >
+                <Send className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium">Send to Device</span>
+              </button>
+            )}
           </div>
 
           {/* Metadata */}
@@ -817,6 +830,13 @@ export function BookDetailPage() {
           open={coverPickerOpen}
           onClose={() => setCoverPickerOpen(false)}
           onApplied={updated => { setBook(updated); setDraft(updated) }}
+        />
+      )}
+      {book && (
+        <SendToDeviceModal
+          open={sendModalOpen}
+          onClose={() => setSendModalOpen(false)}
+          books={[{ id: book.id, title: book.title, files: book.files }]}
         />
       )}
     </div>
