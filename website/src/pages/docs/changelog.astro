@@ -22,6 +22,29 @@ import { withBase } from '../../lib/path'
     isn't a path anyone should be on; just upgrade to the latest 1.x.
   </Callout>
 
+  <h2>Unreleased</h2>
+  <p>
+    On <code>main</code>, not yet cut into a tagged release. Lands in the next minor version.
+  </p>
+  <h3>Added</h3>
+  <ul>
+    <li>
+      <strong>Send to device:</strong> email books to a Kindle, Kobo, or any address straight from
+      the web UI — single or bulk (max 25 per send). Per-user device list in Settings, admin Email
+      tab (SMTP status, test email, all devices, send history). SMTP via <code>TOME_SMTP_*</code>
+      env vars; 25&nbsp;MB attachment limit; 50/user/day rate limit. Members and admins only. See
+      <a href={withBase("/docs/send-to-device")}>Send to device</a>.
+    </li>
+    <li>
+      <strong>API token scopes:</strong> create tokens with <code>full</code> (default) or
+      <code>readonly</code> scope; read-only tokens are blocked from non-GET requests.
+    </li>
+  </ul>
+  <h3>Changed</h3>
+  <ul>
+    <li>Website: raster favicons for Google search results + Cloudflare Web Analytics.</li>
+  </ul>
+
   <h2>v1.0 — "Codex"</h2>
   <p>
     The first release that calls itself done. Stable schema, opinionated defaults, a coherent
