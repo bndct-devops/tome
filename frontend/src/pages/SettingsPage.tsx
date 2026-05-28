@@ -1070,16 +1070,21 @@ export function SettingsPage() {
           <SectionHeader title="Send to Device" />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
             <div className="p-5 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
-                  <Send className="w-3.5 h-3.5 text-primary" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
+                    <Send className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">E-Reader Devices</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">E-Reader Devices</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.
-                  </p>
-                </div>
+                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Learn more <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
 
               {smtpConfigured === false ? (

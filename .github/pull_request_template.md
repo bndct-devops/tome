@@ -23,6 +23,7 @@
 - [ ] `npm run build` clean (frontend typecheck)
 - [ ] Manually tested the happy path
 - [ ] Docs updated (if user-facing)
+- [ ] In-app "Learn more →" link points to the new/updated docs (if docs added)
 - [ ] Screenshots added (if UI change)
 - [ ] No secrets or credentials committed
 

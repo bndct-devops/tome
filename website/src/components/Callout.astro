@@ -5,9 +5,12 @@
 //   <Callout variant="warning" title="Don't expose this port">
 //     /api/docs is unauthenticated by default.
 //   </Callout>
+//
+// Pass `collapsible` to render as an expandable <details> (title is the
+// summary row). Add `open` to start expanded.
 type Variant = 'info' | 'tip' | 'warning' | 'danger' | 'note'
-interface Props { variant?: Variant; title?: string }
-const { variant = 'note', title } = Astro.props as Props
+interface Props { variant?: Variant; title?: string; collapsible?: boolean; open?: boolean }
+const { variant = 'note', title, collapsible = false, open = false } = Astro.props as Props
 
 const config: Record<Variant, { label: string; icon: string }> = {
   info:    { label: 'Info',    icon: 'M12 16v-4m0-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z' },
@@ -18,14 +21,31 @@ const config: Record<Variant, { label: string; icon: string }> = {
 }
 const c = config[variant]
 ---
-<aside class={`callout callout-${variant}`} role="note">
-  <div class="callout-icon" aria-hidden="true">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d={c.icon} />
-    </svg>
-  </div>
-  <div class="callout-body">
-    <div class="callout-title">{title ?? c.label}</div>
+{collapsible ? (
+  <details class={`callout callout-${variant} callout-collapsible`} open={open}>
+    <summary class="callout-summary">
+      <div class="callout-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d={c.icon} />
+        </svg>
+      </div>
+      <span class="callout-title">{title ?? c.label}</span>
+      <svg class="callout-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </summary>
     <div class="callout-content"><slot /></div>
-  </div>
-</aside>
+  </details>
+) : (
+  <aside class={`callout callout-${variant}`} role="note">
+    <div class="callout-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d={c.icon} />
+      </svg>
+    </div>
+    <div class="callout-body">
+      <div class="callout-title">{title ?? c.label}</div>
+      <div class="callout-content"><slot /></div>
+    </div>
+  </aside>
+)}

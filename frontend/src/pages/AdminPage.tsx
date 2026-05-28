@@ -1682,9 +1682,14 @@ function EmailTab() {
     <div className="space-y-6">
       {/* SMTP Status */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">SMTP Status</h3>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">SMTP Status</h3>
+          </div>
+          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+            Learn more <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
 
         {smtpStatus?.configured ? (

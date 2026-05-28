@@ -1,0 +1,157 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { CopyButton } from '../../components/CopyButton'
+import { withBase } from '../../lib/path'
+
+const gmail = `TOME_SMTP_HOST=smtp.gmail.com
+TOME_SMTP_PORT=587
+TOME_SMTP_USER=you@gmail.com
+TOME_SMTP_PASSWORD=your-app-password`
+
+const fastmail = `TOME_SMTP_HOST=smtp.fastmail.com
+TOME_SMTP_PORT=587
+TOME_SMTP_USER=you@fastmail.com
+TOME_SMTP_PASSWORD=your-app-password`
+
+const generic = `TOME_SMTP_HOST=smtp.example.com
+TOME_SMTP_PORT=587
+TOME_SMTP_USER=tome@example.com
+TOME_SMTP_PASSWORD=secret
+TOME_SMTP_FROM=tome@example.com   # optional, defaults to TOME_SMTP_USER`
+---
+<DocsLayout title="Send to device" description="Email books straight to a Kindle, Kobo, or any inbox — single or in bulk.">
+  <SectionHero section="features" />
+  <h1>Send to device</h1>
+  <p>
+    Send to device emails a book as an attachment straight to your e-reader — a Kindle's
+    Send-to-Kindle address, a Kobo, or any plain inbox. Set up SMTP once on the server, save a
+    device address per user, and send single books or whole selections from the web UI.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="info" title="Members and admins only">
+    Sending requires the <strong>member</strong> or <strong>admin</strong> role. Guests can still
+    download books manually, but the send button is hidden for them. See
+    <a href={withBase("/docs/users-and-roles")}>Users &amp; roles</a>.
+  </Callout>
+
+  <h2>1. Configure SMTP (admin, one-time)</h2>
+  <p>
+    Sending is off until the server has SMTP credentials. Set them as environment variables —
+    they're never stored in the database. Until they're present, the feature shows a setup guide
+    instead of the send UI.
+  </p>
+
+  <Callout variant="note" title="Fastmail" collapsible open>
+    <p>
+      Create an app password scoped to <strong>SMTP</strong> under Settings → Privacy &amp; Security
+      → App passwords.
+    </p>
+    <div class="relative">
+      <pre><code>{fastmail}</code></pre>
+      <div class="absolute top-2 right-2"><CopyButton text={fastmail} client:load /></div>
+    </div>
+  </Callout>
+
+  <Callout variant="note" title="Gmail" collapsible>
+    <p>
+      Use an <a href="https://myaccount.google.com/apppasswords">App Password</a>, not your normal
+      account password (Gmail blocks plain-password SMTP). Gmail allows ~500 sends/day.
+    </p>
+    <div class="relative">
+      <pre><code>{gmail}</code></pre>
+      <div class="absolute top-2 right-2"><CopyButton text={gmail} client:load /></div>
+    </div>
+  </Callout>
+
+  <Callout variant="note" title="Any other provider" collapsible>
+    <div class="relative">
+      <pre><code>{generic}</code></pre>
+      <div class="absolute top-2 right-2"><CopyButton text={generic} client:load /></div>
+    </div>
+  </Callout>
+
+  <table class="docs-table">
+    <thead>
+      <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>TOME_SMTP_HOST</code></td><td>—</td><td>SMTP server hostname (enables the feature)</td></tr>
+      <tr><td><code>TOME_SMTP_PORT</code></td><td><code>587</code></td><td>SMTP port</td></tr>
+      <tr><td><code>TOME_SMTP_USER</code></td><td>—</td><td>SMTP username for auth</td></tr>
+      <tr><td><code>TOME_SMTP_PASSWORD</code></td><td>—</td><td>SMTP password / app password</td></tr>
+      <tr><td><code>TOME_SMTP_FROM</code></td><td><code>TOME_SMTP_USER</code></td><td>"From" address recipients see</td></tr>
+      <tr><td><code>TOME_SMTP_USE_TLS</code></td><td><code>true</code></td><td>STARTTLS (port 587)</td></tr>
+      <tr><td><code>TOME_SMTP_USE_SSL</code></td><td><code>false</code></td><td>Implicit SSL (port 465)</td></tr>
+      <tr><td><code>TOME_SMTP_DAILY_LIMIT</code></td><td><code>50</code></td><td>Per-user sends/day (0 = unlimited)</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The feature is considered "configured" once <code>TOME_SMTP_HOST</code>,
+    <code>TOME_SMTP_USER</code>, and <code>TOME_SMTP_PASSWORD</code> are all set. See the full env
+    var list in <a href={withBase("/docs/configuration")}>Configuration</a>.
+  </p>
+
+  <h2>2. Add a device</h2>
+  <p>
+    Each user adds their own devices under <strong>Settings → Send to Device</strong>: a name and
+    an email address. Up to 10 per user.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="settings-send-to-device-added" alt="Adding an e-reader device in Settings" />
+  </div>
+
+  <Callout variant="warning" title="Kindle: approve the sender first">
+    Amazon silently drops documents from unknown senders. Add your <code>TOME_SMTP_FROM</code>
+    address to your
+    <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment">Approved Personal Document
+    E-mail List</a> (Content &amp; Devices → Preferences → Personal Document Settings), and use your
+    <code>@kindle.com</code> Send-to-Kindle address as the device email.
+  </Callout>
+
+  <h2>3. Send a book</h2>
+  <p>
+    Open any book and click <strong>Send to Device</strong> below the download buttons. Pick a
+    device, pick a format if the book has more than one, and send.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="send-modal" alt="Send to device dialog on a book" />
+  </div>
+
+  <h3>Sending in bulk</h3>
+  <p>
+    On the dashboard, click <strong>Select</strong>, choose books, then <strong>Send to
+    Device</strong> in the action bar. Up to 25 books per send; each arrives as its own email.
+    Tome reuses a single SMTP connection for the whole batch.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="send-modal-bulk" alt="Bulk send to device dialog" />
+  </div>
+
+  <h2>Admin: Email tab</h2>
+  <p>
+    The <strong>Email</strong> tab in <a href={withBase("/docs/admin")}>/admin</a> shows SMTP
+    status, lets you send a test email, lists every user's devices, and shows recent send history
+    (who sent what, where, and whether it succeeded).
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="admin-email-configured" alt="Admin Email tab" />
+  </div>
+
+  <h2>Limits &amp; behaviour</h2>
+  <ul>
+    <li><strong>Attachment size:</strong> 25&nbsp;MB per book. Larger files are rejected with a clear error — most SMTP relays cap here even when the e-reader allows more.</li>
+    <li><strong>Daily limit:</strong> 50 sends per user per day by default (<code>TOME_SMTP_DAILY_LIMIT</code>). Set to <code>0</code> for unlimited.</li>
+    <li><strong>Format:</strong> the book is sent as-is (EPUB, PDF, MOBI, CBZ) with Tome's metadata embedded — no conversion.</li>
+    <li><strong>Filename:</strong> the attachment is named after the book title, so it lands in your library with a clean name.</li>
+  </ul>
+
+  <Callout variant="tip" title="Test before you rely on it">
+    Use the admin <strong>Send test email</strong> button after setting SMTP up. It sends a plain
+    message (no attachment) so you can confirm auth and delivery before sending real books.
+  </Callout>
+</DocsLayout>

@@ -35,6 +35,7 @@ export const DOCS = {
   series:         docsUrl('/docs/series'),
   stats:          docsUrl('/docs/stats'),
   bindery:        docsUrl('/docs/bindery'),
+  sendToDevice:   docsUrl('/docs/send-to-device'),
   koreader:       docsUrl('/docs/koreader'),
   opds:           docsUrl('/docs/opds'),
   scribe:         docsUrl('/docs/scribe'),
