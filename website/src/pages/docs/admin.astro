@@ -11,7 +11,7 @@ import { withBase } from '../../lib/path'
   <h1>Admin tools</h1>
   <p>
     The admin panel (<strong>/admin</strong>) has tools for maintaining a clean library at scale:
-    duplicate detection and library health checks. Both are admin-only.
+    duplicate detection, library health checks, and an Email tab for Send to Device. All admin-only.
   </p>
   <DocsMeta />
 
@@ -86,4 +86,12 @@ import { withBase } from '../../lib/path'
     match. If you mount <code>/books</code> as read-only, reorganise will fail — remount as
     read-write first.
   </Callout>
+
+  <h2>Email (Send to Device)</h2>
+  <p>
+    The Email tab shows SMTP status (configured or not, with host/port/from), a
+    <strong>Send test email</strong> button, every user's saved devices, and recent send history —
+    who sent which book to which device, and whether it succeeded. SMTP itself is configured via
+    environment variables; see <a href={withBase("/docs/send-to-device")}>Send to Device</a>.
+  </p>
 </DocsLayout>

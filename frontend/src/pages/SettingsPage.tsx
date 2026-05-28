@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
-  AlertTriangle, ExternalLink,
+  AlertTriangle, ExternalLink, Send,
 } from 'lucide-react'
 import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -317,6 +317,55 @@ export function SettingsPage() {
       if (newPinResult) setNewPinResult(null)
     } finally {
       setPinRevoking(null)
+    }
+  }
+
+  // ── Send to Device ────────────────────────────────────────────────────────
+  interface UserDeviceItem { id: number; name: string; email: string; created_at: string }
+  const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null)
+  const [devices, setDevices] = useState<UserDeviceItem[]>([])
+  const [newDeviceName, setNewDeviceName] = useState('')
+  const [newDeviceEmail, setNewDeviceEmail] = useState('')
+  const [deviceAdding, setDeviceAdding] = useState(false)
+  const [deviceDeleting, setDeviceDeleting] = useState<number | null>(null)
+  const [deviceError, setDeviceError] = useState<string | null>(null)
+  const [setupGuideOpen, setSetupGuideOpen] = useState(false)
+
+  useEffect(() => {
+    api.get<{ configured: boolean }>('/smtp-status').then(r => {
+      setSmtpConfigured(r.configured)
+      if (r.configured) {
+        api.get<UserDeviceItem[]>('/devices').then(setDevices).catch(() => {})
+      }
+    }).catch(() => setSmtpConfigured(false))
+  }, [])
+
+  async function handleAddDevice(e: React.FormEvent) {
+    e.preventDefault()
+    setDeviceError(null)
+    const name = newDeviceName.trim()
+    const email = newDeviceEmail.trim()
+    if (!name || !email) return
+    setDeviceAdding(true)
+    try {
+      const d = await api.post<UserDeviceItem>('/devices', { name, email })
+      setDevices(prev => [...prev, d])
+      setNewDeviceName('')
+      setNewDeviceEmail('')
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : 'Failed to add device')
+    } finally {
+      setDeviceAdding(false)
+    }
+  }
+
+  async function handleDeleteDevice(id: number) {
+    setDeviceDeleting(id)
+    try {
+      await api.delete(`/devices/${id}`)
+      setDevices(prev => prev.filter(d => d.id !== id))
+    } finally {
+      setDeviceDeleting(null)
     }
   }
 
@@ -1013,6 +1062,130 @@ export function SettingsPage() {
               </div>
             </div>
 
+          </div>
+        </section>
+
+        {/* ── Send to Device ──────────────────────────────────────────── */}
+        <section>
+          <SectionHeader title="Send to Device" />
+          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-5 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
+                    <Send className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">E-Reader Devices</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.
+                    </p>
+                  </div>
+                </div>
+                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Learn more <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              {smtpConfigured === false ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Email delivery is not set up yet.</p>
+                  </div>
+                  <div className="rounded-lg border border-border overflow-hidden text-xs">
+                    <button
+                      onClick={() => setSetupGuideOpen(v => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
+                    >
+                      <span className="font-medium text-foreground">How to set it up</span>
+                      {setupGuideOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </button>
+                    {setupGuideOpen && (
+                      <div className="border-t border-border px-3 py-3 space-y-3 text-xs text-muted-foreground">
+                        <p>Your server admin needs to set SMTP environment variables:</p>
+                        <div className="space-y-2">
+                          <p className="font-medium text-foreground">Gmail</p>
+                          <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.gmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@gmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
+                          <p>Use a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google App Password</a>, not your regular password.</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="font-medium text-foreground">Fastmail</p>
+                          <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.fastmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@fastmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="font-medium text-foreground">Other providers</p>
+                          <p>Set <code className="text-foreground">TOME_SMTP_HOST</code>, <code className="text-foreground">TOME_SMTP_PORT</code>, <code className="text-foreground">TOME_SMTP_USER</code>, and <code className="text-foreground">TOME_SMTP_PASSWORD</code>.</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/60 border border-border p-2.5">
+                          <p className="font-medium text-foreground mb-1">Kindle users</p>
+                          <p>Add your SMTP sender address to Amazon's <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Approved Personal Document E-mail List</a>, or emails will be silently dropped.</p>
+                        </div>
+                        <p className="text-muted-foreground/70">Ask your server admin if you don't manage the Tome installation yourself.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : smtpConfigured ? (
+                <div className="space-y-3">
+                  {/* Add device form */}
+                  <form onSubmit={handleAddDevice} className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Device name</label>
+                      <input
+                        type="text"
+                        value={newDeviceName}
+                        onChange={e => setNewDeviceName(e.target.value)}
+                        placeholder="My Kindle"
+                        className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Email address</label>
+                      <input
+                        type="email"
+                        value={newDeviceEmail}
+                        onChange={e => setNewDeviceEmail(e.target.value)}
+                        placeholder="user_abc@kindle.com"
+                        className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={deviceAdding || !newDeviceName.trim() || !newDeviceEmail.trim()}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                    >
+                      {deviceAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      Add
+                    </button>
+                  </form>
+                  {deviceError && <p className="text-xs text-destructive">{deviceError}</p>}
+
+                  {/* Device list */}
+                  {devices.length > 0 ? (
+                    <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                      {devices.map(d => (
+                        <div key={d.id} className="flex items-center gap-3 px-3 py-2">
+                          <Send className="w-3 h-3 text-muted-foreground shrink-0" />
+                          <span className="text-foreground font-medium flex-1 truncate">{d.name}</span>
+                          <span className="text-muted-foreground hidden sm:block truncate max-w-48">{d.email}</span>
+                          <button
+                            onClick={() => handleDeleteDevice(d.id)}
+                            disabled={deviceDeleting === d.id}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Remove device"
+                          >
+                            {deviceDeleting === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No devices yet. Add one to start sending books.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </section>
 

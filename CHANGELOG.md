@@ -4,6 +4,26 @@ All notable changes to Tome are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Send to device: email books to a Kindle, Kobo, or any address straight
+  from the web UI — single or bulk (max 25 per send). Per-user device list
+  in Settings, admin Email tab (SMTP status, test email, all devices, send
+  history). SMTP configured via `TOME_SMTP_*` env vars; 25 MB attachment
+  limit; 50/user/day rate limit (`TOME_SMTP_DAILY_LIMIT`). Members and
+  admins only.
+- API token scopes: tokens can now be created with `"full"` (default) or
+  `"readonly"` scope. Read-only tokens are blocked from non-GET requests.
+  Existing tokens default to full access. Settings UI shows a scope dropdown
+  on creation and a badge on read-only tokens.
+
+### Changed
+- Website: added raster favicons (`.ico` + `.png`) for Google search results
+  and Cloudflare Web Analytics tracking snippet.
+
+---
+
 ## [1.0.0] — 2026-05-25 — "Codex"
 
 First stable release. Schema, API, and plugin protocol are now stable —

@@ -1,27 +1,36 @@
-<!-- Thanks for the contribution. A few lines of context go a long way. -->
-
 ## Summary
 
-<!-- What does this PR change? One or two sentences. -->
+<!-- What and why in 2-3 bullets. Link the issue if there is one ("Fixes #123"). -->
 
-## Why
+## Changes
 
-<!-- The motivation. Link the issue if there is one ("Fixes #123"). -->
+<!-- Group by area. Keep it scannable — one line per change, not paragraphs.
 
-## Test plan
+**Backend**
+- ...
 
-<!-- What did you verify before submitting? Examples:
-- [ ] `pytest tests/ -q` passes
-- [ ] `cd frontend && npm run build` clean
-- [ ] Manually clicked through pages X, Y on Chrome + Safari
-- [ ] Tested KOReader sync against a real device
+**Frontend**
+- ...
 -->
 
-## Notes for reviewer
+## Screenshots
 
-<!-- Anything tricky, intentionally-skipped, or worth flagging. Delete if N/A. -->
+<!-- Paste before/after or new UI states. Delete section if no UI changes. -->
+
+## Checklist
+
+- [ ] `pytest` passes
+- [ ] `npm run build` clean (frontend typecheck)
+- [ ] Manually tested the happy path
+- [ ] Docs updated (if user-facing)
+- [ ] In-app "Learn more →" link points to the new/updated docs (if docs added)
+- [ ] Screenshots added (if UI change)
+- [ ] No secrets or credentials committed
+
+## Notes
+
+<!-- Anything tricky, intentionally skipped, or deferred. Delete if N/A. -->
 
 ---
 
-By submitting this PR, I confirm my contributions are licensed under
-AGPL-3.0 (the project's licence).
+By submitting this PR, I confirm my contributions are licensed under AGPL-3.0.

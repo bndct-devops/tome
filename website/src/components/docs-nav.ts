@@ -21,6 +21,7 @@ export const DOCS_NAV: DocGroup[] = [
       { href: '/docs/series',             title: 'Series & arcs' },
       { href: '/docs/stats',              title: 'Reading stats' },
       { href: '/docs/bindery',            title: 'Bindery (auto-import)' },
+      { href: '/docs/send-to-device',     title: 'Send to device' },
       { href: '/docs/themes',             title: 'Themes & shortcuts' },
     ],
   },

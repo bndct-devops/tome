@@ -31,6 +31,14 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_AUTO_IMPORT_INTERVAL</code></td><td><code>300</code></td><td>Seconds between scans</td></tr>
       <tr><td><code>TOME_JWT_ALGORITHM</code></td><td><code>HS256</code></td><td>JWT algorithm</td></tr>
       <tr><td><code>TOME_JWT_EXPIRE_MINUTES</code></td><td><code>10080</code></td><td>JWT lifetime (7 days)</td></tr>
+      <tr><td><code>TOME_SMTP_HOST</code></td><td>—</td><td>SMTP server (enables Send to Device)</td></tr>
+      <tr><td><code>TOME_SMTP_PORT</code></td><td><code>587</code></td><td>SMTP port</td></tr>
+      <tr><td><code>TOME_SMTP_USER</code></td><td>—</td><td>SMTP username</td></tr>
+      <tr><td><code>TOME_SMTP_PASSWORD</code></td><td>—</td><td>SMTP password / app password</td></tr>
+      <tr><td><code>TOME_SMTP_FROM</code></td><td><code>TOME_SMTP_USER</code></td><td>"From" address</td></tr>
+      <tr><td><code>TOME_SMTP_USE_TLS</code></td><td><code>true</code></td><td>STARTTLS (port 587)</td></tr>
+      <tr><td><code>TOME_SMTP_USE_SSL</code></td><td><code>false</code></td><td>Implicit SSL (port 465)</td></tr>
+      <tr><td><code>TOME_SMTP_DAILY_LIMIT</code></td><td><code>50</code></td><td>Per-user sends/day (0 = unlimited)</td></tr>
     </tbody>
   </table>
 
@@ -90,6 +98,16 @@ import { withBase } from '../../lib/path'
     Even with auto-import on, books land marked <code>is_reviewed=false</code> and surface in the
     "Unreviewed" queue so an admin can sanity-check the detected metadata. See
     <a href={withBase("/docs/bindery")}>Bindery</a>.
+  </p>
+
+  <h2>SMTP (Send to Device)</h2>
+  <p>
+    The <code>TOME_SMTP_*</code> variables enable <a href={withBase("/docs/send-to-device")}>Send to
+    Device</a> — emailing books to e-readers. The feature stays hidden until
+    <code>TOME_SMTP_HOST</code>, <code>TOME_SMTP_USER</code>, and <code>TOME_SMTP_PASSWORD</code> are
+    all set. Credentials live only in the environment, never the database. See the
+    <a href={withBase("/docs/send-to-device")}>Send to Device</a> page for provider-specific
+    examples (Gmail, Fastmail) and the Kindle approved-sender step.
   </p>
 
   <h2>JWT lifetime</h2>

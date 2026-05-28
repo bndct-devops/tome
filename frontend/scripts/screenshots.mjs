@@ -231,6 +231,147 @@ const SHOTS = [
     },
   },
 
+  // Send to Device
+  {
+    name: 'settings-send-to-device',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  {
+    name: 'settings-send-to-device-guide',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.locator('button:has-text("How to set it up")').first().click().catch(() => {})
+      await page.waitForTimeout(500)
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  {
+    name: 'admin-email',
+    path: '/admin',
+    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.locator('button:has-text("Email")').first().click().catch(() => {})
+      await page.waitForTimeout(800)
+    },
+    autoCrop: true,
+  },
+  // Configured state — requires SMTP set on the showcase backend.
+  {
+    name: 'settings-send-to-device-empty',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  {
+    name: 'settings-send-to-device-prefilled',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.fill('input[placeholder="My Kindle"]', "Benedict's Kindle").catch(() => {})
+      await page.fill('input[placeholder="user_abc@kindle.com"]', 'benedict_a1b2c3@kindle.com').catch(() => {})
+      await page.waitForTimeout(200)
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  {
+    name: 'settings-send-to-device-added',
+    path: '/settings',
+    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.fill('input[placeholder="My Kindle"]', "Benedict's Kindle").catch(() => {})
+      await page.fill('input[placeholder="user_abc@kindle.com"]', 'benedict_a1b2c3@kindle.com').catch(() => {})
+      await page.locator('section:has(span:text-is("Send to Device")) button:has-text("Add")').first().click().catch(() => {})
+      await page.waitForTimeout(900)
+      await page.evaluate(() => {
+        const sections = [...document.querySelectorAll('section')]
+        const target = sections.find(s => s.querySelector('span')?.textContent?.trim() === 'Send to Device')
+        if (target) target.style.padding = '48px 32px'
+      })
+    },
+    // Remove the device we just added so re-runs start clean (empty/prefilled shots stay valid).
+    cleanup: async (token, api) => {
+      const res = await fetch(`${api}/api/devices`, { headers: { Authorization: `Bearer ${token}` } })
+      const devices = await res.json().catch(() => [])
+      for (const d of devices) {
+        await fetch(`${api}/api/devices/${d.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+      }
+    },
+    element: 'section:has(span:text-is("Send to Device"))',
+  },
+  // Send modal — single book. Requires SMTP configured + at least one device.
+  {
+    name: 'send-modal',
+    path: () => `/books/${bookIds.frankenstein ?? 1}`,
+    viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 },
+    settle: 1000,
+    after: async (page) => {
+      await page.locator('button:has-text("Send to Device")').first().click().catch(() => {})
+      await page.waitForTimeout(600)
+      await maskModalBackdrop(page)
+    },
+    element: 'div.max-w-md:has(h2:has-text("Send to Device"))',
+  },
+  // Send modal — bulk (select all, open from dashboard toolbar).
+  {
+    name: 'send-modal-bulk',
+    path: '/?tab=books&view=large',
+    viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 },
+    settle: 1000,
+    after: async (page) => {
+      await page.locator('button:has-text("Select")').first().click().catch(() => {})
+      await page.waitForTimeout(400)
+      await page.locator('div:has(> span:has-text("selected")) button:has-text("Send to Device")').first().click().catch(() => {})
+      await page.waitForTimeout(600)
+      await maskModalBackdrop(page)
+    },
+    element: 'div.max-w-md:has(h2:has-text("Send to Device"))',
+  },
+  // Admin Email tab — configured (SMTP set + a device present).
+  {
+    name: 'admin-email-configured',
+    path: '/admin',
+    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 },
+    settle: 1200,
+    after: async (page) => {
+      await page.locator('button:has-text("Email")').first().click().catch(() => {})
+      await page.waitForTimeout(800)
+    },
+    autoCrop: true,
+  },
+
   // Mobile (PWA)
   { name: 'mobile-home', path: '/', mobile: true, waitFor: 'h2, h3, [class*="streak"]' },
   { name: 'mobile-stats', path: '/stats', mobile: true, settle: 1200 },

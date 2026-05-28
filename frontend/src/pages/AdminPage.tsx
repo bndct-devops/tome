@@ -6,7 +6,7 @@ import {
   RefreshCw, FolderInput, HardDrive, Database,
   BookOpen, Folder, Trash, Tag, LogIn,
   Activity, ChevronsUpDown, Copy, GitMerge,
-  User, Eye, ExternalLink,
+  User, Eye, ExternalLink, Send, Mail,
 } from 'lucide-react'
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
@@ -1531,7 +1531,7 @@ function DuplicatesTab() {
 
 // ── AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'sync' | 'duplicates'
+type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'sync' | 'duplicates' | 'email'
 
 export function AdminPage() {
   const { user } = useAuth()
@@ -1557,6 +1557,7 @@ export function AdminPage() {
     { id: 'library', label: 'Library' },
     { id: 'sync', label: 'Sync Status' },
     { id: 'duplicates', label: 'Duplicates' },
+    { id: 'email', label: 'Email' },
   ]
 
   return (
@@ -1598,7 +1599,228 @@ export function AdminPage() {
         {tab === 'library' && <LibraryHealthTab />}
         {tab === 'sync' && <SyncStatusTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
+        {tab === 'email' && <EmailTab />}
       </main>
+    </div>
+  )
+}
+
+// ── Email Tab ────────────────────────────────────────────────────────────────
+
+interface SmtpStatusDetail {
+  configured: boolean
+  host: string | null
+  port: number
+  from_address: string | null
+}
+
+interface AdminDevice {
+  id: number
+  username: string
+  device_name: string
+  device_email: string
+  created_at: string
+}
+
+interface SendHistoryEntry {
+  id: number
+  username: string | null
+  book_title: string | null
+  device_email: string | null
+  device_name: string | null
+  status: string | null
+  format: string | null
+  created_at: string
+}
+
+function EmailTab() {
+  const [smtpStatus, setSmtpStatus] = useState<SmtpStatusDetail | null>(null)
+  const [allDevices, setAllDevices] = useState<AdminDevice[]>([])
+  const [history, setHistory] = useState<SendHistoryEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [testEmail, setTestEmail] = useState('')
+  const [testSending, setTestSending] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+
+  useEffect(() => {
+    Promise.all([
+      api.get<SmtpStatusDetail>('/admin/smtp-status').catch(() => null),
+      api.get<AdminDevice[]>('/admin/devices').catch(() => []),
+      api.get<SendHistoryEntry[]>('/admin/send-history').catch(() => []),
+    ]).then(([smtp, devices, hist]) => {
+      setSmtpStatus(smtp)
+      setAllDevices(devices)
+      setHistory(hist)
+      setLoading(false)
+    })
+  }, [])
+
+  async function handleTestEmail(e: React.FormEvent) {
+    e.preventDefault()
+    if (!testEmail.trim()) return
+    setTestSending(true)
+    setTestResult(null)
+    try {
+      await api.post('/admin/smtp-test', { email: testEmail.trim() })
+      setTestResult({ ok: true })
+    } catch (err) {
+      setTestResult({ ok: false, error: err instanceof Error ? err.message : 'Send failed' })
+    } finally {
+      setTestSending(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* SMTP Status */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">SMTP Status</h3>
+          </div>
+          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+            Learn more <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+
+        {smtpStatus?.configured ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-xs font-medium text-green-600 dark:text-green-400">Configured</span>
+            </div>
+            <div className="rounded-lg bg-muted/60 border border-border text-xs divide-y divide-border/50">
+              <div className="flex items-center gap-3 px-3 py-2">
+                <span className="text-muted-foreground w-20 shrink-0">Host</span>
+                <span className="font-mono text-foreground">{smtpStatus.host}</span>
+              </div>
+              <div className="flex items-center gap-3 px-3 py-2">
+                <span className="text-muted-foreground w-20 shrink-0">Port</span>
+                <span className="font-mono text-foreground">{smtpStatus.port}</span>
+              </div>
+              <div className="flex items-center gap-3 px-3 py-2">
+                <span className="text-muted-foreground w-20 shrink-0">From</span>
+                <span className="font-mono text-foreground">{smtpStatus.from_address || '(not set)'}</span>
+              </div>
+            </div>
+
+            {/* Test email */}
+            <form onSubmit={handleTestEmail} className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Send test email</label>
+                <input
+                  type="email"
+                  value={testEmail}
+                  onChange={e => { setTestEmail(e.target.value); setTestResult(null) }}
+                  placeholder="test@example.com"
+                  className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={testSending || !testEmail.trim()}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+              >
+                {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                {testSending ? 'Sending...' : 'Test'}
+              </button>
+            </form>
+            {testResult?.ok && <p className="text-xs text-green-500">Test email sent successfully.</p>}
+            {testResult && !testResult.ok && <p className="text-xs text-destructive">{testResult.error}</p>}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Not configured</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Set the following environment variables to enable Send to Device:
+            </p>
+            <code className="block text-xs font-mono bg-muted rounded-lg px-3 py-2 text-muted-foreground whitespace-pre-wrap">TOME_SMTP_HOST{'\n'}TOME_SMTP_USER{'\n'}TOME_SMTP_PASSWORD</code>
+          </div>
+        )}
+      </div>
+
+      {/* All Devices */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Send className="w-4 h-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">All Devices</h3>
+          <span className="text-xs text-muted-foreground">({allDevices.length})</span>
+        </div>
+
+        {allDevices.length > 0 ? (
+          <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+            <div className="hidden sm:grid grid-cols-[8rem_1fr_1fr_7rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+              <span>User</span>
+              <span>Device</span>
+              <span>Email</span>
+              <span>Added</span>
+            </div>
+            {allDevices.map(d => (
+              <div key={d.id} className="flex sm:grid sm:grid-cols-[8rem_1fr_1fr_7rem] items-center gap-2 sm:gap-0 px-3 py-2.5 hover:bg-muted/30 transition-colors">
+                <span className="text-foreground font-medium truncate">{d.username}</span>
+                <span className="text-foreground truncate">{d.device_name}</span>
+                <span className="text-muted-foreground font-mono truncate">{d.device_email}</span>
+                <span className="text-muted-foreground hidden sm:block">{new Date(d.created_at).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No users have added devices yet.</p>
+        )}
+      </div>
+
+      {/* Send History */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">Send History</h3>
+          <span className="text-xs text-muted-foreground">(last 100)</span>
+        </div>
+
+        {history.length > 0 ? (
+          <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+            <div className="hidden sm:grid grid-cols-[10rem_6rem_1fr_1fr_5rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+              <span>Time</span>
+              <span>User</span>
+              <span>Book</span>
+              <span>Device</span>
+              <span>Status</span>
+            </div>
+            {history.map(h => (
+              <div key={h.id} className="flex sm:grid sm:grid-cols-[10rem_6rem_1fr_1fr_5rem] items-center gap-2 sm:gap-0 px-3 py-2 hover:bg-muted/30 transition-colors">
+                <span className="text-muted-foreground shrink-0">
+                  {new Date(h.created_at).toLocaleString(undefined, {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                  })}
+                </span>
+                <span className="text-foreground font-medium truncate">{h.username}</span>
+                <span className="text-foreground truncate">{h.book_title}</span>
+                <span className="text-muted-foreground truncate">{h.device_name || h.device_email}</span>
+                <span className={cn(
+                  'text-xs font-medium',
+                  h.status === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-destructive'
+                )}>
+                  {h.status === 'ok' ? 'Sent' : 'Failed'}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No books have been sent yet.</p>
+        )}
+      </div>
     </div>
   )
 }
