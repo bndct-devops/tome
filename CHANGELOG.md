@@ -17,10 +17,25 @@ All notable changes to Tome are documented here. Format loosely follows
   `"readonly"` scope. Read-only tokens are blocked from non-GET requests.
   Existing tokens default to full access. Settings UI shows a scope dropdown
   on creation and a badge on read-only tokens.
+- Opt-in parallel library scans via `TOME_SCAN_WORKERS` (default `1` = serial,
+  in-process). Set it higher (e.g. CPU core count) to fan the CPU-bound
+  extract/hash phase across worker processes for large imports; database writes
+  stay single-process (SQLite single-writer). ~60–80 MB per worker.
 
 ### Changed
 - Website: added raster favicons (`.ico` + `.png`) for Google search results
   and Cloudflare Web Analytics tracking snippet.
+- Performance: faster library scans — removed per-book ORM lazy-loads, one
+  directory walk instead of one-per-format, and throughput-oriented SQLite
+  pragmas (`synchronous=NORMAL`, larger page cache, mmap). The book-list
+  endpoint (`GET /api/books`) is also much faster — relationships are
+  eager-loaded, eliminating an N+1 of ~3 queries per row.
+
+### Fixed
+- Full-text search now indexes books inline during scan / upload / ingest, so
+  newly added books are searchable immediately — previously the index was only
+  rebuilt at startup, leaving them invisible to search until the next restart.
+- Cover-bearing files are no longer hashed twice during ingest.
 
 ---
 

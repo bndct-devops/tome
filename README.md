@@ -106,6 +106,7 @@ Or with Docker Compose -- the canonical `docker-compose.yml` in this repo is por
 | `TOME_HARDCOVER_TOKEN` | No | -- | [Hardcover](https://hardcover.app) API token for metadata |
 | `TOME_AUTO_IMPORT` | No | `false` | Auto-import files from the bindery on a schedule |
 | `TOME_AUTO_IMPORT_INTERVAL` | No | `300` | Seconds between auto-import scans |
+| `TOME_SCAN_WORKERS` | No | `1` | Parallel scan workers (>1 = multi-process; ~60–80 MB each) |
 
 ### Supported Formats
 

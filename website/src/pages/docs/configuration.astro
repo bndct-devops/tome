@@ -29,6 +29,7 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_HARDCOVER_TOKEN</code></td><td>—</td><td>Hardcover API token (optional)</td></tr>
       <tr><td><code>TOME_AUTO_IMPORT</code></td><td><code>false</code></td><td>Auto-ingest from Bindery</td></tr>
       <tr><td><code>TOME_AUTO_IMPORT_INTERVAL</code></td><td><code>300</code></td><td>Seconds between scans</td></tr>
+      <tr><td><code>TOME_SCAN_WORKERS</code></td><td><code>1</code></td><td>Parallel scan worker processes (1 = serial)</td></tr>
       <tr><td><code>TOME_JWT_ALGORITHM</code></td><td><code>HS256</code></td><td>JWT algorithm</td></tr>
       <tr><td><code>TOME_JWT_EXPIRE_MINUTES</code></td><td><code>10080</code></td><td>JWT lifetime (7 days)</td></tr>
       <tr><td><code>TOME_SMTP_HOST</code></td><td>—</td><td>SMTP server (enables Send to Device)</td></tr>
@@ -88,6 +89,18 @@ import { withBase } from '../../lib/path'
     With no token set, Tome still fetches metadata via Google Books and Open Library — Hardcover
     just gets skipped.
   </p>
+
+  <h2>Library scanning</h2>
+  <ul>
+    <li>
+      <code>TOME_SCAN_WORKERS</code> — worker processes for the CPU-bound part of a library scan
+      (metadata extraction + hashing). Default <code>1</code> (serial, in-process) — the lowest-RAM
+      option, and already fast, so it suits the modest hardware most self-hosters run on. Set it
+      higher (e.g. your CPU core count) to parallelise large imports on machines with RAM to spare —
+      each worker adds roughly 60–80&nbsp;MB. Database writes always stay single-process (SQLite is
+      single-writer), so this only speeds up extraction, not the writes.
+    </li>
+  </ul>
 
   <h2>Auto-import (Bindery)</h2>
   <ul>
