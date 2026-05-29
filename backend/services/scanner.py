@@ -295,6 +295,11 @@ def _create_book_entry(
             if not existing:
                 db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
 
+    # Keep the FTS index in sync inline (flush so book.tags reflects new rows)
+    db.flush()
+    from backend.services.fts import index_book
+    index_book(db, book)
+
     return book
 
 

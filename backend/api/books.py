@@ -1173,6 +1173,10 @@ async def bulk_fetch_metadata(
             logger.warning("Bulk fetch failed for book %d: %s", book.id, e)
             errors += 1
 
+    db.flush()
+    from backend.services.fts import index_book
+    for b in books:
+        index_book(db, b)
     db.commit()
     return {"updated": updated, "no_match": no_match, "errors": errors}
 
@@ -1221,6 +1225,10 @@ def bulk_update_metadata(
                     book.tags.append(BookTag(book_id=book.id, tag=t.strip(), source="user"))
         if bt is not None:
             book.book_type_id = bt.id
+    db.flush()
+    from backend.services.fts import index_book
+    for book in books:
+        index_book(db, book)
     db.commit()
 
     if bt is not None:
@@ -1271,6 +1279,9 @@ def update_book(
         book.book_type_id = new_type_id
         assign_book_to_type_library(db, book, bt)
 
+    db.flush()
+    from backend.services.fts import index_book
+    index_book(db, book)
     db.commit()
     db.refresh(book)
     audit(db, "books.metadata_edited", user_id=current_user.id, username=current_user.username,
@@ -1743,6 +1754,8 @@ def delete_book(
 
     audit(db, "books.deleted", user_id=current_user.id, username=current_user.username,
           resource_type="book", resource_id=book.id, resource_title=book.title)
+    from backend.services.fts import unindex_book
+    unindex_book(db, book.id)
     db.delete(book)
     db.commit()
 
@@ -1862,6 +1875,9 @@ def upload_book(
             if not existing:
                 db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
 
+    db.flush()
+    from backend.services.fts import index_book
+    index_book(db, book)
     db.commit()
 
     if book_type_id:
@@ -2065,6 +2081,9 @@ def ingest_book(
             if tag_str:
                 db.add(BookTag(book_id=book.id, tag=tag_str, source="user"))
 
+    db.flush()
+    from backend.services.fts import index_book
+    index_book(db, book)
     db.commit()
 
     # Library assignment
@@ -2172,6 +2191,9 @@ async def apply_metadata(
         cover_path.write_bytes(cover_data)
         book.cover_path = cover_filename
 
+    db.flush()
+    from backend.services.fts import index_book
+    index_book(db, book)
     db.commit()
     db.refresh(book)
     return book

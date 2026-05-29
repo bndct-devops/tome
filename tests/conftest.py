@@ -58,8 +58,7 @@ def _init_test_db():
     with test_engine.connect() as conn:
         conn.execute(text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-                title, author, series, description, tags,
-                content=''
+                title, author, series, description, tags
             )
         """))
         conn.commit()

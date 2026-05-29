@@ -46,45 +46,51 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_fts(engine) -> None:
-    """Create contentless FTS5 virtual table (idempotent).
+    """Ensure books_fts exists as a STANDARD (self-contained) FTS5 table.
 
-    Uses content='' because the tags column comes from book_tags, not the books
-    table. The entire index is rebuilt on every startup via backfill_fts().
-    Triggers are not used — the startup rebuild is the single source of truth.
+    Standard FTS5 (no ``content=`` option) supports DELETE/INSERT by rowid, which
+    lets us maintain the index incrementally per book (see services/fts.py).
+    Migrates any pre-existing table — the old contentless (``content=''``) or
+    external-content (``content='books'``) variants, or one missing the tags
+    column — by dropping and recreating it; backfill_fts() then repopulates it.
     """
     with engine.connect() as conn:
-        # Drop and recreate if schema changed (e.g. added tags, or switching from content sync to contentless).
         row = conn.execute(text(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='books_fts'"
         )).fetchone()
-        if row and ("tags" not in (row[0] or "") or "content='books'" in (row[0] or "")):
+        sql = (row[0] or "") if row else ""
+        needs_recreate = (not row) or ("content=" in sql) or ("tags" not in sql)
+        if row and needs_recreate:
             conn.execute(text("DROP TABLE IF EXISTS books_fts"))
             for trig in ("books_fts_insert", "books_fts_delete", "books_fts_update"):
                 conn.execute(text(f"DROP TRIGGER IF EXISTS {trig}"))
-
-        conn.execute(text("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-                title, author, series, description, tags,
-                content=''
-            )
-        """))
+        if needs_recreate:
+            conn.execute(text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
+                    title, author, series, description, tags
+                )
+            """))
         conn.commit()
 
 
 def backfill_fts(engine) -> None:
-    """Rebuild FTS index from books table on every startup to prevent stale data.
-
-    Drops and recreates the contentless FTS table, then inserts with tags joined
-    from book_tags.
+    """Rebuild the FTS index from the books table, but ONLY when it is out of
+    sync (row counts differ). The index is maintained incrementally during
+    runtime (services/fts.py), so a healthy index needs no rebuild — startup
+    cost no longer grows with library size. A mismatch (fresh migration, or
+    drift from a maintenance bug) triggers a one-shot rebuild that self-heals it.
     """
     with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS books_fts"))
-        conn.execute(text("""
-            CREATE VIRTUAL TABLE books_fts USING fts5(
-                title, author, series, description, tags,
-                content=''
-            )
-        """))
+        try:
+            fts_n = conn.execute(text("SELECT count(*) FROM books_fts")).scalar() or 0
+        except Exception:
+            fts_n = -1
+        book_n = conn.execute(
+            text("SELECT count(*) FROM books WHERE status = 'active'")
+        ).scalar() or 0
+        if fts_n == book_n:
+            return
+        conn.execute(text("DELETE FROM books_fts"))
         conn.execute(text("""
             INSERT INTO books_fts(rowid, title, author, series, description, tags)
             SELECT
