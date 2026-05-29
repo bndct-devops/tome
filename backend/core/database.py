@@ -14,6 +14,14 @@ def _set_wal_mode(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")
+    # Throughput-oriented pragmas. synchronous=NORMAL is durable under WAL
+    # (only a power-loss may drop the last transaction). The larger page cache
+    # and mmap keep hot indexes (e.g. content_hash dedup lookups) in memory.
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA temp_store=MEMORY")
+    cursor.execute("PRAGMA cache_size=-65536")   # 64 MB page cache
+    cursor.execute("PRAGMA mmap_size=268435456")  # 256 MB
+    cursor.execute("PRAGMA busy_timeout=5000")
     cursor.close()
 
 

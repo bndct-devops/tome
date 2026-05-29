@@ -108,10 +108,9 @@ def scan_library(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _collect_files(directory: Path) -> list[Path]:
-    files: list[Path] = []
-    for fmt in SUPPORTED_FORMATS:
-        files.extend(directory.rglob(f"*{fmt}"))
-    return files
+    # Single tree walk, filtered by extension — not one rglob per format (which
+    # walked the whole tree N times; the dominant traversal cost at scale).
+    return [p for p in directory.rglob("*") if p.suffix.lower() in SUPPORTED_FORMATS]
 
 
 def _import_file(
@@ -277,28 +276,22 @@ def _create_book_entry(
             if comic_type:
                 book.book_type_id = comic_type.id
 
-    # Check library default type if still unassigned
-    if not book.book_type_id and book.libraries:
-        for lib in book.libraries:
-            if lib.default_book_type_id:
-                book.book_type_id = lib.default_book_type_id
-                break
+    # (Library-default book type is applied when a book is added to a library.
+    # A freshly-created book has no library associations yet, so the old
+    # `book.libraries` check here only ever fired an empty lazy-load per book.)
 
     # Create genre tags from ComicInfo.xml
-    if meta.get("_genres"):
+    genres = meta.get("_genres") or []
+    if genres:
         from backend.models.book import BookTag
-        for genre in meta["_genres"]:
-            existing = db.query(BookTag).filter(
-                BookTag.book_id == book.id,
-                BookTag.tag == genre
-            ).first()
-            if not existing:
-                db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
+        for genre in genres:
+            db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
 
-    # Keep the FTS index in sync inline (flush so book.tags reflects new rows)
-    db.flush()
+    # Keep the FTS index in sync inline. Pass tags explicitly so a bulk scan
+    # doesn't lazy-load book.tags per book (book.id is already set by the flush
+    # above, so no extra flush is needed here).
     from backend.services.fts import index_book
-    index_book(db, book)
+    index_book(db, book, tags=genres)
 
     return book
 

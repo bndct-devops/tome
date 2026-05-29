@@ -25,8 +25,14 @@ def _tags_str(book: Book) -> str:
     return " ".join(t.tag for t in book.tags if t.tag)
 
 
-def index_book(db: Session, book: Book) -> None:
-    """Upsert a single book's FTS row (delete-then-insert by rowid)."""
+def index_book(db: Session, book: Book, tags: list[str] | None = None) -> None:
+    """Upsert a single book's FTS row (delete-then-insert by rowid).
+
+    Pass ``tags`` (a list of tag strings) to skip a lazy-load of ``book.tags`` —
+    significant in a bulk scan, where it's one wasted SELECT per book. When
+    omitted, falls back to reading the relationship.
+    """
+    tag_str = " ".join(t for t in tags if t) if tags is not None else _tags_str(book)
     db.execute(text("DELETE FROM books_fts WHERE rowid = :id"), {"id": book.id})
     db.execute(
         text(
@@ -39,7 +45,7 @@ def index_book(db: Session, book: Book) -> None:
             "author": book.author or "",
             "series": book.series or "",
             "description": book.description or "",
-            "tags": _tags_str(book),
+            "tags": tag_str,
         },
     )
 
