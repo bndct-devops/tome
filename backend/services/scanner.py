@@ -95,7 +95,7 @@ def _extract_for_file(args: tuple[str, str]) -> dict:
             return {"path": file_path_str, "skip": True}
         content_hash = sha256_file(file_path)
         file_size = file_path.stat().st_size
-        meta = extract_metadata(file_path, Path(covers_dir_str))
+        meta = extract_metadata(file_path, Path(covers_dir_str), content_hash=content_hash)
         return {"path": file_path_str, "fmt": fmt, "hash": content_hash,
                 "size": file_size, "meta": meta}
     except Exception as e:  # noqa: BLE001 — isolate per-file failures
@@ -215,7 +215,7 @@ def _import_file(
         return
 
     # Extract metadata (while still at original path)
-    meta = extract_metadata(src, covers_dir)
+    meta = extract_metadata(src, covers_dir, content_hash=content_hash)
 
     # Determine destination inside library
     rel_path = get_library_path(meta, src.name)

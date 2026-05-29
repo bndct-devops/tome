@@ -153,9 +153,7 @@ def extract_epub(path: Path, covers_dir: Path) -> dict:
         logger.warning("epub extraction error for %s: %s", path, e)
 
     if cover_data:
-        book_hash = sha256_file(path)
         meta["_cover_data"] = cover_data
-        meta["_book_hash"] = book_hash
 
     return meta
 
@@ -185,7 +183,6 @@ def extract_pdf(path: Path, covers_dir: Path) -> dict:
             mat = fitz.Matrix(1.5, 1.5)  # 1.5x zoom
             pix = page.get_pixmap(matrix=mat)
             meta["_cover_data"] = pix.tobytes("jpeg")
-            meta["_book_hash"] = sha256_file(path)
 
         doc.close()
     except Exception as e:
@@ -284,8 +281,6 @@ def extract_cbz(path: Path, covers_dir: Path) -> dict:
             )
             if images:
                 meta["_cover_data"] = zf.read(images[0])
-
-            meta["_book_hash"] = sha256_file(path)
     except Exception as e:
         logger.warning("cbz extraction error for %s: %s", path, e)
 
@@ -316,15 +311,13 @@ def extract_cbr(path: Path, covers_dir: Path) -> dict:
             )
             if images:
                 meta["_cover_data"] = rf.read(images[0])
-
-            meta["_book_hash"] = sha256_file(path)
     except Exception as e:
         logger.warning("cbr extraction error for %s: %s", path, e)
 
     return meta
 
 
-def extract_metadata(path: Path, covers_dir: Path) -> dict:
+def extract_metadata(path: Path, covers_dir: Path, content_hash: Optional[str] = None) -> dict:
     """
     Extract metadata from a book file. Returns a dict with fields matching
     the Book model. Cover is saved to disk if found.
@@ -368,8 +361,10 @@ def extract_metadata(path: Path, covers_dir: Path) -> dict:
 
     # Save cover if we got data
     cover_data = meta.pop("_cover_data", None)
-    book_hash = meta.pop("_book_hash", None)
-    if cover_data and book_hash:
+    if cover_data:
+        # Reuse the caller's already-computed hash for the cover filename when
+        # provided — avoids a second full-file SHA-256 per book during scans.
+        book_hash = content_hash or sha256_file(path)
         filename = save_cover(cover_data, covers_dir, book_hash)
         if filename:
             meta["cover_path"] = filename
