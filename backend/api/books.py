@@ -292,7 +292,20 @@ def list_books(
     total = query.distinct().count()
     response.headers["X-Total-Count"] = str(total)
     response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
-    return query.distinct().offset(skip).limit(limit).all()
+    # Eager-load the relationships BookOut serializes (files, tags, libraries
+    # via the library_ids property) so a page is a few queries, not ~3 per row.
+    from sqlalchemy.orm import selectinload
+    return (
+        query.options(
+            selectinload(Book.files),
+            selectinload(Book.tags),
+            selectinload(Book.libraries),
+        )
+        .distinct()
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 # ── Facets (for filter dropdowns) ────────────────────────────────────────────
