@@ -4,6 +4,12 @@ Uses an in-memory SQLite engine so tests run fast and never touch disk.
 The `get_db` dependency is overridden on the FastAPI app so the TestClient
 always talks to the same in-memory database as the fixtures.
 """
+import os
+
+# Scans run serially in tests: worker processes wouldn't see monkeypatched
+# extraction, and in-process keeps tests fast and deterministic.
+os.environ.setdefault("TOME_SCAN_WORKERS", "1")
+
 import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session

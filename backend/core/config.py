@@ -1,3 +1,4 @@
+import os
 import secrets
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,15 @@ class Settings(BaseSettings):
     # Auto-import settings
     auto_import: bool = False
     auto_import_interval: int = 300  # seconds
+
+    # Library scan: worker processes for the CPU-bound extract/hash phase.
+    # Default 1 = serial, in-process. This is deliberately the lean default:
+    # serial already out-ingests every peer while keeping the lowest RAM, which
+    # suits the modest hardware Tome usually runs on. Set TOME_SCAN_WORKERS>1
+    # (e.g. = CPU cores) to fan extraction out across processes for big imports
+    # on boxes with RAM to spare — each worker adds roughly 60-80 MB. DB writes
+    # stay single-process regardless (SQLite is single-writer).
+    scan_workers: int = 1
 
     # JWT settings
     jwt_algorithm: str = "HS256"

@@ -11,16 +11,24 @@ Two distinct operations:
         (handles files added outside Tome, e.g. manual copy).
 """
 import logging
+import multiprocessing
 import shutil
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.models.book import Book, BookFile
 from backend.services.metadata import SUPPORTED_FORMATS, extract_metadata, get_format, sha256_file
 from backend.services.organizer import get_library_path, resolve_unique_path
+
+# Below this many new files, the serial path wins (process-pool startup isn't
+# worth it). Above it, scan_library fans the CPU-bound extract/hash out to a
+# process pool. DB writes always stay single-process (SQLite is single-writer).
+_PARALLEL_MIN = 64
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +81,65 @@ def import_incoming(
     return result
 
 
+def _extract_for_file(args: tuple[str, str]) -> dict:
+    """Worker (runs in a pool process): pure CPU/IO work for one file — hash,
+    size, and metadata extraction (which also saves the cover, an independent
+    file). NO database access; returns a picklable dict. Per-file exceptions are
+    captured so one bad file never kills the batch.
+    """
+    file_path_str, covers_dir_str = args
+    file_path = Path(file_path_str)
+    try:
+        fmt = get_format(file_path)
+        if not fmt:
+            return {"path": file_path_str, "skip": True}
+        content_hash = sha256_file(file_path)
+        file_size = file_path.stat().st_size
+        meta = extract_metadata(file_path, Path(covers_dir_str))
+        return {"path": file_path_str, "fmt": fmt, "hash": content_hash,
+                "size": file_size, "meta": meta}
+    except Exception as e:  # noqa: BLE001 — isolate per-file failures
+        return {"path": file_path_str, "error": str(e)}
+
+
+def _persist_extract(extract: dict, db: Session, added_by: Optional[int],
+                     result: ScanResult) -> None:
+    """Main-process DB work for one extract result: dedup + create. Always runs
+    serially in the single writer process, inside the caller's transaction."""
+    if extract.get("error"):
+        result.errors += 1
+        result.error_details.append(f"{Path(extract['path']).name}: {extract['error']}")
+        return
+    if extract.get("skip"):
+        result.skipped += 1
+        return
+    file_path = Path(extract["path"])
+    ch, size, fmt, meta = extract["hash"], extract["size"], extract["fmt"], extract["meta"]
+    try:
+        if _handle_duplicate(file_path, ch, fmt, size, db, result):
+            return
+        _create_book_entry(file_path, meta, ch, fmt, size, db, added_by, result)
+        result.added += 1
+    except Exception as e:
+        result.errors += 1
+        result.error_details.append(f"{file_path.name}: {e}")
+        logger.error("Error persisting %s: %s", file_path, e)
+
+
 def scan_library(
     library_dir: Path,
     covers_dir: Path,
     db: Session,
     added_by: Optional[int] = None,
+    workers: Optional[int] = None,
 ) -> ScanResult:
-    """
-    Walk library_dir and register any files not yet known to the DB.
-    Does NOT move files — they're already in place.
+    """Walk library_dir and register files not yet known to the DB.
+
+    The CPU-bound extract/hash phase is fanned out across worker processes
+    (workers > 1); every database write stays in THIS process, in one
+    transaction, so SQLite's single-writer model is respected. Does NOT move
+    files — they're already in place. Set workers=1 (TOME_SCAN_WORKERS=1) for
+    the fully serial, in-process path.
     """
     result = ScanResult()
 
@@ -93,13 +151,33 @@ def scan_library(
     result.found = len(all_files)
     logger.info("Scanner: found %d files in %s", result.found, library_dir)
 
-    for file_path in sorted(all_files):
-        try:
-            _register_file(file_path, covers_dir, db, added_by, result)
-        except Exception as e:
-            result.errors += 1
-            result.error_details.append(f"{file_path.name}: {e}")
-            logger.error("Error scanning %s: %s", file_path, e)
+    # One query instead of one-per-file: drop unsupported formats and files
+    # already registered, leaving only the work to do.
+    known = {row[0] for row in db.query(BookFile.file_path).all()}
+    candidates: list[Path] = []
+    for f in sorted(all_files):
+        if get_format(f) is None or str(f.resolve()) in known:
+            result.skipped += 1
+        else:
+            candidates.append(f)
+
+    if workers is None:
+        workers = settings.scan_workers
+    covers_str = str(covers_dir)
+    tasks = [(str(f), covers_str) for f in candidates]
+
+    if workers and workers > 1 and len(candidates) >= _PARALLEL_MIN:
+        logger.info("Scanner: extracting %d files across %d workers", len(tasks), workers)
+        # 'spawn' (not fork): scans run inside FastAPI's threadpool, and forking
+        # a multi-threaded process can inherit held locks (logging, malloc) and
+        # deadlock a worker. spawn starts a clean interpreter — safe by design.
+        ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
+            for extract in pool.map(_extract_for_file, tasks, chunksize=16):
+                _persist_extract(extract, db, added_by, result)
+    else:
+        for t in tasks:
+            _persist_extract(_extract_for_file(t), db, added_by, result)
 
     db.commit()
     return result
@@ -152,38 +230,6 @@ def _import_file(
     _remove_empty_parents(src.parent, stop_at=src.parent.parent)
 
     _create_book_entry(dest, meta, content_hash, fmt, file_size, db, added_by, result)
-    result.added += 1
-
-
-def _register_file(
-    file_path: Path,
-    covers_dir: Path,
-    db: Session,
-    added_by: Optional[int],
-    result: ScanResult,
-) -> None:
-    abs_path = str(file_path.resolve())
-
-    if db.query(BookFile).filter(BookFile.file_path == abs_path).first():
-        result.skipped += 1
-        return
-
-    fmt = get_format(file_path)
-    if not fmt:
-        result.skipped += 1
-        return
-
-    try:
-        content_hash = sha256_file(file_path)
-        file_size = file_path.stat().st_size
-    except OSError as e:
-        raise RuntimeError(f"Cannot read: {e}") from e
-
-    if _handle_duplicate(file_path, content_hash, fmt, file_size, db, result):
-        return
-
-    meta = extract_metadata(file_path, covers_dir)
-    _create_book_entry(file_path, meta, content_hash, fmt, file_size, db, added_by, result)
     result.added += 1
 
 
