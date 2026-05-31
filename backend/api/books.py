@@ -1900,11 +1900,20 @@ def upload_book(
         if bt:
             assign_book_to_type_library(db, book, bt)
 
+    # Wishlist matcher — find open wishes that match the new book
+    from backend.services.wish_matcher import match_on_book_created
+    matched_wishes = match_on_book_created(db, book)
+
     db.refresh(book)
     audit(db, "books.uploaded", user_id=current_user.id, username=current_user.username,
           resource_type="book", resource_id=book.id, resource_title=book.title,
           details={"format": suffix})
-    return book
+
+    # Surface matched wish IDs in the response for the admin post-upload prompt
+    out = BookDetailOut.model_validate(book)
+    if matched_wishes:
+        out.matched_wish_ids = [w.id for w in matched_wishes]
+    return out
 
 
 # ── Scribe: batch-import helpers ──────────────────────────────────────────────
@@ -2114,6 +2123,10 @@ def ingest_book(
         if bt:
             assign_book_to_type_library(db, book, bt)
 
+    # Wishlist matcher — find open wishes that match the new book
+    from backend.services.wish_matcher import match_on_book_created
+    matched_wishes = match_on_book_created(db, book)
+
     db.refresh(book)
     audit(
         db,
@@ -2125,7 +2138,12 @@ def ingest_book(
         resource_title=book.title,
         details={"format": suffix},
     )
-    return book
+
+    # Surface matched wish IDs in the response for the admin post-upload prompt
+    out = BookDetailOut.model_validate(book)
+    if matched_wishes:
+        out.matched_wish_ids = [w.id for w in matched_wishes]
+    return out
 
 
 # ── Fetch metadata candidates ─────────────────────────────────────────────────

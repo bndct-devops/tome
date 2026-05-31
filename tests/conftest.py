@@ -10,16 +10,50 @@ import os
 # extraction, and in-process keeps tests fast and deterministic.
 os.environ.setdefault("TOME_SCAN_WORKERS", "1")
 
+# Belt-and-suspenders: neutralise any real SMTP credentials so tests can
+# never accidentally open a live connection even if .env is present.
+for _smtp_var in (
+    "TOME_SMTP_HOST",
+    "TOME_SMTP_USER",
+    "TOME_SMTP_PASSWORD",
+    "TOME_SMTP_FROM",
+):
+    os.environ.pop(_smtp_var, None)
+
 import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session
 from starlette.testclient import TestClient
+from unittest.mock import patch, MagicMock
 
 # Import Base BEFORE create_app so all model metadata is registered
 from backend.core.database import Base, get_db
 from backend.core.security import hash_password, create_access_token
 from backend.models.user import User, UserPermission
 from backend.models.book import Book, BookFile, BookTag
+
+
+# ── Global SMTP guard ─────────────────────────────────────────────────────────
+#
+# Patches smtplib.SMTP and smtplib.SMTP_SSL for every test so no test can ever
+# open a real mail connection, regardless of per-test patching discipline.
+# We raise RuntimeError rather than silently no-op so any accidental attempt
+# fails loudly instead of pretending to send.
+
+@pytest.fixture(autouse=True, scope="function")
+def _block_smtp():
+    """Autouse fixture: replace smtplib.SMTP / SMTP_SSL with a hard block."""
+    def _blocked(*args, **kwargs):
+        raise RuntimeError(
+            "SMTP blocked in tests — patch send_wish_fulfilled_email or "
+            "backend.services.email explicitly if you need to assert on email calls"
+        )
+
+    with (
+        patch("smtplib.SMTP", side_effect=_blocked),
+        patch("smtplib.SMTP_SSL", side_effect=_blocked),
+    ):
+        yield
 
 
 # ── In-memory test engine ─────────────────────────────────────────────────────
@@ -56,6 +90,8 @@ def _init_test_db():
     import backend.models.quick_connect  # noqa: F401
     import backend.models.api_token  # noqa: F401
     import backend.models.series_meta  # noqa: F401
+    import backend.models.wish  # noqa: F401
+    import backend.models.notification  # noqa: F401
 
     Base.metadata.create_all(bind=test_engine)
 

@@ -19,14 +19,21 @@ function formatIcon(file: File) {
   return <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
 }
 
+interface UploadResult {
+  id: number
+  matched_wish_ids?: number[] | null
+}
+
 interface Props {
   isOpen: boolean
   onClose: () => void
   onDone: () => void
   onUploaded?: (bookIds: number[]) => void
+  /** Called with total matched wish IDs across all uploads in this session */
+  onWishMatches?: (wishIds: number[], bookIds: number[]) => void
 }
 
-export function UploadModal({ isOpen, onClose, onDone, onUploaded }: Props) {
+export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches }: Props) {
   const bookTypes = useBookTypes()
   const { toast } = useToast()
   const [items, setItems] = useState<UploadItem[]>([])
@@ -80,6 +87,8 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded }: Props) {
     let success = 0
     let failed = 0
     const uploadedIds: number[] = []
+    const allMatchedWishIds: number[] = []
+    const matchedBookIds: number[] = []
 
     for (const item of items) {
       setItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'uploading' } : it))
@@ -87,8 +96,12 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded }: Props) {
       form.append('file', item.file)
       if (item.bookTypeId) form.append('book_type_id', item.bookTypeId)
       try {
-        const result = await api.upload<{ id: number }>('/books/upload', form)
+        const result = await api.upload<UploadResult>('/books/upload', form)
         uploadedIds.push(result.id)
+        if (result.matched_wish_ids && result.matched_wish_ids.length > 0) {
+          allMatchedWishIds.push(...result.matched_wish_ids)
+          matchedBookIds.push(result.id)
+        }
         setItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'done' } : it))
         success++
       } catch (err) {
@@ -105,6 +118,9 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded }: Props) {
     setSummary({ success, failed })
     if (onUploaded && uploadedIds.length > 0) {
       onUploaded(uploadedIds)
+    }
+    if (onWishMatches && allMatchedWishIds.length > 0) {
+      onWishMatches(allMatchedWishIds, matchedBookIds)
     }
     if (success > 0) {
       onDone()

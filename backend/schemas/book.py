@@ -58,6 +58,10 @@ class BookDetailOut(BookOut):
     content_hash: Optional[str] = None
     added_by: Optional[int] = None
     updated_at: datetime
+    # Wishlist: populated on upload/ingest when the new book matches open wishes.
+    # list of wish IDs (not book IDs) — frontend uses this to prompt "Fulfill N wishes?".
+    # None means matcher was not run or no matches found.
+    matched_wish_ids: Optional[list[int]] = None
 
     class Config:
         from_attributes = True

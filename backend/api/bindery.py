@@ -365,6 +365,10 @@ def bindery_accept(
 
             db.refresh(book)
 
+            # Wishlist matcher — flag open wishes for admin review (no auto-fulfil)
+            from backend.services.wish_matcher import match_on_book_created
+            match_on_book_created(db, book)
+
             # Audit
             audit(
                 db,

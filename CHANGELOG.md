@@ -21,6 +21,20 @@ All notable changes to Tome are documented here. Format loosely follows
   in-process). Set it higher (e.g. CPU core count) to fan the CPU-bound
   extract/hash phase across worker processes for large imports; database writes
   stay single-process (SQLite single-writer). ~60–80 MB per worker.
+- Wishlist: members and admins can wish for a book or a whole series. The add
+  dialog has two modes — **Book** (structured search across Hardcover, Google
+  Books, and OpenLibrary, plus a free-text fallback) and **Series** (Hardcover's
+  series catalogue, so a series is disambiguated by author and carries its true
+  volume count). Admins get a Wishlist tab; a matcher links wishes to library
+  books both when a book is added (forward) and when a wish is created against
+  books already present (reverse), author-aware so same-named series don't
+  cross-match. Single-book wishes are fulfilled by linking a book; whole-series
+  wishes are standing wants that stay open, show an "X of N" coverage strip
+  (present volumes vs. the series total), notify the requester as each volume
+  arrives, and close via "mark complete". In-app notifications via a new top-bar
+  bell, plus email on fulfilment when SMTP is configured. The Series tab requires
+  a Hardcover token (`hardcover_token`) — without it the dialog falls back to Book
+  search only. Toggles: `TOME_WISHLIST_ENABLED`, `TOME_WISHLIST_MAX`.
 
 ### Changed
 - Website: added raster favicons (`.ico` + `.png`) for Google search results
@@ -36,6 +50,10 @@ All notable changes to Tome are documented here. Format loosely follows
   newly added books are searchable immediately — previously the index was only
   rebuilt at startup, leaving them invisible to search until the next restart.
 - Cover-bearing files are no longer hashed twice during ingest.
+- Bulk ZIP download now embeds Tome metadata like every other download path
+  (single, OPDS, TomeSync) — previously it zipped the raw library files, so
+  downloaded books carried stale/original metadata instead of Tome's. Library
+  files on disk are still left untouched.
 
 ---
 

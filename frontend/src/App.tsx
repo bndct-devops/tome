@@ -15,6 +15,7 @@ import { AdminPage } from '@/pages/AdminPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StatsPage } from '@/pages/StatsPage'
 import { BinderyPage } from '@/pages/BinderyPage'
+import { WishlistPage } from '@/pages/WishlistPage'
 import { api } from '@/lib/api'
 import { applyTheme, getStoredTheme } from '@/lib/theme'
 
@@ -131,6 +132,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <BinderyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wishlist"
+          element={
+            <ProtectedRoute>
+              <WishlistPage />
             </ProtectedRoute>
           }
         />

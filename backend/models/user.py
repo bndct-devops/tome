@@ -1,9 +1,16 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import List
+from typing import List, TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
+
+if TYPE_CHECKING:
+    from backend.models.wish import Wish
+    from backend.models.notification import Notification
+    from backend.models.api_token import ApiToken
 
 
 class User(Base):
@@ -27,6 +34,12 @@ class User(Base):
     )
     api_tokens: Mapped[List["ApiToken"]] = relationship(
         "ApiToken", back_populates="user", cascade="all, delete-orphan"
+    )
+    wishes: Mapped[List["Wish"]] = relationship(
+        "Wish", foreign_keys="Wish.user_id", back_populates="user", cascade="all, delete-orphan"
+    )
+    notifications: Mapped[List["Notification"]] = relationship(
+        "Notification", back_populates="user", cascade="all, delete-orphan"
     )
 
 

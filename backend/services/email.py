@@ -134,6 +134,54 @@ def send_books_bulk(
     return results
 
 
+def send_wish_fulfilled_email(to_email: str, wish: object, book: object = None) -> None:
+    """Send a plain-text notification that a wished-for book is now in the library.
+
+    ``book`` may be ``None`` for a whole-series "mark complete" — the email then
+    points at the wishlist rather than a single volume.
+
+    Only called when settings.smtp_configured is True. Failures are swallowed
+    and logged — they must never block the fulfilment transaction.
+    """
+    if not settings.smtp_configured:
+        return
+
+    try:
+        wish_title = getattr(wish, "title", str(wish))
+        book_id = getattr(book, "id", None) if book is not None else None
+
+        if book_id:
+            link = f"/books/{book_id}"
+            body = (
+                f"Your wish \"{wish_title}\" is now in the library.\n\n"
+                f"Read it here: {link}\n\n"
+                "— Tome"
+            )
+        else:
+            link = "/wishlist"
+            body = (
+                f"Your series wish \"{wish_title}\" is now complete and available "
+                f"in the library.\n\n"
+                f"Browse it here: {link}\n\n"
+                "— Tome"
+            )
+
+        msg = MIMEText(body, "plain")
+        msg["From"] = settings.smtp_from_address
+        msg["To"] = to_email
+        msg["Subject"] = f"[Tome] Your wish \"{wish_title}\" is now available"
+
+        conn = _connect()
+        try:
+            conn.sendmail(settings.smtp_from_address, [to_email], msg.as_string())
+        finally:
+            conn.quit()
+
+        log.info("Wish-fulfilled email sent to %s for '%s'", to_email, wish_title)
+    except Exception:
+        log.exception("send_wish_fulfilled_email: failed to send to %s", to_email)
+
+
 def send_test_email(to_email: str) -> None:
     """Send a plain-text test email to verify SMTP config."""
     if not settings.smtp_configured:

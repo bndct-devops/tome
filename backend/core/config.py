@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # stay single-process regardless (SQLite is single-writer).
     scan_workers: int = 1
 
+    # Wishlist feature
+    wishlist_enabled: bool = True   # env TOME_WISHLIST_ENABLED — kill switch, defaults on
+    wishlist_max_open_per_user: int = 100  # env TOME_WISHLIST_MAX — soft cap per user
+
     # JWT settings
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days

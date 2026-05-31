@@ -339,6 +339,12 @@ def _create_book_entry(
     from backend.services.fts import index_book
     index_book(db, book, tags=genres)
 
+    # Wishlist matcher — flag any open wishes that match this new book.
+    # Scan has no admin in the loop, so we never auto-fulfil; we only populate
+    # suggested_book_ids so the admin panel can surface the match.
+    from backend.services.wish_matcher import match_on_book_created
+    match_on_book_created(db, book)
+
     return book
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Users, Plus, Pencil, Trash2, Shield, Check, X,
@@ -6,11 +6,12 @@ import {
   RefreshCw, FolderInput, HardDrive, Database,
   BookOpen, Folder, Trash, Tag, LogIn,
   Activity, ChevronsUpDown, Copy, GitMerge,
-  User, Eye, ExternalLink, Send, Mail,
+  User, Eye, ExternalLink, Send, Mail, Sparkles, Search, Layers,
 } from 'lucide-react'
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
+import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,10 @@ import { CoverImage } from '@/components/CoverImage'
 import type { BookType } from '@/lib/books'
 import { invalidateBookTypesCache } from '@/lib/bookTypes'
 import { BookAnimation } from '@/components/BookAnimation'
+import {
+  adminListWishes, fulfillWish, dismissWish,
+  type WishAdminOut,
+} from '@/lib/wishlist'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -1539,9 +1544,458 @@ function DuplicatesTab() {
   )
 }
 
+// ── WishlistTab ────────────────────────────────────────────────────────────
+
+type WishStatus = 'open' | 'fulfilled' | 'dismissed'
+
+interface BookSearchResult {
+  id: number
+  title: string
+  author: string | null
+  series: string | null
+  series_index: number | null
+  cover_path: string | null
+}
+
+function wishAgeLabel(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const days = Math.floor(diff / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo ago`
+  return `${Math.floor(months / 12)}y ago`
+}
+
+function FulfillPicker({
+  wish,
+  onFulfill,
+  onCancel,
+}: {
+  wish: WishAdminOut
+  onFulfill: (bookId: number | null) => Promise<void>
+  onCancel: () => void
+}) {
+  const isWholeSeries = !!wish.series && wish.series_index == null
+  const [suggestedBooks, setSuggestedBooks] = useState<BookSearchResult[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<BookSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [fulfilling, setFulfilling] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load suggested books if any
+  useEffect(() => {
+    if (!wish.suggested_book_ids || wish.suggested_book_ids.length === 0) return
+    Promise.all(
+      wish.suggested_book_ids.slice(0, 5).map(id =>
+        api.get<BookSearchResult>(`/books/${id}`).catch(() => null)
+      )
+    ).then(results => {
+      setSuggestedBooks(results.filter((b): b is BookSearchResult => b != null))
+      if (results[0]) setSelectedId(results[0].id)
+    })
+  }, [wish.suggested_book_ids])
+
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setSearchResults([]); return }
+    setSearching(true)
+    try {
+      const books = await api.get<BookSearchResult[]>(`/books?q=${encodeURIComponent(q)}&limit=10`)
+      setSearchResults(books)
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
+  }, [])
+
+  function handleSearchChange(val: string) {
+    setSearchQuery(val)
+    setSelectedId(null)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => doSearch(val), 350)
+  }
+
+  async function handleSubmit() {
+    if (!selectedId) { setError('Select a book first.'); return }
+    setFulfilling(true)
+    setError(null)
+    try {
+      await onFulfill(selectedId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fulfill failed')
+      setFulfilling(false)
+    }
+  }
+
+  async function handleComplete() {
+    setFulfilling(true)
+    setError(null)
+    try {
+      await onFulfill(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to complete series')
+      setFulfilling(false)
+    }
+  }
+
+  const displayBooks = searchQuery.trim() ? searchResults : suggestedBooks
+
+  // Whole-series wishes are standing wants — they are not fulfilled by a single
+  // volume. Instead of the book picker, offer a deliberate "mark complete".
+  if (isWholeSeries) {
+    const n = wish.suggested_book_ids?.length ?? 0
+    return (
+      <div className="border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-foreground">Complete series: {wish.title}</p>
+          <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          This is a whole-series wish — it stays open as volumes arrive.{' '}
+          {n > 0
+            ? `${n} matching volume${n > 1 ? 's' : ''} currently in the library.`
+            : 'No matching volumes in the library yet.'}{' '}
+          Mark it complete when you consider the series fully available; the requester will be notified.
+        </p>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button onClick={onCancel} className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground">
+            Cancel
+          </button>
+          <button
+            onClick={handleComplete}
+            disabled={fulfilling}
+            className="flex items-center gap-1 px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+          >
+            {fulfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Mark complete
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-foreground">Fulfill: {wish.title}</p>
+        <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+        <input
+          value={searchQuery}
+          onChange={e => handleSearchChange(e.target.value)}
+          placeholder={suggestedBooks.length > 0 ? 'Search for a different book…' : 'Search for a book in the library…'}
+          className="w-full h-8 pl-7 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {searching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground animate-spin" />}
+      </div>
+
+      {/* Suggested / search results */}
+      {!searchQuery && suggestedBooks.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">Suggested match{suggestedBooks.length > 1 ? 'es' : ''}:</p>
+      )}
+      {displayBooks.length > 0 && (
+        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+          {displayBooks.map(book => (
+            <button
+              key={book.id}
+              onClick={() => setSelectedId(book.id)}
+              className={cn(
+                'w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all',
+                selectedId === book.id
+                  ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+                  : 'border-border bg-background hover:border-primary/40'
+              )}
+            >
+              <div className="w-7 h-10 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+                {book.cover_path ? (
+                  <img src={`/api/books/${book.id}/cover`} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <BookOpen className="w-3 h-3 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{book.title}</p>
+                {book.author && <p className="text-[10px] text-muted-foreground truncate">{book.author}</p>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!searchQuery && suggestedBooks.length === 0 && !searching && (
+        <p className="text-xs text-muted-foreground">No suggested match yet — search for the book to link, or upload it first.</p>
+      )}
+      {searchQuery && !searching && searchResults.length === 0 && (
+        <p className="text-xs text-muted-foreground">No books found. Upload the book first, then fulfill.</p>
+      )}
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground">
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={fulfilling || !selectedId}
+          className="flex items-center gap-1 px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+        >
+          {fulfilling && <Loader2 className="w-3 h-3 animate-spin" />}
+          Fulfill
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function WishlistTab() {
+  const [statusFilter, setStatusFilter] = useState<WishStatus>('open')
+  const [wishes, setWishes] = useState<WishAdminOut[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [fulfillingId, setFulfillingId] = useState<number | null>(null)
+  const [dismissConfirmId, setDismissConfirmId] = useState<number | null>(null)
+  const [dismissing, setDismissing] = useState<number | null>(null)
+  const [actionError, setActionError] = useState<Record<number, string>>({})
+
+  function load() {
+    setLoading(true)
+    setError(null)
+    adminListWishes({ status: statusFilter })
+      .then(setWishes)
+      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load wishlist'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [statusFilter])
+
+  async function handleFulfill(wishId: number, bookId: number | null) {
+    try {
+      await fulfillWish(wishId, bookId)
+      setFulfillingId(null)
+      load()
+    } catch (e) {
+      setActionError(prev => ({ ...prev, [wishId]: e instanceof Error ? e.message : 'Fulfill failed' }))
+      throw e
+    }
+  }
+
+  async function handleDismiss(wishId: number) {
+    setDismissing(wishId)
+    setActionError(prev => { const n = { ...prev }; delete n[wishId]; return n })
+    try {
+      await dismissWish(wishId)
+      setDismissConfirmId(null)
+      load()
+    } catch (e) {
+      setActionError(prev => ({ ...prev, [wishId]: e instanceof Error ? e.message : 'Dismiss failed' }))
+    } finally {
+      setDismissing(null)
+    }
+  }
+
+  const STATUS_TABS: { id: WishStatus; label: string }[] = [
+    { id: 'open', label: 'Open' },
+    { id: 'fulfilled', label: 'Fulfilled' },
+    { id: 'dismissed', label: 'Dismissed' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Wishlist</h2>
+        </div>
+        <div className="flex items-center gap-1">
+          {STATUS_TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setStatusFilter(t.id)}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+                statusFilter === t.id
+                  ? 'bg-muted text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+          <button onClick={load} className="ml-1 p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground" title="Refresh">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
+        </div>
+      ) : wishes.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">
+          No {statusFilter} wishes.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {wishes.map(wish => (
+            <div key={wish.id} className="border border-border rounded-xl bg-card overflow-hidden">
+              <div className="flex items-start gap-3 p-3">
+                {/* Cover */}
+                <div className="w-10 h-14 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+                  {wish.cover_url ? (
+                    <img
+                      src={wish.cover_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    />
+                  ) : (
+                    <BookOpen className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Meta */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{wish.title}</p>
+                      {wish.author && <p className="text-xs text-muted-foreground truncate">{wish.author}</p>}
+                      {wish.series && wish.series_index != null && (
+                        <p className="text-xs text-muted-foreground/70">
+                          {wish.series} #{wish.series_index}
+                        </p>
+                      )}
+                      {wish.series && wish.series_index == null && (
+                        <span className="mt-0.5 self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
+                          <Layers className="w-2.5 h-2.5" />
+                          Whole series
+                        </span>
+                      )}
+                      {wish.note && (
+                        <p className="text-xs text-muted-foreground italic mt-0.5 line-clamp-1">{wish.note}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="hidden sm:block text-[10px] text-muted-foreground whitespace-nowrap">
+                        {wish.requester_username && (
+                          <span className="mr-1 font-medium text-foreground">{wish.requester_username}</span>
+                        )}
+                        {wishAgeLabel(wish.created_at)}
+                      </span>
+                      {wish.status === 'open' && (
+                        <>
+                          {dismissConfirmId === wish.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleDismiss(wish.id)}
+                                disabled={dismissing === wish.id}
+                                className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:opacity-90 transition-colors disabled:opacity-50"
+                              >
+                                {dismissing === wish.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => setDismissConfirmId(null)}
+                                className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setDismissConfirmId(wish.id); setFulfillingId(null) }}
+                              className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
+                              title="Dismiss wish"
+                            >
+                              <X className="w-3 h-3" />
+                              Dismiss
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setFulfillingId(wish.id)
+                              setDismissConfirmId(null)
+                              setActionError(prev => { const n = { ...prev }; delete n[wish.id]; return n })
+                            }}
+                            className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                          >
+                            <Check className="w-3 h-3" />
+                            {wish.series && wish.series_index == null ? 'Complete' : 'Fulfill'}
+                          </button>
+                        </>
+                      )}
+                      {wish.status === 'fulfilled' && wish.fulfilled_book_id && (
+                        <Link
+                          to={`/books/${wish.fulfilled_book_id}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          View book
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Whole-series wishes: coverage strip (volumes present, gaps shown) */}
+                  {wish.status === 'open' && fulfillingId !== wish.id && wish.series && wish.series_index == null && wish.series_coverage && wish.series_coverage.length > 0 && (
+                    <SeriesCoverageStrip coverage={wish.series_coverage} total={wish.series_total} />
+                  )}
+                  {/* Single-book wishes: suggested-match hint */}
+                  {wish.suggested_book_ids && wish.suggested_book_ids.length > 0 && wish.status === 'open' && fulfillingId !== wish.id && !(wish.series && wish.series_index == null) && (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 font-medium">
+                        {wish.suggested_book_ids.length} suggested match{wish.suggested_book_ids.length > 1 ? 'es' : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {actionError[wish.id] && (
+                    <p className="text-xs text-destructive mt-1">{actionError[wish.id]}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Fulfill picker (inline) */}
+              {fulfillingId === wish.id && (
+                <div className="border-t border-border p-3">
+                  <FulfillPicker
+                    wish={wish}
+                    onFulfill={(bookId) => handleFulfill(wish.id, bookId)}
+                    onCancel={() => setFulfillingId(null)}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'sync' | 'duplicates' | 'email'
+type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'sync' | 'duplicates' | 'email' | 'wishlist'
 
 export function AdminPage() {
   const { user } = useAuth()
@@ -1568,6 +2022,7 @@ export function AdminPage() {
     { id: 'sync', label: 'Sync Status' },
     { id: 'duplicates', label: 'Duplicates' },
     { id: 'email', label: 'Email' },
+    { id: 'wishlist', label: 'Wishlist' },
   ]
 
   return (
@@ -1610,6 +2065,7 @@ export function AdminPage() {
         {tab === 'sync' && <SyncStatusTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'email' && <EmailTab />}
+        {tab === 'wishlist' && <WishlistTab />}
       </main>
     </div>
   )

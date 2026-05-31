@@ -27,6 +27,8 @@ from backend.api import bindery
 from backend.api import api_tokens
 from backend.api import series as series_api
 from backend.api import send_to_device
+from backend.api import wishlist as wishlist_api
+from backend.api import notifications as notifications_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
@@ -37,6 +39,8 @@ from backend.models.duplicate_dismissal import DuplicateDismissal  # noqa: F401
 from backend.models.api_token import ApiToken  # noqa: F401
 from backend.models.series_meta import Arc, SeriesMeta  # noqa: F401
 from backend.models.user_device import UserDevice  # noqa: F401
+from backend.models.wish import Wish  # noqa: F401
+from backend.models.notification import Notification  # noqa: F401
 
 
 @asynccontextmanager
@@ -310,6 +314,10 @@ async def _run_auto_import() -> None:
 
             db.refresh(book)
 
+            # Wishlist matcher — flag open wishes for admin review (no auto-fulfil)
+            from backend.services.wish_matcher import match_on_book_created
+            match_on_book_created(db, book)
+
             audit(
                 db,
                 "auto_import.imported",
@@ -475,6 +483,9 @@ def create_app() -> FastAPI:
     app.include_router(api_tokens.router, prefix="/api")
     app.include_router(series_api.router, prefix="/api")
     app.include_router(send_to_device.router, prefix="/api")
+    # Wishlist + notifications — static paths registered before /{id} routes
+    app.include_router(wishlist_api.router, prefix="/api")
+    app.include_router(notifications_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

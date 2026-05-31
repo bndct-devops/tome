@@ -214,6 +214,99 @@ async def _hardcover(
     return candidates
 
 
+async def search_series(q: str) -> list[dict]:
+    """Search Hardcover for SERIES entities (not books).
+
+    Returns dicts with a canonical series id, name, author, and the *true*
+    volume count — ``primary_books_count`` (distinct volumes), not the
+    edition-inflated ``books_count``. E.g. "The Good Guys" by Eric Ugland comes
+    back with total=16, not 25. Empty when no token / no hits.
+    """
+    token = settings.hardcover_token
+    if not token:
+        return []
+
+    graphql_query = """
+    query SearchSeries($q: String!, $perPage: Int!) {
+        search(query: $q, query_type: "Series", per_page: $perPage) {
+            results
+        }
+    }
+    """
+    # Second query: the series search doc carries no cover, so fetch each
+    # series' first volume's cover (a series is naturally represented by vol 1).
+    covers_query = """
+    query SeriesCovers($ids: [Int!]!) {
+        series(where: {id: {_in: $ids}}) {
+            id
+            book_series(order_by: {position: asc}, limit: 1) {
+                book { image { url } }
+            }
+        }
+    }
+    """
+    headers = {"authorization": token}
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                HARDCOVER_URL,
+                json={"query": graphql_query, "variables": {"q": q, "perPage": _MAX_RESULTS}},
+                headers=headers,
+            )
+            if resp.status_code == 429:
+                logger.warning("Hardcover rate limited (series)")
+                return []
+            resp.raise_for_status()
+            data = resp.json()
+
+            hits = data.get("data", {}).get("search", {}).get("results", {}).get("hits", [])
+            out: list[dict] = []
+            for hit in hits:
+                doc = hit.get("document", {})
+                name = doc.get("name")
+                sid = doc.get("id")
+                if not name or sid is None:
+                    continue
+                total = doc.get("primary_books_count") or None
+                out.append({
+                    "source": "hardcover",
+                    "source_id": str(sid),
+                    "name": name,
+                    "author": doc.get("author_name"),
+                    "total": int(total) if total else None,
+                    "slug": doc.get("slug"),
+                    "cover_url": None,
+                })
+
+            # Best-effort vol-1 covers in one batched query.
+            ids = [int(e["source_id"]) for e in out if e["source_id"].isdigit()]
+            if ids:
+                try:
+                    cresp = await client.post(
+                        HARDCOVER_URL,
+                        json={"query": covers_query, "variables": {"ids": ids}},
+                        headers=headers,
+                    )
+                    cresp.raise_for_status()
+                    cdata = cresp.json()
+                    covers: dict[str, str] = {}
+                    for s in (cdata.get("data", {}).get("series") or []):
+                        bs = s.get("book_series") or []
+                        if bs:
+                            img = (bs[0].get("book") or {}).get("image") or {}
+                            if img.get("url"):
+                                covers[str(s.get("id"))] = img["url"]
+                    for e in out:
+                        e["cover_url"] = covers.get(e["source_id"])
+                except Exception as exc:
+                    logger.warning("Hardcover series covers failed: %s", exc)
+    except Exception as exc:
+        logger.warning("Hardcover series request failed: %s", exc)
+        return []
+
+    return out
+
+
 def _parse_hardcover(doc: dict) -> MetadataCandidate:
     # Extract primary author — skip illustrators/editors
     author_name: str | None = None

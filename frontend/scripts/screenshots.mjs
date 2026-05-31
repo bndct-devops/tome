@@ -43,6 +43,54 @@ const MOBILE = devices['iPhone 13']  // 390×844, scale 3, mobile UA, touch
 // can't hardcode them. See `resolveBookIds()`.
 const bookIds = {}
 
+// ── Wishlist demo state (set SHOT_TOKEN in main() after login) ────────────────
+let SHOT_TOKEN = null
+async function wapi(pathname, opts = {}) {
+  return fetch(`${API}${pathname}`, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SHOT_TOKEN}`, ...(opts.headers || {}) },
+  })
+}
+async function clearWishes() {
+  const r = await wapi('/api/wishlist').catch(() => null)
+  const list = r ? await r.json().catch(() => []) : []
+  for (const w of (Array.isArray(list) ? list : [])) {
+    await wapi(`/api/wishlist/${w.id}`, { method: 'DELETE' }).catch(() => {})
+  }
+}
+async function seedDemoWishes() {
+  await clearWishes()
+  // Seed from the real search endpoints (like a user does) so covers come through.
+  // Single-book wish: Hitchhiker's Guide via book search (skip the M.J. Simpson
+  // companion book — pick the Douglas Adams novel).
+  try {
+    const r = await wapi(`/api/wishlist/search?q=${encodeURIComponent("the hitchhiker's guide to the galaxy")}`)
+    const cands = await r.json().catch(() => [])
+    const list = Array.isArray(cands) ? cands : []
+    const norm = (s) => (s || '').toLowerCase().replace(/[’']/g, "'").trim()
+    const target = "the hitchhiker's guide to the galaxy"
+    const isAdams = (c) => /douglas adams/i.test(c.author || '')
+    const hit =
+      list.find(c => norm(c.title) === target && isAdams(c)) ||
+      list.find(c => norm(c.title).startsWith(target) && isAdams(c) && !/omnibus|ultimate|more than|complete|phase|hitch hiker/i.test(c.title)) ||
+      list.find(c => isAdams(c)) ||
+      list[0]
+    if (hit) {
+      await wapi('/api/wishlist', { method: 'POST', body: JSON.stringify({ title: hit.title, author: hit.author, cover_url: hit.cover_url, source: hit.source, source_id: hit.source_id, isbn: hit.isbn }) })
+    }
+  } catch { /* best effort */ }
+  // Whole-series wish: The Good Guys via series search (canonical id, true total,
+  // vol-1 cover) → 16/16 coverage.
+  try {
+    const r = await wapi(`/api/wishlist/search-series?q=${encodeURIComponent('the good guys')}`)
+    const series = await r.json().catch(() => [])
+    const gg = (Array.isArray(series) ? series : []).find(s => s.name === 'The Good Guys' && /ugland/i.test(s.author || '')) || (Array.isArray(series) ? series[0] : null)
+    if (gg) {
+      await wapi('/api/wishlist', { method: 'POST', body: JSON.stringify({ title: gg.name, series: gg.name, author: gg.author, cover_url: gg.cover_url, source: gg.source, source_id: gg.source_id, external_series_id: gg.source_id, series_total: gg.total }) })
+    }
+  } catch { /* best effort */ }
+}
+
 /** @type {Array<{name: string, path: string, viewport?: any, mobile?: boolean, waitFor?: string, settle?: number}>} */
 const SHOTS = [
   // Desktop
@@ -372,6 +420,92 @@ const SHOTS = [
     autoCrop: true,
   },
 
+  // ── Wishlist ────────────────────────────────────────────────────────────
+  // Empty state — clear benedict's wishes, then re-seed after capture so the
+  // populated shots below have data.
+  {
+    name: 'wishlist-empty',
+    path: '/wishlist',
+    viewport: { width: 1200, height: 900, deviceScaleFactor: 2 },
+    settle: 700,
+    after: async (page) => {
+      await clearWishes()
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(800)
+    },
+    cleanup: async () => { await seedDemoWishes() },
+    autoCrop: true,
+  },
+  // Add-to-wishlist modal: search "The Good Guys", pick a result, flip to the
+  // whole-series confirm view.
+  {
+    name: 'wishlist-add-series',
+    path: '/wishlist',
+    viewport: { width: 1200, height: 1100, deviceScaleFactor: 2 },
+    settle: 600,
+    after: async (page) => {
+      await page.locator('button:has-text("Wish")').first().click().catch(() => {})
+      await page.waitForTimeout(500)
+      // Switch to Series mode, search Hardcover series, pick the Eric Ugland one.
+      await page.locator('div.max-w-lg button:has-text("Series")').first().click().catch(() => {})
+      await page.waitForTimeout(300)
+      await page.locator('div.max-w-lg input[placeholder*="series"]').first().fill('The Good Guys').catch(() => {})
+      await page.waitForTimeout(2800)  // live series search
+      await page.locator('div.max-w-lg button:has(p:has-text("Eric Ugland"))').first().click().catch(() => {})
+      await page.waitForTimeout(500)
+      await maskModalBackdrop(page)
+    },
+    element: 'div.max-w-lg:has(h2:has-text("Add to Wishlist"))',
+  },
+  // Member wishlist — Good Guys whole-series (16/16 coverage strip) + a single
+  // Hitchhiker's wish.
+  {
+    name: 'wishlist',
+    path: '/wishlist',
+    viewport: { width: 1200, height: 1100, deviceScaleFactor: 2 },
+    settle: 700,
+    after: async (page) => {
+      await seedDemoWishes()
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(900)
+    },
+    autoCrop: true,
+  },
+  // Admin Wishlist tab — all members' wishes, coverage + fulfil controls.
+  {
+    name: 'wishlist-admin',
+    path: '/admin',
+    viewport: { width: 1600, height: 1600, deviceScaleFactor: 2 },
+    settle: 900,
+    after: async (page) => {
+      await seedDemoWishes()
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(500)
+      await page.locator('button:has-text("Wishlist")').first().click().catch(() => {})
+      await page.waitForTimeout(800)
+    },
+    autoCrop: true,
+  },
+  // Admin fulfil picker — opened on the single Hitchhiker's wish, suggested
+  // book preselected.
+  {
+    name: 'wishlist-admin-fulfill',
+    path: '/admin',
+    viewport: { width: 1600, height: 1600, deviceScaleFactor: 2 },
+    settle: 900,
+    after: async (page) => {
+      await seedDemoWishes()
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(500)
+      await page.locator('button:has-text("Wishlist")').first().click().catch(() => {})
+      await page.waitForTimeout(800)
+      // Open the Fulfill picker on the Hitchhiker's (single-book) wish row.
+      await page.locator('div.rounded-xl:has(p:has-text("Hitchhiker")) button:has-text("Fulfill")').first().click().catch(() => {})
+      await page.waitForTimeout(700)
+    },
+    element: 'div.rounded-xl:has(p:has-text("Hitchhiker"))',
+  },
+
   // Mobile (PWA)
   { name: 'mobile-home', path: '/', mobile: true, waitFor: 'h2, h3, [class*="streak"]' },
   { name: 'mobile-stats', path: '/stats', mobile: true, settle: 1200 },
@@ -576,6 +710,7 @@ async function main() {
   } else {
     console.log('Using TOME_SCREENSHOT_TOKEN (skipping /login)')
   }
+  SHOT_TOKEN = token
 
   await resolveBookIds(token)
   if (Object.keys(bookIds).length) {

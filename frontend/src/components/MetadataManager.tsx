@@ -12,6 +12,7 @@ import { BulkMetadataReviewModal } from './BulkMetadataReviewModal'
 import { UploadModal } from './UploadModal'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from './CoverImage'
+import { useToast } from '@/contexts/ToastContext'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -979,6 +980,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
 // ── Main MetadataManager ──────────────────────────────────────────────────────
 
 export function MetadataManager() {
+  const { toast } = useToast()
   const [mode, setMode] = useState<'table' | 'review'>('table')
   const [standardizeProposals, setStandardizeProposals] = useState<StandardizeProposal[] | null>(null)
   const [standardizeLoading, setStandardizeLoading] = useState(false)
@@ -1210,6 +1212,10 @@ export function MetadataManager() {
             setBulkModalBookIds(ids.slice(0, 100))
             setBulkModalOpen(true)
           }
+        }}
+        onWishMatches={(wishIds) => {
+          const n = wishIds.length
+          toast.info(`This upload satisfies ${n} wish${n !== 1 ? 'es' : ''} — review in Admin > Wishlist`)
         }}
       />
 

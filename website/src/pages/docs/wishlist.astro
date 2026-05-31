@@ -1,0 +1,131 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Wishlist" description="Members wish for books or whole series; admins fulfil them — and the wish and the upload close the loop automatically.">
+  <SectionHero section="features" />
+  <h1>Wishlist</h1>
+  <p>
+    The wishlist is a reading to-do list. Members add books or whole series they
+    <em>want</em>; admins see every open wish and fulfil them as the books land. A matcher links
+    wishes to the library automatically — both when a new book is added and when a wish is created
+    for something already on the shelf — so the list never goes stale.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="info" title="Members and admins only">
+    Creating wishes requires the <strong>member</strong> or <strong>admin</strong> role. Guests
+    browse, download, and read but don't get a wishlist. Members see only their own wishes; admins
+    see everyone's. See <a href={withBase("/docs/users-and-roles")}>Users &amp; roles</a>.
+  </Callout>
+
+  <h2>Adding a wish</h2>
+  <p>
+    Open <strong>Wishlist</strong> from the sidebar and click <strong>+ Wish</strong>. The dialog
+    has two modes: <strong>Book</strong> and <strong>Series</strong>.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="wishlist-empty" alt="Empty wishlist page" />
+  </div>
+
+  <h3>Book</h3>
+  <p>
+    Search by title across the same metadata sources as the rest of Tome (Hardcover, Google Books,
+    OpenLibrary) and pick the match for a single-book wish. Can't find it? Switch to manual entry
+    and type a title, author, and note.
+  </p>
+
+  <h3>Series</h3>
+  <p>
+    Switch to <strong>Series</strong> and search by series name. This queries Hardcover's series
+    catalogue, so you pick the actual series — disambiguated by <strong>author</strong> and shown
+    with its <strong>volume count</strong> (two unrelated series sharing a name, like "The Good
+    Guys" by Eric Ugland vs. Bill Bonanno, are distinct entries). A series wish is a standing want:
+    it stays open as volumes arrive and is satisfied by the collection, not one book.
+  </p>
+
+  <Callout variant="note" title="Series search needs a Hardcover token">
+    The Series tab is powered by Hardcover's series catalogue. If the server has no
+    <code>hardcover_token</code> set, the <strong>Series</strong> tab is hidden and the dialog shows
+    Book search only — which still works, since book search also queries Google Books and
+    OpenLibrary. See <a href={withBase("/docs/configuration")}>Configuration</a>.
+  </Callout>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="wishlist-add-series" alt="Picking a canonical series from Hardcover in the add-to-wishlist dialog" />
+  </div>
+
+  <h2>Series coverage</h2>
+  <p>
+    A whole-series wish shows exactly how far along it is: a strip of every volume, green for the
+    ones already in the library and muted for the gaps, with the volume number on each — and an
+    <strong>"X of N"</strong> tally. When the wish came from a Hardcover series, <em>N</em> is the
+    real total volume count, so missing and not-yet-owned volumes both show as plain pills. Here a
+    16-volume series has every volume present (16 of 16).
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="wishlist" alt="Member wishlist showing a whole-series wish with 16-of-16 coverage and a single-book wish" />
+  </div>
+
+  <h2>Admin: the Wishlist tab</h2>
+  <p>
+    The <strong>Wishlist</strong> tab in <a href={withBase("/docs/admin")}>/admin</a> lists every
+    member's wishes with the requester's name, filtered by Open / Fulfilled / Dismissed. Each row
+    carries the right action: single-book wishes get <strong>Fulfill</strong>, whole-series wishes
+    get <strong>Complete</strong>, and either can be <strong>Dismiss</strong>ed. When a wish matches
+    books already in the library, the row says so — a suggested-match badge for single books, the
+    coverage strip for a series.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="wishlist-admin" alt="Admin Wishlist tab with a whole-series wish and a single-book wish" />
+  </div>
+
+  <h3>Fulfilling a single-book wish</h3>
+  <p>
+    Click <strong>Fulfill</strong> and the picker opens with the matching library book preselected
+    (search for a different one if needed). Confirming links the book to the wish, marks it
+    fulfilled, and notifies the requester. If the book isn't in the library yet, upload it first —
+    the matcher will surface it here automatically.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="wishlist-admin-fulfill" alt="Admin fulfil picker with the suggested book preselected" />
+  </div>
+
+  <Callout variant="note" title="Whole-series wishes don't close on one volume">
+    A series wish stays open as volumes arrive — closing it on a single book would be wrong. The
+    requester is notified each time a matching volume lands, and the admin clicks
+    <strong>Complete</strong> when the series is fully available (or whenever they decide the want is
+    satisfied).
+  </Callout>
+
+  <h2>Notifications</h2>
+  <p>
+    Tome notifies the requester through the bell in the top bar:
+  </p>
+  <ul>
+    <li><strong>A volume arrived</strong> — when a new book matching an open whole-series wish is added.</li>
+    <li><strong>Your wish is fulfilled</strong> — when an admin links a book to a single-book wish, or marks a series complete.</li>
+  </ul>
+  <p>
+    Fulfilment also sends an email when the server has <a href={withBase("/docs/send-to-device")}>SMTP
+    configured</a>; if it isn't, only the in-app notice fires.
+  </p>
+
+  <h2>Configuration</h2>
+  <table class="docs-table">
+    <thead>
+      <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>TOME_WISHLIST_ENABLED</code></td><td><code>true</code></td><td>Master switch for the whole feature</td></tr>
+      <tr><td><code>TOME_WISHLIST_MAX</code></td><td><code>100</code></td><td>Soft cap on open wishes per user (409 when exceeded)</td></tr>
+    </tbody>
+  </table>
+  <p>
+    See the full env var list in <a href={withBase("/docs/configuration")}>Configuration</a>.
+  </p>
+</DocsLayout>

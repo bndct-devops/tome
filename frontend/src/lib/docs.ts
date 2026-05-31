@@ -44,4 +44,5 @@ export const DOCS = {
   usersAndRoles:  docsUrl('/docs/users-and-roles'),
   troubleshooting: docsUrl('/docs/troubleshooting'),
   changelog:      docsUrl('/docs/changelog'),
+  wishlist:       docsUrl('/docs/wishlist'),
 } as const

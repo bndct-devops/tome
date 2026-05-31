@@ -20,6 +20,7 @@ import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { SendToDeviceModal } from '@/components/SendToDeviceModal'
 import { BookAnimation } from '@/components/BookAnimation'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
+import { NotificationBell } from '@/components/NotificationBell'
 import { api } from '@/lib/api'
 import type { Book, Library, SavedFilter, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
@@ -894,6 +895,7 @@ export function DashboardPage() {
           </div>
           <div className="flex items-center gap-1.5 ml-auto">
             <SyncStatusBadge />
+            <NotificationBell />
             {isMember(user) && (
               <button onClick={() => setUploadModalOpen(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all touch-feedback">
@@ -909,6 +911,10 @@ export function DashboardPage() {
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onDone={() => { loadBooks(); loadFacets() }}
+        onWishMatches={(wishIds) => {
+          const n = wishIds.length
+          toast.info(`This upload satisfies ${n} wish${n !== 1 ? 'es' : ''} — review in Admin > Wishlist`)
+        }}
       />
 
       {manageSeriesOpen && expandedSeries && (

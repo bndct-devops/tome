@@ -38,6 +38,8 @@ def bulk_download(
     if not books:
         raise HTTPException(404, "No books found")
 
+    from backend.services.metadata_embed import get_baked_path
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for book in books:
@@ -45,9 +47,14 @@ def bulk_download(
             title = book.title.replace("/", "-")[:80]
             folder = f"{author} - {title}"
             for f in book.files:
-                path = Path(f.file_path)
-                if path.exists():
-                    zf.write(str(path), f"{folder}/{path.name}")
+                raw = Path(f.file_path)
+                if not raw.exists():
+                    continue
+                # Serve a copy with Tome's metadata baked in, like every other
+                # download path (single/OPDS/TomeSync). Falls back to the raw
+                # file if baking fails. Keep the original filename in the zip.
+                serve = get_baked_path(book, f)
+                zf.write(str(serve), f"{folder}/{raw.name}")
 
     buf.seek(0)
     return StreamingResponse(
