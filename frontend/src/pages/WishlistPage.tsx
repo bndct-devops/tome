@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp,
-  BookOpen, Loader2, Sparkles, Layers,
+  BookOpen, Loader2, Sparkles, Layers, ExternalLink,
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { listWishes, deleteWish, type WishOut } from '@/lib/wishlist'
 import { WishlistModal } from '@/components/WishlistModal'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
+import { docsLink, DOCS } from '@/lib/docs'
 import { cn } from '@/lib/utils'
 
 function WishCover({ coverUrl }: { coverUrl: string | null }) {
@@ -145,6 +146,14 @@ export function WishlistPage() {
                     <span className="ml-2 text-xs font-normal text-muted-foreground">({openWishes.length})</span>
                   )}
                 </h2>
+                <a
+                  href={docsLink(DOCS.wishlist)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Learn more <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
 
               {openWishes.length === 0 ? (

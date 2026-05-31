@@ -1820,6 +1820,14 @@ function WishlistTab() {
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">Wishlist</h2>
+          <a
+            href={docsLink(DOCS.wishlist)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            Learn more <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
         <div className="flex items-center gap-1">
           {STATUS_TABS.map(t => (
