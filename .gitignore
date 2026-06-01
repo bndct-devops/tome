@@ -56,8 +56,6 @@ PLAN.md
 local/
 temp/
 docs/transfer.md
-docs/mobile-polish-plan.md
-docs/promotion-readiness-audit.md
-docs/promotion-readiness-plan.md
+docs/plans/
 scripts/tome_transfer.py
 graphify-out/
