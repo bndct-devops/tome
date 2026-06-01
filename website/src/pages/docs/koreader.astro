@@ -107,6 +107,26 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   </ul>
   <p>Sessions shorter than 10 seconds are filtered out.</p>
 
+  <h2>Keeping the plugin updated</h2>
+  <p>
+    Once installed, TomeSync updates itself from your server — no re-download, no file copying.
+    In KOReader's <strong>TomeSync</strong> menu:
+  </p>
+  <ul>
+    <li><strong>Check for updates</strong> — pulls the latest plugin from your server. If a newer
+      build exists, it installs and asks you to restart KOReader.</li>
+    <li><strong>Auto-check on launch</strong> — opt-in toggle. When on, TomeSync quietly checks
+      shortly after startup and prompts only when an update is available.</li>
+  </ul>
+  <p>Your server URL, API key, and reading history carry over automatically — updates never touch them.</p>
+
+  <Callout variant="info" title="A bad update can't brick TomeSync">
+    The plugin is split into a tiny frozen loader and a replaceable implementation. If an update
+    fails to load, the loader automatically rolls back to the last working version on the next
+    launch (or even the same launch), so TomeSync always comes back on its own. Worst case, it
+    shows a "failed to load — reinstall" note; KOReader itself is never affected.
+  </Callout>
+
   <h2>Stable book IDs (vs KOSync hashes)</h2>
   <p>
     KOSync identifies books by the MD5 of the file. Edit metadata, re-save, redownload — the

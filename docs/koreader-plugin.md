@@ -145,7 +145,9 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Browse series** | Opens the series browser. Lists all series with book count and author. Tap to download. |
 | **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
 | **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
-| **About** | Version info. |
+| **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
+| **Auto-check on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
+| **About** | Version info (semver + build). |
 
 ### Only when a book is open
 
@@ -171,9 +173,24 @@ The plugin authenticates with an API key (`Authorization: Bearer tk_...`), not y
 
 ## Updating the Plugin
 
-The current plugin version is shown on the Settings page next to "TomeSync Plugin". Re-download when it changes, or when your server address changes.
+Once the plugin is installed, it updates itself — open the **TomeSync** menu and tap **Check for updates** (or enable **Auto-check on launch**). It downloads the latest build from your server, swaps it in atomically, and asks you to restart. Your server URL, API key, and reading history carry over automatically.
 
-### Via SSH (recommended for Kindle)
+The plugin version is shown on the Settings page next to "TomeSync Plugin" (`v<semver> (build N)`); the build integer is what drives update comparisons.
+
+### How self-update can't brick the plugin
+
+The plugin is split into a frozen **shim** (`main.lua`, never replaced) and a replaceable **implementation** (`main_impl.lua`). On every load the shim runs a rollback state machine backed by `main_impl.lua.bak`:
+
+- A **download that fails validation** (too small, doesn't compile, missing sentinels) is rejected before anything is swapped — files untouched.
+- A **syntax-broken** update fails to load and is rolled back on the **same launch**.
+- An **init-crashing** update doesn't confirm itself, so the shim rolls it back on the **next launch**.
+- If even the backup is unusable, the shim loads a valid inert stub ("TomeSync failed to load — reinstall"); KOReader itself is never affected.
+
+### Manual install (first deploy / recovery)
+
+The **first** build carrying the shim+impl must be installed by hand once (every update after that is in-app). This is also the fallback if you ever need to force a clean reinstall.
+
+#### Via SSH (recommended for Kindle)
 
 ```bash
 # 1. Download plugin ZIP from Tome Settings page, unzip it
@@ -185,7 +202,7 @@ scp -r tomesync.koplugin root@<kindle-ip>:/mnt/us/koreader/plugins/
 
 No cable or USB mode needed. Requires SSH enabled on KOReader (Settings > Network > SSH server).
 
-### Via USB
+#### Via USB
 
 1. Exit KOReader
 2. Connect via USB cable
@@ -227,9 +244,11 @@ The downloaded plugin has your server URL and API key baked in, so there is noth
 
 ## Files
 
-The plugin consists of two files:
+The plugin consists of three files (plus a backup created on first update):
 
 | File | Purpose |
 |---|---|
 | `_meta.lua` | Plugin metadata (name, description) |
-| `main.lua` | All plugin logic, HTTP client, and config (server URL, API key baked in at download time) |
+| `main.lua` | Frozen stable shim — loads the implementation and runs the anti-brick rollback state machine. No config; never replaced by self-update. |
+| `main_impl.lua` | All plugin logic, HTTP client, and config (server URL, API key baked in at download time). The only file self-update replaces. |
+| `main_impl.lua.bak` | Last confirmed-good implementation, written automatically before each update so the shim can roll back. |
