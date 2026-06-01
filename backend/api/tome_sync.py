@@ -28,7 +28,13 @@ from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
 
-TOMESYNC_PLUGIN_VERSION = "6"  # bump when plugin code changes
+# Plugin versioning. BUILD is the ONLY value compared for self-update (monotonic
+# integer — bump on every plugin code change). SEMVER is human-facing display.
+# VERSION is kept as a back-compat alias (= str(BUILD)) for old plugins and the
+# web UI, which read `version` from /plugin/version.
+TOMESYNC_PLUGIN_BUILD = 8
+TOMESYNC_PLUGIN_SEMVER = "1.0.0"
+TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
 # ── API key auth ──────────────────────────────────────────────────────────────
@@ -488,7 +494,14 @@ def revoke_api_key(
 
 @router.get("/plugin/version")
 def plugin_version() -> dict:
-    return {"version": TOMESYNC_PLUGIN_VERSION}
+    # `version` stays a build-int-as-string for back-compat (existing plugins +
+    # web UI read it). `build` (int) is what the self-updater compares; `semver`
+    # is display-only.
+    return {
+        "version": TOMESYNC_PLUGIN_VERSION,
+        "build": TOMESYNC_PLUGIN_BUILD,
+        "semver": TOMESYNC_PLUGIN_SEMVER,
+    }
 
 
 # ── Plugin download ───────────────────────────────────────────────────────────
@@ -518,17 +531,48 @@ def download_plugin(
     if not server_url:
         server_url = str(request.base_url).rstrip("/")
 
-    # Build the ZIP in memory — single-file plugin (meta + main only)
+    # Build the ZIP in memory — shim + impl split for self-update:
+    #   main.lua       frozen stable shim (no config; runs the rollback machine)
+    #   main_impl.lua  the real plugin + baked config; the only file updates replace
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("tomesync.koplugin/_meta.lua", _meta_lua())
-        zf.writestr("tomesync.koplugin/main.lua", _main_lua(server_url, api_key_value, current_user.username))
+        zf.writestr("tomesync.koplugin/main.lua", _main_shim_lua())
+        zf.writestr("tomesync.koplugin/main_impl.lua",
+                    _main_impl_lua(server_url, api_key_value, current_user.username))
     buf.seek(0)
 
     return StreamingResponse(
         buf,
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=tomesync.koplugin.zip"},
+    )
+
+
+# ── Plugin self-update (impl only) ────────────────────────────────────────────
+
+@router.get("/plugin/main-impl.lua")
+def download_main_impl(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_get_api_key_user),
+    server_url: str | None = None,
+):
+    """Serve the current main_impl.lua for self-update, with the caller's config
+    baked in. Authenticated by the plugin's own API key, so config (server URL,
+    key, username) survives every update. The shim (main.lua) is frozen and never
+    served here."""
+    # Reuse the API key the plugin authenticated with, so the refreshed impl keeps
+    # the same baked credentials. Recover the plaintext from the request header.
+    auth = request.headers.get("authorization", "")
+    api_key_value = auth.removeprefix("Bearer ").strip()
+
+    if not server_url:
+        server_url = str(request.base_url).rstrip("/")
+
+    return StreamingResponse(
+        io.BytesIO(_main_impl_lua(server_url, api_key_value, current_user.username).encode()),
+        media_type="text/plain; charset=utf-8",
     )
 
 
@@ -547,17 +591,130 @@ Tracks reading sessions and syncs position across devices.]]),
 '''
 
 
-def _main_lua(server_url: str, api_key: str, username: str) -> str:
-    return f'''--[[
-TomeSync KOReader Plugin — single-file build
-Syncs reading progress and sessions with a Tome library server.
-Browse and download series. Tracks reading sessions and syncs position across devices.
-
-Installation: copy tomesync.koplugin/ into koreader/plugins/ and restart.
+def _main_shim_lua() -> str:
+    # Frozen stable shim. Deployed once, never replaced by self-update. No config,
+    # no network. Its only jobs: find its own dir, run the anti-brick rollback
+    # state machine, dofile main_impl.lua, and return the plugin class (or a valid
+    # inert stub if even the backup can't load). Keep this minimal so it never
+    # needs to change — if it ever must, that's a manual redeploy.
+    return r'''--[[
+TomeSync KOReader Plugin — stable shim (frozen; do not edit on-device).
+Loads main_impl.lua with same-boot + next-boot rollback so a bad self-update
+can never leave TomeSync unloadable.
 ]]
 
 local logger = require("logger")
-logger.info("TomeSync: main.lua loading...")
+logger.info("TomeSync: shim loading...")
+
+local function selfDir()
+    local source = debug.getinfo(1, "S").source
+    return source:match("^@(.*)/[^/]+$") or "."
+end
+
+local DIR      = selfDir()
+local IMPL     = DIR .. "/main_impl.lua"
+local IMPL_BAK = DIR .. "/main_impl.lua.bak"
+
+local function readFile(path)
+    local f = io.open(path, "rb"); if not f then return nil end
+    local d = f:read("*a"); f:close(); return d
+end
+
+local function writeFile(path, data)
+    local f = io.open(path, "wb"); if not f then return false end
+    f:write(data); f:close(); return true
+end
+
+local function restoreBackup()
+    local bak = readFile(IMPL_BAK)
+    if not bak then return false end
+    return writeFile(IMPL, bak)
+end
+
+local function getState()
+    local ok, s = pcall(function() return G_reader_settings:readSetting("tomesync_update") end)
+    return ok and s or nil
+end
+
+local function setState(s)
+    pcall(function()
+        G_reader_settings:saveSetting("tomesync_update", s)
+        G_reader_settings:flush()
+    end)
+end
+
+local function notify(text)
+    pcall(function()
+        local InfoMessage = require("ui/widget/infomessage")
+        local UIManager   = require("ui/uimanager")
+        UIManager:show(InfoMessage:new{ text = text, timeout = 5 })
+    end)
+end
+
+local function stubPlugin()
+    local WidgetContainer = require("ui/widget/container/widgetcontainer")
+    local Stub = WidgetContainer:extend{ name = "tomesync", is_doc_only = false }
+    function Stub:init() pcall(function() self.ui.menu:registerToMainMenu(self) end) end
+    function Stub:addToMainMenu(menu_items)
+        menu_items.tomesync = {
+            text = "TomeSync (failed to load)",
+            callback = function() notify("TomeSync failed to load and could not roll back.\nPlease reinstall the plugin.") end,
+        }
+    end
+    return Stub
+end
+
+-- ── Next-boot rollback: an unconfirmed build that never confirmed crashed at init ──
+local state = getState()
+if state and not state.confirmed then
+    state.boots = (state.boots or 0) + 1
+    if state.boots >= 2 then
+        if restoreBackup() then
+            logger.warn("TomeSync: build", state.build, "never confirmed — rolling back")
+            setState({ build = state.prev_build, confirmed = true })
+            notify("TomeSync update failed — rolled back to previous version.")
+        else
+            setState(state)  -- no backup to restore; keep the bumped count
+        end
+    else
+        setState(state)
+    end
+end
+
+-- ── Load impl; same-boot rollback on a load/syntax failure ────────────────────
+local ok, plugin = pcall(dofile, IMPL)
+if not ok then
+    logger.warn("TomeSync: impl failed to load:", tostring(plugin))
+    local cur = getState()
+    if restoreBackup() then
+        setState({ build = (cur and cur.prev_build) or 0, confirmed = true })
+        notify("TomeSync update failed — rolled back to previous version.")
+        ok, plugin = pcall(dofile, IMPL)
+    end
+end
+
+if not ok or type(plugin) ~= "table" then
+    logger.warn("TomeSync: returning inert stub plugin")
+    local sok, stub = pcall(stubPlugin)
+    return sok and stub or nil
+end
+
+logger.info("TomeSync: shim loaded impl successfully")
+return plugin
+'''
+
+
+def _main_impl_lua(server_url: str, api_key: str, username: str) -> str:
+    return f'''--[[
+TomeSync KOReader Plugin — implementation (replaced in place by self-update).
+Syncs reading progress and sessions with a Tome library server.
+Browse and download series. Tracks reading sessions and syncs position across devices.
+
+Loaded by the frozen shim (main.lua). Contains the baked config; the shim does not.
+]]
+
+local logger = require("logger")
+logger.info("TomeSync: main_impl.lua loading...")
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local InfoMessage      = require("ui/widget/infomessage")
@@ -570,6 +727,7 @@ local rapidjson        = require("rapidjson")
 local lfs              = require("libs/libkoreader-lfs")
 local util             = require("util")
 local Menu             = require("ui/widget/menu")
+local Dispatcher       = require("dispatcher")
 
 -- ── Register in wrench menu (tools tab, after calibre) ──────────────────────
 -- Runs once per KOReader process via require() caching.
@@ -611,6 +769,8 @@ local MAX_BACKOFF_FAILURES = 3
 
 local HEARTBEAT_PAGES = 50
 local PLUGIN_VERSION  = "{TOMESYNC_PLUGIN_VERSION}"
+local BUILD           = {TOMESYNC_PLUGIN_BUILD}      -- monotonic; the only thing compared
+local SEMVER          = "{TOMESYNC_PLUGIN_SEMVER}"   -- human-facing display only
 
 local function urlEncode(s)
     return s:gsub("([^%w%-%.%_%~])", function(c)
@@ -725,6 +885,53 @@ local function downloadFile(book_id, file_id, dest_path)
     return true
 end
 
+-- ── Self-update helpers ──────────────────────────────────────────────────────
+
+local function implDir()
+    local source = debug.getinfo(1, "S").source
+    return source:match("^@(.*)/[^/]+$") or "."
+end
+
+local IMPL_PATH = implDir() .. "/main_impl.lua"
+local IMPL_BAK  = IMPL_PATH .. ".bak"
+
+local function readWhole(path)
+    local f = io.open(path, "rb"); if not f then return nil end
+    local d = f:read("*a"); f:close(); return d
+end
+
+local function writeWhole(path, data)
+    local f = io.open(path, "wb"); if not f then return false end
+    f:write(data); f:close(); return true
+end
+
+-- Raw (non-JSON) authenticated GET, used to fetch the new impl text.
+local function fetchText(path)
+    if not NetworkMgr:isConnected() then return nil, "offline" end
+    local chunks = {{}}
+    local saved_timeout = http.TIMEOUT
+    http.TIMEOUT = 30
+    local ok, code = http.request({{
+        url     = SERVER_URL .. "/api" .. path,
+        method  = "GET",
+        headers = {{ ["Authorization"] = "Bearer " .. API_KEY }},
+        sink    = ltn12.sink.table(chunks),
+    }})
+    http.TIMEOUT = saved_timeout
+    if not ok then return nil, code end
+    if type(code) == "number" and code >= 300 then return nil, code end
+    return table.concat(chunks), code
+end
+
+-- Reject anything that isn't a plausible, compilable impl before swapping it in.
+local function validateImpl(body)
+    if not body or #body < 15000 then return false, "too small" end
+    if not load(body) then return false, "does not compile" end
+    if not body:find("function TomeSync:init", 1, true) then return false, "missing init" end
+    if not body:find("return TomeSync", 1, true) then return false, "missing return" end
+    return true
+end
+
 -- ── Plugin widget ────────────────────────────────────────────────────────────
 
 local TomeSync = WidgetContainer:extend{{
@@ -741,9 +948,43 @@ function TomeSync:init()
     self.enabled        = true
     self.book_map       = G_reader_settings:readSetting("tomesync_book_map") or {{}}
     self.pending_sessions = G_reader_settings:readSetting("tomesync_pending_sessions") or {{}}
+    self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
     logger.info("TomeSync: init complete, menu registered,",
                 #self.pending_sessions, "pending sessions")
+
+    -- Anti-brick confirm (§3): init() reached the end, so this build is good.
+    -- Mark it confirmed now (and flush) so the shim never rolls it back.
+    local ustate = G_reader_settings:readSetting("tomesync_update")
+    if ustate and ustate.build == BUILD and not ustate.confirmed then
+        ustate.confirmed = true
+        G_reader_settings:saveSetting("tomesync_update", ustate)
+        G_reader_settings:flush()
+        logger.info("TomeSync: confirmed build", BUILD)
+    end
+
+    -- Opt-in: a deferred, non-blocking update check shortly after startup.
+    if G_reader_settings:isTrue("tomesync_auto_check") then
+        UIManager:scheduleIn(8, function()
+            self:checkForUpdate(function(avail)
+                if avail then self:_promptUpdate(avail) end
+            end)
+        end)
+    end
+end
+
+function TomeSync:onDispatcherRegisterActions()
+    Dispatcher:registerAction("tome_browse_series", {{
+        category = "none",
+        event    = "TomeBrowseSeries",
+        title    = "TomeSync: Browse series",
+        general  = true,
+    }})
+end
+
+function TomeSync:onTomeBrowseSeries()
+    self:_browseSeriesMenu()
+    return true
 end
 
 function TomeSync:onReaderReady()
@@ -1190,6 +1431,85 @@ function TomeSync:_downloadCurrentBookSeries(rest_only)
     self:_downloadSeriesBooks(data.series_name, data.books, min_index, data.book_type)
 end
 
+-- ── Self-update ──────────────────────────────────────────────────────────────
+
+-- on_result(avail) where avail is a {{build, semver}} table if newer, false if
+-- up to date, or nil + err message on failure.
+function TomeSync:checkForUpdate(on_result)
+    local ok, info, code = pcall(apiRequest, "GET", "/plugin/version")
+    if not ok or not info or (type(code) == "number" and code >= 300) then
+        on_result(nil, "Could not reach server.")
+        return
+    end
+    local server_build = tonumber(info.build or info.version)
+    if not server_build then
+        on_result(nil, "Server did not report a build.")
+        return
+    end
+    if server_build > BUILD then
+        on_result({{ build = server_build, semver = info.semver }})
+    else
+        on_result(false)
+    end
+end
+
+function TomeSync:installUpdate(new_build)
+    local body, code = fetchText("/plugin/main-impl.lua")
+    if not body then
+        UIManager:show(InfoMessage:new{{
+            text = "Download failed (" .. tostring(code) .. ").\\nNothing changed.",
+            timeout = 5,
+        }})
+        return
+    end
+    local valid, why = validateImpl(body)
+    if not valid then
+        UIManager:show(InfoMessage:new{{
+            text = "Update rejected: " .. tostring(why) .. ".\\nNothing changed.",
+            timeout = 6,
+        }})
+        return
+    end
+    -- Back up the current (known-good) impl, then atomically swap in the new one.
+    local current = readWhole(IMPL_PATH)
+    if current and not writeWhole(IMPL_BAK, current) then
+        UIManager:show(InfoMessage:new{{ text = "Could not write backup.", timeout = 5 }})
+        return
+    end
+    if not writeWhole(IMPL_PATH .. ".new", body) then
+        UIManager:show(InfoMessage:new{{ text = "Could not write update.", timeout = 5 }})
+        return
+    end
+    if not os.rename(IMPL_PATH .. ".new", IMPL_PATH) then
+        os.remove(IMPL_PATH .. ".new")
+        UIManager:show(InfoMessage:new{{ text = "Could not install update.", timeout = 5 }})
+        return
+    end
+    -- Arm the rollback state machine: unconfirmed until the new impl's init() runs.
+    local cur_state = G_reader_settings:readSetting("tomesync_update") or {{}}
+    G_reader_settings:saveSetting("tomesync_update", {{
+        build      = new_build,
+        confirmed  = false,
+        boots      = 0,
+        prev_build = cur_state.build or BUILD,
+    }})
+    G_reader_settings:flush()
+    UIManager:show(InfoMessage:new{{
+        text = "TomeSync updated to build " .. new_build .. ".\\nRestart KOReader to apply.",
+        timeout = 8,
+    }})
+end
+
+function TomeSync:_promptUpdate(avail)
+    local ConfirmBox = require("ui/widget/confirmbox")
+    UIManager:show(ConfirmBox:new{{
+        text = string.format("TomeSync update available: %s (build %d).\\nInstall now?",
+            avail.semver or "?", avail.build),
+        ok_text = "Install",
+        ok_callback = function() self:installUpdate(avail.build) end,
+    }})
+end
+
 -- ── Menu ─────────────────────────────────────────────────────────────────────
 
 function TomeSync:addToMainMenu(menu_items)
@@ -1235,11 +1555,39 @@ function TomeSync:addToMainMenu(menu_items)
         end,
     }})
     table.insert(sub_items, {{
+        text     = "Check for updates",
+        callback = function()
+            self:checkForUpdate(function(avail, err)
+                if avail then
+                    self:_promptUpdate(avail)
+                elseif avail == false then
+                    UIManager:show(InfoMessage:new{{
+                        text = "TomeSync is up to date (build " .. BUILD .. ").",
+                        timeout = 4,
+                    }})
+                else
+                    UIManager:show(InfoMessage:new{{
+                        text = err or "Update check failed.",
+                        timeout = 5,
+                    }})
+                end
+            end)
+        end,
+    }})
+    table.insert(sub_items, {{
+        text         = "Auto-check on launch",
+        checked_func = function() return G_reader_settings:isTrue("tomesync_auto_check") end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_auto_check",
+                not G_reader_settings:isTrue("tomesync_auto_check"))
+        end,
+    }})
+    table.insert(sub_items, {{
         text     = "About",
         separator = in_book,
         callback = function()
             UIManager:show(InfoMessage:new{{
-                text    = "TomeSync v" .. PLUGIN_VERSION
+                text    = "TomeSync " .. SEMVER .. " (build " .. BUILD .. ")"
                           .. "\\nSyncs with your Tome library.",
                 timeout = 4,
             }})

@@ -6,6 +6,28 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- TomeSync self-update: the KOReader plugin can now update itself from the
+  server — **TomeSync → Check for updates** (manual) plus an opt-in
+  **Auto-check on launch** toggle — replacing the SSH-into-every-device
+  workflow. A bad update cannot brick: the plugin is split into a frozen
+  stable shim (`main.lua`) and a replaceable implementation (`main_impl.lua`),
+  and the shim runs an anti-brick rollback state machine — a syntax-broken
+  update rolls back on the same boot, an init-crashing update rolls back on the
+  next, and a corrupt download is rejected before it is ever swapped in.
+  Reading progress, book mappings, and pending sessions live in KOReader
+  settings, so updates never touch them. Adds a `tome_browse_series` gesture
+  action.
+
+### Changed
+- TomeSync plugin versioning: a hidden monotonic **build** integer (now `8`)
+  drives update comparisons, with an independent human-facing **semver**
+  (`1.0.0`). `GET /plugin/version` now returns `build` and `semver` alongside
+  the existing `version` field (kept as `str(build)` for back-compat). New
+  authenticated `GET /plugin/main-impl.lua` serves the config-baked
+  implementation for self-update. The first shim+impl build must be installed
+  manually once (the last SSH deploy); every update after is in-app.
+
 ## [1.1.0] — 2026-05-31 — "Vellum"
 
 ### Added

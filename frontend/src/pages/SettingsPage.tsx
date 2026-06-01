@@ -1543,14 +1543,16 @@ function PasswordField({
 }
 
 function PluginVersion() {
-  const [version, setVersion] = useState<string | null>(null)
+  const [label, setLabel] = useState<string | null>(null)
   useEffect(() => {
-    api.get<{ version: string }>('/plugin/version').then(r => setVersion(r.version)).catch(() => {})
+    api.get<{ version: string; build?: number; semver?: string }>('/plugin/version')
+      .then(r => setLabel(r.semver ? `v${r.semver} (build ${r.build ?? r.version})` : `v${r.version}`))
+      .catch(() => {})
   }, [])
-  if (!version) return null
+  if (!label) return null
   return (
     <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
-      v{version}
+      {label}
     </span>
   )
 }
