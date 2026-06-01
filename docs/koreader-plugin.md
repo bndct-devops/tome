@@ -159,6 +159,15 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Enabled / Disabled** | Toggle sync on or off. |
 | **Pending sessions (N)** | Shows how many sessions are queued for sync. Tap for details. |
 
+### Gestures
+
+TomeSync registers two bindable gesture actions (KOReader **Settings → Taps and gestures → Gesture manager**, listed under *General* — available in both the reader and the file manager):
+
+| Action | Does |
+|---|---|
+| **TomeSync: Open menu** | Pops the full context-aware TomeSync menu as a standalone popup. |
+| **TomeSync: Browse series** | Jumps straight to the series browser/downloader. |
+
 ---
 
 ## API Keys

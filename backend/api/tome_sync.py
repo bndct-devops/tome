@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # integer — bump on every plugin code change). SEMVER is human-facing display.
 # VERSION is kept as a back-compat alias (= str(BUILD)) for old plugins and the
 # web UI, which read `version` from /plugin/version.
-TOMESYNC_PLUGIN_BUILD = 8
+TOMESYNC_PLUGIN_BUILD = 9
 TOMESYNC_PLUGIN_SEMVER = "1.0.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
@@ -974,12 +974,23 @@ function TomeSync:init()
 end
 
 function TomeSync:onDispatcherRegisterActions()
+    Dispatcher:registerAction("tome_open_menu", {{
+        category = "none",
+        event    = "TomeOpenMenu",
+        title    = "TomeSync: Open menu",
+        general  = true,
+    }})
     Dispatcher:registerAction("tome_browse_series", {{
         category = "none",
         event    = "TomeBrowseSeries",
         title    = "TomeSync: Browse series",
         general  = true,
     }})
+end
+
+function TomeSync:onTomeOpenMenu()
+    self:_openMenu()
+    return true
 end
 
 function TomeSync:onTomeBrowseSeries()
@@ -1512,7 +1523,7 @@ end
 
 -- ── Menu ─────────────────────────────────────────────────────────────────────
 
-function TomeSync:addToMainMenu(menu_items)
+function TomeSync:_menuItems()
     local in_book = self.ui and self.ui.document
 
     local sub_items = {{}}
@@ -1669,12 +1680,42 @@ function TomeSync:addToMainMenu(menu_items)
         }})
     end
 
+    return sub_items
+end
+
+function TomeSync:addToMainMenu(menu_items)
     menu_items.tomesync = {{
-        text         = "TomeSync",
-        sub_item_table = sub_items,
+        text           = "TomeSync",
+        sub_item_table = self:_menuItems(),
     }}
 end
 
-logger.info("TomeSync: main.lua loaded successfully, returning plugin class")
+-- Show the full TomeSync menu as a standalone popup (used by the "Open menu"
+-- gesture). Reuses _menuItems() so it always matches the wrench-menu contents.
+function TomeSync:_openMenu()
+    local raw = self:_menuItems()
+    local items = {{}}
+    for _, it in ipairs(raw) do
+        local orig = it.callback
+        table.insert(items, {{
+            text      = it.text,
+            text_func = it.text_func,
+            callback  = function()
+                if self._gesture_menu then UIManager:close(self._gesture_menu) end
+                if orig then orig() end
+            end,
+        }})
+    end
+    self._gesture_menu = Menu:new{{
+        title       = "TomeSync",
+        item_table  = items,
+        width       = Device.screen:getWidth() - 20,
+        height      = Device.screen:getHeight() - 20,
+        show_parent = self.ui or UIManager,
+    }}
+    UIManager:show(self._gesture_menu)
+end
+
+logger.info("TomeSync: main_impl.lua loaded successfully, returning plugin class")
 return TomeSync
 '''

@@ -16,11 +16,14 @@ All notable changes to Tome are documented here. Format loosely follows
   update rolls back on the same boot, an init-crashing update rolls back on the
   next, and a corrupt download is rejected before it is ever swapped in.
   Reading progress, book mappings, and pending sessions live in KOReader
-  settings, so updates never touch them. Adds a `tome_browse_series` gesture
-  action.
+  settings, so updates never touch them.
+- TomeSync gesture actions: **TomeSync: Open menu** (pops the full context-aware
+  TomeSync menu) and **TomeSync: Browse series** (jumps straight to the series
+  browser). Bindable from KOReader's Gesture manager, available in both the
+  reader and the file manager.
 
 ### Changed
-- TomeSync plugin versioning: a hidden monotonic **build** integer (now `8`)
+- TomeSync plugin versioning: a hidden monotonic **build** integer (now `9`)
   drives update comparisons, with an independent human-facing **semver**
   (`1.0.0`). `GET /plugin/version` now returns `build` and `semver` alongside
   the existing `version` field (kept as `str(build)` for back-compat). New
