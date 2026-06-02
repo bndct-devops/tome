@@ -24,7 +24,50 @@ import { withBase } from '../../lib/path'
 
   <h2>Unreleased</h2>
   <p>
-    On <code>main</code>, not yet cut into a tagged release. Lands in the next minor version.
+    Nothing on <code>main</code> beyond the latest tagged release yet.
+  </p>
+
+  <h2>v1.2.0 — "Press"</h2>
+  <p>
+    The release that gets out of its own way: the KOReader plugin now updates itself, and a single
+    command stands up a working instance. Less SSH, less ceremony.
+  </p>
+  <h3>Added</h3>
+  <ul>
+    <li>
+      <strong>TomeSync self-update:</strong> the KOReader plugin updates itself from the server —
+      <strong>Check for updates</strong> plus an opt-in <strong>Auto-check on launch</strong> —
+      replacing the SSH-into-every-device workflow. A bad update can't brick it: a frozen stable
+      shim wraps the replaceable implementation and runs an anti-brick rollback state machine
+      (syntax-broken updates roll back the same boot, init-crashing ones the next, corrupt downloads
+      are rejected before they're swapped in). Progress, book maps, and pending sessions are never
+      touched.
+    </li>
+    <li>
+      <strong>TomeSync gesture actions:</strong> <strong>Open menu</strong> and
+      <strong>Browse series</strong>, bindable from KOReader's Gesture manager in both the reader
+      and the file manager.
+    </li>
+    <li>
+      <strong>One-command installer:</strong> a <code>curl | bash</code> path for newcomers and
+      evals — checks Docker, writes <code>~/Tome</code>, auto-picks a free port, pulls, starts, and
+      waits until Tome answers. Re-running updates in place. Docker Compose stays the primary,
+      homelab-first path. See <a href={withBase("/docs/installation")}>Installation</a>.
+    </li>
+  </ul>
+  <h3>Fixed</h3>
+  <ul>
+    <li>
+      <strong>TomeSync series browser crash:</strong> browsing series no longer crashes the plugin
+      when a series' first book has no author (the server stopped sending JSON <code>null</code> for
+      the field, and the plugin now type-checks it).
+    </li>
+  </ul>
+
+  <h2>v1.1.0 — "Vellum"</h2>
+  <p>
+    The parchment a wanted text is written on — a release built around getting books to you and
+    knowing what you're still missing.
   </p>
   <h3>Added</h3>
   <ul>
@@ -36,13 +79,42 @@ import { withBase } from '../../lib/path'
       <a href={withBase("/docs/send-to-device")}>Send to device</a>.
     </li>
     <li>
+      <strong>Wishlist:</strong> members and admins can wish for a single book or a whole series.
+      The matcher links wishes to library books both when a book is added and when a wish is created
+      against books already present, author-aware so same-named series don't cross-match.
+      Whole-series wishes are standing wants that show an "X of N" coverage strip and notify the
+      requester as each volume arrives. In-app notifications via a new top-bar bell, plus email on
+      fulfilment when SMTP is configured.
+    </li>
+    <li>
       <strong>API token scopes:</strong> create tokens with <code>full</code> (default) or
       <code>readonly</code> scope; read-only tokens are blocked from non-GET requests.
+    </li>
+    <li>
+      <strong>Parallel library scans:</strong> opt-in via <code>TOME_SCAN_WORKERS</code> to fan the
+      CPU-bound extract/hash phase across worker processes for large imports (database writes stay
+      single-process).
     </li>
   </ul>
   <h3>Changed</h3>
   <ul>
+    <li>
+      <strong>Performance:</strong> faster library scans (no per-book lazy-loads, one directory
+      walk, throughput-oriented SQLite pragmas) and a much faster book-list endpoint (eager-loaded
+      relationships, eliminating an N+1).
+    </li>
     <li>Website: raster favicons for Google search results + Cloudflare Web Analytics.</li>
+  </ul>
+  <h3>Fixed</h3>
+  <ul>
+    <li>
+      Newly added books are searchable immediately — full-text search now indexes inline during
+      scan / upload / ingest instead of only at startup.
+    </li>
+    <li>
+      Bulk ZIP download now embeds Tome metadata like every other download path; cover-bearing files
+      are no longer hashed twice during ingest.
+    </li>
   </ul>
 
   <h2>v1.0 — "Codex"</h2>

@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-02 — "Press"
+
 ### Added
 - TomeSync self-update: the KOReader plugin can now update itself from the
   server — **TomeSync → Check for updates** (manual) plus an opt-in
@@ -21,6 +23,13 @@ All notable changes to Tome are documented here. Format loosely follows
   TomeSync menu) and **TomeSync: Browse series** (jumps straight to the series
   browser). Bindable from KOReader's Gesture manager, available in both the
   reader and the file manager.
+- One-command installer (`install.sh`): a `curl | bash` path for newcomers and
+  evals. Checks Docker is installed and running, writes `~/Tome` with a compose
+  file and volumes, auto-picks a free port, pulls + starts, and waits until Tome
+  answers. Re-running reuses the existing port and updates in place. ASCII-only,
+  no `sudo`, never touches a real library. Docker Compose remains the primary,
+  homelab-first install path; the one-liner is positioned as a "just want to try
+  it?" option with a complete teardown note.
 
 ### Changed
 - TomeSync plugin versioning: a hidden monotonic **build** integer (now `10`)
@@ -217,6 +226,7 @@ First public release.
 - Mobile-responsive PWA.
 - Single Docker image (FastAPI + React + SQLite).
 
+[1.2.0]: https://github.com/bndct-devops/tome/releases/tag/v1.2.0
 [1.1.0]: https://github.com/bndct-devops/tome/releases/tag/v1.1.0
 [1.0.0]: https://github.com/bndct-devops/tome/releases/tag/v1.0.0
 [0.2.0]: https://github.com/bndct-devops/tome/releases/tag/v0.2.0
