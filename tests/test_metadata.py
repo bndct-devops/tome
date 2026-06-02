@@ -8,11 +8,72 @@ Covers:
 These are all pure functions / regex operations — no filesystem or DB needed.
 """
 import re
+import zipfile
 import pytest
 from pathlib import Path
 
 from scripts.import_library import parse_filename, normalise_author
-from backend.services.metadata import get_format
+from backend.services.metadata import get_format, extract_metadata
+
+
+def _write_epub(path: Path, opf: str) -> None:
+    """Write a minimal valid epub wrapping the given content.opf."""
+    container = (
+        '<?xml version="1.0"?>'
+        '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    xhtml = ('<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+             '<body><p>x</p></body></html>')
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", container)
+        z.writestr("content.opf", opf)
+        z.writestr("t.xhtml", xhtml)
+
+
+class TestSeriesExtraction:
+    """Regression: embedded series must be read from Calibre (OPF2) and EPUB3
+    metadata, not silently dropped (which made it fall through to the title
+    parser and mis-group same-series books). See r/koreader launch report."""
+
+    def test_calibre_opf2_series(self, tmp_path):
+        # Title has NO "Vol." so only the embedded calibre:series can rescue it.
+        opf = '''<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>Blade &amp; Bastard - Warm ash, Dusky dungeon</dc:title>
+    <dc:identifier id="uid">urn:uuid:test-1</dc:identifier>
+    <meta name="calibre:series" content="Blade &amp; Bastard"/>
+    <meta name="calibre:series_index" content="1"/>
+  </metadata>
+  <manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="t"/></spine>
+</package>'''
+        epub = tmp_path / "blade.epub"
+        _write_epub(epub, opf)
+        meta = extract_metadata(epub, tmp_path / "covers")
+        assert meta.get("series") == "Blade & Bastard"
+        assert meta.get("series_index") == 1.0
+
+    def test_epub3_belongs_to_collection(self, tmp_path):
+        opf = '''<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Some Manga, Volume Title</dc:title>
+    <dc:identifier id="uid">urn:uuid:test-3</dc:identifier>
+    <meta property="belongs-to-collection" id="c1">Frieren</meta>
+    <meta refines="#c1" property="group-position">7</meta>
+  </metadata>
+  <manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="t"/></spine>
+</package>'''
+        epub = tmp_path / "frieren.epub"
+        _write_epub(epub, opf)
+        meta = extract_metadata(epub, tmp_path / "covers")
+        assert meta.get("series") == "Frieren"
+        assert meta.get("series_index") == 7.0
 
 
 # ── normalise_author ──────────────────────────────────────────────────────────

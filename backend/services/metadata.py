@@ -18,6 +18,34 @@ logger = logging.getLogger(__name__)
 SUPPORTED_FORMATS = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
 
 
+def _opf_meta_by_name(book, name: str) -> Optional[str]:
+    """Read an OPF2 <meta name="..." content="..."/> value.
+
+    ebooklib stores these under the OPF "meta" key as (None, attrs) tuples — NOT
+    under a key matching the name — so get_metadata("OPF", "calibre:series") never
+    matches. Calibre embeds series this way, so we have to scan the meta list.
+    """
+    for _value, attrs in book.get_metadata("OPF", "meta"):
+        if attrs.get("name") == name:
+            return attrs.get("content")
+    return None
+
+
+def _opf3_collection(book) -> tuple[Optional[str], Optional[str]]:
+    """Read an EPUB3 series: <meta property="belongs-to-collection">Name</meta>
+    plus the refining <meta property="group-position">N</meta>."""
+    name = idx = coll_id = None
+    for value, attrs in book.get_metadata("OPF", "meta"):
+        if attrs.get("property") == "belongs-to-collection":
+            name = value
+            coll_id = attrs.get("id")
+    if coll_id:
+        for value, attrs in book.get_metadata("OPF", "meta"):
+            if attrs.get("refines") in (f"#{coll_id}", coll_id) and attrs.get("property") == "group-position":
+                idx = value
+    return name, idx
+
+
 def get_format(path: Path) -> Optional[str]:
     return path.suffix.lower().lstrip(".") if path.suffix.lower() in SUPPORTED_FORMATS else None
 
@@ -94,15 +122,18 @@ def extract_epub(path: Path, covers_dir: Path) -> dict:
             if m:
                 meta["year"] = int(m.group(1))
 
-        # Series from calibre metadata
-        series = _first(book.get_metadata("OPF", "series"))
+        # Series from embedded metadata. Calibre writes OPF2
+        # <meta name="calibre:series" .../>; EPUB3 uses belongs-to-collection.
+        series = _opf_meta_by_name(book, "calibre:series")
+        series_idx = _opf_meta_by_name(book, "calibre:series_index")
+        if not series:
+            series, series_idx = _opf3_collection(book)
         if series:
-            meta["series"] = series[0]
-        series_idx = _first(book.get_metadata("OPF", "series_index"))
+            meta["series"] = series
         if series_idx:
             try:
-                meta["series_index"] = float(series_idx[0])
-            except ValueError:
+                meta["series_index"] = float(series_idx)
+            except (ValueError, TypeError):
                 pass
 
         # Fallback: parse series from title if not found

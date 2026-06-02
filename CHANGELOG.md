@@ -6,6 +6,12 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- Series metadata embedded by Calibre (`calibre:series`) and EPUB3 collections
+  (`belongs-to-collection`) is now read correctly on import. It was previously
+  dropped — ingest fell back to parsing the title, which mis-grouped or failed
+  to group same-series books whose titles lacked a "Vol. N".
+
 ## [1.2.0] — 2026-06-02 — "Press"
 
 ### Added
