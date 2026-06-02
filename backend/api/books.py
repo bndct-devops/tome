@@ -1877,16 +1877,17 @@ def upload_book(
         content_hash=content_hash,
     ))
 
-    # Create genre tags from ComicInfo.xml
+    # Create genre tags from embedded metadata (epub dc:subject / CBZ ComicInfo)
     if meta.get("_genres"):
         from backend.models.book import BookTag
+        source = meta.get("_genre_source", "comic_info")
         for genre in meta["_genres"]:
             existing = db.query(BookTag).filter(
                 BookTag.book_id == book.id,
                 BookTag.tag == genre,
             ).first()
             if not existing:
-                db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
+                db.add(BookTag(book_id=book.id, tag=genre, source=source))
 
     db.flush()
     from backend.services.fts import index_book

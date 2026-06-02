@@ -11,6 +11,12 @@ All notable changes to Tome are documented here. Format loosely follows
   (`belongs-to-collection`) is now read correctly on import. It was previously
   dropped — ingest fell back to parsing the title, which mis-grouped or failed
   to group same-series books whose titles lacked a "Vol. N".
+- Genre/category tags embedded in EPUBs (`dc:subject` — what Calibre stores as
+  "tags") are now imported as book tags. They were previously read only from CBZ
+  `ComicInfo.xml`, so EPUB tags were silently dropped and shelf filters showed
+  none. Tags also now round-trip back out on download — embedded as `dc:subject`
+  in EPUBs and `<Genre>` in CBZ `ComicInfo.xml`. Applies to newly imported books;
+  existing books are not retroactively re-tagged.
 
 ## [1.2.0] — 2026-06-02 — "Press"
 

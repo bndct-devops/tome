@@ -326,12 +326,13 @@ def _create_book_entry(
     # A freshly-created book has no library associations yet, so the old
     # `book.libraries` check here only ever fired an empty lazy-load per book.)
 
-    # Create genre tags from ComicInfo.xml
+    # Create genre tags from embedded metadata (epub dc:subject / CBZ ComicInfo)
     genres = meta.get("_genres") or []
     if genres:
         from backend.models.book import BookTag
+        source = meta.get("_genre_source", "comic_info")
         for genre in genres:
-            db.add(BookTag(book_id=book.id, tag=genre, source="comic_info"))
+            db.add(BookTag(book_id=book.id, tag=genre, source=source))
 
     # Keep the FTS index in sync inline. Pass tags explicitly so a bulk scan
     # doesn't lazy-load book.tags per book (book.id is already set by the flush

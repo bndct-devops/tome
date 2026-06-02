@@ -224,6 +224,14 @@ def _rewrite_opf(
         idx_s = str(int(idx)) if idx == int(idx) else str(idx)
         ET.SubElement(meta, f"{{{OPF_NS}}}meta", {"name": "calibre:series_index", "content": idx_s})
 
+    # Genre/category tags — one <dc:subject> per tag (Calibre convention).
+    _clear("subject")
+    for t in book.tags:
+        tag_val = (t.tag or "").strip()
+        if tag_val:
+            el = ET.SubElement(meta, f"{{{DC_NS}}}subject")
+            el.text = tag_val
+
     # Cover reference — return the in-zip path of the current cover image so
     # the caller can overwrite its bytes. Resolved relative to the OPF.
     cover_href: Optional[str] = None
@@ -331,6 +339,9 @@ def _build_comic_info(book: Book) -> bytes:
         _add("Year", book.year)
     if book.language:
         _add("LanguageISO", book.language)
+    tags = [t.tag.strip() for t in book.tags if t.tag and t.tag.strip()]
+    if tags:
+        _add("Genre", ", ".join(tags))
 
     buf = io.BytesIO()
     ET.ElementTree(root).write(buf, encoding="utf-8", xml_declaration=True)

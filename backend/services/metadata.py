@@ -122,6 +122,21 @@ def extract_epub(path: Path, covers_dir: Path) -> dict:
             if m:
                 meta["year"] = int(m.group(1))
 
+        # Genre/category tags. Calibre and most tools store these as
+        # <dc:subject> elements — one per tag.
+        subjects = book.get_metadata("DC", "subject")
+        if subjects:
+            genres: list[str] = []
+            seen: set[str] = set()
+            for s in subjects:
+                val = (s[0] or "").strip()
+                if val and val.lower() not in seen:
+                    seen.add(val.lower())
+                    genres.append(val)
+            if genres:
+                meta["_genres"] = genres
+                meta["_genre_source"] = "embedded"
+
         # Series from embedded metadata. Calibre writes OPF2
         # <meta name="calibre:series" .../>; EPUB3 uses belongs-to-collection.
         series = _opf_meta_by_name(book, "calibre:series")
@@ -264,6 +279,7 @@ def _parse_comic_info_xml(xml_bytes: bytes) -> dict:
         el = root.find("Genre")
         if el is not None and el.text:
             meta["_genres"] = [g.strip() for g in el.text.split(",") if g.strip()]
+            meta["_genre_source"] = "comic_info"
 
         # Manga detection
         el = root.find("Manga")

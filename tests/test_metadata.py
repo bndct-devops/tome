@@ -76,6 +76,64 @@ class TestSeriesExtraction:
         assert meta.get("series_index") == 7.0
 
 
+class TestSubjectExtraction:
+    """Regression: embedded <dc:subject> tags must be imported as genres.
+    Previously extract_epub never read them, so 'nonfiction'/genre tags were
+    silently dropped on import. Reported on the r/selfhosted + r/koreader launch."""
+
+    def test_dc_subject_tags_imported(self, tmp_path):
+        opf = '''<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>A Book</dc:title>
+    <dc:identifier id="uid">urn:uuid:test-sub</dc:identifier>
+    <dc:subject>Nonfiction</dc:subject>
+    <dc:subject>Science</dc:subject>
+    <dc:subject>History</dc:subject>
+  </metadata>
+  <manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="t"/></spine>
+</package>'''
+        epub = tmp_path / "subj.epub"
+        _write_epub(epub, opf)
+        meta = extract_metadata(epub, tmp_path / "covers")
+        assert meta.get("_genres") == ["Nonfiction", "Science", "History"]
+        assert meta.get("_genre_source") == "embedded"
+
+    def test_dc_subject_deduped_case_insensitive(self, tmp_path):
+        opf = '''<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>A Book</dc:title>
+    <dc:identifier id="uid">urn:uuid:test-dup</dc:identifier>
+    <dc:subject>Fantasy</dc:subject>
+    <dc:subject>fantasy</dc:subject>
+    <dc:subject></dc:subject>
+  </metadata>
+  <manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="t"/></spine>
+</package>'''
+        epub = tmp_path / "dup.epub"
+        _write_epub(epub, opf)
+        meta = extract_metadata(epub, tmp_path / "covers")
+        assert meta.get("_genres") == ["Fantasy"]
+
+    def test_no_subject_no_genres(self, tmp_path):
+        opf = '''<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>A Book</dc:title>
+    <dc:identifier id="uid">urn:uuid:test-none</dc:identifier>
+  </metadata>
+  <manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="t"/></spine>
+</package>'''
+        epub = tmp_path / "none.epub"
+        _write_epub(epub, opf)
+        meta = extract_metadata(epub, tmp_path / "covers")
+        assert "_genres" not in meta
+
+
 # ── normalise_author ──────────────────────────────────────────────────────────
 
 class TestNormaliseAuthor:
