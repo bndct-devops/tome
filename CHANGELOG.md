@@ -23,13 +23,21 @@ All notable changes to Tome are documented here. Format loosely follows
   reader and the file manager.
 
 ### Changed
-- TomeSync plugin versioning: a hidden monotonic **build** integer (now `9`)
+- TomeSync plugin versioning: a hidden monotonic **build** integer (now `10`)
   drives update comparisons, with an independent human-facing **semver**
-  (`1.0.0`). `GET /plugin/version` now returns `build` and `semver` alongside
+  (`1.0.1`). `GET /plugin/version` now returns `build` and `semver` alongside
   the existing `version` field (kept as `str(build)` for back-compat). New
   authenticated `GET /plugin/main-impl.lua` serves the config-baked
   implementation for self-update. The first shim+impl build must be installed
   manually once (the last SSH deploy); every update after is in-app.
+
+### Fixed
+- TomeSync series browser crashed (`attempt to concatenate field 'author'`)
+  when a series' first book had no author. The server emitted JSON `null`,
+  which rapidjson decodes to a truthy userdata sentinel, so the plugin's guard
+  passed and then failed concatenating it. The server now omits the author when
+  absent, and the plugin type-checks the field; the same hardening covers a
+  null `series_index` in the series-download paths. Plugin build `10`.
 
 ## [1.1.0] — 2026-05-31 — "Vellum"
 
