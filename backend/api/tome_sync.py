@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 # integer — bump on every plugin code change). SEMVER is human-facing display.
 # VERSION is kept as a back-compat alias (= str(BUILD)) for old plugins and the
 # web UI, which read `version` from /plugin/version.
-TOMESYNC_PLUGIN_BUILD = 9
-TOMESYNC_PLUGIN_SEMVER = "1.0.0"
+TOMESYNC_PLUGIN_BUILD = 10
+TOMESYNC_PLUGIN_SEMVER = "1.0.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -339,12 +339,17 @@ def list_series(
             .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
             .first()
         )
-        result.append({
+        entry = {
             "name": series_name,
             "book_count": book_count,
-            "author": first_book.author if first_book else None,
             "first_book_id": first_book.id if first_book else None,
-        })
+        }
+        # Only include author when it's a real string. Emitting JSON null here
+        # crashes the KOReader series browser, because rapidjson decodes null to
+        # a (truthy) userdata sentinel that the plugin then tries to concatenate.
+        if first_book and first_book.author:
+            entry["author"] = first_book.author
+        result.append(entry)
 
     return result
 
@@ -1274,7 +1279,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
     local queue = {{}}
     local skipped = 0
     for _, book in ipairs(books) do
-        if min_index and book.series_index and book.series_index <= min_index then
+        if min_index and type(book.series_index) == "number" and book.series_index <= min_index then
             skipped = skipped + 1
         elseif id_to_path[book.id] and lfs.attributes(id_to_path[book.id]) then
             skipped = skipped + 1
@@ -1285,7 +1290,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
             else
                 local ext = file.format or "epub"
                 local display_title
-                if book.series_index then
+                if type(book.series_index) == "number" then
                     local vol = book.series_index
                     if vol == math.floor(vol) then vol = math.floor(vol) end
                     display_title = "Vol. " .. tostring(vol) .. " — " .. book.title
@@ -1378,7 +1383,9 @@ function TomeSync:_browseSeriesMenu()
     local items = {{}}
     for _, s in ipairs(series_list) do
         local text = s.name .. " (" .. s.book_count .. ")"
-        if s.author then
+        -- type-check guards against JSON null, which rapidjson decodes to a
+        -- truthy userdata sentinel rather than nil.
+        if type(s.author) == "string" and s.author ~= "" then
             text = text .. " - " .. s.author
         end
         table.insert(items, {{
@@ -1433,7 +1440,9 @@ function TomeSync:_downloadCurrentBookSeries(rest_only)
         -- Find current book's series_index
         for _, b in ipairs(data.books) do
             if b.id == self.book_id then
-                min_index = b.series_index
+                if type(b.series_index) == "number" then
+                    min_index = b.series_index
+                end
                 break
             end
         end
