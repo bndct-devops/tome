@@ -6,6 +6,20 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-06-03
+
+### Fixed
+- TomeSync (KOReader) sync silently failing on HTTPS deployments behind a
+  reverse proxy. The plugin baked its server URL from the scheme the app server
+  saw, which is `http` when TLS is terminated upstream — and if the proxy then
+  redirected HTTP→HTTPS, KOReader could not follow the 307 on POST/PUT, so every
+  reading session and position update failed (sessions piled up as "pending" and
+  nothing reached the library). The server now honours `X-Forwarded-Proto` when
+  baking the plugin's `SERVER_URL`, and a new optional `TOME_PUBLIC_URL` setting
+  pins the canonical public origin explicitly. The plugin build was bumped so
+  existing installs re-bake the corrected URL on **TomeSync → Check for
+  updates**. Plain HTTP, LAN, and localhost deployments are unaffected.
+
 ## [1.2.0] — 2026-06-02 — "Press"
 
 ### Added

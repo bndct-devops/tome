@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     incoming_dir: Path = Path("./bindery")
     port: int = 8080
     hardcover_token: str | None = None
+    # Canonical public origin (env TOME_PUBLIC_URL), e.g. "https://tome.example.org".
+    # When set, it is baked verbatim into the KOReader plugin's SERVER_URL — the
+    # authoritative way to pin the scheme/host behind a reverse proxy. When unset,
+    # the plugin URL is inferred from the request (honouring X-Forwarded-Proto), so
+    # plain HTTP / LAN / localhost deployments need not set it.
+    public_url: str | None = None
 
     # SMTP (send-to-device)
     smtp_host: str | None = None

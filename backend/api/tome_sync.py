@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Optional
 
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
@@ -17,6 +18,7 @@ from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.permissions import user_can_see_book
 from backend.core.security import get_current_user
@@ -32,8 +34,14 @@ logger = logging.getLogger(__name__)
 # integer — bump on every plugin code change). SEMVER is human-facing display.
 # VERSION is kept as a back-compat alias (= str(BUILD)) for old plugins and the
 # web UI, which read `version` from /plugin/version.
-TOMESYNC_PLUGIN_BUILD = 10
-TOMESYNC_PLUGIN_SEMVER = "1.0.1"
+# NOTE on the jump 10 -> 13: this 1.2.1 hotfix is cut from the v1.2.0 tag (BUILD
+# 10), but `main` already burned builds 11 and 12 on unreleased work. BUILD must
+# stay strictly above everything live so every device re-downloads and re-bakes
+# the corrected SERVER_URL, so we skip to 13. When this fix is forward-ported to
+# main it must take BUILD 14 (above 13) so a 1.2.1 device migrating to a future
+# 1.3.0 server still re-bakes.
+TOMESYNC_PLUGIN_BUILD = 13
+TOMESYNC_PLUGIN_SEMVER = "1.2.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -511,6 +519,40 @@ def plugin_version() -> dict:
 
 # ── Plugin download ───────────────────────────────────────────────────────────
 
+def _baked_server_url(request: Request, explicit: str | None) -> str:
+    """Resolve the origin baked into the plugin's SERVER_URL.
+
+    Priority:
+      1. an explicit ``?server_url=`` (the web UI passes this to dodge the Vite
+         dev proxy);
+      2. ``TOME_PUBLIC_URL`` config — the authoritative public origin;
+      3. the request origin, but with the scheme taken from ``X-Forwarded-Proto``
+         when a proxy sent it.
+
+    (3) is the fix for HTTPS-behind-a-proxy deployments: a TLS-terminating proxy
+    makes the app server see ``http``, so ``request.base_url`` would bake an
+    ``http://`` URL; if the proxy then redirects HTTP→HTTPS, KOReader can't
+    follow the 307 on POST/PUT and every session/position sync fails. Honouring
+    the forwarded scheme bakes ``https`` instead. When the header is absent
+    (plain HTTP / LAN / localhost) the scheme is left untouched, so those
+    deployments bake exactly what they did before.
+    """
+    if explicit:
+        return explicit.rstrip("/")
+    if settings.public_url:
+        return settings.public_url.rstrip("/")
+    base = str(request.base_url).rstrip("/")
+    forwarded = request.headers.get("x-forwarded-proto")
+    if forwarded:
+        # May be a comma-separated chain (e.g. "https,http"); the client-facing
+        # scheme is the first hop.
+        proto = forwarded.split(",")[0].strip().lower()
+        if proto in ("http", "https"):
+            parts = urlsplit(base)
+            base = urlunsplit((proto, parts.netloc, parts.path, parts.query, parts.fragment))
+    return base.rstrip("/")
+
+
 @router.get("/plugin/koreader")
 def download_plugin(
     request: Request,
@@ -532,9 +574,7 @@ def download_plugin(
     ))
     db.commit()
 
-    # Use explicit server_url if provided (frontend passes it to avoid vite proxy issues)
-    if not server_url:
-        server_url = str(request.base_url).rstrip("/")
+    server_url = _baked_server_url(request, server_url)
 
     # Build the ZIP in memory — shim + impl split for self-update:
     #   main.lua       frozen stable shim (no config; runs the rollback machine)
@@ -572,8 +612,7 @@ def download_main_impl(
     auth = request.headers.get("authorization", "")
     api_key_value = auth.removeprefix("Bearer ").strip()
 
-    if not server_url:
-        server_url = str(request.base_url).rstrip("/")
+    server_url = _baked_server_url(request, server_url)
 
     return StreamingResponse(
         io.BytesIO(_main_impl_lua(server_url, api_key_value, current_user.username).encode()),
