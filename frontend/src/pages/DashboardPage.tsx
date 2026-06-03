@@ -27,6 +27,7 @@ import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { cn } from '@/lib/utils'
+import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 
 type SortField = 'title' | 'author' | 'year' | 'added_at'
 type SortOrder = 'asc' | 'desc'
@@ -1306,6 +1307,9 @@ export function DashboardPage() {
                             )}
                           </div>
                         </div>
+
+                        {/* Per-series reading stats */}
+                        <SeriesReadingStats seriesName={seriesDetail.name} />
 
                         {/* Volume grid — grouped by arc when arcs exist */}
                         {(() => {

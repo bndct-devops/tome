@@ -7,6 +7,17 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Per-series reading stats** on the series detail page. A collapsible "Reading
+  Stats" card now appears between the series header and the volume grid for any
+  series you have at least one session on: total time read across all volumes, a
+  per-volume bar chart (unread volumes show as faint empty bars so gaps are
+  visible), completion count and percentage, session count, pages turned, average
+  time per volume, an estimated time remaining (based on finished-volume average),
+  longest volume, and first/last read dates. Admins additionally see a
+  library-wide aggregate line — total time, sessions, and distinct reader count
+  across all users. Served by the new `GET /api/series/{name}/reading-stats`
+  endpoint backed by the extended `backend/services/reading_stats.py`. The
+  `StatTile` component is now shared from `frontend/src/components/stats/StatTile.tsx`.
 - **Per-book reading stats** on the book detail page. A collapsible "Reading
   Stats" card now appears below the reading-status buttons for any book you
   have at least one session on: total time read, session count, pages turned,
