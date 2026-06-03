@@ -7,6 +7,27 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Per-series reading stats** on the series detail page. A collapsible "Reading
+  Stats" card now appears between the series header and the volume grid for any
+  series you have at least one session on: total time read across all volumes, a
+  per-volume bar chart (unread volumes show as faint empty bars so gaps are
+  visible), completion count and percentage, session count, pages turned, average
+  time per volume, an estimated time remaining (based on finished-volume average),
+  longest volume, and first/last read dates. Admins additionally see a
+  library-wide aggregate line — total time, sessions, and distinct reader count
+  across all users. Served by the new `GET /api/series/{name}/reading-stats`
+  endpoint backed by the extended `backend/services/reading_stats.py`. The
+  `StatTile` component is now shared from `frontend/src/components/stats/StatTile.tsx`.
+- **Per-book reading stats** on the book detail page. A collapsible "Reading
+  Stats" card now appears below the reading-status buttons for any book you
+  have at least one session on: total time read, session count, pages turned,
+  average session length, reading pace (pages/min), first and last read dates,
+  an estimated time remaining (shown while the book is in "reading" status),
+  and a compact daily activity bar chart. Admins additionally see a
+  library-wide aggregate — total time, sessions, and distinct reader count
+  across all users — in a small sub-section at the bottom of the card.
+  Served by the new `GET /api/books/{book_id}/reading-stats` endpoint backed by
+  the reusable `backend/services/reading_stats.py` aggregation helper.
 - Highlight & note sync for KOReader, **bidirectional across devices**. Highlights
   and notes you make on one e-reader sync through Tome to your other KOReader
   devices (pulled when you open a book; pushed on suspend, on close, via **Sync
@@ -26,12 +47,24 @@ All notable changes to Tome are documented here. Format loosely follows
   only — no OAuth, no access to user data. A configured key that hits its quota
   now logs a clear warning instead of failing silently. (#10)
 
+### Changed
+- Book detail page layout: genres moved into the left sidebar (below the
+  cover), book metadata consolidated into a collapsible "Details" grid below
+  the description, and the description itself is now truncated with a "Show
+  more" toggle. The reading-stats card and Highlights & Notes section sit in
+  the same right column, giving the page a cleaner two-column structure.
+- The home "Pick up where you left off" panel is now a compact cover strip
+  instead of a full-width grid.
+
 ### Fixed
 - Adding or editing a book type in admin settings no longer fails with a 422
   error. The create/edit form never sends a `slug` (it is derived from the
   label), but the API required one, so every save was rejected before it
   reached the handler. The slug is now optional and auto-derived from the label
   on create. (#12)
+- Dismissing the home "Pick up where you left off" panel now persists across
+  refreshes (it previously reappeared every reload). It resurfaces only if a
+  different set of books surfaces.
 - Series metadata embedded by Calibre (`calibre:series`) and EPUB3 collections
   (`belongs-to-collection`) is now read correctly on import. It was previously
   dropped — ingest fell back to parsing the title, which mis-grouped or failed

@@ -4,7 +4,8 @@ import {
   Camera, Download, Edit2, Save, X, Send,
   Calendar, Globe, Hash, Building2, AlignLeft, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
-  Tag as TagIcon, Highlighter, StickyNote, ChevronDown
+  Tag as TagIcon, Highlighter, StickyNote, ChevronDown, BarChart2,
+  Clock, Layers, Gauge, Hourglass, CalendarPlus, CalendarCheck, CalendarDays
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -19,7 +20,8 @@ import { api } from '@/lib/api'
 import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
-import { cn } from '@/lib/utils'
+import { cn, formatDuration, formatDate } from '@/lib/utils'
+import { StatTile } from '@/components/stats/StatTile'
 
 interface Facets {
   authors: string[]
@@ -37,6 +39,29 @@ interface Annotation {
   color: string | null
   datetime: string | null
   updated_at: string
+}
+
+interface BookReadingStats {
+  total_seconds: number
+  sessions: number
+  pages_turned: number
+  avg_session_seconds: number
+  pace_pages_per_min: number | null
+  first_read: string | null
+  last_read: string | null
+  progress: number | null
+  status: string
+  session_timeline: { date: string; seconds: number; pages: number }[]
+  estimated_finish_seconds: number | null
+}
+
+interface ReadingStatsResponse {
+  own: BookReadingStats
+  aggregate: {
+    total_seconds: number
+    total_sessions: number
+    distinct_readers: number
+  } | null
 }
 
 async function downloadFile(book: BookDetail, f: BookFile) {
@@ -89,6 +114,9 @@ export function BookDetailPage() {
   const [kosyncDevice, setKosyncDevice] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [highlightsOpen, setHighlightsOpen] = useState(true)
+  const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(null)
+  const [statsOpen, setStatsOpen] = useState(true)
+  const [descExpanded, setDescExpanded] = useState(false)
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -97,7 +125,6 @@ export function BookDetailPage() {
     next: { id: number; title: string; series_index?: number } | null
     mode: 'series' | 'author' | null
   } | null>(null)
-
 
   const isDirty = editing && book != null && JSON.stringify(draft) !== JSON.stringify(book)
   const canEdit = isMember(user)
@@ -168,6 +195,7 @@ export function BookDetailPage() {
       .then(r => { if (r.linked && r.device) setKosyncDevice(r.device) })
       .catch(() => {})  // KOSync is optional — silent fail is fine
     api.get<Annotation[]>(`/books/${id}/annotations`).then(setAnnotations).catch(() => {})
+    api.get<ReadingStatsResponse>(`/books/${id}/reading-stats`).then(setReadingStats).catch(() => {})
   }, [id])
 
   // Animate progress bar from 0 after it loads
@@ -300,6 +328,438 @@ export function BookDetailPage() {
       </div>
     </div>
   )
+
+  // ── Render helpers (shared across layout variants) ──────────────────────────
+
+  const coverBlock = (
+    <div
+      className={cn(
+        "relative mx-auto w-40 sm:w-48 aspect-[2/3] rounded-xl overflow-hidden border border-border bg-muted shadow-lg",
+        canEdit && "group cursor-pointer"
+      )}
+      onClick={() => canEdit && setCoverPickerOpen(true)}
+    >
+      <CoverImage
+        src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
+        alt={book.title}
+        loading="eager"
+        iconClassName="w-12 h-12"
+      />
+      {canEdit && (
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <Camera className="w-8 h-8 text-white drop-shadow" />
+        </div>
+      )}
+    </div>
+  )
+
+  const readButton = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format)) ? (
+    <button
+      onClick={() => navigate(`/reader/${book.id}`)}
+      className="mt-4 flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <BookMarked className="w-4 h-4" />
+      Read
+    </button>
+  ) : null
+
+  const downloadButtons = book.files.length > 0 ? (
+    <div className="mt-4 space-y-2">
+      {book.files.map(f => (
+        <button
+          key={f.id}
+          onClick={async () => {
+            setDownloadingId(f.id)
+            try { await downloadFile(book, f) }
+            catch (e) { setError(e instanceof Error ? e.message : 'Download failed') }
+            finally { setDownloadingId(null) }
+          }}
+          disabled={downloadingId === f.id}
+          className={cn(
+            'flex items-center justify-between gap-2 w-full px-3 py-2 rounded-lg text-sm',
+            'border border-border bg-card text-foreground',
+            'hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm',
+            'transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
+          )}
+        >
+          <span className="flex items-center gap-1.5">
+            {downloadingId === f.id
+              ? <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+              : <Download className="w-3.5 h-3.5 text-muted-foreground" />}
+            <span className="uppercase font-medium text-xs">{f.format}</span>
+          </span>
+          {f.file_size && (
+            <span className="text-xs text-muted-foreground">{formatBytes(f.file_size)}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  ) : null
+
+  const sendToDeviceButton = isMember(user) && book.files.length > 0 ? (
+    <button
+      onClick={() => setSendModalOpen(true)}
+      className="mt-2 flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-sm border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm transition-all duration-200"
+    >
+      <Send className="w-3.5 h-3.5 text-muted-foreground" />
+      <span className="text-xs font-medium">Send to Device</span>
+    </button>
+  ) : null
+
+  // Left rail actions: cover + Read + Download + Send
+  const leftRailActions = (
+    <>
+      {coverBlock}
+      {readButton}
+      {downloadButtons}
+      {sendToDeviceButton}
+    </>
+  )
+
+  // Title block: editing title/subtitle/author/series or display
+  const titleBlock = (
+    <>
+      {editing ? (
+        <>
+          <input
+            value={field('title') ?? ''}
+            onChange={e => setField('title', e.target.value)}
+            className="w-full text-2xl font-bold text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring mb-1"
+            placeholder="Title"
+          />
+          <input
+            value={field('subtitle') ?? ''}
+            onChange={e => setField('subtitle', e.target.value)}
+            className="w-full text-base text-muted-foreground bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-1"
+            placeholder="Subtitle (optional)"
+          />
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{book.title}</h1>
+            {book.content_type === 'chapter' && (
+              <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-muted text-muted-foreground border border-border">
+                Chapter
+              </span>
+            )}
+          </div>
+          {book.subtitle && (
+            <p className="text-sm sm:text-base text-muted-foreground mt-0.5">{book.subtitle}</p>
+          )}
+        </>
+      )}
+
+      {editing ? (
+        <AutocompleteInput
+          value={field('author') ?? ''}
+          onChange={v => setField('author', v)}
+          suggestions={facets.authors}
+          placeholder="Author"
+          className="w-full text-base bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-2"
+        />
+      ) : book.author ? (
+        <button
+          onClick={() => navigate(`/?tab=books&author=${encodeURIComponent(book.author!)}`)}
+          className="text-base text-muted-foreground mt-1 hover:text-primary transition-colors text-left"
+        >
+          {book.author}
+        </button>
+      ) : null}
+
+      {(book.series || editing) && (
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {editing ? (
+            <>
+              <AutocompleteInput
+                value={field('series') ?? ''}
+                onChange={v => setField('series', v)}
+                suggestions={facets.series}
+                placeholder="Series name"
+                className="flex-1 min-w-0 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                value={field('series_index') ?? ''}
+                onChange={e => setField('series_index', e.target.value)}
+                type="number"
+                step="0.1"
+                className="w-20 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="#"
+              />
+            </>
+          ) : (
+            <button
+              onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
+              className="text-sm text-primary/80 hover:text-primary transition-colors text-left"
+            >
+              {book.series}{book.series_index != null ? ` #${book.series_index}` : ''}
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  // Status + progress bar
+  const statusProgressBlock = (
+    <div className="mt-4 mb-4 flex items-center flex-wrap gap-1.5">
+      {(['unread', 'reading', 'read'] as ReadingStatus[]).map(s => (
+        <button
+          key={bookStatus === s ? `${s}-${statusPopKey}` : s}
+          disabled={statusSaving}
+          onClick={() => handleStatusChange(s)}
+          className={cn(
+            'px-2.5 py-1 rounded-md text-xs font-medium border transition-all capitalize',
+            bookStatus === s
+              ? s === 'reading'
+                ? 'bg-yellow-400/10 border-yellow-400 text-yellow-600 dark:text-yellow-400 animate-[pop_0.2s_ease-out]'
+                : s === 'read'
+                  ? 'bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 animate-[pop_0.2s_ease-out]'
+                  : 'bg-muted border-border text-foreground animate-[pop_0.2s_ease-out]'
+              : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+          )}
+        >
+          {s}
+        </button>
+      ))}
+      {statusSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground self-center" />}
+      {progressPct != null && progressPct > 0 && bookStatus !== 'unread' && (
+        <div className="flex items-center gap-2 w-full mt-1.5">
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-700 ease-out"
+              style={{ width: progressAnimated ? `${Math.round(progressPct * 100)}%` : '0%' }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+            {Math.round(progressPct * 100)}%
+            {kosyncDevice && (
+              <span className="ml-1 opacity-60">· {kosyncDevice}</span>
+            )}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+
+  // Full collapsible stats hero block
+  const statsFull = readingStats && readingStats.own.sessions > 0 ? (
+    <div className="mt-1 mb-5">
+      <div className="flex items-center gap-2 mb-2.5">
+        <button
+          type="button"
+          onClick={() => setStatsOpen(o => !o)}
+          aria-expanded={statsOpen}
+          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+        >
+          <BarChart2 className="w-3.5 h-3.5" /> Reading Stats
+          <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !statsOpen && '-rotate-90')} />
+        </button>
+      </div>
+      {statsOpen && (
+        <StatsLayoutHero own={readingStats.own} aggregate={readingStats.aggregate} />
+      )}
+    </div>
+  ) : null
+
+  // Genres block for the left sidebar (variant 1)
+  const genresBlock = editing ? (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wide flex items-center gap-1 mb-2">
+        <TagIcon className="w-3 h-3" /> Genres
+      </p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {draftTags.map(tag => (
+          <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
+            {tag}
+            <button
+              type="button"
+              onClick={() => setDraftTags(prev => prev.filter(t => t !== tag))}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <AutocompleteInput
+        value={tagInput}
+        onChange={setTagInput}
+        suggestions={facets.tags.filter(t => !draftTags.includes(t))}
+        placeholder="Add tag…"
+        onSelect={tag => {
+          if (tag && !draftTags.includes(tag)) {
+            setDraftTags(prev => [...prev, tag])
+            setTagInput('')
+          }
+        }}
+        onEnter={val => {
+          const trimmed = val.trim()
+          if (trimmed && !draftTags.includes(trimmed)) {
+            setDraftTags(prev => [...prev, trimmed])
+            setTagInput('')
+          }
+        }}
+        className="text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring w-full"
+      />
+    </div>
+  ) : book.tags.length > 0 ? (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wide flex items-center gap-1 mb-2">
+        <TagIcon className="w-3 h-3" /> Genres
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {book.tags.map(t => (
+          <button
+            key={t.id}
+            onClick={() => navigate(`/?tab=books&tag=${encodeURIComponent(t.tag)}`)}
+            className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-colors"
+          >
+            {t.tag}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null
+
+  // Full-width Details grid for below the description (variant 1)
+  const metadataGridFull = (
+    <div className="mt-6">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+        <FileText className="w-3.5 h-3.5" /> Details
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
+        <MetaField icon={<Calendar className="w-3.5 h-3.5" />} label="Year"
+          value={field('year') ?? ''} editing={editing}
+          onChange={v => setField('year', v)} type="number" placeholder="2024" />
+        <MetaField icon={<Globe className="w-3.5 h-3.5" />} label="Language"
+          value={field('language') ?? ''} editing={editing}
+          onChange={v => setField('language', v)} placeholder="en" />
+        <MetaField icon={<Hash className="w-3.5 h-3.5" />} label="ISBN"
+          value={field('isbn') ?? ''} editing={editing}
+          onChange={v => setField('isbn', v)} placeholder="978-..." />
+        <MetaField icon={<Building2 className="w-3.5 h-3.5" />} label="Publisher"
+          value={field('publisher') ?? ''} editing={editing}
+          onChange={v => setField('publisher', v)} placeholder="Publisher" />
+        <MetaField icon={<FileText className="w-3.5 h-3.5" />} label="Format"
+          value={book.files.map(f => f.format.toUpperCase()).join(', ')} editing={false}
+          onChange={() => {}} />
+        {/* Book Type */}
+        <div className="flex items-start gap-2">
+          <span className="text-muted-foreground mt-0.5 shrink-0"><TagIcon className="w-3.5 h-3.5" /></span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground/70 mb-0.5">Type</p>
+            {editing ? (
+              <select
+                value={draftBookTypeId ?? ''}
+                onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">No type</option>
+                {bookTypes.map(bt => (
+                  <option key={bt.id} value={bt.id}>{bt.label}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-foreground">
+                {bookTypes.find(bt => bt.id === book.book_type_id)?.label ?? <span className="text-muted-foreground/50 italic">None</span>}
+              </p>
+            )}
+          </div>
+        </div>
+        {/* Content Type */}
+        <div className="flex items-start gap-2">
+          <span className="text-muted-foreground mt-0.5 shrink-0"><FileText className="w-3.5 h-3.5" /></span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground/70 mb-0.5">Content</p>
+            {editing ? (
+              <select
+                value={draft.content_type ?? 'volume'}
+                onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))}
+                className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="volume">Volume</option>
+                <option value="chapter">Chapter</option>
+              </select>
+            ) : (
+              <p className="text-sm text-foreground capitalize">{book.content_type ?? 'volume'}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const descriptionBlock = (
+    <div className="mt-6">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+        <AlignLeft className="w-3.5 h-3.5" /> Description
+      </div>
+      {editing ? (
+        <textarea
+          value={field('description') ?? ''}
+          onChange={e => setField('description', e.target.value)}
+          rows={6}
+          className="w-full text-sm text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          placeholder="No description"
+        />
+      ) : book.description ? (
+        <div>
+          <p className={cn('text-sm text-muted-foreground leading-relaxed', !descExpanded && 'line-clamp-3')}>
+            {book.description}
+          </p>
+          {book.description.length > 180 && (
+            <button
+              type="button"
+              onClick={() => setDescExpanded(e => !e)}
+              className="mt-1 text-xs font-medium text-primary hover:underline"
+            >
+              {descExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground/50 italic">No description</p>
+      )}
+    </div>
+  )
+
+  const highlightsBlock = annotations.length > 0 ? (
+    <div className="mt-6">
+      <button
+        type="button"
+        onClick={() => setHighlightsOpen(o => !o)}
+        aria-expanded={highlightsOpen}
+        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 hover:text-foreground transition-colors"
+      >
+        <Highlighter className="w-3.5 h-3.5" /> Highlights &amp; Notes
+        <span className="text-muted-foreground/50 normal-case font-normal">({annotations.length})</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !highlightsOpen && '-rotate-90')} />
+      </button>
+      {highlightsOpen && (
+        <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+          {annotations.map(a => (
+            <li key={a.id} className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              {a.chapter && (
+                <p className="text-xs text-muted-foreground/70 mb-1.5 truncate">{a.chapter}</p>
+              )}
+              {a.highlighted_text && (
+                <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-2.5">
+                  {a.highlighted_text}
+                </p>
+              )}
+              {a.note && (
+                <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
+                  <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span className="leading-relaxed">{a.note}</span>
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  ) : null
 
   return (
     <div className="min-h-screen bg-background">
@@ -494,377 +954,23 @@ export function BookDetailPage() {
 
       <main className="max-w-5xl mx-auto px-4 py-6 sm:py-8">
         <div className="flex gap-6 sm:gap-8 flex-col sm:flex-row">
-          {/* Cover */}
+          {/* Left rail: cover + actions + genres */}
           <div className="shrink-0 w-full sm:w-48">
-            <div
-              className={cn(
-                "relative mx-auto w-40 sm:w-48 aspect-[2/3] rounded-xl overflow-hidden border border-border bg-muted shadow-lg",
-                canEdit && "group cursor-pointer"
-              )}
-              onClick={() => canEdit && setCoverPickerOpen(true)}
-            >
-              <CoverImage
-                src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
-                alt={book.title}
-                loading="eager"
-                iconClassName="w-12 h-12"
-              />
-              {canEdit && (
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera className="w-8 h-8 text-white drop-shadow" />
-                </div>
-              )}
-            </div>
-
-            {/* Read button */}
-            {book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format)) && (
-              <button
-                onClick={() => navigate(`/reader/${book.id}`)}
-                className="mt-4 flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <BookMarked className="w-4 h-4" />
-                Read
-              </button>
-            )}
-
-            {/* Download buttons */}
-            {book.files.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {book.files.map(f => (
-                  <button
-                    key={f.id}
-                    onClick={async () => {
-                      setDownloadingId(f.id)
-                      try { await downloadFile(book, f) }
-                      catch (e) { setError(e instanceof Error ? e.message : 'Download failed') }
-                      finally { setDownloadingId(null) }
-                    }}
-                    disabled={downloadingId === f.id}
-                    className={cn(
-                      'flex items-center justify-between gap-2 w-full px-3 py-2 rounded-lg text-sm',
-                      'border border-border bg-card text-foreground',
-                      'hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm',
-                      'transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
-                    )}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      {downloadingId === f.id
-                        ? <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
-                        : <Download className="w-3.5 h-3.5 text-muted-foreground" />}
-                      <span className="uppercase font-medium text-xs">{f.format}</span>
-                    </span>
-                    {f.file_size && (
-                      <span className="text-xs text-muted-foreground">{formatBytes(f.file_size)}</span>
-                    )}
-                  </button>
-                ))}
+            {leftRailActions}
+            {(editing || book.tags.length > 0) && (
+              <div className="mt-5 pt-4 border-t border-border">
+                {genresBlock}
               </div>
-            )}
-
-            {/* Send to Device */}
-            {isMember(user) && book.files.length > 0 && (
-              <button
-                onClick={() => setSendModalOpen(true)}
-                className="mt-2 flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-sm border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm transition-all duration-200"
-              >
-                <Send className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium">Send to Device</span>
-              </button>
             )}
           </div>
-
-          {/* Metadata */}
+          {/* Right column: title → status → stats → description → details grid → highlights */}
           <div className="flex-1 min-w-0">
-            {editing ? (
-              <>
-                <input
-                  value={field('title') ?? ''}
-                  onChange={e => setField('title', e.target.value)}
-                  className="w-full text-2xl font-bold text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring mb-1"
-                  placeholder="Title"
-                />
-                <input
-                  value={field('subtitle') ?? ''}
-                  onChange={e => setField('subtitle', e.target.value)}
-                  className="w-full text-base text-muted-foreground bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-1"
-                  placeholder="Subtitle (optional)"
-                />
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{book.title}</h1>
-                  {book.content_type === 'chapter' && (
-                    <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-muted text-muted-foreground border border-border">
-                      Chapter
-                    </span>
-                  )}
-                </div>
-                {book.subtitle && (
-                  <p className="text-sm sm:text-base text-muted-foreground mt-0.5">{book.subtitle}</p>
-                )}
-              </>
-            )}
-
-            {editing ? (
-              <AutocompleteInput
-                value={field('author') ?? ''}
-                onChange={v => setField('author', v)}
-                suggestions={facets.authors}
-                placeholder="Author"
-                className="w-full text-base bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-2"
-              />
-            ) : book.author ? (
-              <button
-                onClick={() => navigate(`/?tab=books&author=${encodeURIComponent(book.author!)}`)}
-                className="text-base text-muted-foreground mt-1 hover:text-primary transition-colors text-left"
-              >
-                {book.author}
-              </button>
-            ) : null}
-
-            {(book.series || editing) && (
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {editing ? (
-                  <>
-                    <AutocompleteInput
-                      value={field('series') ?? ''}
-                      onChange={v => setField('series', v)}
-                      suggestions={facets.series}
-                      placeholder="Series name"
-                      className="flex-1 min-w-0 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <input
-                      value={field('series_index') ?? ''}
-                      onChange={e => setField('series_index', e.target.value)}
-                      type="number"
-                      step="0.1"
-                      className="w-20 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                      placeholder="#"
-                    />
-                  </>
-                ) : (
-                  <button
-                    onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
-                    className="text-sm text-primary/80 hover:text-primary transition-colors text-left"
-                  >
-                    {book.series}{book.series_index != null ? ` #${book.series_index}` : ''}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Reading status */}
-            <div className="mt-4 mb-4 flex items-center flex-wrap gap-1.5">
-              {(['unread', 'reading', 'read'] as ReadingStatus[]).map(s => (
-                <button
-                  key={bookStatus === s ? `${s}-${statusPopKey}` : s}
-                  disabled={statusSaving}
-                  onClick={() => handleStatusChange(s)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-xs font-medium border transition-all capitalize',
-                    bookStatus === s
-                      ? s === 'reading'
-                        ? 'bg-yellow-400/10 border-yellow-400 text-yellow-600 dark:text-yellow-400 animate-[pop_0.2s_ease-out]'
-                        : s === 'read'
-                          ? 'bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 animate-[pop_0.2s_ease-out]'
-                          : 'bg-muted border-border text-foreground animate-[pop_0.2s_ease-out]'
-                      : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-              {statusSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground self-center" />}
-              {progressPct != null && progressPct > 0 && bookStatus !== 'unread' && (
-                <div className="flex items-center gap-2 w-full mt-1.5">
-                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all duration-700 ease-out"
-                      style={{ width: progressAnimated ? `${Math.round(progressPct * 100)}%` : '0%' }}
-                    />
-                  </div>
-                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                    {Math.round(progressPct * 100)}%
-                    {kosyncDevice && (
-                      <span className="ml-1 opacity-60">· {kosyncDevice}</span>
-                    )}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Metadata grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <MetaField icon={<Calendar className="w-3.5 h-3.5" />} label="Year"
-                value={field('year') ?? ''} editing={editing}
-                onChange={v => setField('year', v)} type="number" placeholder="2024" />
-              <MetaField icon={<Globe className="w-3.5 h-3.5" />} label="Language"
-                value={field('language') ?? ''} editing={editing}
-                onChange={v => setField('language', v)} placeholder="en" />
-              <MetaField icon={<Hash className="w-3.5 h-3.5" />} label="ISBN"
-                value={field('isbn') ?? ''} editing={editing}
-                onChange={v => setField('isbn', v)} placeholder="978-..." />
-              <MetaField icon={<Building2 className="w-3.5 h-3.5" />} label="Publisher"
-                value={field('publisher') ?? ''} editing={editing}
-                onChange={v => setField('publisher', v)} placeholder="Publisher" />
-              <MetaField icon={<FileText className="w-3.5 h-3.5" />} label="Format"
-                value={book.files.map(f => f.format.toUpperCase()).join(', ')} editing={false}
-                onChange={() => {}} />
-              {/* Book Type */}
-              <div className="flex items-start gap-2">
-                <span className="text-muted-foreground mt-0.5 shrink-0"><TagIcon className="w-3.5 h-3.5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground/70 mb-1.5">Type</p>
-                  {editing ? (
-                    <select
-                      value={draftBookTypeId ?? ''}
-                      onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="">No type</option>
-                      {bookTypes.map(bt => (
-                        <option key={bt.id} value={bt.id}>{bt.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="text-sm text-foreground">
-                      {bookTypes.find(bt => bt.id === book.book_type_id)?.label ?? <span className="text-muted-foreground/50 italic">None</span>}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {/* Content Type */}
-              <div className="flex items-start gap-2">
-                <span className="text-muted-foreground mt-0.5 shrink-0"><FileText className="w-3.5 h-3.5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground/70 mb-1.5">Content</p>
-                  {editing ? (
-                    <select
-                      value={draft.content_type ?? 'volume'}
-                      onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))}
-                      className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="volume">Volume</option>
-                      <option value="chapter">Chapter</option>
-                    </select>
-                  ) : (
-                    <p className="text-sm text-foreground capitalize">{book.content_type ?? 'volume'}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="mt-6">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                <AlignLeft className="w-3.5 h-3.5" /> Description
-              </div>
-              {editing ? (
-                <textarea
-                  value={field('description') ?? ''}
-                  onChange={e => setField('description', e.target.value)}
-                  rows={6}
-                  className="w-full text-sm text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  placeholder="No description"
-                />
-              ) : book.description ? (
-                <p className="text-sm text-muted-foreground leading-relaxed">{book.description}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground/50 italic">No description</p>
-              )}
-            </div>
-
-            {/* Tags */}
-            {editing ? (
-              <div className="mt-4">
-                <p className="text-xs text-muted-foreground/70 mb-2 flex items-center gap-1">
-                  <TagIcon className="w-3 h-3" /> Tags
-                </p>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {draftTags.map(tag => (
-                    <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => setDraftTags(prev => prev.filter(t => t !== tag))}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <AutocompleteInput
-                  value={tagInput}
-                  onChange={setTagInput}
-                  suggestions={facets.tags.filter(t => !draftTags.includes(t))}
-                  placeholder="Add tag…"
-                  onSelect={tag => {
-                    if (tag && !draftTags.includes(tag)) {
-                      setDraftTags(prev => [...prev, tag])
-                      setTagInput('')
-                    }
-                  }}
-                  onEnter={val => {
-                    const trimmed = val.trim()
-                    if (trimmed && !draftTags.includes(trimmed)) {
-                      setDraftTags(prev => [...prev, trimmed])
-                      setTagInput('')
-                    }
-                  }}
-                  className="text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring w-48"
-                />
-              </div>
-            ) : book.tags.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {book.tags.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => navigate(`/?tab=books&tag=${encodeURIComponent(t.tag)}`)}
-                    className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-colors"
-                  >
-                    {t.tag}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {/* Highlights & notes synced from KOReader (read-only) */}
-            {annotations.length > 0 && (
-              <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={() => setHighlightsOpen(o => !o)}
-                  aria-expanded={highlightsOpen}
-                  className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 hover:text-foreground transition-colors"
-                >
-                  <Highlighter className="w-3.5 h-3.5" /> Highlights &amp; Notes
-                  <span className="text-muted-foreground/50 normal-case font-normal">({annotations.length})</span>
-                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !highlightsOpen && '-rotate-90')} />
-                </button>
-                {highlightsOpen && (
-                  <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
-                    {annotations.map(a => (
-                      <li key={a.id} className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-                        {a.chapter && (
-                          <p className="text-xs text-muted-foreground/70 mb-1.5 truncate">{a.chapter}</p>
-                        )}
-                        {a.highlighted_text && (
-                          <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-2.5">
-                            {a.highlighted_text}
-                          </p>
-                        )}
-                        {a.note && (
-                          <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
-                            <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                            <span className="leading-relaxed">{a.note}</span>
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+            {titleBlock}
+            {statusProgressBlock}
+            {statsFull}
+            {descriptionBlock}
+            {metadataGridFull}
+            {highlightsBlock}
           </div>
         </div>
       </main>
@@ -895,6 +1001,129 @@ export function BookDetailPage() {
     </div>
   )
 }
+
+// ── Reading stats sub-components ─────────────────────────────────────────────
+
+interface StatsLayoutProps {
+  own: BookReadingStats
+  aggregate: { total_seconds: number; total_sessions: number; distinct_readers: number } | null
+}
+
+/** Shared activity chart used by all layout variants.
+ *  Slim bars, flat bottom on a baseline, rounded top only. */
+function ActivityChart({ timeline }: { timeline: { date: string; seconds: number; pages: number }[] }) {
+  if (timeline.length < 2) return null
+  const max = Math.max(...timeline.map(d => d.seconds), 1)
+  const first = timeline[0]
+  const last = timeline[timeline.length - 1]
+  const fmtDay = (iso: string) =>
+    new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0">Activity</p>
+      {/* Bars + baseline — grows to fill, but capped so a few sessions don't balloon */}
+      <div className="relative flex-1 min-h-0 max-h-32">
+        {/* faint baseline rule */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />
+        <div className="absolute inset-0 flex items-end gap-1.5">
+          {timeline.map(d => {
+            const pct = d.seconds > 0 ? Math.max(d.seconds / max, 0.06) : 0
+            const mins = Math.round(d.seconds / 60)
+            const tip = `${fmtDay(d.date)}: ${mins}m${d.pages > 0 ? `, ${d.pages} pages` : ''}`
+            return (
+              <div
+                key={d.date}
+                className="flex-1 min-w-px bg-primary/60 hover:bg-primary transition-colors rounded-t-sm"
+                style={{ height: pct > 0 ? `${Math.round(pct * 100)}%` : '0%' }}
+                title={tip}
+              />
+            )
+          })}
+        </div>
+      </div>
+      <div className="flex justify-between text-xs text-muted-foreground/50 mt-1 shrink-0">
+        <span>{first?.date ? fmtDay(first.date) : ''}</span>
+        <span>{last?.date ? fmtDay(last.date) : ''}</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Hero layout: large time-read headline + activity chart, bottom-pinned date/span stats ─────
+
+function StatsLayoutHero({ own, aggregate }: StatsLayoutProps) {
+  const supporting: { icon: React.ReactNode; label: string; value: string }[] = [
+    { icon: <Layers className="w-3 h-3" />, label: 'Sessions', value: String(own.sessions) },
+    { icon: <FileText className="w-3 h-3" />, label: 'Pages', value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
+    { icon: <BarChart2 className="w-3 h-3" />, label: 'Avg session', value: formatDuration(own.avg_session_seconds) },
+    ...(own.pace_pages_per_min != null
+      ? [{ icon: <Gauge className="w-3 h-3" />, label: 'Pace', value: `${own.pace_pages_per_min} pg/min` }] : []),
+  ]
+
+  // Bottom tile row — inside the hero panel, beneath the activity chart
+  const bottomTiles: { icon: React.ReactNode; label: string; value: string }[] = []
+  if (own.first_read) {
+    bottomTiles.push({ icon: <CalendarPlus className="w-3 h-3" />, label: 'First read', value: formatDate(own.first_read.slice(0, 10)) })
+  }
+  if (own.last_read) {
+    bottomTiles.push({ icon: <CalendarCheck className="w-3 h-3" />, label: 'Last read', value: formatDate(own.last_read.slice(0, 10)) })
+  }
+  // Reading days from distinct session days
+  if (own.session_timeline.length > 0) {
+    bottomTiles.push({ icon: <CalendarDays className="w-3 h-3" />, label: 'Reading days', value: String(own.session_timeline.length) })
+  }
+  if (own.status === 'reading' && own.estimated_finish_seconds != null) {
+    bottomTiles.push({ icon: <Hourglass className="w-3 h-3" />, label: 'Est. remaining', value: formatDuration(own.estimated_finish_seconds) })
+  }
+
+  // Use 4-col grid when Est. remaining is present (4 tiles), otherwise 3-col
+  const bottomGridCols = bottomTiles.length >= 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'
+
+  return (
+    <div className="space-y-2">
+      {/* Region 1 — hero panel (headline + chart only) + right-column metric tiles */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        {/* Hero panel — flex column: headline shrink-0, chart flex-1 */}
+        <div className="rounded-lg border border-border bg-muted/30 p-4 flex-1 min-w-0 flex flex-col gap-2.5">
+          {/* Headline — shrink-0, pinned at top */}
+          <div className="flex items-baseline gap-2 shrink-0">
+            <Clock className="w-4 h-4 text-muted-foreground shrink-0 self-center" />
+            <p className="text-2xl font-semibold tabular-nums text-foreground leading-none">
+              {formatDuration(own.total_seconds)}
+            </p>
+            <p className="text-xs text-muted-foreground">time read</p>
+          </div>
+          {/* Activity chart — flex-1 min-h-0, fills remaining panel height */}
+          {own.session_timeline.length > 1 && (
+            <ActivityChart timeline={own.session_timeline} />
+          )}
+        </div>
+        {/* Supporting tiles — right column */}
+        {supporting.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-1 gap-1 sm:w-36 shrink-0">
+            {supporting.map(s => (
+              <StatTile key={s.label} icon={s.icon} label={s.label} value={s.value} />
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Region 2 — timeline tiles, top-level siblings (not nested in the hero panel) */}
+      {bottomTiles.length > 0 && (
+        <div className={`grid ${bottomGridCols} gap-2`}>
+          {bottomTiles.map(s => (
+            <StatTile key={s.label} icon={s.icon} label={s.label} value={s.value} />
+          ))}
+        </div>
+      )}
+      {aggregate && (
+        <p className="text-xs text-muted-foreground/60 pt-1">
+          All readers: {formatDuration(aggregate.total_seconds)} · {aggregate.total_sessions} sessions · {aggregate.distinct_readers} reader{aggregate.distinct_readers !== 1 ? 's' : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
 
 function MetaField({
   icon, label, value, editing, onChange, type = 'text', placeholder = ''

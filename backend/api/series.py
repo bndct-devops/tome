@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import get_current_user
-from backend.core.permissions import require_role
+from backend.core.permissions import require_role, is_admin
 from backend.models.series_meta import Arc, SeriesMeta
 from backend.models.user import User
 from backend.schemas.series import (
@@ -17,6 +17,36 @@ from backend.schemas.series import (
 router = APIRouter(tags=["series"])
 
 VALID_STATUSES = {"ongoing", "finished", "hiatus", "unknown"}
+
+
+# ── Series reading-stats endpoint ─────────────────────────────────────────────
+# Registered before /series/{name}/arcs and /series/{name}/meta so the
+# static suffix "reading-stats" is matched first.
+
+@router.get("/series/{name}/reading-stats")
+def get_series_reading_stats(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the current user's reading statistics across all visible books in a series.
+
+    Admins additionally receive a library-wide aggregate (all users).
+    The ``name`` path parameter arrives URL-decoded by FastAPI.
+    """
+    from backend.services.reading_stats import (
+        compute_series_reading_stats,
+        compute_series_aggregate_stats,
+    )
+
+    own = compute_series_reading_stats(db, user=current_user, series_name=name)
+    aggregate = (
+        compute_series_aggregate_stats(db, series_name=name)
+        if is_admin(current_user)
+        else None
+    )
+
+    return {"own": own, "aggregate": aggregate}
 
 
 # ── Arc endpoints ─────────────────────────────────────────────────────────────
