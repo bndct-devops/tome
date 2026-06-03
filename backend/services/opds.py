@@ -4,17 +4,25 @@ from datetime import datetime
 
 from fastapi.responses import Response
 
+from backend.services.xml_ns import namespaces
+
 ATOM_NS = "http://www.w3.org/2005/Atom"
 DC_NS = "http://purl.org/dc/terms/"
 OPDS_NS = "http://opds-spec.org/2010/catalog"
 OPENSEARCH_NS = "http://a9.com/-/spec/opensearch/1.1/"
 TOME_NS = "https://tome.app/ns/1.0"
 
-ET.register_namespace("", ATOM_NS)
-ET.register_namespace("dc", DC_NS)
-ET.register_namespace("opds", OPDS_NS)
-ET.register_namespace("opensearch", OPENSEARCH_NS)
-ET.register_namespace("tome", TOME_NS)
+# The Atom namespace must serialize as the default ('') prefix so strict OPDS
+# clients (e.g. KOReader) accept the feed. These registrations are re-asserted
+# at serialization time in ``feed_response`` rather than relying on global,
+# import-order-dependent state — see ``backend/services/xml_ns.py`` (GH #15).
+_NS_REGISTRATIONS = (
+    ("", ATOM_NS),
+    ("dc", DC_NS),
+    ("opds", OPDS_NS),
+    ("opensearch", OPENSEARCH_NS),
+    ("tome", TOME_NS),
+)
 
 ACQUISITION_TYPE = "application/atom+xml;profile=opds-catalog;kind=acquisition"
 NAVIGATION_TYPE = "application/atom+xml;profile=opds-catalog;kind=navigation"
@@ -159,5 +167,7 @@ def add_pagination(
 
 
 def feed_response(feed: ET.Element) -> Response:
-    xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(feed, encoding="unicode")
+    with namespaces(_NS_REGISTRATIONS):
+        body = ET.tostring(feed, encoding="unicode")
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + body
     return Response(content=xml, media_type="application/atom+xml;charset=utf-8")

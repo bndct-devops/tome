@@ -20,6 +20,7 @@ from xml.etree import ElementTree as ET
 
 from backend.core.config import settings
 from backend.models.book import Book, BookFile
+from backend.services.xml_ns import namespaces
 
 log = logging.getLogger(__name__)
 
@@ -27,9 +28,13 @@ OPF_NS = "http://www.idpf.org/2007/opf"
 DC_NS = "http://purl.org/dc/elements/1.1/"
 CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
 
-ET.register_namespace("", OPF_NS)
-ET.register_namespace("dc", DC_NS)
-ET.register_namespace("opf", OPF_NS)
+# Re-asserted at serialization time rather than relying on global,
+# import-order-dependent state — see ``backend/services/xml_ns.py`` (GH #15).
+_NS_REGISTRATIONS = (
+    ("", OPF_NS),
+    ("dc", DC_NS),
+    ("opf", OPF_NS),
+)
 
 
 # ── Cache plumbing ────────────────────────────────────────────────────────────
@@ -239,7 +244,8 @@ def _rewrite_opf(
         cover_href = _find_cover_href(root)
 
     out = io.BytesIO()
-    tree.write(out, encoding="utf-8", xml_declaration=True)
+    with namespaces(_NS_REGISTRATIONS):
+        tree.write(out, encoding="utf-8", xml_declaration=True)
     return out.getvalue(), cover_href
 
 

@@ -57,6 +57,15 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- OPDS feeds are now served with the standard default Atom namespace
+  (`<feed xmlns="http://www.w3.org/2005/Atom">`) instead of prefixed
+  `ns0:` elements, so strict OPDS clients such as KOReader parse them and the
+  catalog is no longer empty. The feed builder shared a process-global XML
+  namespace map with the download metadata embedder; whichever module was
+  imported last claimed the default prefix and silently broke the other.
+  Namespace prefixes are now re-asserted, under a lock, at serialization time so
+  they no longer depend on import order. The Content-Type was already
+  `application/atom+xml`. (#15)
 - Adding or editing a book type in admin settings no longer fails with a 422
   error. The create/edit form never sends a `slug` (it is derived from the
   label), but the API required one, so every save was rejected before it
