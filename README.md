@@ -129,6 +129,7 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 | `TOME_LIBRARY_DIR` | No | `/books` | Library root |
 | `TOME_INCOMING_DIR` | No | `/bindery` | Bindery folder |
 | `TOME_PORT` | No | `8080` | HTTP port |
+| `TOME_PUBLIC_URL` | No | -- | Canonical public origin (e.g. `https://tome.example.org`). Pin this behind a reverse proxy so the KOReader plugin is baked with the correct `https://` URL |
 | `TOME_HARDCOVER_TOKEN` | No | -- | [Hardcover](https://hardcover.app) API token for metadata |
 | `TOME_AUTO_IMPORT` | No | `false` | Auto-import files from the bindery on a schedule |
 | `TOME_AUTO_IMPORT_INTERVAL` | No | `300` | Seconds between auto-import scans |

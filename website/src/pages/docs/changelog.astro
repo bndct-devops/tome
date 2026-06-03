@@ -27,6 +27,25 @@ import { withBase } from '../../lib/path'
     Nothing on <code>main</code> beyond the latest tagged release yet.
   </p>
 
+  <h2>v1.2.1</h2>
+  <p>
+    A hotfix for reading-sync over HTTPS. If you run Tome behind a TLS-terminating reverse proxy,
+    the KOReader plugin was baking an <code>http://</code> server URL; when the proxy redirected to
+    HTTPS, KOReader couldn't follow the redirect on uploads, so reading sessions and progress
+    silently failed to sync (they queued as "pending" on the device). Plain HTTP, LAN, and localhost
+    setups were unaffected.
+  </p>
+  <h3>Fixed</h3>
+  <ul>
+    <li>
+      The server now honours <code>X-Forwarded-Proto</code> when baking the plugin's server URL, and
+      a new optional <code>TOME_PUBLIC_URL</code> setting pins the public origin explicitly. The
+      plugin build was bumped, so existing installs re-bake the corrected URL via
+      <strong>TomeSync → Check for updates</strong> — pending sessions then flush automatically. No
+      reading data is lost.
+    </li>
+  </ul>
+
   <h2>v1.2.0 — "Press"</h2>
   <p>
     The release that gets out of its own way: the KOReader plugin now updates itself, and a single

@@ -57,6 +57,17 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- TomeSync (KOReader) sync silently failing on HTTPS deployments behind a
+  reverse proxy (also released as the 1.2.1 hotfix). The plugin baked its server
+  URL from the scheme the app server saw, which is `http` when TLS is terminated
+  upstream — and if the proxy then redirected HTTP→HTTPS, KOReader could not
+  follow the 307 on POST/PUT, so every reading session and position update failed
+  (sessions piled up as "pending" and nothing reached the library). The server
+  now honours `X-Forwarded-Proto` when baking the plugin's `SERVER_URL`, and a
+  new optional `TOME_PUBLIC_URL` setting pins the canonical public origin
+  explicitly. The plugin build was bumped so existing installs re-bake the
+  corrected URL on **TomeSync → Check for updates**. Plain HTTP, LAN, and
+  localhost deployments are unaffected.
 - OPDS feeds are now served with the standard default Atom namespace
   (`<feed xmlns="http://www.w3.org/2005/Atom">`) instead of prefixed
   `ns0:` elements, so strict OPDS clients such as KOReader parse them and the
