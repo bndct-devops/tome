@@ -2,7 +2,7 @@
 
 Used by:
   - GET /books/{book_id}/reading-stats  (per-book stats, Step 1)
-  - Future: per-series stats (Step 2)
+  - GET /series/{name}/reading-stats    (per-series stats, Step 2)
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.models.book import Book
 from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 
@@ -139,6 +140,232 @@ def compute_book_aggregate_stats(
     agg = (
         db.query(ReadingSession)
         .filter(ReadingSession.book_id == book_id)
+        .with_entities(
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
+            func.count(ReadingSession.id).label("total_sessions"),
+            func.count(func.distinct(ReadingSession.user_id)).label("distinct_readers"),
+        )
+        .first()
+    )
+
+    return {
+        "total_seconds": int(agg.total_seconds) if agg and agg.total_seconds else 0,
+        "total_sessions": int(agg.total_sessions) if agg and agg.total_sessions else 0,
+        "distinct_readers": int(agg.distinct_readers) if agg and agg.distinct_readers else 0,
+    }
+
+
+# ── Per-series, per-user ──────────────────────────────────────────────────────
+
+def compute_series_reading_stats(
+    db: Session,
+    *,
+    user: "User",  # type: ignore[name-defined]
+    series_name: str,
+) -> dict:
+    """Return the current user's reading statistics across all visible books in a series.
+
+    Returns a dict with keys:
+      total_seconds, sessions, pages_turned,
+      books_total, books_finished, books_in_progress, books_with_sessions,
+      completion_pct, avg_volume_seconds, estimated_remaining_seconds,
+      longest_volume, first_read, last_read, per_volume
+    """
+    from backend.core.permissions import book_visibility_filter
+
+    # ── Visible books in this series ────────────────────────────────────────
+    visibility = book_visibility_filter(db, user)
+    books_q = (
+        db.query(Book)
+        .filter(
+            Book.series == series_name,
+            Book.status == "active",
+        )
+    )
+    if visibility is not True:
+        books_q = books_q.filter(visibility)
+
+    visible_books = books_q.order_by(Book.series_index).all()
+    book_ids = [b.id for b in visible_books]
+    books_total = len(book_ids)
+
+    if books_total == 0:
+        return _empty_series_stats()
+
+    # ── UserBookStatus for visible books ────────────────────────────────────
+    status_rows = (
+        db.query(UserBookStatus)
+        .filter(
+            UserBookStatus.user_id == user.id,
+            UserBookStatus.book_id.in_(book_ids),
+        )
+        .all()
+    )
+    status_by_book: dict[int, str] = {r.book_id: r.status for r in status_rows}
+    books_finished = sum(1 for bid in book_ids if status_by_book.get(bid) == "read")
+    books_in_progress = sum(1 for bid in book_ids if status_by_book.get(bid) == "reading")
+
+    # ── Aggregate reading sessions ───────────────────────────────────────────
+    agg = (
+        db.query(ReadingSession)
+        .filter(
+            ReadingSession.user_id == user.id,
+            ReadingSession.book_id.in_(book_ids),
+        )
+        .with_entities(
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
+            func.count(ReadingSession.id).label("sessions"),
+            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
+            func.min(ReadingSession.started_at).label("first_read"),
+            func.max(
+                func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)
+            ).label("last_read"),
+        )
+        .first()
+    )
+
+    total_seconds: int = int(agg.total_seconds) if agg and agg.total_seconds else 0
+    sessions: int = int(agg.sessions) if agg and agg.sessions else 0
+    pages_turned: int = int(agg.pages_turned) if agg and agg.pages_turned else 0
+
+    first_read: Optional[str] = (
+        agg.first_read.isoformat() + "Z" if agg and agg.first_read else None
+    )
+    last_read: Optional[str] = (
+        agg.last_read.isoformat() + "Z" if agg and agg.last_read else None
+    )
+
+    # ── Per-volume seconds ───────────────────────────────────────────────────
+    vol_agg_rows = (
+        db.query(ReadingSession)
+        .filter(
+            ReadingSession.user_id == user.id,
+            ReadingSession.book_id.in_(book_ids),
+        )
+        .with_entities(
+            ReadingSession.book_id.label("book_id"),
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+        )
+        .group_by(ReadingSession.book_id)
+        .all()
+    )
+    seconds_by_book: dict[int, int] = {r.book_id: int(r.seconds) for r in vol_agg_rows}
+    books_with_sessions = len(seconds_by_book)
+
+    # ── avg_volume_seconds: mean time per FINISHED volume ───────────────────
+    finished_seconds = [
+        seconds_by_book.get(bid, 0)
+        for bid in book_ids
+        if status_by_book.get(bid) == "read"
+    ]
+    if finished_seconds:
+        avg_volume_seconds: int = sum(finished_seconds) // len(finished_seconds)
+    elif books_with_sessions > 0:
+        avg_volume_seconds = total_seconds // books_with_sessions
+    else:
+        avg_volume_seconds = 0
+
+    # ── estimated_remaining_seconds ─────────────────────────────────────────
+    unfinished_count = books_total - books_finished
+    if books_finished > 0 and avg_volume_seconds > 0:
+        # Use avg of finished volumes as estimate per remaining volume
+        finished_avg = sum(finished_seconds) // len(finished_seconds)
+        estimated_remaining_seconds: Optional[int] = finished_avg * unfinished_count
+    else:
+        estimated_remaining_seconds = None
+
+    # ── longest_volume ───────────────────────────────────────────────────────
+    longest_volume: Optional[dict] = None
+    if seconds_by_book:
+        best_bid = max(seconds_by_book, key=seconds_by_book.__getitem__)
+        best_book = next((b for b in visible_books if b.id == best_bid), None)
+        if best_book:
+            longest_volume = {
+                "book_id": best_book.id,
+                "title": best_book.title,
+                "series_index": best_book.series_index,
+                "seconds": seconds_by_book[best_bid],
+            }
+
+    # ── completion_pct ───────────────────────────────────────────────────────
+    completion_pct = round(books_finished / books_total * 100, 1) if books_total > 0 else 0.0
+
+    # ── per_volume list ──────────────────────────────────────────────────────
+    per_volume = [
+        {
+            "book_id": b.id,
+            "series_index": b.series_index,
+            "title": b.title,
+            "seconds": seconds_by_book.get(b.id, 0),
+            "status": status_by_book.get(b.id, "unread"),
+        }
+        for b in visible_books
+    ]
+
+    return {
+        "total_seconds": total_seconds,
+        "sessions": sessions,
+        "pages_turned": pages_turned,
+        "books_total": books_total,
+        "books_finished": books_finished,
+        "books_in_progress": books_in_progress,
+        "books_with_sessions": books_with_sessions,
+        "completion_pct": completion_pct,
+        "avg_volume_seconds": avg_volume_seconds,
+        "estimated_remaining_seconds": estimated_remaining_seconds,
+        "longest_volume": longest_volume,
+        "first_read": first_read,
+        "last_read": last_read,
+        "per_volume": per_volume,
+    }
+
+
+def _empty_series_stats() -> dict:
+    return {
+        "total_seconds": 0,
+        "sessions": 0,
+        "pages_turned": 0,
+        "books_total": 0,
+        "books_finished": 0,
+        "books_in_progress": 0,
+        "books_with_sessions": 0,
+        "completion_pct": 0.0,
+        "avg_volume_seconds": 0,
+        "estimated_remaining_seconds": None,
+        "longest_volume": None,
+        "first_read": None,
+        "last_read": None,
+        "per_volume": [],
+    }
+
+
+# ── Admin aggregate — all users, one series ───────────────────────────────────
+
+def compute_series_aggregate_stats(
+    db: Session,
+    *,
+    series_name: str,
+) -> dict:
+    """Return library-wide reading statistics for a series (all users combined).
+
+    Returns a dict with keys:
+      total_seconds, total_sessions, distinct_readers
+    """
+    # Collect all book ids in this series (any status — admin sees everything)
+    book_ids = [
+        row[0]
+        for row in db.query(Book.id).filter(
+            Book.series == series_name,
+            Book.status == "active",
+        ).all()
+    ]
+
+    if not book_ids:
+        return {"total_seconds": 0, "total_sessions": 0, "distinct_readers": 0}
+
+    agg = (
+        db.query(ReadingSession)
+        .filter(ReadingSession.book_id.in_(book_ids))
         .with_entities(
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
             func.count(ReadingSession.id).label("total_sessions"),

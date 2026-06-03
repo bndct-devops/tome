@@ -21,6 +21,7 @@ import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingS
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
+import { StatTile } from '@/components/stats/StatTile'
 
 interface Facets {
   authors: string[]
@@ -1044,19 +1045,6 @@ function ActivityChart({ timeline }: { timeline: { date: string; seconds: number
         <span>{first?.date ? fmtDay(first.date) : ''}</span>
         <span>{last?.date ? fmtDay(last.date) : ''}</span>
       </div>
-    </div>
-  )
-}
-
-// ── Shared stat tile used by both right-column metrics and the bottom row ────────────────────
-function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-muted/20 px-2.5 py-1.5 flex flex-col gap-0.5">
-      <div className="flex items-center gap-1 text-muted-foreground/60">
-        {icon}
-        <p className="text-xs">{label}</p>
-      </div>
-      <p className="text-sm font-medium text-foreground tabular-nums">{value}</p>
     </div>
   )
 }
