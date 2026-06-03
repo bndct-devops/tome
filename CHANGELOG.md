@@ -53,6 +53,8 @@ All notable changes to Tome are documented here. Format loosely follows
   the description, and the description itself is now truncated with a "Show
   more" toggle. The reading-stats card and Highlights & Notes section sit in
   the same right column, giving the page a cleaner two-column structure.
+- The home "Pick up where you left off" panel is now a compact cover strip
+  instead of a full-width grid.
 
 ### Fixed
 - Adding or editing a book type in admin settings no longer fails with a 422
@@ -60,6 +62,9 @@ All notable changes to Tome are documented here. Format loosely follows
   label), but the API required one, so every save was rejected before it
   reached the handler. The slug is now optional and auto-derived from the label
   on create. (#12)
+- Dismissing the home "Pick up where you left off" panel now persists across
+  refreshes (it previously reappeared every reload). It resurfaces only if a
+  different set of books surfaces.
 - Series metadata embedded by Calibre (`calibre:series`) and EPUB3 collections
   (`belongs-to-collection`) is now read correctly on import. It was previously
   dropped — ingest fell back to parsing the title, which mis-grouped or failed
