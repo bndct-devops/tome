@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     incoming_dir: Path = Path("./bindery")
     port: int = 8080
     hardcover_token: str | None = None
+    # Optional Google Books API key (env TOME_GOOGLE_BOOKS_KEY). When set, Google
+    # Books requests are charged against your own Cloud project quota instead of
+    # the shared anonymous pool — fixes 429/quota failures, which hit hardest for
+    # non-English (e.g. zh-TW) catalogues that lean on Google as the fallback.
+    google_books_key: str | None = None
 
     # SMTP (send-to-device)
     smtp_host: str | None = None

@@ -557,13 +557,28 @@ async def _google_books(
     query: str,
     isbn: str | None = None,
 ) -> list[MetadataCandidate]:
+    params: dict[str, str | int] = {
+        "q": query,
+        "maxResults": _MAX_RESULTS,
+        "printType": "books",
+    }
+    if settings.google_books_key:
+        params["key"] = settings.google_books_key
     try:
-        resp = await client.get(
-            GOOGLE_BOOKS_URL,
-            params={"q": query, "maxResults": _MAX_RESULTS, "printType": "books"},
-        )
-        if resp.status_code == 429:
-            logger.warning("Google Books rate limited")
+        resp = await client.get(GOOGLE_BOOKS_URL, params=params)
+        if resp.status_code in (400, 429):
+            # 400 is how Google reports an exhausted key quota ("Quota Exceeded");
+            # 429 is the anonymous shared-pool limit. Either way there's nothing
+            # more to fetch — log loudly when a key is configured so the operator
+            # knows it's *their* project quota that's drained, not a code bug.
+            if settings.google_books_key:
+                logger.warning(
+                    "Google Books quota exhausted for the configured API key "
+                    "(HTTP %s)", resp.status_code,
+                )
+            else:
+                logger.warning("Google Books rate limited (HTTP %s) — no API key "
+                               "configured; set TOME_GOOGLE_BOOKS_KEY", resp.status_code)
             return []
         resp.raise_for_status()
         data = resp.json()

@@ -17,4 +17,7 @@ services:
       # first start and save it to /data/secret.key.
       # - TOME_SECRET_KEY=
       # - TOME_HARDCOVER_TOKEN=
+      # Use your own Google Books quota instead of the shared anonymous pool
+      # (fixes 429/400 "Quota Exceeded", esp. for non-English catalogues):
+      # - TOME_GOOGLE_BOOKS_KEY=
     restart: unless-stopped

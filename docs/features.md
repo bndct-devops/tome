@@ -102,6 +102,8 @@ Multi-select books on the dashboard to:
 
 Search Google Books, OpenLibrary, and Hardcover for metadata. Results are shown in a side-by-side diff UI so you can see exactly what will change before applying. Hardcover results are prioritized when a `TOME_HARDCOVER_TOKEN` is configured.
 
+By default Google Books is queried anonymously against a shared quota, which can hit `429`/`400` "Quota Exceeded" errors — most noticeable for non-English (e.g. traditional Chinese) catalogues that lean on Google as the fallback. Set `TOME_GOOGLE_BOOKS_KEY` to a free [Google Books API key](https://developers.google.com/books/docs/v1/using) and requests are charged against your own Cloud project quota instead. It's a plain public-search API key — no OAuth and no access to any user's private data.
+
 ---
 
 ## Cover Picker
