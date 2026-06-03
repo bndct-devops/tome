@@ -908,6 +908,47 @@ def get_adjacent_books(
     return {"prev": to_stub(prev_book), "next": to_stub(next_book), "mode": mode}
 
 
+@router.get("/{book_id}/annotations")
+def get_book_annotations(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Highlights/notes the current user has synced from KOReader for this book.
+
+    Read-only: KOReader owns annotations; the plugin pushes them via
+    PUT /api/tome-sync/annotations/{book_id}. Web reader (foliate) inline
+    rendering is a separate, later phase.
+    """
+    from backend.models.tome_sync import Annotation
+
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+    if not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    rows = (
+        db.query(Annotation)
+        .filter(Annotation.user_id == current_user.id, Annotation.book_id == book_id)
+        .order_by(Annotation.koreader_datetime, Annotation.id)
+        .all()
+    )
+    return [
+        {
+            "id": a.id,
+            "anchor": a.anchor,
+            "highlighted_text": a.highlighted_text,
+            "note": a.note,
+            "chapter": a.chapter,
+            "color": a.color,
+            "datetime": a.koreader_datetime,
+            "updated_at": a.updated_at.isoformat() + "Z",
+        }
+        for a in rows
+    ]
+
+
 # ── Single book ───────────────────────────────────────────────────────────────
 
 @router.get("/{book_id}", response_model=BookDetailOut)

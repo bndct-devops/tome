@@ -23,7 +23,7 @@ from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
-from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition
+from backend.models.tome_sync import Annotation, ApiKey, ReadingSession, TomeSyncPosition
 
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 # integer — bump on every plugin code change). SEMVER is human-facing display.
 # VERSION is kept as a back-compat alias (= str(BUILD)) for old plugins and the
 # web UI, which read `version` from /plugin/version.
-TOMESYNC_PLUGIN_BUILD = 10
-TOMESYNC_PLUGIN_SEMVER = "1.0.1"
+TOMESYNC_PLUGIN_BUILD = 11
+TOMESYNC_PLUGIN_SEMVER = "1.1.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -313,6 +313,114 @@ def post_session(
     db.commit()
     db.refresh(session)
     return {"session_id": session.id}
+
+
+# ── Annotation endpoints ──────────────────────────────────────────────────────
+# One-directional: KOReader is the source of truth. The plugin PUTs its full
+# annotation set for a book on each sync; the server mirrors it (upsert by anchor,
+# drop anchors no longer present — so deletes on the device propagate too).
+
+class AnnotationItem(PydanticBaseModel):
+    anchor: str                       # KOReader pos0 (xPointer) or a stable fallback
+    highlighted_text: Optional[str] = None
+    note: Optional[str] = None
+    chapter: Optional[str] = None
+    color: Optional[str] = None
+    datetime: Optional[str] = None    # KOReader's creation timestamp (display ordering)
+
+
+class PutAnnotationsRequest(PydanticBaseModel):
+    annotations: list[AnnotationItem]
+
+
+def _serialize_annotation(a: Annotation) -> dict:
+    return {
+        "id": a.id,
+        "anchor": a.anchor,
+        "highlighted_text": a.highlighted_text,
+        "note": a.note,
+        "chapter": a.chapter,
+        "color": a.color,
+        "datetime": a.koreader_datetime,
+        "updated_at": a.updated_at.isoformat() + "Z",
+    }
+
+
+@router.put("/tome-sync/annotations/{book_id}")
+def put_annotations(
+    book_id: int,
+    body: PutAnnotationsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Mirror the plugin's full annotation set for this user+book (idempotent).
+
+    Upsert each incoming highlight keyed on `anchor`, and delete any stored
+    annotation whose anchor is absent from the payload (a highlight removed on
+    the device). Re-sending the same set is a no-op.
+    """
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    incoming = {item.anchor: item for item in body.annotations if item.anchor}
+    existing = {
+        a.anchor: a
+        for a in db.query(Annotation)
+        .filter(Annotation.user_id == user.id, Annotation.book_id == book_id)
+        .all()
+    }
+
+    created = updated = 0
+    for anchor, item in incoming.items():
+        row = existing.get(anchor)
+        if row:
+            # Only touch updated_at when something actually changed.
+            if (row.highlighted_text != item.highlighted_text or row.note != item.note
+                    or row.chapter != item.chapter or row.color != item.color):
+                row.highlighted_text = item.highlighted_text
+                row.note = item.note
+                row.chapter = item.chapter
+                row.color = item.color
+                updated += 1
+        else:
+            db.add(Annotation(
+                user_id=user.id,
+                book_id=book_id,
+                anchor=anchor,
+                highlighted_text=item.highlighted_text,
+                note=item.note,
+                chapter=item.chapter,
+                color=item.color,
+                koreader_datetime=item.datetime,
+            ))
+            created += 1
+
+    removed = 0
+    for anchor, row in existing.items():
+        if anchor not in incoming:
+            db.delete(row)
+            removed += 1
+
+    db.commit()
+    return {"ok": True, "created": created, "updated": updated, "removed": removed,
+            "total": len(incoming)}
+
+
+@router.get("/tome-sync/annotations/{book_id}")
+def get_annotations_plugin(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Return the stored annotations for this user+book (plugin/API-key auth)."""
+    rows = (
+        db.query(Annotation)
+        .filter(Annotation.user_id == user.id, Annotation.book_id == book_id)
+        .order_by(Annotation.koreader_datetime, Annotation.id)
+        .all()
+    )
+    return {"book_id": book_id, "annotations": [_serialize_annotation(a) for a in rows]}
 
 
 # ── Series endpoints (API-key-authed, for the plugin) ────────────────────────
@@ -991,6 +1099,12 @@ function TomeSync:onDispatcherRegisterActions()
         title    = "TomeSync: Browse series",
         general  = true,
     }})
+    Dispatcher:registerAction("tome_sync_annotations", {{
+        category = "none",
+        event    = "TomeSyncAnnotations",
+        title    = "TomeSync: Sync highlights",
+        reader   = true,
+    }})
 end
 
 function TomeSync:onTomeOpenMenu()
@@ -1000,6 +1114,22 @@ end
 
 function TomeSync:onTomeBrowseSeries()
     self:_browseSeriesMenu()
+    return true
+end
+
+function TomeSync:onTomeSyncAnnotations()
+    if not self.book_id then
+        UIManager:show(InfoMessage:new{{ text = "No book resolved. Open a book first.", timeout = 3 }})
+        return true
+    end
+    local items = self:_collectAnnotations()
+    local n = items and #items or 0
+    local result = self:_pushAnnotations()
+    if result == nil and not NetworkMgr:isConnected() then
+        UIManager:show(InfoMessage:new{{ text = "Offline — highlights will sync later.", timeout = 3 }})
+    else
+        UIManager:show(InfoMessage:new{{ text = "Synced " .. n .. " highlight(s) to Tome.", timeout = 3 }})
+    end
     return true
 end
 
@@ -1059,6 +1189,9 @@ function TomeSync:onSuspend()
     pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
         progress = cfi, percentage = pct, device = dev,
     }})
+
+    -- Sync highlights/notes alongside position (one-directional, KOReader -> Tome).
+    pcall(function() self:_pushAnnotations() end)
 
     if duration > 10 then
         local session = {{
@@ -1134,6 +1267,9 @@ function TomeSync:onCloseDocument()
     pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
         progress = cfi, percentage = pct, device = dev,
     }})
+
+    -- Flush highlights/notes before the book closes.
+    pcall(function() self:_pushAnnotations() end)
 
     if duration > 10 then
         local uuid = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev)
@@ -1238,6 +1374,48 @@ function TomeSync:_pushPosition()
     pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
         progress = self:_getCurrentProgress(), percentage = pct, device = deviceName(),
     }})
+end
+
+-- ── Annotation sync (KOReader -> Tome, one-directional) ──────────────────────
+
+function TomeSync:_collectAnnotations()
+    -- Snapshot KOReader's current annotation set for the open book. Returns a
+    -- list of {{anchor, highlighted_text, note, chapter, color, datetime}}, or
+    -- nil if the annotation module isn't available (so we never push — and thus
+    -- never wipe the server set — when we simply can't read the local state).
+    local ann = self.ui and self.ui.annotation
+    local list = ann and ann.annotations
+    if type(list) ~= "table" then return nil end
+
+    local out = {{}}
+    for _, a in ipairs(list) do
+        -- pos0 is an xPointer string for EPUB (a stable anchor); for PDF it's a
+        -- table, so fall back to the highlight's creation datetime (also stable).
+        local anchor = (type(a.pos0) == "string" and a.pos0) or a.datetime
+        if anchor then
+            table.insert(out, {{
+                anchor           = anchor,
+                highlighted_text = a.text,
+                note             = a.note,
+                chapter          = a.chapter,
+                color            = a.color,
+                datetime         = a.datetime,
+            }})
+        end
+    end
+    return out
+end
+
+function TomeSync:_pushAnnotations()
+    -- Mirror the full local annotation set to the server (idempotent). No offline
+    -- queue needed: each push sends the complete current state, so a missed push
+    -- self-heals on the next one. One-directional: KOReader is the source of truth.
+    if not self.book_id then return nil end
+    local items = self:_collectAnnotations()
+    if not items then return nil end
+    local result, code = apiRequest("PUT", "/tome-sync/annotations/" .. self.book_id,
+                                    {{ annotations = items }})
+    return result
 end
 
 function TomeSync:registerBookId(file_path, book_id)
@@ -1629,6 +1807,7 @@ function TomeSync:_menuItems()
             callback     = function()
                 if self.book_id then
                     self:_pushPosition()
+                    self:_pushAnnotations()
                 end
                 self:_flushPendingSessions()
                 local pending = #self.pending_sessions
