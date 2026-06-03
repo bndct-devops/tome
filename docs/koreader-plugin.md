@@ -173,16 +173,22 @@ TomeSync registers two bindable gesture actions (KOReader **Settings → Taps an
 
 ## Highlights & notes sync
 
-Highlights and notes you make in KOReader sync to Tome and appear in a
-**Highlights & Notes** section on the book's detail page (the highlighted text,
-your note, and the chapter). It happens automatically alongside position sync —
-on suspend, on closing the book, and via **Sync now** — and can be triggered
-manually with the **TomeSync: Sync highlights** gesture.
+Highlights and notes you make in KOReader sync to Tome — and **to your other
+KOReader devices**. They also appear in a **Highlights & Notes** section on the
+book's detail page (the highlighted text, your note, and the chapter). Sync happens
+automatically alongside position sync — when you open a book (pulls others'
+highlights), on suspend, on closing the book, and via **Sync now** — and can be
+triggered manually with the **TomeSync: Sync highlights** gesture.
 
-Sync is **one-directional** (KOReader → Tome): KOReader is the source of truth.
-Each sync mirrors the book's full annotation set, so edits and deletions on the
-device propagate too. Highlights are shown as text in Tome; rendering them inline
-in the web reader is a separate, later step.
+**How conflicts resolve.** Identity is the highlight's position, so the same
+passage highlighted on two devices is one highlight. Edits to the same highlight's
+note resolve last-write-wins (newest edit). Deletes propagate via tombstones — a
+highlight you remove on one device is removed on the others and won't reappear.
+Device→device sync needs both devices to have the **Tome-served copy** of the book
+(identical file → matching positions); a sideloaded different copy won't line up.
+
+Rendering highlights *inside the web reader* is a separate, later step — for now
+the web side shows them as a list on the detail page.
 
 ---
 

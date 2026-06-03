@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel as PydanticBaseModel
+from pydantic import BaseModel as PydanticBaseModel, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -23,7 +23,7 @@ from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
-from backend.models.tome_sync import Annotation, ApiKey, ReadingSession, TomeSyncPosition
+from backend.models.tome_sync import Annotation, AnnotationTombstone, ApiKey, ReadingSession, TomeSyncPosition
 
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 # integer — bump on every plugin code change). SEMVER is human-facing display.
 # VERSION is kept as a back-compat alias (= str(BUILD)) for old plugins and the
 # web UI, which read `version` from /plugin/version.
-TOMESYNC_PLUGIN_BUILD = 11
-TOMESYNC_PLUGIN_SEMVER = "1.1.0"
+TOMESYNC_PLUGIN_BUILD = 12
+TOMESYNC_PLUGIN_SEMVER = "1.2.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -316,95 +316,170 @@ def post_session(
 
 
 # ── Annotation endpoints ──────────────────────────────────────────────────────
-# One-directional: KOReader is the source of truth. The plugin PUTs its full
-# annotation set for a book on each sync; the server mirrors it (upsert by anchor,
-# drop anchors no longer present — so deletes on the device propagate too).
+# Bidirectional across KOReader devices. Identity is the anchor (xPointer). Edit
+# conflicts resolve last-write-wins by the KOReader modification time; deletes are
+# recorded as tombstones so a stale device can't resurrect a removed highlight.
+# Timestamps are KOReader wall-clock strings ("YYYY-MM-DD HH:MM:SS") — they sort
+# lexicographically = chronologically, so plain string compare gives LWW ordering.
+# (Cross-device clock skew is a documented edge; acceptable for highlight notes.)
 
 class AnnotationItem(PydanticBaseModel):
-    anchor: str                       # KOReader pos0 (xPointer) or a stable fallback
+    anchor: str                          # KOReader pos0 (xPointer) or a stable fallback
+    anchor_end: Optional[str] = None     # pos1 (xPointer) — lets another device render it
     highlighted_text: Optional[str] = None
     note: Optional[str] = None
     chapter: Optional[str] = None
     color: Optional[str] = None
-    datetime: Optional[str] = None    # KOReader's creation timestamp (display ordering)
+    datetime: Optional[str] = None           # KOReader creation time
+    datetime_updated: Optional[str] = None   # KOReader modification time (LWW key)
+
+    @property
+    def mtime(self) -> str:
+        return self.datetime_updated or self.datetime or ""
 
 
-class PutAnnotationsRequest(PydanticBaseModel):
-    annotations: list[AnnotationItem]
+class DeletedAnchor(PydanticBaseModel):
+    anchor: str
+    datetime: Optional[str] = None           # client deletion time (LWW key)
+
+
+class SyncAnnotationsRequest(PydanticBaseModel):
+    upserts: list[AnnotationItem] = []
+    deletes: list[DeletedAnchor] = []
+
+    # KOReader's Lua rapidjson encodes an empty table as a JSON object ({}), not an
+    # array. Coerce that back to an empty list so an empty upserts/deletes is valid.
+    @field_validator("upserts", "deletes", mode="before")
+    @classmethod
+    def _empty_obj_to_list(cls, v):
+        return [] if v in (None, {}) else v
 
 
 def _serialize_annotation(a: Annotation) -> dict:
     return {
         "id": a.id,
         "anchor": a.anchor,
+        "anchor_end": a.anchor_end,
         "highlighted_text": a.highlighted_text,
         "note": a.note,
         "chapter": a.chapter,
         "color": a.color,
         "datetime": a.koreader_datetime,
+        "datetime_updated": a.koreader_datetime_updated,
         "updated_at": a.updated_at.isoformat() + "Z",
     }
 
 
-@router.put("/tome-sync/annotations/{book_id}")
-def put_annotations(
+def _annotation_state(db: Session, user_id: int, book_id: int):
+    """Current alive annotations + tombstones for a user+book, keyed by anchor."""
+    alive = {
+        a.anchor: a
+        for a in db.query(Annotation)
+        .filter(Annotation.user_id == user_id, Annotation.book_id == book_id)
+        .all()
+    }
+    tombs = {
+        t.anchor: t
+        for t in db.query(AnnotationTombstone)
+        .filter(AnnotationTombstone.user_id == user_id, AnnotationTombstone.book_id == book_id)
+        .all()
+    }
+    return alive, tombs
+
+
+def _annotation_response(db: Session, user_id: int, book_id: int, **extra) -> dict:
+    alive, tombs = _annotation_state(db, user_id, book_id)
+    rows = sorted(alive.values(), key=lambda a: (a.koreader_datetime or "", a.id))
+    return {
+        "book_id": book_id,
+        "annotations": [_serialize_annotation(a) for a in rows],
+        "tombstones": [
+            {"anchor": t.anchor, "deleted_at": t.client_deleted_at} for t in tombs.values()
+        ],
+        **extra,
+    }
+
+
+@router.post("/tome-sync/annotations/{book_id}/sync")
+def sync_annotations(
     book_id: int,
-    body: PutAnnotationsRequest,
+    body: SyncAnnotationsRequest,
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    """Mirror the plugin's full annotation set for this user+book (idempotent).
+    """Merge a device's annotation changes and return the full reconciled state.
 
-    Upsert each incoming highlight keyed on `anchor`, and delete any stored
-    annotation whose anchor is absent from the payload (a highlight removed on
-    the device). Re-sending the same set is a no-op.
+    Upserts win over an existing row / tombstone only when strictly newer (LWW).
+    Deletes drop the row and write a tombstone, unless a newer live edit exists.
+    The response (alive set + tombstones) is what the device applies locally.
     """
     book = db.get(Book, book_id)
     if not book or book.status != "active":
         raise HTTPException(status_code=404, detail="Book not found")
 
-    incoming = {item.anchor: item for item in body.annotations if item.anchor}
-    existing = {
-        a.anchor: a
-        for a in db.query(Annotation)
-        .filter(Annotation.user_id == user.id, Annotation.book_id == book_id)
-        .all()
-    }
+    alive, tombs = _annotation_state(db, user.id, book_id)
+    created = updated = deleted = skipped = 0
 
-    created = updated = 0
-    for anchor, item in incoming.items():
-        row = existing.get(anchor)
+    for item in body.upserts:
+        if not item.anchor:
+            continue
+        tomb = tombs.get(item.anchor)
+        # A re-add only wins over a delete if it's strictly newer than the delete.
+        if tomb and item.mtime <= (tomb.client_deleted_at or ""):
+            skipped += 1
+            continue
+        if tomb:
+            db.delete(tomb); tombs.pop(item.anchor, None)
+        row = alive.get(item.anchor)
         if row:
-            # Only touch updated_at when something actually changed.
-            if (row.highlighted_text != item.highlighted_text or row.note != item.note
-                    or row.chapter != item.chapter or row.color != item.color):
+            if item.mtime >= row.effective_mtime:           # newer edit wins
+                row.anchor_end = item.anchor_end or row.anchor_end
                 row.highlighted_text = item.highlighted_text
                 row.note = item.note
                 row.chapter = item.chapter
                 row.color = item.color
+                row.koreader_datetime = item.datetime or row.koreader_datetime
+                row.koreader_datetime_updated = item.mtime or row.koreader_datetime_updated
                 updated += 1
+            else:
+                skipped += 1
         else:
-            db.add(Annotation(
-                user_id=user.id,
-                book_id=book_id,
-                anchor=anchor,
-                highlighted_text=item.highlighted_text,
-                note=item.note,
-                chapter=item.chapter,
-                color=item.color,
-                koreader_datetime=item.datetime,
-            ))
+            row = Annotation(
+                user_id=user.id, book_id=book_id, anchor=item.anchor,
+                anchor_end=item.anchor_end,
+                highlighted_text=item.highlighted_text, note=item.note,
+                chapter=item.chapter, color=item.color,
+                koreader_datetime=item.datetime, koreader_datetime_updated=item.mtime or None,
+            )
+            db.add(row); alive[item.anchor] = row
             created += 1
 
-    removed = 0
-    for anchor, row in existing.items():
-        if anchor not in incoming:
-            db.delete(row)
-            removed += 1
+    for d in body.deletes:
+        if not d.anchor:
+            continue
+        row = alive.get(d.anchor)
+        # If a live edit is newer than this delete, the edit wins — keep it.
+        if row and row.effective_mtime > (d.datetime or ""):
+            skipped += 1
+            continue
+        if row:
+            db.delete(row); alive.pop(d.anchor, None)
+            deleted += 1
+        tomb = tombs.get(d.anchor)
+        if tomb:
+            if (d.datetime or "") > (tomb.client_deleted_at or ""):
+                tomb.client_deleted_at = d.datetime
+        else:
+            db.add(AnnotationTombstone(
+                user_id=user.id, book_id=book_id, anchor=d.anchor,
+                client_deleted_at=d.datetime,
+            ))
 
     db.commit()
-    return {"ok": True, "created": created, "updated": updated, "removed": removed,
-            "total": len(incoming)}
+    return _annotation_response(
+        db, user.id, book_id,
+        applied={"created": created, "updated": updated, "deleted": deleted, "skipped": skipped},
+    )
 
 
 @router.get("/tome-sync/annotations/{book_id}")
@@ -413,14 +488,9 @@ def get_annotations_plugin(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    """Return the stored annotations for this user+book (plugin/API-key auth)."""
-    rows = (
-        db.query(Annotation)
-        .filter(Annotation.user_id == user.id, Annotation.book_id == book_id)
-        .order_by(Annotation.koreader_datetime, Annotation.id)
-        .all()
-    )
-    return {"book_id": book_id, "annotations": [_serialize_annotation(a) for a in rows]}
+    """Full annotation state (alive + tombstones) for this user+book — what the
+    plugin pulls and merges on book open."""
+    return _annotation_response(db, user.id, book_id)
 
 
 # ── Series endpoints (API-key-authed, for the plugin) ────────────────────────
@@ -841,6 +911,7 @@ local lfs              = require("libs/libkoreader-lfs")
 local util             = require("util")
 local Menu             = require("ui/widget/menu")
 local Dispatcher       = require("dispatcher")
+local Event            = require("ui/event")
 
 -- ── Register in wrench menu (tools tab, after calibre) ──────────────────────
 -- Runs once per KOReader process via require() caching.
@@ -1061,6 +1132,9 @@ function TomeSync:init()
     self.enabled        = true
     self.book_map       = G_reader_settings:readSetting("tomesync_book_map") or {{}}
     self.pending_sessions = G_reader_settings:readSetting("tomesync_pending_sessions") or {{}}
+    -- Per-book annotation sync baseline: book_id -> {{ anchor -> mtime }} as of last
+    -- sync. Lets a diff tell "I deleted this" from "this is new from another device".
+    self.annot_baseline = G_reader_settings:readSetting("tomesync_annot_baseline") or {{}}
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
     logger.info("TomeSync: init complete, menu registered,",
@@ -1122,13 +1196,12 @@ function TomeSync:onTomeSyncAnnotations()
         UIManager:show(InfoMessage:new{{ text = "No book resolved. Open a book first.", timeout = 3 }})
         return true
     end
-    local items = self:_collectAnnotations()
-    local n = items and #items or 0
-    local result = self:_pushAnnotations()
-    if result == nil and not NetworkMgr:isConnected() then
+    local resp = self:_syncAnnotations()
+    if resp == nil and not NetworkMgr:isConnected() then
         UIManager:show(InfoMessage:new{{ text = "Offline — highlights will sync later.", timeout = 3 }})
     else
-        UIManager:show(InfoMessage:new{{ text = "Synced " .. n .. " highlight(s) to Tome.", timeout = 3 }})
+        local n = (resp and resp.annotations) and #resp.annotations or 0
+        UIManager:show(InfoMessage:new{{ text = "Highlights synced (" .. n .. " on this book).", timeout = 3 }})
     end
     return true
 end
@@ -1148,6 +1221,10 @@ function TomeSync:onReaderReady()
     if not self.book_id then return end
 
     self:_initSession()
+    -- Pull highlights from other devices (and push any local changes). This is the
+    -- moment a device picks up annotations made elsewhere. Deferred a tick so the
+    -- annotation module is fully settled before we merge into it.
+    UIManager:scheduleIn(1, function() pcall(function() self:_syncAnnotations() end) end)
 end
 
 function TomeSync:onPageUpdate(pageno)
@@ -1190,8 +1267,8 @@ function TomeSync:onSuspend()
         progress = cfi, percentage = pct, device = dev,
     }})
 
-    -- Sync highlights/notes alongside position (one-directional, KOReader -> Tome).
-    pcall(function() self:_pushAnnotations() end)
+    -- Sync highlights/notes alongside position (bidirectional merge with the server).
+    pcall(function() self:_syncAnnotations() end)
 
     if duration > 10 then
         local session = {{
@@ -1268,8 +1345,8 @@ function TomeSync:onCloseDocument()
         progress = cfi, percentage = pct, device = dev,
     }})
 
-    -- Flush highlights/notes before the book closes.
-    pcall(function() self:_pushAnnotations() end)
+    -- Flush + merge highlights/notes before the book closes.
+    pcall(function() self:_syncAnnotations() end)
 
     if duration > 10 then
         local uuid = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev)
@@ -1376,46 +1453,138 @@ function TomeSync:_pushPosition()
     }})
 end
 
--- ── Annotation sync (KOReader -> Tome, one-directional) ──────────────────────
+-- ── Annotation sync (bidirectional: KOReader <-> Tome <-> KOReader) ──────────
+-- Identity is the anchor (pos0 xPointer). Edits resolve last-write-wins by
+-- KOReader's modification time; deletes use server tombstones + a per-book
+-- baseline so a highlight removed on one device can't be resurrected by another's
+-- stale copy. All timestamps are KOReader local wall-clock strings (sortable).
 
-function TomeSync:_collectAnnotations()
-    -- Snapshot KOReader's current annotation set for the open book. Returns a
-    -- list of {{anchor, highlighted_text, note, chapter, color, datetime}}, or
-    -- nil if the annotation module isn't available (so we never push — and thus
-    -- never wipe the server set — when we simply can't read the local state).
+local function annotMtime(a)
+    return a.datetime_updated or a.datetime or ""
+end
+
+local function annotAnchor(a)
+    -- pos0 is an xPointer string for EPUB (stable identity); PDF uses table
+    -- positions, so fall back to the creation datetime (can't render cross-device).
+    return (type(a.pos0) == "string" and a.pos0) or a.datetime
+end
+
+function TomeSync:_annotItem(a)
+    local anchor = annotAnchor(a)
+    if not anchor then return nil end
+    return {{
+        anchor           = anchor,
+        anchor_end       = (type(a.pos1) == "string" and a.pos1) or nil,
+        highlighted_text = a.text,
+        note             = a.note,
+        chapter          = a.chapter,
+        color            = a.color,
+        datetime         = a.datetime,
+        datetime_updated = a.datetime_updated,
+    }}
+end
+
+function TomeSync:_localAnnotationMap()
+    -- anchor -> {{ item = <koreader annotation>, mtime }}; nil if module unavailable
+    -- (so we never sync a state we can't read).
     local ann = self.ui and self.ui.annotation
     local list = ann and ann.annotations
     if type(list) ~= "table" then return nil end
-
-    local out = {{}}
+    local map = {{}}
     for _, a in ipairs(list) do
-        -- pos0 is an xPointer string for EPUB (a stable anchor); for PDF it's a
-        -- table, so fall back to the highlight's creation datetime (also stable).
-        local anchor = (type(a.pos0) == "string" and a.pos0) or a.datetime
-        if anchor then
-            table.insert(out, {{
-                anchor           = anchor,
-                highlighted_text = a.text,
-                note             = a.note,
-                chapter          = a.chapter,
-                color            = a.color,
-                datetime         = a.datetime,
-            }})
-        end
+        local anchor = annotAnchor(a)
+        if anchor then map[anchor] = {{ item = a, mtime = annotMtime(a) }} end
     end
-    return out
+    return map
 end
 
-function TomeSync:_pushAnnotations()
-    -- Mirror the full local annotation set to the server (idempotent). No offline
-    -- queue needed: each push sends the complete current state, so a missed push
-    -- self-heals on the next one. One-directional: KOReader is the source of truth.
+function TomeSync:_applyServerState(alive, tombstones)
+    -- Merge the server's reconciled state into the local annotation set so this
+    -- device shows highlights made on other devices, and drops ones deleted there.
+    local ann = self.ui and self.ui.annotation
+    if not ann or type(ann.annotations) ~= "table" then return end
+    local changed = false
+    local localmap = self:_localAnnotationMap() or {{}}
+
+    for _, s in ipairs(alive or {{}}) do
+        if s.anchor then
+            local L = localmap[s.anchor]
+            local smtime = s.datetime_updated or s.datetime or ""
+            if not L then
+                -- New highlight from another device: reconstruct so it renders.
+                local ok = pcall(function()
+                    ann:addItem({{
+                        page = s.anchor, pos0 = s.anchor, pos1 = s.anchor_end or s.anchor,
+                        text = s.highlighted_text, note = s.note, chapter = s.chapter,
+                        color = s.color, drawer = "lighten",
+                        datetime = s.datetime, datetime_updated = s.datetime_updated,
+                    }})
+                end)
+                changed = changed or ok
+            elseif smtime > L.mtime then
+                -- Newer edit from elsewhere wins (note/color/text).
+                L.item.text  = s.highlighted_text
+                L.item.note  = s.note
+                L.item.color = s.color
+                L.item.datetime_updated = s.datetime_updated
+                changed = true
+            end
+        end
+    end
+
+    for _, t in ipairs(tombstones or {{}}) do
+        local map2 = self:_localAnnotationMap() or {{}}
+        local L = map2[t.anchor]
+        if L and L.mtime <= (t.deleted_at or "") then
+            for i = #ann.annotations, 1, -1 do
+                if ann.annotations[i] == L.item then
+                    table.remove(ann.annotations, i); changed = true; break
+                end
+            end
+        end
+    end
+
+    if changed then
+        pcall(function() self.ui:handleEvent(Event:new("AnnotationsModified", {{ nb_highlights_added = 0 }})) end)
+        pcall(function() UIManager:setDirty(self.ui.dialog, "full") end)
+    end
+end
+
+function TomeSync:_syncAnnotations()
+    -- Push local changes (diff vs baseline) and pull everyone else's, in one call.
     if not self.book_id then return nil end
-    local items = self:_collectAnnotations()
-    if not items then return nil end
-    local result, code = apiRequest("PUT", "/tome-sync/annotations/" .. self.book_id,
-                                    {{ annotations = items }})
-    return result
+    local localmap = self:_localAnnotationMap()
+    if not localmap then return nil end
+    local bk = tostring(self.book_id)
+    local baseline = self.annot_baseline[bk] or {{}}
+
+    local upserts, deletes = {{}}, {{}}
+    for anchor, L in pairs(localmap) do
+        if baseline[anchor] == nil or baseline[anchor] ~= L.mtime then
+            local it = self:_annotItem(L.item)
+            if it then table.insert(upserts, it) end
+        end
+    end
+    local now = os.date("%Y-%m-%d %H:%M:%S")   -- local wall-clock, matches KOReader's
+    for anchor, _ in pairs(baseline) do
+        if localmap[anchor] == nil then
+            table.insert(deletes, {{ anchor = anchor, datetime = now }})
+        end
+    end
+
+    local resp = apiRequest("POST", "/tome-sync/annotations/" .. self.book_id .. "/sync",
+                            {{ upserts = upserts, deletes = deletes }})
+    if not resp then return nil end   -- offline/failed: keep baseline so we retry
+
+    self:_applyServerState(resp.annotations, resp.tombstones)
+
+    -- Rebuild the baseline from the post-merge local state.
+    local newbase = {{}}
+    local after = self:_localAnnotationMap() or {{}}
+    for anchor, L in pairs(after) do newbase[anchor] = L.mtime end
+    self.annot_baseline[bk] = newbase
+    G_reader_settings:saveSetting("tomesync_annot_baseline", self.annot_baseline)
+    return resp
 end
 
 function TomeSync:registerBookId(file_path, book_id)
@@ -1807,7 +1976,7 @@ function TomeSync:_menuItems()
             callback     = function()
                 if self.book_id then
                     self:_pushPosition()
-                    self:_pushAnnotations()
+                    self:_syncAnnotations()
                 end
                 self:_flushPendingSessions()
                 local pending = #self.pending_sessions

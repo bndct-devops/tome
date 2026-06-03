@@ -87,11 +87,11 @@ class TomeSyncPosition(Base):
 class Annotation(Base):
     """A highlight (and optional note) synced from KOReader, per user+book.
 
-    One-directional for now: KOReader is the source of truth and the plugin
-    mirrors its full annotation set per book on each sync (see the PUT endpoint).
-    `anchor` is KOReader's highlight start position (xPointer string for EPUB) —
-    stable across syncs, so it's both the dedup key and what a future Phase 2
-    would use to render highlights inline in the web reader.
+    Bidirectional across KOReader devices via Tome: `anchor` (KOReader's highlight
+    start xPointer) is the identity — the same passage highlighted on two devices is
+    one row. Conflicting edits resolve last-write-wins by `koreader_datetime_updated`.
+    Deletes are recorded as `AnnotationTombstone` rows (this row is removed) so a
+    stale device can't resurrect a deleted highlight on its next pull.
     """
     __tablename__ = "annotations"
     __table_args__ = (
@@ -105,7 +105,10 @@ class Annotation(Base):
     book_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    anchor: Mapped[str] = mapped_column(String(512), nullable=False)  # KOReader pos0 (xPointer) or fallback
+    anchor: Mapped[str] = mapped_column(String(512), nullable=False)  # KOReader pos0 (xPointer) — identity
+    # pos1 (xPointer end). Stored so another device can reconstruct and *render* the
+    # highlight, not just list its text. EPUB only; null for PDF (table positions).
+    anchor_end: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     chapter: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     highlighted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -113,6 +116,8 @@ class Annotation(Base):
     # KOReader's own creation timestamp for the highlight (display ordering);
     # distinct from created_at, which is when Tome first stored it.
     koreader_datetime: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    # KOReader's last-modification time — the last-write-wins key for edit conflicts.
+    koreader_datetime_updated: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -120,3 +125,33 @@ class Annotation(Base):
 
     user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
     book: Mapped["Book"] = relationship("Book")  # type: ignore[name-defined]
+
+    @property
+    def effective_mtime(self) -> str:
+        """The timestamp used for last-write-wins. Falls back to creation time."""
+        return self.koreader_datetime_updated or self.koreader_datetime or ""
+
+
+class AnnotationTombstone(Base):
+    """Records that a highlight (by anchor) was deleted, so a stale device pulling
+    later removes it locally instead of re-uploading and resurrecting it.
+
+    `client_deleted_at` is the device's wall-clock at deletion — the LWW key compared
+    against an incoming upsert's `koreader_datetime_updated`: a strictly-newer re-add
+    wins and clears the tombstone (you re-highlighted the same passage on purpose).
+    """
+    __tablename__ = "annotation_tombstones"
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", "anchor", name="uq_tombstone_user_book_anchor"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    anchor: Mapped[str] = mapped_column(String(512), nullable=False)
+    client_deleted_at: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

@@ -62,10 +62,14 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
 
   <h3>Highlights &amp; notes sync</h3>
   <p>
-    Highlights and notes you make in KOReader sync to Tome and show up in a
-    <strong>Highlights &amp; Notes</strong> section on the book's detail page — the highlighted
-    text, your note, and the chapter. It's one-directional (KOReader is the source of truth);
-    each sync mirrors the book's full set, so edits and deletions on the device propagate too.
+    Highlights and notes you make in KOReader sync to Tome — and to your other KOReader
+    devices. They also show up in a <strong>Highlights &amp; Notes</strong> section on the
+    book's detail page (the highlighted text, your note, and the chapter). The highlight's
+    position is its identity, so the same passage marked on two devices is one highlight;
+    edits resolve last-write-wins and deletes propagate (a highlight removed on one device
+    won't reappear from another). Device-to-device sync needs both devices to have the
+    Tome-served copy of the book. Rendering highlights inside the web reader is a separate,
+    later step.
   </p>
   <ThemedShot client:load name="koreader-highlights" alt="KOReader highlights and notes shown on a book's detail page in Tome" className="w-full block" />
   <figure style="margin: 1.5rem auto; max-width: 320px; text-align: center;">

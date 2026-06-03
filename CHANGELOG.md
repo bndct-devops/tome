@@ -7,13 +7,16 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
-- Highlight & note sync from KOReader. The TomeSync plugin pushes the highlights
-  and notes you make on your e-reader to Tome (on suspend, on closing a book, via
-  **Sync now**, or the new **TomeSync: Sync highlights** gesture); they show up in
-  a **Highlights & Notes** section on the book's detail page — the highlighted
-  text, your note, and the chapter. One-directional (KOReader is the source of
-  truth); each sync mirrors the book's full set, so edits and deletions propagate.
-  Plugin build 11. (TomeSync)
+- Highlight & note sync for KOReader, **bidirectional across devices**. Highlights
+  and notes you make on one e-reader sync through Tome to your other KOReader
+  devices (pulled when you open a book; pushed on suspend, on close, via **Sync
+  now**, or the **TomeSync: Sync highlights** gesture), and show up in a
+  **Highlights & Notes** section on the book's detail page — highlighted text,
+  note, and chapter. The highlight's position is its identity (same passage on two
+  devices = one highlight); edits resolve last-write-wins and deletes propagate via
+  tombstones (a removed highlight won't reappear). Device-to-device needs the
+  Tome-served copy of the book on both. Rendering highlights inside the web reader
+  is a separate, later step. Plugin build 12. (TomeSync)
 - `TOME_GOOGLE_BOOKS_KEY`: optionally supply your own Google Books API key.
   Without it, Google Books is queried anonymously against a shared global quota
   that is exhausted almost immediately, making the fallback silently return zero
