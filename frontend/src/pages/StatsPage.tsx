@@ -14,7 +14,7 @@ import {
   AreaChart, Area,
 } from 'recharts'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, formatDuration, formatDate } from '@/lib/utils'
 import { StatCard } from '@/components/stats/StatCard'
 import { CompletionRateCard } from '@/components/stats/CompletionRateCard'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
@@ -97,18 +97,6 @@ interface SessionEntry {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatDuration(seconds: number): string {
-  if (seconds === 0) return '0m'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h === 0) return `${m}m`
-  return `${h}h ${m}m`
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
