@@ -13,7 +13,7 @@ router = APIRouter(tags=["book-types"])
 
 
 class BookTypeIn(BaseModel):
-    slug: str
+    slug: Optional[str] = None
     label: str
     icon: str = "BookOpen"
     color: str = "blue"
@@ -44,7 +44,8 @@ def create_book_type(
     current_user: User = Depends(get_current_user),
 ):
     require_role(current_user, "admin")
-    slug = body.slug.strip().lower().replace(" ", "_")
+    raw_slug = body.slug or body.label
+    slug = raw_slug.strip().lower().replace(" ", "_")
     if db.query(BookType).filter(BookType.slug == slug).first():
         raise HTTPException(status_code=400, detail="Slug already exists")
     bt = BookType(slug=slug, label=body.label.strip(), icon=body.icon, color=body.color, sort_order=body.sort_order)

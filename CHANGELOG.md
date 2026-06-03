@@ -17,6 +17,11 @@ All notable changes to Tome are documented here. Format loosely follows
   now logs a clear warning instead of failing silently. (#10)
 
 ### Fixed
+- Adding or editing a book type in admin settings no longer fails with a 422
+  error. The create/edit form never sends a `slug` (it is derived from the
+  label), but the API required one, so every save was rejected before it
+  reached the handler. The slug is now optional and auto-derived from the label
+  on create. (#12)
 - Series metadata embedded by Calibre (`calibre:series`) and EPUB3 collections
   (`belongs-to-collection`) is now read correctly on import. It was previously
   dropped — ingest fell back to parsing the title, which mis-grouped or failed
