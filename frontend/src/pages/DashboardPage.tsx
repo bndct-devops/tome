@@ -644,7 +644,11 @@ export function DashboardPage() {
   const [recentlyAdded, setRecentlyAdded] = useState<Book[]>([])
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([])
   const [forgottenBooks, setForgottenBooks] = useState<ForgottenBook[]>([])
-  const [forgottenDismissed, setForgottenDismissed] = useState(false)
+  // Persisted dismissal: store the signature of the dismissed book set so the
+  // panel stays hidden across refreshes, but resurfaces if a new set appears.
+  const [forgottenDismissedSig, setForgottenDismissedSig] = useState<string>(
+    () => localStorage.getItem('tome_forgotten_dismissed') || ''
+  )
 
   const PAGE_SIZE = 60
 
@@ -994,42 +998,51 @@ export function DashboardPage() {
               )}
 
               {/* ── Forgotten Books ───────────────────────────────────────── */}
-              {!forgottenDismissed && forgottenBooks.length > 0 && (
-                <section className="rounded-lg border border-border bg-muted/30 p-4">
-                  <header className="flex items-center justify-between mb-3">
-                    <h2 className="text-base font-semibold">Pick up where you left off</h2>
-                    <button
-                      onClick={() => setForgottenDismissed(true)}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Dismiss
-                    </button>
-                  </header>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {forgottenBooks.map(b => (
-                      <a
-                        key={b.book_id}
-                        href={`/books/${b.book_id}`}
-                        className="group flex flex-col gap-1.5 hover:opacity-90 transition-opacity"
+              {(() => {
+                const forgottenSig = forgottenBooks.map(b => b.book_id).sort((a, b) => a - b).join(',')
+                const showForgotten = forgottenBooks.length > 0 && forgottenSig !== forgottenDismissedSig
+                if (!showForgotten) return null
+                const dismiss = () => {
+                  localStorage.setItem('tome_forgotten_dismissed', forgottenSig)
+                  setForgottenDismissedSig(forgottenSig)
+                }
+                return (
+                  <section className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                    <header className="flex items-center justify-between mb-2">
+                      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pick up where you left off</h2>
+                      <button
+                        onClick={dismiss}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        <div className="relative aspect-[2/3] rounded-md bg-muted overflow-hidden">
-                          <CoverImage
-                            src={b.has_cover ? `/api/books/${b.book_id}/cover` : null}
-                            alt={b.title}
-                            iconClassName="w-6 h-6"
-                          />
-                        </div>
-                        <p className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                          {b.title}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {b.days_ago != null ? `${b.days_ago}d ago` : 'A while ago'}
-                        </p>
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              )}
+                        Dismiss
+                      </button>
+                    </header>
+                    <div className="flex gap-3 overflow-x-auto pb-1">
+                      {forgottenBooks.map(b => (
+                        <a
+                          key={b.book_id}
+                          href={`/books/${b.book_id}`}
+                          className="group flex flex-col gap-1 w-20 shrink-0 hover:opacity-90 transition-opacity"
+                        >
+                          <div className="relative aspect-[2/3] rounded-md bg-muted overflow-hidden">
+                            <CoverImage
+                              src={b.has_cover ? `/api/books/${b.book_id}/cover` : null}
+                              alt={b.title}
+                              iconClassName="w-5 h-5"
+                            />
+                          </div>
+                          <p className="text-[11px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                            {b.title}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {b.days_ago != null ? `${b.days_ago}d ago` : 'A while ago'}
+                          </p>
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+                )
+              })()}
 
               {/* ── Continue Reading ──────────────────────────────────────── */}
               <div className="flex flex-col gap-3">
