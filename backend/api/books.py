@@ -949,6 +949,40 @@ def get_book_annotations(
     ]
 
 
+# ── Per-book reading stats ────────────────────────────────────────────────────
+
+@router.get("/{book_id}/reading-stats")
+def get_book_reading_stats(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the current user's reading statistics for one book.
+
+    Admins additionally receive a library-wide aggregate (all users).
+    """
+    from backend.core.permissions import is_admin as _is_admin
+    from backend.services.reading_stats import (
+        compute_book_reading_stats,
+        compute_book_aggregate_stats,
+    )
+
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+    if not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    own = compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id)
+    aggregate = (
+        compute_book_aggregate_stats(db, book_id=book_id)
+        if _is_admin(current_user)
+        else None
+    )
+
+    return {"own": own, "aggregate": aggregate}
+
+
 # ── Single book ───────────────────────────────────────────────────────────────
 
 @router.get("/{book_id}", response_model=BookDetailOut)
