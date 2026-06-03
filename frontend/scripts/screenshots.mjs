@@ -97,7 +97,7 @@ const SHOTS = [
   { name: 'home', path: '/', viewport: DESKTOP, waitFor: 'h2, h3, [class*="streak"]' },
   { name: 'dashboard', path: '/?view=large', viewport: DESKTOP, waitFor: 'img[loading="lazy"], [class*="grid"]' },
   { name: 'series', path: '/?tab=series', viewport: DESKTOP, settle: 800 },
-  { name: 'book-detail', path: '/books/1', viewport: DESKTOP, settle: 800 },
+  { name: 'book-detail', path: () => `/books/${bookIds.goodGuys2 ?? 1}`, viewport: DESKTOP, settle: 800 },
   { name: 'series-detail', path: '/?tab=series&series_detail=Berserk', viewport: DESKTOP, settle: 1200, prefs: { tome_sidebar: 'closed' } },
   { name: 'stats', path: '/stats', viewport: DESKTOP, settle: 1200 },
   // Cropped view of the stats Overview tab — autoCrop trims to the centered content.
@@ -197,7 +197,7 @@ const SHOTS = [
   },
   {
     name: 'book-detail-edit',
-    path: '/books/1',
+    path: () => `/books/${bookIds.goodGuys2 ?? 1}`,
     viewport: { width: 1600, height: 1400, deviceScaleFactor: 2 },
     settle: 1000,
     after: async (page) => {
@@ -568,19 +568,19 @@ async function login() {
 
 async function resolveBookIds(token) {
   // Look up book IDs by title. Keeps the script working across re-seeds.
-  const wanted = { frankenstein: 'Frankenstein' }
-  try {
-    const r = await fetch(`${API}/api/books?q=Frankenstein&per_page=5`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const data = await r.json()
-    const list = Array.isArray(data) ? data : (data.books ?? [])
-    for (const [key, title] of Object.entries(wanted)) {
+  const wanted = { frankenstein: 'Frankenstein', goodGuys2: 'Heir Today, Pawn Tomorrow' }
+  for (const [key, title] of Object.entries(wanted)) {
+    try {
+      const r = await fetch(`${API}/api/books?q=${encodeURIComponent(title)}&per_page=5`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await r.json()
+      const list = Array.isArray(data) ? data : (data.books ?? [])
       const hit = list.find(b => b.title === title)
       if (hit) bookIds[key] = hit.id
+    } catch (e) {
+      console.warn(`  ! Could not resolve book ID for ${title}:`, e.message)
     }
-  } catch (e) {
-    console.warn('  ! Could not resolve book IDs:', e.message)
   }
 }
 
