@@ -58,6 +58,7 @@ Environment variables:
 ```
 TOME_SECRET_KEY=<your-secret>
 TOME_HARDCOVER_TOKEN=<your-token>       # optional but recommended
+TOME_GOOGLE_BOOKS_KEY=<your-key>        # optional: use your own Google Books quota (fixes 429/400 quota errors)
 TOME_AUTO_IMPORT=true                   # optional: auto-ingest new files
 TOME_AUTO_IMPORT_INTERVAL=300           # optional: scan interval in seconds (default 300)
 ```

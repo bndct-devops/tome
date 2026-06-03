@@ -6,6 +6,16 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- `TOME_GOOGLE_BOOKS_KEY`: optionally supply your own Google Books API key.
+  Without it, Google Books is queried anonymously against a shared global quota
+  that is exhausted almost immediately, making the fallback silently return zero
+  results — felt most acutely for non-English (e.g. traditional Chinese)
+  catalogues that depend on Google for coverage. With a key set, requests are
+  charged against your own Cloud project quota instead. Public-volume search
+  only — no OAuth, no access to user data. A configured key that hits its quota
+  now logs a clear warning instead of failing silently. (#10)
+
 ### Fixed
 - Series metadata embedded by Calibre (`calibre:series`) and EPUB3 collections
   (`belongs-to-collection`) is now read correctly on import. It was previously
