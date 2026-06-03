@@ -4,7 +4,7 @@ import {
   Camera, Download, Edit2, Save, X, Send,
   Calendar, Globe, Hash, Building2, AlignLeft, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
-  Tag as TagIcon, Highlighter, StickyNote
+  Tag as TagIcon, Highlighter, StickyNote, ChevronDown
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -88,6 +88,7 @@ export function BookDetailPage() {
   const [statusPopKey, setStatusPopKey] = useState(0)
   const [kosyncDevice, setKosyncDevice] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -830,30 +831,38 @@ export function BookDetailPage() {
             {/* Highlights & notes synced from KOReader (read-only) */}
             {annotations.length > 0 && (
               <div className="mt-6">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                <button
+                  type="button"
+                  onClick={() => setHighlightsOpen(o => !o)}
+                  aria-expanded={highlightsOpen}
+                  className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 hover:text-foreground transition-colors"
+                >
                   <Highlighter className="w-3.5 h-3.5" /> Highlights &amp; Notes
                   <span className="text-muted-foreground/50 normal-case font-normal">({annotations.length})</span>
-                </div>
-                <ul className="space-y-3">
-                  {annotations.map(a => (
-                    <li key={a.id} className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-                      {a.chapter && (
-                        <p className="text-xs text-muted-foreground/70 mb-1.5 truncate">{a.chapter}</p>
-                      )}
-                      {a.highlighted_text && (
-                        <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-2.5">
-                          {a.highlighted_text}
-                        </p>
-                      )}
-                      {a.note && (
-                        <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
-                          <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                          <span className="leading-relaxed">{a.note}</span>
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !highlightsOpen && '-rotate-90')} />
+                </button>
+                {highlightsOpen && (
+                  <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+                    {annotations.map(a => (
+                      <li key={a.id} className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                        {a.chapter && (
+                          <p className="text-xs text-muted-foreground/70 mb-1.5 truncate">{a.chapter}</p>
+                        )}
+                        {a.highlighted_text && (
+                          <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-2.5">
+                            {a.highlighted_text}
+                          </p>
+                        )}
+                        {a.note && (
+                          <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
+                            <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                            <span className="leading-relaxed">{a.note}</span>
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

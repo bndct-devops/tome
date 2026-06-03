@@ -6,6 +6,7 @@ import Callout from '../../components/Callout.astro'
 import Steps from '../../components/Steps.astro'
 import Kbd from '../../components/Kbd.astro'
 import { Tabs } from '../../components/Tabs'
+import { ThemedShot } from '../../components/ThemedShot'
 import fs from 'node:fs'
 import path from 'node:path'
 import { withBase } from '../../lib/path'
@@ -59,6 +60,21 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
 
   <div class="docs-diagram" set:html={syncFlowSvg} />
 
+  <h3>Highlights &amp; notes sync</h3>
+  <p>
+    Highlights and notes you make in KOReader sync to Tome and show up in a
+    <strong>Highlights &amp; Notes</strong> section on the book's detail page — the highlighted
+    text, your note, and the chapter. It's one-directional (KOReader is the source of truth);
+    each sync mirrors the book's full set, so edits and deletions on the device propagate too.
+  </p>
+  <ThemedShot client:load name="koreader-highlights" alt="KOReader highlights and notes shown on a book's detail page in Tome" className="w-full block" />
+  <figure style="margin: 1.5rem auto; max-width: 320px; text-align: center;">
+    <ThemedShot client:load name="koreader-highlight" alt="A line highlighted in KOReader on the device" className="w-full block" />
+    <figcaption style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.7;">
+      Highlighting a line in KOReader — it syncs to the detail page above.
+    </figcaption>
+  </figure>
+
   <h3>Offline-first</h3>
   <p>
     When your server is unreachable, sync silently skips with zero delay — no freezing, no error
@@ -101,9 +117,9 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <ul>
     <li><strong>Open a book</strong> — pulls the latest position from the server. If the server is ahead, jumps there.</li>
     <li><strong>Every 50 page turns</strong> — heartbeat push of current position.</li>
-    <li><strong>Close the lid (suspend)</strong> — pushes position and records a reading session.</li>
+    <li><strong>Close the lid (suspend)</strong> — pushes position and highlights, and records a reading session.</li>
     <li><strong>Open the lid (resume)</strong> — starts a new session, pushes position, flushes any queued offline sessions.</li>
-    <li><strong>Close a book</strong> — pushes final position and records a session.</li>
+    <li><strong>Close a book</strong> — pushes final position and highlights, and records a session.</li>
   </ul>
   <p>Sessions shorter than 10 seconds are filtered out.</p>
 

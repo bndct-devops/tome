@@ -61,6 +61,12 @@ Pick **Calibre-Web** if you want the largest ecosystem and don't mind the dated 
 ![Stats](docs/screenshots/stats.png)
 *Reading activity, streaks, session history, and time-of-day patterns.*
 
+![Highlighting in KOReader](docs/screenshots/tomesync-koreader-highlight.png)
+*Highlight and annotate on your e-reader…*
+
+![Highlights in Tome](docs/screenshots/koreader-highlights.png)
+*…and they sync to Tome via the TomeSync plugin — collected per book with the text, your note, and the chapter.*
+
 ### Mobile
 
 Tome works as a PWA on mobile. Pin it to your home screen for a native app feel.
