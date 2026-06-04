@@ -54,6 +54,8 @@ TOME_PUBLIC_URL=https://tome.example.com`
     <li>Set the <strong>callback / redirect URL</strong> to
       <code>https://tome.example.com/api/auth/oidc/callback</code> (your public Tome URL + that path).</li>
     <li>Keep it a <strong>confidential</strong> client (it has a secret) and enable <strong>PKCE</strong>.</li>
+    <li><em>Optional</em> — set a client logo: paste <code>https://tome.bndct.sh/tome-icon.png</code>,
+      or download it and host it yourself (recommended if you'd rather not depend on this site staying up).</li>
     <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.</li>
     <li>Create groups for your roles — e.g. <code>tome_admins</code> and <code>tome_members</code> — and
       add your users. If your IdP gates access per-client (Pocket ID's "Allowed User Groups"), include

@@ -19,8 +19,9 @@ KOReader plugin, and API tokens are all unchanged. The IdP's `groups` claim maps
 1. Create an OIDC client named e.g. `Tome`.
 2. Callback / redirect URL: `https://tome.example.com/api/auth/oidc/callback` (your public Tome URL + that path).
 3. Keep it a **confidential** client (has a secret) and enable **PKCE**.
-4. Copy the **Client ID** and **Client Secret**.
-5. Create groups for your roles — e.g. `tome_admins`, `tome_members` — and assign users. If your IdP
+4. *Optional* — set a client logo: use `https://tome.bndct.sh/tome-icon.png`, or download it and host it yourself.
+5. Copy the **Client ID** and **Client Secret**.
+6. Create groups for your roles — e.g. `tome_admins`, `tome_members` — and assign users. If your IdP
    gates access per-client (Pocket ID's "Allowed User Groups"), include those groups so the `groups`
    claim is emitted.
 
