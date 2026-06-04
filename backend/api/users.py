@@ -95,6 +95,8 @@ def set_book_status(
     db.refresh(row)
 
     # ── Sync position to TomeSyncPosition (for KOReader pickup) ─────────────
+    # progress_pct is a 0–1 fraction end-to-end (API field, UserBookStatus.progress_pct,
+    # and TomeSyncPosition.percentage), so no scaling is needed.
     if body.progress_pct is not None or body.cfi is not None:
         pos = db.query(TomeSyncPosition).filter(
             TomeSyncPosition.user_id == current_user.id,
@@ -102,7 +104,7 @@ def set_book_status(
         ).first()
         if pos:
             if body.progress_pct is not None:
-                pos.percentage = body.progress_pct / 100.0
+                pos.percentage = body.progress_pct
             if body.cfi is not None:
                 pos.progress = body.cfi
             pos.device = "web"
@@ -111,7 +113,7 @@ def set_book_status(
             db.add(TomeSyncPosition(
                 user_id=current_user.id,
                 book_id=book_id,
-                percentage=(body.progress_pct or 0) / 100.0,
+                percentage=(body.progress_pct or 0),
                 progress=body.cfi,
                 device="web",
             ))
@@ -154,7 +156,7 @@ def _track_web_reading_session(
     cutoff: datetime = now - timedelta(minutes=5)
 
     if status == "reading" and progress_pct is not None:
-        progress_fraction: float = progress_pct / 100.0
+        progress_fraction: float = progress_pct
 
         # Look for a recent open session to extend
         recent: Optional[ReadingSession] = (
