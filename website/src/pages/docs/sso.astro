@@ -4,6 +4,7 @@ import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
 import Steps from '../../components/Steps.astro'
+import UnreleasedNote from '../../components/UnreleasedNote.astro'
 
 const envSnippet = `TOME_OIDC_ENABLED=true
 TOME_OIDC_ISSUER=https://auth.example.com
@@ -26,6 +27,7 @@ TOME_PUBLIC_URL=https://tome.example.com`
     Authelia, Authentik, Keycloak, Zitadel, Google, and more. The examples below use Pocket ID, but
     the Tome side is standard OIDC.
   </p>
+  <UnreleasedNote />
   <DocsMeta />
 
   <Callout variant="info" title="SSO is additive and off by default">
