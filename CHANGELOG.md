@@ -72,6 +72,13 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- The PWA service worker no longer swallows full-page navigations to server
+  routes. Its SPA navigation fallback was serving the cached app shell for *any*
+  navigation, including `/api/*` and `/opds/*` — so on an installed/cached client
+  the SSO handshake silently failed (the redirect to `/api/auth/oidc/login` and
+  the provider's return to the callback both got the app shell, dropping you back
+  to the dashboard instead of completing sign-in). The navigation fallback now
+  excludes `/api` and `/opds`.
 - Finishing a book on KOReader is now permanent. Previously, opening a finished
   book again (even briefly) could push a lower position percentage and silently
   un-finish it — dropping the status back to "reading" and erasing the 100%

@@ -39,6 +39,13 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // The SPA navigation fallback serves index.html for navigations — but it
+        // must NOT swallow full-page navigations to server routes, or the service
+        // worker returns the app shell instead of letting them reach the backend.
+        // This broke the OIDC handshake (window.location → /api/auth/oidc/login
+        // and the IdP's redirect to /callback both got the SPA shell), and would
+        // do the same to any /api or /opds navigation (downloads, plugin, feeds).
+        navigateFallbackDenylist: [/^\/api\//, /^\/opds\//],
         // Cache static assets; skip large book files
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
