@@ -57,6 +57,21 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- Finishing a book on KOReader is now permanent. Previously, opening a finished
+  book again (even briefly) could push a lower position percentage and silently
+  un-finish it — dropping the status back to "reading" and erasing the 100%
+  mark. Completion is now sticky: once a book reaches "read", any later position
+  update from the device leaves the status and progress untouched. The device's
+  resume position (used to reopen the book at the right place) still updates as
+  normal, so returning to a finished book still opens at the last page. The same
+  fix applies to reading sessions flushed from the plugin's offline queue.
+  Finishing always normalizes progress to exactly 100%.
+- Web reading progress now syncs to KOReader at the correct scale. Progress
+  fractions are 0–1 throughout the stack, but the web reader was mistakenly
+  dividing an already-fractional value by 100 before writing to the sync
+  position table — so marking a book finished on the web synced as ~1% to
+  KOReader, and mid-read positions appeared near the start of the book.
+  Web and device positions now match.
 - TomeSync (KOReader) sync silently failing on HTTPS deployments behind a
   reverse proxy (also released as the 1.2.1 hotfix). The plugin baked its server
   URL from the scheme the app server saw, which is `http` when TLS is terminated

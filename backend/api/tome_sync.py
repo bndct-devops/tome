@@ -210,27 +210,37 @@ def put_position(
         )
         db.add(pos)
 
-    # Keep UserBookStatus in sync
+    # Keep UserBookStatus in sync.
+    # Completion is sticky: a "read" book stays read/100% regardless of what the
+    # device reports next (e.g. opening the book again from page 1).
+    # Resume position always tracks the device (last-write-wins) — that is
+    # handled above on the TomeSyncPosition row, not here.
     status_row = (
         db.query(UserBookStatus)
         .filter(UserBookStatus.user_id == user.id, UserBookStatus.book_id == book_id)
         .first()
     )
     if status_row:
-        status_row.progress_pct = pct
+        # Resume CFI tracks the device unconditionally (last-write-wins).
         if body.progress:
             status_row.cfi = body.progress
-        if status_row.status == "unread" and pct > 0:
-            status_row.status = "reading"
-        elif pct >= 0.99:
-            status_row.status = "read"
+        if status_row.status == "read":
+            # Sticky: leave status and progress_pct alone once finished.
+            pass
+        else:
+            status_row.progress_pct = pct
+            if status_row.status == "unread" and pct > 0:
+                status_row.status = "reading"
+            elif pct >= 0.99:
+                status_row.status = "read"
+                status_row.progress_pct = 1.0
     else:
         new_status = "read" if pct >= 0.99 else ("reading" if pct > 0 else "unread")
         db.add(UserBookStatus(
             user_id=user.id,
             book_id=book_id,
             status=new_status,
-            progress_pct=pct,
+            progress_pct=1.0 if new_status == "read" else pct,
             cfi=body.progress,
         ))
 
@@ -293,7 +303,9 @@ def post_session(
     db.add(session)
 
     # Keep UserBookStatus in sync — catches up when position PUTs failed
-    # but queued sessions flush later
+    # but queued sessions flush later.
+    # Completion is sticky: once a book is "read", a later session (e.g. a
+    # re-read) cannot drag it back to "reading" or lower its progress.
     if body.progress_end is not None:
         pct = body.progress_end
         status_row = (
@@ -302,19 +314,24 @@ def post_session(
             .first()
         )
         if status_row:
-            if pct > (status_row.progress_pct or 0):
-                status_row.progress_pct = pct
-            if status_row.status == "unread" and pct > 0:
-                status_row.status = "reading"
-            elif pct >= 0.99:
-                status_row.status = "read"
+            if status_row.status == "read":
+                # Sticky: a later session never un-finishes a completed book.
+                pass
+            else:
+                if pct > (status_row.progress_pct or 0):
+                    status_row.progress_pct = pct
+                if status_row.status == "unread" and pct > 0:
+                    status_row.status = "reading"
+                elif pct >= 0.99:
+                    status_row.status = "read"
+                    status_row.progress_pct = 1.0
         else:
             new_status = "read" if pct >= 0.99 else ("reading" if pct > 0 else "unread")
             db.add(UserBookStatus(
                 user_id=user.id,
                 book_id=body.book_id,
                 status=new_status,
-                progress_pct=pct,
+                progress_pct=1.0 if new_status == "read" else pct,
             ))
 
     db.commit()
