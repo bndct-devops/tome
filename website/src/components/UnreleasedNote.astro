@@ -1,0 +1,12 @@
+---
+// Marks a docs page/section whose feature is on the rolling `:main` image but
+// not yet in a tagged release (`:latest`). The docs site deploys from `main`,
+// which can run ahead of `:latest` — drop this on a page that documents an
+// unreleased feature, and remove it when the feature ships in a release.
+import Callout from './Callout.astro'
+---
+<Callout variant="warning" title="Not in the latest release yet">
+  This documents a feature on the rolling <code>:main</code> image. It reaches the
+  <code>:latest</code> tag at the next tagged release — if you run <code>:latest</code>,
+  it won't appear until then.
+</Callout>
