@@ -29,6 +29,7 @@ from backend.api import series as series_api
 from backend.api import send_to_device
 from backend.api import wishlist as wishlist_api
 from backend.api import notifications as notifications_api
+from backend.api import oidc as oidc_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
@@ -67,6 +68,18 @@ async def lifespan(app: FastAPI):
                 "  SELECT user_id FROM user_permissions WHERE can_upload = 1"
                 ")"
             ))
+            conn.commit()
+        # OIDC/SSO provenance columns. auth_source defaults 'local' so every
+        # pre-existing account stays a password login; oidc_sub/oidc_issuer are
+        # NULL until an account is linked or provisioned via SSO.
+        if "auth_source" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN auth_source VARCHAR(16) NOT NULL DEFAULT 'local'"))
+            conn.commit()
+        if "oidc_sub" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN oidc_sub VARCHAR(255)"))
+            conn.commit()
+        if "oidc_issuer" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN oidc_issuer VARCHAR(255)"))
             conn.commit()
         # Migrate api_keys.key (plaintext) → key_hash (sha256) + key_prefix (display)
         # so a DB leak doesn't compromise any KOReader plugin install. One-way: existing
@@ -463,6 +476,23 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # SessionMiddleware backs the OIDC handshake (transient state/nonce/PKCE).
+    # Cookie carries only short-lived OAuth state; cleared after the callback.
+    # Mark it Secure when the public origin is https so it survives a proxied
+    # TLS deployment without breaking plain-http local dev.
+    from starlette.middleware.sessions import SessionMiddleware
+    settings.ensure_dirs()
+    _session_secure = (
+        (settings.oidc_redirect_url or settings.public_url or "").lower().startswith("https")
+    )
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.resolve_secret_key(),
+        same_site="lax",
+        https_only=_session_secure,
+        max_age=600,
+    )
+
     # API routes
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
@@ -486,6 +516,7 @@ def create_app() -> FastAPI:
     # Wishlist + notifications — static paths registered before /{id} routes
     app.include_router(wishlist_api.router, prefix="/api")
     app.include_router(notifications_api.router, prefix="/api")
+    app.include_router(oidc_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

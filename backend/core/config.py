@@ -61,6 +61,39 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
 
+    # ── OIDC / SSO (env TOME_OIDC_*) ──────────────────────────────────────────
+    # Additive single sign-on. Local username/password login always stays. The
+    # callback mints the SAME Tome JWT, so all downstream auth is unchanged.
+    oidc_enabled: bool = False              # kill switch (default off)
+    oidc_issuer: str | None = None         # e.g. https://auth.example.com (Authlib appends /.well-known/openid-configuration)
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    # Explicit public callback URL override. Highest priority; otherwise derived
+    # from TOME_PUBLIC_URL, else the request origin (honouring X-Forwarded-Proto).
+    # See backend/core/urls.py — must be the exact URL registered at the IdP.
+    oidc_redirect_url: str | None = None
+    oidc_scopes: str = "openid profile email groups"
+    oidc_button_label: str = "Sign in with SSO"
+    oidc_auto_create: bool = True          # provision unknown IdP users on first login
+    oidc_groups_claim: str = "groups"      # claim carrying the user's group memberships
+    oidc_admin_group: str | None = None    # group → Tome "admin"
+    oidc_member_group: str | None = None   # group → Tome "member"
+    oidc_guest_group: str | None = None    # group → Tome "guest"
+    oidc_default_role: str = "guest"       # role when no group matches
+    oidc_role_sync: str = "login"          # "login" (IdP is truth each login) | "create" (set once)
+    oidc_allowed_group: str | None = None  # if set, membership required to log in at all
+    oidc_post_login_redirect: str = "/auth/callback"  # frontend route that receives #token
+
+    @property
+    def oidc_configured(self) -> bool:
+        """True only when SSO is enabled AND fully configured."""
+        return bool(
+            self.oidc_enabled
+            and self.oidc_issuer
+            and self.oidc_client_id
+            and self.oidc_client_secret
+        )
+
     @property
     def smtp_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)

@@ -26,6 +26,7 @@ Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 - **Bindery** -- an inbox for incoming books. Drop files in a folder, review pre-filled metadata, accept into your library. Optional auto-import on a schedule. [Details](docs/bindery-deployment.md)
 - **Scribe** -- a Claude Code Skill for conversational batch ingest, metadata refresh, series-wide audits, and series-level annotation (arc breakdowns, publication status). Uses API tokens for auth and talks to Tome over HTTP. [Details](docs/scribe.md)
 - **OPDS feed** -- browse and download from KOReader, Panels, Chunky, or any OPDS client
+- **SSO (OIDC)** -- optional single sign-on against any OpenID Connect provider (Pocket ID, Authelia, Authentik, Keycloak, …) with group-to-role mapping and account linking. Local login always stays. [Details](docs/sso.md)
 - **Themes** -- 3 built-in (light, dark, amber) plus fully custom themes via 10-value hex palette
 
 Plus: series browsing with story arcs and publication status, bulk operations, libraries with icons, shelves (saved filters), Quick Connect (6-char code sign-in), OPDS PINs (e-ink-friendly passwords), role-based access control, per-user book visibility, user-level API tokens, audit logging, and a bulk import script. [Full feature list](docs/features.md)

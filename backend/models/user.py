@@ -24,6 +24,12 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="guest")
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Auth provenance. "local" = username/password (default); "oidc" = provisioned
+    # or linked via SSO. OIDC role-sync only ever touches "oidc" users, so a local
+    # admin is always a break-glass login regardless of IdP state.
+    auth_source: Mapped[str] = mapped_column(String(16), nullable=False, default="local")
+    oidc_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    oidc_issuer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -41,6 +47,11 @@ class User(Base):
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification", back_populates="user", cascade="all, delete-orphan"
     )
+
+    @property
+    def oidc_linked(self) -> bool:
+        """True when an IdP identity is attached (SSO login resolves here)."""
+        return self.oidc_sub is not None
 
 
 class UserPermission(Base):

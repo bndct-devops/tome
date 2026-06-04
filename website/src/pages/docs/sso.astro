@@ -1,0 +1,167 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+
+const envSnippet = `TOME_OIDC_ENABLED=true
+TOME_OIDC_ISSUER=https://auth.example.com
+TOME_OIDC_CLIENT_ID=<from your IdP>
+TOME_OIDC_CLIENT_SECRET=<from your IdP>
+TOME_OIDC_ADMIN_GROUP=tome_admins
+TOME_OIDC_MEMBER_GROUP=tome_members
+TOME_OIDC_DEFAULT_ROLE=guest
+# Behind a reverse proxy, pin your public origin so the redirect is correct:
+TOME_PUBLIC_URL=https://tome.example.com`
+---
+<DocsLayout title="Single sign-on (OIDC)" description="Sign in to Tome with an external OpenID Connect provider (Pocket ID, Authelia, Authentik, Keycloak, …). Group-to-role mapping, account linking, and a reverse-proxy guide.">
+  <SectionHero section="integrations" />
+  <h1>Single sign-on (OIDC)</h1>
+  <p>
+    Tome can authenticate against an external <strong>OpenID Connect</strong> identity provider, so
+    you and your users sign in with the same identity (and passkeys, if your IdP supports them) you
+    use everywhere else. It works with any compliant OIDC provider —
+    <a href="https://pocket-id.org" target="_blank" rel="noopener noreferrer">Pocket ID</a>,
+    Authelia, Authentik, Keycloak, Zitadel, Google, and more. The examples below use Pocket ID, but
+    the Tome side is standard OIDC.
+  </p>
+  <DocsMeta />
+
+  <Callout variant="info" title="SSO is additive and off by default">
+    Local username/password login always stays available. SSO is opt-in behind
+    <code>TOME_OIDC_ENABLED</code> (default <code>false</code>) — set it plus your issuer and client
+    credentials to turn it on. At least one <strong>local admin</strong> always remains as a
+    break-glass login, regardless of your IdP's state.
+  </Callout>
+
+  <h2>How it works</h2>
+  <p>
+    Tome acts as an OIDC <em>relying party</em>. When a user clicks <strong>Sign in with SSO</strong>,
+    Tome redirects to your IdP; after they authenticate, the IdP redirects back and Tome mints its
+    normal session token. Because the callback issues the <em>same</em> token as a password login,
+    everything downstream — the API, OPDS, the KOReader plugin, API tokens — is unchanged.
+  </p>
+  <p>
+    The IdP's <strong>groups</strong> claim maps to a Tome role (admin / member / guest), so you
+    manage access from your identity provider.
+  </p>
+
+  <h2>1. Register Tome at your IdP</h2>
+  <p>In your provider, create an OIDC client/application for Tome:</p>
+  <Steps>
+    <li>Create a new <strong>OIDC client</strong> named e.g. <code>Tome</code>.</li>
+    <li>Set the <strong>callback / redirect URL</strong> to
+      <code>https://tome.example.com/api/auth/oidc/callback</code> (your public Tome URL + that path).</li>
+    <li>Keep it a <strong>confidential</strong> client (it has a secret) and enable <strong>PKCE</strong>.</li>
+    <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.</li>
+    <li>Create groups for your roles — e.g. <code>tome_admins</code> and <code>tome_members</code> — and
+      add your users. If your IdP gates access per-client (Pocket ID's "Allowed User Groups"), include
+      those groups so the <code>groups</code> claim is emitted.</li>
+  </Steps>
+
+  <Callout variant="tip" title="Pocket ID specifics">
+    In Pocket ID, a group's <strong>Name</strong> field (not the Friendly Name) is what lands in the
+    <code>groups</code> claim — match it exactly to your Tome config (e.g. <code>tome_admins</code>).
+    Pocket ID emits groups via the <code>groups</code> claim, which is Tome's default.
+  </Callout>
+
+  <h2>2. Configure Tome</h2>
+  <p>Set these environment variables on your Tome container and restart:</p>
+  <pre><code>{envSnippet}</code></pre>
+
+  <table>
+    <thead><tr><th>Variable</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>TOME_OIDC_ENABLED</code></td><td>Master switch (default <code>false</code>).</td></tr>
+      <tr><td><code>TOME_OIDC_ISSUER</code></td><td>Your IdP base URL. Tome appends <code>/.well-known/openid-configuration</code>.</td></tr>
+      <tr><td><code>TOME_OIDC_CLIENT_ID</code> / <code>_SECRET</code></td><td>Credentials from the IdP client.</td></tr>
+      <tr><td><code>TOME_OIDC_REDIRECT_URL</code></td><td>Explicit callback URL. Optional — derived from <code>TOME_PUBLIC_URL</code> / the request origin otherwise. See <a href="#proxy">behind a proxy</a>.</td></tr>
+      <tr><td><code>TOME_OIDC_ADMIN_GROUP</code></td><td>Group whose members become Tome <strong>admins</strong>.</td></tr>
+      <tr><td><code>TOME_OIDC_MEMBER_GROUP</code></td><td>Group → <strong>member</strong>.</td></tr>
+      <tr><td><code>TOME_OIDC_GUEST_GROUP</code></td><td>Group → <strong>guest</strong>.</td></tr>
+      <tr><td><code>TOME_OIDC_DEFAULT_ROLE</code></td><td>Role when no group matches (default <code>guest</code>).</td></tr>
+      <tr><td><code>TOME_OIDC_ROLE_SYNC</code></td><td><code>login</code> (IdP is truth every login) or <code>create</code> (role set once, then editable in Tome). Default <code>login</code>.</td></tr>
+      <tr><td><code>TOME_OIDC_AUTO_CREATE</code></td><td>Provision unknown IdP users on first login (default <code>true</code>). Set <code>false</code> to allow only pre-existing/linked accounts.</td></tr>
+      <tr><td><code>TOME_OIDC_ALLOWED_GROUP</code></td><td>If set, membership is required to sign in at all.</td></tr>
+      <tr><td><code>TOME_OIDC_GROUPS_CLAIM</code></td><td>Claim carrying group membership (default <code>groups</code>).</td></tr>
+      <tr><td><code>TOME_OIDC_BUTTON_LABEL</code></td><td>Login-page button text (default <code>Sign in with SSO</code>).</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    With SSO enabled, a <strong>Sign in with SSO</strong> button appears on the login page. Done.
+  </p>
+
+  <h2>Group → role mapping</h2>
+  <p>On each login Tome reads the <code>groups</code> claim and resolves a role, admin first:</p>
+  <table>
+    <thead><tr><th>If the user is in…</th><th>Tome role</th></tr></thead>
+    <tbody>
+      <tr><td><code>TOME_OIDC_ADMIN_GROUP</code></td><td>admin</td></tr>
+      <tr><td><code>TOME_OIDC_MEMBER_GROUP</code></td><td>member</td></tr>
+      <tr><td><code>TOME_OIDC_GUEST_GROUP</code></td><td>guest</td></tr>
+      <tr><td>none of the above</td><td><code>TOME_OIDC_DEFAULT_ROLE</code></td></tr>
+    </tbody>
+  </table>
+  <Callout variant="info" title="Role-sync never touches local accounts">
+    With <code>ROLE_SYNC=login</code>, group changes at the IdP apply on the next login — but only to
+    SSO accounts. A local admin's role is never changed by the IdP, so a misconfigured group can't lock
+    you out of your own server.
+  </Callout>
+
+  <h2 id="linking">Adding SSO to an existing account</h2>
+  <p>
+    Already have a Tome account with your library, reading progress, and shelves? Link SSO to it
+    instead of creating a second account:
+  </p>
+  <Steps>
+    <li>Sign in to your existing account with your <strong>password</strong> (not SSO).</li>
+    <li>Go to <strong>Settings → Single Sign-On → Link SSO</strong> and authenticate at your IdP.</li>
+    <li>From then on, <strong>Sign in with SSO</strong> lands you in that same account. Your password keeps working too.</li>
+  </Steps>
+  <Callout variant="warning" title="Link first — or you'll get a duplicate">
+    If you sign in with SSO <em>before</em> linking, Tome auto-provisions a brand-new account (your IdP
+    identity isn't attached to your existing one yet). Always link from Settings first when migrating an
+    existing account. Tome only auto-links by email when your IdP explicitly marks the email
+    <code>verified</code>; many providers (including Pocket ID) don't, which is why explicit linking
+    exists.
+  </Callout>
+
+  <h2 id="proxy">Behind a reverse proxy</h2>
+  <p>
+    If Tome runs behind a TLS-terminating reverse proxy (Caddy, Traefik, Pangolin, nginx, …), the app
+    server sees plain <code>http</code> internally. Left unhandled, Tome would hand your IdP an
+    <code>http://</code> redirect URL that won't match the <code>https://</code> one you registered, and
+    the login would fail.
+  </p>
+  <p>Pick one:</p>
+  <ul>
+    <li>Set <code>TOME_PUBLIC_URL=https://tome.example.com</code> (recommended — it also pins the KOReader plugin URL), <em>or</em></li>
+    <li>Set <code>TOME_OIDC_REDIRECT_URL=https://tome.example.com/api/auth/oidc/callback</code> explicitly, <em>or</em></li>
+    <li>Ensure your proxy forwards <code>X-Forwarded-Proto: https</code> (Tome honors it).</li>
+  </ul>
+  <Callout variant="tip" title="Match the registered callback exactly">
+    Whatever public URL you use, the resulting callback
+    (<code>&lt;public-url&gt;/api/auth/oidc/callback</code>) must <strong>exactly</strong> match a
+    callback URL registered in your IdP client.
+  </Callout>
+
+  <h2>Logout</h2>
+  <p>
+    Logging out of Tome clears your Tome session only — it does not end your IdP session. If your IdP
+    still has an active session, the next <strong>Sign in with SSO</strong> may sign you straight back in
+    without a fresh prompt. To fully sign out, also log out at your identity provider.
+  </p>
+
+  <h2>Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Symptom</th><th>Likely cause</th></tr></thead>
+    <tbody>
+      <tr><td>Button doesn't appear</td><td><code>TOME_OIDC_ENABLED</code> not <code>true</code>, or issuer/client not all set.</td></tr>
+      <tr><td>IdP rejects the redirect</td><td>Registered callback doesn't match Tome's (often http vs https behind a proxy — see above).</td></tr>
+      <tr><td>Everyone lands as <code>guest</code></td><td>The <code>groups</code> claim isn't arriving — check the client emits it and <code>TOME_OIDC_GROUPS_CLAIM</code> matches.</td></tr>
+      <tr><td>A duplicate account appeared</td><td>Signed in via SSO before linking — see <a href="#linking">account linking</a>.</td></tr>
+    </tbody>
+  </table>
+</DocsLayout>

@@ -1,12 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { LogIn, Eye, EyeOff, AlertCircle, Smartphone, X, Clock } from 'lucide-react'
+import { LogIn, Eye, EyeOff, AlertCircle, Smartphone, X, Clock, KeyRound } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ThemePill } from '@/components/ThemeToggle'
 import { BookAnimation } from '@/components/BookAnimation'
 import { cn } from '@/lib/utils'
 
 const API_BASE = '/api'
+
+// Human-readable messages for the ?sso_error= codes the OIDC callback bounces back.
+const SSO_ERRORS: Record<string, string> = {
+  misconfigured: 'SSO is misconfigured on the server (redirect URL). Contact your admin.',
+  disabled: 'SSO is not enabled.',
+  exchange: 'SSO sign-in could not be completed. Please try again.',
+  claims: 'SSO sign-in failed: no identity information was returned.',
+  not_allowed: 'Your account is not permitted to sign in to Tome.',
+  no_account: 'No Tome account is linked to this identity, and self-signup is disabled.',
+  inactive: 'Your Tome account is disabled.',
+  oidc_error: 'SSO sign-in failed. Please try again.',
+  callback: 'SSO sign-in did not complete. Please try again.',
+}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init)
@@ -26,6 +39,22 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // SSO (OIDC) state
+  const [sso, setSso] = useState<{ enabled: boolean; button_label: string }>({ enabled: false, button_label: 'Sign in with SSO' })
+
+  useEffect(() => {
+    apiFetch<{ enabled: boolean; button_label: string }>('/auth/oidc/config')
+      .then(setSso)
+      .catch(() => {})
+    // Surface an error bounced back from the OIDC callback (?sso_error=…)
+    const reason = new URLSearchParams(window.location.search).get('sso_error')
+    if (reason) {
+      setError(SSO_ERRORS[reason] ?? 'SSO sign-in failed. Please try again.')
+      // Clean the query string so a refresh doesn't re-show it
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   // Quick Connect state
   const [qcMode, setQcMode] = useState(false)
   const [qcCode, setQcCode] = useState<string | null>(null)
@@ -34,8 +63,6 @@ export function LoginPage() {
   const [qcLoading, setQcLoading] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  if (user) return <Navigate to="/" replace />
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -123,6 +150,11 @@ export function LoginPage() {
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [])
+
+  // Redirect AFTER all hooks have run — an early return before later hooks
+  // (e.g. when a stale session resolves user null→set while mounted) trips
+  // React's "rendered fewer hooks than expected".
+  if (user) return <Navigate to="/" replace />
 
   const fmtTime = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 
@@ -296,8 +328,22 @@ export function LoginPage() {
                 </button>
               </form>
 
-              {/* Quick Connect button */}
-              <div className="mt-4 pt-4 border-t border-border">
+              {/* SSO + Quick Connect buttons */}
+              <div className="mt-4 pt-4 border-t border-border space-y-3">
+                {sso.enabled && (
+                  <button
+                    onClick={() => { window.location.href = `${API_BASE}/auth/oidc/login` }}
+                    className={cn(
+                      'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg',
+                      'border border-border text-sm font-medium text-foreground',
+                      'hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm',
+                      'transition-all duration-200'
+                    )}
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    {sso.button_label}
+                  </button>
+                )}
                 <button
                   onClick={startQuickConnect}
                   className={cn(

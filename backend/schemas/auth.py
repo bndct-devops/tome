@@ -55,6 +55,8 @@ class UserOut(BaseModel):
     is_admin: bool
     role: str = "guest"
     must_change_password: bool = False
+    auth_source: str = "local"  # "local" | "oidc" — drives "signed in via SSO" UI
+    oidc_linked: bool = False   # an IdP identity is attached (can sign in via SSO)
     created_at: datetime
     permissions: Optional[PermissionsOut] = None
 

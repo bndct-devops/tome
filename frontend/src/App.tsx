@@ -8,6 +8,7 @@ import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { ForcePasswordChange } from '@/components/ForcePasswordChange'
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal'
 import { LoginPage } from '@/pages/LoginPage'
+import { OidcCallbackPage } from '@/pages/OidcCallbackPage'
 import { SetupPage } from '@/pages/SetupPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { BookDetailPage } from '@/pages/BookDetailPage'
@@ -73,6 +74,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/setup" element={setupNeeded ? <SetupPage /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={setupNeeded ? <Navigate to="/setup" replace /> : <LoginPage />} />
+        <Route path="/auth/callback" element={<OidcCallbackPage />} />
         <Route
           path="/"
           element={

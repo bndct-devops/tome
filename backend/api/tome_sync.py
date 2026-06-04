@@ -10,7 +10,6 @@ from datetime import datetime
 from typing import Optional
 
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
@@ -20,6 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from backend.core.config import settings
 from backend.core.database import get_db
+from backend.core.urls import public_base_url
 from backend.core.permissions import user_can_see_book
 from backend.core.security import get_current_user
 from backend.models.user import User
@@ -730,21 +730,10 @@ def _baked_server_url(request: Request, explicit: str | None) -> str:
     the forwarded scheme bakes ``https`` instead. When the header is absent
     (plain HTTP / LAN / localhost) the scheme is left untouched, so those
     deployments bake exactly what they did before.
+
+    Shared with the OIDC redirect URI via ``backend.core.urls.public_base_url``.
     """
-    if explicit:
-        return explicit.rstrip("/")
-    if settings.public_url:
-        return settings.public_url.rstrip("/")
-    base = str(request.base_url).rstrip("/")
-    forwarded = request.headers.get("x-forwarded-proto")
-    if forwarded:
-        # May be a comma-separated chain (e.g. "https,http"); the client-facing
-        # scheme is the first hop.
-        proto = forwarded.split(",")[0].strip().lower()
-        if proto in ("http", "https"):
-            parts = urlsplit(base)
-            base = urlunsplit((proto, parts.netloc, parts.path, parts.query, parts.fragment))
-    return base.rstrip("/")
+    return public_base_url(request, explicit)
 
 
 @router.get("/plugin/koreader")

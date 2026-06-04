@@ -7,6 +7,21 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Single sign-on (OIDC).** Tome can now authenticate against an external
+  OpenID Connect identity provider (Pocket ID, Authelia, Authentik, Keycloak,
+  Zitadel, Google, …). When enabled, a configurable "Sign in with SSO" button
+  appears on the login page; signing in provisions a Tome account and maps the
+  provider's groups to Tome roles (admin / member / guest). Existing accounts can
+  attach SSO via **Settings → Single Sign-On → Link SSO**, so you keep your
+  library and reading history while gaining passkey login. Local username/password
+  login always stays available, and at least one local admin remains a break-glass
+  login regardless of identity-provider state. Off by
+  default — set `TOME_OIDC_ENABLED=true` plus issuer/client credentials to turn
+  it on. New env vars: `TOME_OIDC_ENABLED`, `TOME_OIDC_ISSUER`,
+  `TOME_OIDC_CLIENT_ID`, `TOME_OIDC_CLIENT_SECRET`, `TOME_OIDC_REDIRECT_URL`,
+  `TOME_OIDC_ADMIN_GROUP`, `TOME_OIDC_MEMBER_GROUP`, `TOME_OIDC_GUEST_GROUP`,
+  `TOME_OIDC_DEFAULT_ROLE`, `TOME_OIDC_AUTO_CREATE`, `TOME_OIDC_ALLOWED_GROUP`,
+  `TOME_OIDC_ROLE_SYNC`, `TOME_OIDC_BUTTON_LABEL` (see the SSO docs).
 - **Per-series reading stats** on the series detail page. A collapsible "Reading
   Stats" card now appears between the series header and the volume grid for any
   series you have at least one session on: total time read across all volumes, a
@@ -72,6 +87,9 @@ All notable changes to Tome are documented here. Format loosely follows
   position table — so marking a book finished on the web synced as ~1% to
   KOReader, and mid-read positions appeared near the start of the book.
   Web and device positions now match.
+- Login page could crash to a blank screen if you opened it while already signed
+  in (e.g. returning to a tab with a live session) — a stale-session edge that
+  tripped a React hooks error. The redirect now runs after the page's hooks.
 - TomeSync (KOReader) sync silently failing on HTTPS deployments behind a
   reverse proxy (also released as the 1.2.1 hotfix). The plugin baked its server
   URL from the scheme the app server saw, which is `http` when TLS is terminated

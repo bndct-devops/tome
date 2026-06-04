@@ -44,6 +44,38 @@ export function SettingsPage() {
     api.get<{ version: string }>('/health').then(r => setTomeVersion(r.version)).catch(() => {})
   }, [])
 
+  // ── SSO linking ────────────────────────────────────────────────────────────
+  const [ssoEnabled, setSsoEnabled] = useState(false)
+  const [ssoMsg, setSsoMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [linkingSso, setLinkingSso] = useState(false)
+  useEffect(() => {
+    api.get<{ enabled: boolean }>('/auth/oidc/config').then(r => setSsoEnabled(r.enabled)).catch(() => {})
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('sso_linked')) {
+      setSsoMsg({ ok: true, text: 'SSO sign-in linked to your account.' })
+      refreshUser()
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    const err = p.get('sso_link_error')
+    if (err) {
+      setSsoMsg({ ok: false, text: err === 'already_linked'
+        ? 'That SSO identity is already linked to another account.'
+        : 'Could not link SSO. Please try again.' })
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  async function handleLinkSso() {
+    setLinkingSso(true)
+    try {
+      const r = await api.post<{ login_url: string }>('/auth/oidc/link/start', {})
+      window.location.href = r.login_url
+    } catch {
+      setSsoMsg({ ok: false, text: 'Could not start SSO linking.' })
+      setLinkingSso(false)
+    }
+  }
+
   // ── Profile ───────────────────────────────────────────────────────────────
   const [profileUsername, setProfileUsername] = useState(user?.username ?? '')
   const [profileEmail, setProfileEmail] = useState(user?.email ?? '')
@@ -568,6 +600,12 @@ export function SettingsPage() {
             {/* Password */}
             <div className="p-5">
               <p className="text-sm font-medium text-foreground mb-3">Change Password</p>
+              {user?.auth_source === 'oidc' ? (
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  You're signed in via SSO. Manage your credentials at your identity
+                  provider — there's no Tome password to change.
+                </p>
+              ) : (
               <form onSubmit={handlePasswordSubmit} className="space-y-3 max-w-sm">
                 <PasswordField
                   label="Current password"
@@ -598,7 +636,47 @@ export function SettingsPage() {
                   </button>
                 </div>
               </form>
+              )}
             </div>
+
+            {/* SSO linking */}
+            {ssoEnabled && (
+              <div className="p-5">
+                <p className="text-sm font-medium text-foreground mb-3">Single Sign-On</p>
+                {ssoMsg && (
+                  <div className={cn(
+                    'flex items-center gap-2 text-sm p-3 rounded-lg mb-3 border',
+                    ssoMsg.ok
+                      ? 'text-green-500 bg-green-500/10 border-green-500/20'
+                      : 'text-destructive bg-destructive/10 border-destructive/20'
+                  )}>
+                    {ssoMsg.ok ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                    {ssoMsg.text}
+                  </div>
+                )}
+                {user?.oidc_linked ? (
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Check className="w-4 h-4 text-green-500" />
+                    Your account is linked to SSO — you can sign in with your identity provider.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-w-sm">
+                    <p className="text-sm text-muted-foreground">
+                      Link your identity provider to this account so you can sign in with SSO.
+                      Your existing login{user?.auth_source === 'oidc' ? '' : ' and password'} keep working.
+                    </p>
+                    <button
+                      onClick={handleLinkSso}
+                      disabled={linkingSso}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-muted transition-all disabled:opacity-40"
+                    >
+                      {linkingSso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+                      Link SSO
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quick Connect */}
             <div className="p-5">

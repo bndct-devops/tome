@@ -28,6 +28,8 @@ export interface AuthUser {
   created_at: string
   permissions: Permissions | null
   role: 'admin' | 'member' | 'guest'
+  auth_source?: 'local' | 'oidc'
+  oidc_linked?: boolean
 }
 
 export function isAdmin(user: AuthUser | null): boolean {
@@ -48,6 +50,7 @@ interface AuthContextValue {
   isImpersonating: boolean
   impersonatedUsername: string | null
   login: (username: string, password: string) => Promise<void>
+  loginWithToken: (token: string) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
   impersonate: (userId: number) => Promise<void>
@@ -87,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(username: string, password: string) {
     const data = await api.post<{ access_token: string }>('/auth/login', { username, password })
     localStorage.setItem('tome_token', data.access_token)
+    const me = await api.get<AuthUser>('/auth/me')
+    setUser(me)
+  }
+
+  // Store a token obtained out-of-band (e.g. the OIDC callback fragment) and
+  // hydrate the user. Mirrors login() minus the password exchange.
+  async function loginWithToken(token: string) {
+    localStorage.setItem('tome_token', token)
     const me = await api.get<AuthUser>('/auth/me')
     setUser(me)
   }
@@ -134,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user, loading,
       isImpersonating, impersonatedUsername,
-      login, logout, refreshUser,
+      login, loginWithToken, logout, refreshUser,
       impersonate, exitImpersonation,
     }}>
       {children}
