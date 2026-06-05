@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-06-05 — "Diary"
+
 ### Added
 - **Single sign-on (OIDC).** Tome can now authenticate against an external
   OpenID Connect identity provider (Pocket ID, Authelia, Authentik, Keycloak,
@@ -147,6 +149,11 @@ All notable changes to Tome are documented here. Format loosely follows
   none. Tags also now round-trip back out on download — embedded as `dc:subject`
   in EPUBs and `<Genre>` in CBZ `ComicInfo.xml`. Applies to newly imported books;
   existing books are not retroactively re-tagged.
+
+### Security
+- Updated `react-router` to 7.17.0, clearing four advisories (an RCE in vendored
+  turbo-stream plus three DoS / open-redirect issues). None were exploitable in
+  Tome's static SPA, but the alerts are now resolved. (#27)
 
 ## [1.2.0] — 2026-06-02 — "Press"
 
