@@ -72,6 +72,13 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- Books sent with **Send to Device** now sync their reading position back from
+  KOReader. They were emailed as a bare `Title.ext`, which the TomeSync resolver
+  couldn't reliably match to a library book (it failed with "Book not resolved").
+  Sent files are now named the same way KOReader names its OPDS downloads —
+  `Author - Vol. X — Title.ext` — so they resolve through the path that already
+  works for OPDS. No change for books already on a device; re-send to pick up the
+  new name (#25).
 - You can no longer lock yourself out by removing the last admin. Demoting,
   deactivating, or deleting a user is now refused with "Cannot remove the last
   admin" when they are the only remaining active admin — previously a single-user

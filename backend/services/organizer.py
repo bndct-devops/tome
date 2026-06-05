@@ -26,6 +26,31 @@ def sanitize_name(s: str) -> str:
     return s or 'Unknown'
 
 
+def koreader_style_name(
+    author: str | None,
+    title: str | None,
+    series_index: float | None,
+    file_format: str,
+) -> str:
+    """Name a book the way KOReader names its OPDS downloads.
+
+    KOReader saves OPDS files as ``Author - Vol. X — Title.ext`` (em dash before
+    the title), and TomeSync's ``/tome-sync/resolve`` is built around exactly that
+    shape. Naming Send-to-Device files the same way lets them resolve through the
+    path that already works for OPDS, rather than the bare ``Title.ext`` that only
+    reaches the fragile substring fallback. The volume number, when present, lets
+    resolve anchor on ``series_index`` independent of how the title is sanitized.
+    """
+    author_s = sanitize_name(author or "Unknown")
+    title_s = sanitize_name(title or "Unknown")
+    if series_index is not None:
+        vol = int(series_index) if series_index == int(series_index) else series_index
+        stem = f"{author_s} - Vol. {vol} — {title_s}"
+    else:
+        stem = f"{author_s} - {title_s}"
+    return f"{stem}.{file_format}"
+
+
 _VOL_IN_TITLE = re.compile(r',?\s*\b(?:vol\.?|volume|v)\s*\d+(?:\.\d+)?', re.IGNORECASE)
 
 

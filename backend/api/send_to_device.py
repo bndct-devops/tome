@@ -27,6 +27,7 @@ from backend.services.email import (
     send_test_email,
 )
 from backend.services.metadata_embed import get_baked_path
+from backend.services.organizer import koreader_style_name
 
 log = logging.getLogger(__name__)
 
@@ -229,7 +230,10 @@ def send_to_device(
         raise HTTPException(404, "Book file not found on disk")
 
     try:
-        send_book_to_device(device.email, book.title, baked, book_file.format)
+        attachment_name = koreader_style_name(
+            book.author, book.title, book.series_index, book_file.format
+        )
+        send_book_to_device(device.email, book.title, attachment_name, baked, book_file.format)
         status_str = "ok"
         error_str = None
     except FileTooLargeError as exc:
@@ -284,7 +288,7 @@ def bulk_send_to_device(
     if not device or device.user_id != user.id:
         raise HTTPException(404, "Device not found")
 
-    to_send: list[tuple[str, Path, str, Book]] = []
+    to_send: list[tuple[str, str, Path, str, Book]] = []
     errors: list[dict] = []
 
     for bid in body.book_ids:
@@ -300,15 +304,16 @@ def bulk_send_to_device(
         if not baked.exists():
             errors.append({"book_id": bid, "error": "File not found on disk"})
             continue
-        to_send.append((book.title, baked, bf.format, book))
+        name = koreader_style_name(book.author, book.title, book.series_index, bf.format)
+        to_send.append((book.title, name, baked, bf.format, book))
 
     sent = 0
     if to_send:
         results = send_books_bulk(
             device.email,
-            [(title, path, fmt) for title, path, fmt, _ in to_send],
+            [(title, name, path, fmt) for title, name, path, fmt, _ in to_send],
         )
-        for (title, error), (_, _, fmt, book) in zip(results, to_send):
+        for (title, error), (_, _, _, fmt, book) in zip(results, to_send):
             status_str = "ok" if error is None else "failed"
             audit(
                 db,

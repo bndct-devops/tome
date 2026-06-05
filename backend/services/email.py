@@ -7,7 +7,6 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 from backend.core.config import settings
-from backend.services.organizer import sanitize_name
 
 log = logging.getLogger(__name__)
 
@@ -58,10 +57,15 @@ def _connect() -> smtplib.SMTP:
 def _build_book_message(
     to_email: str,
     book_title: str,
+    attachment_name: str,
     file_path: Path,
     file_format: str,
 ) -> MIMEMultipart:
-    """Build a MIME message with the book file attached."""
+    """Build a MIME message with the book file attached.
+
+    ``book_title`` is the human subject line; ``attachment_name`` is the on-disk
+    filename the device saves (KOReader-style, so TomeSync can resolve it).
+    """
     file_size = file_path.stat().st_size
     if file_size > MAX_ATTACHMENT_BYTES:
         size_mb = file_size / (1024 * 1024)
@@ -76,7 +80,7 @@ def _build_book_message(
     mime_type = MIME_TYPES.get(file_format, "application/octet-stream")
     maintype, subtype = mime_type.split("/", 1)
 
-    filename = f"{sanitize_name(book_title)}.{file_format}"
+    filename = attachment_name
     with open(file_path, "rb") as f:
         attachment = MIMEApplication(f.read(), _subtype=subtype)
     attachment.add_header("Content-Disposition", "attachment", filename=filename)
@@ -88,11 +92,12 @@ def _build_book_message(
 def send_book_to_device(
     to_email: str,
     book_title: str,
+    attachment_name: str,
     file_path: Path,
     file_format: str,
 ) -> None:
     """Send a single book to a device email address."""
-    msg = _build_book_message(to_email, book_title, file_path, file_format)
+    msg = _build_book_message(to_email, book_title, attachment_name, file_path, file_format)
     conn = _connect()
     try:
         conn.sendmail(settings.smtp_from_address, [to_email], msg.as_string())
@@ -105,13 +110,13 @@ def send_book_to_device(
 
 def send_books_bulk(
     to_email: str,
-    books: list[tuple[str, Path, str]],
+    books: list[tuple[str, str, Path, str]],
 ) -> list[tuple[str, str | None]]:
     """Send multiple books over a single SMTP connection.
 
     Args:
         to_email: device email address
-        books: list of (book_title, file_path, file_format) tuples
+        books: list of (book_title, attachment_name, file_path, file_format) tuples
 
     Returns:
         list of (book_title, error_or_none) — None means success
@@ -119,9 +124,9 @@ def send_books_bulk(
     conn = _connect()
     results: list[tuple[str, str | None]] = []
     try:
-        for title, path, fmt in books:
+        for title, attachment_name, path, fmt in books:
             try:
-                msg = _build_book_message(to_email, title, path, fmt)
+                msg = _build_book_message(to_email, title, attachment_name, path, fmt)
                 conn.sendmail(settings.smtp_from_address, [to_email], msg.as_string())
                 results.append((title, None))
                 log.info("Bulk send: sent '%s' to %s", title, to_email)
