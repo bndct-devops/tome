@@ -481,6 +481,24 @@ def create_user(body: UserCreate, db: Session = Depends(get_db), admin: User = D
     )
 
 
+def _active_admin_count(db: Session, *, exclude_id: Optional[int] = None) -> int:
+    """Number of users who can currently log in and act as admin."""
+    q = db.query(User).filter(User.is_admin == True, User.is_active == True)  # noqa: E712
+    if exclude_id is not None:
+        q = q.filter(User.id != exclude_id)
+    return q.count()
+
+
+def _guard_last_admin(db: Session, user: User, *, demote: bool, deactivate: bool) -> None:
+    """Refuse a change that would leave the instance with no usable admin."""
+    if not (user.is_admin and user.is_active):
+        return
+    if not (demote or deactivate):
+        return
+    if _active_admin_count(db, exclude_id=user.id) == 0:
+        raise HTTPException(400, "Cannot remove the last admin")
+
+
 @router.put("/users/{user_id}", response_model=UserOut)
 def update_user(
     user_id: int,
@@ -497,6 +515,20 @@ def update_user(
         user.email = body.email
     if body.password is not None:
         user.hashed_password = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    # Work out the prospective admin/active state, then refuse if it would
+    # leave the instance with no usable admin (single-user self-demotion footgun).
+    if body.role is not None and body.is_admin is None:
+        would_be_admin = body.role == "admin"
+    elif body.is_admin is not None:
+        would_be_admin = body.is_admin or body.role == "admin"
+    else:
+        would_be_admin = user.is_admin
+    would_be_active = body.is_active if body.is_active is not None else user.is_active
+    _guard_last_admin(
+        db, user,
+        demote=not would_be_admin,
+        deactivate=not would_be_active,
+    )
     if body.is_active is not None:
         user.is_active = body.is_active
     # Keep is_admin and role in sync
@@ -560,6 +592,7 @@ def delete_user(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(404, "User not found")
+    _guard_last_admin(db, user, demote=True, deactivate=True)
     audit(db, "users.deleted", user_id=admin.id, username=admin.username,
           resource_type="user", resource_id=user.id, resource_title=user.username)
     db.delete(user)

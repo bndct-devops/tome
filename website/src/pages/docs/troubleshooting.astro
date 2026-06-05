@@ -76,12 +76,28 @@ import { withBase } from '../../lib/path'
 
   <h2>Forgot admin password</h2>
   <p>
-    Shell into the container and run the reset CLI:
+    Shell into the container and rewrite the password hash using Tome's own hashing, so it's
+    guaranteed compatible:
   </p>
-  <pre><code>docker exec -it tome python -m backend.cli reset-password &lt;username&gt;</code></pre>
+  <pre><code>docker exec -it tome python -c "from backend.core.security import hash_password; import sqlite3; c=sqlite3.connect('/data/tome.db'); c.execute('UPDATE users SET hashed_password=? WHERE username=?', (hash_password('NEW_PASSWORD'), 'USERNAME')); c.commit()"</code></pre>
   <p>
-    You'll be prompted for a new password. Existing JWTs survive (only the hash changed), so
-    other devices stay signed in.
+    Replace <code>NEW_PASSWORD</code> and <code>USERNAME</code>. Existing JWTs survive (only the
+    hash changed), so other devices stay signed in. Log in with the new password and change it
+    from <strong>Settings</strong>.
+  </p>
+
+  <h2>Locked out — no admin left</h2>
+  <p>
+    If the only admin on the instance was demoted to member/guest, deactivated, or deleted, every
+    admin-gated page is now unreachable and there's no admin left to undo it from the UI. Recent
+    versions refuse the change that would cause this, but if you're already locked out, promote an
+    account back to admin directly in the database:
+  </p>
+  <pre><code>docker exec -it tome sqlite3 /data/tome.db "UPDATE users SET role='admin', is_admin=1 WHERE username='&lt;username&gt;';"</code></pre>
+  <p>
+    Refresh the page — no restart or re-login needed, since the role is read from the database on
+    every request. Not on Docker? Point <code>sqlite3</code> at <code>tome.db</code> under your
+    <code>TOME_DATA_DIR</code> instead.
   </p>
 
   <h2>Reverse proxy 502 / 504</h2>

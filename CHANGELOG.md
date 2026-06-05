@@ -72,6 +72,11 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- You can no longer lock yourself out by removing the last admin. Demoting,
+  deactivating, or deleting a user is now refused with "Cannot remove the last
+  admin" when they are the only remaining active admin — previously a single-user
+  instance that changed its own role to member (or guest) had no way back through
+  the UI and needed a manual database edit to recover.
 - The PWA service worker no longer swallows full-page navigations to server
   routes. Its SPA navigation fallback was serving the cached app shell for *any*
   navigation, including `/api/*` and `/opds/*` — so on an installed/cached client
