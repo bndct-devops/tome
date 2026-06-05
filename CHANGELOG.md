@@ -6,6 +6,15 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-06-05
+
+### Fixed
+- You can no longer lock yourself out by removing the last admin. Demoting,
+  deactivating, or deleting a user is now refused with "Cannot remove the last
+  admin" when they are the only remaining active admin — previously a single-user
+  instance that changed its own role to member (or guest) had no way back through
+  the UI and needed a manual database edit to recover (#26).
+
 ## [1.2.1] — 2026-06-03
 
 ### Fixed
