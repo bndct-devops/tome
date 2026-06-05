@@ -6,6 +6,15 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Download a single book from KOReader.** The TomeSync plugin's series browser
+  now drills into a per-volume list when you tap a series — pick one title to
+  download on its own, or use the "Download all" row for the whole series as
+  before. Standalone books with no series are now reachable too, through a
+  "No Series" entry in the browser, so they no longer had to be fetched via OPDS
+  or the web; each is filed under its author folder, matching Tome's library
+  layout. Bumps the plugin to build 15 (1.2.2).
+
 ## [1.3.0] — 2026-06-05 — "Diary"
 
 ### Added
