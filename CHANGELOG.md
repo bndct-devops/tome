@@ -6,6 +6,22 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-06-06
+
+### Fixed
+- **Shared libraries are now actually shared** (#31). Marking a library *public*
+  had no effect: the library list only ever returned libraries you owned (plus
+  the built-in global ones), so a library created by one user was invisible to
+  everyone else regardless of its public/private flag. Public libraries are now
+  visible to all users, and their books show up for members too (previously only
+  guests saw public-library books). Private libraries can be shared with
+  individual people: the library editor gained a **Share with users** picker, and
+  library owners — not just admins — can grant and revoke access to their own
+  libraries. The rename/delete/add-to-library controls now appear only on
+  libraries you can actually manage (your own, or any library if you're an admin),
+  so you no longer see edit buttons that error out on libraries owned by someone
+  else.
+
 ## [1.3.0] — 2026-06-05 — "Diary"
 
 ### Added

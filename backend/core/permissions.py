@@ -62,6 +62,7 @@ def book_visibility_filter(db: Session, user: User):
             Book.added_by.in_(admin_ids),
             Book.added_by.is_(None),
             Book.added_by == user.id,
+            Book.libraries.any(Library.is_public == True),  # noqa: E712
         ]
         if assigned_lib_ids:
             conditions.append(Book.libraries.any(Library.id.in_(assigned_lib_ids)))

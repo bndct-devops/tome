@@ -91,6 +91,7 @@ export interface Library {
   book_count: number
   is_public: boolean
   assigned_user_ids: number[]
+  can_edit: boolean
 }
 
 export interface SavedFilter {

@@ -2,6 +2,7 @@ import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -34,6 +35,7 @@ class LibraryOut(BaseModel):
     sort_order: int
     book_count: int
     assigned_user_ids: list[int] = []
+    can_edit: bool = False  # may the current user rename/delete/share this library
 
     class Config:
         from_attributes = True
@@ -59,11 +61,15 @@ class ReorderIn(BaseModel):
 
 # ── Libraries ─────────────────────────────────────────────────────────────────
 
-def _lib_out(lib: Library) -> LibraryOut:
+def _lib_out(lib: Library, user: User) -> LibraryOut:
+    # Mirrors the mutation guard in _get_library: admins can edit anything,
+    # owners can edit their own; global libraries (owner_id IS NULL) are admin-only.
+    can_edit = _is_admin(user) or (lib.owner_id is not None and lib.owner_id == user.id)
     return LibraryOut(
         id=lib.id, name=lib.name, icon=lib.icon, is_public=lib.is_public,
         sort_order=lib.sort_order, book_count=len(lib.books or []),
         assigned_user_ids=[u.id for u in (lib.assigned_users or [])],
+        can_edit=can_edit,
     )
 
 
@@ -74,10 +80,30 @@ def list_libraries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    libs = db.query(Library).filter(
-        (Library.owner_id == current_user.id) | (Library.owner_id.is_(None))
-    ).order_by(Library.sort_order, Library.name).all()
-    return [_lib_out(l) for l in libs]
+    if _is_admin(current_user):
+        libs = db.query(Library).order_by(Library.sort_order, Library.name).all()
+    else:
+        from backend.models.library import library_users_table
+        # Libraries this user has been individually assigned to (private sharing)
+        assigned_lib_ids = [
+            row[1] for row in db.execute(
+                library_users_table.select().where(
+                    library_users_table.c.user_id == current_user.id
+                )
+            ).fetchall()
+        ]
+        # Visible: own + global + public (shared with everyone) + privately assigned
+        conditions = [
+            Library.owner_id == current_user.id,
+            Library.owner_id.is_(None),
+            Library.is_public == True,  # noqa: E712
+        ]
+        if assigned_lib_ids:
+            conditions.append(Library.id.in_(assigned_lib_ids))
+        libs = db.query(Library).filter(or_(*conditions)).order_by(
+            Library.sort_order, Library.name
+        ).all()
+    return [_lib_out(l, current_user) for l in libs]
 
 
 @router.post("/libraries", response_model=LibraryOut, status_code=status.HTTP_201_CREATED)
@@ -93,7 +119,7 @@ def create_library(
     db.refresh(lib)
     audit(db, "libraries.created", user_id=current_user.id, username=current_user.username,
           resource_type="library", resource_id=lib.id, resource_title=lib.name)
-    return _lib_out(lib)
+    return _lib_out(lib, current_user)
 
 
 @router.put("/libraries/{lib_id}", response_model=LibraryOut)
@@ -111,7 +137,7 @@ def update_library(
     db.refresh(lib)
     audit(db, "libraries.updated", user_id=current_user.id, username=current_user.username,
           resource_type="library", resource_id=lib.id, resource_title=lib.name)
-    return _lib_out(lib)
+    return _lib_out(lib, current_user)
 
 
 @router.delete("/libraries/{lib_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -187,7 +213,7 @@ def assign_user_to_library(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    require_role(current_user, "admin")
+    # _get_library enforces owner-or-admin, so library owners can share their own.
     lib = _get_library(lib_id, current_user, db)
     user = db.query(User).filter(User.id == body.user_id).first()
     if not user:
@@ -204,7 +230,7 @@ def remove_user_from_library(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    require_role(current_user, "admin")
+    # _get_library enforces owner-or-admin, so library owners can manage their own.
     lib = _get_library(lib_id, current_user, db)
     user = db.query(User).filter(User.id == user_id).first()
     if user and user in lib.assigned_users:
