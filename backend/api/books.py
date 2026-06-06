@@ -155,6 +155,7 @@ def list_books(
                 Book.added_by.in_(admin_ids),
                 Book.added_by.is_(None),        # legacy books without uploader = shared
                 Book.added_by == current_user.id,
+                Book.libraries.any(Library.is_public == True),  # public = shared with all
             ]
             if assigned_lib_ids:
                 visibility_conditions.append(
@@ -1016,7 +1017,8 @@ def get_book(
             }
             book_lib_ids = {lib.id for lib in book.libraries}
             in_assigned_library = bool(assigned_lib_ids & book_lib_ids)
-            if not (is_admin_book or is_own_book or in_assigned_library):
+            in_public_library = any(lib.is_public for lib in book.libraries)
+            if not (is_admin_book or is_own_book or in_assigned_library or in_public_library):
                 raise HTTPException(status_code=404, detail="Book not found")
         else:
             # Guest
