@@ -15,6 +15,19 @@ All notable changes to Tome are documented here. Format loosely follows
   or the web; each is filed under its author folder, matching Tome's library
   layout. Bumps the plugin to build 15 (1.2.2).
 
+## [1.3.2] — 2026-06-06
+
+### Fixed
+- **Reader font, size and theme no longer reset at every chapter** (#33). In the
+  EPUB reader, changing the font, font size or background theme worked on the
+  page you were on but was silently reverted the moment you turned into a new
+  chapter — snapping back to whatever settings were saved when you first opened
+  the book. The chapter-load handler was re-applying a stale snapshot of the
+  reader settings captured at open time; it now always applies your current
+  choices, so adjustments persist across chapters for the rest of the session.
+
+## [1.3.1] — 2026-06-06
+
 ### Fixed
 - **Shared libraries are now actually shared** (#31). Marking a library *public*
   had no effect: the library list only ever returned libraries you owned (plus
