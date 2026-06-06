@@ -6,6 +6,17 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-06-06
+
+### Fixed
+- **Reader font, size and theme no longer reset at every chapter** (#33). In the
+  EPUB reader, changing the font, font size or background theme worked on the
+  page you were on but was silently reverted the moment you turned into a new
+  chapter — snapping back to whatever settings were saved when you first opened
+  the book. The chapter-load handler was re-applying a stale snapshot of the
+  reader settings captured at open time; it now always applies your current
+  choices, so adjustments persist across chapters for the rest of the session.
+
 ## [1.3.1] — 2026-06-06
 
 ### Fixed
