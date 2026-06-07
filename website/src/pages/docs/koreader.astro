@@ -116,6 +116,39 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     downloaded/skipped/failed counts when finished.
   </p>
 
+  <h3 id="send-to-koreader">Send to KOReader <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;opacity:0.6;vertical-align:middle;border:1px solid currentColor;border-radius:4px;padding:0.1em 0.4em;margin-left:0.4em;">Beta</span></h3>
+  <p>
+    Browsing pulls books <em>from</em> the device; Send to KOReader pushes the other way — queue a
+    book from the web and it lands on your e-reader, no email and no Amazon Send-to-Kindle. It's the
+    KOReader-native counterpart to <a href={withBase("/docs/send-to-device")}>email send-to-device</a>:
+    the file arrives in its original format, filed into your library folders, instead of being
+    converted and dropped into a stock reader you've bypassed.
+  </p>
+  <Callout variant="info" title="Beta — opt-in">
+    Off by default. Enable it on the server with <code>TOME_SEND_TO_KOREADER=true</code>; the
+    "Send to KOReader" button and the plugin's <strong>Inbox</strong> appear only when it's on.
+    See <a href={withBase("/docs/configuration")}>configuration</a>.
+  </Callout>
+  <p>
+    On any book (or a multi-select on the dashboard), use the <strong>Send to KOReader</strong>
+    split button — the caret still offers <strong>Send via email…</strong>. There's nothing to pair:
+    it queues to your account's inbox, and every KOReader you've connected pulls from the same queue.
+  </p>
+  <ThemedShot client:load name="send-to-koreader" alt="The Send to KOReader split button on a book's detail page, with the email option in the dropdown" className="block" />
+  <p>
+    Delivery is <strong>not instant</strong> — it's a pull, not a push. The plugin shows an
+    <strong>Inbox (N)</strong> badge in the TomeSync menu; queued books arrive the next time
+    KOReader checks in (shortly after launch), or tap <strong>Inbox</strong> to pull them now. Each
+    book is filed exactly like a series download — by book type and series, or under its author for
+    standalones — and marked delivered once it's on the device.
+  </p>
+  <figure style="margin: 1.5rem auto; max-width: 360px; text-align: center;">
+    <ThemedShot client:load name="koreader-inbox" alt="The TomeSync menu on the device showing an Inbox badge with a pending count" className="w-full block" />
+    <figcaption style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.7;">
+      The Inbox badge in KOReader — tap it to pull queued books.
+    </figcaption>
+  </figure>
+
   <h3>When it syncs</h3>
   <p>TomeSync hooks into KOReader's lifecycle events:</p>
   <ul>

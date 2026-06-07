@@ -7,6 +7,18 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Send to KOReader (beta).** Queue a book from the web straight to your
+  e-reader — no email, no Amazon Send-to-Kindle. It's the KOReader-native
+  counterpart to email send-to-device: the original EPUB/CBZ arrives in your
+  library folders (by series, or under the author for standalones) instead of
+  being converted and dropped into a stock reader. The book detail page and the
+  dashboard's bulk bar gain a split **Send to KOReader** button (the caret still
+  offers "Send via email…"); the TomeSync plugin grows an **Inbox (N)** badge you
+  tap to pull queued books (build 16 / 1.2.3). Delivery is a pull, not a push, so
+  books arrive the next time KOReader checks in. Per-user — every connected
+  KOReader shares one inbox. Off by default; enable with
+  `TOME_SEND_TO_KOREADER=true`. See the
+  [KOReader docs](https://tome.bndct.sh/docs/koreader#send-to-koreader).
 - **Download a single book from KOReader.** The TomeSync plugin's series browser
   now drills into a per-volume list when you tap a series — pick one title to
   download on its own, or use the "Download all" row for the whole series as

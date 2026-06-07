@@ -26,6 +26,7 @@ from backend.models.user import User
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import Annotation, AnnotationTombstone, ApiKey, ReadingSession, TomeSyncPosition
+from backend.models.send_queue import SendQueueItem
 
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
@@ -39,8 +40,8 @@ logger = logging.getLogger(__name__)
 # build than 13 — otherwise a device that updated to 1.2.1's build-13 impl and
 # later points at a main/1.3.0 server (also 13) would not re-download main's
 # richer impl. Hence 14.
-TOMESYNC_PLUGIN_BUILD = 15
-TOMESYNC_PLUGIN_SEMVER = "1.2.2"
+TOMESYNC_PLUGIN_BUILD = 16
+TOMESYNC_PLUGIN_SEMVER = "1.2.3"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -627,6 +628,73 @@ def get_series_books(
     }
 
 
+# ── Send-to-KOReader inbox (beta) ─────────────────────────────────────────────
+
+@router.get("/tome-sync/inbox")
+def get_inbox(
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Pending 'Send to KOReader' items for this user. The plugin shows the
+    count as a badge, downloads each book (filing it by series/author like the
+    series browser), then POSTs `.../delivered`. Returns 404 when the feature is
+    off, so the plugin hides the inbox entirely."""
+    if not settings.send_to_koreader:
+        raise HTTPException(status_code=404, detail="Send to KOReader is not enabled")
+
+    items = (
+        db.query(SendQueueItem)
+        .options(
+            joinedload(SendQueueItem.book).joinedload(Book.files),
+            joinedload(SendQueueItem.book).joinedload(Book.book_type),
+        )
+        .filter(SendQueueItem.user_id == user.id, SendQueueItem.delivered_at.is_(None))
+        .order_by(SendQueueItem.created_at.asc())
+        .all()
+    )
+
+    out = []
+    for it in items:
+        book = it.book
+        if not book or book.status != "active":
+            continue
+        out.append({
+            "id": it.id,
+            "book_id": book.id,
+            "title": book.title,
+            "series": book.series,
+            "series_index": book.series_index,
+            "author": book.author,
+            "book_type": book.book_type.slug if book.book_type else "book",
+            "pinned_file_id": it.file_id,
+            "files": [
+                {"id": f.id, "format": f.format, "file_size": f.file_size}
+                for f in book.files
+            ],
+        })
+    return {"count": len(out), "items": out}
+
+
+@router.post("/tome-sync/inbox/{item_id}/delivered")
+def mark_inbox_delivered(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Mark a queued item delivered once the plugin has pulled it. Idempotent."""
+    item = (
+        db.query(SendQueueItem)
+        .filter(SendQueueItem.id == item_id, SendQueueItem.user_id == user.id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Inbox item not found")
+    if item.delivered_at is None:
+        item.delivered_at = datetime.utcnow()
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/tome-sync/download/{book_id}/{file_id}")
 def download_book_via_api_key(
     book_id: int,
@@ -1204,6 +1272,11 @@ function TomeSync:init()
     self.enabled        = true
     self.book_map       = G_reader_settings:readSetting("tomesync_book_map") or {{}}
     self.pending_sessions = G_reader_settings:readSetting("tomesync_pending_sessions") or {{}}
+    -- Send-to-KOReader inbox (beta): enabled only if the server reports the
+    -- feature; count drives the menu badge. Populated by the launch poll below.
+    self.inbox_enabled  = false
+    self.inbox_count    = 0
+    self.inbox_items    = {{}}
     -- Per-book annotation sync baseline: book_id -> {{ anchor -> mtime }} as of last
     -- sync. Lets a diff tell "I deleted this" from "this is new from another device".
     self.annot_baseline = G_reader_settings:readSetting("tomesync_annot_baseline") or {{}}
@@ -1230,6 +1303,11 @@ function TomeSync:init()
             end)
         end)
     end
+
+    -- Send-to-KOReader inbox: a deferred, non-blocking poll so the menu can show
+    -- an "Inbox (N)" badge. Guarded (offline = no-op; 404 = feature off → no
+    -- badge), so it is safe to run on every launch regardless of server support.
+    UIManager:scheduleIn(8, function() pcall(function() self:_refreshInbox() end) end)
 end
 
 function TomeSync:onDispatcherRegisterActions()
@@ -1667,7 +1745,10 @@ end
 
 -- ── Series download ─────────────────────────────────────────────────────────
 
-function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
+function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type, quiet)
+    -- `quiet` suppresses the summary popups (used by the inbox, which shows its
+    -- own roll-up). Returns {{downloaded, skipped, failed}} so callers can tell
+    -- success (file is now on device) from failure.
     -- The server sends "__unserialized__" as the No Series sentinel. Standalone
     -- books are filed per-author (matching Tome's own library layout), so there is
     -- no single folder for the bucket — "No Series" is only a popup label.
@@ -1684,7 +1765,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
             text = "No download directory configured.",
             timeout = 4,
         }})
-        return
+        return {{ downloaded = 0, skipped = 0, failed = #books }}
     end
 
     -- Organize by book-type subfolder. A real series shares one folder; the No
@@ -1748,14 +1829,17 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
     end
 
     if #queue == 0 then
-        UIManager:show(InfoMessage:new{{
-            text = string.format(
-                "%s\\n\\nNothing to download.\\nSkipped: %d",
-                batch_label, skipped
-            ),
-            timeout = 5,
-        }})
-        return
+        if not quiet then
+            UIManager:show(InfoMessage:new{{
+                text = string.format(
+                    "%s\\n\\nNothing to download.\\nSkipped: %d",
+                    batch_label, skipped
+                ),
+                timeout = 5,
+            }})
+        end
+        -- Nothing queued means every book is already on disk → success.
+        return {{ downloaded = 0, skipped = skipped, failed = 0 }}
     end
 
     -- Live progress popup — replace the message between each book.
@@ -1792,13 +1876,16 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
     -- Persist book_map
     G_reader_settings:saveSetting("tomesync_book_map", self.book_map)
 
-    UIManager:show(InfoMessage:new{{
-        text = string.format(
-            "%s\\n\\nDownloaded: %d\\nSkipped: %d\\nFailed: %d\\n\\nSaved to: %s",
-            batch_label, downloaded, skipped, failed, series_dir or type_dir
-        ),
-        timeout = 8,
-    }})
+    if not quiet then
+        UIManager:show(InfoMessage:new{{
+            text = string.format(
+                "%s\\n\\nDownloaded: %d\\nSkipped: %d\\nFailed: %d\\n\\nSaved to: %s",
+                batch_label, downloaded, skipped, failed, series_dir or type_dir
+            ),
+            timeout = 8,
+        }})
+    end
+    return {{ downloaded = downloaded, skipped = skipped, failed = failed }}
 end
 
 -- Drill-down list for one series (or the No Series bucket): a "Download all" row
@@ -2014,6 +2101,112 @@ end
 
 -- ── Menu ─────────────────────────────────────────────────────────────────────
 
+-- ── Send-to-KOReader inbox (beta) ────────────────────────────────────────────
+
+-- Poll the server inbox. Sets inbox_enabled (false on 404 = feature off),
+-- inbox_items and inbox_count. Offline/transient errors keep the last state.
+function TomeSync:_refreshInbox()
+    local data, code = apiRequest("GET", "/tome-sync/inbox")
+    if code == 404 then
+        self.inbox_enabled = false
+        self.inbox_count   = 0
+        self.inbox_items   = {{}}
+        return
+    end
+    if type(data) == "table" and data.items then
+        self.inbox_enabled = true
+        self.inbox_items   = data.items
+        self.inbox_count   = data.count or #data.items
+    end
+end
+
+-- Download the given inbox items (filing each by series/author via the shared
+-- downloader) and mark each delivered on success. Shows one roll-up popup.
+function TomeSync:_deliverInbox(items)
+    local delivered, failed = 0, 0
+    for _, item in ipairs(items) do
+        -- item.series may be JSON null, which rapidjson decodes to a truthy
+        -- userdata sentinel (not nil) — so type-check rather than compare to nil.
+        local series_name = "__unserialized__"
+        if type(item.series) == "string" and item.series ~= "" then
+            series_name = item.series
+        end
+        -- Honour the file pinned at enqueue; otherwise let the downloader choose.
+        local files = item.files
+        if item.pinned_file_id then
+            for _, f in ipairs(item.files or {{}}) do
+                if f.id == item.pinned_file_id then files = {{ f }}; break end
+            end
+        end
+        local book = {{
+            id = item.book_id, title = item.title,
+            series_index = item.series_index, author = item.author,
+            files = files,
+        }}
+        local res = self:_downloadSeriesBooks(series_name, {{ book }}, nil, item.book_type, true)
+        if res and res.failed == 0 then
+            delivered = delivered + 1
+            pcall(apiRequest, "POST", "/tome-sync/inbox/" .. item.id .. "/delivered")
+        else
+            failed = failed + 1
+        end
+    end
+    pcall(function() self:_refreshInbox() end)
+    UIManager:show(InfoMessage:new{{
+        text = string.format("Inbox\\n\\nDelivered: %d\\nFailed: %d", delivered, failed),
+        timeout = 5,
+    }})
+end
+
+-- Inbox drill-down: a "Download all" row plus one row per queued book.
+function TomeSync:_inboxMenu()
+    if not NetworkMgr:isConnected() then
+        UIManager:show(InfoMessage:new{{ text = "WiFi not connected.", timeout = 3 }})
+        return
+    end
+    self:_refreshInbox()
+    local items = self.inbox_items or {{}}
+    if #items == 0 then
+        UIManager:show(InfoMessage:new{{ text = "Inbox is empty.", timeout = 3 }})
+        return
+    end
+
+    local menu_items = {{}}
+    table.insert(menu_items, {{
+        text     = string.format("Download all (%d)", #items),
+        callback = function()
+            if self._inbox_menu then UIManager:close(self._inbox_menu) end
+            self:_deliverInbox(items)
+        end,
+    }})
+    for _, item in ipairs(items) do
+        local label
+        if type(item.series_index) == "number" then
+            local vol = item.series_index
+            if vol == math.floor(vol) then vol = math.floor(vol) end
+            label = "Vol. " .. tostring(vol) .. " — " .. item.title
+        else
+            label = item.title
+        end
+        table.insert(menu_items, {{
+            text     = label,
+            callback = function()
+                if self._inbox_menu then UIManager:close(self._inbox_menu) end
+                self:_deliverInbox({{ item }})
+            end,
+        }})
+    end
+
+    self._inbox_menu = Menu:new{{
+        title       = "Inbox",
+        item_table  = menu_items,
+        width       = Device.screen:getWidth() - 20,
+        height      = Device.screen:getHeight() - 20,
+        show_parent = self.ui or UIManager,
+    }}
+    UIManager:show(self._inbox_menu)
+end
+
 function TomeSync:_menuItems()
     local in_book = self.ui and self.ui.document
 
@@ -2024,6 +2217,14 @@ function TomeSync:_menuItems()
         text     = "Browse series",
         callback = function() self:_browseSeriesMenu() end,
     }})
+    -- Inbox: only shown when the server has Send-to-KOReader enabled (set by the
+    -- launch poll). Badge shows the pending count.
+    if self.inbox_enabled then
+        table.insert(sub_items, {{
+            text_func = function() return string.format("Inbox (%d)", self.inbox_count or 0) end,
+            callback  = function() self:_inboxMenu() end,
+        }})
+    end
     table.insert(sub_items, {{
         text     = "Test connection",
         callback = function()
@@ -2177,8 +2378,10 @@ end
 
 function TomeSync:addToMainMenu(menu_items)
     menu_items.tomesync = {{
-        text           = "TomeSync",
-        sub_item_table = self:_menuItems(),
+        text = "TomeSync",
+        -- Rebuilt each open so the Inbox badge/visibility reflects the latest
+        -- poll rather than the state frozen at init().
+        sub_item_table_func = function() return self:_menuItems() end,
     }}
 end
 

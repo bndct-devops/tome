@@ -5,7 +5,7 @@ import {
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, LayoutList, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Send,
+  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2,
 } from 'lucide-react'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
@@ -17,7 +17,7 @@ import { SaveFilterButton } from '@/components/SaveFilterButton'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { UploadModal } from '@/components/UploadModal'
 import { ManageSeriesModal } from '@/components/ManageSeriesModal'
-import { SendToDeviceModal } from '@/components/SendToDeviceModal'
+import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
@@ -505,7 +505,6 @@ export function DashboardPage() {
   const [bulkPending, setBulkPending] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [bulkMetaOpen, setBulkMetaOpen] = useState(false)
-  const [sendModalOpen, setSendModalOpen] = useState(false)
   const [bulkMetaAuthor, setBulkMetaAuthor] = useState('')
   const [bulkMetaSeries, setBulkMetaSeries] = useState('')
   const [bulkMetaTagsAdd, setBulkMetaTagsAdd] = useState<string[]>([])
@@ -1716,14 +1715,11 @@ export function DashboardPage() {
                 Download ZIP
               </button>
               {isMember(user) && (
-                <button
-                  onClick={() => setSendModalOpen(true)}
+                <SendButton
+                  variant="bulk"
                   disabled={bulkPending || selected.size === 0}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  Send to Device
-                </button>
+                  books={books.filter(b => selected.has(b.id)).map(b => ({ id: b.id, title: b.title, files: b.files }))}
+                />
               )}
               <button
                 onClick={() => { setBulkMetaOpen(true); api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }}
@@ -1867,11 +1863,6 @@ export function DashboardPage() {
         selectedIds={selected}
         onCancel={() => setDeleteModalOpen(false)}
         onConfirm={bulkDelete}
-      />
-      <SendToDeviceModal
-        open={sendModalOpen}
-        onClose={() => setSendModalOpen(false)}
-        books={books.filter(b => selected.has(b.id)).map(b => ({ id: b.id, title: b.title, files: b.files }))}
       />
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
