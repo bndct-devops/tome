@@ -66,6 +66,12 @@ class BookFile(Base):
     file_size: Mapped[Optional[int]] = mapped_column(Integer)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     added_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # Set to the owning Book.updated_at at the moment this file was baked to disk
+    # (in-file metadata write). When it equals Book.updated_at, the bytes on disk
+    # already carry the current metadata → download path can serve the raw file
+    # and skip the lazy bake. Goes stale (≠ updated_at) the next time metadata is
+    # edited, transparently re-enabling lazy baking. NULL = never baked in place.
+    metadata_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     book: Mapped["Book"] = relationship("Book", back_populates="files")
 

@@ -830,3 +830,75 @@ def clear_covers_cache(
                 os.remove(fp)
                 deleted += 1
     return {"deleted": deleted}
+
+
+# ── Bake metadata to file (admin) ──────────────────────────────────────────────
+# Whole-library, in-place rewrite of source files with Tome's metadata. Runs as a
+# single background job; the UI polls /admin/bake/status. See services/bake_job.py.
+
+@router.get("/admin/bake/status")
+def bake_status(current_user: User = Depends(get_current_user)) -> dict:
+    require_role(current_user, "admin")
+    from backend.services import bake_job
+    from backend.services.metadata_embed import library_writable
+    from backend.core.config import settings
+    return {
+        **bake_job.get_status(),
+        "library_writable": library_writable(),
+        "enabled": settings.allow_infile_bake,
+    }
+
+
+@router.get("/admin/bake/preflight")
+def bake_preflight(current_user: User = Depends(get_current_user)) -> dict:
+    require_role(current_user, "admin")
+    from backend.services import bake_job
+    from backend.services.metadata_embed import library_writable
+    from backend.core.config import settings
+    return {
+        **bake_job.preflight(),
+        "library_writable": library_writable(),
+        "enabled": settings.allow_infile_bake,
+    }
+
+
+@router.post("/admin/bake/start")
+def bake_start(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    require_role(current_user, "admin")
+    from backend.services import bake_job
+    from backend.services.metadata_embed import library_writable
+    from backend.core.config import settings
+    if not settings.allow_infile_bake:
+        raise HTTPException(403, "In-file baking is disabled (TOME_ALLOW_INFILE_BAKE=false)")
+    if not library_writable():
+        raise HTTPException(409, "Library directory is read-only")
+    try:
+        state = bake_job.start(username=current_user.username)
+    except bake_job.BakeAlreadyRunning:
+        raise HTTPException(409, "A bake is already running")
+    audit(
+        db,
+        "books.metadata_baked_started",
+        user_id=current_user.id,
+        username=current_user.username,
+        details={"total_files": state.get("total_files"), "total_bytes": state.get("total_bytes")},
+    )
+    return state
+
+
+@router.post("/admin/bake/cancel")
+def bake_cancel(current_user: User = Depends(get_current_user)) -> dict:
+    require_role(current_user, "admin")
+    from backend.services import bake_job
+    cancelled = bake_job.request_cancel()
+    return {"cancelling": cancelled, **bake_job.get_status()}
+
+
+@router.post("/admin/bake/dismiss")
+def bake_dismiss(current_user: User = Depends(get_current_user)) -> dict:
+    require_role(current_user, "admin")
+    from backend.services import bake_job
+    return bake_job.dismiss()

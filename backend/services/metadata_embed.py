@@ -12,17 +12,35 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import shutil
 import zipfile
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
 
 from backend.core.config import settings
 from backend.models.book import Book, BookFile
+from backend.services.metadata import sha256_file
 from backend.services.xml_ns import namespaces
 
 log = logging.getLogger(__name__)
+
+# Formats whose bytes we can rewrite with embedded metadata. Everything else is
+# served/left as-is.
+BAKEABLE_FORMATS = {"epub", "cbz", "pdf"}
+
+# Image entries are already compressed; re-deflating them is pure CPU cost for
+# zero size win (and, for big CBZ archives, the bulk of the bake time). Store
+# them uncompressed instead. Text-ish entries (XHTML, CSS, XML) still deflate.
+_STORED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif", ".jxl"}
+
+
+def _compress_for(name: str) -> int:
+    ext = Path(name).suffix.lower()
+    return zipfile.ZIP_STORED if ext in _STORED_EXTS else zipfile.ZIP_DEFLATED
 
 OPF_NS = "http://www.idpf.org/2007/opf"
 DC_NS = "http://purl.org/dc/elements/1.1/"
@@ -73,6 +91,15 @@ def get_baked_path(book: Book, book_file: BookFile) -> Path:
     """
     src = Path(book_file.file_path)
     if not src.exists():
+        return src
+
+    # If the on-disk file was already baked in place for this exact metadata
+    # revision, its bytes are current — serve the raw file, skip embed + cache.
+    if (
+        book_file.metadata_synced_at is not None
+        and book.updated_at is not None
+        and book_file.metadata_synced_at == book.updated_at
+    ):
         return src
 
     key = _cache_key(book)
@@ -308,7 +335,7 @@ def _embed_cbz(book: Book, src: Path, cover_bytes: Optional[bytes]) -> Optional[
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zout:
             if cover_bytes is not None:
-                zout.writestr(COVER_NAME, cover_bytes)
+                zout.writestr(COVER_NAME, cover_bytes, compress_type=zipfile.ZIP_STORED)
             for n in names:
                 # Skip the old ComicInfo — we rewrite it below
                 if n.lower() == "comicinfo.xml":
@@ -316,7 +343,8 @@ def _embed_cbz(book: Book, src: Path, cover_bytes: Optional[bytes]) -> Optional[
                 # Skip the slot we're writing the Tome cover into (if any)
                 if cover_bytes is not None and n == COVER_NAME:
                     continue
-                zout.writestr(n, zf.read(n))
+                # Pages are already-compressed images → store, don't re-deflate.
+                zout.writestr(n, zf.read(n), compress_type=_compress_for(n))
             zout.writestr(COMIC_INFO_NAME, comic_info)
         return buf.getvalue()
 
@@ -377,3 +405,119 @@ def _embed_pdf(book: Book, src: Path) -> Optional[bytes]:
     finally:
         doc.close()
     return buf
+
+
+# ── In-file bake (write metadata into the source file on disk) ─────────────────
+#
+# Unlike get_baked_path (which writes a disposable cache copy), bake_to_file
+# mutates the real library file. It is destructive + irreversible, so the heavy
+# lifting here is safety: validate the freshly-embedded bytes parse, write to a
+# sibling tmp, fsync, then atomically os.replace the original. A buggy embed must
+# never clobber a good source.
+
+@dataclass
+class BakeFileResult:
+    """Outcome of baking one BookFile in place."""
+    file_path: str
+    status: str  # "baked" | "skipped" | "readonly" | "failed"
+    reason: Optional[str] = None
+    old_hash: Optional[str] = None
+    new_hash: Optional[str] = None
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "baked"
+
+
+def library_writable() -> bool:
+    """Is the library root writable? Used to gate the bake UI on a `:ro` mount."""
+    try:
+        return os.access(settings.library_dir, os.W_OK)
+    except OSError:
+        return False
+
+
+def _validate_baked(out: bytes, fmt: str) -> bool:
+    """Cheap sanity check that the embedded bytes are a usable file of `fmt`
+    before we let them replace the original."""
+    fmt = (fmt or "").lower()
+    if fmt in ("epub", "cbz"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(out), "r") as zf:
+                if zf.testzip() is not None:
+                    return False
+                if fmt == "epub" and "META-INF/container.xml" not in zf.namelist():
+                    return False
+            return True
+        except (zipfile.BadZipFile, OSError):
+            return False
+    if fmt == "pdf":
+        return out[:5] == b"%PDF-"
+    return False
+
+
+def bake_to_file(book: Book, book_file: BookFile) -> BakeFileResult:
+    """Write Tome's metadata into ``book_file`` on disk, in place.
+
+    Mutates ``book_file.content_hash`` + ``book_file.metadata_synced_at`` on the
+    attached ORM objects **without committing** — the caller owns the transaction.
+    Per-file isolated: any failure leaves the original file untouched, never
+    leaks a ``.tmp``, and returns a non-``baked`` status rather than raising.
+    """
+    fmt = (book_file.format or "").lower()
+    src = Path(book_file.file_path)
+
+    if fmt not in BAKEABLE_FORMATS:
+        return BakeFileResult(str(src), "skipped", reason="unsupported format")
+    if not src.exists():
+        return BakeFileResult(str(src), "skipped", reason="file missing")
+    if not os.access(src.parent, os.W_OK):
+        return BakeFileResult(str(src), "readonly", reason="directory not writable")
+
+    try:
+        cover_bytes = _load_cover(book)
+        out = _embed(book, src, fmt, cover_bytes)
+    except Exception as e:  # noqa: BLE001 — embed must never abort a bulk run
+        log.warning("bake: embed failed for book_id=%s file=%s: %s", book.id, src.name, e)
+        return BakeFileResult(str(src), "failed", reason=f"embed error: {e}")
+
+    if out is None:
+        # _embed returns None for formats it can't handle (e.g. PDF without
+        # PyMuPDF, or a malformed EPUB with no OPF).
+        return BakeFileResult(str(src), "skipped", reason="nothing to embed")
+
+    if not _validate_baked(out, fmt):
+        return BakeFileResult(str(src), "failed", reason="validation failed — original kept")
+
+    old_hash = book_file.content_hash
+    tmp = src.with_suffix(src.suffix + ".bake.tmp")
+    try:
+        with open(tmp, "wb") as f:
+            f.write(out)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, src)  # atomic within the same directory
+    except OSError as e:
+        log.warning("bake: write failed for book_id=%s file=%s: %s", book.id, src.name, e)
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        return BakeFileResult(str(src), "failed", reason=f"write error: {e}")
+
+    new_hash = sha256_file(src)
+    book_file.content_hash = new_hash
+    book_file.metadata_synced_at = book.updated_at
+    try:
+        book_file.file_size = src.stat().st_size
+    except OSError:
+        pass
+
+    # The lazy cache for this book is now redundant.
+    try:
+        _purge_stale(book.id)
+    except OSError:
+        pass
+
+    return BakeFileResult(str(src), "baked", old_hash=old_hash, new_hash=new_hash)

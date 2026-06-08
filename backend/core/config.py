@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     # switch thereafter.
     send_to_koreader: bool = False
 
+    # Bake-to-file: write Tome's metadata into the source library files on disk
+    # (vs the lazy download cache). Destructive + admin-gated. Hard off-switch for
+    # operators who never want their files mutated. env TOME_ALLOW_INFILE_BAKE.
+    allow_infile_bake: bool = True
+
     # JWT settings
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days

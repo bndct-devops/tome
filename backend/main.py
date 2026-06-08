@@ -130,6 +130,12 @@ async def lifespan(app: FastAPI):
         if "scope" not in at_cols:
             conn.execute(text("ALTER TABLE api_tokens ADD COLUMN scope VARCHAR(16) NOT NULL DEFAULT 'full'"))
             conn.commit()
+        # Bake-to-file: track when a file's on-disk bytes were last written with
+        # Tome's metadata. NULL for every pre-existing row (= never baked in place).
+        bf_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(book_files)")).fetchall()}
+        if "metadata_synced_at" not in bf_cols:
+            conn.execute(text("ALTER TABLE book_files ADD COLUMN metadata_synced_at DATETIME"))
+            conn.commit()
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()
