@@ -27,6 +27,14 @@ All notable changes to Tome are documented here. Format loosely follows
   or the web; each is filed under its author folder, matching Tome's library
   layout. Bumps the plugin to build 15 (1.2.2).
 
+### Fixed
+- **Series progress no longer shows as complete the moment you start the last
+  book** (#36). The dashboard's "Series Progress" bar measured progress by the
+  index of the book you were currently reading, so beginning book 2 of a 2-book
+  series filled the bar to 100% before you'd finished it. It now reflects the
+  number of volumes you've actually read, so the series only reads as complete
+  once the last book is marked read.
+
 ## [1.3.2] — 2026-06-06
 
 ### Fixed

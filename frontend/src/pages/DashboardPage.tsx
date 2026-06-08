@@ -1094,7 +1094,11 @@ export function DashboardPage() {
                         const seriesData = seriesList.find(s => s.name === book.series)
                         const total = seriesData?.book_count ?? null
                         const current = book.series_index!
-                        const pct = total ? Math.min(100, (current / total) * 100) : null
+                        // Progress reflects *completed* (read) volumes, not the index of the
+                        // book you're currently reading — otherwise starting the last book
+                        // would show the series as 100% before you've finished it.
+                        const readCount = seriesData?.read_count ?? 0
+                        const pct = total ? Math.min(100, (readCount / total) * 100) : null
                         return (
                           <div key={book.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/50 border border-border">
                             <div className="min-w-0 flex-1">
