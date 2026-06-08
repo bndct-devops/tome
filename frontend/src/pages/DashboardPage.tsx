@@ -1733,7 +1733,7 @@ export function DashboardPage() {
                 <Pencil className="w-3.5 h-3.5" />
                 Edit Metadata
               </button>
-              {libraries.length > 0 && (
+              {libraries.some(l => l.can_edit) && (
                 <div className="relative">
                   <button
                     onClick={() => setBulkLibMenu(o => !o)}
@@ -1747,7 +1747,7 @@ export function DashboardPage() {
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />
                       <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-xl py-1 min-w-44">
-                        {libraries.map(lib => (
+                        {libraries.filter(l => l.can_edit).map(lib => (
                           <button
                             key={lib.id}
                             onClick={() => bulkAddToLibrary(lib.id)}

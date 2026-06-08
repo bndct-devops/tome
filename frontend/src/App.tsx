@@ -15,6 +15,7 @@ import { BookDetailPage } from '@/pages/BookDetailPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StatsPage } from '@/pages/StatsPage'
+import { StatsLabPage } from '@/pages/StatsLabPage'
 import { BinderyPage } from '@/pages/BinderyPage'
 import { WishlistPage } from '@/pages/WishlistPage'
 import { api } from '@/lib/api'
@@ -116,6 +117,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <StatsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stats-lab"
+          element={
+            <ProtectedRoute>
+              <StatsLabPage />
             </ProtectedRoute>
           }
         />

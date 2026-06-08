@@ -849,7 +849,7 @@ export function BookDetailPage() {
             {canEdit && !editing && (
               <>
                 {/* Add to Library dropdown */}
-                {libraries.length > 0 && (
+                {libraries.some(l => l.can_edit) && (
                   <div className="relative" ref={libMenuRef}>
                     <button
                       onClick={() => setLibMenuOpen(o => !o)}
@@ -873,7 +873,7 @@ export function BookDetailPage() {
                         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border mb-1">
                           Add to library
                         </p>
-                        {libraries.map(lib => {
+                        {libraries.filter(l => l.can_edit).map(lib => {
                           const inLib = localLibIds.includes(lib.id)
                           const pending = libPending.has(lib.id)
                           return (

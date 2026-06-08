@@ -408,8 +408,12 @@ def list_users_simple(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return minimal user list for filter dropdowns. Admin only."""
-    require_role(current_user, "admin")
+    """Return minimal user list for filter dropdowns and library sharing.
+
+    Members need this to share their private libraries with individual users;
+    it exposes only id/username/role, no sensitive fields.
+    """
+    require_role(current_user, "member")
     users = db.query(User).filter(User.is_active == True).all()
     return [
         {

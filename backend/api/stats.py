@@ -26,13 +26,12 @@ def _date_range(days: int) -> Optional[datetime]:
     return datetime.utcnow() - timedelta(days=days)
 
 
-def _fill_daily(rows: list, cutoff: datetime, now: datetime) -> list[dict]:
-    """Fill gaps so every day in the range has an entry."""
+def _fill_daily(rows: list, start_date, end_date) -> list[dict]:
+    """Fill gaps so every day in [start_date, end_date] has an entry."""
     row_map: dict[str, dict] = {r.date: {"seconds": r.seconds or 0, "sessions": r.sessions or 0, "pages": r.pages or 0} for r in rows}
     result = []
-    d = cutoff.date() if cutoff else now.date() - timedelta(days=365)
-    end = now.date()
-    while d <= end:
+    d = start_date
+    while d <= end_date:
         key = d.isoformat()
         entry = row_map.get(key, {"seconds": 0, "sessions": 0, "pages": 0})
         result.append({"date": key, **entry})
@@ -43,12 +42,48 @@ def _fill_daily(rows: list, cutoff: datetime, now: datetime) -> list[dict]:
 @router.get("/stats")
 def get_stats(
     days: int = Query(30, ge=0),
+    start: Optional[str] = Query(None, description="Custom range start (YYYY-MM-DD, local). Overrides `days`."),
+    end: Optional[str] = Query(None, description="Custom range end (YYYY-MM-DD, local, inclusive)."),
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     now = datetime.utcnow()
-    cutoff = _date_range(days)
+
+    # Range resolution: an explicit `start` switches to a custom date range and
+    # overrides `days`. Dates are local; convert to UTC for filtering (UTC = local +
+    # tz_offset) but keep the local dates for the daily-fill window, since the daily
+    # rows are bucketed by local date.
+    range_end: Optional[datetime] = None  # exclusive upper bound, UTC
+    fill_start_local = None
+    fill_end_local = None
+    if start:
+        try:
+            sdate = datetime.strptime(start, "%Y-%m-%d")
+            cutoff = sdate + timedelta(minutes=tz_offset)
+            fill_start_local = sdate.date()
+        except ValueError:
+            cutoff = _date_range(days)
+        else:
+            if end:
+                try:
+                    edate = datetime.strptime(end, "%Y-%m-%d")
+                    range_end = edate + timedelta(days=1) + timedelta(minutes=tz_offset)
+                    fill_end_local = edate.date()
+                except ValueError:
+                    range_end = None
+    else:
+        cutoff = _date_range(days)
+
+    # Effective span (days) for period-comparison + year-summary gating.
+    if cutoff is not None:
+        effective_days = max(1, ((range_end or now) - cutoff).days)
+    else:
+        effective_days = 0  # all-time
+
+    # Inclusive fill window for the daily chart.
+    fill_start = fill_start_local or (cutoff or (now - timedelta(days=365))).date()
+    fill_end = fill_end_local or now.date()
 
     # Convert JS getTimezoneOffset (minutes, negative = east of UTC) to SQLite modifier
     # e.g. CEST = UTC+2 → JS returns -120 → we need '+2 hours'
@@ -59,6 +94,8 @@ def get_stats(
     base = db.query(ReadingSession).filter(ReadingSession.user_id == current_user.id)
     if cutoff:
         base = base.filter(ReadingSession.started_at >= cutoff)
+    if range_end:
+        base = base.filter(ReadingSession.started_at < range_end)
 
     total_seconds = base.with_entities(
         func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
@@ -79,6 +116,8 @@ def get_stats(
     )
     if cutoff:
         finished_query = finished_query.filter(UserBookStatus.updated_at >= cutoff)
+    if range_end:
+        finished_query = finished_query.filter(UserBookStatus.updated_at < range_end)
     books_finished_count = finished_query.count()
 
     # Streaks (all time, local-day with 4h rollover so late-night reading still counts)
@@ -96,7 +135,7 @@ def get_stats(
         .order_by(func.date(ReadingSession.started_at, tz_modifier))
         .all()
     )
-    daily = _fill_daily(daily_rows, cutoff or (now - timedelta(days=365)), now)
+    daily = _fill_daily(daily_rows, fill_start, fill_end)
 
     # Heatmap daily — always last 365 days
     heatmap_cutoff = now - timedelta(days=365)
@@ -116,7 +155,7 @@ def get_stats(
         .order_by(func.date(ReadingSession.started_at, tz_modifier))
         .all()
     )
-    heatmap_daily = _fill_daily(heatmap_rows, heatmap_cutoff, now)
+    heatmap_daily = _fill_daily(heatmap_rows, heatmap_cutoff.date(), now.date())
 
     # Books finished list (for chart)
     finished_books = (
@@ -272,9 +311,10 @@ def get_stats(
 
     # ── Period comparison ─────────────────────────────────────────────────────
     period_comparison = None
-    if days > 0:
-        start_date = cutoff  # already computed above
-        prev_start = start_date - timedelta(days=days)
+    if cutoff is not None:
+        start_date = cutoff
+        duration = (range_end or now) - cutoff
+        prev_start = start_date - duration
         prev_seconds = db.query(
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
         ).filter(
@@ -296,7 +336,7 @@ def get_stats(
 
     # ── Year summary ──────────────────────────────────────────────────────────
     year_summary = None
-    if days >= 365 or days == 0:
+    if cutoff is None or effective_days >= 365:
         # Top genre from finished books
         top_genre: Optional[str] = None
         finished_book_ids = [row.id for row in finished_books]
@@ -674,7 +714,7 @@ def get_stats(
         library_growth.append(entry)
 
     return {
-        "range_days": days,
+        "range_days": effective_days,
         "headline": {
             "total_reading_seconds": total_seconds,
             "total_sessions": total_sessions,

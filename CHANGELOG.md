@@ -7,6 +7,13 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Download a single book from KOReader.** The TomeSync plugin's series browser
+  now drills into a per-volume list when you tap a series — pick one title to
+  download on its own, or use the "Download all" row for the whole series as
+  before. Standalone books with no series are now reachable too, through a
+  "No Series" entry in the browser, so they no longer had to be fetched via OPDS
+  or the web; each is filed under its author folder, matching Tome's library
+  layout. Bumps the plugin to build 15 (1.2.2).
 - **Single sign-on (OIDC).** Tome can now authenticate against an external
   OpenID Connect identity provider (Pocket ID, Authelia, Authentik, Keycloak,
   Zitadel, Google, …). When enabled, a configurable "Sign in with SSO" button
@@ -72,6 +79,18 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
+- **Shared libraries are now actually shared** (#31). Marking a library *public*
+  had no effect: the library list only ever returned libraries you owned (plus
+  the built-in global ones), so a library created by one user was invisible to
+  everyone else regardless of its public/private flag. Public libraries are now
+  visible to all users, and their books show up for members too (previously only
+  guests saw public-library books). Private libraries can be shared with
+  individual people: the library editor gained a **Share with users** picker, and
+  library owners — not just admins — can grant and revoke access to their own
+  libraries. The rename/delete/add-to-library controls now appear only on
+  libraries you can actually manage (your own, or any library if you're an admin),
+  so you no longer see edit buttons that error out on libraries owned by someone
+  else.
 - The PWA service worker no longer swallows full-page navigations to server
   routes. Its SPA navigation fallback was serving the cached app shell for *any*
   navigation, including `/api/*` and `/opds/*` — so on an installed/cached client

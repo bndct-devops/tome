@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # build than 13 — otherwise a device that updated to 1.2.1's build-13 impl and
 # later points at a main/1.3.0 server (also 13) would not re-download main's
 # richer impl. Hence 14.
-TOMESYNC_PLUGIN_BUILD = 14
-TOMESYNC_PLUGIN_SEMVER = "1.2.1"
+TOMESYNC_PLUGIN_BUILD = 15
+TOMESYNC_PLUGIN_SEMVER = "1.2.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -553,6 +553,27 @@ def list_series(
             entry["author"] = first_book.author
         result.append(entry)
 
+    # Append the unserialized bucket last, mirroring backend/api/books.py, so the
+    # plugin's series browser exposes a single "No Series" entry through which
+    # standalone books can be browsed and downloaded.
+    unserialized_count = (
+        db.query(func.count(Book.id))
+        .filter(Book.status == "active", Book.series.is_(None))
+        .scalar()
+    )
+    if unserialized_count:
+        first_unserialized = (
+            db.query(Book)
+            .filter(Book.status == "active", Book.series.is_(None))
+            .order_by(Book.id)
+            .first()
+        )
+        result.append({
+            "name": "__unserialized__",
+            "book_count": unserialized_count,
+            "first_book_id": first_unserialized.id if first_unserialized else None,
+        })
+
     return result
 
 
@@ -566,13 +587,20 @@ def get_series_books(
     book = db.get(Book, book_id)
     if not book or book.status != "active":
         raise HTTPException(status_code=404, detail="Book not found")
-    if not book.series:
-        raise HTTPException(status_code=404, detail="Book has no series")
+
+    if book.series:
+        series_filter = Book.series == book.series
+        series_name = book.series
+    else:
+        # A book with no series resolves to the whole "No Series" bucket, so the
+        # plugin can list and download standalone titles individually.
+        series_filter = Book.series.is_(None)
+        series_name = "__unserialized__"
 
     books = (
         db.query(Book)
         .options(joinedload(Book.files), joinedload(Book.book_type))
-        .filter(Book.status == "active", Book.series == book.series)
+        .filter(Book.status == "active", series_filter)
         .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
         .all()
     )
@@ -581,7 +609,7 @@ def get_series_books(
     book_type_slug = books[0].book_type.slug if books and books[0].book_type else "book"
 
     return {
-        "series_name": book.series,
+        "series_name": series_name,
         "book_type": book_type_slug,
         "books": [
             {
@@ -1640,6 +1668,12 @@ end
 -- ── Series download ─────────────────────────────────────────────────────────
 
 function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
+    -- The server sends "__unserialized__" as the No Series sentinel. Standalone
+    -- books are filed per-author (matching Tome's own library layout), so there is
+    -- no single folder for the bucket — "No Series" is only a popup label.
+    local is_no_series = (series_name == "__unserialized__")
+    local batch_label  = is_no_series and "No Series" or series_name
+
     -- home_dir is the user-set library root (File Manager → long-press → "Set as HOME").
     -- Fall back to download_dir / lastdir for installs where home_dir isn't set.
     local base_dir = G_reader_settings:readSetting("home_dir")
@@ -1653,12 +1687,15 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
         return
     end
 
-    -- Organize by book type subfolder, then series
+    -- Organize by book-type subfolder. A real series shares one folder; the No
+    -- Series bucket files each book under its author (resolved per book below).
     local type_dir = base_dir .. "/" .. (book_type or "book")
     lfs.mkdir(type_dir)
-    local safe_name = util.getSafeFilename(series_name)
-    local series_dir = type_dir .. "/" .. safe_name
-    lfs.mkdir(series_dir)
+    local series_dir
+    if not is_no_series then
+        series_dir = type_dir .. "/" .. util.getSafeFilename(series_name)
+        lfs.mkdir(series_dir)
+    end
 
     -- Build reverse lookup: book_id → local path (to skip already-downloaded books)
     local id_to_path = {{}}
@@ -1689,7 +1726,18 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
                     display_title = book.title
                 end
                 local fname = util.getSafeFilename(display_title .. "." .. ext)
-                local dest = series_dir .. "/" .. fname
+                -- Real series → shared series_dir. No Series → per-author folder,
+                -- falling back to the type dir when the book has no author.
+                local dest_dir = series_dir
+                if is_no_series then
+                    if type(book.author) == "string" and book.author ~= "" then
+                        dest_dir = type_dir .. "/" .. util.getSafeFilename(book.author)
+                        lfs.mkdir(dest_dir)
+                    else
+                        dest_dir = type_dir
+                    end
+                end
+                local dest = dest_dir .. "/" .. fname
                 if lfs.attributes(dest) then
                     skipped = skipped + 1
                 else
@@ -1703,7 +1751,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
         UIManager:show(InfoMessage:new{{
             text = string.format(
                 "%s\\n\\nNothing to download.\\nSkipped: %d",
-                series_name, skipped
+                batch_label, skipped
             ),
             timeout = 5,
         }})
@@ -1724,7 +1772,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
     for i, item in ipairs(queue) do
         showProgress(string.format(
             "%s\\n\\nDownloading %d of %d\\n%s",
-            series_name, i, #queue, item.book.title
+            batch_label, i, #queue, item.book.title
         ))
         if not item.file then
             failed = failed + 1
@@ -1747,10 +1795,50 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type)
     UIManager:show(InfoMessage:new{{
         text = string.format(
             "%s\\n\\nDownloaded: %d\\nSkipped: %d\\nFailed: %d\\n\\nSaved to: %s",
-            series_name, downloaded, skipped, failed, series_dir
+            batch_label, downloaded, skipped, failed, series_dir or type_dir
         ),
         timeout = 8,
     }})
+end
+
+-- Drill-down list for one series (or the No Series bucket): a "Download all" row
+-- plus one row per book, so a single title can be downloaded on its own.
+function TomeSync:_seriesBooksMenu(data)
+    local display = data.series_name
+    if display == "__unserialized__" then display = "No Series" end
+
+    local items = {{}}
+    table.insert(items, {{
+        text     = string.format("Download all (%d)", #data.books),
+        callback = function()
+            self:_downloadSeriesBooks(data.series_name, data.books, nil, data.book_type)
+        end,
+    }})
+    for _, book in ipairs(data.books) do
+        local label
+        if type(book.series_index) == "number" then
+            local vol = book.series_index
+            if vol == math.floor(vol) then vol = math.floor(vol) end
+            label = "Vol. " .. tostring(vol) .. " — " .. book.title
+        else
+            label = book.title
+        end
+        table.insert(items, {{
+            text     = label,
+            callback = function()
+                self:_downloadSeriesBooks(data.series_name, {{ book }}, nil, data.book_type)
+            end,
+        }})
+    end
+
+    local menu = Menu:new{{
+        title       = display,
+        item_table  = items,
+        width       = Device.screen:getWidth() - 20,
+        height      = Device.screen:getHeight() - 20,
+        show_parent = self.ui or UIManager,
+    }}
+    UIManager:show(menu)
 end
 
 function TomeSync:_browseSeriesMenu()
@@ -1773,7 +1861,9 @@ function TomeSync:_browseSeriesMenu()
 
     local items = {{}}
     for _, s in ipairs(series_list) do
-        local text = s.name .. " (" .. s.book_count .. ")"
+        local name = s.name
+        if name == "__unserialized__" then name = "No Series" end
+        local text = name .. " (" .. s.book_count .. ")"
         -- type-check guards against JSON null, which rapidjson decodes to a
         -- truthy userdata sentinel rather than nil.
         if type(s.author) == "string" and s.author ~= "" then
@@ -1782,11 +1872,12 @@ function TomeSync:_browseSeriesMenu()
         table.insert(items, {{
             text = text,
             callback = function()
-                -- Fetch books in this series
+                -- Fetch the books in this series, then drill into a per-book list
+                -- so a single title can be downloaded instead of the whole series.
                 local ok2, data, code2 = pcall(apiRequest, "GET",
                     "/tome-sync/series/" .. s.first_book_id)
                 if ok2 and data and data.books then
-                    self:_downloadSeriesBooks(data.series_name, data.books, nil, data.book_type)
+                    self:_seriesBooksMenu(data)
                 else
                     UIManager:show(InfoMessage:new{{
                         text = "Failed to load series books.",

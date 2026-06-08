@@ -5,7 +5,7 @@ import {
   BookOpen, Plus, Pencil, Trash2,
   ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
-  Sun, Moon, Flame, Check, Sparkles,
+  Sun, Moon, Flame, Check, Sparkles, FlaskConical, Users,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -136,6 +136,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   const [libModalInitialName, setLibModalInitialName] = useState('')
   const [libModalInitialIcon, setLibModalInitialIcon] = useState('Library')
   const [libModalInitialPublic, setLibModalInitialPublic] = useState(true)
+  const [libModalLibraryId, setLibModalLibraryId] = useState<number | null>(null)
+  const [libModalAssignedIds, setLibModalAssignedIds] = useState<number[]>([])
 
   const location = useLocation()
 
@@ -200,6 +202,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     setLibModalInitialName('')
     setLibModalInitialIcon('Library')
     setLibModalInitialPublic(true)
+    setLibModalLibraryId(null)
+    setLibModalAssignedIds([])
     setLibModalOnSave(() => async (name: string, icon: string, isPublic: boolean) => {
       await api.post('/libraries', { name, icon, is_public: isPublic })
       onLibrariesChange()
@@ -212,6 +216,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     setLibModalInitialName(lib.name)
     setLibModalInitialIcon(lib.icon ?? 'Library')
     setLibModalInitialPublic(lib.is_public ?? true)
+    setLibModalLibraryId(lib.id)
+    setLibModalAssignedIds(lib.assigned_user_ids ?? [])
     setLibModalOnSave(() => async (name: string, icon: string, isPublic: boolean) => {
       await api.put(`/libraries/${lib.id}`, { name, icon, is_public: isPublic })
       onLibrariesChange()
@@ -266,7 +272,11 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           initialName={libModalInitialName}
           initialIcon={libModalInitialIcon}
           initialIsPublic={libModalInitialPublic}
+          libraryId={libModalLibraryId}
+          initialAssignedIds={libModalAssignedIds}
+          currentUserId={user?.id ?? null}
           onSave={libModalOnSave}
+          onChanged={onLibrariesChange}
           onClose={() => setLibModalOpen(false)}
         />
       )}
@@ -336,6 +346,19 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               )}
             >
               <BarChart3 className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+            </Link>
+            <Link
+              to="/stats-lab"
+              title="Stats Lab"
+              aria-label="Stats Lab"
+              className={cn(
+                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                location.pathname === '/stats-lab'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <FlaskConical className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
             </Link>
             {isMember(user) && (
               <Link
@@ -466,6 +489,18 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 <BarChart3 className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
                 <span className="truncate">Stats</span>
               </Link>
+              <Link
+                to="/stats-lab"
+                className={cn(
+                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
+                  location.pathname === '/stats-lab'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <FlaskConical className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+                <span className="truncate">Stats Lab</span>
+              </Link>
               {isMember(user) && (
                 <Link
                   to="/wishlist"
@@ -518,12 +553,12 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   active={activeLibrary === lib.id}
                   isPrivate={lib.is_public === false}
                   onClick={() => selectLibrary(lib.id)}
-                  onEdit={() => openEditLibModal(lib)}
-                  onDelete={async () => {
+                  onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
+                  onDelete={lib.can_edit ? async () => {
                     await api.delete(`/libraries/${lib.id}`)
                     if (activeLibrary === lib.id) selectAllBooks()
                     onLibrariesChange()
-                  }}
+                  } : undefined}
                 />
               ))}
             </Section>
@@ -644,6 +679,19 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   <BarChart3 className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
                   <span className="truncate">Stats</span>
                 </Link>
+                <Link
+                  to="/stats-lab"
+                  onClick={onMobileClose}
+                  className={cn(
+                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
+                    location.pathname === '/stats-lab'
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  <FlaskConical className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+                  <span className="truncate">Stats Lab</span>
+                </Link>
                 {isMember(user) && (
                   <Link
                     to="/wishlist"
@@ -675,12 +723,12 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     active={activeLibrary === lib.id}
                     isPrivate={lib.is_public === false}
                     onClick={() => selectLibrary(lib.id)}
-                    onEdit={() => openEditLibModal(lib)}
-                    onDelete={async () => {
+                    onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
+                    onDelete={lib.can_edit ? async () => {
                       await api.delete(`/libraries/${lib.id}`)
                       if (activeLibrary === lib.id) selectAllBooks()
                       onLibrariesChange()
-                    }}
+                    } : undefined}
                   />
                 ))}
               </Section>
@@ -1002,12 +1050,18 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
   )
 }
 
-function LibraryModal({ title, initialName, initialIcon, initialIsPublic, onSave, onClose }: {
+type ShareUser = { id: number; username: string; role: string }
+
+function LibraryModal({ title, initialName, initialIcon, initialIsPublic, libraryId, initialAssignedIds, currentUserId, onSave, onChanged, onClose }: {
   title: string
   initialName?: string
   initialIcon?: string
   initialIsPublic?: boolean
+  libraryId?: number | null
+  initialAssignedIds?: number[]
+  currentUserId?: number | null
   onSave: (name: string, icon: string, isPublic: boolean) => Promise<void>
+  onChanged?: () => void
   onClose: () => void
 }) {
   const [name, setName] = useState(initialName ?? '')
@@ -1016,6 +1070,39 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, onSave
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Share-with-users state (only meaningful when editing an existing, private library)
+  const [users, setUsers] = useState<ShareUser[]>([])
+  const [assignedIds, setAssignedIds] = useState<Set<number>>(new Set(initialAssignedIds ?? []))
+  const [busyUserId, setBusyUserId] = useState<number | null>(null)
+  const canShare = libraryId != null && !isPublic
+
+  useEffect(() => {
+    if (libraryId == null) return
+    api.get<ShareUser[]>('/users/list')
+      .then(list => setUsers(list.filter(u => u.id !== currentUserId)))
+      .catch(() => {})
+  }, [libraryId, currentUserId])
+
+  async function toggleUser(userId: number) {
+    if (libraryId == null || busyUserId != null) return
+    setBusyUserId(userId)
+    const isAssigned = assignedIds.has(userId)
+    try {
+      if (isAssigned) {
+        await api.delete(`/libraries/${libraryId}/users/${userId}`)
+        setAssignedIds(prev => { const next = new Set(prev); next.delete(userId); return next })
+      } else {
+        await api.post(`/libraries/${libraryId}/users`, { user_id: userId })
+        setAssignedIds(prev => new Set(prev).add(userId))
+      }
+      onChanged?.()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update sharing')
+    } finally {
+      setBusyUserId(null)
+    }
+  }
 
   useEffect(() => { inputRef.current?.focus() }, [])
   useEffect(() => {
@@ -1077,6 +1164,42 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, onSave
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Lock className="w-3 h-3" /> Private — only assigned users can access
           </p>
+        )}
+        {canShare && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Users className="w-3.5 h-3.5" /> Share with users
+            </div>
+            {users.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No other users to share with.</p>
+            ) : (
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                {users.map(u => {
+                  const assigned = assignedIds.has(u.id)
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => toggleUser(u.id)}
+                      disabled={busyUserId === u.id}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors disabled:opacity-50"
+                    >
+                      <span className="truncate">{u.username}</span>
+                      <span className={cn(
+                        'flex items-center justify-center w-5 h-5 rounded border flex-shrink-0',
+                        assigned ? 'bg-primary border-primary text-primary-foreground' : 'border-border'
+                      )}>
+                        {assigned && <Check className="w-3.5 h-3.5" />}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        {!isPublic && libraryId == null && (
+          <p className="text-xs text-muted-foreground">Save the library first, then reopen it to share with users.</p>
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex items-center justify-end gap-2 pt-1">
