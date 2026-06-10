@@ -28,6 +28,18 @@ All notable changes to Tome are documented here. Format loosely follows
   layout. Bumps the plugin to build 15 (1.2.2).
 
 ### Fixed
+- **The TomeSync plugin no longer breaks layout profiles that auto-execute on
+  book open.** The "TomeSync: Server at X% (device: Y%)" message shown when
+  another device had read ahead was a modal window, and KOReader delivers
+  profile actions only to the topmost non-modal window — so a profile applying
+  your layout (font size, margins, columns) on book open was silently swallowed
+  exactly on those opens, leaving the book with default or stale layout
+  settings. The message is now a passive toast that lets profile actions
+  through. Also fixes two more issues in the same path: a position saved by the
+  web reader no longer throws KOReader to page 1 (the plugin now recognises it
+  isn't a KOReader-native position and jumps by percentage instead), and the
+  book-open sync no longer runs twice per open. Bumps the plugin to build 17
+  (1.2.4).
 - **Series progress no longer shows as complete the moment you start the last
   book** (#36). The dashboard's "Series Progress" bar measured progress by the
   index of the book you were currently reading, so beginning book 2 of a 2-book
