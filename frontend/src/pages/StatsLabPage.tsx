@@ -6,7 +6,8 @@ import ReactGridLayout, {
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Plus, RotateCcw, X, FlaskConical, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, type LucideIcon } from 'lucide-react'
+import { toPng } from 'html-to-image'
+import { ArrowLeft, Plus, RotateCcw, X, FlaskConical, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, ImageDown, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
@@ -41,6 +42,7 @@ import {
   CategoryBreakdown,
   GenreOverTime,
   PerBookTimeTable,
+  SeriesSpotlight,
 } from '@/components/stats/widgets/library'
 import { SeriesCompletionGrid } from '@/components/stats/SeriesCompletionGrid'
 import { AuthorAffinity } from '@/components/stats/AuthorAffinity'
@@ -58,7 +60,7 @@ import { LibraryGrowthChart } from '@/components/stats/LibraryGrowthChart'
 // metric. days = 0 follows the page range; days = N shows the last N days of the
 // fetched window (sliced client-side, no extra fetches) — so two copies of one
 // widget can show different timeframes.
-type TileConfig = { chartType: ChartKind; days: number; metric?: string }
+type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?: string }
 
 // ── Widget catalog (renders shared Stats components from live data) ─────────────
 
@@ -71,6 +73,8 @@ type WidgetDef = {
   size: { w: number; h: number; minW: number; minH: number }
   chartTypes?: ChartKind[]
   metrics?: { id: string; label: string }[]
+  /** Config picks a series (options come from the user's series_completion). */
+  seriesPicker?: boolean
   defaultConfig?: TileConfig
   /** Dynamic tile-header title, e.g. the picked metric's name. */
   titleFor?: (config: TileConfig) => string
@@ -316,7 +320,9 @@ const WIDGETS: WidgetDef[] = [
     title: 'Reading Hours & Books Finished — Last 12 Months',
     size: { w: 12, h: 2, minW: 4, minH: 2 },
     fixedWindow: '12 mo',
-    render: ({ stats }) => <MonthlyComparison monthly={stats.monthly_comparison} />,
+    chartTypes: ['bar', 'line', 'area'],
+    defaultConfig: { chartType: 'bar', days: 0 },
+    render: ({ stats }, cfg) => <MonthlyComparison monthly={stats.monthly_comparison} chartType={cfg.chartType} />,
   },
   // Library tab
   {
@@ -354,20 +360,32 @@ const WIDGETS: WidgetDef[] = [
     title: 'Reading by Category — Last 12 Months',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     fixedWindow: '12 mo',
-    render: ({ stats }) => <GenreOverTime data={stats.genre_over_time} />,
+    chartTypes: ['area', 'bar'],
+    defaultConfig: { chartType: 'area', days: 0 },
+    render: ({ stats }, cfg) => <GenreOverTime data={stats.genre_over_time} chartType={cfg.chartType === 'bar' ? 'bar' : 'area'} />,
   },
   {
     id: 'library-growth',
     title: 'Cumulative Books Added — Last 24 Months',
     size: { w: 12, h: 2, minW: 4, minH: 2 },
     fixedWindow: '24 mo',
-    render: ({ stats }) => <LibraryGrowthChart data={stats.library_growth} height="100%" />,
+    chartTypes: ['area', 'bar'],
+    defaultConfig: { chartType: 'area', days: 0 },
+    render: ({ stats }, cfg) => <LibraryGrowthChart data={stats.library_growth} height="100%" chartType={cfg.chartType === 'bar' ? 'bar' : 'area'} />,
   },
   {
     id: 'per-book-table',
     title: 'All Books by Reading Time',
     size: { w: 12, h: 3, minW: 5, minH: 2 },
     render: ({ stats }) => <PerBookTimeTable data={stats.per_book_time} />,
+  },
+  {
+    id: 'series-spotlight',
+    title: 'Series Spotlight',
+    size: { w: 3, h: 2, minW: 2, minH: 2 },
+    seriesPicker: true,
+    titleFor: (cfg) => cfg.series ?? 'Series Spotlight',
+    render: ({ stats }, cfg) => <SeriesSpotlight data={stats.series_completion} series={cfg.series} />,
   },
 ]
 
@@ -392,6 +410,7 @@ const WIDGET_DESC: Record<string, string> = {
   'dow-bar': 'Which weekday you read most',
   'time-of-day': 'Morning vs evening reader?',
   'time-by-format': 'EPUB vs CBZ time split',
+  'series-spotlight': 'One series front and center — you pick which',
   'hour-dow': 'When you read — hour × weekday',
   'session-timeline': 'Daily sessions on a 24h track',
   'reading-pace': 'Pages per minute over time',
@@ -431,7 +450,7 @@ const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
   },
   {
     label: 'Library',
-    ids: ['year-in-review', 'series-completion', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'],
+    ids: ['year-in-review', 'series-completion', 'series-spotlight', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'],
   },
 ]
 
@@ -519,11 +538,13 @@ const TIMEFRAMES = [
 function ConfigPopover({
   def,
   config,
+  seriesOptions,
   onChange,
   onClose,
 }: {
   def: WidgetDef
   config: TileConfig
+  seriesOptions?: string[]
   onChange: (partial: Partial<TileConfig>) => void
   onClose: () => void
 }) {
@@ -534,6 +555,26 @@ function ConfigPopover({
         className="no-drag absolute right-2 top-9 z-50 w-48 rounded-lg border border-border bg-card p-3 text-xs shadow-xl"
         onPointerDown={(e) => e.stopPropagation()}
       >
+        {def.seriesPicker && (
+          <>
+            <p className="mb-1.5 font-medium text-muted-foreground">Series</p>
+            {seriesOptions && seriesOptions.length > 0 ? (
+              <select
+                value={config.series ?? seriesOptions[0]}
+                onChange={(e) => onChange({ series: e.target.value })}
+                className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+              >
+                {seriesOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-muted-foreground/70">No series with reading progress yet.</p>
+            )}
+          </>
+        )}
         {def.metrics && (
           <>
             <p className="mb-1.5 font-medium text-muted-foreground">Metric</p>
@@ -723,6 +764,7 @@ function TileShell({
   onRemove,
   onDuplicate,
   onConfigChange,
+  seriesOptions,
   dragHandleProps,
   dragging,
   stacked,
@@ -734,6 +776,7 @@ function TileShell({
   onRemove: () => void
   onDuplicate?: () => void
   onConfigChange: (partial: Partial<TileConfig>) => void
+  seriesOptions?: string[]
   dragHandleProps?: Record<string, unknown>
   dragging?: boolean
   /** Narrow-screen fallback: tiles render in a plain column, so no drag affordances. */
@@ -743,7 +786,7 @@ function TileShell({
   const [hovering, setHovering] = useState(false)
   const [glare, setGlare] = useState({ x: 50, y: 50 })
   const tiltRef = useRef<HTMLDivElement>(null)
-  const configurable = !!def.chartTypes || !!def.metrics
+  const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker
   const tiltOn = editMode && !dragging && !cfgOpen
 
   function onMove(e: MouseEvent<HTMLDivElement>) {
@@ -844,7 +887,7 @@ function TileShell({
         )}
       </div>
       {cfgOpen && editMode && configurable && (
-        <ConfigPopover def={def} config={config} onChange={onConfigChange} onClose={() => setCfgOpen(false)} />
+        <ConfigPopover def={def} config={config} seriesOptions={seriesOptions} onChange={onConfigChange} onClose={() => setCfgOpen(false)} />
       )}
       <div
         className={cn('min-h-0 flex-1', SCROLL_IDS.has(def.id) ? 'overflow-y-auto' : 'overflow-hidden')}
@@ -883,6 +926,7 @@ function FreeGrid({
   const { width, containerRef, mounted } = useContainerWidth()
   // live "6 × 3" badge during resize — updated imperatively (no re-renders)
   const badgeRef = useRef<HTMLDivElement>(null)
+  const seriesOptions = ctx.stats.series_completion.map((x) => x.series)
 
   // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
   // edge, which makes a bottom-of-page tile impossible to grow — the pointer just
@@ -974,7 +1018,7 @@ function FreeGrid({
           const h = posOf(t.id)?.h ?? def.size.h
           return (
             <div key={t.id} style={{ height: h * 104 + (h - 1) * 16 }}>
-              <TileShell def={def} config={t.config} editMode={editMode} stacked onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+              <TileShell def={def} config={t.config} editMode={editMode} stacked seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
                 {def.render(ctx, t.config)}
               </TileShell>
             </div>
@@ -999,7 +1043,7 @@ function FreeGrid({
             const def = defById(t.defId)
             return (
               <div key={t.id}>
-                <TileShell def={def} config={t.config} editMode={editMode} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+                <TileShell def={def} config={t.config} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
                   {def.render(ctx, t.config)}
                 </TileShell>
               </div>
@@ -1401,6 +1445,59 @@ export function StatsLabPage() {
     setTabMenuOpen(false)
   }, [])
 
+  // ── Share: board file export/import + board-as-image ──────────────────────────
+
+  const boardRef = useRef<HTMLDivElement>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [shotBusy, setShotBusy] = useState(false)
+
+  const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'board'
+
+  const downloadFile = (name: string, href: string) => {
+    const a = document.createElement('a')
+    a.href = href
+    a.download = name
+    a.click()
+  }
+
+  const exportBoard = useCallback(() => {
+    const payload = { kind: 'tome-board', version: 1, label: active.label, tiles: active.tiles, layout: active.layout }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    downloadFile(`tome-board-${slug(active.label)}.json`, url)
+    URL.revokeObjectURL(url)
+  }, [active])
+
+  const importBoard = useCallback(
+    (file: File) => {
+      file.text().then((text) => {
+        try {
+          const p = JSON.parse(text)
+          if (p?.kind !== 'tome-board' || !Array.isArray(p.tiles) || !Array.isArray(p.layout)) throw new Error('not a board file')
+          // unknown widgets (older/newer instance) are dropped, orphans pruned
+          const tiles = (p.tiles as Tile[]).filter((x) => WIDGETS.some((w) => w.id === x.defId)).map((x) => ({ ...x, config: { ...DEFAULT_CFG, ...(x.config ?? {}) } }))
+          const ids = new Set(tiles.map((x) => x.id))
+          const layout = (p.layout as Layout).filter((l) => ids.has(l.i))
+          addTabWith(String(p.label ?? 'Imported board'), tiles, layout)
+        } catch {
+          pushUndo('That file is not a Tome board export.', () => {})
+        }
+      })
+    },
+    [addTabWith, pushUndo],
+  )
+
+  const exportImage = useCallback(() => {
+    const node = boardRef.current
+    if (!node || shotBusy) return
+    setShotBusy(true)
+    const bg = getComputedStyle(document.body).backgroundColor
+    toPng(node, { pixelRatio: 2, backgroundColor: bg })
+      .then((png) => downloadFile(`tome-stats-${slug(active.label)}-${new Date().toISOString().slice(0, 10)}.png`, png))
+      .catch(() => {})
+      .finally(() => setShotBusy(false))
+  }, [active.label, shotBusy])
+
   const renameTab = useCallback((id: string, label: string) => {
     setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, label } : t)))
   }, [])
@@ -1585,6 +1682,13 @@ export function StatsLabPage() {
                       >
                         Duplicate “{active.label}”
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => importInputRef.current?.click()}
+                        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
+                      >
+                        <Upload className="h-3 w-3 text-muted-foreground" /> Import board…
+                      </button>
                       <div className="my-1 border-t border-border" />
                       <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start from default</p>
                       {TAB_DEFS.map((d) => (
@@ -1601,6 +1705,17 @@ export function StatsLabPage() {
                         </button>
                       ))}
                     </div>
+                    <input
+                      ref={importInputRef}
+                      type="file"
+                      accept="application/json,.json"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) importBoard(f)
+                        e.target.value = ''
+                      }}
+                    />
                   </>
                 )}
               </div>
@@ -1641,8 +1756,21 @@ export function StatsLabPage() {
                   <button type="button" onClick={reset} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
                     <RotateCcw className="h-3.5 w-3.5" /> Reset
                   </button>
+                  <button type="button" onClick={exportBoard} title="Export this board as a JSON file (share or back up)" className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+                    <Download className="h-3.5 w-3.5" /> Export
+                  </button>
                 </>
               )}
+              <button
+                type="button"
+                onClick={exportImage}
+                disabled={shotBusy}
+                title="Save this board as an image"
+                aria-label="Save board as image"
+                className="flex items-center rounded-md border border-border bg-card p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                {shotBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageDown className="h-3.5 w-3.5" />}
+              </button>
               <button
                 type="button"
                 onClick={() => setEditMode((e) => !e)}
@@ -1685,7 +1813,9 @@ export function StatsLabPage() {
             <p className="text-xs">{editMode ? 'Use “Add tile” to build your ' + active.label + ' board.' : 'Hit Edit, then Add tile.'}</p>
           </div>
         ) : (
-          <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ stats, estimates }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onDuplicate={duplicateTile} onConfigChange={setConfig} />
+          <div ref={boardRef}>
+            <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ stats, estimates }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onDuplicate={duplicateTile} onConfigChange={setConfig} />
+          </div>
         )
       ) : (
         <p className="py-32 text-center text-sm text-muted-foreground">Couldn’t load stats.</p>

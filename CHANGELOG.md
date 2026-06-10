@@ -6,6 +6,21 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Stats Lab (beta)** — a fully customisable reading-stats dashboard, available
+  at `/stats-lab` alongside the existing Stats page. Every chart from Reading
+  Stats is a tile on a drag-and-resize grid: rearrange, resize, duplicate, or
+  remove any tile (with undo), and configure tiles individually — chart style
+  (bar/line/area), per-tile timeframe, a pick-your-own-metric stat card, and a
+  Series Spotlight that focuses on a series of your choice. Boards are per-user
+  and saved on the server, so your layout follows you across devices. Tabs are
+  boards too: create new ones empty, duplicated from the current board, from a
+  built-in default, or imported from a file — and share a board by exporting it
+  as JSON. A camera button saves any board as a PNG. The default boards
+  replicate the current Stats page one-to-one, including a new paginated
+  session-log tile, plus eight new widgets (reading by weekday, time-of-day
+  split, time by format, recently finished, monthly streak calendar, and more).
+
 ## [1.4.0] — 2026-06-10
 
 ### Added

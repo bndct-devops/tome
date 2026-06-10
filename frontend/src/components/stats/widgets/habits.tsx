@@ -5,6 +5,8 @@ import {
   Area,
   BarChart,
   Bar,
+  ComposedChart,
+  Line,
   PieChart,
   Pie,
   Cell,
@@ -13,6 +15,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
+import { type ChartKind } from '@/components/stats/widgets/overview'
 import { TrendingUp, TrendingDown, Zap, Minus, FileText, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
@@ -233,11 +236,11 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
   )
 }
 
-export function MonthlyComparison({ monthly }: { monthly: StatsResponse['monthly_comparison'] }) {
+export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: StatsResponse['monthly_comparison']; chartType?: ChartKind }) {
   const { accent, tick, cursor } = useChartColors()
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+      <ComposedChart data={monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis yAxisId="hours" tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
         <YAxis yAxisId="books" orientation="right" tick={{ fontSize: 10, fill: tick }} width={30} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -259,9 +262,25 @@ export function MonthlyComparison({ monthly }: { monthly: StatsResponse['monthly
           }}
         />
         <Legend formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-        <Bar yAxisId="hours" dataKey="reading_hours" name="Reading Hours" fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} />
-        <Bar yAxisId="books" dataKey="books_finished" name="Books Finished" fill={accent} fillOpacity={0.45} radius={[3, 3, 0, 0]} />
-      </BarChart>
+        {chartType === 'bar' && (
+          <>
+            <Bar yAxisId="hours" dataKey="reading_hours" name="Reading Hours" fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            <Bar yAxisId="books" dataKey="books_finished" name="Books Finished" fill={accent} fillOpacity={0.45} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+          </>
+        )}
+        {chartType === 'line' && (
+          <>
+            <Line yAxisId="hours" type="monotone" dataKey="reading_hours" name="Reading Hours" stroke={accent} strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line yAxisId="books" type="monotone" dataKey="books_finished" name="Books Finished" stroke={accent} strokeOpacity={0.45} strokeWidth={2} dot={false} isAnimationActive={false} />
+          </>
+        )}
+        {chartType === 'area' && (
+          <>
+            <Area yAxisId="hours" type="monotone" dataKey="reading_hours" name="Reading Hours" fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} isAnimationActive={false} />
+            <Area yAxisId="books" type="monotone" dataKey="books_finished" name="Books Finished" fill={accent} fillOpacity={0.08} stroke={accent} strokeOpacity={0.45} strokeWidth={2} isAnimationActive={false} />
+          </>
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   )
 }

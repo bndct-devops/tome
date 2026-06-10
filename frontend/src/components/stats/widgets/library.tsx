@@ -2,8 +2,9 @@
 import { useState } from 'react'
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Bar,
   PieChart,
   Pie,
   Cell,
@@ -84,7 +85,7 @@ export function CategoryBreakdown({ data }: { data: StatsResponse['by_category']
   )
 }
 
-export function GenreOverTime({ data }: { data: StatsResponse['genre_over_time'] }) {
+export function GenreOverTime({ data, chartType = 'area' }: { data: StatsResponse['genre_over_time']; chartType?: 'area' | 'bar' }) {
   const palette = useChartPalette()
   const { tick, cursor } = useChartColors()
   const categories = Array.from(new Set(data.flatMap((d) => Object.keys(d).filter((k) => k !== 'month')))).sort()
@@ -104,7 +105,7 @@ export function GenreOverTime({ data }: { data: StatsResponse['genre_over_time']
   }
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+      <ComposedChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />
         <Tooltip
@@ -131,11 +132,42 @@ export function GenreOverTime({ data }: { data: StatsResponse['genre_over_time']
           }}
         />
         <Legend formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-        {categories.map((cat, i) => (
-          <Area key={cat} type="monotone" dataKey={cat} stackId="1" fill={palette[i % palette.length]} fillOpacity={0.6} stroke={palette[i % palette.length]} strokeWidth={1.5} />
-        ))}
-      </AreaChart>
+        {categories.map((cat, i) =>
+          chartType === 'bar' ? (
+            <Bar key={cat} dataKey={cat} stackId="1" fill={palette[i % palette.length]} fillOpacity={0.75} isAnimationActive={false} />
+          ) : (
+            <Area key={cat} type="monotone" dataKey={cat} stackId="1" fill={palette[i % palette.length]} fillOpacity={0.6} stroke={palette[i % palette.length]} strokeWidth={1.5} isAnimationActive={false} />
+          ),
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
+  )
+}
+
+// One series, front and center — config picks which. Cover, progress, counts.
+export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_completion']; series?: string }) {
+  const { accent } = useChartColors()
+  const entry = (series ? data.find((s) => s.series === series) : undefined) ?? data[0]
+  if (!entry) return <p className="text-sm text-muted-foreground text-center py-8">No series read yet.</p>
+  return (
+    <div className="flex h-full items-center gap-3">
+      <img
+        src={`/api/books/${entry.sample_book_id}/cover`}
+        alt=""
+        className="h-full max-h-36 w-auto rounded-md object-cover shadow-sm"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">{entry.series}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {entry.read} of {entry.total} read{entry.reading > 0 ? ` · ${entry.reading} reading` : ''}
+        </p>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full" style={{ width: `${Math.min(entry.pct, 100)}%`, backgroundColor: accent }} />
+        </div>
+        <p className="mt-1 text-right text-[10px] tabular-nums text-muted-foreground">{entry.pct}%</p>
+      </div>
+    </div>
   )
 }
 

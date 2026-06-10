@@ -1,6 +1,7 @@
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -32,7 +33,7 @@ function ChartTooltip({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function LibraryGrowthChart({ data, height = 280 }: { data: GrowthEntry[]; height?: number | `${number}%` }) {
+export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: { data: GrowthEntry[]; height?: number | `${number}%`; chartType?: 'area' | 'bar' }) {
   const palette = useChartPalette()
   const { tick, cursor } = useChartColors()
   if (!data || data.length === 0) {
@@ -53,7 +54,7 @@ export function LibraryGrowthChart({ data, height = 280 }: { data: GrowthEntry[]
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+      <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="month"
           tickFormatter={formatMonth}
@@ -94,19 +95,24 @@ export function LibraryGrowthChart({ data, height = 280 }: { data: GrowthEntry[]
           }}
         />
         <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-        {categories.map((cat, i) => (
-          <Area
-            key={cat}
-            type="monotone"
-            dataKey={cat}
-            stackId="1"
-            fill={palette[i % palette.length]}
-            fillOpacity={0.6}
-            stroke={palette[i % palette.length]}
-            strokeWidth={1.5}
-          />
-        ))}
-      </AreaChart>
+        {categories.map((cat, i) =>
+          chartType === 'bar' ? (
+            <Bar key={cat} dataKey={cat} stackId="1" fill={palette[i % palette.length]} fillOpacity={0.75} isAnimationActive={false} />
+          ) : (
+            <Area
+              key={cat}
+              type="monotone"
+              dataKey={cat}
+              stackId="1"
+              fill={palette[i % palette.length]}
+              fillOpacity={0.6}
+              stroke={palette[i % palette.length]}
+              strokeWidth={1.5}
+              isAnimationActive={false}
+            />
+          ),
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   )
 }
