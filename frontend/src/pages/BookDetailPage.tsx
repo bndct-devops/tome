@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Camera, Download, Edit2, Save, X,
-  Calendar, Globe, Hash, Building2, AlignLeft, FileText, Trash2, Loader2,
+  Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
-  Tag as TagIcon, Highlighter, StickyNote, ChevronDown, BarChart2,
-  Clock, Layers, Gauge, Hourglass, CalendarPlus, CalendarCheck, CalendarDays
+  Tag as TagIcon, StickyNote, ChevronDown
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -21,7 +20,6 @@ import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingS
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
-import { StatTile } from '@/components/stats/StatTile'
 
 interface Facets {
   authors: string[]
@@ -546,9 +544,9 @@ export function BookDetailPage() {
           type="button"
           onClick={() => setStatsOpen(o => !o)}
           aria-expanded={statsOpen}
-          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 font-display text-base text-foreground hover:text-primary transition-colors"
         >
-          <BarChart2 className="w-3.5 h-3.5" /> Reading Stats
+          Reading Stats
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !statsOpen && '-rotate-90')} />
         </button>
       </div>
@@ -561,9 +559,7 @@ export function BookDetailPage() {
   // Genres block for the left sidebar (variant 1)
   const genresBlock = editing ? (
     <div>
-      <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wide flex items-center gap-1 mb-2">
-        <TagIcon className="w-3 h-3" /> Genres
-      </p>
+      <p className="font-display text-base text-foreground mb-2">Genres</p>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {draftTags.map(tag => (
           <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
@@ -601,9 +597,7 @@ export function BookDetailPage() {
     </div>
   ) : book.tags.length > 0 ? (
     <div>
-      <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wide flex items-center gap-1 mb-2">
-        <TagIcon className="w-3 h-3" /> Genres
-      </p>
+      <p className="font-display text-base text-foreground mb-2">Genres</p>
       <div className="flex flex-wrap gap-1.5">
         {book.tags.map(t => (
           <button
@@ -621,9 +615,7 @@ export function BookDetailPage() {
   // Full-width Details grid for below the description (variant 1)
   const metadataGridFull = (
     <div className="mt-6">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-        <FileText className="w-3.5 h-3.5" /> Details
-      </div>
+      <div className="font-display text-base text-foreground mb-3">Details</div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
         <MetaField icon={<Calendar className="w-3.5 h-3.5" />} label="Year"
           value={field('year') ?? ''} editing={editing}
@@ -688,9 +680,7 @@ export function BookDetailPage() {
 
   const descriptionBlock = (
     <div className="mt-6">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-        <AlignLeft className="w-3.5 h-3.5" /> Description
-      </div>
+      <div className="font-display text-base text-foreground mb-2">Description</div>
       {editing ? (
         <textarea
           value={field('description') ?? ''}
@@ -726,10 +716,10 @@ export function BookDetailPage() {
         type="button"
         onClick={() => setHighlightsOpen(o => !o)}
         aria-expanded={highlightsOpen}
-        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 hover:text-foreground transition-colors"
+        className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
       >
-        <Highlighter className="w-3.5 h-3.5" /> Highlights &amp; Notes
-        <span className="text-muted-foreground/50 normal-case font-normal">({annotations.length})</span>
+        Highlights &amp; Notes
+        <span className="text-muted-foreground/50 font-normal text-sm">({annotations.length})</span>
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !highlightsOpen && '-rotate-90')} />
       </button>
       {highlightsOpen && (
@@ -1041,71 +1031,66 @@ function ActivityChart({ timeline }: { timeline: { date: string; seconds: number
 // ── Hero layout: large time-read headline + activity chart, bottom-pinned date/span stats ─────
 
 function StatsLayoutHero({ own, aggregate }: StatsLayoutProps) {
-  const supporting: { icon: React.ReactNode; label: string; value: string }[] = [
-    { icon: <Layers className="w-3 h-3" />, label: 'Sessions', value: String(own.sessions) },
-    { icon: <FileText className="w-3 h-3" />, label: 'Pages', value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
-    { icon: <BarChart2 className="w-3 h-3" />, label: 'Avg session', value: formatDuration(own.avg_session_seconds) },
+  const supporting: { label: string; value: string }[] = [
+    { label: 'sessions', value: String(own.sessions) },
+    { label: 'pages', value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
+    { label: 'avg session', value: formatDuration(own.avg_session_seconds) },
     ...(own.pace_pages_per_min != null
-      ? [{ icon: <Gauge className="w-3 h-3" />, label: 'Pace', value: `${own.pace_pages_per_min} pg/min` }] : []),
+      ? [{ label: 'pace', value: `${own.pace_pages_per_min} pg/min` }] : []),
   ]
 
-  // Bottom tile row — inside the hero panel, beneath the activity chart
-  const bottomTiles: { icon: React.ReactNode; label: string; value: string }[] = []
+  const bottomStats: { label: string; value: string }[] = []
   if (own.first_read) {
-    bottomTiles.push({ icon: <CalendarPlus className="w-3 h-3" />, label: 'First read', value: formatDate(own.first_read.slice(0, 10)) })
+    bottomStats.push({ label: 'First read', value: formatDate(own.first_read.slice(0, 10)) })
   }
   if (own.last_read) {
-    bottomTiles.push({ icon: <CalendarCheck className="w-3 h-3" />, label: 'Last read', value: formatDate(own.last_read.slice(0, 10)) })
+    bottomStats.push({ label: 'Last read', value: formatDate(own.last_read.slice(0, 10)) })
   }
   // Reading days from distinct session days
   if (own.session_timeline.length > 0) {
-    bottomTiles.push({ icon: <CalendarDays className="w-3 h-3" />, label: 'Reading days', value: String(own.session_timeline.length) })
+    bottomStats.push({ label: 'Reading days', value: String(own.session_timeline.length) })
   }
   if (own.status === 'reading' && own.estimated_finish_seconds != null) {
-    bottomTiles.push({ icon: <Hourglass className="w-3 h-3" />, label: 'Est. remaining', value: formatDuration(own.estimated_finish_seconds) })
+    bottomStats.push({ label: 'Est. remaining', value: formatDuration(own.estimated_finish_seconds) })
   }
 
-  // Use 4-col grid when Est. remaining is present (4 tiles), otherwise 3-col
-  const bottomGridCols = bottomTiles.length >= 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'
-
   return (
-    <div className="space-y-2">
-      {/* Region 1 — hero panel (headline + chart only) + right-column metric tiles */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        {/* Hero panel — flex column: headline shrink-0, chart flex-1 */}
-        <div className="rounded-lg border border-border bg-muted/30 p-4 flex-1 min-w-0 flex flex-col gap-2.5">
-          {/* Headline — shrink-0, pinned at top */}
-          <div className="flex items-baseline gap-2 shrink-0">
-            <Clock className="w-4 h-4 text-muted-foreground shrink-0 self-center" />
-            <p className="text-2xl font-semibold tabular-nums text-foreground leading-none">
-              {formatDuration(own.total_seconds)}
-            </p>
-            <p className="text-xs text-muted-foreground">time read</p>
-          </div>
-          {/* Activity chart — flex-1 min-h-0, fills remaining panel height */}
-          {own.session_timeline.length > 1 && (
-            <ActivityChart timeline={own.session_timeline} />
-          )}
+    <div className="rounded-xl border border-border bg-card px-5 py-4">
+      {/* Headline + supporting metrics, one baseline-aligned row */}
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+        <div className="flex items-baseline gap-2">
+          <p className="text-3xl font-semibold tabular-nums text-foreground leading-none">
+            {formatDuration(own.total_seconds)}
+          </p>
+          <p className="text-sm text-muted-foreground">read</p>
         </div>
-        {/* Supporting tiles — right column */}
-        {supporting.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-1 gap-1 sm:w-36 shrink-0">
-            {supporting.map(s => (
-              <StatTile key={s.label} icon={s.icon} label={s.label} value={s.value} />
-            ))}
-          </div>
-        )}
+        <div className="flex items-baseline gap-x-5 gap-y-1 flex-wrap">
+          {supporting.map(s => (
+            <div key={s.label} className="flex items-baseline gap-1.5">
+              <span className="text-sm font-medium tabular-nums text-foreground">{s.value}</span>
+              <span className="text-xs text-muted-foreground/70">{s.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      {/* Region 2 — timeline tiles, top-level siblings (not nested in the hero panel) */}
-      {bottomTiles.length > 0 && (
-        <div className={`grid ${bottomGridCols} gap-2`}>
-          {bottomTiles.map(s => (
-            <StatTile key={s.label} icon={s.icon} label={s.label} value={s.value} />
+      {own.session_timeline.length > 1 && (
+        <div className="mt-4">
+          <ActivityChart timeline={own.session_timeline} />
+        </div>
+      )}
+      {/* Dates row — hairline-divided columns, no boxes */}
+      {bottomStats.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-2 sm:flex">
+          {bottomStats.map((s, i) => (
+            <div key={s.label} className={cn('sm:flex-1 sm:px-4', i === 0 && 'sm:pl-0', i > 0 && 'sm:border-l sm:border-border/60')}>
+              <p className="text-xs text-muted-foreground/70">{s.label}</p>
+              <p className="text-sm font-medium tabular-nums text-foreground">{s.value}</p>
+            </div>
           ))}
         </div>
       )}
       {aggregate && (
-        <p className="text-xs text-muted-foreground/60 pt-1">
+        <p className="text-xs text-muted-foreground/60 mt-3">
           All readers: {formatDuration(aggregate.total_seconds)} · {aggregate.total_sessions} sessions · {aggregate.distinct_readers} reader{aggregate.distinct_readers !== 1 ? 's' : ''}
         </p>
       )}

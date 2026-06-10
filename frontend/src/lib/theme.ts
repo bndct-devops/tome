@@ -1,9 +1,11 @@
-export type ThemeId = 'light' | 'dark' | 'amber' | `custom-${string}`
+export type ThemeId = 'light' | 'dark' | 'black' | 'amber' | 'ember' | `custom-${string}`
 
 export interface ThemeDefinition {
   id: ThemeId
   label: string
   dark: boolean
+  /** Lineup structure: neutral pair + OLED = core, Amber/Ember = warm */
+  group: 'core' | 'warm'
   preview: {
     bg: string
     card: string
@@ -20,9 +22,11 @@ export interface CustomTheme {
 }
 
 export const THEMES: ThemeDefinition[] = [
-  { id: 'light', label: 'Light', dark: false, preview: { bg: '#ffffff',  card: '#f1f5f9', primary: '#863bff',  text: '#1a1a1a' } },
-  { id: 'dark',  label: 'Dark',  dark: true,  preview: { bg: '#09090b',  card: '#18181b', primary: '#a166ff',   text: '#fafafa' } },
-  { id: 'amber', label: 'Amber', dark: false, preview: { bg: '#f9f4ec',  card: '#fffef9', primary: '#8c5c2a',   text: '#2e1f10' } },
+  { id: 'light', label: 'Light', dark: false, group: 'core', preview: { bg: '#f8f7f4',  card: '#fefdfc', primary: '#8a353c',  text: '#1d1713' } },
+  { id: 'dark',  label: 'Dark',  dark: true,  group: 'core', preview: { bg: '#0f0d0c',  card: '#1a1816', primary: '#be706e',   text: '#f3f2ee' } },
+  { id: 'black', label: 'Black', dark: true,  group: 'core', preview: { bg: '#000000',  card: '#0b0a09', primary: '#c87976',   text: '#f3f2ee' } },
+  { id: 'amber', label: 'Amber', dark: false, group: 'warm', preview: { bg: '#f9f4ec',  card: '#fffef9', primary: '#8c5c2a',   text: '#2e1f10' } },
+  { id: 'ember', label: 'Ember', dark: true,  group: 'warm', preview: { bg: '#150f0b',  card: '#211a15', primary: '#be706e',   text: '#f3f2ee' } },
 ]
 
 // The 10 color positions map to CSS variable names

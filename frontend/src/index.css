@@ -29,51 +29,88 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Light — near-neutral paper + oxblood (bookbinding leather).
+   Kept a touch off pure white, but visibly cooler than Amber —
+   Light/Dark are the neutral pair, Amber/Ember the warm pair. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.50 0.27 285);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.50 0.27 285);
-  --chart-accent: oklch(0.50 0.27 285);
-  --accent-soft: oklch(0.50 0.27 285 / 0.12);
+  --background: oklch(0.975 0.003 85);
+  --foreground: oklch(0.21 0.012 60);
+  --card: oklch(0.995 0.002 85);
+  --card-foreground: oklch(0.21 0.012 60);
+  --popover: oklch(0.995 0.002 85);
+  --popover-foreground: oklch(0.21 0.012 60);
+  --primary: oklch(0.45 0.115 18);
+  --primary-foreground: oklch(0.98 0.005 85);
+  --secondary: oklch(0.94 0.004 85);
+  --secondary-foreground: oklch(0.27 0.012 60);
+  --muted: oklch(0.94 0.004 85);
+  --muted-foreground: oklch(0.50 0.010 70);
+  --accent: oklch(0.93 0.006 40);
+  --accent-foreground: oklch(0.25 0.012 60);
+  --destructive: oklch(0.55 0.21 30);
+  --border: oklch(0.90 0.005 85);
+  --input: oklch(0.88 0.005 85);
+  --ring: oklch(0.45 0.115 18);
+  --chart-accent: oklch(0.52 0.13 18);
+  --accent-soft: oklch(0.45 0.115 18 / 0.12);
 }
 
+/* Dark — near-neutral with a trace of warmth (not zinc, not espresso)
+   + dusty rosewood. The accent stays calm because its chroma is low,
+   not because the surfaces are brown. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.60 0.24 285);
-  --primary-foreground: oklch(0.13 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.60 0.24 285);
-  --chart-accent: oklch(0.60 0.24 285);
-  --accent-soft: oklch(0.60 0.24 285 / 0.15);
+  --background: oklch(0.16 0.004 60);
+  --foreground: oklch(0.955 0.004 80);
+  --card: oklch(0.21 0.005 60);
+  --card-foreground: oklch(0.955 0.004 80);
+  --popover: oklch(0.21 0.005 60);
+  --popover-foreground: oklch(0.955 0.004 80);
+  --primary: oklch(0.63 0.10 22);
+  --primary-foreground: oklch(0.98 0.005 18);
+  --secondary: oklch(0.265 0.005 60);
+  --secondary-foreground: oklch(0.955 0.004 80);
+  --muted: oklch(0.265 0.005 60);
+  --muted-foreground: oklch(0.71 0.008 70);
+  --accent: oklch(0.265 0.005 60);
+  --accent-foreground: oklch(0.955 0.004 80);
+  --destructive: oklch(0.70 0.19 28);
+  --border: oklch(0.95 0.008 60 / 11%);
+  --input: oklch(0.95 0.008 60 / 15%);
+  --ring: oklch(0.63 0.10 22);
+  --chart-accent: oklch(0.63 0.10 22);
+  --accent-soft: oklch(0.63 0.10 22 / 0.16);
+}
+
+/* Ember — the warm cappuccino dark: espresso surfaces, same rosewood accent.
+   Dark counterpart to Amber. Applied alongside .dark; overrides surfaces only. */
+.theme-ember {
+  --background: oklch(0.175 0.012 60);
+  --card: oklch(0.225 0.014 60);
+  --popover: oklch(0.225 0.014 60);
+  --secondary: oklch(0.28 0.015 60);
+  --muted: oklch(0.28 0.015 60);
+  --accent: oklch(0.28 0.015 60);
+  --muted-foreground: oklch(0.71 0.015 70);
+  --border: oklch(0.95 0.015 60 / 11%);
+  --input: oklch(0.95 0.015 60 / 15%);
+}
+
+/* Black — true-black OLED theme, same wine identity.
+   Class is applied alongside .dark, so it only needs to override surfaces. */
+.theme-black {
+  --background: oklch(0 0 0);
+  --card: oklch(0.145 0.003 60);
+  --popover: oklch(0.145 0.003 60);
+  --secondary: oklch(0.20 0.004 60);
+  --muted: oklch(0.20 0.004 60);
+  --accent: oklch(0.20 0.004 60);
+  --primary: oklch(0.66 0.10 22);
+  --ring: oklch(0.66 0.10 22);
+  --chart-accent: oklch(0.66 0.10 22);
+  --accent-soft: oklch(0.66 0.10 22 / 0.18);
+  --border: oklch(1 0 0 / 13%);
+  --input: oklch(1 0 0 / 17%);
 }
 
 /* Amber (warm parchment) theme */
@@ -269,6 +306,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Display face — characterful grotesque for headings, page titles, book titles.
+   UI chrome (buttons, labels, badges) stays on Onest. */
 h1, h2, h3, .font-display {
-  letter-spacing: -0.015em;
+  font-family: 'Bricolage Grotesque', 'Onest', system-ui, sans-serif;
+  font-variation-settings: 'opsz' 40;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }

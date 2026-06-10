@@ -1008,7 +1008,7 @@ export function DashboardPage() {
                 return (
                   <section className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
                     <header className="flex items-center justify-between mb-2">
-                      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pick up where you left off</h2>
+                      <h2 className="text-base text-foreground">Pick up where you left off</h2>
                       <button
                         onClick={dismiss}
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -1262,8 +1262,8 @@ export function DashboardPage() {
                                     <span>{total} volumes</span>
                                   </div>
                                   <div className="h-2 rounded-full bg-muted overflow-hidden flex">
-                                    <div className="h-full bg-green-500 transition-all" style={{ width: `${readPct}%` }} />
-                                    <div className="h-full bg-blue-500 transition-all" style={{ width: `${readingPct}%` }} />
+                                    <div className="h-full bg-primary transition-all" style={{ width: `${readPct}%` }} />
+                                    <div className="h-full bg-primary/50 transition-all" style={{ width: `${readingPct}%` }} />
                                   </div>
                                 </div>
                               )
@@ -1353,9 +1353,9 @@ export function DashboardPage() {
                                         className="group relative flex flex-col rounded-lg overflow-hidden border bg-muted transition-all duration-150 hover:shadow-md hover:scale-105 cursor-pointer"
                                         style={{
                                           borderColor: vol.reading_status === 'read'
-                                            ? 'rgb(34 197 94 / 0.6)'
+                                            ? 'color-mix(in oklab, var(--primary) 60%, transparent)'
                                             : vol.reading_status === 'reading'
-                                            ? 'rgb(59 130 246 / 0.6)'
+                                            ? 'color-mix(in oklab, var(--primary) 30%, transparent)'
                                             : undefined,
                                         }}
                                       >
@@ -1380,7 +1380,7 @@ export function DashboardPage() {
                                           {vol.reading_status !== 'unread' && (
                                             <div className={cn(
                                               'absolute top-1 right-1 w-2 h-2 rounded-full ring-1 ring-background',
-                                              vol.reading_status === 'read' ? 'bg-green-500' : 'bg-blue-500'
+                                              vol.reading_status === 'read' ? 'bg-primary' : 'bg-primary/60'
                                             )} />
                                           )}
                                           {/* Volume number overlay */}
@@ -1455,11 +1455,11 @@ export function DashboardPage() {
                             {!isUnserialized && s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
                               <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden flex">
                                 <div
-                                  className="h-full bg-green-500"
+                                  className="h-full bg-primary"
                                   style={{ width: `${(s.read_count / s.book_count) * 100}%` }}
                                 />
                                 <div
-                                  className="h-full bg-blue-500"
+                                  className="h-full bg-primary/50"
                                   style={{ width: `${(s.reading_count / s.book_count) * 100}%` }}
                                 />
                               </div>

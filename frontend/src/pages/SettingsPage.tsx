@@ -729,36 +729,41 @@ export function SettingsPage() {
         <section>
           <SectionHeader title="Appearance" />
 
-          {/* Built-in themes */}
-          <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {THEMES.map(theme => {
-              const active = activeTheme === theme.id
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => handleThemeSelect(theme.id)}
-                  className={cn(
-                    'group relative rounded-lg overflow-hidden transition-all duration-150',
-                    active
-                      ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md'
-                      : 'ring-1 ring-border hover:ring-primary/40 hover:shadow-sm'
-                  )}
-                  title={theme.label}
-                >
-                  <div className="h-10 w-full flex items-end p-1.5 gap-1" style={{ background: theme.preview.bg }}>
-                    <div className="flex-1 h-4 rounded opacity-90" style={{ background: theme.preview.card }} />
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: theme.preview.primary }} />
-                  </div>
-                  <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: theme.preview.card }}>
-                    <span className="text-[10px] font-medium leading-tight truncate" style={{ color: theme.preview.text }}>
-                      {theme.label}
-                    </span>
-                    {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: theme.preview.primary }} />}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+          {/* Built-in themes — neutral core + warm pair */}
+          {([['Core', 'core'], ['Warm', 'warm']] as const).map(([groupLabel, group]) => (
+            <div key={group} className="mt-4">
+              <p className="text-xs text-muted-foreground mb-1.5">{groupLabel}</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {THEMES.filter(t => t.group === group).map(theme => {
+                  const active = activeTheme === theme.id
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => handleThemeSelect(theme.id)}
+                      className={cn(
+                        'group relative rounded-lg overflow-hidden transition-all duration-150',
+                        active
+                          ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md'
+                          : 'ring-1 ring-border hover:ring-primary/40 hover:shadow-sm'
+                      )}
+                      title={theme.label}
+                    >
+                      <div className="h-10 w-full flex items-end p-1.5 gap-1" style={{ background: theme.preview.bg }}>
+                        <div className="flex-1 h-4 rounded opacity-90" style={{ background: theme.preview.card }} />
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: theme.preview.primary }} />
+                      </div>
+                      <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: theme.preview.card }}>
+                        <span className="text-[10px] font-medium leading-tight truncate" style={{ color: theme.preview.text }}>
+                          {theme.label}
+                        </span>
+                        {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: theme.preview.primary }} />}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
 
           {/* Custom themes */}
           {customThemes.length > 0 && (

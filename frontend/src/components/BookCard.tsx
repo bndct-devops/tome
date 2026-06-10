@@ -36,7 +36,7 @@ interface BookCardProps {
 export function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
-  readingStatus, progressPct, index = 0,
+  readingStatus, progressPct,
 }: BookCardProps) {
   const navigate = useNavigate()
   const bookTypes = useBookTypes()
@@ -151,7 +151,7 @@ export function BookCard({
     const cls = cn(
       'group flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card transition-all duration-150 touch-feedback',
       selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent hover:border-primary/20',
-      focused && 'ring-2 ring-blue-500 ring-offset-1 ring-offset-background',
+      focused && 'ring-2 ring-ring ring-offset-1 ring-offset-background',
       onSelect && 'select-none',
     )
 
@@ -175,7 +175,7 @@ export function BookCard({
     const yRatio = y * 2 - 1  // -1 to 1
     setMousePos({ x: x * 100, y: y * 100 })
     if (coverDivRef.current) {
-      coverDivRef.current.style.transform = `rotateY(${xRatio * 8}deg) rotateX(${yRatio * -8}deg) translateY(-4px)`
+      coverDivRef.current.style.transform = `rotateY(${xRatio * 4}deg) rotateX(${yRatio * -4}deg) translateY(-3px)`
     }
   }
 
@@ -196,8 +196,8 @@ export function BookCard({
   return (
     <div
       ref={cardRef as React.RefObject<HTMLDivElement>}
-      className={cn('group flex flex-col cursor-pointer animate-card-appear touch-feedback', onSelect && 'select-none')}
-      style={{ animationDelay: `${Math.min(index * 30, 400)}ms`, perspective: '600px' }}
+      className={cn('group flex flex-col cursor-pointer touch-feedback', onSelect && 'select-none')}
+      style={{ perspective: '600px' }}
       onClick={onSelect ? onSelect : () => navigate(`/books/${book.id}`)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -209,9 +209,9 @@ export function BookCard({
         className={cn(
           'aspect-[2/3] bg-muted relative overflow-hidden rounded-xl shadow-sm group-hover:shadow-lg group-hover:shadow-accent-soft',
           selected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
-          focused && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-background',
+          focused && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
         )}
-        style={{ transition: isHovering ? 'transform 0.05s ease-out, box-shadow 0.2s ease-out' : 'transform 0.3s ease-out, box-shadow 0.2s ease-out' }}
+        style={{ transition: isHovering ? 'transform 0.12s ease-out, box-shadow 0.2s ease-out' : 'transform 0.3s ease-out, box-shadow 0.2s ease-out' }}
       >
         <CoverImage
           src={coverUrl}
@@ -297,11 +297,6 @@ export function BookCard({
           >
             {book.author}
           </button>
-        )}
-        {bookType && typeBadgeClass && (
-          <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium self-start', typeBadgeClass)}>
-            {bookType.label}
-          </span>
         )}
       </div>
     </div>

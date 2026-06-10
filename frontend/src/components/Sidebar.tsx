@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { Fragment, useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams, useLocation, Link } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import {
   BookOpen, Plus, Pencil, Trash2,
   ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
-  Sun, Moon, Flame, Check, Sparkles, Users,
+  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -800,7 +800,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 const THEME_OPTIONS: { id: ThemeId; icon: typeof Sun; label: string }[] = [
   { id: 'light', icon: Sun, label: 'Light' },
   { id: 'dark', icon: Moon, label: 'Dark' },
+  { id: 'black', icon: MoonStar, label: 'Black' },
   { id: 'amber', icon: Flame, label: 'Amber' },
+  { id: 'ember', icon: Coffee, label: 'Ember' },
 ]
 
 function ThemeMenuItems({ itemClass }: { itemClass: string }) {
@@ -808,15 +810,18 @@ function ThemeMenuItems({ itemClass }: { itemClass: string }) {
   return (
     <>
       {THEME_OPTIONS.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          onClick={() => { applyTheme(id); setCurrent(id) }}
-          className={itemClass}
-        >
-          <Icon className="w-4 h-4 shrink-0" />
-          {label}
-          {current === id && <Check className="w-3.5 h-3.5 shrink-0 text-primary ml-auto" />}
-        </button>
+        <Fragment key={id}>
+          {/* hairline between the neutral core and the warm pair */}
+          {id === 'amber' && <div className="h-px bg-border my-1" />}
+          <button
+            onClick={() => { applyTheme(id); setCurrent(id) }}
+            className={itemClass}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            {label}
+            {current === id && <Check className="w-3.5 h-3.5 shrink-0 text-primary ml-auto" />}
+          </button>
+        </Fragment>
       ))}
     </>
   )

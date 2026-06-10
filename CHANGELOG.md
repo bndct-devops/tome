@@ -6,6 +6,21 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **A new look: oxblood, paper, and a proper display face.** Tome's violet
+  accent is gone — the new identity is a deep bookbinding-leather red (oxblood
+  in the light themes, a dusty rosewood in the dark ones) on warm paper
+  neutrals, with headings set in Bricolage Grotesque. Smaller refinements ride
+  along: the book-detail reading stats collapse from a wall of bordered
+  mini-tiles into one quiet panel, section headers drop the ALL-CAPS treatment,
+  cover hover-tilt is subtler, the grid no longer re-runs its entrance
+  animation on every filter change, and grid cards lose the repetitive
+  book-type pill (list view keeps it).
+- **Five themes, structured.** The theme lineup is now a neutral pair
+  (Light/Dark), a warm pair (Amber and the new **Ember**, a cappuccino dark),
+  and a new true-black **Black** theme for OLED screens. The pickers in
+  Settings, the sidebar menu, and the login screen group them accordingly.
+
 ### Added
 - **Send to KOReader (beta).** Queue a book from the web straight to your
   e-reader — no email, no Amazon Send-to-Kindle. It's the KOReader-native
