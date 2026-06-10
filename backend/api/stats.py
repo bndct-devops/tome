@@ -277,7 +277,7 @@ def get_stats(
             "author": r.author,
             "has_cover": bool(r.cover_path),
             "progress": round(r.progress * 100, 1) if r.progress and r.progress <= 1 else round(r.progress, 1) if r.progress else 0,
-            "last_read": r.updated_at.isoformat() if r.updated_at else None,
+            "last_read": r.updated_at.isoformat() + "Z" if r.updated_at else None,
         }
         for r in in_progress_rows
     ]

@@ -6,7 +6,21 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-10
+
 ### Added
+- **Send to KOReader (beta).** Queue a book from the web straight to your
+  e-reader — no email, no Amazon Send-to-Kindle. It's the KOReader-native
+  counterpart to email send-to-device: the original EPUB/CBZ arrives in your
+  library folders (by series, or under the author for standalones) instead of
+  being converted and dropped into a stock reader. The book detail page and the
+  dashboard's bulk bar gain a split **Send to KOReader** button (the caret still
+  offers "Send via email…"); the TomeSync plugin grows an **Inbox (N)** badge you
+  tap to pull queued books (build 16 / 1.2.3). Delivery is a pull, not a push, so
+  books arrive the next time KOReader checks in. Per-user — every connected
+  KOReader shares one inbox. Off by default; enable with
+  `TOME_SEND_TO_KOREADER=true`. See the
+  [KOReader docs](https://tome.bndct.sh/docs/koreader#send-to-koreader).
 - **Download a single book from KOReader.** The TomeSync plugin's series browser
   now drills into a per-volume list when you tap a series — pick one title to
   download on its own, or use the "Download all" row for the whole series as
@@ -14,6 +28,68 @@ All notable changes to Tome are documented here. Format loosely follows
   "No Series" entry in the browser, so they no longer had to be fetched via OPDS
   or the web; each is filed under its author folder, matching Tome's library
   layout. Bumps the plugin to build 15 (1.2.2).
+
+### Fixed
+- **Relative timestamps no longer drift by your UTC offset.** The dashboard's
+  Reading Log (and the notification bell and API-token "last used" times)
+  showed sessions recorded minutes ago as "2h ago" for anyone not living on
+  UTC: those endpoints emitted timestamps without an explicit timezone, so the
+  browser parsed the UTC values as local time. All of them now carry the `Z`
+  suffix the rest of the API already used.
+- **The TomeSync plugin no longer breaks layout profiles that auto-execute on
+  book open.** The "TomeSync: Server at X% (device: Y%)" message shown when
+  another device had read ahead was a modal window, and KOReader delivers
+  profile actions only to the topmost non-modal window — so a profile applying
+  your layout (font size, margins, columns) on book open was silently swallowed
+  exactly on those opens, leaving the book with default or stale layout
+  settings. The message is now a passive toast that lets profile actions
+  through. Also fixes two more issues in the same path: a position saved by the
+  web reader no longer throws KOReader to page 1 (the plugin now recognises it
+  isn't a KOReader-native position and jumps by percentage instead), and the
+  book-open sync no longer runs twice per open. Bumps the plugin to build 17
+  (1.2.4).
+- **Series progress no longer shows as complete the moment you start the last
+  book** (#36). The dashboard's "Series Progress" bar measured progress by the
+  index of the book you were currently reading, so beginning book 2 of a 2-book
+  series filled the bar to 100% before you'd finished it. It now reflects the
+  number of volumes you've actually read, so the series only reads as complete
+  once the last book is marked read.
+- **The Bindery is now reachable from the mobile sidebar.** Admins
+  could open the Bindery from the desktop sidebar but the link was missing from
+  the mobile navigation drawer, so it was unreachable on a phone or the installed
+  PWA. The admin-only Bindery entry (with its pending-count badge) now appears in
+  the mobile drawer too.
+
+## [1.3.2] — 2026-06-06
+
+### Fixed
+- **Reader font, size and theme no longer reset at every chapter** (#33). In the
+  EPUB reader, changing the font, font size or background theme worked on the
+  page you were on but was silently reverted the moment you turned into a new
+  chapter — snapping back to whatever settings were saved when you first opened
+  the book. The chapter-load handler was re-applying a stale snapshot of the
+  reader settings captured at open time; it now always applies your current
+  choices, so adjustments persist across chapters for the rest of the session.
+
+## [1.3.1] — 2026-06-06
+
+### Fixed
+- **Shared libraries are now actually shared** (#31). Marking a library *public*
+  had no effect: the library list only ever returned libraries you owned (plus
+  the built-in global ones), so a library created by one user was invisible to
+  everyone else regardless of its public/private flag. Public libraries are now
+  visible to all users, and their books show up for members too (previously only
+  guests saw public-library books). Private libraries can be shared with
+  individual people: the library editor gained a **Share with users** picker, and
+  library owners — not just admins — can grant and revoke access to their own
+  libraries. The rename/delete/add-to-library controls now appear only on
+  libraries you can actually manage (your own, or any library if you're an admin),
+  so you no longer see edit buttons that error out on libraries owned by someone
+  else.
+
+## [1.3.0] — 2026-06-05 — "Diary"
+
+### Added
 - **Single sign-on (OIDC).** Tome can now authenticate against an external
   OpenID Connect identity provider (Pocket ID, Authelia, Authentik, Keycloak,
   Zitadel, Google, …). When enabled, a configurable "Sign in with SSO" button
@@ -79,18 +155,18 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of a full-width grid.
 
 ### Fixed
-- **Shared libraries are now actually shared** (#31). Marking a library *public*
-  had no effect: the library list only ever returned libraries you owned (plus
-  the built-in global ones), so a library created by one user was invisible to
-  everyone else regardless of its public/private flag. Public libraries are now
-  visible to all users, and their books show up for members too (previously only
-  guests saw public-library books). Private libraries can be shared with
-  individual people: the library editor gained a **Share with users** picker, and
-  library owners — not just admins — can grant and revoke access to their own
-  libraries. The rename/delete/add-to-library controls now appear only on
-  libraries you can actually manage (your own, or any library if you're an admin),
-  so you no longer see edit buttons that error out on libraries owned by someone
-  else.
+- Books sent with **Send to Device** now sync their reading position back from
+  KOReader. They were emailed as a bare `Title.ext`, which the TomeSync resolver
+  couldn't reliably match to a library book (it failed with "Book not resolved").
+  Sent files are now named the same way KOReader names its OPDS downloads —
+  `Author - Vol. X — Title.ext` — so they resolve through the path that already
+  works for OPDS. No change for books already on a device; re-send to pick up the
+  new name (#25).
+- You can no longer lock yourself out by removing the last admin. Demoting,
+  deactivating, or deleting a user is now refused with "Cannot remove the last
+  admin" when they are the only remaining active admin — previously a single-user
+  instance that changed its own role to member (or guest) had no way back through
+  the UI and needed a manual database edit to recover.
 - The PWA service worker no longer swallows full-page navigations to server
   routes. Its SPA navigation fallback was serving the cached app shell for *any*
   navigation, including `/api/*` and `/opds/*` — so on an installed/cached client
@@ -154,6 +230,11 @@ All notable changes to Tome are documented here. Format loosely follows
   none. Tags also now round-trip back out on download — embedded as `dc:subject`
   in EPUBs and `<Genre>` in CBZ `ComicInfo.xml`. Applies to newly imported books;
   existing books are not retroactively re-tagged.
+
+### Security
+- Updated `react-router` to 7.17.0, clearing four advisories (an RCE in vendored
+  turbo-stream plus three DoS / open-redirect issues). None were exploitable in
+  Tome's static SPA, but the alerts are now resolved. (#27)
 
 ## [1.2.0] — 2026-06-02 — "Press"
 

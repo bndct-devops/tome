@@ -23,9 +23,16 @@ import { withBase } from '../../lib/path'
   </Callout>
 
   <h2>Unreleased</h2>
-  <p>
-    Nothing on <code>main</code> beyond the latest tagged release yet.
-  </p>
+  <ul>
+    <li>
+      <strong>Send to KOReader (beta).</strong> Queue a book from the web straight to your
+      e-reader — no email, no Amazon. A split <strong>Send to KOReader</strong> button (the caret
+      keeps "Send via email…") queues to a per-user inbox the TomeSync plugin pulls via a new
+      <strong>Inbox (N)</strong> badge (plugin build 16). Off by default —
+      <code>TOME_SEND_TO_KOREADER=true</code>. See
+      <a href={withBase("/docs/koreader#send-to-koreader")}>Send to KOReader</a>.
+    </li>
+  </ul>
 
   <h2>v1.2.1</h2>
   <p>

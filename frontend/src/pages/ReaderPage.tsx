@@ -400,6 +400,10 @@ export default function ReaderPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initialCfi = useRef<string | null>(null)
   const readyToSave = useRef(false)
+  // Holds the latest applyStyles so the foliate 'load' listener (registered
+  // once at init) always re-applies the CURRENT theme/font on each new
+  // chapter, instead of the stale values captured when the book opened.
+  const applyStylesRef = useRef<() => void>(() => {})
 
   // Persist comic reader preferences so they carry across chapters.
   useEffect(() => { localStorage.setItem('reader_comic_rtl', isRTL ? '1' : '0') }, [isRTL])
@@ -589,7 +593,7 @@ export default function ReaderPage() {
       viewRef.current = view
 
       view.addEventListener('load', () => {
-        applyStyles()
+        applyStylesRef.current()
         if (view.book?.toc) {
           setToc(flattenToc(view.book.toc))
         }
@@ -661,6 +665,7 @@ export default function ReaderPage() {
   }, [theme, fontSize, fontFamily])
 
   useEffect(() => {
+    applyStylesRef.current = applyStyles
     if (!isComic) applyStyles()
   }, [applyStyles, isComic])
 

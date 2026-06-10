@@ -92,7 +92,7 @@ def get_home_activity(
             "book_id": r.book_id,
             "book_title": r.book_title,
             "book_cover_path": r.book_cover_path,
-            "started_at": r.started_at.isoformat() if r.started_at else None,
+            "started_at": r.started_at.isoformat() + "Z" if r.started_at else None,
             "duration_seconds": r.duration_seconds,
             "pages_turned": r.pages_turned,
         }
@@ -126,7 +126,7 @@ def forgotten_books(
             "title": book.title,
             "author": book.author,
             "has_cover": bool(book.cover_path),
-            "last_read": status.updated_at.isoformat() if status.updated_at else None,
+            "last_read": status.updated_at.isoformat() + "Z" if status.updated_at else None,
             "days_ago": (datetime.utcnow() - status.updated_at).days if status.updated_at else None,
         }
         for status, book in rows

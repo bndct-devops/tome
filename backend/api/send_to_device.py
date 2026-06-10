@@ -17,6 +17,7 @@ from backend.models.audit_log import AuditLog
 from backend.models.book import Book, BookFile
 from backend.models.user import User
 from backend.models.user_device import UserDevice
+from backend.models.send_queue import SendQueueItem
 from backend.services.audit import audit
 from backend.services.email import (
     FileTooLargeError,
@@ -27,6 +28,7 @@ from backend.services.email import (
     send_test_email,
 )
 from backend.services.metadata_embed import get_baked_path
+from backend.services.organizer import koreader_style_name
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +71,8 @@ class BulkSendResponse(BaseModel):
 
 class SmtpStatusPublic(BaseModel):
     configured: bool
+    # Send-to-KOReader inbox (beta) availability — drives the split send button.
+    koreader: bool = False
 
 
 class SmtpStatusAdmin(BaseModel):
@@ -229,7 +233,10 @@ def send_to_device(
         raise HTTPException(404, "Book file not found on disk")
 
     try:
-        send_book_to_device(device.email, book.title, baked, book_file.format)
+        attachment_name = koreader_style_name(
+            book.author, book.title, book.series_index, book_file.format
+        )
+        send_book_to_device(device.email, book.title, attachment_name, baked, book_file.format)
         status_str = "ok"
         error_str = None
     except FileTooLargeError as exc:
@@ -284,7 +291,7 @@ def bulk_send_to_device(
     if not device or device.user_id != user.id:
         raise HTTPException(404, "Device not found")
 
-    to_send: list[tuple[str, Path, str, Book]] = []
+    to_send: list[tuple[str, str, Path, str, Book]] = []
     errors: list[dict] = []
 
     for bid in body.book_ids:
@@ -300,15 +307,16 @@ def bulk_send_to_device(
         if not baked.exists():
             errors.append({"book_id": bid, "error": "File not found on disk"})
             continue
-        to_send.append((book.title, baked, bf.format, book))
+        name = koreader_style_name(book.author, book.title, book.series_index, bf.format)
+        to_send.append((book.title, name, baked, bf.format, book))
 
     sent = 0
     if to_send:
         results = send_books_bulk(
             device.email,
-            [(title, path, fmt) for title, path, fmt, _ in to_send],
+            [(title, name, path, fmt) for title, name, path, fmt, _ in to_send],
         )
-        for (title, error), (_, _, fmt, book) in zip(results, to_send):
+        for (title, error), (_, _, _, fmt, book) in zip(results, to_send):
             status_str = "ok" if error is None else "failed"
             audit(
                 db,
@@ -334,11 +342,75 @@ def bulk_send_to_device(
     return BulkSendResponse(sent=sent, failed=len(errors), errors=errors)
 
 
+# ── Send to KOReader (beta): queue books for the plugin inbox ─────────────────
+
+class QueueKoreaderRequest(BaseModel):
+    book_ids: list[int]
+
+
+class QueueKoreaderResponse(BaseModel):
+    queued: int
+    skipped: int
+
+
+@router.post("/send-to-device/koreader", response_model=QueueKoreaderResponse)
+def queue_to_koreader(
+    body: QueueKoreaderRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Queue one or more books to be pulled onto the user's KOReader by the
+    TomeSync plugin inbox. Per-user; no email/SMTP involved. Beta — gated by
+    ``settings.send_to_koreader``."""
+    if not settings.send_to_koreader:
+        raise HTTPException(404, "Send to KOReader is not enabled")
+    require_role(user, "member")
+
+    if not body.book_ids:
+        raise HTTPException(400, "No books selected")
+    if len(body.book_ids) > 50:
+        raise HTTPException(400, "Maximum 50 books per send")
+
+    queued = skipped = 0
+    for bid in body.book_ids:
+        book = db.query(Book).filter(Book.id == bid).first()
+        if not book or book.status != "active" or not user_can_see_book(db, user, book):
+            skipped += 1
+            continue
+        # Skip if this book is already pending in the user's inbox (dedup is also
+        # enforced on the device, but avoid piling up duplicate rows).
+        already = (
+            db.query(SendQueueItem)
+            .filter(
+                SendQueueItem.user_id == user.id,
+                SendQueueItem.book_id == book.id,
+                SendQueueItem.delivered_at.is_(None),
+            )
+            .first()
+        )
+        if already:
+            skipped += 1
+            continue
+        bf = _get_best_file(book)
+        db.add(SendQueueItem(
+            user_id=user.id,
+            book_id=book.id,
+            file_id=bf.id if bf else None,
+        ))
+        queued += 1
+
+    db.commit()
+    return QueueKoreaderResponse(queued=queued, skipped=skipped)
+
+
 # ── SMTP status (any authenticated user) ─────────────────────────────────────
 
 @router.get("/smtp-status", response_model=SmtpStatusPublic)
 def smtp_status_public(user: User = Depends(get_current_user)):
-    return SmtpStatusPublic(configured=settings.smtp_configured)
+    return SmtpStatusPublic(
+        configured=settings.smtp_configured,
+        koreader=settings.send_to_koreader,
+    )
 
 
 # ── Admin endpoints ──────────────────────────────────────────────────────────
