@@ -5,6 +5,9 @@ import {
   Area,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -12,14 +15,15 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, Zap, Minus, FileText, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
-import { useChartAccent } from '@/lib/useChartAccent'
+import { useChartColors } from '@/lib/useChartAccent'
+import { useChartPalette } from '@/lib/useChartPalette'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
 
 const PACE_COLOR = '#10b981'
 
 export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
-  const accent = useChartAccent()
+  const { accent } = useChartColors()
   return (
     <>
       <HourDowHeatmap data={data} />
@@ -35,7 +39,7 @@ export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] 
 }
 
 export function SessionTimeline({ sessions }: { sessions: StatsResponse['session_timeline'] }) {
-  const accent = useChartAccent()
+  const { accent } = useChartColors()
   const grouped: Record<string, StatsResponse['session_timeline']> = {}
   for (const s of sessions) {
     const d = s.started_at.slice(0, 10)
@@ -81,16 +85,17 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
 }
 
 export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace'] }) {
+  const { tick, cursor } = useChartColors()
   if (pace.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No paced sessions.</p>
   const avg = pace.reduce((s, p) => s + p.pages_per_min, 0) / pace.length
   return (
     <div className="flex h-full flex-col">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={[...pace].reverse()} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
+          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
           <Tooltip
-            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            cursor={cursor}
             wrapperStyle={{ outline: 'none' }}
             isAnimationActive={false}
             content={({ active, payload }) => {
@@ -114,6 +119,7 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
 }
 
 export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'] }) {
+  const { tick, cursor } = useChartColors()
   if (pace.length < 4) return <p className="text-sm text-muted-foreground text-center py-12">Not enough sessions yet.</p>
   const paceData = [...pace].reverse()
   const half = Math.floor(paceData.length / 2)
@@ -133,10 +139,10 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
       </div>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={paceData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
+          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
           <Tooltip
-            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            cursor={cursor}
             wrapperStyle={{ outline: 'none' }}
             isAnimationActive={false}
             content={({ active, payload }) => {
@@ -158,7 +164,7 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
 }
 
 export function CompletionEstimatesList({ estimates }: { estimates: CompletionEstimate[] | null }) {
-  const accent = useChartAccent()
+  const { accent } = useChartColors()
   if (estimates === null) {
     return (
       <div className="flex justify-center py-10">
@@ -228,15 +234,15 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
 }
 
 export function MonthlyComparison({ monthly }: { monthly: StatsResponse['monthly_comparison'] }) {
-  const accent = useChartAccent()
+  const { accent, tick, cursor } = useChartColors()
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-        <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-        <YAxis yAxisId="hours" tick={{ fontSize: 10, fill: '#94a3b8' }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
-        <YAxis yAxisId="books" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} width={30} axisLine={false} tickLine={false} allowDecimals={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
+        <YAxis yAxisId="hours" tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
+        <YAxis yAxisId="books" orientation="right" tick={{ fontSize: 10, fill: tick }} width={30} axisLine={false} tickLine={false} allowDecimals={false} />
         <Tooltip
-          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+          cursor={cursor}
           wrapperStyle={{ outline: 'none' }}
           isAnimationActive={false}
           content={({ active, payload }) => {
@@ -258,4 +264,110 @@ export function MonthlyComparison({ monthly }: { monthly: StatsResponse['monthly
       </BarChart>
     </ResponsiveContainer>
   )
+}
+
+// One-line duration y-tick — recharts wraps multi-word ticks like "1h 40m".
+function DurTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: { value?: number }; fill?: string }) {
+  return (
+    <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill={fill}>
+      {formatDuration(payload?.value ?? 0)}
+    </text>
+  )
+}
+
+// Reading time per weekday (Mon-first), aggregated from the hour×day heatmap data.
+export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
+  const { accent, tick, cursor } = useChartColors()
+  const byDow = [0, 0, 0, 0, 0, 0, 0]
+  const sessions = [0, 0, 0, 0, 0, 0, 0]
+  for (const c of data) {
+    byDow[c.dow] += c.seconds
+    sessions[c.dow] += c.sessions
+  }
+  // dow 0 = Sunday — rotate to Mon-first
+  const LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const rows = LABELS.map((label, i) => {
+    const dow = (i + 1) % 7
+    return { label, seconds: byDow[dow], sessions: sessions[dow] }
+  })
+  if (rows.every((r) => r.seconds === 0)) {
+    return <p className="text-sm text-muted-foreground text-center py-12">No session data.</p>
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
+        <YAxis tick={<DurTick fill={tick} />} width={52} axisLine={false} tickLine={false} />
+        <Tooltip
+          cursor={cursor}
+          wrapperStyle={{ outline: 'none' }}
+          isAnimationActive={false}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0].payload
+            return (
+              <ChartTooltip>
+                <div className="font-medium">{d.label}</div>
+                <div>{formatDuration(d.seconds)}</div>
+                <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
+              </ChartTooltip>
+            )
+          }}
+        />
+        <Bar dataKey="seconds" fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// Shared donut body for the split widgets below.
+function SplitDonut({ rows }: { rows: { name: string; seconds: number }[] }) {
+  const palette = useChartPalette()
+  const data = rows.filter((r) => r.seconds > 0)
+  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No session data.</p>
+  const total = data.reduce((s, r) => s + r.seconds, 0)
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie data={data} dataKey="seconds" nameKey="name" cx="50%" cy="50%" innerRadius="55%" outerRadius="90%" stroke="none" isAnimationActive={false}>
+          {data.map((_, i) => (
+            <Cell key={i} fill={palette[i % palette.length]} />
+          ))}
+        </Pie>
+        <Tooltip
+          cursor={false}
+          wrapperStyle={{ outline: 'none' }}
+          isAnimationActive={false}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0].payload
+            return (
+              <ChartTooltip>
+                <div className="font-medium">{d.name}</div>
+                <div>{formatDuration(d.seconds)} ({Math.round((d.seconds / total) * 100)}%)</div>
+              </ChartTooltip>
+            )
+          }}
+        />
+        <Legend formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+// Morning / afternoon / evening / night share of reading time.
+export function TimeOfDaySplit({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
+  const buckets = { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 }
+  for (const c of data) {
+    if (c.hour >= 5 && c.hour < 12) buckets.Morning += c.seconds
+    else if (c.hour >= 12 && c.hour < 17) buckets.Afternoon += c.seconds
+    else if (c.hour >= 17 && c.hour < 22) buckets.Evening += c.seconds
+    else buckets.Night += c.seconds
+  }
+  return <SplitDonut rows={Object.entries(buckets).map(([name, seconds]) => ({ name, seconds }))} />
+}
+
+// Reading time per file format (EPUB vs CBZ vs ...).
+export function TimeByFormat({ data }: { data: StatsResponse['pace_by_format'] }) {
+  return <SplitDonut rows={data.map((f) => ({ name: f.format.toUpperCase(), seconds: f.seconds }))} />
 }

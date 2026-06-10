@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useChartPalette } from '@/lib/useChartPalette'
+import { useChartColors } from '@/lib/useChartAccent'
 
 interface GrowthEntry {
   month: string
@@ -31,8 +32,9 @@ function ChartTooltip({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
+export function LibraryGrowthChart({ data, height = 280 }: { data: GrowthEntry[]; height?: number | `${number}%` }) {
   const palette = useChartPalette()
+  const { tick, cursor } = useChartColors()
   if (!data || data.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">No library growth data.</p>
@@ -50,25 +52,25 @@ export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="month"
           tickFormatter={formatMonth}
-          tick={{ fontSize: 10, fill: '#94a3b8' }}
+          tick={{ fontSize: 10, fill: tick }}
           axisLine={false}
           tickLine={false}
           interval={3}
         />
         <YAxis
-          tick={{ fontSize: 10, fill: '#94a3b8' }}
+          tick={{ fontSize: 10, fill: tick }}
           width={36}
           axisLine={false}
           tickLine={false}
           allowDecimals={false}
         />
         <Tooltip
-          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+          cursor={cursor}
           wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
           isAnimationActive={false}
           content={({ active, payload }) => {

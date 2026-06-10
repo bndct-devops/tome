@@ -2,7 +2,7 @@
 // Extracted from StatsPage so the two render from a single source of truth (no drift).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { formatDate, formatDuration } from '@/lib/utils'
-import { useChartAccent } from '@/lib/useChartAccent'
+import { useChartColors } from '@/lib/useChartAccent'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ export function ChartTooltip({ children }: { children: ReactNode }) {
 // ── 365-day activity heatmap ───────────────────────────────────────────────────
 
 export function HeatmapChart({ data }: { data: { date: string; seconds: number }[] }) {
-  const accent = useChartAccent()
+  const { accent, tick } = useChartColors()
   const [tooltip, setTooltip] = useState<{ x: number; y: number; date: string; seconds: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -124,9 +124,8 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
 
   const CELL = 12
   const GAP = 3
-  const EMPTY_FILL = 'rgba(148, 163, 184, 0.1)'
   function getOpacity(secs: number) {
-    if (secs === 0) return 0
+    if (secs === 0) return 0.12
     if (secs < 900) return 0.25
     if (secs < 1800) return 0.45
     if (secs < 3600) return 0.7
@@ -153,10 +152,10 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
     <div ref={scrollRef} className="relative overflow-x-auto">
       <svg width={svgW} height={svgH} className="mx-auto" style={{ display: 'block', minWidth: svgW }}>
         {monthLabels.map(({ x, label }) => (
-          <text key={label + x} x={x} y={10} fontSize={9} fill="#94a3b8">{label}</text>
+          <text key={label + x} x={x} y={10} fontSize={9} fill={tick}>{label}</text>
         ))}
         {['M', '', 'W', '', 'F', '', ''].map((d, i) =>
-          d ? <text key={i} x={0} y={20 + i * (CELL + GAP) + CELL - 1} fontSize={9} fill="#94a3b8">{d}</text> : null,
+          d ? <text key={i} x={0} y={20 + i * (CELL + GAP) + CELL - 1} fontSize={9} fill={tick}>{d}</text> : null,
         )}
         {weeks.map((wk, wi) =>
           wk.map((day, di) => {
@@ -170,7 +169,7 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
                 width={CELL}
                 height={CELL}
                 rx={2}
-                fill={secs === 0 ? EMPTY_FILL : accent}
+                fill={secs === 0 ? tick : accent}
                 fillOpacity={getOpacity(secs)}
                 onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, date: day, seconds: secs })}
                 onMouseLeave={() => setTooltip(null)}

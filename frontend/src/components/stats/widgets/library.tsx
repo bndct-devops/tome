@@ -15,6 +15,7 @@ import {
 import { BookCheck, Clock, Trophy, Flame, Activity, Calendar, FileText, ArrowUpDown, ChevronUp, ChevronDown, type LucideIcon } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
+import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {
@@ -85,6 +86,7 @@ export function CategoryBreakdown({ data }: { data: StatsResponse['by_category']
 
 export function GenreOverTime({ data }: { data: StatsResponse['genre_over_time'] }) {
   const palette = useChartPalette()
+  const { tick, cursor } = useChartColors()
   const categories = Array.from(new Set(data.flatMap((d) => Object.keys(d).filter((k) => k !== 'month')))).sort()
   if (categories.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No category data.</p>
 
@@ -103,10 +105,10 @@ export function GenreOverTime({ data }: { data: StatsResponse['genre_over_time']
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-        <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />
+        <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />
         <Tooltip
-          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+          cursor={cursor}
           wrapperStyle={{ outline: 'none' }}
           isAnimationActive={false}
           content={({ active, payload }) => {

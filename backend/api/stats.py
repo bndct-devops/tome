@@ -1,16 +1,19 @@
 """Personal reading statistics endpoint. TomeSync data only."""
+import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import func, Integer, case
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.permissions import book_visibility_filter
 from backend.core.security import get_current_user
 from backend.models.user import User
+from backend.models.user_dashboard import UserDashboard
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
@@ -906,5 +909,44 @@ def delete_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     db.delete(session)
+    db.commit()
+    return {"ok": True}
+
+
+# ── Dashboard persistence ────────────────────────────────────────────────────
+# The customisable stats dashboard (boards/tiles/layouts) is stored per user as
+# an opaque JSON blob — the frontend owns the shape, so catalog changes never
+# need a backend change. Last write wins across devices.
+
+_DASHBOARD_MAX_BYTES = 256 * 1024
+
+
+class DashboardPayload(BaseModel):
+    data: dict
+
+
+@router.get("/stats/dashboard")
+def get_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = db.query(UserDashboard).filter(UserDashboard.user_id == current_user.id).first()
+    return {"data": json.loads(row.data) if row else None}
+
+
+@router.put("/stats/dashboard")
+def put_dashboard(
+    payload: DashboardPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    raw = json.dumps(payload.data, separators=(",", ":"))
+    if len(raw.encode()) > _DASHBOARD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Dashboard too large")
+    row = db.query(UserDashboard).filter(UserDashboard.user_id == current_user.id).first()
+    if row:
+        row.data = raw
+    else:
+        db.add(UserDashboard(user_id=current_user.id, data=raw))
     db.commit()
     return {"ok": True}

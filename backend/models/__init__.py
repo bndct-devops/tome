@@ -8,3 +8,4 @@ from backend.models.series_meta import Arc, SeriesMeta  # noqa: F401
 from backend.models.user_device import UserDevice  # noqa: F401
 from backend.models.wish import Wish  # noqa: F401
 from backend.models.notification import Notification  # noqa: F401
+from backend.models.user_dashboard import UserDashboard  # noqa: F401

@@ -5,19 +5,23 @@ import ReactGridLayout, {
 } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
-import { Plus, RotateCcw, X, FlaskConical, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn, formatDuration } from '@/lib/utils'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, Plus, RotateCcw, X, FlaskConical, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, type LucideIcon } from 'lucide-react'
+import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
-import { useChartAccent } from '@/lib/useChartAccent'
-import { THEMES, applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
+import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
 import {
+  type ChartKind,
   HeadlineStatBody,
   CurrentlyReading,
   ReadingTimePerDay,
   TopBooksByTime,
   ReadingActivity365,
   BooksFinishedArea,
+  SessionLog,
+  RecentlyFinished,
+  StreakCalendar,
 } from '@/components/stats/widgets/overview'
 import {
   HourDowCard,
@@ -27,6 +31,9 @@ import {
   CompletionEstimatesList,
   PeriodComparison,
   MonthlyComparison,
+  DayOfWeekBar,
+  TimeOfDaySplit,
+  TimeByFormat,
 } from '@/components/stats/widgets/habits'
 import { PaceByFormat } from '@/components/stats/PaceByFormat'
 import {
@@ -47,20 +54,84 @@ import { LibraryGrowthChart } from '@/components/stats/LibraryGrowthChart'
  * See docs/plans/stats-dashboard-plan.md.
  */
 
-type ChartType = 'bar' | 'line' | 'area'
-type TileConfig = { chartType: ChartType; days: number }
+// Per-tile settings: chart style, timeframe and (for the Custom Stat tile) the
+// metric. days = 0 follows the page range; days = N shows the last N days of the
+// fetched window (sliced client-side, no extra fetches) — so two copies of one
+// widget can show different timeframes.
+type TileConfig = { chartType: ChartKind; days: number; metric?: string }
 
 // ── Widget catalog (renders shared Stats components from live data) ─────────────
 
-type WidgetCtx = { accent: string; stats: StatsResponse; estimates: CompletionEstimate[] | null }
+type WidgetCtx = { stats: StatsResponse; estimates: CompletionEstimate[] | null }
 
 type WidgetDef = {
   id: string
   title: string
+  icon?: LucideIcon
   size: { w: number; h: number; minW: number; minH: number }
-  chartTypes?: ChartType[]
+  chartTypes?: ChartKind[]
+  metrics?: { id: string; label: string }[]
   defaultConfig?: TileConfig
-  render: (ctx: WidgetCtx) => ReactNode
+  /** Dynamic tile-header title, e.g. the picked metric's name. */
+  titleFor?: (config: TileConfig) => string
+  /** Set when the widget ignores the page range picker (e.g. "12 mo") — rendered
+      as a small chip so the fixed window is visible, not a surprise. */
+  fixedWindow?: string
+  render: (ctx: WidgetCtx, config: TileConfig) => ReactNode
+}
+
+// Unique tile/tab ids — Date.now alone collides on rapid actions (duplicates).
+let _uid = 0
+const newId = (prefix: string) => `${prefix}--${Date.now().toString(36)}${(_uid++).toString(36)}`
+
+// Metrics the Custom Stat tile can show — all derived from the /stats payload.
+const METRICS = [
+  { id: 'avg-session', label: 'Avg Session' },
+  { id: 'time-per-day', label: 'Time / Day' },
+  { id: 'pages-per-day', label: 'Pages / Day' },
+  { id: 'pages-per-hour', label: 'Pages / Hour' },
+  { id: 'best-day', label: 'Best Day' },
+  { id: 'longest-session', label: 'Longest Session' },
+  { id: 'books-started', label: 'Books Started' },
+  { id: 'longest-streak', label: 'Longest Streak' },
+]
+
+function metricValue(stats: StatsResponse, id: string): { value: string; sub?: string } {
+  const days = Math.max(1, stats.daily.length)
+  const secs = stats.headline.total_reading_seconds
+  switch (id) {
+    case 'time-per-day':
+      return { value: formatDuration(Math.round(secs / days)), sub: `over ${days} days` }
+    case 'pages-per-day':
+      return { value: String(Math.round(stats.headline.pages_turned / days)), sub: `over ${days} days` }
+    case 'pages-per-hour':
+      return { value: secs > 0 ? String(Math.round(stats.headline.pages_turned / (secs / 3600))) : '0', sub: 'average pace' }
+    case 'best-day': {
+      const best = stats.daily.reduce((a, b) => (b.seconds > a.seconds ? b : a), { date: '', seconds: 0, sessions: 0, pages: 0 })
+      return best.seconds > 0 ? { value: formatDuration(best.seconds), sub: formatDate(best.date) } : { value: '0m', sub: 'no reading yet' }
+    }
+    case 'longest-session': {
+      let top: StatsResponse['session_timeline'][number] | null = null
+      for (const s of stats.session_timeline) if (!top || s.duration_seconds > top.duration_seconds) top = s
+      return top ? { value: formatDuration(top.duration_seconds), sub: top.title } : { value: '0m', sub: 'no sessions yet' }
+    }
+    case 'books-started':
+      return { value: String(stats.completion_rate.started), sub: `${stats.completion_rate.finished} finished` }
+    case 'longest-streak':
+      return { value: `${stats.headline.longest_streak_days}d` }
+    case 'avg-session':
+    default:
+      return { value: formatDuration(stats.headline.avg_session_seconds), sub: `${stats.headline.total_sessions} sessions` }
+  }
+}
+
+// Per-tile timeframe slicing. `daily` is gap-filled (one row per day), so the last
+// N rows are the last N days; books_finished is sparse, so cut by the same date.
+const lastDays = (stats: StatsResponse, days: number) => (days > 0 ? stats.daily.slice(-days) : stats.daily)
+const finishedSince = (stats: StatsResponse, days: number) => {
+  if (days <= 0) return stats.books_finished
+  const cutoff = stats.daily.slice(-days)[0]?.date ?? ''
+  return stats.books_finished.filter((b) => b.date >= cutoff)
 }
 
 const STAT_SIZE = { w: 2, h: 1, minW: 2, minH: 1 }
@@ -70,6 +141,7 @@ const WIDGETS: WidgetDef[] = [
   {
     id: 'stat-time',
     title: 'Reading Time',
+    icon: Clock,
     size: STAT_SIZE,
     render: ({ stats }) => (
       <HeadlineStatBody value={formatDuration(stats.headline.total_reading_seconds)} sub={`avg ${formatDuration(stats.headline.avg_session_seconds)} / session`} />
@@ -78,32 +150,50 @@ const WIDGETS: WidgetDef[] = [
   {
     id: 'stat-sessions',
     title: 'Sessions',
+    icon: Activity,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.total_sessions)} />,
   },
   {
     id: 'stat-finished',
     title: 'Books Finished',
+    icon: BookCheck,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.books_finished)} />,
   },
   {
     id: 'stat-streak',
     title: 'Streak',
+    icon: Flame,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={`${stats.headline.current_streak_days}d`} sub={`Longest: ${stats.headline.longest_streak_days}d`} />,
   },
   {
     id: 'stat-pages',
     title: 'Pages Turned',
+    icon: FileText,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={stats.headline.pages_turned.toLocaleString()} />,
   },
   {
     id: 'stat-completion',
     title: 'Completion Rate',
+    icon: Target,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={`${stats.completion_rate.pct}%`} sub={`${stats.completion_rate.finished} of ${stats.completion_rate.started} started`} />,
+  },
+  {
+    id: 'stat-metric',
+    title: 'Custom Stat',
+    icon: Gauge,
+    size: STAT_SIZE,
+    metrics: METRICS,
+    defaultConfig: { chartType: 'bar', days: 0, metric: 'avg-session' },
+    titleFor: (cfg) => METRICS.find((m) => m.id === cfg.metric)?.label ?? 'Custom Stat',
+    render: ({ stats }, cfg) => {
+      const v = metricValue(stats, cfg.metric ?? 'avg-session')
+      return <HeadlineStatBody value={v.value} sub={v.sub} />
+    },
   },
   {
     id: 'currently-reading',
@@ -115,7 +205,9 @@ const WIDGETS: WidgetDef[] = [
     id: 'daily',
     title: 'Reading Time per Day',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
-    render: ({ stats }) => <ReadingTimePerDay daily={stats.daily} />,
+    chartTypes: ['bar', 'line', 'area'],
+    defaultConfig: { chartType: 'bar', days: 0 },
+    render: ({ stats }, cfg) => <ReadingTimePerDay daily={lastDays(stats, cfg.days)} chartType={cfg.chartType} />,
   },
   {
     id: 'top-books',
@@ -127,13 +219,53 @@ const WIDGETS: WidgetDef[] = [
     id: 'books-finished',
     title: 'Books Finished',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
-    render: ({ stats }) => <BooksFinishedArea booksFinished={stats.books_finished} />,
+    chartTypes: ['area', 'line', 'bar'],
+    defaultConfig: { chartType: 'area', days: 0 },
+    render: ({ stats }, cfg) => <BooksFinishedArea booksFinished={finishedSince(stats, cfg.days)} chartType={cfg.chartType} />,
   },
   {
     id: 'activity-365',
     title: 'Reading Activity — Last 365 Days',
     size: { w: 12, h: 2, minW: 4, minH: 2 },
+    fixedWindow: '365 d',
     render: ({ stats }) => <ReadingActivity365 heatmap={stats.heatmap_daily} />,
+  },
+  {
+    id: 'session-log',
+    title: 'Recent Sessions',
+    size: { w: 12, h: 6, minW: 5, minH: 2 },
+    render: () => <SessionLog />,
+  },
+  {
+    id: 'recently-finished',
+    title: 'Recently Finished',
+    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    render: ({ stats }) => <RecentlyFinished booksFinished={stats.books_finished} />,
+  },
+  {
+    id: 'streak-calendar',
+    title: 'This Month',
+    size: { w: 3, h: 2, minW: 2, minH: 2 },
+    fixedWindow: 'current',
+    render: ({ stats }) => <StreakCalendar heatmap={stats.heatmap_daily} />,
+  },
+  {
+    id: 'dow-bar',
+    title: 'Reading by Weekday',
+    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    render: ({ stats }) => <DayOfWeekBar data={stats.hour_dow_heatmap} />,
+  },
+  {
+    id: 'time-of-day',
+    title: 'Time of Day Split',
+    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    render: ({ stats }) => <TimeOfDaySplit data={stats.hour_dow_heatmap} />,
+  },
+  {
+    id: 'time-by-format',
+    title: 'Time by Format',
+    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    render: ({ stats }) => <TimeByFormat data={stats.pace_by_format} />,
   },
   // Habits tab
   {
@@ -183,6 +315,7 @@ const WIDGETS: WidgetDef[] = [
     id: 'monthly-comparison',
     title: 'Reading Hours & Books Finished — Last 12 Months',
     size: { w: 12, h: 2, minW: 4, minH: 2 },
+    fixedWindow: '12 mo',
     render: ({ stats }) => <MonthlyComparison monthly={stats.monthly_comparison} />,
   },
   // Library tab
@@ -220,13 +353,15 @@ const WIDGETS: WidgetDef[] = [
     id: 'genre-over-time',
     title: 'Reading by Category — Last 12 Months',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
+    fixedWindow: '12 mo',
     render: ({ stats }) => <GenreOverTime data={stats.genre_over_time} />,
   },
   {
     id: 'library-growth',
     title: 'Cumulative Books Added — Last 24 Months',
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    render: ({ stats }) => <LibraryGrowthChart data={stats.library_growth} />,
+    fixedWindow: '24 mo',
+    render: ({ stats }) => <LibraryGrowthChart data={stats.library_growth} height="100%" />,
   },
   {
     id: 'per-book-table',
@@ -236,7 +371,7 @@ const WIDGETS: WidgetDef[] = [
   },
 ]
 
-const defById = (id: string) => WIDGETS.find((w) => w.id === id.replace(/--\d+$/, ''))!
+const defById = (id: string) => WIDGETS.find((w) => w.id === id.replace(/--[a-z0-9]+$/, ''))!
 
 const WIDGET_DESC: Record<string, string> = {
   'stat-time': 'Total time read + avg session',
@@ -250,6 +385,13 @@ const WIDGET_DESC: Record<string, string> = {
   'top-books': 'Most-read books by time',
   'books-finished': 'Cumulative finishes over time',
   'activity-365': 'A year of reading, heatmap',
+  'session-log': 'Every session — paginated, deletable',
+  'stat-metric': 'Pick your own metric — avg session, pages/day, best day…',
+  'recently-finished': 'Latest finishes, newest first',
+  'streak-calendar': 'This month, read days filled',
+  'dow-bar': 'Which weekday you read most',
+  'time-of-day': 'Morning vs evening reader?',
+  'time-by-format': 'EPUB vs CBZ time split',
   'hour-dow': 'When you read — hour × weekday',
   'session-timeline': 'Daily sessions on a 24h track',
   'reading-pace': 'Pages per minute over time',
@@ -269,23 +411,23 @@ const WIDGET_DESC: Record<string, string> = {
 }
 
 // Widgets that are a number/short text — render their preview at natural size (no scale).
-const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'period-comparison'])
+const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'period-comparison'])
 
 // List/table widgets whose content is a vertical list that can exceed the tile → scroll
 // internally. Everything else (charts) clips (overflow-hidden) so nothing spills out.
 const SCROLL_IDS = new Set([
   'currently-reading', 'estimates', 'session-timeline', 'series-completion', 'per-book-table',
-  'author-affinity', 'completion-by-type', 'pace-by-format',
+  'author-affinity', 'completion-by-type', 'pace-by-format', 'session-log', 'recently-finished',
 ])
 
 const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
   {
     label: 'Overview',
-    ids: ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365'],
+    ids: ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'currently-reading', 'recently-finished', 'streak-calendar', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'],
   },
   {
     label: 'Habits',
-    ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
+    ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'dow-bar', 'time-of-day', 'time-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
   },
   {
     label: 'Library',
@@ -295,44 +437,46 @@ const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
 
 type Tile = { id: string; defId: string; config: TileConfig }
 
-const DEFAULT_CFG: TileConfig = { chartType: 'bar', days: 30 }
+const DEFAULT_CFG: TileConfig = { chartType: 'bar', days: 0 }
 
-// Default board mirrors the Stats Overview order; fully rearrangeable.
+// Default boards replicate the current Stats page 1:1 (sizes mapped from its
+// measured card heights, ~120px per grid row); fully rearrangeable from there.
 const STAT_IDS = ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion']
 const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }> = {
   // row 0: six stat tiles across
   ...Object.fromEntries(STAT_IDS.map((id, i) => [id, { x: i * 2, y: 0, w: 2, h: 1 }])),
-  // Overview
-  'currently-reading': { x: 0, y: 1, w: 6, h: 2 },
-  daily: { x: 6, y: 1, w: 6, h: 2 },
-  'top-books': { x: 0, y: 3, w: 6, h: 2 },
-  'books-finished': { x: 6, y: 3, w: 6, h: 2 },
-  'activity-365': { x: 0, y: 5, w: 12, h: 2 },
-  // Habits
-  'hour-dow': { x: 0, y: 7, w: 12, h: 2 },
-  'session-timeline': { x: 0, y: 9, w: 6, h: 3 },
-  'reading-pace': { x: 6, y: 9, w: 6, h: 2 },
-  'pace-by-format': { x: 6, y: 11, w: 6, h: 2 },
-  'speed-trend': { x: 0, y: 12, w: 6, h: 2 },
-  'period-comparison': { x: 6, y: 13, w: 6, h: 1 },
-  estimates: { x: 0, y: 14, w: 12, h: 2 },
-  'monthly-comparison': { x: 0, y: 16, w: 12, h: 2 },
-  // Library
-  'year-in-review': { x: 0, y: 0, w: 6, h: 2 },
-  'series-completion': { x: 6, y: 0, w: 6, h: 3 },
-  'author-affinity': { x: 0, y: 2, w: 6, h: 2 },
-  'completion-by-type': { x: 0, y: 4, w: 6, h: 2 },
-  'category-breakdown': { x: 6, y: 3, w: 6, h: 2 },
-  'genre-over-time': { x: 6, y: 5, w: 6, h: 2 },
-  'library-growth': { x: 0, y: 6, w: 12, h: 2 },
-  'per-book-table': { x: 0, y: 8, w: 12, h: 3 },
+  // Overview — full-width Currently Reading, Daily | Top Books pair, the rest stacked
+  'currently-reading': { x: 0, y: 1, w: 12, h: 5 },
+  daily: { x: 0, y: 6, w: 6, h: 3 },
+  'top-books': { x: 6, y: 6, w: 6, h: 3 },
+  'activity-365': { x: 0, y: 9, w: 12, h: 2 },
+  'books-finished': { x: 0, y: 11, w: 12, h: 2 },
+  'session-log': { x: 0, y: 13, w: 12, h: 7 },
+  // Habits — all full width except the Pace | Pace-by-Format pair
+  'hour-dow': { x: 0, y: 0, w: 12, h: 2 },
+  'session-timeline': { x: 0, y: 2, w: 12, h: 3 },
+  'reading-pace': { x: 0, y: 5, w: 6, h: 3 },
+  'pace-by-format': { x: 6, y: 5, w: 6, h: 3 },
+  'speed-trend': { x: 0, y: 8, w: 12, h: 2 },
+  estimates: { x: 0, y: 10, w: 12, h: 3 },
+  'period-comparison': { x: 0, y: 13, w: 12, h: 1 },
+  'monthly-comparison': { x: 0, y: 14, w: 12, h: 3 },
+  // Library — all full width, stacked in page order
+  'year-in-review': { x: 0, y: 0, w: 12, h: 2 },
+  'series-completion': { x: 0, y: 2, w: 12, h: 4 },
+  'author-affinity': { x: 0, y: 6, w: 12, h: 3 },
+  'completion-by-type': { x: 0, y: 9, w: 12, h: 2 },
+  'category-breakdown': { x: 0, y: 11, w: 12, h: 2 },
+  'genre-over-time': { x: 0, y: 13, w: 12, h: 3 },
+  'library-growth': { x: 0, y: 16, w: 12, h: 3 },
+  'per-book-table': { x: 0, y: 19, w: 12, h: 6 },
 }
 
 // Each tab is its own board (own tiles + layout), independently customizable.
 type TabState = { id: string; label: string; tiles: Tile[]; layout: Layout }
 
 const TAB_DEFS: { id: string; label: string; ids: string[] }[] = [
-  { id: 'overview', label: 'Overview', ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365'] },
+  { id: 'overview', label: 'Overview', ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'] },
   { id: 'habits', label: 'Habits', ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'] },
   { id: 'library', label: 'Library', ids: ['year-in-review', 'series-completion', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
 ]
@@ -344,7 +488,7 @@ function buildTab(def: { id: string; label: string; ids: string[] }): TabState {
   return {
     id: def.id,
     label: def.label,
-    tiles: def.ids.map((id) => ({ id, defId: id, config: DEFAULT_CFG })),
+    tiles: def.ids.map((id) => ({ id, defId: id, config: defById(id).defaultConfig ?? DEFAULT_CFG })),
     layout: def.ids.map((id) => {
       const p = INITIAL_POS[id]
       const d = defById(id)
@@ -362,7 +506,13 @@ const RANGES = [
   { days: 365, label: '1y' },
   { days: 0, label: 'All' },
 ]
-const TIMEFRAMES = [7, 14, 30]
+// Per-tile timeframe options. 0 = follow the page's range picker.
+const TIMEFRAMES = [
+  { days: 0, label: 'Range' },
+  { days: 7, label: '7d' },
+  { days: 14, label: '14d' },
+  { days: 30, label: '30d' },
+]
 
 // ── Config popover ────────────────────────────────────────────────────────────
 
@@ -384,38 +534,63 @@ function ConfigPopover({
         className="no-drag absolute right-2 top-9 z-50 w-48 rounded-lg border border-border bg-card p-3 text-xs shadow-xl"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <p className="mb-1.5 font-medium text-muted-foreground">Chart type</p>
-        <div className="mb-3 flex rounded-md border border-border p-0.5">
-          {def.chartTypes!.map((ct) => (
-            <button
-              key={ct}
-              type="button"
-              onClick={() => onChange({ chartType: ct })}
-              className={cn(
-                'flex-1 rounded px-1.5 py-1 capitalize transition',
-                config.chartType === ct ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {ct}
-            </button>
-          ))}
-        </div>
-        <p className="mb-1.5 font-medium text-muted-foreground">Timeframe</p>
-        <div className="flex gap-1">
-          {TIMEFRAMES.map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => onChange({ days: d })}
-              className={cn(
-                'flex-1 rounded-md border px-1.5 py-1 transition',
-                config.days === d ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {d}d
-            </button>
-          ))}
-        </div>
+        {def.metrics && (
+          <>
+            <p className="mb-1.5 font-medium text-muted-foreground">Metric</p>
+            <div className="grid grid-cols-2 gap-1">
+              {def.metrics.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onChange({ metric: m.id })}
+                  className={cn(
+                    'rounded-md border px-1.5 py-1 text-left transition',
+                    config.metric === m.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {def.chartTypes && (
+          <>
+            <p className="mb-1.5 font-medium text-muted-foreground">Chart type</p>
+            <div className="mb-3 flex rounded-md border border-border p-0.5">
+              {def.chartTypes.map((ct) => (
+                <button
+                  key={ct}
+                  type="button"
+                  onClick={() => onChange({ chartType: ct })}
+                  className={cn(
+                    'flex-1 rounded px-1.5 py-1 capitalize transition',
+                    config.chartType === ct ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {ct}
+                </button>
+              ))}
+            </div>
+            <p className="mb-1.5 font-medium text-muted-foreground">Timeframe</p>
+            <div className="flex gap-1">
+              {TIMEFRAMES.map((t) => (
+                <button
+                  key={t.days}
+                  type="button"
+                  onClick={() => onChange({ days: t.days })}
+                  className={cn(
+                    'flex-1 rounded-md border px-1.5 py-1 transition',
+                    config.days === t.days ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70">Range follows the page's range picker; days show the newest slice of it.</p>
+          </>
+        )}
       </div>
     </>
   )
@@ -434,11 +609,23 @@ function AddWidgetModal({
   onAdd: (defId: string) => void
   onClose: () => void
 }) {
+  const [q, setQ] = useState('')
+  const [boardFilter, setBoardFilter] = useState<'all' | 'on' | 'off'>('all')
+  const needle = q.trim().toLowerCase()
+  const matches = (id: string) => {
+    if (boardFilter === 'on' && !present.has(id)) return false
+    if (boardFilter === 'off' && present.has(id)) return false
+    if (!needle) return true
+    const w = defById(id)
+    return w.title.toLowerCase().includes(needle) || (WIDGET_DESC[id] ?? '').toLowerCase().includes(needle)
+  }
+  const groups = GALLERY_GROUPS.map((g) => ({ ...g, ids: g.ids.filter(matches) })).filter((g) => g.ids.length > 0)
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl shadow-accent-soft">
-        <div className="mb-4 flex items-start justify-between">
+        <div className="mb-3 flex items-start justify-between">
           <div>
             <h2 className="text-base font-semibold">Add a widget</h2>
             <p className="text-xs text-muted-foreground">Removed a tile? Add it back — or add another copy.</p>
@@ -448,8 +635,41 @@ function AddWidgetModal({
           </button>
         </div>
 
+        <div className="mb-4 flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search widgets…"
+              className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+          </div>
+          {/* quick filter: every widget vs only those already on / not yet on this board */}
+          <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
+            {([['all', 'All'], ['on', 'On board'], ['off', 'Not on board']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setBoardFilter(id)}
+                className={cn(
+                  'rounded-md px-2 py-1 font-medium transition',
+                  boardFilter === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {groups.length === 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">{needle ? `No widgets match “${q}”.` : boardFilter === 'on' ? 'No widgets on this board yet.' : 'Every widget is already on this board.'}</p>
+        )}
+
         <div className="flex flex-col gap-5">
-          {GALLERY_GROUPS.map((group) => (
+          {groups.map((group) => (
             <div key={group.label}>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</h3>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -468,10 +688,10 @@ function AddWidgetModal({
                           so they keep their proportions instead of squishing. */}
                       <div className="pointer-events-none h-[94px] overflow-hidden rounded-md border border-border/50 bg-card">
                         {NATURAL_PREVIEW.has(id) ? (
-                          <div className="h-full w-full p-3">{w.render(ctx)}</div>
+                          <div className="h-full w-full p-3">{w.render(ctx, w.defaultConfig ?? DEFAULT_CFG)}</div>
                         ) : (
                           <div className="origin-top-left p-2.5" style={{ width: 360, height: 152, transform: 'scale(0.62)' }}>
-                            {w.render(ctx)}
+                            {w.render(ctx, w.defaultConfig ?? DEFAULT_CFG)}
                           </div>
                         )}
                       </div>
@@ -501,24 +721,29 @@ function TileShell({
   editMode,
   children,
   onRemove,
+  onDuplicate,
   onConfigChange,
   dragHandleProps,
   dragging,
+  stacked,
 }: {
   def: WidgetDef
   config: TileConfig
   editMode: boolean
   children: ReactNode
   onRemove: () => void
+  onDuplicate?: () => void
   onConfigChange: (partial: Partial<TileConfig>) => void
   dragHandleProps?: Record<string, unknown>
   dragging?: boolean
+  /** Narrow-screen fallback: tiles render in a plain column, so no drag affordances. */
+  stacked?: boolean
 }) {
   const [cfgOpen, setCfgOpen] = useState(false)
   const [hovering, setHovering] = useState(false)
   const [glare, setGlare] = useState({ x: 50, y: 50 })
   const tiltRef = useRef<HTMLDivElement>(null)
-  const configurable = !!def.chartTypes
+  const configurable = !!def.chartTypes || !!def.metrics
   const tiltOn = editMode && !dragging && !cfgOpen
 
   function onMove(e: MouseEvent<HTMLDivElement>) {
@@ -550,6 +775,10 @@ function TileShell({
         dragging ? 'border-border shadow-2xl ring-1 ring-primary/30' : 'shadow-sm',
         editMode ? 'border-primary/30' : 'border-border',
         editMode && !dragging && 'hover:z-10 hover:shadow-lg hover:shadow-accent-soft',
+        // marks the grid item so it stacks above siblings while the popover is open
+        // (each grid item is transformed = its own stacking context, so the
+        // popover's own z-index can't escape without raising the item itself)
+        cfgOpen && 'cfg-popover-open',
       )}
     >
       {editMode && (
@@ -557,16 +786,23 @@ function TileShell({
           className="pointer-events-none absolute inset-0 z-20 rounded-xl transition-opacity duration-300"
           style={{
             opacity: hovering ? 1 : 0,
-            background: `radial-gradient(circle at ${glare.x}% ${glare.y}%, rgba(255,255,255,0.045) 0%, transparent 60%)`,
+            background: `radial-gradient(circle at ${glare.x}% ${glare.y}%, color-mix(in oklab, var(--foreground) 5%, transparent) 0%, transparent 60%)`,
           }}
         />
       )}
       <div
-        {...(editMode ? dragHandleProps : {})}
-        className={cn('mb-3 flex items-center gap-1.5', editMode && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
+        {...(editMode && !stacked ? dragHandleProps : {})}
+        className={cn('mb-3 flex items-center gap-1.5', editMode && !stacked && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
       >
-        {editMode && <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{def.title}</h3>
+        {editMode && !stacked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
+        {def.icon && <def.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />}
+        {/* truncate, don't wrap — a wrapped title pushes the body out of 1-row tiles */}
+        <h3 className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">{def.titleFor?.(config) ?? def.title}</h3>
+        {def.fixedWindow && (
+          <span title="This tile uses a fixed window and ignores the range picker" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+            {def.fixedWindow}
+          </span>
+        )}
         {editMode && (
           <div className="ml-auto flex items-center gap-0.5">
             {configurable && (
@@ -581,6 +817,18 @@ function TileShell({
                 aria-label="Configure"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {onDuplicate && (
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={onDuplicate}
+                className="no-drag -my-1 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                aria-label={`Duplicate ${def.title}`}
+                title="Duplicate tile"
+              >
+                <Copy className="h-3.5 w-3.5" />
               </button>
             )}
             <button
@@ -598,7 +846,15 @@ function TileShell({
       {cfgOpen && editMode && configurable && (
         <ConfigPopover def={def} config={config} onChange={onConfigChange} onClose={() => setCfgOpen(false)} />
       )}
-      <div className={cn('min-h-0 flex-1', SCROLL_IDS.has(def.id) ? 'overflow-y-auto' : 'overflow-hidden')}>{children}</div>
+      <div
+        className={cn('min-h-0 flex-1', SCROLL_IDS.has(def.id) ? 'overflow-y-auto' : 'overflow-hidden')}
+        // edit mode: tiles are objects being arranged, not content — swallow clicks
+        // so links/buttons inside (covers, table sorting, …) can't navigate away.
+        // Capture phase, so inner handlers never fire; scrolling still works.
+        onClickCapture={editMode ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
+      >
+        {children}
+      </div>
     </div>
   )
 }
@@ -612,6 +868,7 @@ function FreeGrid({
   editMode,
   onLayoutChange,
   onRemove,
+  onDuplicate,
   onConfigChange,
 }: {
   tiles: Tile[]
@@ -620,9 +877,113 @@ function FreeGrid({
   editMode: boolean
   onLayoutChange: (l: Layout) => void
   onRemove: (id: string) => void
+  onDuplicate: (id: string) => void
   onConfigChange: (id: string, partial: Partial<TileConfig>) => void
 }) {
   const { width, containerRef, mounted } = useContainerWidth()
+  // live "6 × 3" badge during resize — updated imperatively (no re-renders)
+  const badgeRef = useRef<HTMLDivElement>(null)
+
+  // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
+  // edge, which makes a bottom-of-page tile impossible to grow — the pointer just
+  // hits the screen edge. Track grid gestures and auto-scroll near the edges.
+  useEffect(() => {
+    if (!editMode) return
+    let pointerY = -1
+    let active = false
+    let resizingEl: HTMLElement | null = null
+    let raf = 0
+    let lastT = performance.now()
+    const BOTTOM_EDGE = 80
+    const TOP_EDGE = 150 // sticky header + margin
+    // time-based (not per-frame) so the speed is identical at any frame rate:
+    // ramps from ~120px/s at the zone edge to ~600px/s pressed against the screen
+    const speedFor = (depth: number) => 120 + Math.min(1, depth / BOTTOM_EDGE) * 480
+    const loop = (now: number) => {
+      const dt = Math.min((now - lastT) / 1000, 0.05)
+      lastT = now
+      if (active && pointerY >= 0) {
+        const h = window.innerHeight
+        if (pointerY > h - BOTTOM_EDGE) {
+          window.scrollBy(0, speedFor(pointerY - (h - BOTTOM_EDGE)) * dt)
+        } else if (pointerY < TOP_EDGE && window.scrollY > 0) {
+          window.scrollBy(0, -speedFor(TOP_EDGE - pointerY) * dt)
+        }
+      }
+      // live size badge: read the resizing item's box and snap it to grid units
+      const badge = badgeRef.current
+      if (badge) {
+        if (active && resizingEl && containerRef.current) {
+          const r = resizingEl.getBoundingClientRect()
+          const colW = (containerRef.current.getBoundingClientRect().width - 11 * 16) / 12
+          const gw = Math.max(1, Math.round((r.width + 16) / (colW + 16)))
+          const gh = Math.max(1, Math.round((r.height + 16) / 120))
+          badge.textContent = `${gw} × ${gh}`
+          badge.style.left = `${r.right - 8}px`
+          badge.style.top = `${r.bottom - 8}px`
+          badge.classList.remove('hidden')
+        } else {
+          badge.classList.add('hidden')
+        }
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    const down = (e: PointerEvent) => {
+      const t = e.target as HTMLElement
+      const handle = t.closest?.('.react-resizable-handle')
+      if (handle || t.closest?.('.tile-drag-handle')) {
+        active = true
+        pointerY = e.clientY
+        resizingEl = handle ? (handle.closest('.react-grid-item') as HTMLElement) : null
+      }
+    }
+    const move = (e: PointerEvent) => {
+      pointerY = e.clientY
+    }
+    const stop = () => {
+      active = false
+      resizingEl = null
+    }
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', stop, true)
+    window.addEventListener('pointercancel', stop, true)
+    raf = requestAnimationFrame(loop)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', stop, true)
+      window.removeEventListener('pointercancel', stop, true)
+    }
+  }, [editMode, containerRef])
+
+  // Narrow screens: a 12-col drag grid is unusable, so stack the tiles in layout
+  // order (top-to-bottom, left-to-right) at their configured heights instead.
+  if (mounted && width > 0 && width < 640) {
+    const posOf = (id: string) => layout.find((l) => l.i === id)
+    const ordered = [...tiles].sort((a, b) => {
+      const la = posOf(a.id)
+      const lb = posOf(b.id)
+      return (la?.y ?? 0) - (lb?.y ?? 0) || (la?.x ?? 0) - (lb?.x ?? 0)
+    })
+    return (
+      <div ref={containerRef} className="flex w-full flex-col gap-4">
+        {ordered.map((t) => {
+          const def = defById(t.defId)
+          const h = posOf(t.id)?.h ?? def.size.h
+          return (
+            <div key={t.id} style={{ height: h * 104 + (h - 1) * 16 }}>
+              <TileShell def={def} config={t.config} editMode={editMode} stacked onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+                {def.render(ctx, t.config)}
+              </TileShell>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div ref={containerRef} className={cn('w-full', editMode && 'lab-editing')}>
       {mounted && width > 0 && (
@@ -638,14 +999,18 @@ function FreeGrid({
             const def = defById(t.defId)
             return (
               <div key={t.id}>
-                <TileShell def={def} config={t.config} editMode={editMode} onRemove={() => onRemove(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
-                  {def.render(ctx)}
+                <TileShell def={def} config={t.config} editMode={editMode} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+                  {def.render(ctx, t.config)}
                 </TileShell>
               </div>
             )
           })}
         </ReactGridLayout>
       )}
+      <div
+        ref={badgeRef}
+        className="pointer-events-none fixed z-[70] hidden -translate-x-full -translate-y-full rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground shadow-md"
+      />
     </div>
   )
 }
@@ -663,6 +1028,41 @@ const PAD_X: Record<PadWidth, string> = {
   lot: 'px-[16%]',
 }
 const PAD_LABEL: Record<PadWidth, string> = { none: 'None', bit: 'A bit', lot: 'A lot' }
+
+// ── Persistence (localStorage for the POC; server-side comes later) ─────────────
+
+// v2: defaults became the real-Stats-page replica — bumping the key discards
+// boards saved under the old defaults so everyone starts from the replica.
+const LS_KEY = 'tome_stats_lab_v2'
+
+type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number }
+
+// Drop tiles whose widget no longer exists in the catalog, and orphaned layout
+// entries — saved state (localStorage or server) must never crash the page.
+function sanitizePersisted(p: Persisted): Persisted | null {
+  if (!Array.isArray(p.tabs) || p.tabs.length === 0) return null
+  const tabs: TabState[] = p.tabs.map((t) => {
+    const tiles = (t.tiles ?? []).filter((x) => WIDGETS.some((w) => w.id === x.defId))
+    const ids = new Set(tiles.map((x) => x.id))
+    return {
+      id: String(t.id),
+      label: String(t.label ?? 'Board'),
+      tiles: tiles.map((x) => ({ ...x, config: { ...DEFAULT_CFG, ...(x.config ?? {}) } })),
+      layout: (t.layout ?? []).filter((l) => ids.has(l.i)),
+    }
+  })
+  return { ...p, tabs }
+}
+
+function loadPersisted(): Persisted | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return null
+    return sanitizePersisted(JSON.parse(raw) as Persisted)
+  } catch {
+    return null
+  }
+}
 
 const fmtDay = (s: string) => {
   try {
@@ -826,22 +1226,28 @@ function RangeControl({
 }
 
 export function StatsLabPage() {
-  const accent = useChartAccent()
-  const [theme, setTheme] = useState<ThemeId>(getStoredTheme)
   const [editMode, setEditMode] = useState(false)
-  const [pad, setPad] = useState<PadWidth>('bit')
+  const [pad, setPad] = useState<PadWidth>(() => loadPersisted()?.pad ?? 'lot')
   const [addOpen, setAddOpen] = useState(false)
-  const [days, setDays] = useState(30)
+  const [days, setDays] = useState(() => loadPersisted()?.days ?? 30)
   const [custom, setCustom] = useState<CustomRange | null>(null)
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tabs, setTabs] = useState<TabState[]>(buildTabs)
-  const [activeTabId, setActiveTabId] = useState('overview')
+  const [tabs, setTabs] = useState<TabState[]>(() => loadPersisted()?.tabs ?? buildTabs())
+  const [activeTabId, setActiveTabId] = useState(() => loadPersisted()?.activeTabId ?? 'overview')
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const nextN = useRef(1)
-  const nextTab = useRef(1)
+  const [tabMenuOpen, setTabMenuOpen] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [undo, setUndo] = useState<{ label: string; restore: () => void } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+
+  const pushUndo = useCallback((label: string, restore: () => void) => {
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    setUndo({ label, restore })
+    undoTimer.current = setTimeout(() => setUndo(null), 6000)
+  }, [])
 
   const updateActive = useCallback(
     (fn: (t: TabState) => TabState) => setTabs((prev) => prev.map((t) => (t.id === activeTabId ? fn(t) : t))),
@@ -864,11 +1270,70 @@ export function StatsLabPage() {
     api.get<CompletionEstimate[]>('/stats/completion-estimates').then(setEstimates).catch(() => {})
   }, [])
 
+  // Server is the source of truth across browsers/devices; localStorage is a
+  // fast-boot cache. Apply the server copy once on mount, and only start
+  // pushing local changes after that (so a slow GET can't be clobbered).
+  const serverReady = useRef(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latest = useRef<Persisted>({ tabs, activeTabId, pad, days })
+
+  useEffect(() => {
+    api
+      .get<{ data: Persisted | null }>('/stats/dashboard')
+      .then((res) => {
+        const p = res.data ? sanitizePersisted(res.data) : null
+        if (p) {
+          setTabs(p.tabs)
+          setActiveTabId(p.activeTabId)
+          if (p.pad) setPad(p.pad)
+          if (p.days != null) setDays(p.days)
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        serverReady.current = true
+      })
+  }, [])
+
+  // Persist boards + view settings: localStorage immediately, server debounced.
+  useEffect(() => {
+    const state: Persisted = { tabs, activeTabId, pad, days }
+    latest.current = state
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(state))
+    } catch {
+      // storage unavailable — the dashboard still works, it just won't persist
+    }
+    if (!serverReady.current) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      setSaveState('saving')
+      api
+        .put('/stats/dashboard', { data: latest.current })
+        .then(() => {
+          setSaveState('saved')
+          setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 1600)
+        })
+        .catch(() => setSaveState('error'))
+    }, 800)
+  }, [tabs, activeTabId, pad, days])
+
+  // Flush a pending save when leaving the page (route change) so the last edit
+  // isn't lost to the debounce window.
+  useEffect(
+    () => () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+        api.put('/stats/dashboard', { data: latest.current }).catch(() => {})
+      }
+    },
+    [],
+  )
+
   const addWidget = useCallback(
     (defId: string) => {
       const def = defById(defId)
-      const id = `${defId}--${nextN.current}`
-      nextN.current += 1
+      const id = newId(defId)
       updateActive((t) => {
         const maxY = t.layout.reduce((m, it) => Math.max(m, it.y + it.h), 0)
         return {
@@ -883,7 +1348,37 @@ export function StatsLabPage() {
   )
 
   const removeTile = useCallback(
-    (id: string) => updateActive((t) => ({ ...t, tiles: t.tiles.filter((x) => x.id !== id), layout: t.layout.filter((it) => it.i !== id) })),
+    (id: string) => {
+      const tabId = activeTabId
+      const tab = tabs.find((t) => t.id === tabId)
+      const tile = tab?.tiles.find((x) => x.id === id)
+      const lay = tab?.layout.find((it) => it.i === id)
+      updateActive((t) => ({ ...t, tiles: t.tiles.filter((x) => x.id !== id), layout: t.layout.filter((it) => it.i !== id) }))
+      if (tile && lay) {
+        const def = defById(tile.defId)
+        pushUndo(`Removed “${def.titleFor?.(tile.config) ?? def.title}”`, () => {
+          setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, tiles: [...t.tiles, tile], layout: [...t.layout, lay] } : t)))
+        })
+      }
+    },
+    [tabs, activeTabId, updateActive, pushUndo],
+  )
+
+  // Clone a tile (config included) right below the original.
+  const duplicateTile = useCallback(
+    (id: string) => {
+      updateActive((t) => {
+        const tile = t.tiles.find((x) => x.id === id)
+        const lay = t.layout.find((it) => it.i === id)
+        if (!tile || !lay) return t
+        const cloneId = newId(tile.defId)
+        return {
+          ...t,
+          tiles: [...t.tiles, { ...tile, id: cloneId, config: { ...tile.config } }],
+          layout: [...t.layout, { ...lay, i: cloneId, y: lay.y + lay.h }],
+        }
+      })
+    },
     [updateActive],
   )
 
@@ -898,11 +1393,12 @@ export function StatsLabPage() {
     if (def) setTabs((prev) => prev.map((t) => (t.id === activeTabId ? buildTab(def) : t)))
   }, [activeTabId])
 
-  const addTab = useCallback(() => {
-    const id = `tab-${nextTab.current++}`
-    setTabs((prev) => [...prev, { id, label: 'New board', tiles: [], layout: [] }])
+  const addTabWith = useCallback((label: string, tiles: Tile[], layout: Layout, rename = false) => {
+    const id = newId('tab')
+    setTabs((prev) => [...prev, { id, label, tiles, layout }])
     setActiveTabId(id)
-    setRenamingId(id) // open straight into rename
+    if (rename) setRenamingId(id) // open straight into rename
+    setTabMenuOpen(false)
   }, [])
 
   const renameTab = useCallback((id: string, label: string) => {
@@ -913,17 +1409,39 @@ export function StatsLabPage() {
     (id: string) => {
       if (tabs.length <= 1) return
       const idx = tabs.findIndex((t) => t.id === id)
+      const removed = tabs[idx]
       const remaining = tabs.filter((t) => t.id !== id)
       setTabs(remaining)
       setActiveTabId((cur) => (cur === id ? (remaining[Math.max(0, idx - 1)] ?? remaining[0]).id : cur))
+      pushUndo(`Deleted board “${removed.label}”`, () => {
+        setTabs((prev) => {
+          const next = [...prev]
+          next.splice(Math.min(idx, next.length), 0, removed)
+          return next
+        })
+        setActiveTabId(removed.id)
+      })
     },
-    [tabs],
+    [tabs, pushUndo],
   )
 
-  const isEmpty = stats && stats.headline.total_sessions === 0
+  // Esc backs out: open modal first, then edit mode itself.
+  useEffect(() => {
+    if (!editMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (addOpen) setAddOpen(false)
+      else if (tabMenuOpen) setTabMenuOpen(false)
+      else setEditMode(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode, addOpen, tabMenuOpen])
 
   return (
-    <div className={cn('py-6 transition-[padding] duration-200', PAD_X[pad])}>
+    <div className="min-h-screen bg-background">
       <style>{`
         .react-grid-item.react-grid-placeholder {
           background: var(--primary, #6366f1) !important;
@@ -934,170 +1452,230 @@ export function StatsLabPage() {
         .lab-editing .react-grid-item > .react-resizable-handle { display: block; z-index: 30; opacity: 0; transition: opacity 120ms ease; }
         .lab-editing .react-grid-item:hover > .react-resizable-handle { opacity: 1; }
         .lab-editing .react-grid-item > .react-resizable-handle::after { border-color: var(--primary, #6366f1); border-width: 0 2px 2px 0; width: 9px; height: 9px; }
-        .lab-editing .react-grid-item > .react-resizable-handle-se { width: 22px; height: 22px; right: 0; bottom: 0; cursor: se-resize; }
-        .lab-editing .react-grid-item > .react-resizable-handle-e { width: 12px; cursor: e-resize; top: 0; height: 100%; right: 0; margin: 0; }
-        .lab-editing .react-grid-item > .react-resizable-handle-s { height: 12px; cursor: s-resize; left: 0; width: 100%; bottom: 0; margin: 0; }
+        /* corner handle sits above the edge strips so diagonal resize stays grabbable */
+        .lab-editing .react-grid-item > .react-resizable-handle-se { width: 22px; height: 22px; right: 0; bottom: 0; cursor: se-resize; z-index: 31; }
+        /* transform: none — react-resizable's base CSS rotates edge handles 45°,
+           which turns these strips into huge invisible boxes that steal clicks
+           from the tile header buttons and body content. The strips also stop
+           short of the corner so they never cover the se handle. */
+        .lab-editing .react-grid-item > .react-resizable-handle-e { width: 12px; cursor: e-resize; top: 0; height: calc(100% - 26px); right: 0; margin: 0; transform: none; background: none; }
+        .lab-editing .react-grid-item > .react-resizable-handle-s { height: 12px; cursor: s-resize; left: 0; width: calc(100% - 26px); bottom: 0; margin: 0; transform: none; background: none; }
         .lab-editing .react-grid-item > .react-resizable-handle-e::after, .lab-editing .react-grid-item > .react-resizable-handle-s::after { display: none; }
         .lab-editing .react-grid-item { perspective: 1000px; }
+        .react-grid-item:has(> .cfg-popover-open) { z-index: 40; }
       `}</style>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <FlaskConical className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Stats Lab</h1>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">look + feel POC</span>
-        </div>
-
-        {/* range selector — presets + custom date range; refetches /stats */}
-        <RangeControl
-          days={days}
-          custom={custom}
-          onPreset={(d) => {
-            setDays(d)
-            setCustom(null)
-          }}
-          onCustom={setCustom}
-        />
-
-        {/* theme switcher — preview the dashboard in all built-in themes */}
-        <div className="flex items-center gap-1.5">
-          {THEMES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                applyTheme(t.id)
-                setTheme(t.id)
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
+        <div className={cn('flex h-14 items-center gap-3 transition-[padding] duration-200', PAD_X[pad])}>
+          <Link to="/" className="-ml-2 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <FlaskConical className="h-4 w-4 text-muted-foreground" />
+          <span className="hidden text-base font-bold sm:inline">Stats Lab</span>
+          <div className="ml-auto flex items-center gap-2">
+            <SyncStatusBadge />
+            {/* range selector — presets + custom date range; refetches /stats */}
+            <RangeControl
+              days={days}
+              custom={custom}
+              onPreset={(d) => {
+                setDays(d)
+                setCustom(null)
               }}
-              title={t.label}
-              aria-label={`${t.label} theme`}
-              className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-full border-2 transition',
-                theme === t.id ? 'border-primary' : 'border-transparent hover:border-border',
-              )}
-              style={{ background: t.preview.bg }}
-            >
-              <span className="h-3 w-3 rounded-full" style={{ background: t.preview.primary }} />
-            </button>
-          ))}
+              onCustom={setCustom}
+            />
+          </div>
         </div>
 
-        {editMode && (
-          <>
-            <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 text-xs">
-              <span className="px-1.5 text-muted-foreground">Padding</span>
-              {(['none', 'bit', 'lot'] as const).map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setPad(w)}
-                  className={cn(
-                    'rounded-md px-2 py-1 font-medium transition',
-                    pad === w ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {PAD_LABEL[w]}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-muted">
-              <Plus className="h-4 w-4" /> Add tile
-            </button>
-            <button type="button" onClick={reset} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-muted">
-              <RotateCcw className="h-4 w-4" /> Reset
-            </button>
-          </>
-        )}
-        <button
-          type="button"
-          onClick={() => setEditMode((e) => !e)}
-          className={cn(
-            'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition',
-            editMode
-              ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'border-border bg-card text-foreground hover:bg-muted',
-          )}
-        >
-          {editMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-          {editMode ? 'Done' : 'Edit'}
-        </button>
-      </div>
-
-      {/* tabs — each is its own customizable board; add / rename / delete in edit mode */}
-      <div className="mb-4 flex flex-wrap items-center gap-1 border-b border-border">
-        {tabs.map((t) => (
-          <div
-            key={t.id}
-            className={cn('group/tab -mb-px flex items-center border-b-2', activeTabId === t.id ? 'border-primary' : 'border-transparent')}
-          >
-            {renamingId === t.id ? (
-              <input
-                autoFocus
-                defaultValue={t.label}
-                onFocus={(e) => e.target.select()}
-                onBlur={(e) => {
-                  renameTab(t.id, e.target.value.trim() || t.label)
-                  setRenamingId(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                  if (e.key === 'Escape') setRenamingId(null)
-                }}
-                className="w-28 bg-transparent px-2 py-1.5 text-sm font-medium text-foreground outline-none"
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setActiveTabId(t.id)}
-                onDoubleClick={() => editMode && setRenamingId(t.id)}
-                title={editMode ? 'Double-click to rename' : undefined}
+        {/* board tabs (pills, like the Stats page) + board tools */}
+        <div className="overflow-x-auto border-t border-border/50">
+          <div className={cn('flex items-center gap-1 py-1.5 transition-[padding] duration-200', PAD_X[pad])}>
+            {tabs.map((t) => (
+              <div
+                key={t.id}
                 className={cn(
-                  'px-3 py-1.5 text-sm font-medium transition',
-                  activeTabId === t.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  'group/tab flex shrink-0 items-center rounded-md transition-all',
+                  activeTabId === t.id ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                 )}
               >
-                {t.label}
-              </button>
+                {renamingId === t.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={t.label}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={(e) => {
+                      renameTab(t.id, e.target.value.trim() || t.label)
+                      setRenamingId(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                      if (e.key === 'Escape') {
+                        e.stopPropagation() // cancel the rename only, not edit mode
+                        setRenamingId(null)
+                      }
+                    }}
+                    className="w-24 bg-transparent px-3 py-1.5 text-xs font-medium text-foreground outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabId(t.id)}
+                    onDoubleClick={() => editMode && setRenamingId(t.id)}
+                    title={editMode ? 'Double-click to rename' : undefined}
+                    className="whitespace-nowrap px-3 py-1.5 text-xs font-medium"
+                  >
+                    {t.label}
+                  </button>
+                )}
+                {editMode && renamingId !== t.id && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setRenamingId(t.id)}
+                      aria-label={`Rename ${t.label}`}
+                      title="Rename board"
+                      className={cn('rounded p-0.5 text-muted-foreground transition hover:text-foreground', tabs.length > 1 ? '' : 'mr-1.5')}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    {tabs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => deleteTab(t.id)}
+                        aria-label={`Delete ${t.label}`}
+                        title="Delete board"
+                        className="mr-1.5 rounded p-0.5 text-muted-foreground transition hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+            {editMode && (
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTabMenuOpen((o) => !o)}
+                  aria-label="Add board"
+                  title="Add board"
+                  className={cn(
+                    'flex items-center rounded-md px-2 py-1.5 transition hover:bg-muted/50 hover:text-foreground',
+                    tabMenuOpen ? 'bg-muted/50 text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+                {tabMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onPointerDown={() => setTabMenuOpen(false)} />
+                    <div className="absolute left-0 top-full z-50 mt-1.5 w-48 rounded-lg border border-border bg-card p-1 text-xs shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => addTabWith('New board', [], [], true)}
+                        className="w-full rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
+                      >
+                        Empty board
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addTabWith(`${active.label} copy`, active.tiles.map((x) => ({ ...x, config: { ...x.config } })), active.layout.map((l) => ({ ...l })))}
+                        className="w-full truncate rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
+                      >
+                        Duplicate “{active.label}”
+                      </button>
+                      <div className="my-1 border-t border-border" />
+                      <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start from default</p>
+                      {TAB_DEFS.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => {
+                            const b = buildTab(d)
+                            addTabWith(d.label, b.tiles, b.layout)
+                          }}
+                          className="w-full rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-            {editMode && tabs.length > 1 && renamingId !== t.id && (
+
+            {/* board tools — hidden below sm, where the stacked view can't arrange anyway */}
+            <div className="ml-auto hidden shrink-0 items-center gap-1.5 pl-3 sm:flex">
+              {saveState !== 'idle' && (
+                <span
+                  title={saveState === 'error' ? 'Saving to the server failed — changes are kept locally' : undefined}
+                  className={cn('flex items-center gap-1 text-[10px]', saveState === 'error' ? 'text-red-500' : 'text-muted-foreground')}
+                >
+                  {saveState === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" /> : saveState === 'saved' ? <Check className="h-3 w-3" /> : <CloudOff className="h-3 w-3" />}
+                  {saveState === 'saving' ? 'Saving' : saveState === 'saved' ? 'Saved' : 'Save failed'}
+                </span>
+              )}
+              {editMode && (
+                <>
+                  <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
+                    <span className="px-1.5 text-muted-foreground">Padding</span>
+                    {(['none', 'bit', 'lot'] as const).map((w) => (
+                      <button
+                        key={w}
+                        type="button"
+                        onClick={() => setPad(w)}
+                        className={cn(
+                          'rounded-md px-2 py-0.5 font-medium transition',
+                          pad === w ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {PAD_LABEL[w]}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted">
+                    <Plus className="h-3.5 w-3.5" /> Add tile
+                  </button>
+                  <button type="button" onClick={reset} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+                    <RotateCcw className="h-3.5 w-3.5" /> Reset
+                  </button>
+                </>
+              )}
               <button
                 type="button"
-                onClick={() => deleteTab(t.id)}
-                aria-label={`Delete ${t.label}`}
-                className="mr-1 rounded p-0.5 text-muted-foreground opacity-0 transition hover:text-foreground group-hover/tab:opacity-100"
+                onClick={() => setEditMode((e) => !e)}
+                className={cn(
+                  'flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition',
+                  editMode
+                    ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'border-border bg-card text-foreground hover:bg-muted',
+                )}
               >
-                <X className="h-3 w-3" />
+                {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                {editMode ? 'Done' : 'Edit'}
               </button>
-            )}
+            </div>
           </div>
-        ))}
-        {editMode && (
-          <button
-            type="button"
-            onClick={addTab}
-            aria-label="Add board"
-            title="Add board"
-            className="-mb-px ml-1 flex items-center gap-1 px-2 py-1.5 text-sm text-muted-foreground transition hover:text-foreground"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+        </div>
+      </header>
 
-      <p className="mb-5 text-sm text-muted-foreground">
-        {editMode
-          ? 'Editing — drag tiles to rearrange and resize from the edges. Each tab is its own board.'
-          : `Your ${active.label} board. Hit Edit to move, resize, add, or remove tiles — per tab.`}
-      </p>
+      {/* edit mode gets extra bottom room so the last tile's resize handles have
+          somewhere to scroll to */}
+      <main className={cn('py-6 transition-[padding] duration-200', PAD_X[pad], editMode && 'pb-[35vh]')}>
+      {/* Session-free ranges shouldn't blank the whole board — Library-tab tiles
+          (growth, categories, per-book table) still have data to show. */}
+      {stats && stats.headline.total_sessions === 0 && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <FlaskConical className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          No reading sessions in this range — session-based tiles will be empty.
+        </div>
+      )}
 
       {loading && !stats ? (
         <div className="flex justify-center py-32">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
-      ) : isEmpty ? (
-        <div className="flex flex-col items-center gap-3 py-32 text-muted-foreground">
-          <FlaskConical className="h-12 w-12 opacity-20" />
-          <p className="text-sm">No reading data in this range.</p>
         </div>
       ) : stats ? (
         active.tiles.length === 0 ? (
@@ -1107,14 +1685,35 @@ export function StatsLabPage() {
             <p className="text-xs">{editMode ? 'Use “Add tile” to build your ' + active.label + ' board.' : 'Hit Edit, then Add tile.'}</p>
           </div>
         ) : (
-          <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ accent, stats, estimates }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onConfigChange={setConfig} />
+          <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ stats, estimates }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onDuplicate={duplicateTile} onConfigChange={setConfig} />
         )
       ) : (
         <p className="py-32 text-center text-sm text-muted-foreground">Couldn’t load stats.</p>
       )}
+      </main>
 
       {addOpen && stats && (
-        <AddWidgetModal ctx={{ accent, stats, estimates }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
+        <AddWidgetModal ctx={{ stats, estimates }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
+      )}
+
+      {/* undo bar — tile removal and board deletion are recoverable for ~6s */}
+      {undo && (
+        <div className="fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-xl">
+          <span className="text-muted-foreground">{undo.label}</span>
+          <button
+            type="button"
+            onClick={() => {
+              undo.restore()
+              setUndo(null)
+            }}
+            className="font-medium text-primary transition hover:underline"
+          >
+            Undo
+          </button>
+          <button type="button" onClick={() => setUndo(null)} aria-label="Dismiss" className="rounded p-0.5 text-muted-foreground transition hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
     </div>
   )
