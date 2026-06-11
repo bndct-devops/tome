@@ -11,6 +11,7 @@ import {
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
+import { BakeToFileTab } from '@/components/BakeToFile'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -2003,7 +2004,7 @@ function WishlistTab() {
 
 // ── AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'sync' | 'duplicates' | 'email' | 'wishlist'
+type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'bake' | 'sync' | 'duplicates' | 'email' | 'wishlist'
 
 export function AdminPage() {
   const { user } = useAuth()
@@ -2027,6 +2028,7 @@ export function AdminPage() {
     { id: 'audit', label: 'Audit Log' },
     { id: 'metadata', label: 'Metadata' },
     { id: 'library', label: 'Library' },
+    { id: 'bake', label: 'Bake to File' },
     { id: 'sync', label: 'Sync Status' },
     { id: 'duplicates', label: 'Duplicates' },
     { id: 'email', label: 'Email' },
@@ -2070,6 +2072,7 @@ export function AdminPage() {
         {tab === 'audit' && <AuditTab />}
         {tab === 'metadata' && <MetadataManager />}
         {tab === 'library' && <LibraryHealthTab />}
+        {tab === 'bake' && <BakeToFileTab />}
         {tab === 'sync' && <SyncStatusTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'email' && <EmailTab />}

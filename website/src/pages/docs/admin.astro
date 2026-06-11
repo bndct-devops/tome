@@ -87,6 +87,37 @@ import { withBase } from '../../lib/path'
     read-write first.
   </Callout>
 
+  <h2>Bake metadata to files</h2>
+  <p>
+    By default Tome never modifies your source files: it embeds its metadata (title, author,
+    series, description, cover, tags) into a disposable copy at <em>download</em> time, leaving the
+    originals in <code>TOME_LIBRARY_DIR</code> untouched. That copy is only seen by things that
+    download through Tome. The <strong>Bake to File</strong> tab writes that same metadata
+    <em>directly into the source files on disk</em> — useful when the files are read by something
+    outside Tome: Syncthing to another device, a Calibre library pointed at the same folder, or
+    plain NAS browsing.
+  </p>
+  <p>
+    Clicking <strong>Write metadata to files</strong> shows how many files need baking (files that
+    already carry current metadata are skipped) and asks you to confirm. The run happens in the
+    background with a live progress bar, the file currently being written, and baked / skipped /
+    failed counts plus an estimated time remaining. You can leave the page or close the tab — the
+    job keeps running, and reopening the page reconnects to it. <strong>Stop</strong> halts cleanly
+    between files. When it finishes you get a summary, including any files that were skipped or
+    failed.
+  </p>
+  <ul>
+    <li><strong>EPUB / CBZ</strong> — full metadata plus cover</li>
+    <li><strong>PDF</strong> — title, author and subject</li>
+  </ul>
+
+  <Callout variant="warning" title="This rewrites your files and can't be undone">
+    Baking replaces the bytes of each source file and recomputes its content hash. There is no undo.
+    It is disabled when <code>TOME_LIBRARY_DIR</code> is mounted read-only, and can be turned off
+    entirely with <code>TOME_ALLOW_INFILE_BAKE=false</code>. Editing a book's metadata later simply
+    marks its file as out of date again, and a re-run re-bakes only what changed.
+  </Callout>
+
   <h2>Email (Send to Device)</h2>
   <p>
     The Email tab shows SMTP status (configured or not, with host/port/from), a

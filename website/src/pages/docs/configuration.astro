@@ -42,6 +42,7 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_SMTP_USE_SSL</code></td><td><code>false</code></td><td>Implicit SSL (port 465)</td></tr>
       <tr><td><code>TOME_SMTP_DAILY_LIMIT</code></td><td><code>50</code></td><td>Per-user sends/day (0 = unlimited)</td></tr>
       <tr><td><code>TOME_SEND_TO_KOREADER</code></td><td><code>false</code></td><td>Enable the <a href={withBase("/docs/koreader#send-to-koreader")}>Send to KOReader</a> inbox (beta) — queue books to the device, no email</td></tr>
+      <tr><td><code>TOME_ALLOW_INFILE_BAKE</code></td><td><code>true</code></td><td>Allow <a href={withBase("/docs/admin#bake-metadata-to-files")}>baking metadata into source files</a> on disk. Set <code>false</code> to forbid it entirely</td></tr>
     </tbody>
   </table>
 

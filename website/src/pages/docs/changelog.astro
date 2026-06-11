@@ -25,6 +25,17 @@ import { withBase } from '../../lib/path'
   <h2>Unreleased</h2>
   <ul>
     <li>
+      <strong>Bake metadata to files (admin).</strong> A new <strong>Admin → Bake to File</strong>
+      page writes Tome's metadata straight into your source library files on disk (not just the
+      lazy download cache), so it's visible to Syncthing, Calibre, or direct NAS browsing. Runs as a
+      background job with a live byte-weighted progress bar, current file, baked/skipped/failed
+      counts and an ETA; closing the tab doesn't stop it and reopening reconnects. Destructive and
+      irreversible (recomputes content hashes), so it's admin-only, confirm-gated, and disabled on
+      read-only mounts; already-current files are skipped. New <code>TOME_ALLOW_INFILE_BAKE</code>
+      (default <code>true</code>) is a hard off-switch. See
+      <a href={withBase("/docs/admin#bake-metadata-to-files")}>Admin tools</a>.
+    </li>
+    <li>
       <strong>Send to KOReader (beta).</strong> Queue a book from the web straight to your
       e-reader — no email, no Amazon. A split <strong>Send to KOReader</strong> button (the caret
       keeps "Send via email…") queues to a per-user inbox the TomeSync plugin pulls via a new

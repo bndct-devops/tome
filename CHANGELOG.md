@@ -30,6 +30,23 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [1.4.0] — 2026-06-10
 
 ### Added
+- **Bake metadata to files (admin).** A new **Admin → Bake to File** page writes
+  Tome's metadata — title, author, series, description, cover and tags — directly
+  into the source library files on disk, rather than only into the lazy
+  download-time cache. This makes the embedded metadata visible to tools that read
+  the files outside Tome (Syncthing, a Calibre library pointed at the same folder,
+  direct NAS browsing). It runs as a single background job with a live,
+  byte-weighted progress bar, current-file display, baked/skipped/failed counters
+  and an ETA; closing the tab or navigating away does not stop it, and reopening
+  the page reconnects to the run in progress. When it finishes you get a summary
+  screen listing any files that were skipped or failed. The action is destructive
+  and irreversible (it recomputes each file's content hash), so it is admin-only,
+  confirm-gated, and disabled on read-only library mounts. Files already carrying
+  current metadata are skipped, so re-running is cheap. EPUB/CBZ get full metadata
+  plus cover (CBZ pages are now stored uncompressed during embedding, cutting bake
+  time on large comic archives); PDF gets title/author/subject. New env var
+  `TOME_ALLOW_INFILE_BAKE` (default `true`) is a hard off-switch for operators who
+  never want their files mutated.
 - **Send to KOReader (beta).** Queue a book from the web straight to your
   e-reader — no email, no Amazon Send-to-Kindle. It's the KOReader-native
   counterpart to email send-to-device: the original EPUB/CBZ arrives in your
