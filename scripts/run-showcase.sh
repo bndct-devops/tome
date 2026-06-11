@@ -24,10 +24,11 @@ fi
 
 source .venv/bin/activate
 
-# Pull in API keys (Hardcover, Google Books) so metadata/wishlist search works —
-# without them the wishlist screenshots seed from degraded fallback sources.
+# Pull in ONLY the metadata API keys (Hardcover, Google Books) so wishlist/
+# metadata search works. Deliberately NOT the whole .env: SMTP must stay unset
+# so the "email not configured" screenshot states stay reproducible.
 if [ -f .env ]; then
-  set -a; source .env; set +a
+  eval "$(grep -E '^TOME_(HARDCOVER_TOKEN|GOOGLE_BOOKS_KEY)=' .env | sed 's/^/export /')"
 fi
 
 echo "Starting showcase backend on :8090 (data/showcase/)"
