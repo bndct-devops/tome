@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type MouseEvent, useMemo } from 'react'
 import ReactGridLayout, {
   useContainerWidth,
   type Layout,
@@ -82,6 +82,10 @@ type WidgetDef = {
   /** Set when the widget ignores the page range picker (e.g. "12 mo") — rendered
       as a small chip so the fixed window is visible, not a surprise. */
   fixedWindow?: string
+  /** List-like content with intrinsic height (not a fill-the-box chart): in view
+      mode the tile shrinks to fit what's actually there, so two in-progress books
+      don't rattle around a five-row tile. Edit mode shows the true template. */
+  autoH?: boolean
   render: (ctx: WidgetCtx, config: TileConfig) => ReactNode
 }
 
@@ -204,6 +208,7 @@ const WIDGETS: WidgetDef[] = [
     id: 'currently-reading',
     title: 'Currently Reading',
     size: { w: 6, h: 2, minW: 3, minH: 1 },
+    autoH: true,
     render: ({ stats }) => <CurrentlyReading books={stats.books_in_progress} />,
   },
   {
@@ -239,12 +244,14 @@ const WIDGETS: WidgetDef[] = [
     id: 'session-log',
     title: 'Recent Sessions',
     size: { w: 12, h: 6, minW: 5, minH: 2 },
+    autoH: true,
     render: () => <SessionLog />,
   },
   {
     id: 'recently-finished',
     title: 'Recently Finished',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
+    autoH: true,
     render: ({ stats }) => <RecentlyFinished booksFinished={stats.books_finished} />,
   },
   {
@@ -307,6 +314,7 @@ const WIDGETS: WidgetDef[] = [
     id: 'estimates',
     title: 'Completion Estimates',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
+    autoH: true,
     render: ({ estimates }) => <CompletionEstimatesList estimates={estimates} />,
   },
   {
@@ -336,6 +344,7 @@ const WIDGETS: WidgetDef[] = [
     id: 'series-completion',
     title: 'Series Completion',
     size: { w: 6, h: 3, minW: 3, minH: 2 },
+    autoH: true,
     render: ({ stats }) => <SeriesCompletionGrid data={stats.series_completion} />,
   },
   {
@@ -378,6 +387,7 @@ const WIDGETS: WidgetDef[] = [
     id: 'per-book-table',
     title: 'All Books by Reading Time',
     size: { w: 12, h: 3, minW: 5, minH: 2 },
+    autoH: true,
     render: ({ stats }) => <PerBookTimeTable data={stats.per_book_time} />,
   },
   {
@@ -769,6 +779,7 @@ function TileShell({
   dragHandleProps,
   dragging,
   stacked,
+  onMeasure,
 }: {
   def: WidgetDef
   config: TileConfig
@@ -782,11 +793,33 @@ function TileShell({
   dragging?: boolean
   /** Narrow-screen fallback: tiles render in a plain column, so no drag affordances. */
   stacked?: boolean
+  /** autoH widgets report the grid rows their content actually needs. */
+  onMeasure?: (rows: number) => void
 }) {
   const [cfgOpen, setCfgOpen] = useState(false)
   const [hovering, setHovering] = useState(false)
   const [glare, setGlare] = useState({ x: 50, y: 50 })
   const tiltRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  // Measure after every commit: data loads, range/config changes, and grid width
+  // changes all re-render this tree, and each can change the content's height.
+  // scrollHeight sees the intrinsic height even when the box clips it.
+  useEffect(() => {
+    const box = contentRef.current
+    if (!onMeasure || !box || !tiltRef.current) return
+    // scrollHeight can't see underflow (it's floored at the box height), so take
+    // the children's real extent: stretched children just reproduce the box and
+    // the measurement becomes a no-op, intrinsic content reveals its true height.
+    const boxTop = box.getBoundingClientRect().top
+    const kids = Array.from(box.children) as HTMLElement[]
+    const extent = kids.length
+      ? Math.max(...kids.map((el) => el.getBoundingClientRect().bottom)) - boxTop
+      : 0
+    const chrome = tiltRef.current.offsetHeight - box.offsetHeight
+    const desired = chrome + Math.max(extent, box.scrollHeight > box.clientHeight ? box.scrollHeight : 0)
+    // grid: rowHeight 104 + margin 16 => h rows span 120h - 16 px
+    onMeasure(Math.max(1, Math.ceil((desired + 16) / 120)))
+  })
   const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker
   const tiltOn = editMode && !dragging && !cfgOpen
 
@@ -891,6 +924,7 @@ function TileShell({
         <ConfigPopover def={def} config={config} seriesOptions={seriesOptions} onChange={onConfigChange} onClose={() => setCfgOpen(false)} />
       )}
       <div
+        ref={contentRef}
         className={cn('min-h-0 flex-1', SCROLL_IDS.has(def.id) ? 'overflow-y-auto' : 'overflow-hidden')}
         // edit mode: tiles are objects being arranged, not content — swallow clicks
         // so links/buttons inside (covers, table sorting, …) can't navigate away.
@@ -928,6 +962,24 @@ function FreeGrid({
   // live "6 × 3" badge during resize — updated imperatively (no re-renders)
   const badgeRef = useRef<HTMLDivElement>(null)
   const seriesOptions = ctx.stats.series_completion.map((x) => x.series)
+
+  // autoH: list-like tiles report the rows their content needs; in view mode the
+  // tile shrinks to that (never below minH, never above the saved size) and RGL's
+  // vertical compaction pulls the rest of the board up. Edit mode shows the saved
+  // template untouched, and only edit-mode layouts are ever persisted — so this
+  // stays a render-time fit, reactive to whatever the data does next.
+  const [autoRows, setAutoRows] = useState<Record<string, number>>({})
+  const reportRows = useCallback((id: string, rows: number) => {
+    setAutoRows((prev) => (prev[id] === rows ? prev : { ...prev, [id]: rows }))
+  }, [])
+  const displayLayout = useMemo(() => {
+    if (editMode) return layout
+    return layout.map((it) => {
+      const rows = autoRows[it.i]
+      if (!rows || rows >= it.h) return it
+      return { ...it, h: Math.max(rows, it.minH ?? 1) }
+    })
+  }, [layout, autoRows, editMode])
 
   // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
   // edge, which makes a bottom-of-page tile impossible to grow — the pointer just
@@ -1034,17 +1086,19 @@ function FreeGrid({
       {mounted && width > 0 && (
         <ReactGridLayout
           width={width}
-          layout={layout}
+          layout={displayLayout}
           gridConfig={{ cols: 12, rowHeight: 104, margin: [16, 16], containerPadding: [0, 0] }}
           dragConfig={{ enabled: editMode, handle: '.tile-drag-handle', cancel: '.no-drag' }}
           resizeConfig={{ enabled: editMode, handles: ['se', 'e', 's'] }}
-          onLayoutChange={(l: Layout) => onLayoutChange(l)}
+          // view mode renders the auto-fitted layout — persisting that would bake
+          // a transient content size into the saved board, so edit-mode only
+          onLayoutChange={(l: Layout) => { if (editMode) onLayoutChange(l) }}
         >
           {tiles.map((t) => {
             const def = defById(t.defId)
             return (
               <div key={t.id}>
-                <TileShell def={def} config={t.config} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+                <TileShell def={def} config={t.config} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={def.autoH ? (rows: number) => reportRows(t.id, rows) : undefined}>
                   {def.render(ctx, t.config)}
                 </TileShell>
               </div>

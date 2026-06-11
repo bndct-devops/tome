@@ -17,7 +17,10 @@ All notable changes to Tome are documented here. Format loosely follows
   layout follows you across devices. Tabs are boards too: create new ones
   empty, duplicated from the current board, from a built-in default, or
   imported from a file — and share a board by exporting it as JSON. A camera
-  button saves any board as a PNG. The widget gallery has 35 entries, including
+  button saves any board as a PNG. List tiles (Currently Reading, Recent
+  Sessions, and friends) size themselves to their content in view mode, so two
+  in-progress books no longer rattle around a five-row tile. The widget gallery
+  has 35 entries, including
   new ones the old page never had: a paginated session log on Overview, reading
   by weekday, time-of-day split, time by format, recently finished, and a
   monthly streak calendar.
