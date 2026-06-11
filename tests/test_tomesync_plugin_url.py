@@ -144,6 +144,7 @@ def test_zip_download_bakes_https_with_forwarded_proto(app_client):
 def test_build_bumped_for_rebake():
     # Must exceed every build already live (v1.2.0 shipped 10; main reached 12),
     # so all existing installs re-download and re-bake the corrected URL.
-    # 1.2.3 / build 16 adds the Send-to-KOReader inbox (beta).
-    assert TOMESYNC_PLUGIN_BUILD >= 16
-    assert TOMESYNC_PLUGIN_SEMVER == "1.2.3"
+    # 1.2.4 / build 17 fixes the book-open sync toast swallowing Profiles
+    # auto-exec actions (plus web-CFI goto + duplicate session init).
+    assert TOMESYNC_PLUGIN_BUILD >= 17
+    assert TOMESYNC_PLUGIN_SEMVER == "1.2.4"

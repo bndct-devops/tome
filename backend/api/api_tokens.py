@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.database import get_db
@@ -53,6 +53,12 @@ class TokenListItem(BaseModel):
     username: str
 
     model_config = {"from_attributes": False}
+
+    @field_serializer("created_at", "last_used_at", "revoked_at")
+    def _utc_z(self, dt: Optional[datetime]) -> Optional[str]:
+        # Stored naive-UTC; emit an explicit Z or browsers parse it as local
+        # time and "last used" drifts by the viewer's UTC offset.
+        return dt.isoformat() + "Z" if dt else None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

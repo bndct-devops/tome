@@ -8,7 +8,7 @@ from typing import Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -30,6 +30,12 @@ class NotificationOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("created_at")
+    def _utc_z(self, dt: datetime) -> str:
+        # Stored naive-UTC; emit an explicit Z or browsers parse it as local
+        # time and relative timestamps drift by the viewer's UTC offset.
+        return dt.isoformat() + "Z"
 
 
 @router.get("/notifications", response_model=list[NotificationOut])

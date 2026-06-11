@@ -1,16 +1,19 @@
 """Personal reading statistics endpoint. TomeSync data only."""
+import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import func, Integer, case
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.permissions import book_visibility_filter
 from backend.core.security import get_current_user
 from backend.models.user import User
+from backend.models.user_dashboard import UserDashboard
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
@@ -26,13 +29,12 @@ def _date_range(days: int) -> Optional[datetime]:
     return datetime.utcnow() - timedelta(days=days)
 
 
-def _fill_daily(rows: list, cutoff: datetime, now: datetime) -> list[dict]:
-    """Fill gaps so every day in the range has an entry."""
+def _fill_daily(rows: list, start_date, end_date) -> list[dict]:
+    """Fill gaps so every day in [start_date, end_date] has an entry."""
     row_map: dict[str, dict] = {r.date: {"seconds": r.seconds or 0, "sessions": r.sessions or 0, "pages": r.pages or 0} for r in rows}
     result = []
-    d = cutoff.date() if cutoff else now.date() - timedelta(days=365)
-    end = now.date()
-    while d <= end:
+    d = start_date
+    while d <= end_date:
         key = d.isoformat()
         entry = row_map.get(key, {"seconds": 0, "sessions": 0, "pages": 0})
         result.append({"date": key, **entry})
@@ -43,12 +45,48 @@ def _fill_daily(rows: list, cutoff: datetime, now: datetime) -> list[dict]:
 @router.get("/stats")
 def get_stats(
     days: int = Query(30, ge=0),
+    start: Optional[str] = Query(None, description="Custom range start (YYYY-MM-DD, local). Overrides `days`."),
+    end: Optional[str] = Query(None, description="Custom range end (YYYY-MM-DD, local, inclusive)."),
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     now = datetime.utcnow()
-    cutoff = _date_range(days)
+
+    # Range resolution: an explicit `start` switches to a custom date range and
+    # overrides `days`. Dates are local; convert to UTC for filtering (UTC = local +
+    # tz_offset) but keep the local dates for the daily-fill window, since the daily
+    # rows are bucketed by local date.
+    range_end: Optional[datetime] = None  # exclusive upper bound, UTC
+    fill_start_local = None
+    fill_end_local = None
+    if start:
+        try:
+            sdate = datetime.strptime(start, "%Y-%m-%d")
+            cutoff = sdate + timedelta(minutes=tz_offset)
+            fill_start_local = sdate.date()
+        except ValueError:
+            cutoff = _date_range(days)
+        else:
+            if end:
+                try:
+                    edate = datetime.strptime(end, "%Y-%m-%d")
+                    range_end = edate + timedelta(days=1) + timedelta(minutes=tz_offset)
+                    fill_end_local = edate.date()
+                except ValueError:
+                    range_end = None
+    else:
+        cutoff = _date_range(days)
+
+    # Effective span (days) for period-comparison + year-summary gating.
+    if cutoff is not None:
+        effective_days = max(1, ((range_end or now) - cutoff).days)
+    else:
+        effective_days = 0  # all-time
+
+    # Inclusive fill window for the daily chart.
+    fill_start = fill_start_local or (cutoff or (now - timedelta(days=365))).date()
+    fill_end = fill_end_local or now.date()
 
     # Convert JS getTimezoneOffset (minutes, negative = east of UTC) to SQLite modifier
     # e.g. CEST = UTC+2 → JS returns -120 → we need '+2 hours'
@@ -59,6 +97,8 @@ def get_stats(
     base = db.query(ReadingSession).filter(ReadingSession.user_id == current_user.id)
     if cutoff:
         base = base.filter(ReadingSession.started_at >= cutoff)
+    if range_end:
+        base = base.filter(ReadingSession.started_at < range_end)
 
     total_seconds = base.with_entities(
         func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
@@ -79,6 +119,8 @@ def get_stats(
     )
     if cutoff:
         finished_query = finished_query.filter(UserBookStatus.updated_at >= cutoff)
+    if range_end:
+        finished_query = finished_query.filter(UserBookStatus.updated_at < range_end)
     books_finished_count = finished_query.count()
 
     # Streaks (all time, local-day with 4h rollover so late-night reading still counts)
@@ -96,7 +138,7 @@ def get_stats(
         .order_by(func.date(ReadingSession.started_at, tz_modifier))
         .all()
     )
-    daily = _fill_daily(daily_rows, cutoff or (now - timedelta(days=365)), now)
+    daily = _fill_daily(daily_rows, fill_start, fill_end)
 
     # Heatmap daily — always last 365 days
     heatmap_cutoff = now - timedelta(days=365)
@@ -116,7 +158,7 @@ def get_stats(
         .order_by(func.date(ReadingSession.started_at, tz_modifier))
         .all()
     )
-    heatmap_daily = _fill_daily(heatmap_rows, heatmap_cutoff, now)
+    heatmap_daily = _fill_daily(heatmap_rows, heatmap_cutoff.date(), now.date())
 
     # Books finished list (for chart)
     finished_books = (
@@ -235,7 +277,7 @@ def get_stats(
             "author": r.author,
             "has_cover": bool(r.cover_path),
             "progress": round(r.progress * 100, 1) if r.progress and r.progress <= 1 else round(r.progress, 1) if r.progress else 0,
-            "last_read": r.updated_at.isoformat() if r.updated_at else None,
+            "last_read": r.updated_at.isoformat() + "Z" if r.updated_at else None,
         }
         for r in in_progress_rows
     ]
@@ -272,9 +314,10 @@ def get_stats(
 
     # ── Period comparison ─────────────────────────────────────────────────────
     period_comparison = None
-    if days > 0:
-        start_date = cutoff  # already computed above
-        prev_start = start_date - timedelta(days=days)
+    if cutoff is not None:
+        start_date = cutoff
+        duration = (range_end or now) - cutoff
+        prev_start = start_date - duration
         prev_seconds = db.query(
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
         ).filter(
@@ -296,7 +339,7 @@ def get_stats(
 
     # ── Year summary ──────────────────────────────────────────────────────────
     year_summary = None
-    if days >= 365 or days == 0:
+    if cutoff is None or effective_days >= 365:
         # Top genre from finished books
         top_genre: Optional[str] = None
         finished_book_ids = [row.id for row in finished_books]
@@ -674,7 +717,7 @@ def get_stats(
         library_growth.append(entry)
 
     return {
-        "range_days": days,
+        "range_days": effective_days,
         "headline": {
             "total_reading_seconds": total_seconds,
             "total_sessions": total_sessions,
@@ -866,5 +909,44 @@ def delete_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     db.delete(session)
+    db.commit()
+    return {"ok": True}
+
+
+# ── Dashboard persistence ────────────────────────────────────────────────────
+# The customisable stats dashboard (boards/tiles/layouts) is stored per user as
+# an opaque JSON blob — the frontend owns the shape, so catalog changes never
+# need a backend change. Last write wins across devices.
+
+_DASHBOARD_MAX_BYTES = 256 * 1024
+
+
+class DashboardPayload(BaseModel):
+    data: dict
+
+
+@router.get("/stats/dashboard")
+def get_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = db.query(UserDashboard).filter(UserDashboard.user_id == current_user.id).first()
+    return {"data": json.loads(row.data) if row else None}
+
+
+@router.put("/stats/dashboard")
+def put_dashboard(
+    payload: DashboardPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    raw = json.dumps(payload.data, separators=(",", ":"))
+    if len(raw.encode()) > _DASHBOARD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Dashboard too large")
+    row = db.query(UserDashboard).filter(UserDashboard.user_id == current_user.id).first()
+    if row:
+        row.data = raw
+    else:
+        db.add(UserDashboard(user_id=current_user.id, data=raw))
     db.commit()
     return {"ok": True}

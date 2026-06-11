@@ -662,26 +662,6 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     <span className="truncate">Wishlist</span>
                   </Link>
                 )}
-                {isAdmin(user) && (
-                  <Link
-                    to="/bindery"
-                    onClick={onMobileClose}
-                    className={cn(
-                      'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                      location.pathname === '/bindery'
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <BookPlus className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                    <span className="truncate">Bindery</span>
-                    {binderyCount > 0 && (
-                      <span className="ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
-                        {binderyCount}
-                      </span>
-                    )}
-                  </Link>
-                )}
               </div>
 
               <Section

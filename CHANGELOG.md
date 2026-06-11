@@ -51,6 +51,27 @@ All notable changes to Tome are documented here. Format loosely follows
   (Light/Dark), a warm pair (Amber and the new **Ember**, a cappuccino dark),
   and a new true-black **Black** theme for OLED screens. The pickers in
   Settings, the sidebar menu, and the login screen group them accordingly.
+- **Reading Stats is now a fully customisable dashboard.** The page looks the
+  same on day one — the default boards replicate the old layout one-to-one —
+  but everything is now a tile on a drag-and-resize grid: hit **Edit** to
+  rearrange, resize, duplicate, or remove any tile (with undo), and configure
+  tiles individually — chart style (bar/line/area), per-tile timeframe, a
+  pick-your-own-metric stat card, and a Series Spotlight that focuses on a
+  series of your choice. Boards are per-user and saved on the server, so your
+  layout follows you across devices. Tabs are boards too: create new ones
+  empty, duplicated from the current board, from a built-in default, or
+  imported from a file — and share a board by exporting it as JSON. A camera
+  button saves any board as a PNG. The widget gallery has 35 entries, including
+  new ones the old page never had: a paginated session log on Overview, reading
+  by weekday, time-of-day split, time by format, recently finished, and a
+  monthly streak calendar.
+
+### Fixed
+- The 365-day reading heatmap bucketed days in UTC, so for anyone east of
+  Greenwich an evening session could light up the wrong day (and dent a streak's
+  look). It now uses local dates, matching how every other chart counts days.
+
+## [1.4.0] — 2026-06-10
 
 ### Added
 - **Send to KOReader (beta).** Queue a book from the web straight to your
@@ -74,6 +95,24 @@ All notable changes to Tome are documented here. Format loosely follows
   layout. Bumps the plugin to build 15 (1.2.2).
 
 ### Fixed
+- **Relative timestamps no longer drift by your UTC offset.** The dashboard's
+  Reading Log (and the notification bell and API-token "last used" times)
+  showed sessions recorded minutes ago as "2h ago" for anyone not living on
+  UTC: those endpoints emitted timestamps without an explicit timezone, so the
+  browser parsed the UTC values as local time. All of them now carry the `Z`
+  suffix the rest of the API already used.
+- **The TomeSync plugin no longer breaks layout profiles that auto-execute on
+  book open.** The "TomeSync: Server at X% (device: Y%)" message shown when
+  another device had read ahead was a modal window, and KOReader delivers
+  profile actions only to the topmost non-modal window — so a profile applying
+  your layout (font size, margins, columns) on book open was silently swallowed
+  exactly on those opens, leaving the book with default or stale layout
+  settings. The message is now a passive toast that lets profile actions
+  through. Also fixes two more issues in the same path: a position saved by the
+  web reader no longer throws KOReader to page 1 (the plugin now recognises it
+  isn't a KOReader-native position and jumps by percentage instead), and the
+  book-open sync no longer runs twice per open. Bumps the plugin to build 17
+  (1.2.4).
 - **Series progress no longer shows as complete the moment you start the last
   book** (#36). The dashboard's "Series Progress" bar measured progress by the
   index of the book you were currently reading, so beginning book 2 of a 2-book

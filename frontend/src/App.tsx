@@ -119,6 +119,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="/stats-lab" element={<Navigate to="/stats" replace />} />
         <Route
           path="/reader/:bookId"
           element={

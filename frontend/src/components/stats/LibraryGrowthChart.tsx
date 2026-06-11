@@ -1,6 +1,7 @@
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -8,6 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useChartPalette } from '@/lib/useChartPalette'
+import { useChartColors } from '@/lib/useChartAccent'
 
 interface GrowthEntry {
   month: string
@@ -31,8 +33,9 @@ function ChartTooltip({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
+export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: { data: GrowthEntry[]; height?: number | `${number}%`; chartType?: 'area' | 'bar' }) {
   const palette = useChartPalette()
+  const { tick, cursor } = useChartColors()
   if (!data || data.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">No library growth data.</p>
@@ -50,25 +53,25 @@ export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="month"
           tickFormatter={formatMonth}
-          tick={{ fontSize: 10, fill: '#94a3b8' }}
+          tick={{ fontSize: 10, fill: tick }}
           axisLine={false}
           tickLine={false}
           interval={3}
         />
         <YAxis
-          tick={{ fontSize: 10, fill: '#94a3b8' }}
+          tick={{ fontSize: 10, fill: tick }}
           width={36}
           axisLine={false}
           tickLine={false}
           allowDecimals={false}
         />
         <Tooltip
-          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+          cursor={cursor}
           wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
           isAnimationActive={false}
           content={({ active, payload }) => {
@@ -92,19 +95,24 @@ export function LibraryGrowthChart({ data }: { data: GrowthEntry[] }) {
           }}
         />
         <Legend formatter={v => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-        {categories.map((cat, i) => (
-          <Area
-            key={cat}
-            type="monotone"
-            dataKey={cat}
-            stackId="1"
-            fill={palette[i % palette.length]}
-            fillOpacity={0.6}
-            stroke={palette[i % palette.length]}
-            strokeWidth={1.5}
-          />
-        ))}
-      </AreaChart>
+        {categories.map((cat, i) =>
+          chartType === 'bar' ? (
+            <Bar key={cat} dataKey={cat} stackId="1" fill={palette[i % palette.length]} fillOpacity={0.75} isAnimationActive={false} />
+          ) : (
+            <Area
+              key={cat}
+              type="monotone"
+              dataKey={cat}
+              stackId="1"
+              fill={palette[i % palette.length]}
+              fillOpacity={0.6}
+              stroke={palette[i % palette.length]}
+              strokeWidth={1.5}
+              isAnimationActive={false}
+            />
+          ),
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   )
 }

@@ -5,6 +5,12 @@ import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // Some deps (react-draggable, prop-types — pulled in by react-grid-layout) read
+  // process.env.NODE_ENV at runtime. Vite replaces it in production builds but not in
+  // dev, so without this the browser hits an undefined `process` on first interaction.
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+  },
   plugins: [
     react(),
     tailwindcss(),

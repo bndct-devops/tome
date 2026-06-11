@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # build than 13 — otherwise a device that updated to 1.2.1's build-13 impl and
 # later points at a main/1.3.0 server (also 13) would not re-download main's
 # richer impl. Hence 14.
-TOMESYNC_PLUGIN_BUILD = 16
-TOMESYNC_PLUGIN_SEMVER = "1.2.3"
+TOMESYNC_PLUGIN_BUILD = 17
+TOMESYNC_PLUGIN_SEMVER = "1.2.4"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1041,6 +1041,7 @@ logger.info("TomeSync: main_impl.lua loading...")
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local InfoMessage      = require("ui/widget/infomessage")
+local Notification     = require("ui/widget/notification")
 local UIManager        = require("ui/uimanager")
 local Device           = require("device")
 local NetworkMgr       = require("ui/network/manager")
@@ -1088,6 +1089,11 @@ http.TIMEOUT = 5
 -- Track consecutive failures for backoff
 local consecutive_failures = 0
 local MAX_BACKOFF_FAILURES = 3
+
+-- Chunk-local (shared across plugin instances): dedupes _initSession when the
+-- ReaderReady event reaches more than one live TomeSync instance for the same
+-- open. Cleared in onCloseDocument so an immediate reopen still inits.
+local last_session_init = {{ book_id = nil, at = 0 }}
 
 -- ── HTTP client ──────────────────────────────────────────────────────────────
 
@@ -1518,6 +1524,7 @@ function TomeSync:onCloseDocument()
     self.page_count     = 0
     self.progress_start = nil
     self.last_progress  = nil
+    last_session_init.book_id = nil
 end
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1540,6 +1547,14 @@ function TomeSync:_tryResolve()
 end
 
 function TomeSync:_initSession()
+    if self.book_id == last_session_init.book_id
+            and (os.time() - last_session_init.at) < 5 then
+        logger.dbg("TomeSync: duplicate session init skipped, id =", self.book_id)
+        return
+    end
+    last_session_init.book_id = self.book_id
+    last_session_init.at = os.time()
+
     logger.dbg("TomeSync: book opened, id =", self.book_id)
     self.session_start = os.time()
     self.page_count    = 0
@@ -1550,17 +1565,31 @@ function TomeSync:_initSession()
         local local_pct  = self:_getCurrentPercentage()
         if server_pct > (local_pct + 0.01) and server_pct < 0.99 then
             self.progress_start = server_pct
-            UIManager:show(InfoMessage:new{{
+            -- Must be a toast (Notification), not an InfoMessage: this shows
+            -- right when Profiles auto-exec ("on book opening") dispatches its
+            -- actions, and UIManager:sendEvent drops events at the topmost
+            -- non-toast window — an InfoMessage here silently eats the user's
+            -- layout profile (font size, margins, columns).
+            UIManager:show(Notification:new{{
                 text = string.format(
                     "TomeSync: Server at %.0f%% (device: %.0f%%).",
                     server_pct * 100, local_pct * 100
                 ),
                 timeout = 3,
             }})
-            if pos.progress and self.ui and self.ui.rolling then
-                pcall(function()
-                    self.ui.rolling:onGotoXPointer(pos.progress, pos.progress)
-                end)
+            if self.ui and self.ui.rolling then
+                if type(pos.progress) == "string" and pos.progress:sub(1, 1) == "/" then
+                    pcall(function()
+                        self.ui.rolling:onGotoXPointer(pos.progress, pos.progress)
+                    end)
+                else
+                    -- Not a crengine xpointer (e.g. the web reader stores a
+                    -- foliate epubcfi here) — onGotoXPointer with it lands on
+                    -- page 1, so jump by percentage instead.
+                    pcall(function()
+                        self.ui.rolling:onGotoPercent(server_pct * 100)
+                    end)
+                end
             end
         else
             self.progress_start = local_pct
