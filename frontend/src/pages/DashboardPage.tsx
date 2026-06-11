@@ -909,9 +909,11 @@ export function DashboardPage() {
         'grid transition-[gap] duration-300 ease-out animate-[view-fade_0.25s_ease-out]',
         gridSize < 150 ? 'gap-2' : 'gap-4'
       )
+  // min(size, 42vw) keeps phones at two columns regardless of the slider —
+  // without it a 180px minimum fits only one track on a 390px screen
   const gridStyle = view === 'list'
     ? undefined
-    : { gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))` }
+    : { gridTemplateColumns: `repeat(auto-fill, minmax(min(${gridSize}px, 42vw), 1fr))` }
 
   // Active library name for heading
   const activeLibraryName = filterLibrary ? libraries.find(l => l.id === filterLibrary)?.name : null
