@@ -12,45 +12,14 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-import { Clock, Activity, BookCheck, Flame, FileText, Trash2, Loader2, ChevronDown } from 'lucide-react'
+import { FileText, Trash2, Loader2, ChevronDown } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { useChartColors } from '@/lib/useChartAccent'
-import { StatCard } from '@/components/stats/StatCard'
-import { CompletionRateCard } from '@/components/stats/CompletionRateCard'
 import { ChartTooltip, HeatmapChart, type StatsResponse, type SessionEntry } from '@/components/stats/shared'
 
 // Chart style a configurable widget can render as (per-tile setting in the Lab).
 export type ChartKind = 'bar' | 'line' | 'area'
-
-export function OverviewHeadline({
-  headline,
-  completionRate,
-}: {
-  headline: StatsResponse['headline']
-  completionRate: StatsResponse['completion_rate']
-}) {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-      <StatCard
-        icon={<Clock className="w-3.5 h-3.5" />}
-        label="Reading Time"
-        value={formatDuration(headline.total_reading_seconds)}
-        sub={`avg ${formatDuration(headline.avg_session_seconds)} / session`}
-      />
-      <StatCard icon={<Activity className="w-3.5 h-3.5" />} label="Sessions" value={String(headline.total_sessions)} />
-      <StatCard icon={<BookCheck className="w-3.5 h-3.5" />} label="Books Finished" value={String(headline.books_finished)} />
-      <StatCard
-        icon={<Flame className="w-3.5 h-3.5" />}
-        label="Streak"
-        value={`${headline.current_streak_days}d`}
-        sub={`Longest: ${headline.longest_streak_days}d`}
-      />
-      <StatCard icon={<FileText className="w-3.5 h-3.5" />} label="Pages Turned" value={headline.pages_turned.toLocaleString()} />
-      <CompletionRateCard data={completionRate} />
-    </div>
-  )
-}
 
 // Bare headline-stat body (value + sub) for use as a standalone dashboard tile —
 // the tile itself provides the card frame + the label (in its header).

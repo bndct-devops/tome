@@ -5,7 +5,7 @@ import {
   BookOpen, Plus, Pencil, Trash2,
   ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
-  Sun, Moon, Flame, Check, Sparkles, FlaskConical, Users,
+  Sun, Moon, Flame, Check, Sparkles, Users,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -347,19 +347,6 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             >
               <BarChart3 className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
             </Link>
-            <Link
-              to="/stats-lab"
-              title="Stats Lab"
-              aria-label="Stats Lab"
-              className={cn(
-                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                location.pathname === '/stats-lab'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <FlaskConical className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-            </Link>
             {isMember(user) && (
               <Link
                 to="/wishlist"
@@ -488,18 +475,6 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               >
                 <BarChart3 className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
                 <span className="truncate">Stats</span>
-              </Link>
-              <Link
-                to="/stats-lab"
-                className={cn(
-                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                  location.pathname === '/stats-lab'
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <FlaskConical className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate">Stats Lab</span>
               </Link>
               {isMember(user) && (
                 <Link
@@ -678,19 +653,6 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 >
                   <BarChart3 className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
                   <span className="truncate">Stats</span>
-                </Link>
-                <Link
-                  to="/stats-lab"
-                  onClick={onMobileClose}
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                    location.pathname === '/stats-lab'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <FlaskConical className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Stats Lab</span>
                 </Link>
                 {isMember(user) && (
                   <Link

@@ -98,14 +98,20 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
 
   const map = new Map(data.map((d) => [d.date, d.seconds]))
 
+  // Local-date keys, NOT toISOString (= UTC): the backend buckets sessions into
+  // local days via tz_offset, so UTC keys shift evening reads onto the wrong day
+  // for anyone east of Greenwich.
+  const localIso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const days: string[] = []
+  let firstDow = 0
   for (let i = 364; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    days.push(d.toISOString().slice(0, 10))
+    if (i === 364) firstDow = d.getDay()
+    days.push(localIso(d))
   }
 
-  const firstDow = new Date(days[0]).getDay()
   const padBefore = firstDow === 0 ? 6 : firstDow - 1
 
   const weeks: (string | null)[][] = []
