@@ -104,6 +104,29 @@ The plugin can browse and download entire series directly to your device.
 - Downloaded books are automatically registered in the book map, so sync works immediately when you open them
 - A summary shows downloaded/skipped/failed counts when finished
 
+### Download location & naming
+
+By default downloads are filed as described above (`<book_type>/<Series Name>/Vol. N — Title.ext`, standalones under their author). **Settings → Download location & naming** changes this — per device, stored in KOReader:
+
+- **Default (type and series folders)** — the layout above.
+- **Flat in home folder** — every book lands directly in the home folder, named `Series - NN - Title.ext` (series and volume are dropped for books that have none). For people who keep everything unsorted in one place.
+- **Custom template** — build the path yourself from tokens, Sonarr/Radarr-style:
+
+| Token | Renders as |
+|---|---|
+| `{book_type}` | Tome book-type slug (`manga`, `light_novel`, ...) |
+| `{series}` | series name, empty for standalones |
+| `{volume}` | series index (`3`, `1.5`) |
+| `{volume:00}` | zero-padded series index (`03`); pad width = number of zeros |
+| `{title}` | book title |
+| `{author}` | author, empty when unknown |
+
+  Wrap a token name in `{Lower(...)}` or `{Upper(...)}` to force case — `{Lower(series)}`, no inner braces. `/` starts a new folder; the file extension is appended automatically. Example: `{book_type}/{Lower(series)}/{volume:00} - {title}` → `manga/berserk/03 - The Egg of the King.epub`.
+
+  Empty tokens drop out together with the separators around them, so one template works for series books and standalones alike. Every path segment is sanitized — a template can never place files outside the base folder. Templates are validated when saved, with a preview of the resulting filename.
+
+Changing the setting only affects *future* downloads: books already on the device are remembered by book ID and stay skipped, and previously downloaded files are not moved.
+
 ---
 
 ## Offline and Unreachable Server
@@ -161,6 +184,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | Option | Description |
 |---|---|
 | **Auto-connect WiFi when needed** | Opt-in toggle, off by default. When a TomeSync action needs the server and WiFi is down, KOReader re-establishes the connection first (honouring your KOReader WiFi prompt/auto-enable setting), then runs the action. Helps devices that aggressively sleep WiFi, e.g. PocketBook. Only user-initiated actions reconnect — background tracking never turns the radio on. |
+| **Download location & naming** | Where downloads (series, inbox) are filed: the default type/series layout, flat in the home folder, or a custom token template. Per-device. See [Download location & naming](#download-location--naming). |
 | **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
 | **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
 | **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
