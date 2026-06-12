@@ -166,6 +166,90 @@ def test_impl_menu_has_settings_submenu_and_renamed_tracking_toggle():
     assert "sub_item_table = settings_items" in impl
 
 
+def _luajit_or_skip():
+    import shutil
+
+    luajit = shutil.which("luajit")
+    if luajit is None:
+        pytest.skip("luajit not installed")
+    return luajit
+
+
+def test_download_template_renderer_behaviour(tmp_path):
+    """Extracts the marked renderDownloadPath block from the generated impl
+    and exercises it standalone — token rendering, padding, case modifiers,
+    empty-token cleanup, and path-safety guarantees."""
+    import subprocess
+
+    luajit = _luajit_or_skip()
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    start = impl.index("-- TOMESYNC_TEMPLATE_BEGIN")
+    end = impl.index("-- TOMESYNC_TEMPLATE_END")
+    block = impl[start:end]
+
+    script = """
+local util = { getSafeFilename = function(s)
+    return (s:gsub('[\\\\:%*%?"<>|]', '_'))
+end }
+""" + block + """
+local function eq(got, want, label)
+    if got ~= want then
+        io.stderr:write(string.format("FAIL %s: got %q want %q\\n",
+            label, tostring(got), tostring(want)))
+        os.exit(1)
+    end
+end
+local series = { book_type = "manga", series = "Berserk", volume = 3,
+                 title = "The Egg of the King", author = "Kentaro Miura" }
+local standalone = { book_type = "novels", series = "", volume = nil,
+                     title = "Standalone", author = "Some Author" }
+
+-- flat preset: collision-safe for series, clean for standalones
+local FLAT = "{series} - {volume:00} - {title}"
+eq(renderDownloadPath(FLAT, series), "Berserk - 03 - The Egg of the King", "flat series")
+eq(renderDownloadPath(FLAT, standalone), "Standalone", "flat standalone")
+
+-- folders, zero-pad, fractional volumes
+eq(renderDownloadPath("{book_type}/{series}/{volume:00} - {title}", series),
+   "manga/Berserk/03 - The Egg of the King", "nested")
+eq(renderDownloadPath("{book_type}/{series}/{volume:00} - {title}", standalone),
+   "novels/Standalone", "nested standalone drops empty segment")
+eq(renderDownloadPath("{volume}", { volume = 1.5, title = "t" }), "1.5", "fractional volume")
+
+-- case modifiers
+eq(renderDownloadPath("{Lower(series)}/{title}", series),
+   "berserk/The Egg of the King", "Lower")
+eq(renderDownloadPath("{Upper(book_type)}/{title}", series),
+   "MANGA/The Egg of the King", "Upper")
+
+-- safety: unknown token rejects, traversal and slashes cannot escape
+eq(renderDownloadPath("{nope}/{title}", series), nil, "unknown token")
+eq(renderDownloadPath("../{title}", series), "The Egg of the King", "dotdot dropped")
+eq(renderDownloadPath("{series}/../../{title}", series),
+   "Berserk/The Egg of the King", "dotdot segments dropped")
+eq(renderDownloadPath("{title}", { title = "A/B" }), "A-B", "slash in value")
+eq(renderDownloadPath("{series}", standalone), nil, "renders empty -> nil")
+print("ALL OK")
+"""
+    path = tmp_path / "template_spec.lua"
+    path.write_text(script)
+    proc = subprocess.run([luajit, str(path)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert "ALL OK" in proc.stdout
+
+
+def test_impl_download_template_invariants():
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    # Setting key, menu entry, presets and dialog are all present.
+    assert "tomesync_download_template" in impl
+    assert "Download location & naming" in impl
+    assert "Flat in home folder" in impl
+    assert 'local FLAT_TEMPLATE = "{series} - {volume:00} - {title}"' in impl
+    # Unset template must keep the built-in layout code path.
+    assert "ensureDefaultDirs" in impl
+    assert 'display_title = "Vol. " .. tostring(vol)' in impl
+
+
 def test_impl_compiles_under_luajit(tmp_path):
     """Guards the f-string brace escaping: a stray single brace renders broken
     Lua that validateImpl would reject on-device."""

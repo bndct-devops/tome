@@ -26,6 +26,21 @@ All notable changes to Tome are documented here. Format loosely follows
   default: with the toggle off the plugin behaves exactly as before. Only
   user-initiated actions reconnect; background tracking never wakes the radio.
   (build 18 / 1.3.0, #38)
+- **KOReader plugin: choose where downloads go.** A new **Settings → Download
+  location & naming** option controls how the plugin files series downloads,
+  inbox deliveries — everything. Three choices: the default layout
+  (book-type/series folders, standalones under their author), **Flat in home
+  folder** (every book lands directly in the home folder as
+  "Series - NN - Title", so nothing nests), or a **custom template** built
+  from tokens — `{book_type}` `{series}` `{volume}` `{volume:00}` `{title}`
+  `{author}`, with `{Lower(...)}`/`{Upper(...)}` case modifiers and `/`
+  starting a new folder, Sonarr-style. Empty tokens drop out cleanly (one
+  template serves series books and standalones), every path segment is
+  sanitized so a template can never escape the library folder, and templates
+  are validated when saved with a preview of the resulting filename. The
+  setting is per-device and stored in KOReader. Already-downloaded books are
+  remembered by ID, so changing layout doesn't re-download your library.
+  (build 19 / 1.4.0)
 
 ### Changed
 - **KOReader plugin: clearer menu.** The ambiguous in-book "Enabled (tap to
