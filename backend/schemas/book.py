@@ -40,6 +40,11 @@ class BookOut(BaseModel):
     tags: list[BookTagOut] = []
     library_ids: list[int] = []
     book_type_id: Optional[int] = None
+    # Only populated by GET /books?group_by_series=true — number of volumes
+    # in this book's series that matched the active filters, and the IDs of
+    # the next volumes with covers (for the stacked-card fan effect).
+    series_count: Optional[int] = None
+    stack_cover_ids: Optional[list[int]] = None
 
     @classmethod
     def from_orm_with_libraries(cls, book):

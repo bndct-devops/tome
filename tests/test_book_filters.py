@@ -213,3 +213,103 @@ def test_sort_by_title(client: TestClient, make_book):
     # The slice containing our three books should already be sorted; verify the
     # full returned list is sorted ascending.
     assert titles == sorted(titles)
+
+
+# ── Group by series ───────────────────────────────────────────────────────────
+
+def test_group_by_series_collapses_volumes(client: TestClient, make_book):
+    """group_by_series=true returns one representative per series (lowest
+    series_index) with a series_count, and standalones pass through."""
+    v2 = make_book(title="Saga Vol 2", series="Saga", series_index=2.0)
+    v1 = make_book(title="Saga Vol 1", series="Saga", series_index=1.0)
+    v3 = make_book(title="Saga Vol 3", series="Saga", series_index=3.0)
+    solo = make_book(title="Standalone Novel")
+
+    resp = client.get("/api/books", params={"group_by_series": "true"})
+    assert resp.status_code == 200
+
+    books = resp.json()
+    ids = [b["id"] for b in books]
+    assert v1.id in ids
+    assert v2.id not in ids
+    assert v3.id not in ids
+    assert solo.id in ids
+    assert _total(resp) == 2
+
+    by_id = {b["id"]: b for b in books}
+    assert by_id[v1.id]["series_count"] == 3
+    assert by_id[solo.id]["series_count"] == 1
+
+
+def test_group_by_series_counts_respect_filters(client: TestClient, make_book):
+    """Filters apply inside the stacks: the count reflects matching volumes
+    only, and series with no matching volumes disappear."""
+    make_book(title="Saga Vol 1", series="Saga", series_index=1.0, file_format="epub")
+    v2 = make_book(title="Saga Vol 2", series="Saga", series_index=2.0, file_format="cbz")
+    make_book(title="Saga Vol 3", series="Saga", series_index=3.0, file_format="cbz")
+    make_book(title="Other Vol 1", series="Other", series_index=1.0, file_format="epub")
+
+    resp = client.get("/api/books", params={"group_by_series": "true", "format": "cbz"})
+    assert resp.status_code == 200
+
+    books = resp.json()
+    assert _total(resp) == 1
+    # Representative is the lowest-index *matching* volume
+    assert books[0]["id"] == v2.id
+    assert books[0]["series_count"] == 2
+
+
+def test_group_by_series_pagination(client: TestClient, make_book):
+    """Pagination operates over groups, not raw volumes."""
+    for i in range(1, 4):
+        make_book(title=f"Alpha Vol {i}", series="Alpha", series_index=float(i))
+    for i in range(1, 3):
+        make_book(title=f"Beta Vol {i}", series="Beta", series_index=float(i))
+    make_book(title="Gamma Standalone")
+
+    resp = client.get("/api/books", params={
+        "group_by_series": "true", "sort": "title", "order": "asc",
+        "skip": 0, "limit": 2,
+    })
+    assert resp.status_code == 200
+    assert _total(resp) == 3
+    assert len(resp.json()) == 2
+
+    resp2 = client.get("/api/books", params={
+        "group_by_series": "true", "sort": "title", "order": "asc",
+        "skip": 2, "limit": 2,
+    })
+    assert len(resp2.json()) == 1
+    assert set(_ids(resp)).isdisjoint(set(_ids(resp2)))
+
+
+def test_ungrouped_has_no_series_count(client: TestClient, make_book):
+    """Without the flag, series_count stays null and all volumes are returned."""
+    make_book(title="Saga Vol 1", series="Saga", series_index=1.0)
+    make_book(title="Saga Vol 2", series="Saga", series_index=2.0)
+
+    resp = client.get("/api/books")
+    assert resp.status_code == 200
+    books = resp.json()
+    assert _total(resp) == 2
+    assert all(b["series_count"] is None for b in books)
+
+
+def test_group_by_series_stack_cover_ids(client: TestClient, make_book):
+    """Grouped reps carry the IDs of the next two volumes that have a cover
+    (for the stacked-card fan), skipping coverless volumes."""
+    v1 = make_book(title="Saga Vol 1", series="Saga", series_index=1.0, cover_path="/c/1.jpg")
+    _v2 = make_book(title="Saga Vol 2", series="Saga", series_index=2.0, cover_path=None)
+    v3 = make_book(title="Saga Vol 3", series="Saga", series_index=3.0, cover_path="/c/3.jpg")
+    v4 = make_book(title="Saga Vol 4", series="Saga", series_index=4.0, cover_path="/c/4.jpg")
+    _v5 = make_book(title="Saga Vol 5", series="Saga", series_index=5.0, cover_path="/c/5.jpg")
+    solo = make_book(title="Standalone Novel")
+
+    resp = client.get("/api/books", params={"group_by_series": "true"})
+    assert resp.status_code == 200
+    by_id = {b["id"]: b for b in resp.json()}
+
+    assert v1.id in by_id
+    # Coverless vol 2 is skipped; capped at two covers
+    assert by_id[v1.id]["stack_cover_ids"] == [v3.id, v4.id]
+    assert by_id[solo.id]["stack_cover_ids"] == []

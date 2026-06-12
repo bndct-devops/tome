@@ -6,6 +6,18 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Group by series in the library view.** A new toggle in the All Books
+  toolbar collapses each series into a single stacked card — first volume's
+  cover, a volume-count badge, and a subtle stacked-paper look — so one long
+  manga run no longer drowns out the rest of the grid. Standalone books render
+  as normal cards. Clicking a stack opens the series detail view (status badge,
+  arcs, Continue Reading and all); clicking the series name on an individual
+  book card still filters the grid as before. Active filters apply inside the
+  stacks: if a filter matches only 2 of 15 volumes the badge shows 2, and
+  series with no matching volumes disappear. The toggle is off by default and
+  remembered per device. (#43)
+
 ### Changed
 - **Pick your own cover size.** The library's three fixed views (large grid,
   small grid, list) become two — grid and list — with a slider next to the

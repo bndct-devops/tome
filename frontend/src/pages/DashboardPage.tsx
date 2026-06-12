@@ -5,12 +5,13 @@ import {
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2,
+  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers,
 } from 'lucide-react'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
+import { SeriesStackCard } from '@/components/SeriesStackCard'
 import { CoverImage } from '@/components/CoverImage'
 import { Sidebar } from '@/components/Sidebar'
 import { SaveFilterButton } from '@/components/SaveFilterButton'
@@ -101,6 +102,7 @@ const GRID_SIZE_MAX = 240
 type ViewPref = 'grid' | 'list'
 const SORT_KEY = 'tome_sort'
 const ORDER_KEY = 'tome_order'
+const GROUP_KEY = 'tome_group_series'
 
 // ── Bulk Delete Modal ──────────────────────────────────────────────────────────
 interface BulkDeleteModalProps {
@@ -266,6 +268,14 @@ export function DashboardPage() {
   function persistGridSize(s: number) { setGridSize(s); localStorage.setItem(GRID_SIZE_KEY, String(s)) }
   function persistSort(s: SortField) { setSort(s); localStorage.setItem(SORT_KEY, s) }
   function persistOrder(o: SortOrder) { setOrder(o); localStorage.setItem(ORDER_KEY, o) }
+
+  // ── Group by series (persisted) ───────────────────────────────────────────
+  const [groupBySeries, setGroupBySeries] = useState(() => localStorage.getItem(GROUP_KEY) === 'true')
+  function persistGroup(v: boolean) {
+    setGroupBySeries(v)
+    localStorage.setItem(GROUP_KEY, String(v))
+    if (v) exitSelectionMode()
+  }
 
   // ── Tab (Home / Books / Series) — derived from URL ───────────────────────
   const tab = (searchParams.get('tab') || 'home') as 'home' | 'books' | 'series'
@@ -477,6 +487,10 @@ export function DashboardPage() {
   }
 
   const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterReadingStatus || filterMissing || filterOwnership || filterAddedBy)
+
+  // Grouping is bypassed while drilling into a specific series — the user
+  // explicitly asked for that series' volumes, so a single stack is useless.
+  const groupActive = groupBySeries && !filterSeries
 
   // ── Debounced search ──────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState(search)
@@ -728,6 +742,7 @@ export function DashboardPage() {
     if (contentType) params.set('content_type', contentType)
     if (filterOwnership) params.set('ownership', filterOwnership)
     if (filterAddedBy) params.set('added_by', String(filterAddedBy))
+    if (groupActive) params.set('group_by_series', 'true')
     api.getWithHeaders<Book[]>(`/books?${params}`, signal)
       .then(({ data: newBooks, headers }) => {
         if (signal?.aborted) return
@@ -761,7 +776,7 @@ export function DashboardPage() {
         if (reset) { setLoading(false); setRefreshing(false) }
         else setLoadingMore(false)
       })
-  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLibrary, filterReadingStatus, filterMissing, contentType, filterOwnership, filterAddedBy])
+  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLibrary, filterReadingStatus, filterMissing, contentType, filterOwnership, filterAddedBy, groupActive])
 
   useEffect(() => { loadBooks() }, [loadBooks])
 
@@ -794,6 +809,10 @@ export function DashboardPage() {
 
   function loadFacets() { api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }
   useEffect(() => { loadFacets() }, [])
+
+  // Mirror groupActive into a ref so the keydown handler (bound once) sees it
+  const groupActiveRef = useRef(false)
+  useEffect(() => { groupActiveRef.current = groupActive }, [groupActive])
 
 
   useEffect(() => {
@@ -830,7 +849,12 @@ export function DashboardPage() {
       if (e.key === 'Enter') {
         setFocusedIndex(prev => {
           if (prev !== null && booksRef.current[prev]) {
-            navigate(`/books/${booksRef.current[prev].id}`)
+            const b = booksRef.current[prev]
+            if (groupActiveRef.current && b.series) {
+              navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
+            } else {
+              navigate(`/books/${b.id}`)
+            }
           }
           return prev
         })
@@ -1591,13 +1615,33 @@ export function DashboardPage() {
             <span className="text-xs text-muted-foreground hidden sm:block">
               {loading
                 ? '…'
-                : totalCount !== null && totalCount > books.length
-                  ? `${books.length} of ${totalCount} books`
-                  : `${books.length} book${books.length !== 1 ? 's' : ''}`}
+                : (() => {
+                    const noun = (n: number) => groupActive ? (n === 1 ? 'entry' : 'entries') : (n === 1 ? 'book' : 'books')
+                    return totalCount !== null && totalCount > books.length
+                      ? `${books.length} of ${totalCount} ${noun(totalCount)}`
+                      : `${books.length} ${noun(books.length)}`
+                  })()}
             </span>
 
-            {/* Select mode toggle */}
-            {books.length > 0 && (
+            {/* Group by series toggle */}
+            <button
+              onClick={() => persistGroup(!groupBySeries)}
+              title={groupBySeries ? 'Show individual volumes' : 'Group volumes by series'}
+              aria-label="Group by series"
+              aria-pressed={groupBySeries}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                groupBySeries
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Group series</span>
+            </button>
+
+            {/* Select mode toggle — selection operates on individual books, hidden while grouped */}
+            {books.length > 0 && !groupActive && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => {
@@ -1906,6 +1950,17 @@ export function DashboardPage() {
           ) : (
             <div key={view} ref={booksGridRef} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
               {books.map((book, i) => (
+                groupActive && book.series ? (
+                  <SeriesStackCard
+                    key={`${cardView}-stack-${book.id}`}
+                    book={book}
+                    count={book.series_count ?? 1}
+                    view={cardView}
+                    index={i}
+                    focused={focusedIndex === i}
+                    onOpen={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(book.series!)}`)}
+                  />
+                ) : (
                 <BookCard
                   key={`${cardView}-${book.id}`}
                   flipId={String(book.id)}
@@ -1921,6 +1976,7 @@ export function DashboardPage() {
                   readingStatus={readingStatuses[book.id]?.status}
                   progressPct={readingStatuses[book.id]?.progress_pct}
                 />
+                )
               ))}
             </div>
           )}
