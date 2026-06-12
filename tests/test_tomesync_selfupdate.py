@@ -136,3 +136,51 @@ def test_shim_is_config_free_and_loads_impl():
     assert "tome_secret_key" in impl
     assert f"local BUILD           = {TOMESYNC_PLUGIN_BUILD}" in impl
     assert f'local SEMVER          = "{TOMESYNC_PLUGIN_SEMVER}"' in impl
+
+
+def test_impl_auto_connect_is_opt_in_and_wraps_interactive_paths():
+    """#38: the WiFi reconnect path is gated on the persisted opt-in setting,
+    and only interactive entry points route through it — background tracking
+    (page heartbeat, suspend/resume) must never wake the radio."""
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    # runWhenConnected is called in exactly one place: the gated helper.
+    assert impl.count("NetworkMgr:runWhenConnected") == 1
+    assert 'G_reader_settings:isTrue("tomesync_auto_connect")' in impl
+    # Interactive entry points route through the gate.
+    assert "whenConnected(function() self:_browseSeriesMenuImpl() end)" in impl
+    assert "whenConnected(function() self:_inboxMenuImpl() end)" in impl
+    assert (
+        "whenConnected(function() self:_downloadCurrentBookSeriesImpl(rest_only) end)"
+        in impl
+    )
+
+
+def test_impl_menu_has_settings_submenu_and_renamed_tracking_toggle():
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    # The ambiguous "Enabled" label is gone in favour of an explicit one.
+    assert "Enabled (tap to disable)" not in impl
+    assert "Tracking: on (tap to pause)" in impl
+    assert "Tracking: paused (tap to resume)" in impl
+    # Persistent settings live in a nested submenu.
+    assert "Auto-connect WiFi when needed" in impl
+    assert "sub_item_table = settings_items" in impl
+
+
+def test_impl_compiles_under_luajit(tmp_path):
+    """Guards the f-string brace escaping: a stray single brace renders broken
+    Lua that validateImpl would reject on-device."""
+    import shutil
+    import subprocess
+
+    luajit = shutil.which("luajit")
+    if luajit is None:
+        pytest.skip("luajit not installed")
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    path = tmp_path / "main_impl.lua"
+    path.write_text(impl)
+    proc = subprocess.run(
+        [luajit, "-e", f"assert(loadfile({str(path)!r}))"],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr

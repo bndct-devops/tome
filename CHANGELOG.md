@@ -17,8 +17,25 @@ All notable changes to Tome are documented here. Format loosely follows
   stacks: if a filter matches only 2 of 15 volumes the badge shows 2, and
   series with no matching volumes disappear. The toggle is off by default and
   remembered per device. (#43)
+- **KOReader plugin: opt-in WiFi auto-connect.** Some devices (notably
+  PocketBook) sleep WiFi so aggressively that every TomeSync action just failed
+  with "offline". A new **Settings → Auto-connect WiFi when needed** toggle
+  lets KOReader re-establish the connection first (honouring your KOReader
+  network prompt/auto setting) and then runs the action — browsing series,
+  downloads, Sync now, Test connection, update checks, and the Inbox. Off by
+  default: with the toggle off the plugin behaves exactly as before. Only
+  user-initiated actions reconnect; background tracking never wakes the radio.
+  (build 18 / 1.3.0, #38)
 
 ### Changed
+- **KOReader plugin: clearer menu.** The ambiguous in-book "Enabled (tap to
+  disable)" entry is now "Tracking: on (tap to pause)" — it pauses automatic
+  session tracking and syncing for the current KOReader run (it was never a
+  permanent setting, and now says so). Persistent options and diagnostics
+  (auto-connect, update checks, Test connection, Re-resolve all books) moved
+  into a **Settings** submenu, so the in-book menu no longer spills onto a
+  second page. The gesture-opened popup menu now shows toggle states and opens
+  submenus instead of silently ignoring them. (build 18 / 1.3.0)
 - **Reading Stats is now a fully customisable dashboard.** The page looks the
   same on day one — the default boards replicate the old layout one-to-one —
   but everything is now a tile on a drag-and-resize grid: hit **Edit** to

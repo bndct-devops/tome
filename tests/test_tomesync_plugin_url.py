@@ -144,7 +144,7 @@ def test_zip_download_bakes_https_with_forwarded_proto(app_client):
 def test_build_bumped_for_rebake():
     # Must exceed every build already live (v1.2.0 shipped 10; main reached 12),
     # so all existing installs re-download and re-bake the corrected URL.
-    # 1.2.4 / build 17 fixes the book-open sync toast swallowing Profiles
-    # auto-exec actions (plus web-CFI goto + duplicate session init).
-    assert TOMESYNC_PLUGIN_BUILD >= 17
-    assert TOMESYNC_PLUGIN_SEMVER == "1.2.4"
+    # 1.3.0 / build 18 adds the opt-in "Auto-connect WiFi" reconnect behaviour
+    # (#38), the Settings submenu, and the clearer tracking pause toggle.
+    assert TOMESYNC_PLUGIN_BUILD >= 18
+    assert TOMESYNC_PLUGIN_SEMVER == "1.3.0"

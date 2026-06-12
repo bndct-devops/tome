@@ -130,7 +130,7 @@ Sessions also flush when you tap "Sync now" in the menu, or when WiFi reconnects
 
 - Up to 50 sessions can be saved locally. If you go offline for an extremely long time, the oldest sessions are dropped to prevent unbounded storage use.
 - Sessions saved locally survive KOReader restarts -- they are stored in KOReader's settings file.
-- The backoff counter (3 failures before giving up) resets automatically on the next successful request. You can also reset it manually via **Test connection** in the plugin menu.
+- The backoff counter (3 failures before giving up) resets automatically on the next successful request. You can also reset it manually via **Settings → Test connection** in the plugin menu.
 
 ---
 
@@ -143,10 +143,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | Option | Description |
 |---|---|
 | **Browse series** | Opens the series browser. Lists all series with book count and author. Tap to download. |
-| **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
-| **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
-| **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
-| **Auto-check on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
+| **Settings** | Submenu with persistent options and diagnostics (see below). |
 | **About** | Version info (semver + build). |
 
 ### Only when a book is open
@@ -156,8 +153,18 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Download full series** | Downloads all books in the current book's series. |
 | **Download rest of series** | Downloads books after the current volume only. |
 | **Sync now** | Pushes current position, highlights/notes, and flushes any pending offline sessions. |
-| **Enabled / Disabled** | Toggle sync on or off. |
+| **Tracking: on / paused** | Pauses automatic session tracking and syncing for the current KOReader run. Resets to on at the next start — it is not a permanent setting. Manual actions (Sync now, downloads) still work while paused. |
 | **Pending sessions (N)** | Shows how many sessions are queued for sync. Tap for details. |
+
+### Settings submenu
+
+| Option | Description |
+|---|---|
+| **Auto-connect WiFi when needed** | Opt-in toggle, off by default. When a TomeSync action needs the server and WiFi is down, KOReader re-establishes the connection first (honouring your KOReader WiFi prompt/auto-enable setting), then runs the action. Helps devices that aggressively sleep WiFi, e.g. PocketBook. Only user-initiated actions reconnect — background tracking never turns the radio on. |
+| **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
+| **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
+| **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
+| **Auto-check for updates on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
 
 ### Gestures
 
@@ -204,7 +211,7 @@ The plugin authenticates with an API key (`Authorization: Bearer tk_...`), not y
 
 ## Updating the Plugin
 
-Once the plugin is installed, it updates itself — open the **TomeSync** menu and tap **Check for updates** (or enable **Auto-check on launch**). It downloads the latest build from your server, swaps it in atomically, and asks you to restart. Your server URL, API key, and reading history carry over automatically.
+Once the plugin is installed, it updates itself — open the **TomeSync** menu and tap **Settings → Check for updates** (or enable **Auto-check for updates on launch**). It downloads the latest build from your server, swaps it in atomically, and asks you to restart. Your server URL, API key, and reading history carry over automatically.
 
 The plugin version is shown on the Settings page next to "TomeSync Plugin" (`v<semver> (build N)`); the build integer is what drives update comparisons.
 
