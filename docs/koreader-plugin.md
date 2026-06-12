@@ -106,26 +106,66 @@ The plugin can browse and download entire series directly to your device.
 
 ### Download location & naming
 
-By default downloads are filed as described above (`<book_type>/<Series Name>/Vol. N — Title.ext`, standalones under their author). **Settings → Download location & naming** changes this — per device, stored in KOReader:
+By default downloads are filed as described above (`<book_type>/<Series Name>/Vol. N — Title.ext`, standalones under their author). **Settings → Download location & naming** changes this. The setting applies to *every* way books reach the device — the series browser, the in-book series downloads, and the Send-to-KOReader inbox all share one downloader. It is per-device and stored in KOReader's own settings, so your phone can use a different layout than your e-reader, and it survives plugin updates.
 
-- **Default (type and series folders)** — the layout above.
-- **Flat in home folder** — every book lands directly in the home folder, named `Series - NN - Title.ext` (series and volume are dropped for books that have none). For people who keep everything unsorted in one place.
-- **Custom template** — build the path yourself from tokens, Sonarr/Radarr-style:
+Three options:
 
-| Token | Renders as |
+- **Default (type and series folders)** — the layout above. This is also what runs when no template is set, on exactly the same code path as before the setting existed.
+- **Flat in home folder** — every book lands directly in the home folder, named `Series - NN - Title.ext`. Series and volume are dropped for books that have none, so a standalone is just `Title.ext`. For people who keep everything unsorted in one place.
+- **Custom template** — build the path yourself, Sonarr/Radarr-style.
+
+#### Custom templates
+
+A template is a **free-form string**: tokens, literal text, and `/` folder separators in any combination. The dialog pre-fills a suggestion (`{book_type}/{series}/{volume:00} - {title}`) purely as a starting point — delete it and write anything. Tokens can repeat, literals can appear anywhere, folders can nest as deep as you like.
+
+**Token reference** (the complete set — anything else is rejected):
+
+| Token | Renders as | Empty when |
+|---|---|---|
+| `{book_type}` | Tome book-type slug (`manga`, `light_novel`, `novel`, ...) | never (falls back to `book`) |
+| `{series}` | series name | book has no series |
+| `{volume}` | series index as-is (`3`, `12`, `1.5`) | book has no series index |
+| `{volume:00}` | zero-padded series index (`03`); pad width = number of zeros, so `{volume:000}` gives `003`. Fractional volumes (`1.5`) are never padded. | book has no series index |
+| `{title}` | book title | never |
+| `{author}` | author name | author unknown |
+
+**Case modifiers:** wrap a token *name* in `Lower(...)` or `Upper(...)` — `{Lower(series)}`, `{Upper(book_type)}`. No inner braces: `{Lower({series})}` is not valid syntax.
+
+**Rules:**
+
+- `/` starts a new folder. Everything between slashes becomes one folder (or, for the last part, the filename).
+- The file extension (`.epub`, `.cbz`, ...) is **appended automatically** — never write it in the template.
+- Anything that isn't a token is literal text and is kept verbatim.
+
+**Examples** (Berserk vol. 3, "The Egg of the King", Kentaro Miura, type `manga`):
+
+| Template | Result |
 |---|---|
-| `{book_type}` | Tome book-type slug (`manga`, `light_novel`, ...) |
-| `{series}` | series name, empty for standalones |
-| `{volume}` | series index (`3`, `1.5`) |
-| `{volume:00}` | zero-padded series index (`03`); pad width = number of zeros |
-| `{title}` | book title |
-| `{author}` | author, empty when unknown |
+| `{title}` | `The Egg of the King.epub` |
+| `{series} - {volume:00} - {title}` | `Berserk - 03 - The Egg of the King.epub` (this is the flat preset) |
+| `Tome/{series}/{title}` | `Tome/Berserk/The Egg of the King.epub` — literal folder name |
+| `{author}/{series} {volume:000} {title}` | `Kentaro Miura/Berserk 003 The Egg of the King.epub` |
+| `{Upper(series)}/vol{volume} - {Lower(title)}` | `BERSERK/vol3 - the egg of the king.epub` |
+| `{book_type}/{series}/{series} v{volume}` | `manga/Berserk/Berserk v3.epub` — tokens may repeat |
 
-  Wrap a token name in `{Lower(...)}` or `{Upper(...)}` to force case — `{Lower(series)}`, no inner braces. `/` starts a new folder; the file extension is appended automatically. Example: `{book_type}/{Lower(series)}/{volume:00} - {title}` → `manga/berserk/03 - The Egg of the King.epub`.
+**Books without a series (or volume, or author):** empty tokens disappear, *together with orphaned separators around them* — spaces, `-`, `_` and `,` left dangling by a vanished token are tidied up, and a folder segment that renders entirely empty is dropped. So one template serves series books and standalones:
 
-  Empty tokens drop out together with the separators around them, so one template works for series books and standalones alike. Every path segment is sanitized — a template can never place files outside the base folder. Templates are validated when saved, with a preview of the resulting filename.
+| Template | Series book | Standalone |
+|---|---|---|
+| `{series} - {volume:00} - {title}` | `Berserk - 03 - The Egg of the King.epub` | `Frankenstein.epub` |
+| `{book_type}/{series}/{volume:00} - {title}` | `manga/Berserk/03 - The Egg of the King.epub` | `novel/Frankenstein.epub` (series folder dropped) |
 
-Changing the setting only affects *future* downloads: books already on the device are remembered by book ID and stay skipped, and previously downloaded files are not moved.
+One caveat: the cleanup removes orphaned *separators*, not orphaned *words*. A literal glued to a token — `Vol. {volume}` — leaves `Vol` behind when the book has no volume (`Vol - Title.epub`). If your library mixes series books and standalones, keep bare separators around tokens that can be empty (`{volume:00} - {title}`), the way both presets do. There is no conditional syntax ("include this text only when the token exists") — if you need that, open an issue.
+
+**Validation and safety:**
+
+- Templates are validated when you tap **Save**: an unknown token (or a template that renders to nothing) is rejected on the spot with an error, and a valid template shows a preview of the resulting filename. A typo can't silently misfile your downloads.
+- Every path segment is sanitized for the filesystem, and `..` segments are discarded — a template can never place files outside the download base folder.
+- A `/` *inside* a metadata value (a title like `Fate/Zero`) becomes `-`; only slashes you write in the template create folders.
+- If a saved template somehow renders empty for a particular book (e.g. it only uses `{series}` and the book has none), that book falls back to the default layout rather than failing.
+- Leave the dialog's input empty and save to clear the template and restore the default layout.
+
+**Changing the setting later** only affects *future* downloads: books already on the device are remembered by book ID and stay skipped regardless of where they live, and previously downloaded files are not moved.
 
 ---
 
