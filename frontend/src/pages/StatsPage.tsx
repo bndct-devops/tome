@@ -1123,12 +1123,13 @@ function FreeGrid({
 type CustomRange = { start: string; end: string }
 
 // Side-padding setting. Percentage gutters (not max-width caps) so the three levels
-// always differ proportionally, even on a narrow window.
+// always differ proportionally, even on a narrow window. Phones always get px-4 —
+// a 16% gutter on a 390px screen would squeeze the tiles to ~265px.
 type PadWidth = 'none' | 'bit' | 'lot'
 const PAD_X: Record<PadWidth, string> = {
   none: 'px-4',
-  bit: 'px-[7%]',
-  lot: 'px-[16%]',
+  bit: 'px-4 sm:px-[7%]',
+  lot: 'px-4 sm:px-[16%]',
 }
 const PAD_LABEL: Record<PadWidth, string> = { none: 'None', bit: 'A bit', lot: 'A lot' }
 
@@ -1267,7 +1268,7 @@ function RangeControl({
           type="button"
           onClick={() => onPreset(r.days)}
           className={cn(
-            'rounded-md px-2.5 py-1 text-xs font-medium transition',
+            'rounded-md px-2 py-1 text-xs font-medium transition sm:px-2.5',
             !custom && days === r.days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -1278,7 +1279,7 @@ function RangeControl({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition',
+          'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition sm:px-2.5',
           custom ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
         )}
       >
@@ -1641,7 +1642,9 @@ export function StatsPage() {
       `}</style>
 
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
-        <div className={cn('flex h-14 items-center gap-3 transition-[padding] duration-200', PAD_X[pad])}>
+        {/* min-h + wrap: on phones the range pills don't fit beside the title row,
+            so they wrap to a second line instead of overflowing the viewport */}
+        <div className={cn('flex min-h-14 flex-wrap items-center gap-x-3 py-1.5 transition-[padding] duration-200', PAD_X[pad])}>
           <Link to="/" className="-ml-2 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Link>

@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # build than 13 — otherwise a device that updated to 1.2.1's build-13 impl and
 # later points at a main/1.3.0 server (also 13) would not re-download main's
 # richer impl. Hence 14.
-TOMESYNC_PLUGIN_BUILD = 17
-TOMESYNC_PLUGIN_SEMVER = "1.2.4"
+TOMESYNC_PLUGIN_BUILD = 19
+TOMESYNC_PLUGIN_SEMVER = "1.4.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1051,6 +1051,7 @@ local rapidjson        = require("rapidjson")
 local lfs              = require("libs/libkoreader-lfs")
 local util             = require("util")
 local Menu             = require("ui/widget/menu")
+local InputDialog      = require("ui/widget/inputdialog")
 local Dispatcher       = require("dispatcher")
 local Event            = require("ui/event")
 
@@ -1215,6 +1216,113 @@ local function downloadFile(book_id, file_id, dest_path)
     return true
 end
 
+-- ── Download path templates ──────────────────────────────────────────────────
+
+-- mkdir -p: create every missing directory level of an absolute path.
+local function mkdirp(path)
+    local acc = path:sub(1, 1) == "/" and "/" or ""
+    for seg in path:gmatch("[^/]+") do
+        acc = acc .. seg
+        lfs.mkdir(acc)
+        acc = acc .. "/"
+    end
+end
+
+-- TOMESYNC_TEMPLATE_BEGIN (kept dependency-free except util — extracted and
+-- unit-tested standalone by the backend test suite)
+-- Render a download path template into a relative path (no extension).
+-- Tokens: {{book_type}} {{series}} {{title}} {{author}} {{volume}} {{volume:00}}
+-- plus {{Lower(token)}} / {{Upper(token)}}. "/" separates folders. Empty tokens
+-- are dropped along with orphaned ASCII separators around them, so one
+-- template works for series books and standalones alike. Every segment is
+-- sanitized, so a template can never escape the base directory. Returns nil
+-- when a token is unknown or the whole template renders to nothing usable —
+-- callers fall back to the built-in layout.
+local function renderDownloadPath(template, ctx)
+    local function fmtVolume(spec)
+        local vol = ctx.volume
+        if type(vol) ~= "number" then return "" end
+        if vol == math.floor(vol) then
+            local pad = spec and spec:match("^:(0+)$")
+            if pad then return string.format("%0" .. #pad .. "d", vol) end
+            return tostring(math.floor(vol))
+        end
+        return tostring(vol)
+    end
+    local function tokenValue(name)
+        local case
+        local inner = name:match("^Lower%((.+)%)$")
+        if inner then case, name = "lower", inner end
+        if not case then
+            inner = name:match("^Upper%((.+)%)$")
+            if inner then case, name = "upper", inner end
+        end
+        local val
+        if name == "volume" or name:match("^volume:") then
+            val = fmtVolume(name:match("^volume(:.*)$"))
+        elseif name == "book_type" then val = ctx.book_type or ""
+        elseif name == "series" then val = ctx.series or ""
+        elseif name == "title" then val = ctx.title or ""
+        elseif name == "author" then val = ctx.author or ""
+        else return nil end
+        if case == "lower" then val = val:lower()
+        elseif case == "upper" then val = val:upper() end
+        -- A "/" inside a value must not create folders (only template
+        -- slashes separate segments).
+        return (val:gsub("/", "-"))
+    end
+    local unknown = false
+    local rendered = template:gsub("%{{(.-)%}}", function(name)
+        local v = tokenValue(name)
+        if v == nil then unknown = true; return "" end
+        return v
+    end)
+    if unknown then return nil end
+    local segments = {{}}
+    for seg in rendered:gmatch("[^/]+") do
+        seg = seg:gsub("%s+", " ")
+        -- Collapse separator runs left behind by empty tokens ("a - - b"),
+        -- then strip orphaned separators at the ends. ASCII-only on purpose:
+        -- multibyte chars in Lua pattern classes match stray bytes.
+        local prev
+        repeat
+            prev = seg
+            seg = seg:gsub("([%-_,])%s*[%-_,]", "%1")
+        until seg == prev
+        seg = seg:gsub("^[%s%-_,.]+", ""):gsub("[%s%-_,.]+$", "")
+        seg = util.getSafeFilename(seg)
+        if seg ~= "" and seg ~= "." and seg ~= ".." then
+            table.insert(segments, seg)
+        end
+    end
+    if #segments == 0 then return nil end
+    return table.concat(segments, "/")
+end
+-- TOMESYNC_TEMPLATE_END
+
+-- Preset for "Flat in home folder": no folders, series + volume in the
+-- filename so flat layouts cannot collide across series. Separator-only
+-- between tokens (no glued literals like "Vol."), so empty tokens collapse
+-- cleanly for standalones. ASCII separators only (see the cleanup note in
+-- renderDownloadPath).
+local FLAT_TEMPLATE = "{{series}} - {{volume:00}} - {{title}}"
+
+-- ── Connectivity (issue #38) ─────────────────────────────────────────────────
+-- Interactive entry points route through this instead of hitting the network
+-- directly. Default: run the action as-is, so the existing isConnected guards
+-- behave exactly as before. With "Auto-connect WiFi" enabled, KOReader brings
+-- the connection back up first (per the user's wifi_enable_action setting) and
+-- runs the action once connected — devices like PocketBook aggressively sleep
+-- the radio, which otherwise leaves every action failing with "offline".
+local function whenConnected(fn)
+    if G_reader_settings:isTrue("tomesync_auto_connect")
+            and not NetworkMgr:isConnected() then
+        NetworkMgr:runWhenConnected(fn)
+        return
+    end
+    fn()
+end
+
 -- ── Self-update helpers ──────────────────────────────────────────────────────
 
 local function implDir()
@@ -1352,13 +1460,15 @@ function TomeSync:onTomeSyncAnnotations()
         UIManager:show(InfoMessage:new{{ text = "No book resolved. Open a book first.", timeout = 3 }})
         return true
     end
-    local resp = self:_syncAnnotations()
-    if resp == nil and not NetworkMgr:isConnected() then
-        UIManager:show(InfoMessage:new{{ text = "Offline — highlights will sync later.", timeout = 3 }})
-    else
-        local n = (resp and resp.annotations) and #resp.annotations or 0
-        UIManager:show(InfoMessage:new{{ text = "Highlights synced (" .. n .. " on this book).", timeout = 3 }})
-    end
+    whenConnected(function()
+        local resp = self:_syncAnnotations()
+        if resp == nil and not NetworkMgr:isConnected() then
+            UIManager:show(InfoMessage:new{{ text = "Offline — highlights will sync later.", timeout = 3 }})
+        else
+            local n = (resp and resp.annotations) and #resp.annotations or 0
+            UIManager:show(InfoMessage:new{{ text = "Highlights synced (" .. n .. " on this book).", timeout = 3 }})
+        end
+    end)
     return true
 end
 
@@ -1797,14 +1907,23 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
         return {{ downloaded = 0, skipped = 0, failed = #books }}
     end
 
-    -- Organize by book-type subfolder. A real series shares one folder; the No
-    -- Series bucket files each book under its author (resolved per book below).
-    local type_dir = base_dir .. "/" .. (book_type or "book")
-    lfs.mkdir(type_dir)
-    local series_dir
-    if not is_no_series then
-        series_dir = type_dir .. "/" .. util.getSafeFilename(series_name)
-        lfs.mkdir(series_dir)
+    -- A user template (Settings → Download location & naming) replaces the
+    -- built-in layout below; empty/unset means built-in.
+    local template = G_reader_settings:readSetting("tomesync_download_template") or ""
+
+    -- Built-in layout: organize by book-type subfolder. A real series shares
+    -- one folder; the No Series bucket files each book under its author
+    -- (resolved per book below). Dirs are created lazily so a template run
+    -- doesn't leave empty default folders behind.
+    local type_dir, series_dir
+    local function ensureDefaultDirs()
+        if type_dir then return end
+        type_dir = base_dir .. "/" .. (book_type or "book")
+        lfs.mkdir(type_dir)
+        if not is_no_series then
+            series_dir = type_dir .. "/" .. util.getSafeFilename(series_name)
+            lfs.mkdir(series_dir)
+        end
     end
 
     -- Build reverse lookup: book_id → local path (to skip already-downloaded books)
@@ -1827,27 +1946,47 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                 table.insert(queue, {{book = book, file = nil, dest = nil}})
             else
                 local ext = file.format or "epub"
-                local display_title
-                if type(book.series_index) == "number" then
-                    local vol = book.series_index
-                    if vol == math.floor(vol) then vol = math.floor(vol) end
-                    display_title = "Vol. " .. tostring(vol) .. " — " .. book.title
-                else
-                    display_title = book.title
-                end
-                local fname = util.getSafeFilename(display_title .. "." .. ext)
-                -- Real series → shared series_dir. No Series → per-author folder,
-                -- falling back to the type dir when the book has no author.
-                local dest_dir = series_dir
-                if is_no_series then
-                    if type(book.author) == "string" and book.author ~= "" then
-                        dest_dir = type_dir .. "/" .. util.getSafeFilename(book.author)
-                        lfs.mkdir(dest_dir)
-                    else
-                        dest_dir = type_dir
+                local dest
+                if template ~= "" then
+                    local rel = renderDownloadPath(template, {{
+                        book_type = book_type or "book",
+                        series    = (not is_no_series) and series_name or "",
+                        volume    = type(book.series_index) == "number"
+                                    and book.series_index or nil,
+                        title     = book.title or "",
+                        author    = type(book.author) == "string" and book.author or "",
+                    }})
+                    if rel then
+                        dest = base_dir .. "/" .. rel .. "." .. ext
+                        mkdirp(dest:match("^(.*)/[^/]+$"))
                     end
                 end
-                local dest = dest_dir .. "/" .. fname
+                if not dest then
+                    -- Built-in layout (also the fallback when a template
+                    -- renders to nothing usable for this book).
+                    ensureDefaultDirs()
+                    local display_title
+                    if type(book.series_index) == "number" then
+                        local vol = book.series_index
+                        if vol == math.floor(vol) then vol = math.floor(vol) end
+                        display_title = "Vol. " .. tostring(vol) .. " — " .. book.title
+                    else
+                        display_title = book.title
+                    end
+                    local fname = util.getSafeFilename(display_title .. "." .. ext)
+                    -- Real series → shared series_dir. No Series → per-author folder,
+                    -- falling back to the type dir when the book has no author.
+                    local dest_dir = series_dir
+                    if is_no_series then
+                        if type(book.author) == "string" and book.author ~= "" then
+                            dest_dir = type_dir .. "/" .. util.getSafeFilename(book.author)
+                            lfs.mkdir(dest_dir)
+                        else
+                            dest_dir = type_dir
+                        end
+                    end
+                    dest = dest_dir .. "/" .. fname
+                end
                 if lfs.attributes(dest) then
                     skipped = skipped + 1
                 else
@@ -1958,6 +2097,10 @@ function TomeSync:_seriesBooksMenu(data)
 end
 
 function TomeSync:_browseSeriesMenu()
+    whenConnected(function() self:_browseSeriesMenuImpl() end)
+end
+
+function TomeSync:_browseSeriesMenuImpl()
     if not NetworkMgr:isConnected() then
         UIManager:show(InfoMessage:new{{
             text = "WiFi not connected.",
@@ -2023,6 +2166,10 @@ function TomeSync:_downloadCurrentBookSeries(rest_only)
         return
     end
 
+    whenConnected(function() self:_downloadCurrentBookSeriesImpl(rest_only) end)
+end
+
+function TomeSync:_downloadCurrentBookSeriesImpl(rest_only)
     local ok, data, code = pcall(apiRequest, "GET",
         "/tome-sync/series/" .. self.book_id)
     if not ok or not data or not data.books then
@@ -2189,6 +2336,10 @@ end
 
 -- Inbox drill-down: a "Download all" row plus one row per queued book.
 function TomeSync:_inboxMenu()
+    whenConnected(function() self:_inboxMenuImpl() end)
+end
+
+function TomeSync:_inboxMenuImpl()
     if not NetworkMgr:isConnected() then
         UIManager:show(InfoMessage:new{{ text = "WiFi not connected.", timeout = 3 }})
         return
@@ -2236,8 +2387,129 @@ function TomeSync:_inboxMenu()
     UIManager:show(self._inbox_menu)
 end
 
+-- Edit the custom download-path template in an input dialog. Validates by
+-- rendering a sample book before saving, so an unknown token is rejected here
+-- rather than silently falling back to the default layout per download.
+function TomeSync:_editDownloadTemplate()
+    local current = G_reader_settings:readSetting("tomesync_download_template") or ""
+    local dialog
+    dialog = InputDialog:new{{
+        title       = "Download path template",
+        input       = current ~= "" and current
+                      or "{{book_type}}/{{series}}/{{volume:00}} - {{title}}",
+        description = "Tokens: {{book_type}} {{series}} {{volume}} {{volume:00}} "
+                      .. "{{title}} {{author}} \\u{{2014}} wrap in {{Lower(...)}} or "
+                      .. "{{Upper(...)}} to force case.\\n"
+                      .. "\\"/\\" starts a new folder. The file extension is "
+                      .. "appended automatically.\\n"
+                      .. "Leave empty to restore the default layout.",
+        buttons     = {{{{
+            {{
+                text     = "Cancel",
+                id       = "close",
+                callback = function() UIManager:close(dialog) end,
+            }},
+            {{
+                text             = "Save",
+                is_enter_default = true,
+                callback         = function()
+                    local tpl = dialog:getInputText()
+                    if tpl == "" then
+                        G_reader_settings:delSetting("tomesync_download_template")
+                        UIManager:close(dialog)
+                        return
+                    end
+                    local sample = renderDownloadPath(tpl, {{
+                        book_type = "novels", series = "Sample Series",
+                        volume = 3, title = "Sample Title", author = "Sample Author",
+                    }})
+                    if not sample then
+                        UIManager:show(InfoMessage:new{{
+                            text = "Template is invalid (unknown token or "
+                                   .. "renders empty) \\u{{2014}} not saved.",
+                            timeout = 4,
+                        }})
+                        return
+                    end
+                    G_reader_settings:saveSetting("tomesync_download_template", tpl)
+                    UIManager:close(dialog)
+                    UIManager:show(InfoMessage:new{{
+                        text    = "Downloads will be saved as:\\n" .. sample .. ".epub",
+                        timeout = 5,
+                    }})
+                end,
+            }},
+        }}}},
+    }}
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
 function TomeSync:_menuItems()
     local in_book = self.ui and self.ui.document
+
+    -- Settings submenu: persistent toggles and diagnostics, set once and
+    -- forgotten — kept out of the top level so frequent actions stay reachable.
+    local settings_items = {{}}
+    table.insert(settings_items, {{
+        text         = "Auto-connect WiFi when needed",
+        help_text    = "When a TomeSync action needs the server and WiFi is down, "
+                       .. "let KOReader re-establish the connection instead of "
+                       .. "failing with \\"offline\\". Helps devices that "
+                       .. "aggressively sleep WiFi (e.g. PocketBook).",
+        checked_func = function() return G_reader_settings:isTrue("tomesync_auto_connect") end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_auto_connect",
+                not G_reader_settings:isTrue("tomesync_auto_connect"))
+        end,
+    }})
+    local function currentTemplate()
+        return G_reader_settings:readSetting("tomesync_download_template") or ""
+    end
+    table.insert(settings_items, {{
+        text           = "Download location & naming",
+        separator      = true,
+        sub_item_table = {{
+            {{
+                text         = "Default (type and series folders)",
+                help_text    = "Downloads land under the home folder as "
+                               .. "book-type/series/Vol. N \\u{{2014}} Title; "
+                               .. "standalones go under their author instead "
+                               .. "of a series folder.",
+                checked_func = function() return currentTemplate() == "" end,
+                callback     = function()
+                    G_reader_settings:delSetting("tomesync_download_template")
+                end,
+            }},
+            {{
+                text         = "Flat in home folder",
+                help_text    = "Every download lands directly in the home "
+                               .. "folder, named \\"Series - NN - Title\\". "
+                               .. "Series and volume are dropped for books "
+                               .. "that have none.",
+                checked_func = function() return currentTemplate() == FLAT_TEMPLATE end,
+                callback     = function()
+                    G_reader_settings:saveSetting("tomesync_download_template", FLAT_TEMPLATE)
+                end,
+            }},
+            {{
+                text         = "Custom template",
+                help_text    = "Build the path from tokens: {{book_type}} "
+                               .. "{{series}} {{volume}} {{volume:00}} {{title}} "
+                               .. "{{author}}, wrapped in {{Lower(...)}} or "
+                               .. "{{Upper(...)}} to force case. \\"/\\" starts a "
+                               .. "new folder; the file extension is appended "
+                               .. "automatically.",
+                checked_func = function()
+                    local t = currentTemplate()
+                    return t ~= "" and t ~= FLAT_TEMPLATE
+                end,
+                callback     = function()
+                    self:_editDownloadTemplate()
+                end,
+            }},
+        }},
+    }})
 
     local sub_items = {{}}
 
@@ -2254,28 +2526,31 @@ function TomeSync:_menuItems()
             callback  = function() self:_inboxMenu() end,
         }})
     end
-    table.insert(sub_items, {{
+    table.insert(settings_items, {{
         text     = "Test connection",
         callback = function()
-            local ok, result, code = pcall(apiRequest, "GET", "/health")
-            if ok and type(code) == "number" and code >= 200 and code < 300 then
-                UIManager:show(InfoMessage:new{{
-                    text = "Connected to " .. SERVER_URL
-                           .. "\\nUser: " .. USERNAME,
-                    timeout = 4,
-                }})
-            else
-                local err = tostring(result or "unknown error")
-                UIManager:show(InfoMessage:new{{
-                    text = "Connection failed!\\n" .. SERVER_URL
-                           .. "\\nError: " .. err,
-                    timeout = 6,
-                }})
-            end
+            whenConnected(function()
+                local ok, result, code = pcall(apiRequest, "GET", "/health")
+                if ok and type(code) == "number" and code >= 200 and code < 300 then
+                    UIManager:show(InfoMessage:new{{
+                        text = "Connected to " .. SERVER_URL
+                               .. "\\nUser: " .. USERNAME,
+                        timeout = 4,
+                    }})
+                else
+                    local err = tostring(result or "unknown error")
+                    UIManager:show(InfoMessage:new{{
+                        text = "Connection failed!\\n" .. SERVER_URL
+                               .. "\\nError: " .. err,
+                        timeout = 6,
+                    }})
+                end
+            end)
         end,
     }})
-    table.insert(sub_items, {{
+    table.insert(settings_items, {{
         text     = "Re-resolve all books",
+        separator = true,
         callback = function()
             self.book_map = {{}}
             self.book_id = nil
@@ -2286,43 +2561,34 @@ function TomeSync:_menuItems()
             }})
         end,
     }})
-    table.insert(sub_items, {{
+    table.insert(settings_items, {{
         text     = "Check for updates",
         callback = function()
-            self:checkForUpdate(function(avail, err)
-                if avail then
-                    self:_promptUpdate(avail)
-                elseif avail == false then
-                    UIManager:show(InfoMessage:new{{
-                        text = "TomeSync is up to date (build " .. BUILD .. ").",
-                        timeout = 4,
-                    }})
-                else
-                    UIManager:show(InfoMessage:new{{
-                        text = err or "Update check failed.",
-                        timeout = 5,
-                    }})
-                end
+            whenConnected(function()
+                self:checkForUpdate(function(avail, err)
+                    if avail then
+                        self:_promptUpdate(avail)
+                    elseif avail == false then
+                        UIManager:show(InfoMessage:new{{
+                            text = "TomeSync is up to date (build " .. BUILD .. ").",
+                            timeout = 4,
+                        }})
+                    else
+                        UIManager:show(InfoMessage:new{{
+                            text = err or "Update check failed.",
+                            timeout = 5,
+                        }})
+                    end
+                end)
             end)
         end,
     }})
-    table.insert(sub_items, {{
-        text         = "Auto-check on launch",
+    table.insert(settings_items, {{
+        text         = "Auto-check for updates on launch",
         checked_func = function() return G_reader_settings:isTrue("tomesync_auto_check") end,
         callback     = function()
             G_reader_settings:saveSetting("tomesync_auto_check",
                 not G_reader_settings:isTrue("tomesync_auto_check"))
-        end,
-    }})
-    table.insert(sub_items, {{
-        text     = "About",
-        separator = in_book,
-        callback = function()
-            UIManager:show(InfoMessage:new{{
-                text    = "TomeSync " .. SEMVER .. " (build " .. BUILD .. ")"
-                          .. "\\nSyncs with your Tome library.",
-                timeout = 4,
-            }})
         end,
     }})
 
@@ -2339,39 +2605,47 @@ function TomeSync:_menuItems()
         table.insert(sub_items, {{
             text         = "Sync now",
             callback     = function()
-                if self.book_id then
-                    self:_pushPosition()
-                    self:_syncAnnotations()
-                end
-                self:_flushPendingSessions()
-                local pending = #self.pending_sessions
-                local msg
-                if self.book_id then
-                    local pct = self:_getCurrentPercentage()
-                    msg = string.format("Synced: %.1f%%", pct * 100)
-                else
-                    msg = "Book not resolved (position not synced)"
-                end
-                if pending > 0 then
-                    msg = msg .. string.format("\\n%d session(s) still pending", pending)
-                end
-                UIManager:show(InfoMessage:new{{
-                    text = msg,
-                    timeout = 4,
-                }})
+                whenConnected(function()
+                    if self.book_id then
+                        self:_pushPosition()
+                        self:_syncAnnotations()
+                    end
+                    self:_flushPendingSessions()
+                    local pending = #self.pending_sessions
+                    local msg
+                    if self.book_id then
+                        local pct = self:_getCurrentPercentage()
+                        msg = string.format("Synced: %.1f%%", pct * 100)
+                    else
+                        msg = "Book not resolved (position not synced)"
+                    end
+                    if pending > 0 then
+                        msg = msg .. string.format("\\n%d session(s) still pending", pending)
+                    end
+                    UIManager:show(InfoMessage:new{{
+                        text = msg,
+                        timeout = 4,
+                    }})
+                end)
             end,
         }})
         table.insert(sub_items, {{
-            text = self.enabled and "Enabled (tap to disable)" or "Disabled (tap to enable)",
+            text = self.enabled and "Tracking: on (tap to pause)"
+                or "Tracking: paused (tap to resume)",
+            help_text = "Pauses all automatic tracking and syncing — sessions, "
+                        .. "position, highlights — until resumed. Resets to on "
+                        .. "when KOReader restarts.",
             callback = function()
                 self.enabled = not self.enabled
                 UIManager:show(InfoMessage:new{{
-                    text    = "TomeSync " .. (self.enabled and "enabled" or "disabled"),
-                    timeout = 2,
+                    text    = self.enabled and "TomeSync tracking resumed."
+                        or "Tracking paused for this session.\\nTurns back on at next KOReader start.",
+                    timeout = 3,
                 }})
             end,
         }})
         table.insert(sub_items, {{
+            separator = true,
             text_func = function()
                 local n = #self.pending_sessions
                 if n > 0 then
@@ -2402,6 +2676,21 @@ function TomeSync:_menuItems()
         }})
     end
 
+    table.insert(sub_items, {{
+        text           = "Settings",
+        sub_item_table = settings_items,
+    }})
+    table.insert(sub_items, {{
+        text     = "About",
+        callback = function()
+            UIManager:show(InfoMessage:new{{
+                text    = "TomeSync " .. SEMVER .. " (build " .. BUILD .. ")"
+                          .. "\\nSyncs with your Tome library.",
+                timeout = 4,
+            }})
+        end,
+    }})
+
     return sub_items
 end
 
@@ -2416,22 +2705,42 @@ end
 
 -- Show the full TomeSync menu as a standalone popup (used by the "Open menu"
 -- gesture). Reuses _menuItems() so it always matches the wrench-menu contents.
+-- The plain Menu widget has no checkboxes or nested tables (TouchMenu-only),
+-- so toggles get their state appended to the label and submenus open as
+-- another popup.
 function TomeSync:_openMenu()
-    local raw = self:_menuItems()
+    self:_showPopupMenu("TomeSync", self:_menuItems())
+end
+
+function TomeSync:_showPopupMenu(title, raw)
     local items = {{}}
     for _, it in ipairs(raw) do
-        local orig = it.callback
+        local orig      = it.callback
+        local sub       = it.sub_item_table
+        local text_func = it.text_func
+        if it.checked_func and not text_func then
+            local base, checked_func = it.text, it.checked_func
+            text_func = function()
+                return base .. (checked_func() and ": on" or ": off")
+            end
+        elseif sub and not text_func then
+            text_func = function() return it.text .. " \\u{{25B8}}" end
+        end
         table.insert(items, {{
             text      = it.text,
-            text_func = it.text_func,
+            text_func = text_func,
             callback  = function()
                 if self._gesture_menu then UIManager:close(self._gesture_menu) end
-                if orig then orig() end
+                if sub then
+                    self:_showPopupMenu(it.text, sub)
+                elseif orig then
+                    orig()
+                end
             end,
         }})
     end
     self._gesture_menu = Menu:new{{
-        title       = "TomeSync",
+        title       = title,
         item_table  = items,
         width       = Device.screen:getWidth() - 20,
         height      = Device.screen:getHeight() - 20,

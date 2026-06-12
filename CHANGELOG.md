@@ -17,6 +17,30 @@ All notable changes to Tome are documented here. Format loosely follows
   stacks: if a filter matches only 2 of 15 volumes the badge shows 2, and
   series with no matching volumes disappear. The toggle is off by default and
   remembered per device. (#43)
+- **KOReader plugin: opt-in WiFi auto-connect.** Some devices (notably
+  PocketBook) sleep WiFi so aggressively that every TomeSync action just failed
+  with "offline". A new **Settings → Auto-connect WiFi when needed** toggle
+  lets KOReader re-establish the connection first (honouring your KOReader
+  network prompt/auto setting) and then runs the action — browsing series,
+  downloads, Sync now, Test connection, update checks, and the Inbox. Off by
+  default: with the toggle off the plugin behaves exactly as before. Only
+  user-initiated actions reconnect; background tracking never wakes the radio.
+  (build 18 / 1.3.0, #38)
+- **KOReader plugin: choose where downloads go.** A new **Settings → Download
+  location & naming** option controls how the plugin files series downloads,
+  inbox deliveries — everything. Three choices: the default layout
+  (book-type/series folders, standalones under their author), **Flat in home
+  folder** (every book lands directly in the home folder as
+  "Series - NN - Title", so nothing nests), or a **custom template** built
+  from tokens — `{book_type}` `{series}` `{volume}` `{volume:00}` `{title}`
+  `{author}`, with `{Lower(...)}`/`{Upper(...)}` case modifiers and `/`
+  starting a new folder, Sonarr-style. Empty tokens drop out cleanly (one
+  template serves series books and standalones), every path segment is
+  sanitized so a template can never escape the library folder, and templates
+  are validated when saved with a preview of the resulting filename. The
+  setting is per-device and stored in KOReader. Already-downloaded books are
+  remembered by ID, so changing layout doesn't re-download your library.
+  (build 19 / 1.4.0)
 
 ### Changed
 - **Pick your own cover size.** The library's three fixed views (large grid,
@@ -63,6 +87,14 @@ All notable changes to Tome are documented here. Format loosely follows
   (Light/Dark), a warm pair (Amber and the new **Ember**, a cappuccino dark),
   and a new true-black **Black** theme for OLED screens. The pickers in
   Settings, the sidebar menu, and the login screen group them accordingly.
+- **KOReader plugin: clearer menu.** The ambiguous in-book "Enabled (tap to
+  disable)" entry is now "Tracking: on (tap to pause)" — it pauses automatic
+  session tracking and syncing for the current KOReader run (it was never a
+  permanent setting, and now says so). Persistent options and diagnostics
+  (auto-connect, update checks, Test connection, Re-resolve all books) moved
+  into a **Settings** submenu, so the in-book menu no longer spills onto a
+  second page. The gesture-opened popup menu now shows toggle states and opens
+  submenus instead of silently ignoring them. (build 18 / 1.3.0)
 - **Reading Stats is now a fully customisable dashboard.** The page looks the
   same on day one — the default boards replicate the old layout one-to-one —
   but everything is now a tile on a drag-and-resize grid: hit **Edit** to
@@ -86,6 +118,13 @@ All notable changes to Tome are documented here. Format loosely follows
   The widget grid's first paint was laid out for a hardcoded 1280px width and
   then animated every tile over to the real container size; it now measures
   the container before mounting, so the board appears in place.
+- On phones the new stats dashboard squeezed every tile into a narrow column
+  with dead space beside it: the default "A lot" side-padding setting applied
+  its 16% gutters even on a 390px screen, and the time-range pills overflowed
+  the header, making the whole page scroll sideways. Phones now always get a
+  slim fixed gutter (the padding setting still applies from tablet width up)
+  and the range pills wrap onto their own header line instead of spilling off
+  the edge.
 - The 365-day reading heatmap bucketed days in UTC, so for anyone east of
   Greenwich an evening session could light up the wrong day (and dent a streak's
   look). It now uses local dates, matching how every other chart counts days.

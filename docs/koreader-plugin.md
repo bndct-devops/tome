@@ -104,6 +104,69 @@ The plugin can browse and download entire series directly to your device.
 - Downloaded books are automatically registered in the book map, so sync works immediately when you open them
 - A summary shows downloaded/skipped/failed counts when finished
 
+### Download location & naming
+
+By default downloads are filed as described above (`<book_type>/<Series Name>/Vol. N — Title.ext`, standalones under their author). **Settings → Download location & naming** changes this. The setting applies to *every* way books reach the device — the series browser, the in-book series downloads, and the Send-to-KOReader inbox all share one downloader. It is per-device and stored in KOReader's own settings, so your phone can use a different layout than your e-reader, and it survives plugin updates.
+
+Three options:
+
+- **Default (type and series folders)** — the layout above. This is also what runs when no template is set, on exactly the same code path as before the setting existed.
+- **Flat in home folder** — every book lands directly in the home folder, named `Series - NN - Title.ext`. Series and volume are dropped for books that have none, so a standalone is just `Title.ext`. For people who keep everything unsorted in one place.
+- **Custom template** — build the path yourself, Sonarr/Radarr-style.
+
+#### Custom templates
+
+A template is a **free-form string**: tokens, literal text, and `/` folder separators in any combination. The dialog pre-fills a suggestion (`{book_type}/{series}/{volume:00} - {title}`) purely as a starting point — delete it and write anything. Tokens can repeat, literals can appear anywhere, folders can nest as deep as you like.
+
+**Token reference** (the complete set — anything else is rejected):
+
+| Token | Renders as | Empty when |
+|---|---|---|
+| `{book_type}` | Tome book-type slug (`manga`, `light_novel`, `novel`, ...) | never (falls back to `book`) |
+| `{series}` | series name | book has no series |
+| `{volume}` | series index as-is (`3`, `12`, `1.5`) | book has no series index |
+| `{volume:00}` | zero-padded series index (`03`); pad width = number of zeros, so `{volume:000}` gives `003`. Fractional volumes (`1.5`) are never padded. | book has no series index |
+| `{title}` | book title | never |
+| `{author}` | author name | author unknown |
+
+**Case modifiers:** wrap a token *name* in `Lower(...)` or `Upper(...)` — `{Lower(series)}`, `{Upper(book_type)}`. No inner braces: `{Lower({series})}` is not valid syntax.
+
+**Rules:**
+
+- `/` starts a new folder. Everything between slashes becomes one folder (or, for the last part, the filename).
+- The file extension (`.epub`, `.cbz`, ...) is **appended automatically** — never write it in the template.
+- Anything that isn't a token is literal text and is kept verbatim.
+
+**Examples** (Berserk vol. 3, "The Egg of the King", Kentaro Miura, type `manga`):
+
+| Template | Result |
+|---|---|
+| `{title}` | `The Egg of the King.epub` |
+| `{series} - {volume:00} - {title}` | `Berserk - 03 - The Egg of the King.epub` (this is the flat preset) |
+| `Tome/{series}/{title}` | `Tome/Berserk/The Egg of the King.epub` — literal folder name |
+| `{author}/{series} {volume:000} {title}` | `Kentaro Miura/Berserk 003 The Egg of the King.epub` |
+| `{Upper(series)}/vol{volume} - {Lower(title)}` | `BERSERK/vol3 - the egg of the king.epub` |
+| `{book_type}/{series}/{series} v{volume}` | `manga/Berserk/Berserk v3.epub` — tokens may repeat |
+
+**Books without a series (or volume, or author):** empty tokens disappear, *together with orphaned separators around them* — spaces, `-`, `_` and `,` left dangling by a vanished token are tidied up, and a folder segment that renders entirely empty is dropped. So one template serves series books and standalones:
+
+| Template | Series book | Standalone |
+|---|---|---|
+| `{series} - {volume:00} - {title}` | `Berserk - 03 - The Egg of the King.epub` | `Frankenstein.epub` |
+| `{book_type}/{series}/{volume:00} - {title}` | `manga/Berserk/03 - The Egg of the King.epub` | `novel/Frankenstein.epub` (series folder dropped) |
+
+One caveat: the cleanup removes orphaned *separators*, not orphaned *words*. A literal glued to a token — `Vol. {volume}` — leaves `Vol` behind when the book has no volume (`Vol - Title.epub`). If your library mixes series books and standalones, keep bare separators around tokens that can be empty (`{volume:00} - {title}`), the way both presets do. There is no conditional syntax ("include this text only when the token exists") — if you need that, open an issue.
+
+**Validation and safety:**
+
+- Templates are validated when you tap **Save**: an unknown token (or a template that renders to nothing) is rejected on the spot with an error, and a valid template shows a preview of the resulting filename. A typo can't silently misfile your downloads.
+- Every path segment is sanitized for the filesystem, and `..` segments are discarded — a template can never place files outside the download base folder.
+- A `/` *inside* a metadata value (a title like `Fate/Zero`) becomes `-`; only slashes you write in the template create folders.
+- If a saved template somehow renders empty for a particular book (e.g. it only uses `{series}` and the book has none), that book falls back to the default layout rather than failing.
+- Leave the dialog's input empty and save to clear the template and restore the default layout.
+
+**Changing the setting later** only affects *future* downloads: books already on the device are remembered by book ID and stay skipped regardless of where they live, and previously downloaded files are not moved.
+
 ---
 
 ## Offline and Unreachable Server
@@ -130,7 +193,7 @@ Sessions also flush when you tap "Sync now" in the menu, or when WiFi reconnects
 
 - Up to 50 sessions can be saved locally. If you go offline for an extremely long time, the oldest sessions are dropped to prevent unbounded storage use.
 - Sessions saved locally survive KOReader restarts -- they are stored in KOReader's settings file.
-- The backoff counter (3 failures before giving up) resets automatically on the next successful request. You can also reset it manually via **Test connection** in the plugin menu.
+- The backoff counter (3 failures before giving up) resets automatically on the next successful request. You can also reset it manually via **Settings → Test connection** in the plugin menu.
 
 ---
 
@@ -143,10 +206,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | Option | Description |
 |---|---|
 | **Browse series** | Opens the series browser. Lists all series with book count and author. Tap to download. |
-| **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
-| **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
-| **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
-| **Auto-check on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
+| **Settings** | Submenu with persistent options and diagnostics (see below). |
 | **About** | Version info (semver + build). |
 
 ### Only when a book is open
@@ -156,8 +216,19 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Download full series** | Downloads all books in the current book's series. |
 | **Download rest of series** | Downloads books after the current volume only. |
 | **Sync now** | Pushes current position, highlights/notes, and flushes any pending offline sessions. |
-| **Enabled / Disabled** | Toggle sync on or off. |
+| **Tracking: on / paused** | Pauses automatic session tracking and syncing for the current KOReader run. Resets to on at the next start — it is not a permanent setting. Manual actions (Sync now, downloads) still work while paused. |
 | **Pending sessions (N)** | Shows how many sessions are queued for sync. Tap for details. |
+
+### Settings submenu
+
+| Option | Description |
+|---|---|
+| **Auto-connect WiFi when needed** | Opt-in toggle, off by default. When a TomeSync action needs the server and WiFi is down, KOReader re-establishes the connection first (honouring your KOReader WiFi prompt/auto-enable setting), then runs the action. Helps devices that aggressively sleep WiFi, e.g. PocketBook. Only user-initiated actions reconnect — background tracking never turns the radio on. |
+| **Download location & naming** | Where downloads (series, inbox) are filed: the default type/series layout, flat in the home folder, or a custom token template. Per-device. See [Download location & naming](#download-location--naming). |
+| **Test connection** | Verifies the server is reachable. Also resets the backoff counter if the server was previously unreachable. |
+| **Re-resolve all books** | Wipes the local filename-to-book-ID cache. Use if a book matched incorrectly. |
+| **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
+| **Auto-check for updates on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
 
 ### Gestures
 
@@ -204,7 +275,7 @@ The plugin authenticates with an API key (`Authorization: Bearer tk_...`), not y
 
 ## Updating the Plugin
 
-Once the plugin is installed, it updates itself — open the **TomeSync** menu and tap **Check for updates** (or enable **Auto-check on launch**). It downloads the latest build from your server, swaps it in atomically, and asks you to restart. Your server URL, API key, and reading history carry over automatically.
+Once the plugin is installed, it updates itself — open the **TomeSync** menu and tap **Settings → Check for updates** (or enable **Auto-check for updates on launch**). It downloads the latest build from your server, swaps it in atomically, and asks you to restart. Your server URL, API key, and reading history carry over automatically.
 
 The plugin version is shown on the Settings page next to "TomeSync Plugin" (`v<semver> (build N)`); the build integer is what drives update comparisons.
 
