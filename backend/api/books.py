@@ -125,6 +125,7 @@ def list_books(
     content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
     added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
     ownership: Optional[str] = Query(None, description="Ownership filter: 'mine' or 'shared' (member only)"),
+    group_by_series: Optional[bool] = Query(None, description="Collapse series into one representative book each, annotated with series_count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -253,6 +254,42 @@ def list_books(
             )
         )
 
+    # ── Group by series ──────────────────────────────────────────────────────
+    # Collapse each series to one representative volume (lowest series_index)
+    # annotated with how many volumes matched the active filters; standalone
+    # books pass through with a count of 1.
+    if group_by_series:
+        from sqlalchemy import func as _func, select as _select
+
+        # Joins above (tags, files, libraries) can duplicate book rows —
+        # collapse to distinct IDs first so the window count isn't inflated.
+        id_sq = query.with_entities(Book.id).distinct().subquery()
+        partition = _func.coalesce(Book.series, _func.printf("__solo__%d", Book.id))
+        win_sq = (
+            db.query(
+                Book.id.label("book_id"),
+                partition.label("grp"),
+                _func.row_number()
+                .over(
+                    partition_by=partition,
+                    order_by=(Book.series_index.asc().nullslast(), Book.title.asc()),
+                )
+                .label("rn"),
+                _func.count().over(partition_by=partition).label("series_count"),
+            )
+            .filter(Book.id.in_(_select(id_sq.c.id)))
+            .subquery()
+        )
+        query = (
+            db.query(Book, win_sq.c.series_count)
+            .join(win_sq, Book.id == win_sq.c.book_id)
+            .filter(win_sq.c.rn == 1)
+        )
+        if sort == "status_updated":
+            # status_updated needs the UserBookStatus join the grouped query
+            # doesn't carry — fall back to a sane default.
+            sort = "added_at"
+
     # When filtering by a specific series, always sort by series_index
     if series:
         query = query.order_by(Book.series_index.asc().nullslast(), Book.title.asc())
@@ -296,7 +333,7 @@ def list_books(
     # Eager-load the relationships BookOut serializes (files, tags, libraries
     # via the library_ids property) so a page is a few queries, not ~3 per row.
     from sqlalchemy.orm import selectinload
-    return (
+    rows = (
         query.options(
             selectinload(Book.files),
             selectinload(Book.tags),
@@ -307,6 +344,34 @@ def list_books(
         .limit(limit)
         .all()
     )
+    if group_by_series:
+        # For the stacked-card fan effect, fetch the next two volumes per
+        # series on this page that actually have a cover (ID-only query).
+        series_names = [b.series for b, _ in rows if b.series]
+        fan_map: dict[str, list[int]] = {}
+        if series_names:
+            fan_rows = (
+                db.query(win_sq.c.grp, win_sq.c.book_id)
+                .join(Book, Book.id == win_sq.c.book_id)
+                .filter(
+                    win_sq.c.grp.in_(series_names),
+                    win_sq.c.rn > 1,
+                    Book.cover_path.isnot(None),
+                )
+                .order_by(win_sq.c.grp, win_sq.c.rn)
+                .all()
+            )
+            for grp, bid in fan_rows:
+                ids = fan_map.setdefault(grp, [])
+                if len(ids) < 2:
+                    ids.append(bid)
+        books = []
+        for book, series_count in rows:
+            book.series_count = int(series_count)
+            book.stack_cover_ids = fan_map.get(book.series or "", [])
+            books.append(book)
+        return books
+    return rows
 
 
 # ── Facets (for filter dropdowns) ────────────────────────────────────────────
