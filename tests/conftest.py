@@ -31,6 +31,7 @@ from backend.core.database import Base, get_db
 from backend.core.security import hash_password, create_access_token
 from backend.models.user import User, UserPermission
 from backend.models.book import Book, BookFile, BookTag
+from backend.models.reading_goal import ReadingGoal  # noqa: F401 — registers table metadata
 
 
 # ── Global SMTP guard ─────────────────────────────────────────────────────────

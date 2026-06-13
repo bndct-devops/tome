@@ -30,6 +30,7 @@ from backend.api import send_to_device
 from backend.api import wishlist as wishlist_api
 from backend.api import notifications as notifications_api
 from backend.api import oidc as oidc_api
+from backend.api import goals as goals_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
@@ -42,6 +43,7 @@ from backend.models.series_meta import Arc, SeriesMeta  # noqa: F401
 from backend.models.user_device import UserDevice  # noqa: F401
 from backend.models.wish import Wish  # noqa: F401
 from backend.models.notification import Notification  # noqa: F401
+from backend.models.reading_goal import ReadingGoal  # noqa: F401
 
 
 @asynccontextmanager
@@ -130,6 +132,14 @@ async def lifespan(app: FastAPI):
         if "scope" not in at_cols:
             conn.execute(text("ALTER TABLE api_tokens ADD COLUMN scope VARCHAR(16) NOT NULL DEFAULT 'full'"))
             conn.commit()
+        # reading_goals from the parked feat/reading-goals WIP (never shipped) lacks
+        # book_type_id and carries a stale (user_id, kind) unique constraint that
+        # SQLite can't alter away — recreate the table on the current schema.
+        rg_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(reading_goals)")).fetchall()}
+        if rg_cols and "book_type_id" not in rg_cols:
+            conn.execute(text("DROP TABLE reading_goals"))
+            conn.commit()
+    ReadingGoal.__table__.create(bind=engine, checkfirst=True)
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()
@@ -517,6 +527,7 @@ def create_app() -> FastAPI:
     app.include_router(wishlist_api.router, prefix="/api")
     app.include_router(notifications_api.router, prefix="/api")
     app.include_router(oidc_api.router, prefix="/api")
+    app.include_router(goals_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

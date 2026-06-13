@@ -7,6 +7,18 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Reading goals.** Set yourself a target — books per year or month, minutes
+  or pages per day or week — and watch a progress ring fill as you read. Goals
+  live on the stats dashboard in a new **Reading Goals** tile — one card per
+  goal, all managed in place (add, edit and delete each goal right on its
+  card; preset chips like the classic 12/24/52-books year challenge get you
+  started) — and compact read-only rings appear on the Home tab. A goal can
+  be scoped to a single book type, so "20 books this year" and "20 manga this
+  year" count separately — no padding the year challenge with
+  one-sitting volumes. Progress is computed from reading you already track
+  (sessions from KOReader and the web reader, finished books), year and month
+  goals show whether you're ahead of or behind pace, and reaching one drops a
+  notification in the bell. Goals are per-user; nothing is shared.
 - **Group by series in the library view.** A new toggle in the All Books
   toolbar collapses each series into a single stacked card — first volume's
   cover, a volume-count badge, and a subtle stacked-paper look — so one long

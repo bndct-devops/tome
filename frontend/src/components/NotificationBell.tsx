@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Bell, Check, BookOpen } from 'lucide-react'
+import { Bell, Check, BookOpen, Target } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
@@ -164,11 +164,11 @@ export function NotificationBell() {
                 >
                   <div className={cn(
                     'mt-0.5 flex items-center justify-center w-6 h-6 rounded-full shrink-0',
-                    n.kind === 'wish_fulfilled'
+                    n.kind === 'wish_fulfilled' || n.kind === 'goal_reached'
                       ? 'bg-success/10 text-success'
                       : 'bg-muted text-muted-foreground'
                   )}>
-                    <BookOpen className="w-3 h-3" />
+                    {n.kind === 'goal_reached' ? <Target className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn(

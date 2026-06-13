@@ -22,6 +22,7 @@ import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
+import { HomeGoalRings } from '@/components/stats/GoalWidget'
 import { api } from '@/lib/api'
 import type { Book, Library, SavedFilter, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
@@ -1059,27 +1060,30 @@ export function DashboardPage() {
             /* ── Home tab ────────────────────────────────────────────────── */
             <div className="flex flex-col gap-8">
 
-              {/* ── Quick stats — flat hairline-divided panel ──────────────── */}
-              {homeStats && (
-                <div className="rounded-xl border border-border bg-card px-5 py-4 grid grid-cols-2 gap-y-3 sm:flex w-full sm:w-fit">
-                  {homeStatItems.map((s, i) => (
-                    <div
-                      key={s.label}
-                      className={cn(
-                        'sm:px-5',
-                        i === 0 && 'sm:pl-0',
-                        i > 0 && 'sm:border-l sm:border-border/60'
-                      )}
-                    >
-                      <p className="text-xs text-muted-foreground/70">{s.label}</p>
-                      <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
-                        <span className="text-primary/60">{s.icon}</span>
-                        {s.value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* ── Quick stats + goals — matching hairline-divided panels ── */}
+              <div className="flex flex-wrap items-stretch gap-3 empty:hidden">
+                {homeStats && (
+                  <div className="rounded-xl border border-border bg-card px-5 py-4 grid grid-cols-2 gap-y-3 sm:flex w-full sm:w-fit">
+                    {homeStatItems.map((s, i) => (
+                      <div
+                        key={s.label}
+                        className={cn(
+                          'sm:px-5',
+                          i === 0 && 'sm:pl-0',
+                          i > 0 && 'sm:border-l sm:border-border/60'
+                        )}
+                      >
+                        <p className="text-xs text-muted-foreground/70">{s.label}</p>
+                        <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
+                          <span className="text-primary/60">{s.icon}</span>
+                          {s.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <HomeGoalRings />
+              </div>
 
               {/* ── Forgotten Books ───────────────────────────────────────── */}
               {(() => {

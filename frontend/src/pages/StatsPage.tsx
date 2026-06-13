@@ -14,6 +14,8 @@ import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { GoalWidgetBody } from '@/components/stats/GoalWidget'
+import { listGoals, type Goal } from '@/lib/goals'
 import {
   type ChartKind,
   HeadlineStatBody,
@@ -65,7 +67,12 @@ type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?
 
 // ── Widget catalog (renders shared Stats components from live data) ─────────────
 
-type WidgetCtx = { stats: StatsResponse; estimates: CompletionEstimate[] | null }
+type WidgetCtx = {
+  stats: StatsResponse
+  estimates: CompletionEstimate[] | null
+  goals: Goal[] | null
+  reloadGoals: () => void
+}
 
 type WidgetDef = {
   id: string
@@ -203,6 +210,14 @@ const WIDGETS: WidgetDef[] = [
       const v = metricValue(stats, cfg.metric ?? 'avg-session')
       return <HeadlineStatBody value={v.value} sub={v.sub} />
     },
+  },
+  {
+    id: 'goal',
+    title: 'Reading Goals',
+    icon: Target,
+    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    autoH: true,
+    render: ({ goals, reloadGoals }) => <GoalWidgetBody goals={goals} onChanged={reloadGoals} />,
   },
   {
     id: 'currently-reading',
@@ -416,6 +431,7 @@ const WIDGET_DESC: Record<string, string> = {
   'activity-365': 'A year of reading, heatmap',
   'session-log': 'Every session — paginated, deletable',
   'stat-metric': 'Pick your own metric — avg session, pages/day, best day…',
+  goal: 'All your reading goals — rings fill as you read, managed in place',
   'recently-finished': 'Latest finishes, newest first',
   'streak-calendar': 'This month, read days filled',
   'dow-bar': 'Which weekday you read most',
@@ -448,12 +464,13 @@ const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 
 const SCROLL_IDS = new Set([
   'currently-reading', 'estimates', 'session-timeline', 'series-completion', 'per-book-table',
   'author-affinity', 'completion-by-type', 'pace-by-format', 'session-log', 'recently-finished',
+  'goal',
 ])
 
 const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
   {
     label: 'Overview',
-    ids: ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'currently-reading', 'recently-finished', 'streak-calendar', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'],
+    ids: ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'goal', 'currently-reading', 'recently-finished', 'streak-calendar', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'],
   },
   {
     label: 'Habits',
@@ -482,6 +499,7 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
   'activity-365': { x: 0, y: 9, w: 12, h: 2 },
   'books-finished': { x: 0, y: 11, w: 12, h: 2 },
   'session-log': { x: 0, y: 13, w: 12, h: 7 },
+  goal: { x: 0, y: 20, w: 6, h: 3 },
   // Habits — all full width except the Pace | Pace-by-Format pair
   'hour-dow': { x: 0, y: 0, w: 12, h: 2 },
   'session-timeline': { x: 0, y: 2, w: 12, h: 3 },
@@ -506,7 +524,7 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
 type TabState = { id: string; label: string; tiles: Tile[]; layout: Layout }
 
 const TAB_DEFS: { id: string; label: string; ids: string[] }[] = [
-  { id: 'overview', label: 'Overview', ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'] },
+  { id: 'overview', label: 'Overview', ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log', 'goal'] },
   { id: 'habits', label: 'Habits', ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'] },
   { id: 'library', label: 'Library', ids: ['year-in-review', 'series-completion', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
 ]
@@ -1139,7 +1157,7 @@ const PAD_LABEL: Record<PadWidth, string> = { none: 'None', bit: 'A bit', lot: '
 // boards saved under the old defaults so everyone starts from the replica.
 const LS_KEY = 'tome_stats_lab_v2'
 
-type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number }
+type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number; savedAt?: number }
 
 // Drop tiles whose widget no longer exists in the catalog, and orphaned layout
 // entries — saved state (localStorage or server) must never crash the page.
@@ -1337,6 +1355,7 @@ export function StatsPage() {
   const [custom, setCustom] = useState<CustomRange | null>(null)
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
+  const [goals, setGoals] = useState<Goal[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [tabs, setTabs] = useState<TabState[]>(() => loadPersisted()?.tabs ?? buildTabs())
   const [activeTabId, setActiveTabId] = useState(() => loadPersisted()?.activeTabId ?? 'overview')
@@ -1393,6 +1412,11 @@ export function StatsPage() {
     api.get<CompletionEstimate[]>('/stats/completion-estimates').then(setEstimates).catch(() => {})
   }, [])
 
+  const reloadGoals = useCallback(() => {
+    listGoals().then(setGoals).catch(() => {})
+  }, [])
+  useEffect(reloadGoals, [reloadGoals])
+
   // Server is the source of truth across browsers/devices; localStorage is a
   // fast-boot cache. Apply the server copy once on mount, and only start
   // pushing local changes after that (so a slow GET can't be clobbered).
@@ -1401,15 +1425,23 @@ export function StatsPage() {
   const latest = useRef<Persisted>({ tabs, activeTabId, pad, days })
 
   useEffect(() => {
+    // Read the local cache's timestamp before the save effect below overwrites
+    // it with a fresh one (effects run in definition order, so this wins).
+    const localSavedAt = loadPersisted()?.savedAt ?? 0
     api
       .get<{ data: Persisted | null }>('/stats/dashboard')
       .then((res) => {
         const p = res.data ? sanitizePersisted(res.data) : null
-        if (p) {
+        if (p && (p.savedAt ?? 0) >= localSavedAt) {
           setTabs(p.tabs)
           setActiveTabId(p.activeTabId)
           if (p.pad) setPad(p.pad)
           if (p.days != null) setDays(p.days)
+        } else if (p) {
+          // The local cache is newer — a reload landed inside the 800ms save
+          // debounce, so the server missed the last edit. Keep local state and
+          // push it up instead of letting the stale copy clobber it.
+          api.put('/stats/dashboard', { data: latest.current }).catch(() => {})
         }
       })
       .catch(() => {})
@@ -1420,7 +1452,7 @@ export function StatsPage() {
 
   // Persist boards + view settings: localStorage immediately, server debounced.
   useEffect(() => {
-    const state: Persisted = { tabs, activeTabId, pad, days }
+    const state: Persisted = { tabs, activeTabId, pad, days, savedAt: Date.now() }
     latest.current = state
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(state))
@@ -1942,7 +1974,7 @@ export function StatsPage() {
           </div>
         ) : (
           <div ref={boardRef}>
-            <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ stats, estimates }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onDuplicate={duplicateTile} onConfigChange={setConfig} />
+            <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ stats, estimates, goals, reloadGoals }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onDuplicate={duplicateTile} onConfigChange={setConfig} />
           </div>
         )
       ) : (
@@ -1951,7 +1983,7 @@ export function StatsPage() {
       </main>
 
       {addOpen && stats && (
-        <AddWidgetModal ctx={{ stats, estimates }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
+        <AddWidgetModal ctx={{ stats, estimates, goals, reloadGoals }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
       )}
 
       {/* undo bar — tile removal and board deletion are recoverable for ~6s */}
