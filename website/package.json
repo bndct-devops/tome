@@ -15,7 +15,7 @@
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "astro": "^6.3.7",
+    "astro": "^6.4.7",
     "lucide-react": "^0.460.0",
     "pagefind": "^1.5.2",
     "react": "^19.0.0",
