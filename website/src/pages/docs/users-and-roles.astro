@@ -74,8 +74,12 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
   <h3>The rules in words</h3>
   <ul>
     <li><strong>Admins see everything.</strong> No filtering.</li>
-    <li><strong>Members</strong> see: books uploaded by any admin, books they uploaded themselves, and books in libraries they're explicitly assigned to.</li>
-    <li><strong>Guests</strong> see: books uploaded by any admin, and books in libraries marked <code>is_public = true</code>.</li>
+    <li><strong>Members</strong> see: books in public libraries, books in libraries they own or are
+      explicitly assigned to, and books they uploaded themselves.</li>
+    <li><strong>Guests</strong> see: books in libraries marked <code>is_public = true</code>.</li>
+    <li><strong>Books in no library at all</strong> stay visible to everyone (a member's own
+      unfiled uploads remain private to them). To restrict a book, put it in a private library —
+      library membership is the gate, regardless of who uploaded the book.</li>
   </ul>
   <p>
     The dashboard has a "My books / Shared library" toggle for members so they can flip between

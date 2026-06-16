@@ -6,6 +6,20 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **Private libraries now actually hide books.** Book visibility is gated solely
+  by library membership: a book placed in a private library is hidden from
+  everyone except the library's owner, its assigned users, and admins —
+  regardless of who uploaded it. Previously every book uploaded by an admin was
+  shown to all members and guests no matter which library it was in, so an admin
+  who filed books into a private library still leaked their contents. Books that
+  aren't in any library remain visible to everyone (a member's own unfiled
+  uploads stay private to them); to restrict a book, place it in a private
+  library. The rule is now applied consistently everywhere books surface — the
+  library grid, the series and filter (facet) lists, single-book and series
+  pages, OPDS, and the TomeSync (KOReader) series browser, which previously
+  applied no visibility filter at all and exposed the entire catalogue. (#53)
+
 ## [1.5.0] — 2026-06-13 — "Rubric"
 
 ### Added

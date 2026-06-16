@@ -130,48 +130,16 @@ def list_books(
     current_user: User = Depends(get_current_user),
 ):
     from backend.core.permissions import is_admin as _is_admin
-    from sqlalchemy import or_
 
     query = db.query(Book).filter(Book.status == "active")
 
     # ── Role-based visibility ────────────────────────────────────────────────
+    # Single source of truth lives in backend.core.permissions; see there for
+    # the full rule (library membership gates everything; unfiled admin/legacy
+    # books stay shared; admins see all).
     if not _is_admin(current_user):
-        from backend.models.library import library_users_table
-        # Collect admin user IDs (NULL added_by also treated as admin-uploaded)
-        admin_ids = [
-            u.id for u in db.query(User).filter(
-                (User.is_admin == True) | (User.role == "admin")
-            ).all()
-        ]
-        if current_user.role == "member":
-            # Member sees: admin-uploaded books + own uploads + books in assigned libraries
-            assigned_lib_ids = [
-                row[1] for row in db.execute(
-                    library_users_table.select().where(
-                        library_users_table.c.user_id == current_user.id
-                    )
-                ).fetchall()
-            ]
-            visibility_conditions = [
-                Book.added_by.in_(admin_ids),
-                Book.added_by.is_(None),        # legacy books without uploader = shared
-                Book.added_by == current_user.id,
-                Book.libraries.any(Library.is_public == True),  # public = shared with all
-            ]
-            if assigned_lib_ids:
-                visibility_conditions.append(
-                    Book.libraries.any(Library.id.in_(assigned_lib_ids))
-                )
-            query = query.filter(or_(*visibility_conditions))
-        else:
-            # Guest sees: admin-uploaded books + books in public libraries
-            query = query.filter(
-                or_(
-                    Book.added_by.in_(admin_ids),
-                    Book.added_by.is_(None),    # legacy books without uploader = shared
-                    Book.libraries.any(Library.is_public == True),
-                )
-            )
+        from backend.core.permissions import book_visibility_filter
+        query = query.filter(book_visibility_filter(db, current_user))
 
     if q:
         from sqlalchemy import text as sa_text
@@ -379,25 +347,27 @@ def list_books(
 @router.get("/facets", response_model=dict)
 def get_facets(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Return distinct values for filter dropdowns: series, authors, tags, formats."""
     from sqlalchemy import func
+    from backend.core.permissions import book_visibility_filter
+    visibility = book_visibility_filter(db, current_user)
 
     series = [r[0] for r in db.query(Book.series).filter(
-        Book.status == "active", Book.series.isnot(None)
+        Book.status == "active", Book.series.isnot(None), visibility
     ).distinct().order_by(Book.series).all()]
 
     authors = [r[0] for r in db.query(Book.author).filter(
-        Book.status == "active", Book.author.isnot(None)
+        Book.status == "active", Book.author.isnot(None), visibility
     ).distinct().order_by(Book.author).all()]
 
     tags = [r[0] for r in db.query(BookTag.tag).join(Book).filter(
-        Book.status == "active"
+        Book.status == "active", visibility
     ).distinct().order_by(BookTag.tag).all()]
 
     formats = [r[0] for r in db.query(BookFile.format).join(Book).filter(
-        Book.status == "active"
+        Book.status == "active", visibility
     ).distinct().order_by(BookFile.format).all()]
 
     return {"series": series, "authors": authors, "tags": tags, "formats": formats}
@@ -412,10 +382,12 @@ def get_series(
 ):
     """Return all series with book count, cover book id, description snippet, and reading status counts."""
     from sqlalchemy import func
+    from backend.core.permissions import book_visibility_filter
+    visibility = book_visibility_filter(db, current_user)
 
     series_rows = (
         db.query(Book.series, func.count(Book.id).label("book_count"))
-        .filter(Book.status == "active", Book.series.isnot(None))
+        .filter(Book.status == "active", Book.series.isnot(None), visibility)
         .group_by(Book.series)
         .order_by(Book.series)
         .all()
@@ -436,7 +408,7 @@ def get_series(
         # Pick the book with the lowest series_index as the cover; fall back to lowest id if all null
         series_books = (
             db.query(Book)
-            .filter(Book.status == "active", Book.series == series_name)
+            .filter(Book.status == "active", Book.series == series_name, visibility)
             .order_by(
                 Book.series_index.is_(None),  # nulls last
                 Book.series_index,
@@ -462,13 +434,13 @@ def get_series(
     # Append unserialized bucket if any books have no series
     unserialized_count = (
         db.query(func.count(Book.id))
-        .filter(Book.status == "active", Book.series.is_(None))
+        .filter(Book.status == "active", Book.series.is_(None), visibility)
         .scalar()
     )
     if unserialized_count:
         first_unserialized = (
             db.query(Book)
-            .filter(Book.status == "active", Book.series.is_(None))
+            .filter(Book.status == "active", Book.series.is_(None), visibility)
             .order_by(Book.id)
             .first()
         )
@@ -494,9 +466,10 @@ def get_series_detail(
     current_user: User = Depends(get_current_user),
 ):
     """Return all books in a series with per-user reading status, ordered by series_index."""
+    from backend.core.permissions import book_visibility_filter
     books = (
         db.query(Book)
-        .filter(Book.status == "active", Book.series == name)
+        .filter(Book.status == "active", Book.series == name, book_visibility_filter(db, current_user))
         .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
         .all()
     )
@@ -934,9 +907,14 @@ def get_adjacent_books(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from backend.core.permissions import book_visibility_filter
     book = db.get(Book, book_id)
-    if not book:
+    if not book or not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
+
+    # Peers must respect the same visibility rules — don't leak titles/covers of
+    # sibling books the user can't otherwise see (e.g. private-library volumes).
+    visibility = book_visibility_filter(db, current_user)
 
     def to_stub(b: Book | None) -> dict | None:
         if b is None:
@@ -946,7 +924,7 @@ def get_adjacent_books(
     if book.series:
         peers = (
             db.query(Book)
-            .filter(Book.series == book.series, Book.status == "active")
+            .filter(Book.series == book.series, Book.status == "active", visibility)
             .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
             .all()
         )
@@ -954,7 +932,7 @@ def get_adjacent_books(
     elif book.author:
         peers = (
             db.query(Book)
-            .filter(Book.author == book.author, Book.status == "active")
+            .filter(Book.author == book.author, Book.status == "active", visibility)
             .order_by(Book.title.asc())
             .all()
         )
@@ -1057,39 +1035,13 @@ def get_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from backend.core.permissions import is_admin as _is_admin
-    from sqlalchemy import or_
+    from backend.core.permissions import is_admin as _is_admin, user_can_see_book
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
-    # Visibility check for non-admins
-    if not _is_admin(current_user):
-        from backend.models.library import library_users_table
-        admin_ids = {
-            u.id for u in db.query(User).filter(
-                (User.is_admin == True) | (User.role == "admin")
-            ).all()
-        }
-        is_admin_book = book.added_by is None or book.added_by in admin_ids
-        is_own_book = book.added_by == current_user.id
-        if current_user.role == "member":
-            assigned_lib_ids = {
-                row[1] for row in db.execute(
-                    library_users_table.select().where(
-                        library_users_table.c.user_id == current_user.id
-                    )
-                ).fetchall()
-            }
-            book_lib_ids = {lib.id for lib in book.libraries}
-            in_assigned_library = bool(assigned_lib_ids & book_lib_ids)
-            in_public_library = any(lib.is_public for lib in book.libraries)
-            if not (is_admin_book or is_own_book or in_assigned_library or in_public_library):
-                raise HTTPException(status_code=404, detail="Book not found")
-        else:
-            # Guest
-            in_public_library = any(lib.is_public for lib in book.libraries)
-            if not (is_admin_book or in_public_library):
-                raise HTTPException(status_code=404, detail="Book not found")
+    # Visibility check for non-admins (shared rule, see permissions.py)
+    if not _is_admin(current_user) and not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
     return book
 
 

@@ -80,7 +80,14 @@ import { withBase } from '../../lib/path'
   </p>
   <ul>
     <li><strong>Admins</strong> see all books in all libraries</li>
-    <li><strong>Members</strong> see admin-uploaded books + their own uploads + books in assigned libraries</li>
-    <li><strong>Guests</strong> see admin-uploaded books + books in public libraries</li>
+    <li><strong>Members</strong> see books in public libraries, in libraries they own, and in
+      libraries shared with them — plus their own uploads</li>
+    <li><strong>Guests</strong> see books in public libraries</li>
   </ul>
+  <p>
+    Library membership is the gate: place a book in a private library and it's hidden from
+    everyone except the owner, assigned users, and admins — <em>regardless of who uploaded it</em>.
+    A book that isn't in any library at all remains visible to everyone (a member's own unfiled
+    uploads stay private to them); to restrict a book, put it in a private library.
+  </p>
 </DocsLayout>
