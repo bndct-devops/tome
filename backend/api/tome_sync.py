@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.urls import public_base_url
-from backend.core.permissions import user_can_see_book
+from backend.core.permissions import book_visibility_filter, user_can_see_book
 from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.book import Book, BookFile
@@ -526,9 +526,13 @@ def list_series(
     user: User = Depends(_get_api_key_user),
 ):
     """List all series for the series browser menu."""
+    # Only count/expose books this user is allowed to see. book_visibility_filter
+    # uses correlated EXISTS subqueries (no joins), so it doesn't duplicate rows
+    # under the group_by, and returns True (no-op) for admins.
+    visibility = book_visibility_filter(db, user)
     rows = (
         db.query(Book.series, func.count(Book.id).label("book_count"))
-        .filter(Book.status == "active", Book.series.isnot(None))
+        .filter(Book.status == "active", Book.series.isnot(None), visibility)
         .group_by(Book.series)
         .order_by(Book.series)
         .all()
@@ -538,7 +542,7 @@ def list_series(
     for series_name, book_count in rows:
         first_book = (
             db.query(Book)
-            .filter(Book.status == "active", Book.series == series_name)
+            .filter(Book.status == "active", Book.series == series_name, visibility)
             .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
             .first()
         )
@@ -559,13 +563,13 @@ def list_series(
     # standalone books can be browsed and downloaded.
     unserialized_count = (
         db.query(func.count(Book.id))
-        .filter(Book.status == "active", Book.series.is_(None))
+        .filter(Book.status == "active", Book.series.is_(None), visibility)
         .scalar()
     )
     if unserialized_count:
         first_unserialized = (
             db.query(Book)
-            .filter(Book.status == "active", Book.series.is_(None))
+            .filter(Book.status == "active", Book.series.is_(None), visibility)
             .order_by(Book.id)
             .first()
         )
@@ -586,7 +590,7 @@ def get_series_books(
 ):
     """Given a book_id, return all books in the same series with file info."""
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status != "active" or not user_can_see_book(db, user, book):
         raise HTTPException(status_code=404, detail="Book not found")
 
     if book.series:
@@ -601,7 +605,7 @@ def get_series_books(
     books = (
         db.query(Book)
         .options(joinedload(Book.files), joinedload(Book.book_type))
-        .filter(Book.status == "active", series_filter)
+        .filter(Book.status == "active", series_filter, book_visibility_filter(db, user))
         .order_by(Book.series_index.asc().nullslast(), Book.title.asc())
         .all()
     )

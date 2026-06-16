@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from backend.models.user import User
 
@@ -34,11 +34,19 @@ def is_member_or_above(user: User) -> bool:
 
 def book_visibility_filter(db: Session, user: User):
     """Return a SQLAlchemy filter expression restricting Book rows to those
-    the user is allowed to see. Kept in sync with the visibility logic in
-    GET /api/books. If you change one, change the other.
+    the user is allowed to see. This is the single source of truth for book
+    visibility — the books, downloads, stats, OPDS and TomeSync surfaces all
+    route through it (directly or via :func:`user_can_see_book`).
+
+    Library membership is the gate: a book placed in a private library is
+    visible only to the library owner, its assigned users, and admins. A book
+    that is in *no* library at all falls back to the legacy "shared
+    collection" rule — admin-uploaded (or uploader-less, legacy) unfiled books
+    stay visible to everyone, while a member's own unfiled upload stays private
+    to just them. Admins always see everything.
     """
     from backend.models.book import Book
-    from backend.models.library import Library, library_users_table
+    from backend.models.library import Library
     from backend.models.user import User as _User
 
     if is_admin(user):
@@ -50,28 +58,21 @@ def book_visibility_filter(db: Session, user: User):
         ).all()
     ]
 
-    if user.role == "member":
-        assigned_lib_ids = [
-            row[1] for row in db.execute(
-                library_users_table.select().where(
-                    library_users_table.c.user_id == user.id
-                )
-            ).fetchall()
-        ]
-        conditions = [
-            Book.added_by.in_(admin_ids),
-            Book.added_by.is_(None),
-            Book.added_by == user.id,
-            Book.libraries.any(Library.is_public == True),  # noqa: E712
-        ]
-        if assigned_lib_ids:
-            conditions.append(Book.libraries.any(Library.id.in_(assigned_lib_ids)))
-        return or_(*conditions)
-
+    no_library = ~Book.libraries.any()
     return or_(
-        Book.added_by.in_(admin_ids),
-        Book.added_by.is_(None),
+        # Own uploads are always visible to their uploader.
+        Book.added_by == user.id,
+        # Unfiled books fall back to the shared-collection rule: admin-uploaded
+        # or legacy (no uploader) books stay public; a member's own unfiled
+        # upload is already covered by the clause above and stays private.
+        and_(
+            no_library,
+            or_(Book.added_by.is_(None), Book.added_by.in_(admin_ids)),
+        ),
+        # Library membership gates everything else.
         Book.libraries.any(Library.is_public == True),  # noqa: E712
+        Book.libraries.any(Library.owner_id == user.id),
+        Book.libraries.any(Library.assigned_users.any(_User.id == user.id)),
     )
 
 

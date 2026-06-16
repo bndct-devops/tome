@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.core.database import get_db
 from backend.core.security import get_current_user_basic
 from backend.core.config import settings
-from backend.core.permissions import is_admin as _is_admin
+from backend.core.permissions import book_visibility_filter, is_admin as _is_admin
 from backend.models.book import Book, BookFile
 from backend.models.library import Library
 from backend.models.user import User
@@ -32,20 +32,21 @@ def _base_url(request: Request) -> str:
     return str(request.base_url).rstrip("/")
 
 
-def _apply_visibility(query, user: User):
-    """Replicate the same visibility rules as the main books API."""
+def _apply_visibility(query, db: Session, user: User):
+    """Restrict to books the user can see, using the shared visibility rule
+    (backend.core.permissions.book_visibility_filter) so OPDS stays in lockstep
+    with the web/TomeSync surfaces. Uses EXISTS subqueries, so it doesn't
+    duplicate rows under aggregate/group_by queries."""
     if _is_admin(user):
         return query
-    return query.join(Book.libraries).filter(
-        (Library.is_public == True) |  # noqa: E712
-        Library.assigned_users.any(User.id == user.id)
-    )
+    return query.filter(book_visibility_filter(db, user))
 
 
 def _book_query(db: Session, user: User):
     return (
         _apply_visibility(
             db.query(Book).options(joinedload(Book.files), joinedload(Book.tags)),
+            db,
             user,
         )
         .filter(Book.status == "active")
@@ -153,7 +154,7 @@ def opds_series(
 ):
     base = _base_url(request)
     rows = (
-        _apply_visibility(db.query(Book.series, func.count(Book.id.distinct())), user)
+        _apply_visibility(db.query(Book.series, func.count(Book.id.distinct())), db, user)
         .filter(Book.series.isnot(None), Book.status == "active")
         .group_by(Book.series)
         .order_by(Book.series.asc())
@@ -208,7 +209,7 @@ def opds_authors(
 ):
     base = _base_url(request)
     rows = (
-        _apply_visibility(db.query(Book.author, func.count(Book.id.distinct())), user)
+        _apply_visibility(db.query(Book.author, func.count(Book.id.distinct())), db, user)
         .filter(Book.author.isnot(None), Book.status == "active")
         .group_by(Book.author)
         .order_by(Book.author.asc())
@@ -264,6 +265,7 @@ def opds_libraries(
             db.query(Library)
             .filter(
                 (Library.is_public == True) |  # noqa: E712
+                (Library.owner_id == user.id) |
                 Library.assigned_users.any(User.id == user.id)
             )
             .order_by(Library.sort_order.asc(), Library.name.asc())
@@ -293,7 +295,7 @@ def opds_library_books(
     lib = db.get(Library, library_id)
     if not lib:
         raise HTTPException(status_code=404, detail="Library not found")
-    if not _is_admin(user) and not lib.is_public:
+    if not _is_admin(user) and not lib.is_public and lib.owner_id != user.id:
         if not any(u.id == user.id for u in lib.assigned_users):
             raise HTTPException(status_code=403)
 
