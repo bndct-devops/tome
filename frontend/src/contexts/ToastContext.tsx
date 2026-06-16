@@ -2,17 +2,27 @@ import { createContext, useContext, useState, useCallback, useRef } from 'react'
 import { Check, AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface Toast {
   id: number
   type: 'success' | 'error' | 'info'
   message: string
   exiting: boolean
+  action?: ToastAction
+}
+
+interface ToastOptions {
+  action?: ToastAction
 }
 
 interface ToastMethods {
-  success: (message: string) => void
-  error: (message: string) => void
-  info: (message: string) => void
+  success: (message: string, opts?: ToastOptions) => void
+  error: (message: string, opts?: ToastOptions) => void
+  info: (message: string, opts?: ToastOptions) => void
 }
 
 interface ToastContextValue {
@@ -29,6 +39,8 @@ export function useToast() {
 
 const MAX_TOASTS = 5
 const AUTO_DISMISS_MS = 4000
+// Toasts with an action (e.g. Undo) linger a little longer so there's time to act.
+const AUTO_DISMISS_ACTION_MS = 7000
 const EXIT_DURATION_MS = 300
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -43,22 +55,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }, EXIT_DURATION_MS)
   }, [])
 
-  const addToast = useCallback((type: Toast['type'], message: string) => {
+  const addToast = useCallback((type: Toast['type'], message: string, action?: ToastAction) => {
     const id = ++idRef.current
     setToasts(prev => {
-      const next = [...prev, { id, type, message, exiting: false }]
+      const next = [...prev, { id, type, message, exiting: false, action }]
       // Cap at MAX_TOASTS — drop oldest
       return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
     })
-    const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS)
+    const timer = setTimeout(() => dismiss(id), action ? AUTO_DISMISS_ACTION_MS : AUTO_DISMISS_MS)
     // Clean up timer if component unmounts (best-effort)
     return () => clearTimeout(timer)
   }, [dismiss])
 
   const toast: ToastMethods = {
-    success: (msg) => addToast('success', msg),
-    error: (msg) => addToast('error', msg),
-    info: (msg) => addToast('info', msg),
+    success: (msg, opts) => addToast('success', msg, opts?.action),
+    error: (msg, opts) => addToast('error', msg, opts?.action),
+    info: (msg, opts) => addToast('info', msg, opts?.action),
   }
 
   return (
@@ -89,6 +101,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               {t.type === 'info' && <Info className="w-4 h-4 text-info" />}
             </span>
             <span className="flex-1 text-foreground leading-snug">{t.message}</span>
+            {t.action && (
+              <button
+                onClick={() => { t.action!.onClick(); dismiss(t.id) }}
+                className="shrink-0 mt-0.5 font-semibold text-primary hover:underline transition-colors"
+              >
+                {t.action.label}
+              </button>
+            )}
             <button
               onClick={() => dismiss(t.id)}
               className="shrink-0 mt-0.5 text-muted-foreground hover:text-foreground transition-colors"

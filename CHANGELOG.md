@@ -6,6 +6,21 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Shelved reading status.** A fourth reading state, set apart from
+  Unread / Reading / Read, for books you've set aside without finishing.
+  Shelving a book pulls it off Continue Reading, Series Progress, and the
+  completion stats, but keeps your exact position (progress + CFI) so you can
+  resume where you left off later — the middle ground between a stalled book
+  cluttering your "reading" list and marking it Unread (which clears progress).
+  A new **Shelved** library filter lists them, and reading the book again on
+  any device moves it back to Reading automatically.
+- **Undo on reading-status changes.** Changing a book's reading status now
+  shows a toast with an **Undo** button (and lingers a little longer than a
+  normal toast). Undo restores the full prior state — status, progress, and
+  reading position — so an accidental tap on **Unread**, which clears your
+  progress, is no longer a one-way trip.
+
 ## [1.5.1] — 2026-06-16
 
 ### Fixed

@@ -49,7 +49,7 @@ interface SeriesDetailBook {
   title: string
   series_index: number | null
   cover_path: string | null
-  reading_status: 'unread' | 'reading' | 'read'
+  reading_status: 'unread' | 'reading' | 'read' | 'shelved'
   progress_pct: number | null
 }
 
@@ -1739,7 +1739,7 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground font-medium w-14">Status</span>
-                {(['', 'unread', 'reading', 'read'] as const).map(s => (
+                {(['', 'unread', 'reading', 'read', 'shelved'] as const).map(s => (
                   <button
                     key={s}
                     onClick={() => setFilter('reading_status', s)}

@@ -105,6 +105,17 @@ import { withBase } from '../../lib/path'
     else <code>UserBookStatus.progress_pct</code> from the web reader.
   </p>
 
+  <Callout variant="tip" title="Shelving a book you've set aside">
+    Every book has reading-status pills — <strong>Unread / Reading / Read</strong>, plus a fourth
+    set slightly apart: <strong>Shelved</strong>. Shelving a book pulls it off Currently Reading,
+    Series Progress, and the completion stats, but <em>keeps your exact position</em> (progress and
+    CFI), so picking it back up later resumes where you left off. It's the middle ground between
+    leaving a stalled book cluttering your "reading" list and marking it <strong>Unread</strong>
+    — which clears your progress entirely. Find shelved titles again with the <strong>Shelved</strong>
+    filter in the library. Reading the book again on any device automatically moves it back to
+    Reading.
+  </Callout>
+
   <h3>Reading time per day</h3>
   <div class="docs-shot-bare">
     <ThemedShot client:load name="stats-time-per-day" alt="Bar chart: reading time per day" />

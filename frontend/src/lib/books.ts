@@ -106,7 +106,7 @@ export interface SavedFilter {
   sort_order: number
 }
 
-export type ReadingStatus = 'unread' | 'reading' | 'read'
+export type ReadingStatus = 'unread' | 'reading' | 'read' | 'shelved'
 
 export interface Arc {
   id: number
@@ -130,5 +130,6 @@ export interface BookStatus {
   book_id: number
   status: ReadingStatus
   progress_pct: number | null
+  cfi?: string | null
   updated_at: string | null
 }

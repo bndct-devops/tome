@@ -167,7 +167,7 @@ def list_books(
         query = query.join(Book.files).filter(BookFile.format == format.lower())
     if library_id:
         query = query.join(Book.libraries).filter(Library.id == library_id)
-    if reading_status in ("reading", "read"):
+    if reading_status in ("reading", "read", "shelved"):
         query = query.join(
             UserBookStatus,
             (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == current_user.id)
