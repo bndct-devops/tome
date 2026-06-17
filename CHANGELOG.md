@@ -7,6 +7,16 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **PDF books are now readable in the web reader.** Opening a PDF previously
+  landed on "No readable file found" — the book detail page offered a **Read**
+  button, but the reader only knew how to render EPUB and comics. PDFs now open
+  in a proper in-browser reader (continuous scroll, rendered with pdf.js) that
+  matches the rest of the app: light / sepia / dark page tint, fit-to-width or
+  fit-to-height, zoom, keyboard navigation, and reading-progress tracking that
+  syncs your position like the EPUB and comic readers. Large PDFs stay smooth —
+  only the pages near the viewport are rendered, the rest are torn down to keep
+  memory in check. (Being fixed-layout, PDFs don't reflow, so there's no
+  font-size/font-family control as there is for EPUB.) (#61)
 - **Shelved reading status.** A fourth reading state, set apart from
   Unread / Reading / Read, for books you've set aside without finishing.
   Shelving a book pulls it off Continue Reading, Series Progress, and the

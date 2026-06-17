@@ -1,13 +1,19 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, BookOpen, Settings, Rows4,
   ChevronLeft, ChevronRight, Minus, Plus, X,
   Loader2, AlignJustify, RotateCcw, GalleryHorizontalEnd, Columns2, Square,
+  StretchHorizontal, StretchVertical,
 } from 'lucide-react'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { api } from '@/lib/api'
 import type { Book, BookFile } from '@/lib/books'
 import { cn } from '@/lib/utils'
+
+// pdf.js renders pages off the main thread; point it at the bundled worker.
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -344,6 +350,293 @@ function WebtoonReader({ bookId, totalPages, theme, onProgress, onReadComplete }
   )
 }
 
+// ── PDF Reader ──────────────────────────────────────────────────────────────
+//
+// Continuous vertical scroll backed by pdf.js. Pages are virtualized: each page
+// is a fixed-size placeholder and only those near the viewport are rendered to a
+// canvas (others are torn down to bound memory on large PDFs). PDFs are fixed
+// layout, so unlike EPUB there is no font/size reflow — what's customizable is
+// the page tint (theme), fit mode (width/height) and zoom.
+
+interface PdfReaderHandle {
+  scrollToPage: (page: number) => void
+}
+
+interface PdfReaderProps {
+  bookId: string
+  initialPage: number       // resolved page index, or -1 if unknown
+  initialFraction: number   // fallback when initialPage < 0
+  theme: ReaderTheme
+  fitMode: FitMode
+  zoom: number
+  onDocLoaded: (total: number) => void
+  onError: (message: string) => void
+  onProgress: (page: number, total: number) => void
+  onReadComplete: () => void
+}
+
+const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
+  { bookId, initialPage, initialFraction, theme, fitMode, zoom, onDocLoaded, onError, onProgress, onReadComplete },
+  ref,
+) {
+  const themeColors = THEMES[theme]
+  const token = localStorage.getItem('tome_token') ?? ''
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const pageWrapRefs = useRef<(HTMLDivElement | null)[]>([])
+  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([])
+  const docRef = useRef<import('pdfjs-dist').PDFDocumentProxy | null>(null)
+  const renderTasks = useRef<Map<number, import('pdfjs-dist').RenderTask>>(new Map())
+  const renderedScale = useRef<Map<number, number>>(new Map())
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const visiblePages = useRef<Set<number>>(new Set())
+  const didInitialScroll = useRef(false)
+  const reportedComplete = useRef(false)
+  const currentPageRef = useRef(0)
+
+  const [numPages, setNumPages] = useState(0)
+  // Page-1 dimensions at scale 1, used to size placeholders before render.
+  const [base, setBase] = useState<{ w: number; h: number } | null>(null)
+  const [containerW, setContainerW] = useState(0)
+  const [containerH, setContainerH] = useState(0)
+  // Per-page real heights once rendered (corrects the page-1 estimate).
+  const [pageHeights, setPageHeights] = useState<Map<number, number>>(new Map())
+
+  // CSS display width for every page given the current fit mode + zoom.
+  const displayW = (() => {
+    if (!base || !containerW || !containerH) return 0
+    const aspect = base.h / base.w
+    if (fitMode === 'height') {
+      const h = (containerH - 24) * zoom
+      return h / aspect
+    }
+    return (Math.min(containerW - 24, 1100)) * zoom
+  })()
+
+  const estPageHeight = base && displayW ? displayW * (base.h / base.w) : 0
+  const heightFor = (i: number) => pageHeights.get(i) ?? estPageHeight
+
+  // ── Load the document ──────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+    const url = `/api/books/${bookId}/read.pdf?token=${encodeURIComponent(token)}`
+    const task = pdfjsLib.getDocument({ url })
+    task.promise.then(async (doc) => {
+      if (cancelled) { task.destroy(); return }
+      docRef.current = doc
+      const page1 = await doc.getPage(1)
+      const vp = page1.getViewport({ scale: 1 })
+      if (cancelled) return
+      setBase({ w: vp.width, h: vp.height })
+      setNumPages(doc.numPages)
+      onDocLoaded(doc.numPages)
+    }).catch((e) => {
+      if (!cancelled) onError(`Failed to load PDF: ${(e as Error).message}`)
+    })
+    return () => {
+      cancelled = true
+      renderTasks.current.forEach((t) => { try { t.cancel() } catch { /* ignore */ } })
+      renderTasks.current.clear()
+      // Destroying the loading task aborts requests + tears down the worker/doc.
+      task.destroy()
+      docRef.current = null
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookId])
+
+  // ── Track container size ───────────────────────────────────────────────────
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => { setContainerW(el.clientWidth); setContainerH(el.clientHeight) }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // ── Render / tear down a single page ───────────────────────────────────────
+  const renderPage = useCallback(async (i: number) => {
+    const doc = docRef.current
+    const canvas = canvasRefs.current[i]
+    if (!doc || !canvas || !displayW) return
+    if (renderedScale.current.get(i) === displayW) return // already current
+
+    const existing = renderTasks.current.get(i)
+    if (existing) { try { existing.cancel() } catch { /* ignore */ } renderTasks.current.delete(i) }
+
+    try {
+      const page = await doc.getPage(i + 1)
+      const unit = page.getViewport({ scale: 1 })
+      const cssScale = displayW / unit.width
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const viewport = page.getViewport({ scale: cssScale * dpr })
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      canvas.width = Math.floor(viewport.width)
+      canvas.height = Math.floor(viewport.height)
+      canvas.style.width = `${displayW}px`
+      canvas.style.height = `${displayW * (unit.height / unit.width)}px`
+      const task = page.render({ canvas, canvasContext: ctx, viewport })
+      renderTasks.current.set(i, task)
+      await task.promise
+      renderTasks.current.delete(i)
+      renderedScale.current.set(i, displayW)
+      setPageHeights((prev) => {
+        const real = displayW * (unit.height / unit.width)
+        if (prev.get(i) === real) return prev
+        const next = new Map(prev)
+        next.set(i, real)
+        return next
+      })
+    } catch (e) {
+      // RenderingCancelledException is expected on fast scroll / rescale.
+      if ((e as { name?: string })?.name !== 'RenderingCancelledException') {
+        renderTasks.current.delete(i)
+      }
+    }
+  }, [displayW])
+
+  const clearPage = useCallback((i: number) => {
+    const task = renderTasks.current.get(i)
+    if (task) { try { task.cancel() } catch { /* ignore */ } renderTasks.current.delete(i) }
+    const canvas = canvasRefs.current[i]
+    if (canvas) { canvas.width = 0; canvas.height = 0 }
+    renderedScale.current.delete(i)
+  }, [])
+
+  // ── Observe pages; render those near the viewport, tear down the rest ──────
+  useEffect(() => {
+    if (!numPages || !displayW) return
+    const root = containerRef.current
+    if (!root) return
+
+    const obs = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const i = Number((entry.target as HTMLElement).dataset.page)
+        if (entry.isIntersecting) {
+          visiblePages.current.add(i)
+          renderPage(i)
+        } else {
+          visiblePages.current.delete(i)
+          clearPage(i)
+        }
+      }
+    }, { root, rootMargin: '1200px 0px' })
+    observerRef.current = obs
+    pageWrapRefs.current.forEach((el) => { if (el) obs.observe(el) })
+    return () => { obs.disconnect(); observerRef.current = null }
+  // Re-attach when pages first appear or width becomes known; zoom changes keep
+  // displayW truthy so this doesn't churn on every zoom step.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numPages, displayW > 0])
+
+  // On scale change (zoom / fit mode), re-render the pages still on screen.
+  useEffect(() => {
+    if (!displayW) return
+    renderedScale.current.clear()
+    visiblePages.current.forEach((i) => renderPage(i))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayW])
+
+  // ── Scroll → current page + progress ───────────────────────────────────────
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !numPages) return
+    let raf = 0
+    const onScroll = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const mid = el.scrollTop + el.clientHeight / 2
+        let acc = 0
+        let page = 0
+        for (let i = 0; i < numPages; i++) {
+          const h = heightFor(i) + 16 // wrapper + gap
+          if (mid < acc + h) { page = i; break }
+          acc += h
+          page = i
+        }
+        if (page !== currentPageRef.current) {
+          currentPageRef.current = page
+          onProgress(page, numPages)
+        }
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+        if (atBottom && !reportedComplete.current) {
+          reportedComplete.current = true
+          onReadComplete()
+        }
+      })
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => { el.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numPages, pageHeights, displayW])
+
+  // ── Initial scroll to the saved position ───────────────────────────────────
+  useEffect(() => {
+    if (didInitialScroll.current || !numPages || !estPageHeight) return
+    const target = initialPage >= 0
+      ? initialPage
+      : Math.round(initialFraction * (numPages - 1))
+    if (target > 0) {
+      const wrap = pageWrapRefs.current[target]
+      if (wrap) { wrap.scrollIntoView(); currentPageRef.current = target }
+    }
+    didInitialScroll.current = true
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numPages, estPageHeight])
+
+  useImperativeHandle(ref, () => ({
+    scrollToPage: (page: number) => {
+      const clamped = Math.max(0, Math.min(numPages - 1, page))
+      pageWrapRefs.current[clamped]?.scrollIntoView({ behavior: 'smooth' })
+    },
+  }), [numPages])
+
+  const isDark = theme === 'dark'
+  // Make the white page legible against the chosen background.
+  const canvasFilter = theme === 'dark'
+    ? 'invert(1) hue-rotate(180deg)'
+    : theme === 'sepia'
+      ? 'sepia(0.45) brightness(0.97)'
+      : 'none'
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto overflow-x-hidden"
+      style={{ background: themeColors.bg }}
+    >
+      {!base && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColors.text, opacity: 0.5 }} />
+        </div>
+      )}
+      <div className="flex flex-col items-center gap-4 py-4">
+        {Array.from({ length: numPages }, (_, i) => (
+          <div
+            key={i}
+            data-page={i}
+            ref={(el) => { pageWrapRefs.current[i] = el }}
+            style={{
+              width: displayW || '80%',
+              height: heightFor(i) || 600,
+              background: isDark ? '#111' : '#fff',
+              boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
+            }}
+          >
+            <canvas
+              ref={(el) => { canvasRefs.current[i] = el }}
+              style={{ display: 'block', width: '100%', height: '100%', filter: canvasFilter }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
+
 // ── Main ReaderPage component ─────────────────────────────────────────────────
 
 export default function ReaderPage() {
@@ -394,6 +687,20 @@ export default function ReaderPage() {
   const toolbarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const thumbnailActiveRef = useRef<HTMLButtonElement | null>(null)
 
+  // ── PDF-only state ───────────────────────────────────────────────────────────
+  const [isPdf, setIsPdf] = useState(false)
+  const [pdfTotalPages, setPdfTotalPages] = useState(0)
+  const [pdfCurrentPage, setPdfCurrentPage] = useState(0)
+  const [pdfInitialPage, setPdfInitialPage] = useState(-1)
+  const [pdfInitialFraction, setPdfInitialFraction] = useState(0)
+  const [pdfFitMode, setPdfFitMode] = useState<FitMode>(
+    () => (localStorage.getItem('reader_pdf_fit') as FitMode) ?? 'width'
+  )
+  const [pdfZoom, setPdfZoom] = useState<number>(
+    () => Number(localStorage.getItem('reader_pdf_zoom') ?? 1) || 1
+  )
+  const pdfRef = useRef<PdfReaderHandle | null>(null)
+
   // ── EPUB refs ────────────────────────────────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateViewElement | null>(null)
@@ -410,6 +717,10 @@ export default function ReaderPage() {
   useEffect(() => { localStorage.setItem('reader_comic_fit', fitMode) }, [fitMode])
   useEffect(() => { localStorage.setItem('reader_comic_mode', comicMode) }, [comicMode])
   useEffect(() => { localStorage.setItem('reader_comic_spread', spread ? '1' : '0') }, [spread])
+
+  // Persist PDF reader preferences.
+  useEffect(() => { localStorage.setItem('reader_pdf_fit', pdfFitMode) }, [pdfFitMode])
+  useEffect(() => { localStorage.setItem('reader_pdf_zoom', String(pdfZoom)) }, [pdfZoom])
 
   // ── Save progress (debounced) ────────────────────────────────────────────────
   //
@@ -458,6 +769,38 @@ export default function ReaderPage() {
     setProgress(comicPctFor(page, total))
   }, [])
 
+  // ── PDF progress (position stored as `pdf:{page}`) ────────────────────────────
+
+  const savePdfProgress = useCallback((page: number, total: number) => {
+    if (!bookId || total <= 0) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    const isLast = page >= total - 1
+    const fraction = isLast ? 1 : (page + 1) / total
+    saveTimer.current = setTimeout(() => {
+      api.put(`/books/${bookId}/status`, {
+        status: isLast ? 'read' : 'reading',
+        progress_pct: fraction,
+        cfi: `pdf:${page}`,
+      }).catch(() => {})
+    }, 1500)
+  }, [bookId])
+
+  const handlePdfProgress = useCallback((page: number, total: number) => {
+    setPdfCurrentPage(page)
+    setProgress(comicPctFor(page, total))
+    savePdfProgress(page, total)
+  }, [savePdfProgress])
+
+  const handlePdfReadComplete = useCallback(() => {
+    if (!bookId || pdfTotalPages <= 0) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    api.put(`/books/${bookId}/status`, {
+      status: 'read',
+      progress_pct: 1,
+      cfi: `pdf:${pdfTotalPages - 1}`,
+    }).catch(() => {})
+  }, [bookId, pdfTotalPages])
+
   // ── Toolbar auto-hide for comic mode ────────────────────────────────────────
 
   const resetToolbarTimer = useCallback(() => {
@@ -494,6 +837,7 @@ export default function ReaderPage() {
 
       const hasComic = bookData.files?.some((f: BookFile) => f.format === 'cbz' || f.format === 'cbr')
       const hasEpub = bookData.files?.some((f: BookFile) => f.format === 'epub')
+      const hasPdf = bookData.files?.some((f: BookFile) => f.format === 'pdf')
 
       if (hasComic) {
         // Comic path: fetch page count, then stream pages
@@ -532,6 +876,23 @@ export default function ReaderPage() {
           return
         }
 
+        setLoading(false)
+        return
+      }
+
+      // PDF path: prefer EPUB if both exist (richer reflow), else render the PDF.
+      if (hasPdf && !hasEpub) {
+        setIsPdf(true)
+        try {
+          const s = await api.get<{ status: string; progress_pct: number | null; cfi: string | null }>(`/books/${bookId}/status`)
+          if (s.cfi?.startsWith('pdf:')) {
+            setPdfInitialPage(parseInt(s.cfi.replace('pdf:', ''), 10) || 0)
+          } else if (s.progress_pct && s.progress_pct > 0) {
+            setPdfInitialFraction(s.progress_pct)
+          }
+        } catch { /* no saved position */ }
+        api.put(`/books/${bookId}/status`, { status: 'reading' }).catch(() => {})
+        // PdfReader loads the document itself; clear the page-level spinner.
         setLoading(false)
         return
       }
@@ -689,14 +1050,40 @@ export default function ReaderPage() {
   function epubNext() { viewRef.current?.next() }
 
   useEffect(() => {
-    if (isComic) return
+    if (isComic || isPdf) return
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') epubPrev()
       else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') epubNext()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isComic])
+  }, [isComic, isPdf])
+
+  // ── PDF keyboard navigation ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!isPdf) return
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault()
+        pdfRef.current?.scrollToPage(pdfCurrentPage + 1)
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault()
+        pdfRef.current?.scrollToPage(pdfCurrentPage - 1)
+      } else if (e.key === '+' || e.key === '=') {
+        setPdfZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))
+      } else if (e.key === '-') {
+        setPdfZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))
+      } else if (e.key === 'w' || e.key === 'W') {
+        setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))
+      } else if (e.key === 'Escape') {
+        navigate(-1)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isPdf, pdfCurrentPage, navigate])
 
   // ── Scroll active thumbnail into view ───────────────────────────────────────
 
@@ -1041,6 +1428,180 @@ export default function ReaderPage() {
             </button>
           </div>
         )}
+      </div>
+    )
+  }
+
+  // ── PDF reader layout ──────────────────────────────────────────────────────
+
+  if (isPdf) {
+    const zoomOut = () => setPdfZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))
+    const zoomIn = () => setPdfZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: themeColors.bg }}>
+        {/* Top bar */}
+        <div
+          className="flex items-center gap-2 sm:gap-3 px-4 min-h-12 shrink-0 border-b z-10 safe-top"
+          style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+        >
+          <button
+            onClick={() => navigate(-1)}
+            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
+          <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
+            {book?.title ?? ''}
+          </span>
+
+          {/* Fit mode toggle */}
+          <button
+            onClick={() => setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))}
+            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
+            title={pdfFitMode === 'width' ? 'Fit page height (W)' : 'Fit page width (W)'}
+            style={{ color: themeColors.text }}
+          >
+            {pdfFitMode === 'width' ? <StretchVertical className="w-4 h-4" /> : <StretchHorizontal className="w-4 h-4" />}
+          </button>
+
+          {/* Zoom */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={zoomOut}
+              className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
+              title="Zoom out (-)"
+              style={{ color: themeColors.text }}
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <span className="text-xs w-9 text-center tabular-nums" style={{ color: themeColors.text, opacity: 0.6 }}>
+              {Math.round(pdfZoom * 100)}%
+            </span>
+            <button
+              onClick={zoomIn}
+              className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
+              title="Zoom in (+)"
+              style={{ color: themeColors.text }}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Theme settings */}
+          <button
+            onClick={() => setShowSettings((o) => !o)}
+            className={cn(
+              'p-1.5 rounded-lg transition-colors',
+              isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10',
+              showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
+            )}
+            title="Reader settings"
+            style={{ color: themeColors.text }}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Main area */}
+        <div className="flex flex-1 overflow-hidden relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center z-10">
+              <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColors.text, opacity: 0.4 }} />
+            </div>
+          )}
+
+          {!loading && (
+            <PdfReader
+              ref={pdfRef}
+              bookId={bookId!}
+              initialPage={pdfInitialPage}
+              initialFraction={pdfInitialFraction}
+              theme={theme}
+              fitMode={pdfFitMode}
+              zoom={pdfZoom}
+              onDocLoaded={setPdfTotalPages}
+              onError={(m) => setLoadError(m)}
+              onProgress={handlePdfProgress}
+              onReadComplete={handlePdfReadComplete}
+            />
+          )}
+
+          {/* Settings panel */}
+          {showSettings && (
+            <div
+              className="absolute inset-y-0 right-0 w-64 max-w-[85vw] shrink-0 border-l overflow-y-auto flex flex-col z-20"
+              style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}>Settings</span>
+                <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 flex flex-col gap-6">
+                <div>
+                  <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>BACKGROUND</p>
+                  <div className="flex gap-2">
+                    {(Object.keys(THEMES) as ReaderTheme[]).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => selectTheme(t)}
+                        className={cn(
+                          'flex-1 py-2.5 rounded-lg border text-xs font-medium transition-all',
+                          theme === t ? 'ring-2' : 'opacity-60 hover:opacity-90'
+                        )}
+                        style={{
+                          background: THEMES[t].bg,
+                          color: THEMES[t].text,
+                          borderColor: THEMES[t].text + '33',
+                        }}
+                      >
+                        {THEMES[t].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom bar */}
+        <div
+          className="flex items-center gap-2 sm:gap-4 px-2 sm:px-4 h-11 shrink-0 border-t z-10"
+          style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+        >
+          <button
+            onClick={() => pdfRef.current?.scrollToPage(pdfCurrentPage - 1)}
+            className="p-1 transition-opacity hover:opacity-100"
+            style={{ color: themeColors.text, opacity: 0.5 }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <span className="flex-1 text-xs truncate text-center" style={{ color: themeColors.text, opacity: 0.5 }}>
+            {pdfTotalPages > 0 ? `${pdfCurrentPage + 1} / ${pdfTotalPages}` : ''}
+          </span>
+
+          <div className="flex items-center gap-2">
+            <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
+              />
+            </div>
+            <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
+          </div>
+
+          <button
+            onClick={() => pdfRef.current?.scrollToPage(pdfCurrentPage + 1)}
+            className="p-1 transition-opacity hover:opacity-100"
+            style={{ color: themeColors.text, opacity: 0.5 }}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     )
   }
