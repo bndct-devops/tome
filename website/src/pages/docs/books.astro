@@ -106,4 +106,19 @@ import { withBase } from '../../lib/path'
     them. If you're using <a href={withBase("/docs/koreader")}>TomeSync</a>, status updates
     automatically based on your reading sessions.
   </p>
+
+  <h2>Ratings &amp; reviews</h2>
+  <p>
+    Rate books on a 1–5 star scale with an optional written review. Ratings are
+    <strong>per user and private to you</strong> — everyone keeps their own.
+  </p>
+  <ul>
+    <li><strong>Per book</strong> — the detail page has a star rating and a review field; both auto-save, and the review collapses to a tidy quote (with an edit affordance) once written.</li>
+    <li><strong>On book cards</strong> — your stars show across the grid. You can <strong>sort by "My Rating"</strong> and filter the grid to <strong>Rated</strong>, <strong>3+</strong>, <strong>4+</strong>, or <strong>5</strong> stars.</li>
+    <li><strong>Per series</strong> — rate a whole series from its page. A series rating is inherited by every volume you haven't rated individually (your own volume rating always wins); a series' shown rating is your explicit rating if set, otherwise the average of your volume ratings. The "No Series" group can't be rated.</li>
+  </ul>
+  <p>
+    Ratings also sync both ways with KOReader's native Book status screen — see the
+    <a href={withBase("/docs/koreader")}>KOReader plugin</a> docs.
+  </p>
 </DocsLayout>

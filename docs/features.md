@@ -87,6 +87,18 @@ The sidebar shows all series in your library. Click a series to open an inline d
 
 ---
 
+## Ratings & Reviews
+
+Rate the books you read on a 1–5 star scale, with an optional written review. Ratings are **per-user and private to you** — everyone keeps their own.
+
+- **Per book** — the book detail page has a star rating and a review field. Both auto-save; the review collapses to a tidy quote (with an edit affordance) once written, rather than sitting as an always-open box.
+- **On book cards** — your stars show across the library grid. You can **sort by "My Rating"** and **filter** the grid to `Rated`, `3+`, `4+`, or `5` stars.
+- **Per series** — rate a whole series from its page. A series rating is **inherited** by every volume you haven't rated individually (your own volume rating always wins). A series' shown rating is your explicit rating if you set one, otherwise the average of your volume ratings — surfaced on series cards too. (The "No Series" group can't be rated.)
+
+Stars use a theme-aware "rating gold" that fits each theme's palette. Ratings also sync both ways with KOReader's native Book status screen — see the [KOReader plugin](koreader-plugin.md) docs.
+
+---
+
 ## Bulk Operations
 
 Multi-select books on the dashboard to:

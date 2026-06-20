@@ -7,6 +7,16 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Your book ratings now sync with KOReader (both ways).** KOReader has its own
+  native 1–5 star rating and review on the Book status screen — TomeSync now keeps
+  it in step with Tome. Rate a book on the web and the next time you open it on the
+  device (if it came over via TomeSync) the stars and review are written into the
+  book, and rate it on KOReader and it flows back up to Tome when you close or
+  suspend. A saved per-book baseline means only the side that actually changed is
+  pushed; if both changed since the last sync, the web rating wins (Tome stays the
+  single source of truth). Reading status (reading / finished) is untouched — that
+  already syncs separately. Requires TomeSync plugin build 20. (KOReader plugin
+  semver 1.5.0.)
 - **Rate and review your books — and whole series.** Each book's detail page now
   has a 1–5 star rating and an optional review (auto-saved; collapses to a tidy
   quote with an edit affordance rather than an always-open box). Ratings are

@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # build than 13 — otherwise a device that updated to 1.2.1's build-13 impl and
 # later points at a main/1.3.0 server (also 13) would not re-download main's
 # richer impl. Hence 14.
-TOMESYNC_PLUGIN_BUILD = 19
-TOMESYNC_PLUGIN_SEMVER = "1.4.0"
+TOMESYNC_PLUGIN_BUILD = 20
+TOMESYNC_PLUGIN_SEMVER = "1.5.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -247,6 +247,72 @@ def put_position(
 
     db.commit()
     return {"ok": True, "timestamp": datetime.utcnow().isoformat() + "Z"}
+
+
+# ── Rating endpoints ──────────────────────────────────────────────────────────
+# The per-user star rating + review live on UserBookStatus, same as the web
+# `/books/{id}/rating` and `/status` endpoints — but those authenticate via
+# get_current_user (JWT / tome_ tokens) which does not accept the plugin's tk_
+# API key. These mirror them under the api-key auth the plugin already uses for
+# position/session, so KOReader's native rating can sync both ways.
+
+
+@router.get("/tome-sync/rating/{book_id}")
+def get_rating(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    row = (
+        db.query(UserBookStatus)
+        .filter(UserBookStatus.user_id == user.id, UserBookStatus.book_id == book_id)
+        .first()
+    )
+    return {
+        "book_id": book_id,
+        "rating": row.rating if row else None,
+        "review": row.review if row else None,
+    }
+
+
+class PutRatingRequest(PydanticBaseModel):
+    rating: Optional[int] = None  # 1–5, or null to clear
+    review: Optional[str] = None  # free-text, or null to clear
+
+
+@router.put("/tome-sync/rating/{book_id}")
+def put_rating(
+    book_id: int,
+    body: PutRatingRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+    if body.rating is not None and not (1 <= body.rating <= 5):
+        raise HTTPException(status_code=400, detail="rating must be 1-5, or null to clear")
+
+    row = (
+        db.query(UserBookStatus)
+        .filter(UserBookStatus.user_id == user.id, UserBookStatus.book_id == book_id)
+        .first()
+    )
+    if not row:
+        row = UserBookStatus(user_id=user.id, book_id=book_id, status="unread")
+        db.add(row)
+
+    # The plugin always sends both fields (nil → JSON null), so set both. A null
+    # clears, matching the web endpoint's semantics.
+    row.rating = body.rating
+    row.rated_at = datetime.utcnow() if body.rating is not None else None
+    row.review = body.review or None
+    db.commit()
+    return {"ok": True, "rating": row.rating, "review": row.review}
 
 
 # ── Session endpoint ──────────────────────────────────────────────────────────
@@ -1113,6 +1179,13 @@ local function urlEncode(s)
     end)
 end
 
+-- rapidjson decodes JSON null to a sentinel (rapidjson.null), not Lua nil.
+-- Normalize it so "no rating" compares equal to an absent baseline value.
+local function jval(v)
+    if v == nil or v == rapidjson.null then return nil end
+    return v
+end
+
 local function deviceName()
     local ok, name = pcall(function() return Device:getFriendlyDeviceName() end)
     return (ok and name) or "KOReader"
@@ -1398,6 +1471,9 @@ function TomeSync:init()
     -- Per-book annotation sync baseline: book_id -> {{ anchor -> mtime }} as of last
     -- sync. Lets a diff tell "I deleted this" from "this is new from another device".
     self.annot_baseline = G_reader_settings:readSetting("tomesync_annot_baseline") or {{}}
+    -- Per-book rating sync baseline: book_id (string) -> {{ rating=, review= }} as of
+    -- the last reconcile. Lets a diff tell which side (device or Tome) changed.
+    self.rating_baseline = G_reader_settings:readSetting("tomesync_rating_baseline") or {{}}
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
     logger.info("TomeSync: init complete, menu registered,",
@@ -1495,6 +1571,9 @@ function TomeSync:onReaderReady()
     -- moment a device picks up annotations made elsewhere. Deferred a tick so the
     -- annotation module is fully settled before we merge into it.
     UIManager:scheduleIn(1, function() pcall(function() self:_syncAnnotations() end) end)
+    -- Reconcile the book's rating with Tome (pull web rating onto the device, or
+    -- push a device rating that never reached the server). Deferred likewise.
+    UIManager:scheduleIn(1, function() pcall(function() self:_pullRatingAtOpen() end) end)
 end
 
 function TomeSync:onPageUpdate(pageno)
@@ -1539,6 +1618,8 @@ function TomeSync:onSuspend()
 
     -- Sync highlights/notes alongside position (bidirectional merge with the server).
     pcall(function() self:_syncAnnotations() end)
+    -- Push a rating set this session (lid close ends the session like a book close).
+    pcall(function() self:_pushRatingOnLeave() end)
 
     if duration > 10 then
         local session = {{
@@ -1617,6 +1698,8 @@ function TomeSync:onCloseDocument()
 
     -- Flush + merge highlights/notes before the book closes.
     pcall(function() self:_syncAnnotations() end)
+    -- Push a rating the reader set this session up to Tome before we drop book_id.
+    pcall(function() self:_pushRatingOnLeave() end)
 
     if duration > 10 then
         local uuid = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev)
@@ -1744,6 +1827,95 @@ function TomeSync:_pushPosition()
     pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
         progress = self:_getCurrentProgress(), percentage = pct, device = deviceName(),
     }})
+end
+
+-- ── Rating sync (bidirectional, per open book) ───────────────────────────────
+-- KOReader's native Book status screen stores a 1–5 star rating + a free-text
+-- review in the per-book sidecar under `summary` (`rating` / `note`). Tome holds
+-- the same per-user rating/review on UserBookStatus. We mirror both directions
+-- using a saved baseline to tell which side changed since the last reconcile:
+--   only device changed  -> push device → Tome
+--   only Tome changed     -> write Tome → device sidecar
+--   both changed (tie)    -> Tome wins (single source of truth)
+-- `summary.status` (reading/complete/abandoned) is left untouched — reading
+-- status already syncs via TomeSyncPosition.
+
+-- Read the live sidecar summary's rating/review for the open book.
+function TomeSync:_localRating()
+    local ds = self.ui and self.ui.doc_settings
+    if not ds then return nil end
+    local summary = ds:readSetting("summary") or {{}}
+    return {{ rating = summary.rating, review = summary.note }}, summary
+end
+
+-- Reconcile on open: pull Tome's rating into the device sidecar, or push a
+-- device rating that hasn't reached Tome yet (e.g. set last session, offline).
+function TomeSync:_pullRatingAtOpen()
+    if not self.enabled or not self.book_id then return end
+    local loc = self:_localRating()
+    if not loc then return end
+
+    local ok, status, code = pcall(apiRequest, "GET", "/tome-sync/rating/" .. self.book_id)
+    if not ok or not status or code ~= 200 then return end
+    local remote_rating = jval(status.rating)
+    local remote_review = jval(status.review)
+
+    local key  = tostring(self.book_id)
+    local base = self.rating_baseline[key] or {{}}
+    local local_changed  = (loc.rating ~= base.rating) or (loc.review ~= base.review)
+    local remote_changed = (remote_rating ~= base.rating) or (remote_review ~= base.review)
+
+    if remote_changed then
+        -- Tome changed (and, on a both-changed tie, Tome wins): write the sidecar.
+        local _, summary = self:_localRating()
+        summary.rating   = remote_rating
+        summary.note     = remote_review
+        summary.modified = os.date("%Y-%m-%d")
+        self.ui.doc_settings:saveSetting("summary", summary)
+        if type(remote_rating) == "number" then
+            pcall(function()
+                require("ui/widget/booklist")
+                    .setBookInfoCacheProperty(self.ui.document.file, "rating", remote_rating)
+            end)
+        end
+        base.rating, base.review = remote_rating, remote_review
+        self.rating_baseline[key] = base
+        G_reader_settings:saveSetting("tomesync_rating_baseline", self.rating_baseline)
+        logger.info("TomeSync: applied Tome rating to device for book", self.book_id)
+    elseif local_changed then
+        self:_pushRating(loc.rating, loc.review)
+    end
+end
+
+-- PUT the device rating/review up to Tome and advance the baseline on success.
+-- nil must go on the wire as JSON null (an absent Lua key would be dropped from
+-- the body, leaving Tome's old value in place instead of clearing it). rating is
+-- always nil or 1–5, never 0, so `or` is safe.
+function TomeSync:_pushRating(rating, review)
+    if not self.book_id then return end
+    local sok, resp, code = pcall(apiRequest, "PUT",
+        "/tome-sync/rating/" .. self.book_id,
+        {{ rating = rating or rapidjson.null, review = review or rapidjson.null }})
+    if sok and resp and type(code) == "number" and code < 300 then
+        local key = tostring(self.book_id)
+        local base = self.rating_baseline[key] or {{}}
+        base.rating, base.review = rating, review
+        self.rating_baseline[key] = base
+        G_reader_settings:saveSetting("tomesync_rating_baseline", self.rating_baseline)
+        logger.info("TomeSync: pushed device rating to Tome for book", self.book_id)
+    end
+end
+
+-- Reconcile on close/suspend: if the device rating changed during the session,
+-- push it up. Tome-wins at open already settled any conflict, so a divergence
+-- here is a fresh on-device edit and is safe to send.
+function TomeSync:_pushRatingOnLeave()
+    if not self.enabled or not self.book_id then return end
+    local loc = self:_localRating()
+    if not loc then return end
+    local base = self.rating_baseline[tostring(self.book_id)] or {{}}
+    if loc.rating == base.rating and loc.review == base.review then return end
+    self:_pushRating(loc.rating, loc.review)
 end
 
 -- ── Annotation sync (bidirectional: KOReader <-> Tome <-> KOReader) ──────────

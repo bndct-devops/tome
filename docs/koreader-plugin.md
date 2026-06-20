@@ -21,6 +21,7 @@ The plugin is pre-configured with your server URL and API key. No manual configu
 ## Features
 
 - **Reading sync** -- position, progress, and reading sessions sync between KOReader and Tome's web reader
+- **Rating sync** -- KOReader's native star rating and review sync both ways with Tome
 - **Series browser** -- browse your library's series and download entire series to your device in one tap
 - **Offline-safe** -- everything works seamlessly when your server is unreachable; sessions queue and flush later
 - **Context-aware menu** -- different options when a book is open vs. from the home screen
@@ -46,11 +47,11 @@ If no match is found, the plugin silently skips sync for that book.
 
 | Event | What happens |
 |---|---|
-| **Open a book** | Pulls latest position from server. If the server is ahead, jumps to that position. |
+| **Open a book** | Pulls latest position from server. If the server is ahead, jumps to that position. Also reconciles the book's rating with Tome. |
 | **Every 50 page turns** | Pushes current position to server (heartbeat). |
-| **Close the lid (suspend)** | Pushes position and records a reading session. |
+| **Close the lid (suspend)** | Pushes position, records a reading session, and pushes a rating you set this session. |
 | **Open the lid (resume)** | Starts a new session, pushes position, and flushes any pending offline sessions. |
-| **Close a book** | Pushes final position and records a reading session. |
+| **Close a book** | Pushes final position, records a reading session, and pushes a rating you set this session. |
 | **"Sync now" in menu** | Manual push of current position and flushes pending offline sessions. |
 
 ### Web Reader → KOReader Sync
@@ -260,6 +261,28 @@ Device→device sync needs both devices to have the **Tome-served copy** of the 
 
 Rendering highlights *inside the web reader* is a separate, later step — for now
 the web side shows them as a list on the detail page.
+
+---
+
+## Ratings & reviews sync
+
+KOReader has its own **Book status** screen with a 1–5 star rating and a review
+(long-press a book → *Book status*, or the end-of-book screen). The plugin keeps
+that in step with the rating and review on Tome's book detail page, **both ways**:
+
+- Rate a book **on the web** and the next time you open it in KOReader (for a book
+  that came from Tome), the stars and review are written into the book.
+- Rate a book **in KOReader** and it flows up to Tome when you close or suspend.
+
+Ratings are **per user** and private to you. Reading status (reading / finished)
+is left untouched — that already syncs separately via reading progress.
+
+**How conflicts resolve.** The plugin remembers the last value it synced for each
+book, so normally only the side that actually changed is sent. If a book's rating
+changed on **both** the web and the device since the last sync, **Tome wins** — it
+is the single source of truth. As with highlights, this needs the **Tome-served
+copy** of the book so the plugin can match it to the right library entry; a
+sideloaded different copy won't sync its rating.
 
 ---
 

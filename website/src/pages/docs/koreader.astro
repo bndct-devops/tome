@@ -79,6 +79,18 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     </figcaption>
   </figure>
 
+  <h3>Ratings &amp; reviews sync</h3>
+  <p>
+    KOReader has a native <strong>Book status</strong> screen with a 1–5 star rating and a
+    review. The plugin keeps it in step with the rating and review on Tome's book detail page,
+    <strong>both ways</strong>: rate a book on the web and it appears in KOReader the next time
+    you open it (for a book that came from Tome); rate it in KOReader and it flows up to Tome when
+    you close or suspend. Ratings are per user and private to you, and your reading status
+    (reading / finished) is left untouched — that syncs separately. The plugin tracks the last
+    value it synced, so normally only the side that changed is sent; if a rating changed on both
+    the web and the device since the last sync, <strong>Tome wins</strong>.
+  </p>
+
   <h3>Offline-first</h3>
   <p>
     When your server is unreachable, sync silently skips with zero delay — no freezing, no error
@@ -152,11 +164,11 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <h3>When it syncs</h3>
   <p>TomeSync hooks into KOReader's lifecycle events:</p>
   <ul>
-    <li><strong>Open a book</strong> — pulls the latest position from the server. If the server is ahead, jumps there.</li>
+    <li><strong>Open a book</strong> — pulls the latest position from the server. If the server is ahead, jumps there. Also reconciles the book's rating.</li>
     <li><strong>Every 50 page turns</strong> — heartbeat push of current position.</li>
-    <li><strong>Close the lid (suspend)</strong> — pushes position and highlights, and records a reading session.</li>
+    <li><strong>Close the lid (suspend)</strong> — pushes position, highlights, and a rating set this session, and records a reading session.</li>
     <li><strong>Open the lid (resume)</strong> — starts a new session, pushes position, flushes any queued offline sessions.</li>
-    <li><strong>Close a book</strong> — pushes final position and highlights, and records a session.</li>
+    <li><strong>Close a book</strong> — pushes final position, highlights, and a rating set this session, and records a session.</li>
   </ul>
   <p>Sessions shorter than 10 seconds are filtered out.</p>
 
