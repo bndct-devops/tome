@@ -7,6 +7,17 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Rate and review your books — and whole series.** Each book's detail page now
+  has a 1–5 star rating and an optional review (auto-saved; collapses to a tidy
+  quote with an edit affordance rather than an always-open box). Ratings are
+  per-user and private to you. Your stars show on book cards across the library,
+  and you can **sort by "My Rating"** and **filter** the grid (`Rated`, `3+`,
+  `4+`, `5`). You can also rate a **series** as a whole from its page: a series
+  rating is inherited by every volume you haven't rated individually (your own
+  volume rating always wins), and a series' shown rating is your explicit rating
+  if set, otherwise the average of your volume ratings — surfaced on series cards
+  too. Stars use a theme-aware "rating gold" that fits each theme's palette. The
+  "No Series" group can't be rated.
 - **"Auto-fit height" toggle for list tiles on the Reading Stats dashboard.** Tiles
   like *Currently Reading* and *Reading Goals* can now size themselves to their
   content instead of a fixed height. Open a tile's config (gear icon in edit mode)

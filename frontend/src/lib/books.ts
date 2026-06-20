@@ -131,5 +131,7 @@ export interface BookStatus {
   status: ReadingStatus
   progress_pct: number | null
   cfi?: string | null
+  rating?: number | null
+  review?: string | null
   updated_at: string | null
 }

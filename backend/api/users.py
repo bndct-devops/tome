@@ -25,6 +25,8 @@ class StatusOut(BaseModel):
     status: str
     progress_pct: Optional[float]
     cfi: Optional[str] = None
+    rating: Optional[int] = None
+    review: Optional[str] = None
     updated_at: Optional[str]
 
     model_config = {"from_attributes": True}
@@ -36,6 +38,23 @@ class StatusIn(BaseModel):
     cfi: Optional[str] = None
 
 
+class RatingIn(BaseModel):
+    rating: Optional[int] = None  # 1–5, or null to clear the rating
+    review: Optional[str] = None  # free-text; null leaves it unchanged
+
+
+def _status_out(row: UserBookStatus) -> StatusOut:
+    return StatusOut(
+        book_id=row.book_id,
+        status=row.status,
+        progress_pct=row.progress_pct,
+        cfi=row.cfi,
+        rating=row.rating,
+        review=row.review,
+        updated_at=str(row.updated_at),
+    )
+
+
 @router.get("/books/{book_id}/status", response_model=StatusOut)
 def get_book_status(
     book_id: int,
@@ -45,13 +64,41 @@ def get_book_status(
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
     if not row:
         return StatusOut(book_id=book_id, status="unread", progress_pct=None, cfi=None, updated_at=None)
-    return StatusOut(
-        book_id=row.book_id,
-        status=row.status,
-        progress_pct=row.progress_pct,
-        cfi=row.cfi,
-        updated_at=str(row.updated_at),
-    )
+    return _status_out(row)
+
+
+@router.put("/books/{book_id}/rating", response_model=StatusOut)
+def set_book_rating(
+    book_id: int,
+    body: RatingIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set or clear the current user's rating/review for a book.
+
+    Rating and review live on the same per-user-per-book row as reading status,
+    so rating a book you've never opened just creates an 'unread' row.
+    """
+    if body.rating is not None and not (1 <= body.rating <= 5):
+        raise HTTPException(400, "rating must be between 1 and 5, or null to clear")
+    from backend.models.book import Book
+    if not db.get(Book, book_id):
+        raise HTTPException(404, "Book not found")
+
+    raw = body.model_dump(exclude_unset=True)
+    row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
+    if not row:
+        row = UserBookStatus(user_id=current_user.id, book_id=book_id, status="unread")
+        db.add(row)
+
+    if "rating" in raw:
+        row.rating = body.rating
+        row.rated_at = datetime.utcnow() if body.rating is not None else None
+    if "review" in raw:
+        row.review = (body.review or None)
+    db.commit()
+    db.refresh(row)
+    return _status_out(row)
 
 
 @router.put("/books/{book_id}/status", response_model=StatusOut)
@@ -128,13 +175,7 @@ def set_book_status(
         progress_pct=body.progress_pct,
     )
 
-    return StatusOut(
-        book_id=row.book_id,
-        status=row.status,
-        progress_pct=row.progress_pct,
-        cfi=row.cfi,
-        updated_at=str(row.updated_at),
-    )
+    return _status_out(row)
 
 
 def _track_web_reading_session(

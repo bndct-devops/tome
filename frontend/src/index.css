@@ -22,6 +22,7 @@
   --color-success: var(--success);
   --color-info: var(--info);
   --color-warning: var(--warning);
+  --color-rating: var(--rating);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -55,6 +56,10 @@
   --success: oklch(0.52 0.10 155);
   --info: oklch(0.50 0.09 245);
   --warning: oklch(0.58 0.12 70);
+  /* Rating gold — muted (chroma ~0.13, same register as the rest of the palette),
+     hue 78 sits warmer than --warning (70) so it reads distinct from "Reading".
+     Light needs a deeper gold to hold contrast on near-white paper. */
+  --rating: oklch(0.64 0.13 78);
   --border: oklch(0.90 0.005 85);
   --input: oklch(0.88 0.005 85);
   --ring: oklch(0.45 0.115 18);
@@ -84,6 +89,9 @@
   --success: oklch(0.72 0.10 155);
   --info: oklch(0.72 0.09 245);
   --warning: oklch(0.78 0.11 75);
+  /* Lighter on dark surfaces so the muted gold still reads (cf. the value
+     tuned live on dark). Inherited by Ember + Black, which only override surfaces. */
+  --rating: oklch(0.72 0.12 80);
   --border: oklch(0.95 0.008 60 / 11%);
   --input: oklch(0.95 0.008 60 / 15%);
   --ring: oklch(0.63 0.10 22);
@@ -142,6 +150,8 @@
   --success: oklch(0.51 0.10 150);
   --info: oklch(0.50 0.085 245);
   --warning: oklch(0.56 0.13 65);
+  /* Warm parchment runs warmer overall; deepen the gold a touch to hold contrast. */
+  --rating: oklch(0.61 0.13 74);
   --border: oklch(0.89 0.012 70);
   --input: oklch(0.87 0.013 70);
   --ring: oklch(0.50 0.155 52);

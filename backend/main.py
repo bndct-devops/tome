@@ -132,6 +132,13 @@ async def lifespan(app: FastAPI):
         if "scope" not in at_cols:
             conn.execute(text("ALTER TABLE api_tokens ADD COLUMN scope VARCHAR(16) NOT NULL DEFAULT 'full'"))
             conn.commit()
+        # Per-user ratings/reviews on user_book_status (nullable — existing rows stay unrated).
+        ubs_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(user_book_status)")).fetchall()}
+        if ubs_cols and "rating" not in ubs_cols:
+            conn.execute(text("ALTER TABLE user_book_status ADD COLUMN rating INTEGER"))
+            conn.execute(text("ALTER TABLE user_book_status ADD COLUMN review TEXT"))
+            conn.execute(text("ALTER TABLE user_book_status ADD COLUMN rated_at DATETIME"))
+            conn.commit()
         # reading_goals from the parked feat/reading-goals WIP (never shipped) lacks
         # book_type_id and carries a stale (user_id, kind) unique constraint that
         # SQLite can't alter away — recreate the table on the current schema.

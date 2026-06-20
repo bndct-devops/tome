@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -30,15 +30,32 @@ interface BookCardProps {
   onAuthorClick?: (author: string) => void
   readingStatus?: ReadingStatus
   progressPct?: number | null
+  rating?: number | null
   index?: number
   // Set as data-flip-id on the root so a parent grid can FLIP-animate reflows
   flipId?: string
 }
 
+/** Compact read-only star rating for cards. Renders nothing when unrated. */
+function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: number }) {
+  if (!rating) return null
+  return (
+    <span className="inline-flex items-center gap-px" aria-label={`Rated ${rating} of 5`}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <Star
+          key={n}
+          style={{ width: size, height: size }}
+          className={n <= rating ? 'fill-rating text-rating' : 'text-muted-foreground/30'}
+        />
+      ))}
+    </span>
+  )
+}
+
 export function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
-  readingStatus, progressPct, flipId,
+  readingStatus, progressPct, rating, flipId,
 }: BookCardProps) {
   const navigate = useNavigate()
   const bookTypes = useBookTypes()
@@ -143,6 +160,11 @@ export function BookCard({
         <div className="hidden md:block w-12 shrink-0 text-right">
           {book.year && <span className="text-xs text-muted-foreground">{book.year}</span>}
         </div>
+        {rating ? (
+          <div className="hidden sm:flex shrink-0 justify-end">
+            <RatingStars rating={rating} size={12} />
+          </div>
+        ) : null}
         {book.files.length > 0 && (
           <span className="shrink-0 text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
             {book.files[0].format}
@@ -302,6 +324,7 @@ export function BookCard({
             {book.author}
           </button>
         )}
+        {rating ? <RatingStars rating={rating} size={view === 'large' ? 12 : 10} /> : null}
       </div>
     </div>
   )

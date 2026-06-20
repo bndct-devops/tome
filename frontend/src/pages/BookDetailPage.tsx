@@ -4,7 +4,7 @@ import {
   Camera, Download, Edit2, Save, X,
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
-  Tag as TagIcon, StickyNote, ChevronDown, Archive
+  Tag as TagIcon, StickyNote, ChevronDown, Archive, Star
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -109,6 +109,11 @@ export function BookDetailPage() {
   const [progressAnimated, setProgressAnimated] = useState(false)
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusPopKey, setStatusPopKey] = useState(0)
+  const [rating, setRating] = useState<number | null>(null)
+  const [hoverRating, setHoverRating] = useState<number | null>(null)
+  const [review, setReview] = useState('')       // saved review text
+  const [reviewDraft, setReviewDraft] = useState('')  // in-progress edit
+  const [editingReview, setEditingReview] = useState(false)
   const [kosyncDevice, setKosyncDevice] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [highlightsOpen, setHighlightsOpen] = useState(true)
@@ -187,7 +192,7 @@ export function BookDetailPage() {
       .catch(() => setError('Book not found'))
       .finally(() => setLoading(false))
     api.get<LibraryType[]>('/libraries').then(setLibraries).catch(() => toast.error('Failed to load libraries'))
-    api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false) }).catch(() => {})
+    api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => {})
     api.get<typeof adjacent>(`/books/${id}/adjacent`).then(setAdjacent).catch(() => {})
     api.get<{ linked: boolean; device?: string }>(`/books/${id}/kosync-progress`)
       .then(r => { if (r.linked && r.device) setKosyncDevice(r.device) })
@@ -262,6 +267,35 @@ export function BookDetailPage() {
       toast.error('Failed to update reading status')
     } finally {
       setStatusSaving(false)
+    }
+  }
+
+  async function saveRating(next: number | null) {
+    if (!id) return
+    const prev = rating
+    setRating(next)                  // optimistic
+    try {
+      await api.put<BookStatus>(`/books/${id}/rating`, { rating: next })
+    } catch {
+      setRating(prev)
+      toast.error('Failed to save rating')
+    }
+  }
+
+  function startEditingReview() {
+    setReviewDraft(review)
+    setEditingReview(true)
+  }
+
+  async function saveReview() {
+    if (!id) return
+    const next = reviewDraft.trim()
+    setReview(next)                  // optimistic — collapse to rendered view
+    setEditingReview(false)
+    try {
+      await api.put<BookStatus>(`/books/${id}/rating`, { review: next || null })
+    } catch {
+      toast.error('Failed to save review')
     }
   }
 
@@ -578,6 +612,75 @@ export function BookDetailPage() {
           </span>
         </div>
       )}
+    </div>
+  )
+
+  // Your rating + optional review
+  const ratingBlock = (
+    <div className="mb-5">
+      <div className="flex items-center gap-2.5">
+        <div
+          className="flex items-center gap-0.5"
+          onMouseLeave={() => setHoverRating(null)}
+        >
+          {[1, 2, 3, 4, 5].map(n => {
+            const active = (hoverRating ?? rating ?? 0) >= n
+            return (
+              <button
+                key={n}
+                type="button"
+                aria-label={`${n} star${n > 1 ? 's' : ''}`}
+                onMouseEnter={() => setHoverRating(n)}
+                onClick={() => saveRating(rating === n ? null : n)}
+                className="p-0.5 transition-transform hover:scale-110"
+              >
+                <Star
+                  className={cn(
+                    'w-5 h-5 transition-colors',
+                    active ? 'fill-rating text-rating' : 'text-muted-foreground/40'
+                  )}
+                />
+              </button>
+            )
+          })}
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {rating ? `You rated this ${rating}/5` : 'Rate this book'}
+        </span>
+        {!review && !editingReview && (
+          <button
+            type="button"
+            onClick={startEditingReview}
+            className="text-xs text-primary hover:underline"
+          >
+            Add a review
+          </button>
+        )}
+      </div>
+      {editingReview ? (
+        <textarea
+          value={reviewDraft}
+          onChange={e => setReviewDraft(e.target.value)}
+          onBlur={saveReview}
+          autoFocus
+          rows={3}
+          placeholder="What did you think? (optional, saved automatically)"
+          className="mt-2 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+        />
+      ) : review ? (
+        <div className="group/review relative mt-2.5 border-l-2 border-primary/30 pl-3">
+          <p className="whitespace-pre-wrap pr-7 text-sm leading-relaxed text-foreground/90">{review}</p>
+          <button
+            type="button"
+            onClick={startEditingReview}
+            aria-label="Edit review"
+            title="Edit review"
+            className="absolute right-0 top-0 p-1 text-muted-foreground/50 transition-colors hover:text-foreground"
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 
@@ -998,6 +1101,7 @@ export function BookDetailPage() {
           <div className="flex-1 min-w-0">
             {titleBlock}
             {statusProgressBlock}
+            {ratingBlock}
             {statsFull}
             {descriptionBlock}
             {metadataGridFull}
