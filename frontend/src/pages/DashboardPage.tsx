@@ -5,13 +5,14 @@ import {
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers,
+  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star,
 } from 'lucide-react'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
 import { SeriesStackCard } from '@/components/SeriesStackCard'
+import { SeriesRating } from '@/components/SeriesRating'
 import { CoverImage } from '@/components/CoverImage'
 import { Sidebar } from '@/components/Sidebar'
 import { SaveFilterButton } from '@/components/SaveFilterButton'
@@ -31,7 +32,7 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 import { cn } from '@/lib/utils'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 
-type SortField = 'title' | 'author' | 'year' | 'added_at'
+type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating'
 type SortOrder = 'asc' | 'desc'
 
 interface SeriesItem {
@@ -42,6 +43,7 @@ interface SeriesItem {
   author: string | null
   read_count: number
   reading_count: number
+  rating: number | null
 }
 
 interface SeriesDetailBook {
@@ -93,7 +95,7 @@ interface ForgottenBook {
 }
 
 const SORT_LABELS: Record<SortField, string> = {
-  title: 'Title', author: 'Author', year: 'Year', added_at: 'Date Added',
+  title: 'Title', author: 'Author', year: 'Year', added_at: 'Date Added', rating: 'My Rating',
 }
 
 const VIEW_KEY = 'tome_view'
@@ -454,6 +456,7 @@ export function DashboardPage() {
   const filterFormat = searchParams.get('format') ?? ''
   const filterLibrary = searchParams.get('library_id') ? Number(searchParams.get('library_id')) : null
   const filterReadingStatus = searchParams.get('reading_status') ?? ''
+  const filterMinRating = searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
   const filterMissing = searchParams.get('missing') ?? ''
   const filterOwnership = searchParams.get('ownership') ?? ''
   const filterAddedBy = searchParams.get('added_by') ? Number(searchParams.get('added_by')) : null
@@ -487,7 +490,7 @@ export function DashboardPage() {
     })
   }
 
-  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterReadingStatus || filterMissing || filterOwnership || filterAddedBy)
+  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy)
 
   // Grouping is bypassed while drilling into a specific series — the user
   // explicitly asked for that series' volumes, so a single stack is useless.
@@ -679,7 +682,7 @@ export function DashboardPage() {
     // changes — without it the post-load baseline is empty and nothing animates
   }, [gridSize, view, books])
   const [totalCount, setTotalCount] = useState<number | null>(null)
-  const [readingStatuses, setReadingStatuses] = useState<Record<number, { status: ReadingStatus; progress_pct: number | null }>>({})
+  const [readingStatuses, setReadingStatuses] = useState<Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>>({})
   const [facets, setFacets] = useState<Facets>({ series: [], authors: [], tags: [], formats: [] })
   const [loading, setLoading] = useState(true)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
@@ -739,6 +742,7 @@ export function DashboardPage() {
     if (filterFormat) params.set('format', filterFormat)
     if (filterLibrary) params.set('library_id', String(filterLibrary))
     if (filterReadingStatus) params.set('reading_status', filterReadingStatus)
+    if (filterMinRating) params.set('min_rating', String(filterMinRating))
     if (filterMissing) params.set('missing', filterMissing)
     if (contentType) params.set('content_type', contentType)
     if (filterOwnership) params.set('ownership', filterOwnership)
@@ -757,10 +761,10 @@ export function DashboardPage() {
         hasMoreRef.current = newBooks.length === PAGE_SIZE
         setHasMore(newBooks.length === PAGE_SIZE)
         if (newBooks.length > 0) {
-          api.post<Record<string, { status: string; progress_pct: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
+          api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
             .then(map => {
-              const s: Record<number, { status: ReadingStatus; progress_pct: number | null }> = {}
-              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct } })
+              const s: Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }> = {}
+              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
               setReadingStatuses(prev => ({ ...prev, ...s }))
             })
             .catch(() => {})
@@ -777,7 +781,7 @@ export function DashboardPage() {
         if (reset) { setLoading(false); setRefreshing(false) }
         else setLoadingMore(false)
       })
-  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLibrary, filterReadingStatus, filterMissing, contentType, filterOwnership, filterAddedBy, groupActive])
+  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, groupActive])
 
   useEffect(() => { loadBooks() }, [loadBooks])
 
@@ -881,10 +885,10 @@ export function DashboardPage() {
       .then(books => {
         setContinueReading(books)
         if (books.length > 0) {
-          api.post<Record<string, { status: string; progress_pct: number | null }>>('/books/statuses', { book_ids: books.map(b => b.id) })
+          api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: books.map(b => b.id) })
             .then(map => {
-              const s: Record<number, { status: ReadingStatus; progress_pct: number | null }> = {}
-              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct } })
+              const s: Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }> = {}
+              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
               setReadingStatuses(prev => ({ ...prev, ...s }))
             })
             .catch(() => {})
@@ -912,6 +916,7 @@ export function DashboardPage() {
     ...(filterTag ? [{ label: `Tag: ${filterTag}`, key: 'tag' }] : []),
     ...(filterFormat ? [{ label: `Format: ${filterFormat.toUpperCase()}`, key: 'format' }] : []),
     ...(filterReadingStatus ? [{ label: `Status: ${filterReadingStatus.charAt(0).toUpperCase() + filterReadingStatus.slice(1)}`, key: 'reading_status' }] : []),
+    ...(filterMinRating ? [{ label: filterMinRating === 5 ? 'Rated: 5 stars' : `Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
     ...(filterMissing ? [{ label: `Missing: ${filterMissing.charAt(0).toUpperCase() + filterMissing.slice(1)}`, key: 'missing' }] : []),
     ...(filterOwnership === 'mine' ? [{ label: 'My Books', key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: 'Shared Library', key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: `Uploader: ${userList.find(u => u.id === filterAddedBy)?.username ?? filterAddedBy}`, key: 'added_by' }] : []),
@@ -1164,6 +1169,7 @@ export function DashboardPage() {
                           onAuthorClick={author => setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('tab', 'books'); p.set('author', author); p.delete('saved_filter'); return p })}
                           readingStatus={status?.status}
                           progressPct={status?.progress_pct}
+                          rating={status?.rating}
                         />
                       )
                     })}
@@ -1227,6 +1233,7 @@ export function DashboardPage() {
                           index={0}
                           selected={false}
                           readingStatus="read"
+                          rating={readingStatuses[book.id]?.rating}
                         />
                       </div>
                     ))}
@@ -1248,6 +1255,7 @@ export function DashboardPage() {
                           selected={false}
                           readingStatus={readingStatuses[book.id]?.status}
                           progressPct={readingStatuses[book.id]?.progress_pct}
+                          rating={readingStatuses[book.id]?.rating}
                         />
                       </div>
                     ))}
@@ -1338,6 +1346,10 @@ export function DashboardPage() {
                             {seriesDetail.author && (
                               <p className="text-sm text-muted-foreground mt-0.5">{seriesDetail.author}</p>
                             )}
+                            <SeriesRating
+                              seriesName={seriesDetail.name}
+                              isUnserialized={seriesDetail.name === '__unserialized__'}
+                            />
                             {(() => {
                               const total = seriesDetail.books.length
                               const readCount = seriesDetail.books.filter(b => b.reading_status === 'read').length
@@ -1535,6 +1547,13 @@ export function DashboardPage() {
                               {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
                             </div>
                             {!isUnserialized && s.author && <span className="text-[10px] text-muted-foreground truncate">{s.author}</span>}
+                            {!isUnserialized && s.rating != null && (
+                              <span className="inline-flex items-center gap-px mt-0.5" aria-label={`Rated ${s.rating} of 5`}>
+                                {[1, 2, 3, 4, 5].map(n => (
+                                  <Star key={n} className={cn('w-3 h-3', n <= s.rating! ? 'fill-rating text-rating' : 'text-muted-foreground/30')} />
+                                ))}
+                              </span>
+                            )}
                             {!isUnserialized && s.description && (
                               <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
                             )}
@@ -1751,6 +1770,30 @@ export function DashboardPage() {
                     )}
                   >
                     {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium w-14">Rating</span>
+                {([
+                  { value: '', label: 'All' },
+                  { value: '1', label: 'Rated' },
+                  { value: '3', label: '3+' },
+                  { value: '4', label: '4+' },
+                  { value: '5', label: '5' },
+                ]).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setFilter('min_rating', value)}
+                    className={cn(
+                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all inline-flex items-center gap-1',
+                      (filterMinRating ? String(filterMinRating) : '') === value
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {label !== 'All' && label !== 'Rated' && <Star className="w-3 h-3 fill-current" />}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -1979,6 +2022,7 @@ export function DashboardPage() {
                   onAuthorClick={author => setFilter('author', author)}
                   readingStatus={readingStatuses[book.id]?.status}
                   progressPct={readingStatuses[book.id]?.progress_pct}
+                  rating={readingStatuses[book.id]?.rating}
                 />
                 )
               ))}

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -252,6 +254,106 @@ def upsert_series_meta(
     db.commit()
     db.refresh(meta)
     return meta
+
+
+# ── Series rating (per-user) ──────────────────────────────────────────────────
+# A volume's effective rating is its own rating else this series rating
+# (inherited). Series *display* rating is the explicit value if set, else the
+# average of the user's volume ratings. The "__unserialized__" sentinel + empty
+# string are the No-Series bucket and can never be rated.
+
+from pydantic import BaseModel
+from sqlalchemy import func as _func
+from backend.models.user_series_rating import UserSeriesRating
+from backend.models.user_book_status import UserBookStatus
+from backend.models.book import Book
+
+NO_SERIES_SENTINEL = "__unserialized__"
+
+
+class SeriesRatingOut(BaseModel):
+    series_name: str
+    rating: Optional[int] = None        # explicit series rating
+    review: Optional[str] = None
+    volume_average: Optional[float] = None  # avg of the user's volume ratings
+    rated_volumes: int = 0
+    display: Optional[int] = None        # explicit if set, else rounded average
+
+
+class SeriesRatingIn(BaseModel):
+    rating: Optional[int] = None         # 1–5, or null to clear
+    review: Optional[str] = None
+
+
+def _series_rating_out(db: Session, user: User, name: str) -> "SeriesRatingOut":
+    row = (
+        db.query(UserSeriesRating)
+        .filter(UserSeriesRating.user_id == user.id, UserSeriesRating.series_name == name)
+        .first()
+    )
+    avg, cnt = (
+        db.query(_func.avg(UserBookStatus.rating), _func.count(UserBookStatus.rating))
+        .join(Book, Book.id == UserBookStatus.book_id)
+        .filter(
+            UserBookStatus.user_id == user.id,
+            UserBookStatus.rating.isnot(None),
+            Book.series == name,
+        )
+        .one()
+    )
+    explicit = row.rating if row else None
+    display = explicit if explicit is not None else (round(avg) if avg is not None else None)
+    return SeriesRatingOut(
+        series_name=name,
+        rating=explicit,
+        review=row.review if row else None,
+        volume_average=round(float(avg), 2) if avg is not None else None,
+        rated_volumes=int(cnt or 0),
+        display=display,
+    )
+
+
+def _reject_no_series(name: str) -> None:
+    if not name or name == NO_SERIES_SENTINEL:
+        raise HTTPException(400, "The 'No Series' group cannot be rated")
+
+
+@router.get("/series/{name}/rating", response_model=SeriesRatingOut)
+def get_series_rating(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _series_rating_out(db, current_user, name)
+
+
+@router.put("/series/{name}/rating", response_model=SeriesRatingOut)
+def set_series_rating(
+    name: str,
+    body: SeriesRatingIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _reject_no_series(name)
+    if body.rating is not None and not (1 <= body.rating <= 5):
+        raise HTTPException(400, "rating must be between 1 and 5, or null to clear")
+    from datetime import datetime
+    raw = body.model_dump(exclude_unset=True)
+    row = (
+        db.query(UserSeriesRating)
+        .filter(UserSeriesRating.user_id == current_user.id, UserSeriesRating.series_name == name)
+        .first()
+    )
+    if not row:
+        row = UserSeriesRating(user_id=current_user.id, series_name=name)
+        db.add(row)
+    if "rating" in raw:
+        row.rating = body.rating
+        row.rated_at = datetime.utcnow() if body.rating is not None else None
+    if "review" in raw:
+        row.review = body.review or None
+    db.commit()
+    return _series_rating_out(db, current_user, name)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

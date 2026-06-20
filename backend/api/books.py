@@ -112,8 +112,9 @@ def list_books(
     q: Optional[str] = Query(None, description="Full-text search across title/author/series/tags"),
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
-    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated)$"),
+    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
+    min_rating: Optional[int] = Query(None, ge=1, le=5, description="Filter to books the current user rated at least this many stars"),
     series: Optional[str] = Query(None, description="Exact series name filter"),
     no_series: Optional[bool] = Query(None, description="Filter to books with no series"),
     author: Optional[str] = Query(None, description="Exact author filter"),
@@ -181,6 +182,29 @@ def list_books(
             (UserBookStatus.status != "unread")
         )
         query = query.filter(~subq)
+
+    # ── Rating filter / sort prep ────────────────────────────────────────────
+    # Effective rating = the user's own volume rating, else the inherited series
+    # rating (COALESCE). Two aliased outer-joins (current user only) carry both
+    # without colliding with the reading_status join above. _join_effective_rating
+    # is re-applied after the group_by rebuild (which drops joins) so grouped sort
+    # works too. min_rating is applied before group_by so it flows into id_sq.
+    from sqlalchemy.orm import aliased as _aliased
+    from sqlalchemy import func as _rfunc
+    from backend.models.user_series_rating import UserSeriesRating
+
+    def _join_effective_rating(q):
+        ubs = _aliased(UserBookStatus)
+        usr = _aliased(UserSeriesRating)
+        q = q.outerjoin(ubs, (ubs.book_id == Book.id) & (ubs.user_id == current_user.id))
+        q = q.outerjoin(usr, (usr.series_name == Book.series) & (usr.user_id == current_user.id))
+        return q, _rfunc.coalesce(ubs.rating, usr.rating)
+
+    rating_active = min_rating is not None or sort == "rating"
+    if rating_active:
+        query, eff_rating = _join_effective_rating(query)
+        if min_rating is not None:
+            query = query.filter(eff_rating >= min_rating)
 
     if missing:
         from sqlalchemy import or_ as sa_or_
@@ -255,12 +279,22 @@ def list_books(
         )
         if sort == "status_updated":
             # status_updated needs the UserBookStatus join the grouped query
-            # doesn't carry — fall back to a sane default.
+            # rebuild doesn't carry — fall back to a sane default.
             sort = "added_at"
+        elif sort == "rating":
+            # The rebuild dropped the rating joins; re-attach them to the new
+            # query so stacks sort by their representative volume's effective
+            # rating (which inherits the series rating). min_rating already
+            # flowed into id_sq above.
+            query, eff_rating = _join_effective_rating(query)
 
     # When filtering by a specific series, always sort by series_index
     if series:
         query = query.order_by(Book.series_index.asc().nullslast(), Book.title.asc())
+    elif sort == "rating":
+        # Highest-rated first by default; unrated books sort last either way.
+        rating_sort = eff_rating.desc() if order == "desc" else eff_rating.asc()
+        query = query.order_by(rating_sort.nullslast(), Book.title.asc())
     elif sort == "status_updated" and reading_status:
         # Sort by when the reading status was last updated (needs UserBookStatus join)
         if reading_status not in ("reading", "read"):
@@ -403,6 +437,18 @@ def get_series(
     for book_id, st in status_rows:
         all_statuses[book_id] = st
 
+    # Per-user volume ratings (book_id → rating) + explicit series ratings, for
+    # the series display rating: explicit if set, else the volume average.
+    from backend.models.user_series_rating import UserSeriesRating
+    all_ratings: dict[int, int] = {
+        bid: r for bid, r in db.query(UserBookStatus.book_id, UserBookStatus.rating)
+        .filter(UserBookStatus.user_id == current_user.id, UserBookStatus.rating.isnot(None)).all()
+    }
+    series_ratings: dict[str, int] = {
+        sr.series_name: sr.rating for sr in db.query(UserSeriesRating)
+        .filter(UserSeriesRating.user_id == current_user.id, UserSeriesRating.rating.isnot(None)).all()
+    }
+
     result = []
     for series_name, book_count in series_rows:
         # Pick the book with the lowest series_index as the cover; fall back to lowest id if all null
@@ -421,6 +467,13 @@ def get_series(
         read_count = sum(1 for b in series_books if all_statuses.get(b.id) == "read")
         reading_count = sum(1 for b in series_books if all_statuses.get(b.id) == "reading")
 
+        vol_ratings = [all_ratings[b.id] for b in series_books if b.id in all_ratings]
+        explicit = series_ratings.get(series_name)
+        display_rating = (
+            explicit if explicit is not None
+            else (round(sum(vol_ratings) / len(vol_ratings)) if vol_ratings else None)
+        )
+
         result.append({
             "name": series_name,
             "book_count": book_count,
@@ -429,6 +482,7 @@ def get_series(
             "author": first_book.author if first_book else None,
             "read_count": read_count,
             "reading_count": reading_count,
+            "rating": display_rating,
         })
 
     # Append unserialized bucket if any books have no series
@@ -452,6 +506,7 @@ def get_series(
             "author": None,
             "read_count": 0,
             "reading_count": 0,
+            "rating": None,
         })
 
     return result
@@ -2341,8 +2396,41 @@ def get_book_statuses(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    from backend.models.user_series_rating import UserSeriesRating
+
+    # Own per-volume status rows
     rows = db.query(UserBookStatus).filter(
         UserBookStatus.user_id == current_user.id,
         UserBookStatus.book_id.in_(body.book_ids),
     ).all()
-    return {str(row.book_id): {"status": row.status, "progress_pct": row.progress_pct} for row in rows}
+    own = {row.book_id: row for row in rows}
+
+    # Series of the requested books → the user's series ratings (for inheritance)
+    book_series = dict(
+        db.query(Book.id, Book.series).filter(Book.id.in_(body.book_ids)).all()
+    )
+    wanted_series = {s for s in book_series.values() if s}
+    series_ratings: dict[str, int] = {}
+    if wanted_series:
+        for sr in db.query(UserSeriesRating).filter(
+            UserSeriesRating.user_id == current_user.id,
+            UserSeriesRating.series_name.in_(wanted_series),
+            UserSeriesRating.rating.isnot(None),
+        ).all():
+            series_ratings[sr.series_name] = sr.rating
+
+    result: dict[str, dict] = {}
+    for bid in body.book_ids:
+        row = own.get(bid)
+        inherited = series_ratings.get(book_series.get(bid) or "")
+        effective = (row.rating if row and row.rating is not None else inherited)
+        # Only emit an entry when there's something to say (a status row or an
+        # inherited rating) — keeps the payload sparse like before.
+        if row is None and effective is None:
+            continue
+        result[str(bid)] = {
+            "status": row.status if row else "unread",
+            "progress_pct": row.progress_pct if row else None,
+            "rating": effective,
+        }
+    return result
