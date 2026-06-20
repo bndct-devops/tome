@@ -18,6 +18,17 @@ All notable changes to Tome are documented here. Format loosely follows
   if set, otherwise the average of your volume ratings — surfaced on series cards
   too. Stars use a theme-aware "rating gold" that fits each theme's palette. The
   "No Series" group can't be rated.
+- **"Auto-fit height" toggle for list tiles on the Reading Stats dashboard.** Tiles
+  like *Currently Reading* and *Reading Goals* can now size themselves to their
+  content instead of a fixed height. Open a tile's config (gear icon in edit mode)
+  and tick **Auto-fit height**: the tile then grows and shrinks to fit exactly how
+  many items it holds — no half-empty box when you have one book in progress, and
+  no need to resize by hand when you have a dozen. It's off by default, so existing
+  tiles keep their manual size (and scroll); when on, the height handle is hidden
+  (only width stays adjustable) and the tile carries a small "Auto" tag in edit
+  mode, where it also previews its fitted height as you arrange the board. The book
+  rows in *Currently Reading* are more compact, and the tile now shows a
+  "No books in progress" placeholder instead of rendering blank when empty.
 - **PDF books are now readable in the web reader.** Opening a PDF previously
   landed on "No readable file found" — the book detail page offered a **Read**
   button, but the reader only knew how to render EPUB and comics. PDFs now open
@@ -41,6 +52,15 @@ All notable changes to Tome are documented here. Format loosely follows
   normal toast). Undo restores the full prior state — status, progress, and
   reading position — so an accidental tap on **Unread**, which clears your
   progress, is no longer a one-way trip.
+
+### Fixed
+- **Stats headline tiles no longer clip their numbers.** The small metric tiles
+  on the Reading Stats dashboard (Reading Time, Sessions, Streak, …) now keep
+  their value on a single line and on a shared baseline, so a long figure like a
+  multi-hundred-hour reading time no longer wraps and gets cut off at the top,
+  and the smaller "Longest: …" / "x of y started" captions no longer clip at the
+  bottom. The "Completion Rate" and "Books Finished" tile titles were shortened
+  to "Completion" and "Finished" so their headers fit without truncating.
 
 ## [1.5.1] — 2026-06-16
 

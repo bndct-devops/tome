@@ -12,7 +12,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-import { FileText, Trash2, Loader2, ChevronDown } from 'lucide-react'
+import { FileText, Trash2, Loader2, ChevronDown, BookOpen } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { useChartColors } from '@/lib/useChartAccent'
@@ -24,35 +24,51 @@ export type ChartKind = 'bar' | 'line' | 'area'
 // Bare headline-stat body (value + sub) for use as a standalone dashboard tile —
 // the tile itself provides the card frame + the label (in its header).
 export function HeadlineStatBody({ value, sub }: { value: string; sub?: string }) {
+  // Uniform value size + an always-present sub line keep the figure on the same
+  // baseline across every headline tile (mixed sizes / optional subs misalign a
+  // row). truncate over wrap so a long value (e.g. "568h 28m") never spills onto
+  // a second line and clips inside the fixed-height tile.
   return (
     <div className="flex h-full flex-col justify-center">
-      <p className="text-xl font-bold leading-none text-foreground tabular-nums sm:text-2xl">{value}</p>
-      {sub && <p className="mt-1.5 text-xs text-muted-foreground">{sub}</p>}
+      <p className="truncate text-xl font-bold leading-none text-foreground tabular-nums">{value}</p>
+      <p className="mt-1 truncate text-[11px] leading-tight text-muted-foreground">{sub ?? ' '}</p>
     </div>
   )
 }
 
 export function CurrentlyReading({ books }: { books: StatsResponse['books_in_progress'] }) {
   const { accent } = useChartColors()
+  if (books.length === 0) {
+    return (
+      <div className="flex h-full min-h-[3.5rem] flex-col items-center justify-center gap-1 py-3 text-center">
+        <BookOpen className="h-5 w-5 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">No books in progress</p>
+        <p className="text-xs text-muted-foreground/60">Start reading one and it'll show up here</p>
+      </div>
+    )
+  }
+  // Compact rows (~40px each): a single book then fits one grid row, so the
+  // autoH tile snugs down to it instead of rounding up to a half-empty 2-row
+  // box — and still grows by a row for every extra ~2 books (2-up on sm+).
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       {books.map((b) => (
-        <a key={b.book_id} href={`/books/${b.book_id}`} className="group flex items-center gap-3 hover:bg-accent/30 rounded-lg p-2 transition-colors">
-          <div className="w-8 h-11 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+        <a key={b.book_id} href={`/books/${b.book_id}`} className="group flex items-center gap-2.5 rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/30">
+          <div className="h-9 w-6 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
             {b.has_cover ? (
-              <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" />
+              <img src={`/api/books/${b.book_id}/cover`} alt="" className="h-full w-full object-cover" />
             ) : (
-              <FileText className="w-4 h-4 text-muted-foreground" />
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{b.title}</div>
-            {b.author && <div className="text-xs text-muted-foreground truncate">{b.author}</div>}
-            <div className="mt-1.5 flex items-center gap-2">
-              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{b.title}</div>
+            <div className="mt-0.5 flex items-center gap-2">
+              {b.author && <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{b.author}</span>}
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(b.progress, 100)}%`, backgroundColor: accent }} />
               </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{b.progress}%</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">{b.progress}%</span>
             </div>
           </div>
         </a>

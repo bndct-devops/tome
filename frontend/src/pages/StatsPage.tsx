@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type MouseEve
 import ReactGridLayout, {
   useContainerWidth,
   type Layout,
+  type ResizeHandleAxis,
 } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
@@ -63,7 +64,7 @@ import { LibraryGrowthChart } from '@/components/stats/LibraryGrowthChart'
 // metric. days = 0 follows the page range; days = N shows the last N days of the
 // fetched window (sliced client-side, no extra fetches) — so two copies of one
 // widget can show different timeframes.
-type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?: string }
+type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?: string; autoFit?: boolean }
 
 // ── Widget catalog (renders shared Stats components from live data) ─────────────
 
@@ -172,7 +173,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'stat-finished',
-    title: 'Books Finished',
+    title: 'Finished',
     icon: BookCheck,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.books_finished)} />,
@@ -193,7 +194,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'stat-completion',
-    title: 'Completion Rate',
+    title: 'Completion',
     icon: Target,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={`${stats.completion_rate.pct}%`} sub={`${stats.completion_rate.finished} of ${stats.completion_rate.started} started`} />,
@@ -577,12 +578,28 @@ function ConfigPopover({
   onChange: (partial: Partial<TileConfig>) => void
   onClose: () => void
 }) {
+  // Close on outside click / Escape via a document listener rather than a fixed
+  // overlay: the tile's RGL transform traps `position: fixed` inside the tile, so
+  // an overlay can't cover the rest of the page. The opening click is stopped at
+  // the trigger button, so it never reaches this listener and self-closes.
+  const popRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) onClose()
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
   return (
-    <>
-      <div className="fixed inset-0 z-40" onPointerDown={onClose} />
-      <div
-        className="no-drag absolute right-2 top-9 z-50 w-48 rounded-lg border border-border bg-card p-3 text-xs shadow-xl"
-        onPointerDown={(e) => e.stopPropagation()}
+    <div
+      ref={popRef}
+      className="no-drag absolute right-2 top-9 z-50 w-48 rounded-lg border border-border bg-card p-3 text-xs shadow-xl"
+      onPointerDown={(e) => e.stopPropagation()}
       >
         {def.seriesPicker && (
           <>
@@ -661,8 +678,35 @@ function ConfigPopover({
             <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70">Range follows the page's range picker; days show the newest slice of it.</p>
           </>
         )}
-      </div>
-    </>
+        {def.autoH && (
+          <div className={cn((def.chartTypes || def.metrics || def.seriesPicker) && 'mt-3 border-t border-border pt-3')}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-muted-foreground">Auto-fit height</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!config.autoFit}
+                aria-label="Auto-fit height"
+                onClick={() => onChange({ autoFit: !config.autoFit })}
+                className={cn(
+                  'relative h-4 w-7 shrink-0 rounded-full transition-colors',
+                  config.autoFit ? 'bg-primary' : 'bg-muted',
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform',
+                    config.autoFit && 'translate-x-3',
+                  )}
+                />
+              </button>
+            </div>
+            <p className="mt-1 text-[10px] leading-snug text-muted-foreground/70">
+              Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls).
+            </p>
+          </div>
+        )}
+    </div>
   )
 }
 
@@ -835,10 +879,15 @@ function TileShell({
       : 0
     const chrome = tiltRef.current.offsetHeight - box.offsetHeight
     const desired = chrome + Math.max(extent, box.scrollHeight > box.clientHeight ? box.scrollHeight : 0)
-    // grid: rowHeight 104 + margin 16 => h rows span 120h - 16 px
-    onMeasure(Math.max(1, Math.ceil((desired + 16) / 120)))
+    // grid: a tile of height h spans (rowHeight 104)*h + (margin 16)*(h-1) px, i.e.
+    // 120h - 16. Report a *fractional* h so the tile lands exactly on the content
+    // height instead of rounding up to a whole row (which leaves a dead half-row,
+    // e.g. a 12-book list). +2px guards against clipping when we round down, and
+    // the 0.01-row (~1.2px) quantum keeps sub-pixel measurement noise from churning
+    // re-renders. RGL's calcGridItemWHPx rounds the resulting px, so this is exact.
+    onMeasure(Math.max(1, Math.round(((desired + 2 + 16) / 120) * 100) / 100))
   })
-  const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker
+  const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker || !!def.autoH
   const tiltOn = editMode && !dragging && !cfgOpen
 
   function onMove(e: MouseEvent<HTMLDivElement>) {
@@ -896,6 +945,11 @@ function TileShell({
         {def.fixedWindow && (
           <span title="This tile uses a fixed window and ignores the range picker" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
             {def.fixedWindow}
+          </span>
+        )}
+        {editMode && def.autoH && config.autoFit && (
+          <span title="Height auto-fits the content — only width is resizable" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+            Auto
           </span>
         )}
         {editMode && (
@@ -985,23 +1039,39 @@ function FreeGrid({
   const badgeRef = useRef<HTMLDivElement>(null)
   const seriesOptions = ctx.stats.series_completion.map((x) => x.series)
 
-  // autoH: list-like tiles report the rows their content needs; in view mode the
-  // tile shrinks to that (never below minH, never above the saved size) and RGL's
-  // vertical compaction pulls the rest of the board up. Edit mode shows the saved
-  // template untouched, and only edit-mode layouts are ever persisted — so this
-  // stays a render-time fit, reactive to whatever the data does next.
+  // Auto-fit (opt-in per tile, via the "Auto-fit height" toggle): a list-like tile
+  // (def.autoH) whose config.autoFit is on reports the rows its content needs, and
+  // in view mode the tile fits that exactly — growing past the saved height as well
+  // as shrinking below it (never below minH) — while RGL's vertical compaction
+  // reflows the board around it. The measured height is box-independent (constant
+  // chrome + intrinsic content extent), so growth can't feed back and oscillate.
+  // Tiles with auto-fit off keep their saved height and resize by hand (content
+  // scrolls). The fit applies in edit mode too (WYSIWYG — what you arrange is what
+  // you get), but its transient fractional height is never persisted: onLayoutChange
+  // restores each auto-fit tile's saved integer height before saving.
+  const autoFitIds = useMemo(
+    () => new Set(tiles.filter((t) => defById(t.defId).autoH && t.config.autoFit).map((t) => t.id)),
+    [tiles],
+  )
   const [autoRows, setAutoRows] = useState<Record<string, number>>({})
   const reportRows = useCallback((id: string, rows: number) => {
     setAutoRows((prev) => (prev[id] === rows ? prev : { ...prev, [id]: rows }))
   }, [])
   const displayLayout = useMemo(() => {
-    if (editMode) return layout
     return layout.map((it) => {
+      const auto = autoFitIds.has(it.i)
+      // Auto-fit tiles drop the height resize handles — height is content-driven,
+      // so a height handle would only fight the auto-size. They keep the width
+      // ('e') handle; non-auto tiles get `undefined` (the grid's full handle set).
+      // Always set it explicitly so a stale value baked into a saved layout — from
+      // a tile that used to be auto-fit — is cleared rather than inherited.
+      const base: Layout[number] = { ...it, resizeHandles: auto ? (['e'] as ResizeHandleAxis[]) : undefined }
+      if (!auto) return base
       const rows = autoRows[it.i]
-      if (!rows || rows >= it.h) return it
-      return { ...it, h: Math.max(rows, it.minH ?? 1) }
+      if (!rows) return base
+      return { ...base, h: Math.max(rows, it.minH ?? 1) }
     })
-  }, [layout, autoRows, editMode])
+  }, [layout, autoRows, autoFitIds])
 
   // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
   // edge, which makes a bottom-of-page tile impossible to grow — the pointer just
@@ -1112,15 +1182,30 @@ function FreeGrid({
           gridConfig={{ cols: 12, rowHeight: 104, margin: [16, 16], containerPadding: [0, 0] }}
           dragConfig={{ enabled: editMode, handle: '.tile-drag-handle', cancel: '.no-drag' }}
           resizeConfig={{ enabled: editMode, handles: ['se', 'e', 's'] }}
-          // view mode renders the auto-fitted layout — persisting that would bake
-          // a transient content size into the saved board, so edit-mode only
-          onLayoutChange={(l: Layout) => { if (editMode) onLayoutChange(l) }}
+          // Only persist in edit mode. Strip `resizeHandles` (a render-time value
+          // derived from the auto-fit toggle — persisting it would freeze a tile's
+          // handles), and never bake an auto-fit tile's transient fitted height into
+          // the board — restore its saved integer height (width/position still save).
+          onLayoutChange={(l: Layout) => {
+            if (!editMode) return
+            onLayoutChange(
+              l.map((it) => {
+                const next = { ...it }
+                delete next.resizeHandles
+                if (autoFitIds.has(it.i)) {
+                  const saved = layout.find((s) => s.i === it.i)
+                  if (saved) next.h = saved.h
+                }
+                return next
+              }),
+            )
+          }}
         >
           {tiles.map((t) => {
             const def = defById(t.defId)
             return (
               <div key={t.id}>
-                <TileShell def={def} config={t.config} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={def.autoH ? (rows: number) => reportRows(t.id, rows) : undefined}>
+                <TileShell def={def} config={t.config} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={def.autoH && t.config.autoFit ? (rows: number) => reportRows(t.id, rows) : undefined}>
                   {def.render(ctx, t.config)}
                 </TileShell>
               </div>
