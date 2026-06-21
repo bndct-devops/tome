@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # build than 13 — otherwise a device that updated to 1.2.1's build-13 impl and
 # later points at a main/1.3.0 server (also 13) would not re-download main's
 # richer impl. Hence 14.
-TOMESYNC_PLUGIN_BUILD = 20
-TOMESYNC_PLUGIN_SEMVER = "1.5.0"
+TOMESYNC_PLUGIN_BUILD = 21
+TOMESYNC_PLUGIN_SEMVER = "1.5.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1474,6 +1474,12 @@ function TomeSync:init()
     -- Per-book rating sync baseline: book_id (string) -> {{ rating=, review= }} as of
     -- the last reconcile. Lets a diff tell which side (device or Tome) changed.
     self.rating_baseline = G_reader_settings:readSetting("tomesync_rating_baseline") or {{}}
+    -- Ratings set offline (or lost to a server error) that never reached Tome.
+    -- Keyed by book_id (string) so re-rating the same book before a flush keeps
+    -- only the latest value. Flushed on resume / Sync now / close like sessions:
+    -- the per-book open/close push alone misses a book you rate and never reopen
+    -- (e.g. a finished book), so the rating would otherwise sit unsent forever.
+    self.pending_ratings = G_reader_settings:readSetting("tomesync_pending_ratings") or {{}}
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
     logger.info("TomeSync: init complete, menu registered,",
@@ -1600,6 +1606,7 @@ function TomeSync:onPageUpdate(pageno)
         }})
         -- Flush any offline sessions while we know WiFi is up
         self:_flushPendingSessions()
+        self:_flushPendingRatings()
     end
 end
 
@@ -1659,8 +1666,9 @@ function TomeSync:onResume()
     -- Push position on wake — catches up after offline periods
     self:_pushPosition()
 
-    -- Flush any pending sessions from offline periods
+    -- Flush any pending sessions / ratings from offline periods
     self:_flushPendingSessions()
+    self:_flushPendingRatings()
 end
 
 function TomeSync:_flushPendingSessions()
@@ -1881,29 +1889,75 @@ function TomeSync:_pullRatingAtOpen()
         base.rating, base.review = remote_rating, remote_review
         self.rating_baseline[key] = base
         G_reader_settings:saveSetting("tomesync_rating_baseline", self.rating_baseline)
+        -- Tome's value supersedes any device rating still queued for this book.
+        if self.pending_ratings[key] ~= nil then
+            self.pending_ratings[key] = nil
+            G_reader_settings:saveSetting("tomesync_pending_ratings", self.pending_ratings)
+        end
         logger.info("TomeSync: applied Tome rating to device for book", self.book_id)
     elseif local_changed then
         self:_pushRating(loc.rating, loc.review)
     end
 end
 
--- PUT the device rating/review up to Tome and advance the baseline on success.
+-- PUT a rating/review for an arbitrary book up to Tome and advance its baseline
+-- on success. Returns true on success, false otherwise (offline / server error).
 -- nil must go on the wire as JSON null (an absent Lua key would be dropped from
 -- the body, leaving Tome's old value in place instead of clearing it). rating is
 -- always nil or 1–5, never 0, so `or` is safe.
+function TomeSync:_putRating(book_id, rating, review)
+    local sok, resp, code = pcall(apiRequest, "PUT",
+        "/tome-sync/rating/" .. book_id,
+        {{ rating = rating or rapidjson.null, review = review or rapidjson.null }})
+    if not (sok and resp and type(code) == "number" and code < 300) then
+        return false
+    end
+    local key = tostring(book_id)
+    local base = self.rating_baseline[key] or {{}}
+    base.rating, base.review = rating, review
+    self.rating_baseline[key] = base
+    G_reader_settings:saveSetting("tomesync_rating_baseline", self.rating_baseline)
+    return true
+end
+
+-- Push the open book's rating up to Tome. On failure, persist it to the pending
+-- queue so a later flush retries it even if this book is never reopened (the
+-- close-time trigger only ever fires for the book you're currently in).
 function TomeSync:_pushRating(rating, review)
     if not self.book_id then return end
-    local sok, resp, code = pcall(apiRequest, "PUT",
-        "/tome-sync/rating/" .. self.book_id,
-        {{ rating = rating or rapidjson.null, review = review or rapidjson.null }})
-    if sok and resp and type(code) == "number" and code < 300 then
-        local key = tostring(self.book_id)
-        local base = self.rating_baseline[key] or {{}}
-        base.rating, base.review = rating, review
-        self.rating_baseline[key] = base
-        G_reader_settings:saveSetting("tomesync_rating_baseline", self.rating_baseline)
+    local key = tostring(self.book_id)
+    if self:_putRating(self.book_id, rating, review) then
+        if self.pending_ratings[key] ~= nil then
+            self.pending_ratings[key] = nil
+            G_reader_settings:saveSetting("tomesync_pending_ratings", self.pending_ratings)
+        end
         logger.info("TomeSync: pushed device rating to Tome for book", self.book_id)
+    else
+        self.pending_ratings[key] = {{ rating = rating, review = review }}
+        G_reader_settings:saveSetting("tomesync_pending_ratings", self.pending_ratings)
+        logger.info("TomeSync: rating queued for retry for book", self.book_id)
     end
+end
+
+-- Flush ratings that failed to send earlier (set offline, or while the server
+-- was unreachable). Mirrors _flushPendingSessions; survives reboots via
+-- G_reader_settings. A blind last-write-wins push, same as the close-time path.
+function TomeSync:_flushPendingRatings()
+    if not next(self.pending_ratings) then return end
+    if not NetworkMgr:isConnected() then return end
+
+    local remaining = {{}}
+    local flushed = false
+    for key, entry in pairs(self.pending_ratings) do
+        if self:_putRating(key, entry.rating, entry.review) then
+            flushed = true
+        else
+            remaining[key] = entry
+        end
+    end
+    self.pending_ratings = remaining
+    G_reader_settings:saveSetting("tomesync_pending_ratings", remaining)
+    if flushed then logger.info("TomeSync: pending ratings flushed") end
 end
 
 -- Reconcile on close/suspend: if the device rating changed during the session,
@@ -2785,8 +2839,10 @@ function TomeSync:_menuItems()
                     if self.book_id then
                         self:_pushPosition()
                         self:_syncAnnotations()
+                        self:_pushRatingOnLeave()
                     end
                     self:_flushPendingSessions()
+                    self:_flushPendingRatings()
                     local pending = #self.pending_sessions
                     local msg
                     if self.book_id then

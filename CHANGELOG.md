@@ -6,6 +6,17 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Ratings set offline now sync.** A rating or review you set on KOReader while
+  offline (or any time the server can't be reached) is now remembered and pushed
+  to Tome the next time the device is online — on resume, on **Sync now**, or
+  when you next close a book. Previously the rating was only sent when you opened
+  or closed *that* book, so rating a book and never opening it again — the normal
+  case for one you've just finished — could leave the rating stranded on the
+  device. It now rides a small pending queue (like reading sessions do) that
+  survives reboots. Requires TomeSync plugin build 21. (KOReader plugin semver
+  1.5.1.)
+
 ## [1.6.0] — 2026-06-21 — "Marginalia"
 
 ### Added

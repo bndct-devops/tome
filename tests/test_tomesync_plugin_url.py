@@ -144,7 +144,9 @@ def test_zip_download_bakes_https_with_forwarded_proto(app_client):
 def test_build_bumped_for_rebake():
     # Must exceed every build already live (v1.2.0 shipped 10; main reached 12),
     # so all existing installs re-download and re-bake the corrected URL.
-    # 1.5.0 / build 20 adds bidirectional book-rating sync (KOReader's native
+    # 1.5.0 / build 20 added bidirectional book-rating sync (KOReader's native
     # star rating + review <-> Tome) on top of 19's download path templates.
-    assert TOMESYNC_PLUGIN_BUILD >= 20
-    assert TOMESYNC_PLUGIN_SEMVER == "1.5.0"
+    # 1.5.1 / build 21 queues ratings set offline so a finished book you never
+    # reopen still syncs its rating (the per-book open/close push alone missed it).
+    assert TOMESYNC_PLUGIN_BUILD >= 21
+    assert TOMESYNC_PLUGIN_SEMVER == "1.5.1"

@@ -43,7 +43,7 @@ def test_uses_correct_endpoints():
     # tk_ key satisfies), NOT the web /books/{id}/rating + /status ones, which
     # authenticate via get_current_user and reject the tk_ key (401).
     assert '"GET", "/tome-sync/rating/" .. self.book_id' in lua
-    assert '"PUT",\n        "/tome-sync/rating/" .. self.book_id' in lua
+    assert '"PUT",\n        "/tome-sync/rating/" .. book_id' in lua
     assert "/status" not in lua.split("function TomeSync:_pullRatingAtOpen")[1].split("\nend\n")[0]
 
 
@@ -74,9 +74,24 @@ def test_status_field_is_left_untouched():
 def test_nil_rating_clears_on_the_wire():
     # An absent Lua key is dropped from the JSON body, which would leave Tome's
     # old value in place. nil must be sent as rapidjson.null so clears propagate.
-    body = _body(_impl(), "_pushRating")
+    # The wire-level PUT lives in the shared _putRating helper.
+    body = _body(_impl(), "_putRating")
     assert "rating = rating or rapidjson.null" in body
     assert "review = review or rapidjson.null" in body
+
+
+def test_failed_rating_push_is_queued_and_flushed():
+    # A rating set offline (or while the server is down) must be persisted, not
+    # lost — the per-book close trigger never fires again for a book you rate and
+    # never reopen (e.g. a finished book). It rides a pending queue, like sessions.
+    lua = _impl()
+    assert 'G_reader_settings:readSetting("tomesync_pending_ratings")' in lua
+    # On a failed push, _pushRating stows the value for retry.
+    push = _body(lua, "_pushRating")
+    assert "self.pending_ratings[key] = { rating = rating, review = review }" in push
+    # A dedicated flush exists and is wired into the offline-recovery triggers.
+    assert "function TomeSync:_flushPendingRatings" in lua
+    assert "self:_flushPendingRatings()" in _body(lua, "onResume")
 
 
 def test_json_null_is_normalized_to_nil_on_read():
