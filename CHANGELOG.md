@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-06-21 — "Marginalia"
+
 ### Added
 - **Filter your library by language.** The dashboard filter bar now has a
   **Language** dropdown alongside Series / Author / Tag / Format. It appears
