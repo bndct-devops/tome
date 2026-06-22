@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import func, Integer, case
+from sqlalchemy import func, case
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,10 @@ from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.library import BookType
-from backend.services.streaks import compute_user_streaks
+from backend.services.streaks import (
+    compute_user_streaks, streaks_from_dates, effective_today, date_modifier,
+)
+from backend.services import reconciled_reading as rr
 
 router = APIRouter(tags=["stats"])
 
@@ -32,11 +35,22 @@ def _date_range(days: int) -> Optional[datetime]:
 def _fill_daily(rows: list, start_date, end_date) -> list[dict]:
     """Fill gaps so every day in [start_date, end_date] has an entry."""
     row_map: dict[str, dict] = {r.date: {"seconds": r.seconds or 0, "sessions": r.sessions or 0, "pages": r.pages or 0} for r in rows}
+    return _fill_daily_map(row_map, start_date, end_date)
+
+
+def _fill_daily_map(day_map: dict, start_date, end_date) -> list[dict]:
+    """Fill gaps from a {day_str: dict_or_(secs,sessions,pages)} map."""
     result = []
     d = start_date
     while d <= end_date:
         key = d.isoformat()
-        entry = row_map.get(key, {"seconds": 0, "sessions": 0, "pages": 0})
+        v = day_map.get(key)
+        if v is None:
+            entry = {"seconds": 0, "sessions": 0, "pages": 0}
+        elif isinstance(v, dict):
+            entry = {"seconds": v.get("seconds", 0), "sessions": v.get("sessions", 0), "pages": v.get("pages", 0)}
+        else:  # tuple (seconds, sessions, pages)
+            entry = {"seconds": v[0], "sessions": v[1], "pages": v[2]}
         result.append({"date": key, **entry})
         d += timedelta(days=1)
     return result
@@ -93,22 +107,21 @@ def get_stats(
     offset_hours = -(tz_offset // 60)
     tz_modifier = f"{offset_hours:+d} hours"
 
-    # Base query filtered to this user
+    # Base query filtered to this user (still used by session-level tiles: pace, timeline,
+    # pace-by-format — page-stats have no natural "sessions" so those stay session-sourced).
     base = db.query(ReadingSession).filter(ReadingSession.user_id == current_user.id)
     if cutoff:
         base = base.filter(ReadingSession.started_at >= cutoff)
     if range_end:
         base = base.filter(ReadingSession.started_at < range_end)
 
-    total_seconds = base.with_entities(
-        func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
-    ).scalar() or 0
+    # Books whose time comes from imported KOReader page-stats (those win; their live
+    # sessions are excluded to avoid double-counting). Empty -> identical to session-only.
+    covered = rr.covered_book_ids(db, current_user.id)
 
-    total_sessions = base.count()
-
-    pages_turned = base.with_entities(
-        func.coalesce(func.sum(ReadingSession.pages_turned), 0)
-    ).scalar() or 0
+    total_seconds, total_sessions, pages_turned = rr.totals(
+        db, current_user.id, tz_modifier, covered, cutoff, range_end
+    )
 
     avg_session = int(total_seconds / total_sessions) if total_sessions > 0 else 0
 
@@ -123,42 +136,26 @@ def get_stats(
         finished_query = finished_query.filter(UserBookStatus.updated_at < range_end)
     books_finished_count = finished_query.count()
 
-    # Streaks (all time, local-day with 4h rollover so late-night reading still counts)
-    current_streak, longest_streak = compute_user_streaks(db, current_user.id, tz_offset)
+    # Streaks (all time, local-day with 4h rollover). Reconciled: page-stat days count too.
+    # Streaks use the rollover modifier, distinct from the plain tz_modifier above.
+    if covered:
+        streak_days = rr.active_days(db, current_user.id, date_modifier(tz_offset), covered)
+        current_streak, longest_streak = streaks_from_dates(streak_days, effective_today(tz_offset))
+    else:
+        current_streak, longest_streak = compute_user_streaks(db, current_user.id, tz_offset)
 
-    # Daily aggregation (for selected range)
-    daily_rows = (
-        base.with_entities(
-            func.date(ReadingSession.started_at, tz_modifier).label("date"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
-        )
-        .group_by(func.date(ReadingSession.started_at, tz_modifier))
-        .order_by(func.date(ReadingSession.started_at, tz_modifier))
-        .all()
+    # Daily aggregation (for selected range) — reconciled (page-stats win per book).
+    daily = _fill_daily_map(
+        rr.daily_map(db, current_user.id, tz_modifier, covered, cutoff, range_end),
+        fill_start, fill_end,
     )
-    daily = _fill_daily(daily_rows, fill_start, fill_end)
 
-    # Heatmap daily — always last 365 days
+    # Heatmap daily — always last 365 days — reconciled.
     heatmap_cutoff = now - timedelta(days=365)
-    heatmap_rows = (
-        db.query(ReadingSession)
-        .filter(
-            ReadingSession.user_id == current_user.id,
-            ReadingSession.started_at >= heatmap_cutoff,
-        )
-        .with_entities(
-            func.date(ReadingSession.started_at, tz_modifier).label("date"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
-        )
-        .group_by(func.date(ReadingSession.started_at, tz_modifier))
-        .order_by(func.date(ReadingSession.started_at, tz_modifier))
-        .all()
+    heatmap_daily = _fill_daily_map(
+        rr.daily_map(db, current_user.id, tz_modifier, covered, heatmap_cutoff, None),
+        heatmap_cutoff.date(), now.date(),
     )
-    heatmap_daily = _fill_daily(heatmap_rows, heatmap_cutoff.date(), now.date())
 
     # Books finished list (for chart)
     finished_books = (
@@ -177,47 +174,38 @@ def get_stats(
         for row in finished_books
     ]
 
+    # Reconciled per-book reading time for the window (page-stats win per book), reused by
+    # top-books, category, per-book table, and author-affinity below.
+    win_book = rr.book_seconds(db, current_user.id, tz_modifier, covered, cutoff, range_end)
+    book_meta: dict[int, tuple] = {}
+    if win_book:
+        for bid, title, author, cover, label in (
+            db.query(Book.id, Book.title, Book.author, Book.cover_path,
+                     func.coalesce(BookType.label, "Uncategorized"))
+            .outerjoin(BookType, BookType.id == Book.book_type_id)
+            .filter(Book.id.in_(list(win_book.keys())))
+        ):
+            book_meta[bid] = (title, author, cover, label)
+
+    def _bsorted():
+        return sorted(win_book.items(), key=lambda kv: kv[1][0], reverse=True)
+
     # Top books by reading time
-    top_books_rows = (
-        base.filter(ReadingSession.book_id.isnot(None))
-        .join(Book, Book.id == ReadingSession.book_id)
-        .with_entities(
-            ReadingSession.book_id,
-            Book.title,
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-        )
-        .group_by(ReadingSession.book_id, Book.title)
-        .order_by(func.sum(ReadingSession.duration_seconds).desc())
-        .limit(10)
-        .all()
-    )
     top_books = [
-        {"book_id": r.book_id, "title": r.title, "seconds": r.seconds, "sessions": r.sessions}
-        for r in top_books_rows
+        {"book_id": bid, "title": book_meta.get(bid, (None,))[0], "seconds": v[0], "sessions": v[1]}
+        for bid, v in _bsorted()[:10]
     ]
 
-    # By category
-    category_rows = (
-        base.filter(ReadingSession.book_id.isnot(None))
-        .join(Book, Book.id == ReadingSession.book_id)
-        .outerjoin(BookType, BookType.id == Book.book_type_id)
-        .with_entities(
-            func.coalesce(BookType.label, "Uncategorized").label("category"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-            func.count(func.distinct(ReadingSession.book_id)).label("book_count"),
-        )
-        .group_by(func.coalesce(BookType.label, "Uncategorized"))
-        .order_by(func.sum(ReadingSession.duration_seconds).desc())
-        .all()
-    )
+    # By category — roll the reconciled per-book time up to book-type.
+    _cat: dict[str, list[int]] = {}
+    for bid, v in win_book.items():
+        label = book_meta.get(bid, (None, None, None, "Uncategorized"))[3] or "Uncategorized"
+        e = _cat.setdefault(label, [0, 0, 0])
+        e[0] += v[0]; e[1] += v[1]; e[2] += 1
     by_category = [
-        {"category": r.category, "seconds": r.seconds, "sessions": r.sessions, "book_count": r.book_count}
-        for r in category_rows
+        {"category": c, "seconds": e[0], "sessions": e[1], "book_count": e[2]}
+        for c, e in sorted(_cat.items(), key=lambda kv: kv[1][0], reverse=True)
     ]
-
-    local_time_expr = func.datetime(ReadingSession.started_at, tz_modifier)
 
     # Reading pace — per session, pages/minute
     pace_rows = (
@@ -318,13 +306,9 @@ def get_stats(
         start_date = cutoff
         duration = (range_end or now) - cutoff
         prev_start = start_date - duration
-        prev_seconds = db.query(
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0)
-        ).filter(
-            ReadingSession.user_id == current_user.id,
-            ReadingSession.started_at >= prev_start,
-            ReadingSession.started_at < start_date,
-        ).scalar() or 0
+        prev_seconds = rr.totals(
+            db, current_user.id, tz_modifier, covered, prev_start, start_date
+        )[0]
         pct_change: Optional[float] = 0.0
         if prev_seconds > 0:
             pct_change = round(((total_seconds - prev_seconds) / prev_seconds) * 100, 1)
@@ -384,57 +368,25 @@ def get_stats(
             "most_active_month": most_active_month,
         }
 
-    # ── Per-book time breakdown (full list, no limit) ────────────────────────
-    per_book_rows = (
-        base.filter(ReadingSession.book_id.isnot(None))
-        .join(Book, Book.id == ReadingSession.book_id)
-        .with_entities(
-            ReadingSession.book_id,
-            Book.title,
-            Book.author,
-            Book.cover_path,
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
-        )
-        .group_by(ReadingSession.book_id, Book.title, Book.author, Book.cover_path)
-        .order_by(func.sum(ReadingSession.duration_seconds).desc())
-        .all()
-    )
+    # ── Per-book time breakdown (full list, no limit) — reconciled ───────────
     per_book_time = [
         {
-            "book_id": r.book_id,
-            "title": r.title,
-            "author": r.author,
-            "has_cover": bool(r.cover_path),
-            "seconds": r.seconds,
-            "sessions": r.sessions,
-            "pages_turned": r.pages_turned,
+            "book_id": bid,
+            "title": book_meta.get(bid, (None, None, None, None))[0],
+            "author": book_meta.get(bid, (None, None, None, None))[1],
+            "has_cover": bool(book_meta.get(bid, (None, None, None, None))[2]),
+            "seconds": v[0],
+            "sessions": v[1],
+            "pages_turned": v[2],
         }
-        for r in per_book_rows
+        for bid, v in _bsorted()
     ]
 
-    # ── Monthly comparison (last 12 months) ───────────────────────────────
+    # ── Monthly comparison (last 12 months) ── reconciled ──────────────────
     month_cutoff = now - timedelta(days=365)
-    month_expr = func.strftime('%Y-%m', func.datetime(ReadingSession.started_at, tz_modifier))
-
-    monthly_session_rows = (
-        db.query(ReadingSession)
-        .filter(
-            ReadingSession.user_id == current_user.id,
-            ReadingSession.started_at >= month_cutoff,
-        )
-        .with_entities(
-            month_expr.label("month"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-        )
-        .group_by(month_expr)
-        .all()
-    )
+    _mm = rr.monthly_map(db, current_user.id, tz_modifier, covered, month_cutoff)
     month_session_map: dict[str, dict] = {
-        r.month: {"seconds": int(r.seconds), "sessions": int(r.sessions)}
-        for r in monthly_session_rows
+        m: {"seconds": v[0], "sessions": v[1]} for m, v in _mm.items()
     }
 
     # Books finished per month
@@ -469,34 +421,25 @@ def get_stats(
             "reading_seconds": sdata["seconds"],
         })
 
-    # ── Genre over time (last 12 months, stacked) ─────────────────────────
-    genre_month_expr = func.strftime('%Y-%m', func.datetime(ReadingSession.started_at, tz_modifier))
-    genre_time_rows = (
-        db.query(ReadingSession)
-        .filter(
-            ReadingSession.user_id == current_user.id,
-            ReadingSession.started_at >= month_cutoff,
-            ReadingSession.book_id.isnot(None),
-        )
-        .join(Book, Book.id == ReadingSession.book_id)
-        .outerjoin(BookType, BookType.id == Book.book_type_id)
-        .with_entities(
-            genre_month_expr.label("month"),
-            func.coalesce(BookType.label, "Uncategorized").label("category"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-        )
-        .group_by(genre_month_expr, func.coalesce(BookType.label, "Uncategorized"))
-        .all()
-    )
-
-    # Pivot: each row = { month, Cat1: secs, Cat2: secs, ... }
+    # ── Genre over time (last 12 months, stacked) ── reconciled ───────────
+    # Reconciled per-(book, month) seconds, rolled up to book-type per month.
+    _bm = rr.book_month_seconds(db, current_user.id, tz_modifier, covered, month_cutoff)
+    _genre_ids = {bid for (bid, _m) in _bm.keys()}
+    _genre_cat: dict[int, str] = {}
+    if _genre_ids:
+        for bid, label in (
+            db.query(Book.id, func.coalesce(BookType.label, "Uncategorized"))
+            .outerjoin(BookType, BookType.id == Book.book_type_id)
+            .filter(Book.id.in_(list(_genre_ids)))
+        ):
+            _genre_cat[bid] = label or "Uncategorized"
     genre_month_map: dict[str, dict[str, int]] = {}
     all_categories: set[str] = set()
-    for r in genre_time_rows:
-        if r.month not in genre_month_map:
-            genre_month_map[r.month] = {}
-        genre_month_map[r.month][r.category] = int(r.seconds)
-        all_categories.add(r.category)
+    for (bid, m), secs in _bm.items():
+        cat = _genre_cat.get(bid, "Uncategorized")
+        genre_month_map.setdefault(m, {})
+        genre_month_map[m][cat] = genre_month_map[m].get(cat, 0) + secs
+        all_categories.add(cat)
 
     genre_over_time = []
     for i in range(11, -1, -1):
@@ -508,18 +451,8 @@ def get_stats(
             entry[cat] = cat_data.get(cat, 0)
         genre_over_time.append(entry)
 
-    # ── Hour × day-of-week heatmap (168 cells) ───────────────────────────────
-    hour_dow_rows = (
-        base.with_entities(
-            func.cast(func.strftime('%w', local_time_expr), Integer).label("dow"),
-            func.cast(func.strftime('%H', local_time_expr), Integer).label("hour"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(ReadingSession.id).label("sessions"),
-        )
-        .group_by("dow", "hour")
-        .all()
-    )
-    hour_dow_map = {(r.dow, r.hour): (r.seconds, r.sessions) for r in hour_dow_rows}
+    # ── Hour × day-of-week heatmap (168 cells) ── reconciled ─────────────────
+    hour_dow_map = rr.hour_dow(db, current_user.id, tz_modifier, covered, cutoff, range_end)
     hour_dow_heatmap = [
         {
             "dow": d,
@@ -573,22 +506,7 @@ def get_stats(
         for r in series_rows
     ]
 
-    # ── Author affinity ───────────────────────────────────────────────────────
-    author_rows = (
-        base.filter(ReadingSession.book_id.isnot(None))
-        .join(Book, Book.id == ReadingSession.book_id)
-        .filter(Book.author.isnot(None), Book.author != "")
-        .with_entities(
-            Book.author.label("author"),
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
-            func.count(func.distinct(ReadingSession.book_id)).label("book_count"),
-            func.count(ReadingSession.id).label("sessions"),
-        )
-        .group_by(Book.author)
-        .order_by(func.sum(ReadingSession.duration_seconds).desc())
-        .limit(10)
-        .all()
-    )
+    # ── Author affinity ── reconciled: roll per-book time up to author ──────────
     finished_by_author = dict(
         db.query(Book.author, func.count(Book.id))
         .join(UserBookStatus, UserBookStatus.book_id == Book.id)
@@ -599,15 +517,22 @@ def get_stats(
         .group_by(Book.author)
         .all()
     )
+    _auth: dict[str, list[int]] = {}
+    for bid, v in win_book.items():
+        author = (book_meta.get(bid, (None, None))[1] or "").strip()
+        if not author:
+            continue
+        e = _auth.setdefault(author, [0, 0, 0])
+        e[0] += v[0]; e[1] += v[1]; e[2] += 1
     author_affinity = [
         {
-            "author": r.author,
-            "seconds": int(r.seconds),
-            "sessions": int(r.sessions),
-            "book_count": int(r.book_count),
-            "books_finished": int(finished_by_author.get(r.author, 0)),
+            "author": a,
+            "seconds": e[0],
+            "sessions": e[1],
+            "book_count": e[2],
+            "books_finished": int(finished_by_author.get(a, 0)),
         }
-        for r in author_rows
+        for a, e in sorted(_auth.items(), key=lambda kv: kv[1][0], reverse=True)[:10]
     ]
 
     # ── Completion rate ───────────────────────────────────────────────────────

@@ -59,3 +59,6 @@ docs/transfer.md
 docs/plans/
 scripts/tome_transfer.py
 graphify-out/
+
+# Local-only personal data: copied KOReader stats + prod DB for stats-expansion work (never commit)
+.statsdb/

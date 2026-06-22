@@ -26,6 +26,7 @@ from backend.models.user import User
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import Annotation, AnnotationTombstone, ApiKey, ReadingSession, TomeSyncPosition
+from backend.models.ko_stats import StatsImport
 from backend.models.send_queue import SendQueueItem
 
 router = APIRouter(tags=["tome-sync"])
@@ -404,6 +405,67 @@ def post_session(
     db.commit()
     db.refresh(session)
     return {"session_id": session.id}
+
+
+# ── KOReader statistics.sqlite3 import ────────────────────────────────────────
+# Backfills the user's full KOReader reading history (page-level dwell data) into
+# Tome. Books are matched to Tome books by filename (exact) or fuzzy title+series+
+# volume. Idempotent: re-uploading the same rows is a no-op. See
+# backend/services/ko_stats_import.py and docs/plans/stats-expansion-plan.md.
+
+class KoStatBookItem(PydanticBaseModel):
+    ko_id: int                       # KOReader's local book.id (joins page_stats below)
+    md5: str = ""                    # KOReader partial md5 (stable per-device identity)
+    title: str = ""
+    authors: Optional[str] = None
+    series: Optional[str] = None
+    filename: Optional[str] = None   # device file path, when the book is still present
+    pages: Optional[int] = None              # KOReader book.pages (total)
+    total_read_pages: Optional[int] = None   # KOReader book.total_read_pages (distinct read)
+
+
+class KoStatPageItem(PydanticBaseModel):
+    ko_id: int
+    page: int
+    start_time: int                  # epoch seconds
+    duration: int = 0
+    total_pages: int = 0
+
+
+class StatsImportRequest(PydanticBaseModel):
+    device: str = ""
+    books: list[KoStatBookItem]
+    page_stats: list[KoStatPageItem]
+
+
+@router.get("/tome-sync/stats/watermark")
+def ko_stats_watermark(
+    device: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Last synced page_stat start_time for this device, so the plugin uploads only newer rows."""
+    wm = (
+        db.query(StatsImport)
+        .filter(StatsImport.user_id == user.id, StatsImport.device == device)
+        .first()
+    )
+    return {"device": device, "last_start_time_synced": wm.last_start_time_synced if wm else 0}
+
+
+@router.post("/tome-sync/stats/import", status_code=201)
+def import_ko_stats(
+    body: StatsImportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    from backend.services.ko_stats_import import import_batch
+    return import_batch(
+        db, user,
+        device=body.device,
+        books=[b.model_dump() for b in body.books],
+        page_stats=[p.model_dump() for p in body.page_stats],
+    )
 
 
 # ── Annotation endpoints ──────────────────────────────────────────────────────

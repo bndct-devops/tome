@@ -94,6 +94,7 @@ def _init_test_db():
     import backend.models.wish  # noqa: F401
     import backend.models.notification  # noqa: F401
     import backend.models.send_queue  # noqa: F401
+    import backend.models.ko_stats  # noqa: F401
 
     Base.metadata.create_all(bind=test_engine)
 
