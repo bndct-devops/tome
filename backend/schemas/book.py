@@ -32,6 +32,7 @@ class BookOut(BaseModel):
     series_index: Optional[float] = None
     year: Optional[int] = None
     language: Optional[str] = None
+    word_count: Optional[int] = None
     status: str
     content_type: str
     cover_path: Optional[str] = None

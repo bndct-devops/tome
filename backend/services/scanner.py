@@ -290,6 +290,7 @@ def _create_book_entry(
         description=meta.get("description"),
         language=meta.get("language"),
         year=meta.get("year"),
+        word_count=meta.get("word_count"),
         cover_path=meta.get("cover_path"),
         content_hash=content_hash,
         status="active",

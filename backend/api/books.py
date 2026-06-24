@@ -2034,6 +2034,7 @@ def upload_book(
         description=meta.get("description"),
         language=meta.get("language"),
         year=meta.get("year"),
+        word_count=meta.get("word_count"),
         cover_path=meta.get("cover_path"),
         content_hash=content_hash,
         status="active",
@@ -2270,6 +2271,11 @@ def ingest_book(
         file_size=dest.stat().st_size,
         content_hash=content_hash,
     ))
+
+    # Word count (EPUB only) — parsed from the ingested file on disk.
+    if suffix == "epub":
+        from backend.services.metadata import count_words_epub
+        book.word_count = count_words_epub(dest)
 
     # Tags
     if meta.tags:

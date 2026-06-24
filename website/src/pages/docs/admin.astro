@@ -11,7 +11,8 @@ import { withBase } from '../../lib/path'
   <h1>Admin tools</h1>
   <p>
     The admin panel (<strong>/admin</strong>) has tools for maintaining a clean library at scale:
-    duplicate detection, library health checks, and an Email tab for Send to Device. All admin-only.
+    duplicate detection, library health checks, word-count backfill, and an Email tab for Send to
+    Device. All admin-only.
   </p>
   <DocsMeta />
 
@@ -85,6 +86,34 @@ import { withBase } from '../../lib/path'
     This physically moves files in your <code>TOME_LIBRARY_DIR</code>. The database updates to
     match. If you mount <code>/books</code> as read-only, reorganise will fail — remount as
     read-write first.
+  </Callout>
+
+  <h2>Word counts</h2>
+  <p>
+    Tome records each EPUB's word count, shown in the <strong>Details</strong> panel on the book
+    page. New uploads are counted automatically as they're added — the <strong>Word Counts</strong>
+    tab is only for backfilling books that were in your library before the feature existed.
+  </p>
+  <p>
+    The tab shows how many EPUBs you have, how many already have a count, and how many are still
+    pending. Start the backfill and it runs in the background: progress, an ETA, and the running
+    word total update live. You can leave the page — it keeps going — and come back to a stop
+    button and a final summary.
+  </p>
+  <ul>
+    <li><strong>EPUB only.</strong> PDFs and comics (CBZ/CBR) don't get a word count.</li>
+    <li><strong>CJK aware.</strong> Chinese, Japanese, and Korean text is counted per character so
+      those titles aren't undercounted.</li>
+    <li><strong>Resumable.</strong> Stop any time, or restart after a server restart — it only
+      processes books that still need a count, so re-running just finishes the rest.</li>
+    <li><strong>Retry.</strong> A handful of EPUBs have malformed packaging that the normal parser
+      rejects; Tome falls back to reading the text straight from the file. Anything still uncounted
+      is reported, and a <strong>Retry failed</strong> button re-runs just those.</li>
+  </ul>
+
+  <Callout variant="info" title="Files are never modified">
+    Counting only reads your EPUBs and writes one number per book in the database. Nothing on disk
+    is touched. Word counts power the words-read and reading-speed stats.
   </Callout>
 
   <h2>Email (Send to Device)</h2>

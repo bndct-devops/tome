@@ -21,6 +21,7 @@ export interface Book {
   series_index: number | null
   year: number | null
   language: string | null
+  word_count: number | null
   status: string
   content_type: string
   cover_path: string | null

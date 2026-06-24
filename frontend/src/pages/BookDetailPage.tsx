@@ -4,7 +4,7 @@ import {
   Camera, Download, Edit2, Save, X,
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
-  Tag as TagIcon, StickyNote, ChevronDown, Archive, Star
+  Tag as TagIcon, StickyNote, ChevronDown, Archive, Star, AlignLeft
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -780,6 +780,9 @@ export function BookDetailPage() {
         <MetaField icon={<FileText className="w-3.5 h-3.5" />} label="Format"
           value={book.files.map(f => f.format.toUpperCase()).join(', ')} editing={false}
           onChange={() => {}} />
+        <MetaField icon={<AlignLeft className="w-3.5 h-3.5" />} label="Words"
+          value={book.word_count != null ? `${book.word_count.toLocaleString()} words` : ''}
+          editing={false} onChange={() => {}} />
         {/* Book Type */}
         <div className="flex items-start gap-2">
           <span className="text-muted-foreground mt-0.5 shrink-0"><TagIcon className="w-3.5 h-3.5" /></span>

@@ -17,6 +17,91 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_FORMATS = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
 
+# Word tokenizer that also works for scripts without spaces: each CJK
+# ideograph / kana / hangul syllable counts as one "word", while runs of
+# Latin/Cyrillic/Greek letters (with internal apostrophes/hyphens) count as one
+# each. Whitespace-splitting alone would massively undercount a zh/ja/ko book.
+_WORD_RE = re.compile(
+    r"[㐀-䶿一-鿿豈-﫿"      # CJK ideographs
+    r"぀-ゟ゠-ヿ"                      # hiragana + katakana
+    r"가-힣]"                                 # hangul syllables
+    r"|[0-9A-Za-zÀ-ɏͰ-ϿЀ-ӿ]"
+    r"+(?:['’\-][0-9A-Za-zÀ-ɏ]+)*"
+)
+
+
+def _html_to_text(html: str) -> str:
+    """Strip <script>/<style> blocks and all tags, leaving plain text."""
+    html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
+    return re.sub(r"(?s)<[^>]+>", " ", html)
+
+
+def count_words_text(text: str) -> int:
+    return len(_WORD_RE.findall(text))
+
+
+def _count_words_in_epub_book(book) -> Optional[int]:
+    """Sum word counts across every XHTML document in an already-open EPUB.
+    Returns None if the book has no readable document items."""
+    import ebooklib
+
+    total = 0
+    found = False
+    for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+        try:
+            raw = item.get_content()
+        except Exception:  # noqa: BLE001 — skip an unreadable spine item
+            continue
+        found = True
+        total += count_words_text(_html_to_text(raw.decode("utf-8", "ignore")))
+    return total if found else None
+
+
+def _count_words_from_zip(path: Path) -> Optional[int]:
+    """Fallback word count straight from the EPUB zip.
+
+    ebooklib's reader is strict about spec-compliant packaging — a manifest
+    entry pointing at a missing file, or an EPUB3 nav with no <ol>, makes it
+    raise before it ever reaches the body text. The actual chapters are still
+    perfectly readable, so when ebooklib bails we read every XHTML/HTML member
+    directly and count those. Returns None only if the archive has no readable
+    markup at all."""
+    total = 0
+    found = False
+    try:
+        with zipfile.ZipFile(path) as zf:
+            for name in zf.namelist():
+                if not name.lower().endswith((".xhtml", ".html", ".htm")):
+                    continue
+                try:
+                    raw = zf.read(name)
+                except Exception:  # noqa: BLE001 — skip an unreadable member
+                    continue
+                found = True
+                total += count_words_text(_html_to_text(raw.decode("utf-8", "ignore")))
+    except Exception as e:  # noqa: BLE001 — not a usable zip
+        logger.warning("word count zip-fallback error for %s: %s", path, e)
+        return None
+    return total if found else None
+
+
+def count_words_epub(path: Path) -> Optional[int]:
+    """Open an EPUB from disk and count its words. Used by the backfill job;
+    ingest reuses the already-open book via _count_words_in_epub_book.
+
+    Falls back to reading the zip directly when ebooklib refuses to parse a
+    technically-malformed (but readable) EPUB — see _count_words_from_zip."""
+    try:
+        from ebooklib import epub
+
+        book = epub.read_epub(str(path), options={"ignore_ncx": True})
+        wc = _count_words_in_epub_book(book)
+        if wc is not None:
+            return wc
+    except Exception as e:  # noqa: BLE001
+        logger.info("ebooklib could not parse %s (%s); trying zip fallback", path, e)
+    return _count_words_from_zip(path)
+
 
 def _opf_meta_by_name(book, name: str) -> Optional[str]:
     """Read an OPF2 <meta name="..." content="..."/> value.
@@ -167,6 +252,11 @@ def extract_epub(path: Path, covers_dir: Path) -> dict:
                         meta["series_index"] = float(vol_match.group(2))
                     except (ValueError, TypeError):
                         pass
+
+        # Word count — reuse the already-open book (no second parse).
+        wc = _count_words_in_epub_book(book)
+        if wc:
+            meta["word_count"] = wc
 
         # Cover extraction
         cover_id = None

@@ -22,6 +22,7 @@ from backend.api import tome_sync
 from backend.api import stats
 from backend.api import quick_connect
 from backend.api import admin_duplicates
+from backend.api import word_count as word_count_api
 from backend.api import home
 from backend.api import bindery
 from backend.api import api_tokens
@@ -59,6 +60,10 @@ async def lifespan(app: FastAPI):
         # Add is_reviewed — default 1 so ALL existing books are considered already reviewed
         if "is_reviewed" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN is_reviewed BOOLEAN NOT NULL DEFAULT 1"))
+            conn.commit()
+        # Add word_count — NULL for existing books until backfilled (Admin → Word Counts)
+        if "word_count" not in cols:
+            conn.execute(text("ALTER TABLE books ADD COLUMN word_count INTEGER"))
             conn.commit()
         user_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
         if "role" not in user_cols:
@@ -294,6 +299,7 @@ async def _run_auto_import() -> None:
                 description=meta.get("description"),
                 language=meta.get("language"),
                 year=meta.get("year"),
+                word_count=meta.get("word_count"),
                 cover_path=cover_path,
                 content_hash=content_hash,
                 content_type=parsed.content_type,
@@ -526,6 +532,7 @@ def create_app() -> FastAPI:
     app.include_router(stats.router, prefix="/api")
     app.include_router(quick_connect.router, prefix="/api")
     app.include_router(admin_duplicates.router, prefix="/api")
+    app.include_router(word_count_api.router, prefix="/api")
     app.include_router(bindery.router, prefix="/api/bindery", tags=["bindery"])
     app.include_router(api_tokens.router, prefix="/api")
     app.include_router(series_api.router, prefix="/api")

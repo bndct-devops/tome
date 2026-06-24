@@ -24,6 +24,10 @@ class Book(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     language: Mapped[Optional[str]] = mapped_column(String(16))
     year: Mapped[Optional[int]] = mapped_column(Integer)
+    # Intrinsic, device-independent word count parsed from the EPUB text at
+    # ingest (or backfilled by the admin word-count job). NULL for PDF/CBZ or
+    # not-yet-parsed books. Feeds words-read / true-WPM stats (Phase 4).
+    word_count: Mapped[Optional[int]] = mapped_column(Integer)
     cover_path: Mapped[Optional[str]] = mapped_column(Text)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     book_type_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("book_types.id"), nullable=True)

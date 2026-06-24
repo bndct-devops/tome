@@ -348,6 +348,11 @@ def bindery_accept(
                 content_hash=content_hash,
             ))
 
+            # Word count (EPUB only) — parsed from the accepted file on disk.
+            if suffix == "epub":
+                from backend.services.metadata import count_words_epub
+                book.word_count = count_words_epub(dest)
+
             # Create tag records
             for tag_str in item.tags:
                 tag_str = tag_str.strip()

@@ -7,6 +7,14 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Word counts for your books.** Tome now parses each EPUB's text to record its
+  word count, shown in the **Details** panel on the book page. New uploads are
+  counted automatically as they're added; CJK titles (Chinese / Japanese / Korean)
+  are counted per character so they aren't undercounted. PDFs and comics don't have
+  a word count. This is the groundwork for upcoming reading-speed and words-read
+  stats. To fill in books added before this release, admins get a **Word Counts**
+  tab under Admin with a one-click background backfill (it only reads your files —
+  nothing on disk is changed — and shows live progress you can stop and resume).
 - **A "Taste" tab on Reading Stats.** A fourth board next to Overview / Habits /
   Library, built from your book ratings: a **rating distribution** (how you spread
   your stars), **taste by genre** (your average rating per book type), your

@@ -23,7 +23,50 @@ import { withBase } from '../../lib/path'
   </Callout>
 
   <h2>Unreleased</h2>
+  <h3>Added</h3>
   <ul>
+    <li>
+      <strong>Word counts for your books.</strong> Tome parses each EPUB's text to record its word
+      count, shown in the <strong>Details</strong> panel on the book page (CJK titles are counted
+      per character). New uploads are counted automatically; admins can backfill older books from a
+      new <strong>Word Counts</strong> tab under Admin — a background run that only reads your files
+      and shows live progress. Groundwork for upcoming reading-speed and words-read stats. See
+      <a href={withBase("/docs/admin#word-counts")}>Admin tools</a>.
+    </li>
+    <li>
+      <strong>A "Taste" tab on Reading Stats.</strong> A fourth board next to Overview / Habits /
+      Library, built from your book ratings: a rating distribution, taste by genre (your average
+      per book type), highest &amp; lowest rated, a rating-vs-time scatter, best-rated series, and a
+      rating trend. Each tile is add/move/resize/removable like every other, and they ignore the
+      date-range picker since ratings are all-time. Existing custom dashboards get the new tab
+      appended without touching your current boards. See <a href={withBase("/docs/stats")}>Stats</a>.
+    </li>
+    <li>
+      <strong>Five new Reading Stats tiles.</strong> <strong>Lifetime Totals</strong> (all-time
+      hours / pages / books / streak), <strong>Personal Records</strong> (longest session, biggest
+      reading day, most pages in a day), <strong>Library Completion</strong> (how much of what you
+      own you've read, overall and per type), a <strong>Reading Clock</strong> (24-hour radial of
+      when you read), and <strong>Reading by Language</strong>. They're not on any board by default —
+      add the ones you want from <strong>Add tile</strong>.
+    </li>
+    <li>
+      <strong>Stats now include reading from before TomeSync.</strong> KOReader keeps its own
+      per-page reading log going back to whenever you started reading — often long before Tome
+      existed. TomeSync can now import that history, backfilling your reading-time charts, streaks,
+      heat-map, top books and pace. The first sync pushes your whole history (chunked, resumable,
+      survives the device sleeping or dropping Wi-Fi); later syncs send only new reading. It imports
+      reading time and pages only — it never changes your read/unread status. Enable it under
+      <strong>TomeSync → Auto-sync reading history on launch</strong>, or run it once from
+      <strong>Sync reading history</strong>. Requires TomeSync plugin build 22.
+    </li>
+    <li>
+      <strong>Ratings set offline now sync.</strong> A rating or review you set on KOReader while
+      offline is now remembered and pushed to Tome the next time the device is online — on resume,
+      on <strong>Sync now</strong>, or when you next close a book. Previously a rating could be
+      stranded on the device if you rated a finished book and never reopened it. It now rides a
+      small pending queue (like reading sessions) that survives reboots. Requires TomeSync plugin
+      build 21.
+    </li>
     <li>
       <strong>Send to KOReader (beta).</strong> Queue a book from the web straight to your
       e-reader — no email, no Amazon. A split <strong>Send to KOReader</strong> button (the caret
@@ -31,6 +74,15 @@ import { withBase } from '../../lib/path'
       <strong>Inbox (N)</strong> badge (plugin build 16). Off by default —
       <code>TOME_SEND_TO_KOREADER=true</code>. See
       <a href={withBase("/docs/koreader#send-to-koreader")}>Send to KOReader</a>.
+    </li>
+  </ul>
+  <h3>Fixed</h3>
+  <ul>
+    <li>
+      <strong>The Day-streak on the Home tab now matches your Stats page.</strong> After importing
+      your KOReader reading history, the Home summary kept showing a shorter streak because it only
+      counted live TomeSync sessions and ignored the imported page-stat days. Both now count
+      reconciled reading, so a single consistent streak shows everywhere.
     </li>
   </ul>
 
