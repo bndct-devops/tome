@@ -6,6 +6,22 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **A richer reading log on every book.** A book's Reading Stats now show more of
+  its story: a **progress line** traced over the activity bars so you can see how
+  far you got on each reading day, a **momentum** indicator comparing the last week
+  to the one before, a **"Where you read"** breakdown splitting your time across the
+  web reader, KOReader and your devices, and a **Finished** date once you mark a
+  book read. You can also **log a session by hand** — handy for paper reading or a
+  device that wasn't synced — and **export** a book's reading log to CSV or JSON.
+  Small "i" hints explain the progress and reading-intensity charts in plain language.
+
+### Fixed
+- **Per-book "all readers" totals now include device reading.** On a book read
+  only through the KOReader plugin (imported page-stats, no live sessions), the
+  admin "All readers" line showed 0m / 0 sessions / 0 readers; it now reflects that
+  reading.
+
 ## [1.7.0] — 2026-06-28 — "Signature"
 
 ### Added

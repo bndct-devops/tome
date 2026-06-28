@@ -1110,6 +1110,108 @@ def get_book_reading_stats(
     return {"own": own, "aggregate": aggregate, "intensity": intensity}
 
 
+class ManualSessionIn(PydanticBaseModel):
+    duration_minutes: float
+    end_progress: Optional[float] = None   # 0–1 fraction reached at the end of the session
+    pages: Optional[int] = None
+    started_at: Optional[str] = None       # ISO; defaults to now (UTC)
+
+
+@router.post("/{book_id}/sessions", status_code=201)
+def add_manual_reading_session(
+    book_id: int,
+    payload: ManualSessionIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Log a reading session by hand (``device="manual"``).
+
+    Mirrors the device-session status logic (sticky completion) so a manual
+    entry advances progress/status the same way a synced one would. Returns the
+    refreshed per-book ``own`` stats so the UI can update without a second call.
+    """
+    from datetime import datetime, timedelta
+    import uuid as _uuid
+    from backend.models.tome_sync import ReadingSession
+    from backend.models.user_book_status import UserBookStatus
+    from backend.services.reading_stats import compute_book_reading_stats
+
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+    if not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    if payload.duration_minutes is None or payload.duration_minutes <= 0:
+        raise HTTPException(status_code=422, detail="duration_minutes must be positive")
+    if payload.end_progress is not None and not (0.0 <= payload.end_progress <= 1.0):
+        raise HTTPException(status_code=422, detail="end_progress must be between 0 and 1")
+
+    duration = round(payload.duration_minutes * 60)
+    if payload.started_at:
+        try:
+            started = datetime.fromisoformat(
+                payload.started_at.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid started_at")
+    else:
+        started = datetime.utcnow()
+
+    status_row = (
+        db.query(UserBookStatus)
+        .filter(UserBookStatus.user_id == current_user.id, UserBookStatus.book_id == book_id)
+        .first()
+    )
+    prior = (
+        db.query(ReadingSession)
+        .filter(ReadingSession.user_id == current_user.id, ReadingSession.book_id == book_id)
+        .order_by(ReadingSession.started_at.desc())
+        .first()
+    )
+    progress_start = (
+        prior.progress_end if prior and prior.progress_end is not None
+        else (status_row.progress_pct if status_row else None)
+    )
+
+    db.add(ReadingSession(
+        user_id=current_user.id,
+        book_id=book_id,
+        started_at=started,
+        ended_at=started + timedelta(seconds=duration),
+        duration_seconds=duration,
+        progress_start=progress_start,
+        progress_end=payload.end_progress,
+        pages_turned=payload.pages,
+        device="manual",
+        session_uuid=str(_uuid.uuid4()),
+    ))
+
+    # Sticky completion: a manual session never un-finishes a "read" book.
+    if payload.end_progress is not None:
+        pct = payload.end_progress
+        if status_row:
+            if status_row.status != "read":
+                if pct > (status_row.progress_pct or 0):
+                    status_row.progress_pct = pct
+                if status_row.status == "unread" and pct > 0:
+                    status_row.status = "reading"
+                if pct >= 0.99:
+                    status_row.status = "read"
+                    status_row.progress_pct = 1.0
+        else:
+            new_status = "read" if pct >= 0.99 else ("reading" if pct > 0 else "unread")
+            db.add(UserBookStatus(
+                user_id=current_user.id,
+                book_id=book_id,
+                status=new_status,
+                progress_pct=1.0 if new_status == "read" else pct,
+            ))
+
+    db.commit()
+    return {"own": compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id)}
+
+
 # ── Single book ───────────────────────────────────────────────────────────────
 
 @router.get("/{book_id}", response_model=BookDetailOut)

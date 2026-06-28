@@ -20,6 +20,8 @@ def _make_session(
     started_at: datetime,
     duration_seconds: int = 600,
     pages_turned: int = 20,
+    device: str | None = None,
+    progress_end: float | None = None,
 ) -> ReadingSession:
     s = ReadingSession(
         user_id=user_id,
@@ -28,6 +30,8 @@ def _make_session(
         ended_at=started_at + timedelta(seconds=duration_seconds),
         duration_seconds=duration_seconds,
         pages_turned=pages_turned,
+        device=device,
+        progress_end=progress_end,
     )
     db.add(s)
     db.flush()
@@ -180,3 +184,122 @@ def test_session_timeline_ordered_by_date(client: TestClient, make_book, admin_u
     data = _get_stats(client, book.id)
     dates = [d["date"] for d in data["own"]["session_timeline"]]
     assert dates == sorted(dates)
+
+
+# ── Reading Log enrichment (by_source / momentum / finished_at / journey) ──────
+
+def test_by_source_split(client: TestClient, make_book, admin_user, db: Session):
+    """by_source breaks reading time down per device, ordered by seconds desc."""
+    user, _ = admin_user
+    book = make_book(title="Source Split Book")
+    now = datetime.utcnow()
+    _make_session(db, user.id, book.id, now - timedelta(days=2), duration_seconds=600, device="web-reader")
+    _make_session(db, user.id, book.id, now - timedelta(days=2), duration_seconds=1800, device="Kindle")
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    by_source = {s["device"]: s for s in own["by_source"]}
+    assert by_source["Kindle"]["seconds"] == 1800
+    assert by_source["web-reader"]["seconds"] == 600
+    # ordered most-read first
+    assert own["by_source"][0]["device"] == "Kindle"
+
+
+def test_momentum_recent_vs_prior(client: TestClient, make_book, admin_user, db: Session):
+    """momentum compares the last 7 days against the 7 before."""
+    user, _ = admin_user
+    book = make_book(title="Momentum Book")
+    now = datetime.utcnow()
+    _make_session(db, user.id, book.id, now - timedelta(days=2), duration_seconds=1200)  # recent week
+    _make_session(db, user.id, book.id, now - timedelta(days=9), duration_seconds=600)   # prior week
+    db.flush()
+
+    m = _get_stats(client, book.id)["own"]["momentum"]
+    assert m is not None
+    assert m["recent_seconds"] == 1200
+    assert m["prior_seconds"] == 600
+    assert m["direction"] == "up"
+    assert m["delta_pct"] == 100
+
+
+def test_finished_at_set_when_read(client: TestClient, make_book, admin_user, db: Session):
+    """finished_at is populated once the book is marked read."""
+    user, _ = admin_user
+    book = make_book(title="Finished Book")
+    now = datetime.utcnow()
+    _make_session(db, user.id, book.id, now - timedelta(days=1), duration_seconds=600)
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", progress_pct=1.0))
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    assert own["status"] == "read"
+    assert own["finished_at"] is not None
+
+
+def test_journey_progress_is_monotonic(client: TestClient, make_book, admin_user, db: Session):
+    """Each timeline day carries a non-decreasing progress_pct for the journey arc."""
+    user, _ = admin_user
+    book = make_book(title="Journey Book")
+    now = datetime.utcnow()
+    _make_session(db, user.id, book.id, now - timedelta(days=5), duration_seconds=600, progress_end=0.2)
+    _make_session(db, user.id, book.id, now - timedelta(days=2), duration_seconds=600, progress_end=0.6)
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    progs = [r["progress_pct"] for r in own["session_timeline"] if r["progress_pct"] is not None]
+    assert progs == sorted(progs)           # never dips
+    assert progs[-1] == pytest.approx(60.0)
+
+
+# ── Manual session logging (POST /books/{id}/sessions) ─────────────────────────
+
+def test_manual_session_logging(client: TestClient, make_book, admin_user, db: Session):
+    """A manual session is recorded as device='manual' and advances progress."""
+    user, _ = admin_user
+    book = make_book(title="Manual Log Book")
+
+    resp = client.post(f"/api/books/{book.id}/sessions", json={"duration_minutes": 30, "end_progress": 0.5})
+    assert resp.status_code == 201, resp.text
+
+    own = resp.json()["own"]
+    assert own["total_seconds"] == 1800
+    assert own["status"] == "reading"
+    assert own["progress"] == pytest.approx(0.5)
+    assert any(s["device"] == "manual" for s in own["by_source"])
+
+
+def test_manual_session_rejects_nonpositive_duration(client: TestClient, make_book):
+    book = make_book(title="Bad Session Book")
+    resp = client.post(f"/api/books/{book.id}/sessions", json={"duration_minutes": 0})
+    assert resp.status_code == 422
+
+
+def test_aggregate_includes_page_stats(client: TestClient, make_book, admin_user, db: Session):
+    """A book read only via imported KOReader page-stats still counts in the admin aggregate."""
+    from backend.models.ko_stats import PageStat
+    user, _ = admin_user
+    book = make_book(title="Device Only Book")
+    base = 1_700_000_000
+    db.add(PageStat(user_id=user.id, book_id=book.id, page=1, total_pages=100,
+                    start_time=base, duration_seconds=60, device="Kindle"))
+    db.add(PageStat(user_id=user.id, book_id=book.id, page=2, total_pages=100,
+                    start_time=base + 90_000, duration_seconds=60, device="Kindle"))  # +1 day
+    db.flush()
+
+    agg = _get_stats(client, book.id)["aggregate"]
+    assert agg is not None
+    assert agg["total_seconds"] == 120
+    assert agg["distinct_readers"] == 1
+    assert agg["total_sessions"] == 2          # two distinct reading days, not zero
+
+
+def test_manual_session_completion_is_sticky(client: TestClient, make_book, admin_user, db: Session):
+    """A manual session never un-finishes an already-read book."""
+    user, _ = admin_user
+    book = make_book(title="Sticky Book")
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", progress_pct=1.0))
+    db.flush()
+
+    resp = client.post(f"/api/books/{book.id}/sessions", json={"duration_minutes": 10, "end_progress": 0.3})
+    assert resp.status_code == 201
+    assert resp.json()["own"]["status"] == "read"

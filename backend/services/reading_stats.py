@@ -155,6 +155,113 @@ def compute_book_reading_stats(
         if ps_total_pages > 0:
             progress = min(pages_turned / ps_total_pages, 1.0)
 
+    # ── Journey: cumulative progress per reading day (the progress line) ──────
+    # Augments each session_timeline day with the furthest-progress reached, so
+    # the frontend can plot a progress arc over the minutes-per-day bars.
+    day_progress: dict[str, float] = {}
+    if ps_seconds > 0:
+        # Covered book: cumulative distinct pages read through each day ÷ total.
+        pg_pairs = (
+            db.query(
+                func.cast(PageStat.start_time / 86400, Integer).label("day"),
+                PageStat.page,
+            )
+            .filter(PageStat.user_id == user_id, PageStat.book_id == book_id)
+            .all()
+        )
+        seen: set[int] = set()
+        for day, page in sorted(pg_pairs, key=lambda r: int(r[0])):
+            seen.add(int(page))
+            dstr = datetime.fromtimestamp(int(day) * 86400, timezone.utc).strftime("%Y-%m-%d")
+            if ps_total_pages > 0:
+                day_progress[dstr] = min(len(seen) / ps_total_pages, 1.0)
+    else:
+        # Web sessions: the furthest progress_end reached on each day.
+        prog_rows = (
+            base.with_entities(
+                func.date(ReadingSession.started_at).label("date"),
+                func.max(ReadingSession.progress_end).label("p"),
+            )
+            .group_by(func.date(ReadingSession.started_at))
+            .all()
+        )
+        for r in prog_rows:
+            if r.p is not None:
+                day_progress[r.date] = min(float(r.p), 1.0)
+
+    # Forward-fill so the arc never dips on a day with reading-time-but-no-progress.
+    running = 0.0
+    for row in session_timeline:
+        if row["date"] in day_progress:
+            running = max(running, day_progress[row["date"]])
+        row["progress_pct"] = round(running * 100, 1) if running > 0 else None
+
+    # ── Where the reading time came from (web reader vs device) ───────────────
+    if ps_seconds > 0:
+        src_rows = (
+            db.query(
+                func.coalesce(PageStat.device, "koreader").label("device"),
+                func.coalesce(func.sum(PageStat.duration_seconds), 0).label("seconds"),
+                func.count(func.distinct(func.cast(PageStat.start_time / 86400, Integer))).label("units"),
+            )
+            .filter(PageStat.user_id == user_id, PageStat.book_id == book_id)
+            .group_by("device")
+            .all()
+        )
+    else:
+        src_rows = (
+            base.with_entities(
+                func.coalesce(ReadingSession.device, "web-reader").label("device"),
+                func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+                func.count(ReadingSession.id).label("units"),
+            )
+            .group_by("device")
+            .all()
+        )
+    by_source = [
+        {"device": r.device, "seconds": int(r.seconds), "sessions": int(r.units)}
+        for r in sorted(src_rows, key=lambda r: -int(r.seconds))
+        if int(r.seconds) > 0
+    ]
+
+    # ── Reading momentum: last 7 days vs the 7 before ─────────────────────────
+    today = datetime.now(timezone.utc).date()
+    recent_seconds = prior_seconds = 0
+    for row in session_timeline:
+        try:
+            d = datetime.strptime(row["date"], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            continue
+        delta_days = (today - d).days
+        if 0 <= delta_days < 7:
+            recent_seconds += row["seconds"]
+        elif 7 <= delta_days < 14:
+            prior_seconds += row["seconds"]
+    momentum: Optional[dict] = None
+    if recent_seconds or prior_seconds:
+        if recent_seconds > prior_seconds:
+            direction = "up"
+        elif recent_seconds < prior_seconds:
+            direction = "down"
+        else:
+            direction = "flat"
+        momentum = {
+            "recent_seconds": recent_seconds,
+            "prior_seconds": prior_seconds,
+            # None = no prior-week baseline to compare against.
+            "delta_pct": (
+                round((recent_seconds - prior_seconds) / prior_seconds * 100)
+                if prior_seconds > 0
+                else None
+            ),
+            "direction": direction,
+        }
+
+    # ── Finished date (when the book was marked read) ─────────────────────────
+    finished_at: Optional[str] = None
+    if status_row and status_row.status == "read" and status_row.updated_at:
+        finished_at = status_row.updated_at.isoformat() + "Z"
+
     # ── Estimated time to finish ─────────────────────────────────────────────
     estimated_finish_seconds: Optional[int] = None
     if (
@@ -173,9 +280,12 @@ def compute_book_reading_stats(
         "pace_pages_per_min": pace_pages_per_min,
         "first_read": first_read,
         "last_read": last_read,
+        "finished_at": finished_at,
         "progress": progress,
         "status": book_status,
         "session_timeline": session_timeline,
+        "by_source": by_source,
+        "momentum": momentum,
         "estimated_finish_seconds": estimated_finish_seconds,
     }
 
@@ -267,24 +377,62 @@ def compute_book_aggregate_stats(
 ) -> dict:
     """Return library-wide reading statistics for one book (all users combined).
 
+    Reconciled per user the same way the per-book/per-user stats are: imported
+    KOReader page-stats win over live sessions for a given reader, so a book read
+    only on the device still counts here (was previously shown as 0).
+
     Returns a dict with keys:
       total_seconds, total_sessions, distinct_readers
     """
-    agg = (
-        db.query(ReadingSession)
-        .filter(ReadingSession.book_id == book_id)
-        .with_entities(
-            func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
-            func.count(ReadingSession.id).label("total_sessions"),
-            func.count(func.distinct(ReadingSession.user_id)).label("distinct_readers"),
+    from backend.models.ko_stats import PageStat
+
+    # Per-user live-session totals (seconds, session count).
+    sess_by_user = {
+        uid: (int(secs or 0), int(cnt or 0))
+        for uid, secs, cnt in (
+            db.query(
+                ReadingSession.user_id,
+                func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
+                func.count(ReadingSession.id),
+            )
+            .filter(ReadingSession.book_id == book_id)
+            .group_by(ReadingSession.user_id)
+            .all()
         )
-        .first()
-    )
+    }
+    # Per-user page-stat totals (seconds, distinct reading days = "sessions").
+    ps_by_user = {
+        uid: (int(secs or 0), int(days or 0))
+        for uid, secs, days in (
+            db.query(
+                PageStat.user_id,
+                func.coalesce(func.sum(PageStat.duration_seconds), 0),
+                func.count(func.distinct(func.cast(PageStat.start_time / 86400, Integer))),
+            )
+            .filter(PageStat.book_id == book_id)
+            .group_by(PageStat.user_id)
+            .all()
+        )
+    }
+
+    total_seconds = 0
+    total_sessions = 0
+    readers = 0
+    for uid in set(sess_by_user) | set(ps_by_user):
+        # Page-stats win for this reader when they have any.
+        if uid in ps_by_user and ps_by_user[uid][0] > 0:
+            secs, units = ps_by_user[uid]
+        else:
+            secs, units = sess_by_user.get(uid, (0, 0))
+        if secs > 0 or units > 0:
+            total_seconds += secs
+            total_sessions += units
+            readers += 1
 
     return {
-        "total_seconds": int(agg.total_seconds) if agg and agg.total_seconds else 0,
-        "total_sessions": int(agg.total_sessions) if agg and agg.total_sessions else 0,
-        "distinct_readers": int(agg.distinct_readers) if agg and agg.distinct_readers else 0,
+        "total_seconds": total_seconds,
+        "total_sessions": total_sessions,
+        "distinct_readers": readers,
     }
 
 
