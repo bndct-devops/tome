@@ -249,9 +249,16 @@ def monthly_map(db, user_id, tzm, covered, start_dt) -> dict[str, tuple[int, int
 
 def active_days(db, user_id, tzm, covered) -> set:
     from datetime import date as _date
+    # A day is "active" if the user read at all that day — page-stat OR session,
+    # covered book or not. We deliberately do NOT exclude covered-book sessions
+    # here (unlike the time/count reconciliation, where the exclusion avoids
+    # double-counting): for the active-DAY set, excluding them drops days you read
+    # on a book that merely *has* imported history but whose page-stats don't (yet)
+    # cover that day — e.g. recent web-reader reading, or reading synced before the
+    # history sync caught up. That silently broke the streak after a first import.
     rs_days = {
         r[0] for r in
-        _rs_filtered(db, user_id, covered, None, None)
+        _rs_filtered(db, user_id, [], None, None)
         .with_entities(func.date(ReadingSession.started_at, tzm)).distinct().all()
         if r[0]
     }
