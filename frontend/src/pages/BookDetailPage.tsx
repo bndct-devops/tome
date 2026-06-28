@@ -955,8 +955,12 @@ export function BookDetailPage() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 safe-top">
         <div className="max-w-5xl mx-auto px-4 py-2 sm:py-0 sm:h-14 flex items-center justify-between gap-2 min-h-14">
           <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 shrink">
-            <Link to="/?tab=books" className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0">
+            <Link to="/" title="Home" aria-label="Home" className="flex items-center hover:text-foreground transition-colors shrink-0">
               <Home className="w-3.5 h-3.5" />
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
+            <Link to="/?tab=books" title="Library" className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0">
+              <Library className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Library</span>
             </Link>
             {adjacent && (adjacent.prev || adjacent.next) && book && (
