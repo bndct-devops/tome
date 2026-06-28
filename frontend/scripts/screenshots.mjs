@@ -186,7 +186,9 @@ const SHOTS = [
   { name: 'stats-book-length',   path: '/stats', viewport: { width: 1400, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("library")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Book Length"))' },
   { name: 'stats-rereads',       path: '/stats', viewport: { width: 1400, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("library")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Re-reads"))' },
   { name: 'book-intensity',      path: () => `/books/${bookIds.dune ?? 2}`, viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1200, element: 'div.rounded-xl:has(p:text-is("Reading intensity"))' },
-  { name: 'highlights',          path: '/highlights', viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1200, autoCrop: true },
+  // Bounded viewport (no autoCrop) — the list is long, so crop to the top: header,
+  // search, on-this-day, and the first couple of books.
+  { name: 'highlights',          path: '/highlights', viewport: { width: 1500, height: 1000, deviceScaleFactor: 2 }, settle: 1200 },
   { name: 'admin-word-counts',   path: '/admin', viewport: { width: 1600, height: 1600, deviceScaleFactor: 2 }, settle: 1000, after: async (page) => { await page.locator('button:has-text("Word Counts")').first().click().catch(() => {}); await page.waitForTimeout(800) }, autoCrop: true },
   { name: 'users-list',  path: '/users',    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },
   { name: 'admin-page',  path: '/admin',    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },
