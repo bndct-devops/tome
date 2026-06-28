@@ -3,6 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
 import { withBase } from '../../lib/path'
 ---
 <DocsLayout title="Highlights" description="Every highlight and note you make in KOReader, gathered into one searchable commonplace book — grouped by book, exportable, with an 'on this day' resurfacing.">
@@ -16,6 +17,10 @@ import { withBase } from '../../lib/path'
     device, sync, and it shows up here.
   </p>
   <DocsMeta />
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="highlights" alt="The Highlights page: highlights grouped by book as quote cards, with search and an 'on this day' section" />
+  </div>
 
   <Callout variant="info" title="Highlights come from KOReader">
     Highlights and notes are made on your device and synced up by the

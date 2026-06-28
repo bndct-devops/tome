@@ -31,6 +31,16 @@ const THEME = process.env.TOME_SCREENSHOT_THEME  // 'light' | 'dark' | 'amber' �
 const __dir = path.dirname(new URL(import.meta.url).pathname)
 const OUT = path.resolve(__dir, '../../docs/screenshots')
 
+// A curated stats dashboard injected into localStorage so the gallery-only tiles
+// (Words Read, Reading Speed, Book Length, Re-reads) are on their boards for the
+// shots. localStorage wins over the server copy (huge savedAt), which also stops
+// the two-layer-persistence clobber that otherwise wipes them on page load.
+const DASHBOARD_FILE = process.env.TOME_SCREENSHOT_DASHBOARD ?? (SHOWCASE ? path.join(__dir, '.showcase-board.json') : null)
+let DASHBOARD = null
+if (DASHBOARD_FILE) {
+  try { DASHBOARD = (await import('node:fs')).readFileSync(DASHBOARD_FILE, 'utf8') } catch { /* no board file */ }
+}
+
 if (!PASS && !TOKEN) {
   console.error('Set TOME_SCREENSHOT_PASS (admin password) OR TOME_SCREENSHOT_TOKEN (existing JWT/API token).')
   process.exit(1)
@@ -170,6 +180,14 @@ const SHOTS = [
       await page.waitForTimeout(800)
     },
   },
+  // v1.7.0 surfaces — word-count + page-stat stats, Highlights, admin word counts
+  { name: 'stats-words-read',    path: '/stats', viewport: { width: 1400, height: 1200, deviceScaleFactor: 2 }, settle: 1500, element: 'div.rounded-xl:has(h3:text-is("Words Read"))' },
+  { name: 'stats-reading-speed', path: '/stats', viewport: { width: 1500, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("habits")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Reading Speed"))' },
+  { name: 'stats-book-length',   path: '/stats', viewport: { width: 1400, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("library")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Book Length"))' },
+  { name: 'stats-rereads',       path: '/stats', viewport: { width: 1400, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("library")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Re-reads"))' },
+  { name: 'book-intensity',      path: () => `/books/${bookIds.dune ?? 2}`, viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1200, element: 'div.rounded-xl:has(p:text-is("Reading intensity"))' },
+  { name: 'highlights',          path: '/highlights', viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1200, autoCrop: true },
+  { name: 'admin-word-counts',   path: '/admin', viewport: { width: 1600, height: 1600, deviceScaleFactor: 2 }, settle: 1000, after: async (page) => { await page.locator('button:has-text("Word Counts")').first().click().catch(() => {}); await page.waitForTimeout(800) }, autoCrop: true },
   { name: 'users-list',  path: '/users',    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },
   { name: 'admin-page',  path: '/admin',    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },
   { name: 'settings',    path: '/settings', viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },
@@ -590,7 +608,7 @@ async function login() {
 
 async function resolveBookIds(token) {
   // Look up book IDs by title. Keeps the script working across re-seeds.
-  const wanted = { frankenstein: 'Frankenstein', goodGuys2: 'Heir Today, Pawn Tomorrow', hitchhiker: "The Hitchhiker's Guide to the Galaxy" }
+  const wanted = { frankenstein: 'Frankenstein', goodGuys2: 'Heir Today, Pawn Tomorrow', hitchhiker: "The Hitchhiker's Guide to the Galaxy", dune: 'Dune' }
   for (const [key, title] of Object.entries(wanted)) {
     try {
       const r = await fetch(`${API}/api/books?q=${encodeURIComponent(title)}&per_page=5`, {
@@ -641,7 +659,7 @@ async function maskModalBackdrop(page) {
 async function captureShot(browser, token, shot) {
   const context = await browser.newContext(shot.mobile ? MOBILE : { viewport: shot.viewport })
   const theme = THEME ?? shot.theme ?? 'light'
-  const prefs = { tome_stats_hint: '1', ...(shot.prefs ?? {}) }
+  const prefs = { tome_stats_hint: '1', ...(DASHBOARD ? { tome_stats_lab_v2: DASHBOARD } : {}), ...(shot.prefs ?? {}) }
   // Reader has its own theme (light/sepia/dark) stored separately. For shots
   // that render the reader, mirror the app theme — amber → sepia (amber isn't
   // a valid reader theme).
@@ -776,9 +794,14 @@ async function main() {
   try {
     for (const shot of shots) {
       const t0 = Date.now()
-      const file = await captureShot(browser, token, shot)
-      console.log(`  ✓ ${shot.name.padEnd(20)} ${path.relative(process.cwd(), file)} (${Date.now() - t0}ms)`)
-      if (shot.cleanup) await shot.cleanup(token, API)
+      try {
+        const file = await captureShot(browser, token, shot)
+        console.log(`  ✓ ${shot.name.padEnd(20)} ${path.relative(process.cwd(), file)} (${Date.now() - t0}ms)`)
+        if (shot.cleanup) await shot.cleanup(token, API)
+      } catch (e) {
+        // One flaky shot shouldn't sink the whole pass (esp. across 3 themes).
+        console.warn(`  ✗ ${shot.name.padEnd(20)} FAILED: ${String(e.message ?? e).split('\n')[0]}`)
+      }
     }
   } finally {
     await browser.close()

@@ -253,6 +253,42 @@ import { withBase } from '../../lib/path'
     acquisition sprees you'd otherwise forget about.
   </p>
 
+  <h2>Word-count &amp; page insights</h2>
+  <p>
+    Once Tome knows your books' <a href={withBase("/docs/admin#word-counts")}>word counts</a> and has
+    imported your <a href={withBase("/docs/koreader")}>KOReader reading history</a>, a few tiles turn
+    that into things you can't get from session timing alone. All are in the tile gallery.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-words-read" alt="Words Read tile: lifetime word count and a per-year breakdown" />
+  </div>
+  <p>
+    <strong>Words Read</strong> totals the words in every book you've finished, and
+    <strong>Reading Speed</strong> is your true words-per-minute — word count divided by the time
+    KOReader actually recorded — with your fastest and slowest books.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-reading-speed" alt="Reading Speed tile: overall words-per-minute with fastest and slowest books" />
+  </div>
+  <p>
+    <strong>Book Length</strong> shows how long the books you finish tend to be, and
+    <strong>Re-reads</strong> ranks the books whose pages you keep coming back to.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-book-length" alt="Book Length tile: a word-count distribution of finished books" />
+  </div>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="stats-rereads" alt="Re-reads tile: books ranked by how many of their pages you've revisited" />
+  </div>
+  <p>
+    On each book's page, a <strong>Reading intensity</strong> strip shows where your time went across
+    the book — page by page — with a real &ldquo;X of Y pages&rdquo; read and a note when you've
+    re-read stretches.
+  </p>
+  <div class="docs-shot-bare">
+    <ThemedShot client:load name="book-intensity" alt="Reading intensity strip on a book page: per-page dwell across the book, pages read, and re-read stretches" />
+  </div>
+
   <h2>Charts that aren't here yet</h2>
   <p>
     Things explicitly considered and not built:
