@@ -17,6 +17,13 @@ All notable changes to Tome are documented here. Format loosely follows
   Small "i" hints explain the progress and reading-intensity charts in plain language.
 
 ### Fixed
+- **Reading progress for device-read books is no longer understated.** A book you
+  were, say, 35% through could show as 11% — both in its **progress** figure and in
+  the **Completion Estimates** tile (which then wildly overestimated the time left).
+  The cause: progress was derived from how many distinct pages your KOReader history
+  had logged time on (coverage), not how far through you actually are (position).
+  Progress now uses your real reading position, falling back to the furthest page
+  reached, so it matches what your reader shows — and finished books read 100%.
 - **Per-book "all readers" totals now include device reading.** On a book read
   only through the KOReader plugin (imported page-stats, no live sessions), the
   admin "All readers" line showed 0m / 0 sessions / 0 readers; it now reflects that

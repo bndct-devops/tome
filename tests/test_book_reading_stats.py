@@ -303,3 +303,58 @@ def test_manual_session_completion_is_sticky(client: TestClient, make_book, admi
     resp = client.post(f"/api/books/{book.id}/sessions", json={"duration_minutes": 10, "end_progress": 0.3})
     assert resp.status_code == 201
     assert resp.json()["own"]["status"] == "read"
+
+
+# ── Progress = synced position, not page coverage (device-book regression) ─────
+
+def _page_run(db, user_id, book_id, *, pages, total_pages, device="Kindle", base=1_700_000_000):
+    """Add a 1-minute dwell row for each page in `pages` (distinct start_times)."""
+    from backend.models.ko_stats import PageStat
+    for i, pg in enumerate(pages):
+        db.add(PageStat(user_id=user_id, book_id=book_id, page=pg, total_pages=total_pages,
+                        start_time=base + i * 60, duration_seconds=60, device=device))
+    db.flush()
+
+
+def test_progress_uses_synced_position_not_coverage(client: TestClient, make_book, admin_user, db: Session):
+    """Regression: a device book showed 11% (coverage) while the reader was at 35% (position)."""
+    user, _ = admin_user
+    book = make_book(title="Position Book")
+    # dwelled on only the first 123 pages of a 1008-page book…
+    _page_run(db, user.id, book.id, pages=range(1, 124), total_pages=1008)
+    # …but the reader synced its position at 34.8%.
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.348))
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    assert own["progress"] == pytest.approx(0.348)             # synced position, not 0.122 coverage
+    # Device book: no progress line — per-day position can't come from dwell.
+    assert all(d["progress_pct"] is None for d in own["session_timeline"])
+
+
+def test_progress_finished_device_book_is_full(client: TestClient, make_book, admin_user, db: Session):
+    """A finished book with no synced position still reads 100%, not coverage."""
+    user, _ = admin_user
+    book = make_book(title="Finished Device Book")
+    # read to the end but missed a few pages → distinct < total
+    _page_run(db, user.id, book.id, pages=[p for p in range(1, 477) if p % 50 != 0], total_pages=476)
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", progress_pct=0.0))
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    assert own["status"] == "read"
+    assert own["progress"] == pytest.approx(1.0)
+
+
+def test_progress_fallback_uses_furthest_page_not_distinct(client: TestClient, make_book, admin_user, db: Session):
+    """No synced position: progress = furthest page reached, not distinct-page count."""
+    user, _ = admin_user
+    book = make_book(title="Skimmed Book")
+    # dwelled on 50 pages but reached page 500 of 1000
+    pages = list(range(1, 41)) + list(range(491, 501))        # 50 distinct, max 500
+    _page_run(db, user.id, book.id, pages=pages, total_pages=1000)
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.0))
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    assert own["progress"] == pytest.approx(0.5)              # 500/1000, not 50/1000

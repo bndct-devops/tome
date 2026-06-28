@@ -113,15 +113,19 @@ def compute_book_reading_stats(
             func.min(PageStat.start_time),
             func.max(PageStat.start_time),
             func.max(PageStat.total_pages),
+            func.max(PageStat.page),
         )
         .filter(PageStat.user_id == user_id, PageStat.book_id == book_id)
         .one()
     )
     ps_seconds = int(ps[0] or 0)
+    ps_total_pages = 0
+    ps_max_page = 0
     if ps_seconds > 0:
         total_seconds = ps_seconds
         pages_turned = int(ps[1] or 0)          # distinct pages genuinely read
         ps_total_pages = int(ps[4] or 0)
+        ps_max_page = int(ps[5] or 0)           # furthest page reached (position fallback)
         # Daily buckets from page-stats (local-day = start_time // 86400, UTC).
         day_rows = (
             db.query(
@@ -151,30 +155,17 @@ def compute_book_reading_stats(
         total_minutes = total_seconds / 60.0
         if total_minutes > 0 and pages_turned > 0:
             pace_pages_per_min = round(pages_turned / total_minutes, 2)
-        # Real page-based progress beats a stale stored progress_pct.
-        if ps_total_pages > 0:
-            progress = min(pages_turned / ps_total_pages, 1.0)
 
     # ── Journey: cumulative progress per reading day (the progress line) ──────
     # Augments each session_timeline day with the furthest-progress reached, so
     # the frontend can plot a progress arc over the minutes-per-day bars.
     day_progress: dict[str, float] = {}
     if ps_seconds > 0:
-        # Covered book: cumulative distinct pages read through each day ÷ total.
-        pg_pairs = (
-            db.query(
-                func.cast(PageStat.start_time / 86400, Integer).label("day"),
-                PageStat.page,
-            )
-            .filter(PageStat.user_id == user_id, PageStat.book_id == book_id)
-            .all()
-        )
-        seen: set[int] = set()
-        for day, page in sorted(pg_pairs, key=lambda r: int(r[0])):
-            seen.add(int(page))
-            dstr = datetime.fromtimestamp(int(day) * 86400, timezone.utc).strftime("%Y-%m-%d")
-            if ps_total_pages > 0:
-                day_progress[dstr] = min(len(seen) / ps_total_pages, 1.0)
+        # Covered (device) book: a per-day position can't be reconstructed from
+        # page dwell — that's *coverage*, not position (you can be 35% in having
+        # dwelled on only 11% of pages). So draw no progress line here; the
+        # headline % (synced position) and the intensity chart tell that story.
+        pass
     else:
         # Web sessions: the furthest progress_end reached on each day.
         prog_rows = (
@@ -261,6 +252,21 @@ def compute_book_reading_stats(
     finished_at: Optional[str] = None
     if status_row and status_row.status == "read" and status_row.updated_at:
         finished_at = status_row.updated_at.isoformat() + "Z"
+
+    # ── Progress = how far through the book ──────────────────────────────────
+    # Best available evidence of position: the synced reading position OR the
+    # furthest page reached. Page-stats are *coverage*, so use the furthest page,
+    # never the distinct-page count (which trails position when pages are
+    # skimmed). max() handles both directions: a synced position ahead of the
+    # dwell history (you skimmed/jumped), and a stale-low position behind pages
+    # you've since read. A finished book is always 100%.
+    page_progress = (ps_max_page / ps_total_pages) if (ps_total_pages and ps_max_page) else 0.0
+    if book_status == "read":
+        progress = 1.0
+    else:
+        candidates = [p for p in (progress, page_progress) if p and p > 0]
+        if candidates:
+            progress = min(max(candidates), 1.0)
 
     # ── Estimated time to finish ─────────────────────────────────────────────
     estimated_finish_seconds: Optional[int] = None

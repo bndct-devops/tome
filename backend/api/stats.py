@@ -1059,21 +1059,27 @@ def get_completion_estimates(
                 func.count(func.distinct(case((PageStat.start_time >= window_epoch, PageStat.page)))),
                 func.count(func.distinct(case((PageStat.start_time >= window_epoch,
                                                func.cast(PageStat.start_time / 86400, Integer))))),
+                func.max(PageStat.page),
             )
             .filter(PageStat.user_id == current_user.id, PageStat.book_id == row.id)
             .one()
         )
-        ps_pages, ps_total, ps_pages_30, ps_days_30 = (int(ps[0] or 0), int(ps[1] or 0),
-                                                       int(ps[2] or 0), int(ps[3] or 0))
+        ps_pages, ps_total, ps_pages_30, ps_days_30, ps_max_page = (
+            int(ps[0] or 0), int(ps[1] or 0), int(ps[2] or 0), int(ps[3] or 0), int(ps[4] or 0))
         ps_days_30 = max(ps_days_30 - (1 if ps_pages_30 else 0), 0)  # gained over the gaps, not the first day
-        if ps_total > 0:
-            progress = min(round(ps_pages / ps_total * 100, 1), 100.0)
+        # Progress = how far through: the best of the synced position (set above)
+        # and the furthest page reached. Page-stats are coverage, so use the
+        # furthest page, not the distinct-page count. max() covers a synced
+        # position ahead of the dwell history *and* a stale position behind it.
+        page_pct = round(ps_max_page / ps_total * 100, 1) if (ps_total > 0 and ps_max_page > 0) else 0.0
+        progress = min(max(progress, page_pct), 100.0)
 
         estimated_days: Optional[int] = None
         if session_count == 0 and ps_total > 0 and ps_pages_30 > 0 and ps_days_30 >= 1 and progress < 100:
             # Device-only: pages read per active-day → days to read the rest.
             pages_per_day = ps_pages_30 / ps_days_30
-            remaining_pages = max(ps_total - ps_pages, 0)
+            # Remaining measured from your position, not from uncovered pages.
+            remaining_pages = max(round((1 - progress / 100.0) * ps_total), 0)
             estimated_days = max(1, round(remaining_pages / pages_per_day)) if pages_per_day else None
         elif session_count > 0 and progress >= 5 and progress < 100:
             # Calculate progress gained during the window
