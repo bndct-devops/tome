@@ -311,7 +311,7 @@ export function HomeGoalRings() {
   if (goals.length === 0) return null
 
   return (
-    <div className="grid w-full grid-cols-2 gap-y-3 rounded-xl border border-border bg-card px-5 py-4 sm:flex sm:w-fit">
+    <div className="grid w-full grid-cols-2 gap-y-3 px-4 py-4 sm:flex">
       {goals.map((goal, i) => (
         <button
           key={goal.id}

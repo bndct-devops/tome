@@ -7,6 +7,18 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Focus mode on the Home page.** A new minimalist Home view that surfaces the one
+  book you're most likely to pick up next — your most-recently-synced in-progress
+  title — as a large cover with the upcoming volumes of its series fanned behind it
+  in a rotating "coverflow" display. Alongside it: the series, your progress and
+  where you last synced from, a one-click **Resume reading**, and a quiet
+  **Currently reading** strip to switch the spotlight to any other in-progress book.
+  Clicking the cover or series name jumps to the series. Toggle between **Focus** and
+  the full **Dashboard** from the Home header; your choice is remembered.
+- **Your Reading DNA.** The Home dashboard and Stats page now show a reading-personality
+  card — an archetype (e.g. "Night-Owl Epic Specialist") distilled from a few traits
+  like when you read, how long your sessions run, and how widely you range across the
+  library — computed over a recent trailing window.
 - **A richer reading log on every book.** A book's Reading Stats now show more of
   its story: a **progress line** traced over the activity bars so you can see how
   far you got on each reading day, a **momentum** indicator comparing the last week

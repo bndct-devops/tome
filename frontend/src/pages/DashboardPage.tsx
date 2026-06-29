@@ -5,7 +5,7 @@ import {
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote,
+  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon,
 } from 'lucide-react'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
@@ -24,6 +24,9 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
 import { HomeGoalRings } from '@/components/stats/GoalWidget'
+import { ReadingDNACard } from '@/components/stats/ReadingDNACard'
+import type { ReadingDNA } from '@/components/stats/shared'
+import { FocusMode } from '@/components/home/FocusMode'
 import { api } from '@/lib/api'
 import type { Book, Library, SavedFilter, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
@@ -713,6 +716,15 @@ export function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [continueReading, setContinueReading] = useState<Book[]>([])
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null)
+  const [readingDna, setReadingDna] = useState<ReadingDNA | null>(null)
+  // Home view mode: 'focus' = single-book Focus mode, 'dashboard' = the full grid.
+  const [homeMode, setHomeMode] = useState<'focus' | 'dashboard'>(
+    () => (localStorage.getItem('tome_home_mode') as 'focus' | 'dashboard') || 'dashboard'
+  )
+  const setHomeModePersisted = (m: 'focus' | 'dashboard') => {
+    localStorage.setItem('tome_home_mode', m)
+    setHomeMode(m)
+  }
   const [recentlyFinished, setRecentlyFinished] = useState<Book[]>([])
   const [recentlyAdded, setRecentlyAdded] = useState<Book[]>([])
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([])
@@ -919,6 +931,7 @@ export function DashboardPage() {
     api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
     api.get<ForgottenBook[]>('/home/forgotten-books').then(setForgottenBooks).catch(() => {})
     api.get<HighlightSpotlight>('/annotations/spotlight').then(setSpotlight).catch(() => {})
+    api.get<ReadingDNA>(`/home/reading-dna?tz_offset=${tzOffset}`).then(setReadingDna).catch(() => {})
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
 
@@ -975,6 +988,29 @@ export function DashboardPage() {
     { value: formatReadingTime(homeStats.reading_seconds_30d), label: 'Read · 30d', icon: <Clock className="w-5 h-5" /> },
     { value: String(homeStats.pages_turned_30d), label: 'Pages · 30d', icon: <BookOpenCheck className="w-5 h-5" /> },
   ] : []
+
+  // Compact Focus / Dashboard switch — placed inline next to the KPI band in
+  // Dashboard mode, top-right on its own in Focus mode.
+  const modeToggle = (
+    <div className="inline-flex rounded-lg border border-border bg-card p-0.5 shrink-0">
+      {([
+        { id: 'focus', label: 'Focus', icon: <Moon className="w-3.5 h-3.5" /> },
+        { id: 'dashboard', label: 'Dashboard', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+      ] as const).map((m) => (
+        <button
+          key={m.id}
+          onClick={() => setHomeModePersisted(m.id)}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
+            homeMode === m.id ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {m.icon}
+          {m.label}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
@@ -1080,32 +1116,48 @@ export function DashboardPage() {
 
           {tab === 'home' ? (
             /* ── Home tab ────────────────────────────────────────────────── */
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-7">
 
-              {/* ── Quick stats + goals — matching hairline-divided panels ── */}
-              <div className="flex flex-wrap items-stretch gap-3 empty:hidden">
-                {homeStats && (
-                  <div className="rounded-xl border border-border bg-card px-5 py-4 grid grid-cols-2 gap-y-3 sm:flex w-full sm:w-fit">
-                    {homeStatItems.map((s, i) => (
-                      <div
-                        key={s.label}
-                        className={cn(
-                          'sm:px-5',
-                          i === 0 && 'sm:pl-0',
-                          i > 0 && 'sm:border-l sm:border-border/60'
-                        )}
-                      >
-                        <p className="text-xs text-muted-foreground/70">{s.label}</p>
-                        <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
-                          <span className="text-primary/60">{s.icon}</span>
-                          {s.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <HomeGoalRings />
+              {homeMode === 'focus' ? (
+              <>
+              {/* Focus mode: toggle alone, top-right */}
+              <div className="flex justify-end -mb-1">{modeToggle}</div>
+                <FocusMode />
+              </>
+              ) : (
+              <>
+
+              {/* ── Quick stats + mode toggle on one row ──────────────────── */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex flex-wrap items-stretch gap-3 empty:hidden">
+                  {homeStats && (
+                    <div className="rounded-xl border border-border bg-card px-5 py-4 grid grid-cols-2 gap-y-3 sm:flex w-full sm:w-fit">
+                      {homeStatItems.map((s, i) => (
+                        <div
+                          key={s.label}
+                          className={cn(
+                            'sm:px-5',
+                            i === 0 && 'sm:pl-0',
+                            i > 0 && 'sm:border-l sm:border-border/60'
+                          )}
+                        >
+                          <p className="text-xs text-muted-foreground/70">{s.label}</p>
+                          <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
+                            <span className="text-primary/60">{s.icon}</span>
+                            {s.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="ml-auto">{modeToggle}</div>
               </div>
+
+              {/* ── Two-column body: content + rail ───────────────────────── */}
+              <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-7 lg:items-start">
+              {/* ── Main column (one connected panel, hairline-divided) ────── */}
+              <div className="rounded-2xl border border-border bg-card divide-y divide-border min-w-0 overflow-hidden">
 
               {/* ── Forgotten Books ───────────────────────────────────────── */}
               {(() => {
@@ -1117,7 +1169,7 @@ export function DashboardPage() {
                   setForgottenDismissedSig(forgottenSig)
                 }
                 return (
-                  <section className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                  <section className="px-5 py-4">
                     <header className="flex items-center justify-between mb-2">
                       <h2 className="text-base text-foreground">Pick up where you left off</h2>
                       <button
@@ -1154,32 +1206,8 @@ export function DashboardPage() {
                 )
               })()}
 
-              {/* ── Highlight spotlight (on this day) ──────────────────────── */}
-              {spotlight?.highlight?.highlighted_text && (
-                <section className="rounded-lg border border-border bg-muted/30 px-4 py-3.5">
-                  <header className="flex items-center justify-between mb-2.5">
-                    <h2 className="flex items-center gap-1.5 text-base text-foreground">
-                      <Quote className="w-4 h-4 text-primary/60" />
-                      {spotlight.on_this_day ? 'On this day you highlighted' : 'From your highlights'}
-                    </h2>
-                    <a href="/highlights" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                      All highlights
-                    </a>
-                  </header>
-                  <a href={`/books/${spotlight.highlight.book_id}`} className="block group">
-                    <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-3 italic line-clamp-4">
-                      {spotlight.highlight.highlighted_text}
-                    </p>
-                    <p className="mt-2 pl-3 text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                      — {spotlight.highlight.book_title}
-                      {spotlight.highlight.book_author ? `, ${spotlight.highlight.book_author}` : ''}
-                    </p>
-                  </a>
-                </section>
-              )}
-
               {/* ── Continue Reading ──────────────────────────────────────── */}
-              <div className="flex flex-col gap-3">
+              <section className="flex flex-col gap-3 px-5 py-5">
                 <h2 className="text-base font-semibold text-foreground">Continue Reading</h2>
                 {continueReading.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -1195,67 +1223,75 @@ export function DashboardPage() {
                     </button>
                   </div>
                 ) : (
-                  <div key={view} className={gridClass} style={gridStyle}>
+                  /* Horizontal band (not a grid): one scrollable row keeps Home's
+                     left column on a consistent banded rhythm that aligns with the
+                     rail, instead of a tall wall of covers. */
+                  <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
                     {continueReading.map((book, i) => {
                       const status = readingStatuses[book.id]
                       return (
-                        <BookCard
-                          key={`${cardView}-${book.id}`}
-                          book={book}
-                          view={cardView}
-                          index={i}
-                          selected={false}
-                          onTagClick={tag => setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('tab', 'books'); p.set('tag', tag); p.delete('saved_filter'); return p })}
-                          onSeriesClick={series => setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('tab', 'books'); p.set('series', series); p.delete('saved_filter'); return p })}
-                          onAuthorClick={author => setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('tab', 'books'); p.set('author', author); p.delete('saved_filter'); return p })}
-                          readingStatus={status?.status}
-                          progressPct={status?.progress_pct}
-                          rating={status?.rating}
-                        />
+                        <div key={book.id} className="shrink-0 w-32">
+                          <BookCard
+                            book={book}
+                            view="small"
+                            index={i}
+                            selected={false}
+                            readingStatus={status?.status}
+                            progressPct={status?.progress_pct}
+                            rating={status?.rating}
+                          />
+                        </div>
                       )
                     })}
                   </div>
                 )}
-              </div>
+              </section>
 
               {/* ── Series Progress ───────────────────────────────────────── */}
               {(() => {
-                const seriesBooks = continueReading.filter(b => b.series && b.series_index != null)
-                if (seriesBooks.length === 0) return null
+                // One card per series (a series can have several in-progress volumes),
+                // ranked by how far through it you are. Progress = completed volumes /
+                // total, so it never reads "Book 1171 of 17" off a chapter index.
+                const bySeries = new Map<string, { book: typeof continueReading[number]; read: number; total: number | null; pct: number }>()
+                for (const book of continueReading) {
+                  if (!book.series || book.series_index == null || bySeries.has(book.series)) continue
+                  const sd = seriesList.find(s => s.name === book.series)
+                  const total = sd?.book_count ?? null
+                  const read = sd?.read_count ?? 0
+                  bySeries.set(book.series, { book, read, total, pct: total ? Math.min(100, (read / total) * 100) : 0 })
+                }
+                // Only series with genuine momentum: at least one completed volume
+                // and not yet finished. Just-started (0%) series live in Continue
+                // Reading; finished ones don't belong here. Most-progressed first.
+                const rows = [...bySeries.values()]
+                  .filter(r => r.read > 0 && (r.total == null || r.read < r.total))
+                  .sort((a, b) => b.pct - a.pct)
+                  .slice(0, 6)
+                if (rows.length === 0) return null
                 return (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3 px-5 py-5">
                     <h2 className="text-base font-semibold text-foreground">Series Progress</h2>
-                    <div className="flex flex-col gap-2">
-                      {seriesBooks.map(book => {
-                        const seriesData = seriesList.find(s => s.name === book.series)
-                        const total = seriesData?.book_count ?? null
-                        const current = book.series_index!
-                        // Progress reflects *completed* (read) volumes, not the index of the
-                        // book you're currently reading — otherwise starting the last book
-                        // would show the series as 100% before you've finished it.
-                        const readCount = seriesData?.read_count ?? 0
-                        const pct = total ? Math.min(100, (readCount / total) * 100) : null
-                        return (
-                          <div key={book.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/50 border border-border">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2 mb-1.5">
-                                <span className="text-xs font-medium text-foreground truncate">{book.series}</span>
-                                <span className="text-xs text-muted-foreground shrink-0">
-                                  {total ? `Book ${current} of ${total}` : `Book ${current}`}
-                                </span>
-                              </div>
-                              {pct !== null && (
-                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-primary transition-all"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                              )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {rows.map(({ book, read, total, pct }) => (
+                        <a
+                          key={book.series}
+                          href={`/?tab=books&series=${encodeURIComponent(book.series!)}`}
+                          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors"
+                        >
+                          <div className="relative w-9 aspect-[2/3] rounded shrink-0 overflow-hidden bg-muted">
+                            <CoverImage src={book.cover_path ? `/api/books/${book.id}/cover` : null} alt={book.series!} iconClassName="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">{book.series}</span>
+                              <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">{total ? `${read}/${total}` : `${read}`}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
                             </div>
                           </div>
-                        )
-                      })}
+                        </a>
+                      ))}
                     </div>
                   </div>
                 )
@@ -1263,7 +1299,7 @@ export function DashboardPage() {
 
               {/* ── Recently Finished ─────────────────────────────────────── */}
               {recentlyFinished.length > 0 && (
-                <div className="flex flex-col gap-3">
+                <section className="flex flex-col gap-3 px-5 py-5">
                   <h2 className="text-base font-semibold text-foreground">Recently Finished</h2>
                   <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
                     {recentlyFinished.map(book => (
@@ -1279,12 +1315,12 @@ export function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </section>
               )}
 
               {/* ── Recently Added ────────────────────────────────────────── */}
               {recentlyAdded.length > 0 && (
-                <div className="flex flex-col gap-3">
+                <section className="flex flex-col gap-3 px-5 py-5">
                   <h2 className="text-base font-semibold text-foreground">Recently Added</h2>
                   <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
                     {recentlyAdded.map(book => (
@@ -1301,12 +1337,12 @@ export function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </section>
               )}
 
               {/* ── Reading Log ───────────────────────────────────────────── */}
               {activityLog.length > 0 && (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 px-5 py-5">
                   <h2 className="text-base font-semibold text-foreground">Reading Log</h2>
                   <div className="flex flex-col gap-1">
                     {activityLog.map((entry, i) => (
@@ -1329,6 +1365,39 @@ export function DashboardPage() {
                 </div>
               )}
 
+              </div>{/* ── /Main column ── */}
+
+              {/* ── Right rail (one connected panel, hairline-divided) ─────── */}
+              <aside className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden">
+                {readingDna && <ReadingDNACard dna={readingDna} />}
+                <HomeGoalRings />
+                {spotlight?.highlight?.highlighted_text && (
+                  <section className="p-4">
+                    <header className="flex items-center justify-between mb-2.5">
+                      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                        <Quote className="w-4 h-4 text-primary/60" />
+                        {spotlight.on_this_day ? 'On this day' : 'From your highlights'}
+                      </h2>
+                      <a href="/highlights" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        All →
+                      </a>
+                    </header>
+                    <a href={`/books/${spotlight.highlight.book_id}`} className="block group">
+                      <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-3 italic line-clamp-4">
+                        {spotlight.highlight.highlighted_text}
+                      </p>
+                      <p className="mt-2 pl-3 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                        — {spotlight.highlight.book_title}
+                        {spotlight.highlight.book_author ? `, ${spotlight.highlight.book_author}` : ''}
+                      </p>
+                    </a>
+                  </section>
+                )}
+              </aside>
+
+              </div>{/* ── /Two-column body ── */}
+              </>
+              )}
             </div>
           ) : tab === 'series' ? (
             /* ── Series grid ─────────────────────────────────────────────── */

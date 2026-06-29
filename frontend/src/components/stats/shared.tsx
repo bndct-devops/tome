@@ -79,6 +79,22 @@ export interface StatsResponse {
   rereads: {
     books: { book_id: number; title: string; author: string | null; has_cover: boolean; reread_pages: number; total_pages: number; pct: number }[]
   }
+  reading_dna?: ReadingDNA
+}
+
+export interface ReadingDNATrait {
+  key: string
+  score: number   // 0 = low pole, 100 = high pole
+  low: string
+  high: string
+}
+
+export interface ReadingDNA {
+  ready: boolean
+  archetype: string | null
+  summary: string | null
+  traits: ReadingDNATrait[]
+  window_days: number
 }
 
 export interface CompletionEstimate {

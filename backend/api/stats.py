@@ -948,6 +948,10 @@ def get_stats(
         reread_books.sort(key=lambda b: b["reread_pages"], reverse=True)
     rereads = {"books": reread_books}
 
+    # ── Reading DNA — fixed trailing window, independent of the range selector ──
+    from backend.services.reading_dna import compute_reading_dna
+    reading_dna = compute_reading_dna(db, current_user, tz_offset)
+
     return {
         "range_days": effective_days,
         "headline": {
@@ -988,6 +992,7 @@ def get_stats(
         "wpm": wpm,
         "book_lengths": book_lengths,
         "rereads": rereads,
+        "reading_dna": reading_dna,
     }
 
 
