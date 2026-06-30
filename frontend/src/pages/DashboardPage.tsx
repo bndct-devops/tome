@@ -992,7 +992,7 @@ export function DashboardPage() {
   // Compact Focus / Dashboard switch — placed inline next to the KPI band in
   // Dashboard mode, top-right on its own in Focus mode.
   const modeToggle = (
-    <div className="inline-flex rounded-lg border border-border bg-card p-0.5 shrink-0">
+    <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border bg-card p-0.5 sm:shrink-0">
       {([
         { id: 'focus', label: 'Focus', icon: <Moon className="w-3.5 h-3.5" /> },
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
@@ -1001,7 +1001,7 @@ export function DashboardPage() {
           key={m.id}
           onClick={() => setHomeModePersisted(m.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
+            'flex-1 justify-center sm:flex-none sm:justify-start inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
             homeMode === m.id ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:text-foreground'
           )}
         >
@@ -1128,10 +1128,10 @@ export function DashboardPage() {
               <>
 
               {/* ── Quick stats + mode toggle on one row ──────────────────── */}
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex flex-wrap items-stretch gap-3 empty:hidden">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:flex-wrap">
+                <div className="flex flex-wrap items-stretch gap-3 empty:hidden w-full sm:w-auto">
                   {homeStats && (
-                    <div className="rounded-xl border border-border bg-card px-5 py-4 grid grid-cols-2 gap-y-3 sm:flex w-full sm:w-fit">
+                    <div className="rounded-xl border border-border bg-card px-5 py-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit">
                       {homeStatItems.map((s, i) => (
                         <div
                           key={s.label}
@@ -1151,7 +1151,7 @@ export function DashboardPage() {
                     </div>
                   )}
                 </div>
-                <div className="ml-auto">{modeToggle}</div>
+                <div className="w-full sm:w-auto sm:ml-auto">{modeToggle}</div>
               </div>
 
               {/* ── Two-column body: content + rail ───────────────────────── */}

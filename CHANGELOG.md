@@ -37,6 +37,10 @@ All notable changes to Tome are documented here. Format loosely follows
   standalone books of different types are mixed together. Each book now carries its
   own type and is filed accordingly, in both the built-in layout and custom download
   templates. Requires plugin build 24 (1.6.2), delivered via the usual in-app update.
+- **A tidier Home header on phones.** On narrow screens the stats strip now spans
+  the full width with the figures spaced apart instead of crowding together, and the
+  **Focus / Dashboard** switch sits below it as a full-width toggle rather than
+  floating in a half-empty row. The desktop layout is unchanged.
 - **Reading progress for device-read books is no longer understated.** A book you
   were, say, 35% through could show as 11% — both in its **progress** figure and in
   the **Completion Estimates** tile (which then wildly overestimated the time left).
