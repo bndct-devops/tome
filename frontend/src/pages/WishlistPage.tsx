@@ -8,6 +8,7 @@ import { AppShell } from '@/components/AppShell'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { listWishes, deleteWish, type WishOut } from '@/lib/wishlist'
+import { api } from '@/lib/api'
 import { WishlistModal } from '@/components/WishlistModal'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { docsLink, DOCS } from '@/lib/docs'
@@ -39,6 +40,149 @@ function ageLabel(iso: string): string {
   const months = Math.floor(days / 30)
   if (months < 12) return `${months}mo ago`
   return `${Math.floor(months / 12)}y ago`
+}
+
+// ── Following (release detection) ─────────────────────────────────────────────
+// Renders nothing when TOME_RELEASE_DETECTION is off (the follows endpoint 403s).
+
+interface FollowOut {
+  id: number
+  name: string
+  author: string | null
+  cover_url: string | null
+  latest_known_index: number | null
+  owned_max_index: number | null
+  last_checked_at: string | null
+}
+
+interface SeriesHit {
+  source_id: string
+  name: string
+  author: string | null
+  total: number | null
+  cover_url: string | null
+}
+
+const fmtVol = (n: number | null) => (n == null ? null : (Number.isInteger(n) ? String(n) : String(n)))
+
+function FollowingSection() {
+  const [enabled, setEnabled] = useState(true)
+  const [follows, setFollows] = useState<FollowOut[]>([])
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<SeriesHit[]>([])
+  const [searching, setSearching] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const load = () => {
+    api.get<FollowOut[]>('/wishlist/follows')
+      .then(setFollows)
+      .catch(() => setEnabled(false))
+  }
+  useEffect(load, [])
+
+  useEffect(() => {
+    const query = q.trim()
+    if (query.length < 2) { setResults([]); return }
+    setSearching(true)
+    const t = setTimeout(() => {
+      api.get<SeriesHit[]>(`/wishlist/search-series?q=${encodeURIComponent(query)}`)
+        .then(setResults)
+        .catch(() => setResults([]))
+        .finally(() => setSearching(false))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [q])
+
+  const follow = async (r: SeriesHit) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.post('/wishlist/follow', {
+        name: r.name, source_id: r.source_id, author: r.author, cover_url: r.cover_url,
+      })
+      setQ(''); setResults([])
+      load()
+    } catch { /* dup or offline — list stays as-is */ }
+    finally { setBusy(false) }
+  }
+
+  const unfollow = async (id: number) => {
+    try { await api.delete(`/wishlist/${id}`); load() } catch { /* keep row */ }
+  }
+
+  if (!enabled) return null
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-foreground">Following</h2>
+        <span className="text-xs text-muted-foreground">{follows.length} series</span>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Get notified when a new volume of a followed series is released.
+      </p>
+
+      <div className="relative mb-3">
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Follow a series — search Hardcover…"
+          className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {searching && <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />}
+        {results.length > 0 && (
+          <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-xl overflow-hidden">
+            {results.slice(0, 5).map(r => (
+              <button
+                key={r.source_id}
+                onClick={() => follow(r)}
+                disabled={busy}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                {r.cover_url
+                  ? <img src={r.cover_url} alt="" className="w-7 h-10 rounded object-cover shrink-0" />
+                  : <span className="w-7 h-10 rounded bg-muted grid place-items-center shrink-0"><BookOpen className="w-3.5 h-3.5 text-muted-foreground/50" /></span>}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-foreground truncate">{r.name}</span>
+                  <span className="block text-xs text-muted-foreground truncate">
+                    {r.author ?? 'Unknown author'}{r.total ? ` · ${r.total} volumes` : ''}
+                  </span>
+                </span>
+                <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {follows.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {follows.map(f => (
+            <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-card">
+              {f.cover_url
+                ? <img src={f.cover_url} alt="" className="w-9 h-[54px] rounded object-cover shrink-0" />
+                : <span className="w-9 h-[54px] rounded bg-muted grid place-items-center shrink-0"><Layers className="w-4 h-4 text-muted-foreground/50" /></span>}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground truncate">{f.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {f.latest_known_index != null && <>Latest: vol {fmtVol(f.latest_known_index)}</>}
+                  {f.owned_max_index != null && <> · you have vol {fmtVol(f.owned_max_index)}</>}
+                </p>
+              </div>
+              <button
+                onClick={() => unfollow(f.id)}
+                title="Unfollow"
+                aria-label={`Unfollow ${f.name}`}
+                className="p-1.5 rounded text-muted-foreground/60 hover:text-destructive transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function WishlistPage() {
@@ -262,6 +406,8 @@ export function WishlistPage() {
             )}
           </>
         )}
+
+        {!loading && !error && <FollowingSection />}
       </div>
 
       {addOpen && (
