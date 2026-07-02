@@ -41,6 +41,45 @@ function archetypeIcon(archetype: string | null): LucideIcon {
   return Sparkles
 }
 
+/** The card's content — archetype, trait spectra, one-line summary — shared by
+ *  the Home rail card and the Stats page's "Reading DNA" tile. `showLink`
+ *  appends the "Full breakdown →" link (Home only; the Stats tile IS the
+ *  breakdown). */
+export function ReadingDNABody({ dna, showLink = false }: { dna: ReadingDNA; showLink?: boolean }) {
+  const ArcheIcon = archetypeIcon(dna.archetype)
+  return (
+    <div>
+      {dna.archetype && (
+        <div className="flex items-center gap-3">
+          <span className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+            <ArcheIcon className="w-[23px] h-[23px]" />
+          </span>
+          <span className="font-display text-[17px] leading-[1.12] text-foreground">{dna.archetype}</span>
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-col gap-3.5">
+        {dna.traits.map((t) => <TraitBar key={t.key} trait={t} />)}
+      </div>
+
+      {dna.summary && (
+        <p className="mt-4 pt-3 border-t border-border text-[11px] text-muted-foreground text-center leading-relaxed">
+          {dna.summary}
+        </p>
+      )}
+
+      {showLink && (
+        <Link
+          to="/stats"
+          className="mt-3 block text-[11px] text-muted-foreground hover:text-foreground transition-colors text-center"
+        >
+          Full breakdown →
+        </Link>
+      )}
+    </div>
+  )
+}
+
 export function ReadingDNACard({ dna }: { dna: ReadingDNA }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
 
@@ -53,8 +92,6 @@ export function ReadingDNACard({ dna }: { dna: ReadingDNA }) {
       return next
     })
   }
-
-  const ArcheIcon = archetypeIcon(dna.archetype)
 
   return (
     <section className="p-4">
@@ -80,31 +117,7 @@ export function ReadingDNACard({ dna }: { dna: ReadingDNA }) {
 
       {!collapsed && (
         <div className="mt-4">
-          {dna.archetype && (
-            <div className="flex items-center gap-3">
-              <span className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                <ArcheIcon className="w-[23px] h-[23px]" />
-              </span>
-              <span className="font-display text-[17px] leading-[1.12] text-foreground">{dna.archetype}</span>
-            </div>
-          )}
-
-          <div className="mt-5 flex flex-col gap-3.5">
-            {dna.traits.map((t) => <TraitBar key={t.key} trait={t} />)}
-          </div>
-
-          {dna.summary && (
-            <p className="mt-4 pt-3 border-t border-border text-[11px] text-muted-foreground text-center leading-relaxed">
-              {dna.summary}
-            </p>
-          )}
-
-          <Link
-            to="/stats"
-            className="mt-3 block text-[11px] text-muted-foreground hover:text-foreground transition-colors text-center"
-          >
-            Full breakdown →
-          </Link>
+          <ReadingDNABody dna={dna} showLink />
         </div>
       )}
     </section>

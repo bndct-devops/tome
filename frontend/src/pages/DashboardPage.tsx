@@ -929,9 +929,17 @@ export function DashboardPage() {
     api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
     api.get<ForgottenBook[]>('/home/forgotten-books').then(setForgottenBooks).catch(() => {})
     api.get<HighlightSpotlight>('/annotations/spotlight').then(setSpotlight).catch(() => {})
-    api.get<ReadingDNA>(`/home/reading-dna?tz_offset=${tzOffset}`).then(setReadingDna).catch(() => {})
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
+
+  // Reading DNA is the costliest home request — fetch it lazily, only once the
+  // dashboard Home view (the one place the card renders) is actually shown.
+  useEffect(() => {
+    if (tab !== 'home' || homeMode !== 'dashboard' || readingDna) return
+    api.get<ReadingDNA>(`/home/reading-dna?tz_offset=${new Date().getTimezoneOffset()}`)
+      .then(setReadingDna)
+      .catch(() => {})
+  }, [tab, homeMode, readingDna])
 
   // ── Filter chip helpers ───────────────────────────────────────────────────
   const activeFilterChips: { label: string; key: string }[] = [
@@ -1240,10 +1248,11 @@ export function DashboardPage() {
                     <h2 className="text-base font-semibold text-foreground">Series Progress</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {rows.map(({ book, read, total, pct }) => (
-                        <a
+                        <button
                           key={book.series}
-                          href={`/?tab=books&series=${encodeURIComponent(book.series!)}`}
-                          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors"
+                          type="button"
+                          onClick={() => setSearchParams({ tab: 'books', series: book.series! })}
+                          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors text-left"
                         >
                           <div className="relative w-9 aspect-[2/3] rounded shrink-0 overflow-hidden bg-muted">
                             <CoverImage src={book.cover_path ? `/api/books/${book.id}/cover` : null} alt={book.series!} iconClassName="w-4 h-4" />
@@ -1257,7 +1266,7 @@ export function DashboardPage() {
                               <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
                             </div>
                           </div>
-                        </a>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1334,8 +1343,11 @@ export function DashboardPage() {
 
               </div>{/* ── /Main column ── */}
 
-              {/* ── Right rail (one connected panel, hairline-divided) ─────── */}
-              <aside className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden">
+              {/* ── Right rail (one connected panel, hairline-divided) ───────
+                  empty:hidden — every child is conditional (no sessions / no
+                  goals / no highlights), and a brand-new user would otherwise
+                  see a bare bordered box. */}
+              <aside className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden empty:hidden">
                 {readingDna && <ReadingDNACard dna={readingDna} />}
                 <HomeGoalRings />
                 {spotlight?.highlight?.highlighted_text && (

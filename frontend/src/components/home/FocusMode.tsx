@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Play, RefreshCw, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { CoverImage } from '@/components/CoverImage'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ interface FocusData {
   upcoming: FocusUpcoming[]
   ahead_count: number
   reading: { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number }[]
+  reading_total?: number
 }
 
 /** One cover in the rotary — the current book plus each upcoming volume. */
@@ -46,11 +48,17 @@ interface RotaryItem {
 
 function relativeTime(iso: string | null): string {
   if (!iso) return ''
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  const then = new Date(iso)
+  const diff = Math.floor((Date.now() - then.getTime()) / 1000)
   if (diff < 60) return 'just now'
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 7200) return '1 hour ago'
   if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`
   if (diff < 172800) return 'yesterday'
+  // Past a month, "412 days ago" reads worse than the date itself.
+  if (diff >= 30 * 86400) {
+    return `on ${then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+  }
   return `${Math.floor(diff / 86400)} days ago`
 }
 
@@ -172,7 +180,10 @@ function Rotary({
               transition: 'transform 500ms cubic-bezier(.22,1,.36,1), opacity 450ms ease',
             }}
           >
-            <img src={cover(items[0].book_id)} alt="" className="block w-full aspect-[2/3] object-cover" draggable={false} />
+            {/* CoverImage: a coverless book shows the placeholder, not a broken-image glyph */}
+            <div className="relative w-full aspect-[2/3]">
+              <CoverImage src={cover(items[0].book_id)} alt="" iconClassName="w-12 h-12" />
+            </div>
           </button>
         ) : (
           <div className="absolute top-1/2 left-0" style={{ transform: 'translateY(-50%)', transformStyle: 'preserve-3d' }}>
@@ -216,7 +227,9 @@ function Rotary({
                     transitionDelay: mounted ? `${Math.max(0, offset) * 55}ms` : '0ms',
                   }}
                 >
-                  <img src={cover(it.book_id)} alt="" className="block w-full aspect-[2/3] object-cover" draggable={false} />
+                  <div className="relative w-full aspect-[2/3]">
+                    <CoverImage src={cover(it.book_id)} alt="" iconClassName="w-10 h-10" />
+                  </div>
                   {!isHero && it.series_index != null && (
                     <span className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-black/55 backdrop-blur-sm text-white text-[11px] font-bold grid place-items-center border border-white/20">
                       {fmtVol(it.series_index)}
@@ -244,13 +257,22 @@ export function FocusMode() {
   const [focusId, setFocusId] = useState<number | null>(null)
 
   // (Re)load whenever the focused book changes; replay the entrance each time.
+  // Aborted on re-fire: without it, clicking strip book A then quickly book B
+  // could let A's slower response land last — hero showing A while focusId is B,
+  // and re-clicking A a no-op (switchTo guards on the displayed book id).
   useEffect(() => {
     setMounted(false)
     setSelected(0)
+    const ctrl = new AbortController()
     const q = focusId != null ? `?book_id=${focusId}` : ''
-    api.get<FocusData>(`/home/focus${q}`)
+    api.get<FocusData>(`/home/focus${q}`, ctrl.signal)
       .then(setData)
-      .catch(() => setData({ ready: false, book: null, upcoming: [], ahead_count: 0, reading: [] }))
+      .catch((e) => {
+        if ((e as Error).name !== 'AbortError') {
+          setData({ ready: false, book: null, upcoming: [], ahead_count: 0, reading: [] })
+        }
+      })
+    return () => ctrl.abort()
   }, [focusId])
 
   // Kick the entrance animation one frame after data lands.
@@ -279,6 +301,13 @@ export function FocusMode() {
           <p className="text-base font-medium text-foreground">Nothing in progress</p>
           <p className="text-sm text-muted-foreground mt-1">Start a book and Focus mode will pick up where you left off</p>
         </div>
+        <button
+          type="button"
+          onClick={() => navigate('/?tab=books')}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Browse library
+        </button>
       </div>
     )
   }
@@ -430,7 +459,7 @@ export function FocusMode() {
                         : 'ring-1 ring-border opacity-70 group-hover:opacity-100 group-hover:ring-primary/60 cursor-pointer'
                     )}
                   >
-                    <img src={cover(r.book_id)} alt="" className="w-full h-full object-cover" draggable={false} />
+                    <CoverImage src={cover(r.book_id)} alt="" iconClassName="w-5 h-5" />
                     {r.progress > 0 && (
                       <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/35">
                         <div className="h-full bg-primary" style={{ width: `${r.progress}%` }} />
@@ -448,6 +477,19 @@ export function FocusMode() {
                 </button>
               )
             })}
+            {(data.reading_total ?? data.reading.length) > data.reading.length && (
+              <button
+                type="button"
+                onClick={() => navigate('/?tab=books&reading_status=reading')}
+                className="shrink-0 w-[64px] self-stretch"
+                title="See all in-progress books"
+              >
+                <div className="w-[64px] aspect-[2/3] rounded-lg ring-1 ring-border bg-muted/60 grid place-items-center text-xs font-semibold text-muted-foreground hover:text-foreground hover:ring-primary/60 transition">
+                  +{(data.reading_total ?? 0) - data.reading.length}
+                </div>
+                <div className="mt-1.5 text-[11px] text-muted-foreground text-left truncate">more</div>
+              </button>
+            )}
           </div>
         </div>
       )}

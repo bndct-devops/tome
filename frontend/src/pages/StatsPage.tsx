@@ -15,6 +15,7 @@ import { api } from '@/lib/api'
 import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { ReadingDNABody } from '@/components/stats/ReadingDNACard'
 import { GoalWidgetBody } from '@/components/stats/GoalWidget'
 import { listGoals, type Goal } from '@/lib/goals'
 import {
@@ -357,6 +358,15 @@ const WIDGETS: WidgetDef[] = [
     render: ({ estimates }) => <CompletionEstimatesList estimates={estimates} />,
   },
   {
+    id: 'reading-dna',
+    title: 'Reading DNA',
+    size: { w: 4, h: 3, minW: 3, minH: 2 },
+    render: ({ stats }) =>
+      stats.reading_dna?.ready
+        ? <ReadingDNABody dna={stats.reading_dna} />
+        : <p className="text-sm text-muted-foreground">Not enough reading history yet.</p>,
+  },
+  {
     id: 'period-comparison',
     title: 'Period Comparison',
     size: { w: 6, h: 1, minW: 3, minH: 1 },
@@ -646,7 +656,7 @@ const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
   },
   {
     label: 'Habits',
-    ids: ['hour-dow', 'reading-clock', 'session-timeline', 'reading-pace', 'pace-by-format', 'true-wpm', 'dow-bar', 'time-of-day', 'time-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
+    ids: ['hour-dow', 'reading-clock', 'reading-dna', 'session-timeline', 'reading-pace', 'pace-by-format', 'true-wpm', 'dow-bar', 'time-of-day', 'time-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
   },
   {
     label: 'Library',

@@ -196,10 +196,11 @@ def compute_reading_dna(db: Session, user: User, tz_offset: int) -> dict:
         ]
         summary = (" · ".join(tags)[:1].upper() + " · ".join(tags)[1:] + ".") if tags else None
 
+    # No window_days field: nothing consumed it, and no single window is honest —
+    # time uses 365d, rhythm 120d, and length/pace/variety are all-time.
     return {
         "ready": bool(trait_list),
         "archetype": archetype,
         "summary": summary,
         "traits": trait_list,
-        "window_days": 365,
     }
