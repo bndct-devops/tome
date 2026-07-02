@@ -168,6 +168,13 @@ async def lifespan(app: FastAPI):
             "ON ko_page_stats (user_id, book_id, page)"
         ))
         conn.commit()
+        # Release detection stores the tracker's latest volume title + date on
+        # follows (wishes table pre-exists on upgraded installs).
+        wi_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(wishes)")).fetchall()}
+        if wi_cols and "latest_known_title" not in wi_cols:
+            conn.execute(text("ALTER TABLE wishes ADD COLUMN latest_known_title VARCHAR(512)"))
+            conn.execute(text("ALTER TABLE wishes ADD COLUMN latest_release_date VARCHAR(10)"))
+            conn.commit()
     ReadingGoal.__table__.create(bind=engine, checkfirst=True)
     init_fts(engine)
     backfill_fts(engine)

@@ -141,10 +141,19 @@ async def check_follows(db: Session, *, force: bool = False) -> dict:
         if wish.latest_known_index is None:
             # First successful check primes the watermark silently.
             wish.latest_known_index = state["latest_index"]
+            wish.latest_known_title = state.get("latest_title")
+            wish.latest_release_date = state.get("release_date")
         elif state["latest_index"] > wish.latest_known_index:
             _notify_release(db, wish, state)
             wish.latest_known_index = state["latest_index"]
+            wish.latest_known_title = state.get("latest_title")
+            wish.latest_release_date = state.get("release_date")
             notified += 1
+        elif wish.latest_known_title is None and state["latest_index"] == wish.latest_known_index:
+            # Same volume as the watermark — backfill title/date for follows
+            # created before these columns existed (no notification).
+            wish.latest_known_title = state.get("latest_title")
+            wish.latest_release_date = state.get("release_date")
         db.flush()
     db.commit()
     return {"checked": checked, "notified": notified}

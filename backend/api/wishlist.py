@@ -183,6 +183,8 @@ def _follow_out(db: Session, current_user: User, w: Wish) -> dict:
         "cover_url": w.cover_url,
         "source_id": w.source_id,
         "latest_known_index": w.latest_known_index,
+        "latest_known_title": w.latest_known_title,
+        "latest_release_date": w.latest_release_date,
         "owned_max_index": float(owned) if owned is not None else None,
         "last_checked_at": w.last_checked_at.isoformat() + "Z" if w.last_checked_at else None,
         "created_at": w.created_at.isoformat() + "Z" if w.created_at else None,
@@ -259,6 +261,8 @@ async def follow_series(
     state = await fetch_series_latest(int(sid))
     if state:
         wish.latest_known_index = state["latest_index"]
+        wish.latest_known_title = state.get("latest_title")
+        wish.latest_release_date = state.get("release_date")
         wish.last_checked_at = _dt.utcnow()
 
     db.commit()

@@ -79,10 +79,14 @@ class Wish(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    # ── reserved for the detection plan (added now, unused) ──────────────────
+    # ── release detection (kind="follow"; reserved by the wishlist plan) ─────
     external_series_id: Mapped[Optional[str]] = mapped_column(String(128))
     last_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     latest_known_index: Mapped[Optional[float]] = mapped_column(Float)
+    # The tracker's latest volume title + release date ("YYYY-MM-DD"), stored so
+    # the series page / Home can show "Vol 16 — Jul 7" without re-polling.
+    latest_known_title: Mapped[Optional[str]] = mapped_column(String(512))
+    latest_release_date: Mapped[Optional[str]] = mapped_column(String(10))
 
     __table_args__ = (
         UniqueConstraint("user_id", "source", "source_id", name="uq_wish_user_source"),

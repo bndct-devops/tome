@@ -13,6 +13,8 @@ import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
 import { SeriesStackCard } from '@/components/SeriesStackCard'
 import { SeriesRating } from '@/components/SeriesRating'
+import { SeriesFollowButton } from '@/components/SeriesFollowButton'
+import { UpcomingReleases } from '@/components/UpcomingReleases'
 import { CoverImage } from '@/components/CoverImage'
 import { Sidebar } from '@/components/Sidebar'
 import { SaveFilterButton } from '@/components/SaveFilterButton'
@@ -1350,6 +1352,7 @@ export function DashboardPage() {
               <aside className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden empty:hidden">
                 {readingDna && <ReadingDNACard dna={readingDna} />}
                 <HomeGoalRings />
+                <UpcomingReleases />
                 {spotlight?.highlight?.highlighted_text && (
                   <section className="p-4">
                     <header className="flex items-center justify-between mb-2.5">
@@ -1511,6 +1514,7 @@ export function DashboardPage() {
                                 Manage
                               </button>
                             )}
+                            <SeriesFollowButton seriesName={seriesDetail.name} />
                           </div>
                         </div>
 
