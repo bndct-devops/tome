@@ -57,6 +57,13 @@ All notable changes to Tome are documented here. Format loosely follows
   Small "i" hints explain the progress and reading-intensity charts in plain language.
 
 ### Fixed
+- **Bindery is back in the mobile menu.** The mobile drawer never got a
+  Bindery link when the desktop sidebar did, so on a phone admins could only
+  reach it by typing the URL (#101). It now sits under Wishlist with the
+  pending-file count.
+- **The mobile drawer got a tidy-up.** The five theme choices no longer stack
+  as full-height rows — they are one compact "Theme" row of icon buttons — so
+  the account section fits without pushing the navigation off screen.
 - **Deleting a highlight from the web now sticks, even for a highlight you just
   made.** The deletion marker was stamped with the server's clock, but compared
   against the device's local wall-clock — so with a UTC server and a device in a

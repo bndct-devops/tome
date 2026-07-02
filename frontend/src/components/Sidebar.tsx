@@ -710,6 +710,24 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     <span className="truncate">Wishlist</span>
                   </Link>
                 )}
+                {isAdmin(user) && (
+                  <Link
+                    to="/bindery"
+                    onClick={onMobileClose}
+                    className={cn(
+                      'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
+                      location.pathname === '/bindery'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    )}
+                  >
+                    <BookPlus className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+                    <span className="truncate flex-1">Bindery</span>
+                    {binderyCount > 0 && (
+                      <span className="text-xs font-medium text-primary tabular-nums">{binderyCount}</span>
+                    )}
+                  </Link>
+                )}
               </div>
 
               <Section
@@ -774,7 +792,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               </div>
               {/* Actions */}
               <div className="px-2 pb-3 space-y-0.5">
-                <MobileThemeToggle itemClass="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" />
+                <MobileThemeRow />
                 <Link
                   to="/settings"
                   onClick={onMobileClose}
@@ -850,8 +868,29 @@ function ThemeMenuItems({ itemClass }: { itemClass: string }) {
   )
 }
 
-function MobileThemeToggle({ itemClass }: { itemClass: string }) {
-  return <ThemeMenuItems itemClass={itemClass} />
+function MobileThemeRow() {
+  const [current, setCurrent] = useState(getStoredTheme)
+  return (
+    <div className="flex items-center gap-1 px-3 py-1.5">
+      <span className="flex-1 text-sm text-muted-foreground">Theme</span>
+      {THEME_OPTIONS.map(({ id, icon: Icon, label }) => (
+        <button
+          key={id}
+          onClick={() => { applyTheme(id); setCurrent(id) }}
+          title={label}
+          aria-label={`${label} theme`}
+          className={cn(
+            'flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
+            current === id
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          )}
+        >
+          <Icon className="w-4 h-4" />
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: string; is_admin?: boolean; role?: string } | null; logout: () => void; onExpand: () => void }) {
