@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
-  BookOpen, Upload, Search, X, Home, ChevronRight,
+  BookOpen, X, Home, ChevronRight,
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
-  Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil, Menu,
+  Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
   Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon,
 } from 'lucide-react'
-import { TomeMark } from '@/components/TomeMark'
+import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { BookCard, type ViewMode } from '@/components/BookCard'
@@ -21,8 +21,6 @@ import { UploadModal } from '@/components/UploadModal'
 import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
-import { SyncStatusBadge } from '@/components/SyncStatusBadge'
-import { NotificationBell } from '@/components/NotificationBell'
 import { HomeGoalRings } from '@/components/stats/GoalWidget'
 import { ReadingDNACard } from '@/components/stats/ReadingDNACard'
 import type { ReadingDNA } from '@/components/stats/shared'
@@ -1014,50 +1012,19 @@ export function DashboardPage() {
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* ── Navbar ──────────────────────────────────────────────────────── */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 shrink-0 safe-top">
-        <div className="px-4 h-14 flex items-center gap-3">
-          <button
-            className="md:hidden flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted shrink-0"
-            onClick={() => setMobileSidebarOpen(true)}
-            aria-label="Open navigation"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2 mr-2 shrink-0 group cursor-default">
-            <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
-            <span className="font-semibold text-sm">Tome</span>
-          </div>
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              className="w-full h-8 pl-9 pr-8 rounded-lg bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder="Search books… (/)"
-              value={searchInput}
-              onChange={e => handleSearchInput(e.target.value)}
-            />
-            {searchInput && (
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
-                onClick={() => { setSearchInput(''); setFilter('q', '') }}>
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <SyncStatusBadge />
-            <NotificationBell />
-            {isMember(user) && (
-              <button onClick={() => setUploadModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all touch-feedback">
-                <Upload className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Upload</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* ── Navbar (shared with the standalone pages via AppShell) ───────── */}
+      <AppHeader
+        onMenuClick={() => setMobileSidebarOpen(true)}
+        search={
+          <HeaderSearch
+            value={searchInput}
+            onChange={handleSearchInput}
+            onClear={() => { setSearchInput(''); setFilter('q', '') }}
+            inputRef={searchInputRef}
+          />
+        }
+        onUploadClick={isMember(user) ? () => setUploadModalOpen(true) : undefined}
+      />
 
       <UploadModal
         isOpen={uploadModalOpen}

@@ -29,6 +29,15 @@ All notable changes to Tome are documented here. Format loosely follows
   Small "i" hints explain the progress and reading-intensity charts in plain language.
 
 ### Fixed
+- **The top bar on Stats, Highlights, Wishlist and the Bindery is now the real
+  one.** It was a near-copy of the dashboard's header that had already drifted:
+  on phones its Upload button was an empty pill (the icon had been lost in the
+  copy), uploading from those pages silently dropped the "this upload satisfies
+  N wishes" notice — and on the Bindery didn't refresh the inbox — and the
+  search box neither advertised nor honoured the **/** focus shortcut the
+  dashboard has. There is now a single shared header component used everywhere,
+  so the two can't drift apart again; the wish notice, Bindery refresh and
+  **/** shortcut all work from every page.
 - **Standalone books download to the correct book-type folder in KOReader.** A book
   with no series — say a RoyalRoad title — could be filed under the wrong type's
   folder (e.g. `light_novel`) when downloaded through the plugin, while books in a

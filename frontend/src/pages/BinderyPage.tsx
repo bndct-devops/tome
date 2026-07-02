@@ -1107,6 +1107,7 @@ export function BinderyPage() {
 
     return (
       <AppShell
+        onUploaded={fetchAll}
         actions={
           <button
             onClick={fetchAll}
@@ -1499,7 +1500,7 @@ export function BinderyPage() {
   const currentForm = currentItem ? formData[currentItem.path] : null
 
   return (
-    <AppShell>
+    <AppShell onUploaded={fetchAll}>
     <div className={cn('flex flex-col h-full transition-opacity duration-150', viewTransition ? 'opacity-0' : 'opacity-100')}>
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border px-6 pt-5 pb-3">
