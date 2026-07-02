@@ -94,7 +94,6 @@ export interface ReadingDNA {
   archetype: string | null
   summary: string | null
   traits: ReadingDNATrait[]
-  window_days: number
 }
 
 export interface CompletionEstimate {

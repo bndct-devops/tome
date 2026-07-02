@@ -18,7 +18,13 @@ router = APIRouter(prefix="/home", tags=["home"])
 
 
 def _norm_pct(raw: float | None) -> float:
-    """Normalise a progress value (KOReader 0–1 or legacy 0–100) to 0–100."""
+    """Normalise a progress value (KOReader 0–1 or legacy 0–100) to 0–100.
+
+    Everything written since the web reader/TomeSync convention is a 0–1
+    fraction, so <= 1.0 means "fraction". A legacy 0–100 row that happened to
+    sit below 1% is misread as 80–100% — unavoidable ambiguity, accepted as
+    vanishingly rare.
+    """
     if not raw:
         return 0.0
     return round(raw * 100, 1) if raw <= 1.0 else round(raw, 1)
@@ -135,6 +141,9 @@ def get_focus(
 
     return {
         "ready": True,
+        # Books 13+ can't be focused from the strip — the frontend shows a
+        # "+N more" link into the filtered library instead of hiding them.
+        "reading_total": len(ordered),
         "book": {
             "book_id": hero.id,
             "title": hero.title,

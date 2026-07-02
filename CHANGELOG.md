@@ -15,10 +15,11 @@ All notable changes to Tome are documented here. Format loosely follows
   **Currently reading** strip to switch the spotlight to any other in-progress book.
   Clicking the cover or series name jumps to the series. Toggle between **Focus** and
   the full **Dashboard** from the Home header; your choice is remembered.
-- **Your Reading DNA.** The Home dashboard and Stats page now show a reading-personality
-  card — an archetype (e.g. "Night-Owl Epic Specialist") distilled from a few traits
-  like when you read, how long your sessions run, and how widely you range across the
-  library — computed over a recent trailing window.
+- **Your Reading DNA.** The Home dashboard shows a reading-personality card — an
+  archetype (e.g. "Night-Owl Epic Specialist") distilled from a few traits like
+  when you read, how long your sessions run, and how widely you range across the
+  library. On Reading Stats it's also available as a **Reading DNA** tile — add it
+  from **Add tile** under Habits; the Home card's "Full breakdown" link points there.
 - **A richer reading log on every book.** A book's Reading Stats now show more of
   its story: a **progress line** traced over the activity bars so you can see how
   far you got on each reading day, a **momentum** indicator comparing the last week
@@ -94,6 +95,26 @@ All notable changes to Tome are documented here. Format loosely follows
   timelines, reading intensity, momentum, Reading DNA — now shares the streak's
   single reading-day rule. The one deliberate exception is the hour-of-weekday
   heatmap, where 1 am should still display as 1 am.
+- **Focus mode rough edges, rounded off.** A book without a cover showed the
+  browser's broken-image glyph in the hero, the fan and the Currently-reading
+  strip — it now gets the same tidy placeholder as everywhere else. Rapidly
+  switching between strip books could leave the hero stuck on the wrong book (a
+  slower earlier response landing last); switches are now cancelled cleanly. With
+  more than 12 books in progress the extras were silently unreachable — the strip
+  now ends in a **"+N more"** chip into the filtered library. Sync times read
+  naturally ("1 hour ago", and past a month the actual date instead of "412 days
+  ago"), the empty state gained a **Browse library** button, Series Progress rows
+  no longer reload the whole app, and a brand-new user no longer sees an empty
+  bordered box beside the dashboard. The Reading DNA figures are also no longer
+  computed for views that never show them (and on phones, only fetched when the
+  Home dashboard actually renders). Two touch-ups from a polish pass: the small
+  kicker line no longer repeats the series name that the big title right below
+  it already shows, and on phones the hero stacks from the top instead of
+  floating mid-screen with dead space above the covers. The Reading DNA trait
+  markers also stay inside their bars at the extremes instead of half-clipping.
+- **Sharper axis labels and richer tooltips on stats charts** *(shipped in v1.7.x
+  polish, previously missing from this log)*: KPI tile labels no longer truncate
+  mid-word, and the daily chart's tooltips include pages alongside minutes.
 - **The top bar on Stats, Highlights, Wishlist and the Bindery is now the real
   one.** It was a near-copy of the dashboard's header that had already drifted:
   on phones its Upload button was an empty pill (the icon had been lost in the
