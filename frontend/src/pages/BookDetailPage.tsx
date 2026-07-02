@@ -1258,10 +1258,10 @@ function ActivityChart({ timeline }: {
     .filter(Boolean) as string[])
   const lastProgress = [...days].reverse().find(d => d.progress_pct != null)?.progress_pct ?? null
   return (
-    // Short spans don't stretch edge-to-edge: cap the axis width so a 3-day
-    // book gets three day-sized bars, not three slabs. Labels + progress lane
-    // share the same width so the axis stays aligned.
-    <div className="flex flex-col" style={{ maxWidth: Math.max(n * 44, 320) }}>
+    // Always full card width — a narrower "day-sized bars" cap was tried and
+    // looked half-finished against the full-width card chrome. Big bars for a
+    // short history are fine; the gap-filled axis keeps the spacing honest.
+    <div className="flex flex-col">
       <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0">Activity</p>
       {/* Fixed-height strip: flex-1 fill only works inside a sized flex parent,
           and the hero wraps this in a plain div — flex-1 collapsed to 0px there
