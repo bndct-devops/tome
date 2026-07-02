@@ -49,6 +49,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<MetadataCandidate[]>([])
+  const [sourceNotice, setSourceNotice] = useState<string | null>(null)
   const [selected, setSelected] = useState<MetadataCandidate | null>(null)
   const [fields, setFields] = useState<FieldRow[]>([])
   const [query, setQuery] = useState('')
@@ -71,6 +72,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
     setApplying(false)
     setError(null)
     setCandidates([])
+    setSourceNotice(null)
     setSelected(null)
     setFields([])
     setQuery('')
@@ -80,17 +82,30 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
     setLoading(true)
     setError(null)
     setCandidates([])
+    setSourceNotice(null)
     try {
       const qs = q.trim() ? `?q=${encodeURIComponent(q)}` : ''
       const r = await fetch(`${API}/api/books/${book.id}/fetch-metadata${qs}`, {
         headers: authHeader(),
       })
       if (!r.ok) throw new Error(await r.text())
-      const data: MetadataCandidate[] = await r.json()
-      if (data.length === 0) {
-        setError('No results found. Try a different search query.')
+      const data: { candidates: MetadataCandidate[]; sources?: Record<string, string> } = await r.json()
+
+      // Be honest about degraded sources — "no results" used to swallow 429s.
+      const labels: Record<string, string> = {
+        hardcover: 'Hardcover', google_books: 'Google Books', open_library: 'Open Library', anilist: 'AniList',
+      }
+      const degraded = Object.entries(data.sources ?? {})
+        .filter(([, s]) => s === 'rate_limited' || s === 'timeout' || s === 'error')
+        .map(([k, s]) => `${labels[k] ?? k} ${s === 'rate_limited' ? 'is rate-limited — try again in a minute' : s === 'timeout' ? 'timed out' : 'errored'}`)
+      if (degraded.length) setSourceNotice(degraded.join(' · '))
+
+      if (data.candidates.length === 0) {
+        setError(degraded.length
+          ? 'No results — but some sources were unavailable (see below); retrying may help.'
+          : 'No results found. Try a different search query.')
       } else {
-        setCandidates(data)
+        setCandidates(data.candidates)
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Search failed')
@@ -217,12 +232,16 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                 </div>
               )}
 
+              {!loading && sourceNotice && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">{sourceNotice}</p>
+              )}
+
               {!loading && candidates.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">
                     {candidates.length} result{candidates.length !== 1 ? 's' : ''} — pick one to review
                   </p>
-                  {candidates.map(c => (
+                  {candidates.map((c, i) => (
                     <button
                       key={`${c.source}-${c.source_id}`}
                       className="w-full text-left rounded-lg border border-border bg-card p-3 hover:bg-accent transition-colors flex gap-3"
@@ -238,8 +257,15 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-medium line-clamp-2">{c.title}</p>
-                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground bg-muted">
-                            {c.source === 'hardcover' ? 'Hardcover' : c.source === 'google_books' ? 'Google' : 'OpenLib'}
+                          <span className="flex items-center gap-1 shrink-0">
+                            {i === 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium">
+                                Best match
+                              </span>
+                            )}
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground bg-muted">
+                              {c.source === 'hardcover' ? 'Hardcover' : c.source === 'google_books' ? 'Google' : c.source === 'anilist' ? 'AniList' : 'OpenLib'}
+                            </span>
                           </span>
                         </div>
                         {c.author && <p className="text-sm text-muted-foreground mt-0.5">{c.author}</p>}
@@ -295,7 +321,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                   <span>
                     Incoming
                     <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded border border-border bg-background normal-case tracking-normal">
-                      {selected.source === 'hardcover' ? 'Hardcover' : selected.source === 'google_books' ? 'Google Books' : 'Open Library'}
+                      {selected.source === 'hardcover' ? 'Hardcover' : selected.source === 'google_books' ? 'Google Books' : selected.source === 'anilist' ? 'AniList' : 'Open Library'}
                     </span>
                   </span>
                 </div>

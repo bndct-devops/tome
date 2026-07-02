@@ -261,7 +261,12 @@ async def bindery_preview(
     # Strip internal private keys from file_metadata before returning
     file_metadata = {k: v for k, v in meta.items() if not k.startswith("_")}
 
-    return {"file_metadata": file_metadata, "candidates": candidates, "query_used": fetch_result.query_used}
+    return {
+        "file_metadata": file_metadata,
+        "candidates": candidates,
+        "query_used": fetch_result.query_used,
+        "sources": fetch_result.sources,
+    }
 
 
 @router.post("/accept")

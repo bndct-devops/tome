@@ -1249,86 +1249,17 @@ class BulkCandidateResult(PydanticBaseModel):
     best_match_index: Optional[int] = None  # index into candidates, None = no confident match
 
 
-def _extract_vol_number(title: str) -> int | None:
-    """Extract volume number from a title string. Handles 'v001', 'Vol. 1', 'Vol 1', 'Volume 1'."""
-    m = re.search(r'\bv(?:ol(?:ume)?\.?\s*)(\d+)\b', title, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
-    # Also match bare "vNNN" (manga filename convention)
-    m = re.search(r'\bv(\d{2,4})\b', title, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
-    return None
-
-
 def _score_candidate(candidate, book: Book) -> int:
-    from backend.services.metadata_fetch import _clean_title
-    score = 0
-    if candidate.description:
-        score += 2
-    if candidate.cover_url:
-        score += 1
-    if candidate.isbn and book.isbn and candidate.isbn == book.isbn:
-        score += 4
-    if candidate.year and book.year and candidate.year == book.year:
-        score += 1
-
-    # Compare against cleaned title (strips filename noise like "(Digital) (1r0n)")
-    clean_book_title = _clean_title(book.title).lower() if book.title else ""
-    if candidate.title and clean_book_title:
-        ratio = difflib.SequenceMatcher(
-            None, candidate.title.lower(), clean_book_title,
-        ).ratio()
-        if ratio > 0.85:
-            score += 3
-        elif ratio > 0.6:
-            score += 1
-    if candidate.author and book.author:
-        ratio = difflib.SequenceMatcher(
-            None, candidate.author.lower(), book.author.lower()
-        ).ratio()
-        if ratio > 0.7:
-            score += 2
-
-    # Volume number matching — critical for series like manga where all titles
-    # start with the same series name. Extract the volume from the book's raw
-    # title (e.g. "My Series v004") and check if the candidate matches.
-    book_vol = _extract_vol_number(book.title) if book.title else None
-    if book_vol is not None:
-        # Check candidate's series_index first (most reliable)
-        cand_vol = None
-        if candidate.series_index is not None:
-            cand_vol = int(candidate.series_index) if candidate.series_index == int(candidate.series_index) else None
-        # Fall back to extracting from candidate title
-        if cand_vol is None:
-            cand_vol = _extract_vol_number(candidate.title) if candidate.title else None
-        if cand_vol == book_vol:
-            score += 8  # strong signal — right volume
-        else:
-            score -= 4  # wrong volume is worse than no match
-
-    # Prefer English-language results (or results matching the book's language)
-    book_lang = (book.language or "en").lower()[:2]
-    cand_lang = (candidate.language or "en").lower()[:2]
-    if cand_lang == book_lang:
-        score += 2
-    elif cand_lang != "en":
-        score -= 3  # penalise non-English when book language unknown
-
-    # Penalise omnibus editions and spin-offs — they share volume numbers with
-    # the main series but are different books
-    if candidate.title:
-        ct = candidate.title.lower()
-        if "omnibus" in ct:
-            score -= 3
-        if "ace's story" in ct or "film:" in ct or "color walk" in ct:
-            score -= 5
-
-    # Source priority: Hardcover has best quality metadata for manga/LN/books
-    if candidate.source == "hardcover":
-        score += 6
-
-    return score
+    """Relevance of a candidate for this book — the single scoring brain now
+    lives in backend/services/metadata_rank.py (same weights); this is the
+    Book-model adapter."""
+    from backend.services.metadata_rank import ScoreContext, score_candidate
+    return score_candidate(candidate, ScoreContext(
+        title=book.title, author=book.author, isbn=book.isbn,
+        year=book.year, language=book.language,
+        series=book.series, series_index=book.series_index,
+        media_hint=book.book_type.slug if book.book_type else None,
+    ))
 
 
 @router.post("/bulk-fetch-candidates", response_model=list[BulkCandidateResult])
@@ -1350,15 +1281,23 @@ async def bulk_fetch_candidates(
 
     import asyncio as _asyncio
 
+    # Bounded fan-out: 100 unbounded parallel fetches (3+ HTTP calls each) used
+    # to trip the very source rate limits that then read as "no results".
+    sem = _asyncio.Semaphore(4)
+
     async def fetch_for_book(book: Book):
         try:
-            result = await fetch_candidates(
-                title=book.title,
-                author=book.author,
-                isbn=book.isbn,
-                series=book.series,
-                series_index=book.series_index,
-            )
+            async with sem:
+                result = await fetch_candidates(
+                    title=book.title,
+                    author=book.author,
+                    isbn=book.isbn,
+                    series=book.series,
+                    series_index=book.series_index,
+                    year=book.year,
+                    language=book.language,
+                    media_hint=book.book_type.slug if book.book_type else None,
+                )
             candidates = result.candidates
         except Exception as e:
             logger.warning("bulk_fetch_candidates failed for book %d: %s", book.id, e)
@@ -2432,14 +2371,19 @@ def ingest_book(
 
 # ── Fetch metadata candidates ─────────────────────────────────────────────────
 
-@router.get("/{book_id}/fetch-metadata", response_model=list[MetadataCandidateOut])
+@router.get("/{book_id}/fetch-metadata")
 async def fetch_metadata(
     book_id: int,
     q: Optional[str] = Query(None, description="Override search query"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Search external sources and return up to 5 metadata candidates for review."""
+    """Search external sources; return ranked candidates + per-source status.
+
+    Candidates are cross-source merged and relevance-ranked (index 0 = best).
+    ``sources`` tells the UI when an empty list means "rate limited", not
+    "this book doesn't exist anywhere".
+    """
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
@@ -2451,8 +2395,15 @@ async def fetch_metadata(
         series=book.series,
         series_index=book.series_index,
         query_override=q,
+        year=book.year,
+        language=book.language,
+        media_hint=book.book_type.slug if book.book_type else None,
     )
-    return result.candidates
+    return {
+        "candidates": [MetadataCandidateOut.model_validate(c.__dict__) for c in result.candidates],
+        "query_used": result.query_used,
+        "sources": result.sources,
+    }
 
 
 # ── Apply selected metadata ───────────────────────────────────────────────────
@@ -2478,12 +2429,19 @@ async def apply_metadata(
         if val is not None:
             setattr(book, f, val)
 
-    # Replace tags if provided
+    # Replace FETCHED tags if provided — but never wipe hand-curated ones
+    # (source="user"); applying a candidate used to delete the user's own tags.
     if body.tags is not None:
-        db.query(BookTag).filter(BookTag.book_id == book_id).delete()
+        kept = (
+            db.query(BookTag)
+            .filter(BookTag.book_id == book_id, BookTag.source == "user")
+            .all()
+        )
+        kept_lower = {t.tag.lower() for t in kept}
+        db.query(BookTag).filter(BookTag.book_id == book_id, BookTag.source != "user").delete()
         for tag in body.tags:
             tag = tag.strip()
-            if tag:
+            if tag and tag.lower() not in kept_lower:
                 db.add(BookTag(book_id=book_id, tag=tag, source="metadata_fetch"))
 
     # Download and replace cover if requested

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BellPlus, BellRing, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { getFollows, invalidateFollows, type FollowOut } from '@/lib/follows'
 import { useToast } from '@/contexts/ToastContext'
 import { cn, formatDate } from '@/lib/utils'
 
@@ -11,35 +12,21 @@ import { cn, formatDate } from '@/lib/utils'
  * release date under the button — labelled "Next" when the date is upcoming.
  */
 
-interface FollowOut {
-  id: number
-  name: string
-  latest_known_index: number | null
-  latest_known_title: string | null
-  latest_release_date: string | null
-}
-
 export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
   const { toast } = useToast()
-  const [enabled, setEnabled] = useState(true)
-  const [loaded, setLoaded] = useState(false)
-  const [follow, setFollow] = useState<FollowOut | null>(null)
+  // undefined = follows not resolved yet (render NOTHING — an optimistic
+  // button flickered on instances where release detection is disabled).
+  const [rows, setRows] = useState<FollowOut[] | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
 
-  const load = useCallback(() => {
-    api.get<FollowOut[]>('/wishlist/follows')
-      .then(rows => {
-        setFollow(rows.find(f => f.name.toLowerCase() === seriesName.toLowerCase()) ?? null)
-        setLoaded(true)
-      })
-      .catch(() => setEnabled(false))
-  }, [seriesName])
+  const load = useCallback(() => { getFollows().then(setRows) }, [seriesName])
   useEffect(load, [load])
 
-  if (!enabled || seriesName === '__unserialized__') return null
+  if (rows == null || seriesName === '__unserialized__') return null
+  const follow = rows.find(f => f.name.toLowerCase() === seriesName.toLowerCase()) ?? null
 
   const toggle = async () => {
-    if (busy || !loaded) return
+    if (busy) return
     setBusy(true)
     try {
       if (follow) {
@@ -48,7 +35,8 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
         await api.post('/wishlist/follow', { name: seriesName })
         toast.success(`Following "${seriesName}" — you'll hear when a new volume is out`)
       }
-      load()
+      invalidateFollows()
+      getFollows().then(setRows)
     } catch (e) {
       toast.error((e as Error).message ?? 'Could not resolve this series on Hardcover')
     } finally {
@@ -64,7 +52,7 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
     <div className="flex flex-col gap-1">
       <button
         onClick={toggle}
-        disabled={busy || !loaded}
+        disabled={busy}
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all disabled:opacity-50',
           follow

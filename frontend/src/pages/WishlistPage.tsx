@@ -9,6 +9,7 @@ import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { listWishes, deleteWish, type WishOut } from '@/lib/wishlist'
 import { api } from '@/lib/api'
+import { getFollows, invalidateFollows, type FollowOut } from '@/lib/follows'
 import { WishlistModal } from '@/components/WishlistModal'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { docsLink, DOCS } from '@/lib/docs'
@@ -45,16 +46,6 @@ function ageLabel(iso: string): string {
 // ── Following (release detection) ─────────────────────────────────────────────
 // Renders nothing when TOME_RELEASE_DETECTION is off (the follows endpoint 403s).
 
-interface FollowOut {
-  id: number
-  name: string
-  author: string | null
-  cover_url: string | null
-  latest_known_index: number | null
-  owned_max_index: number | null
-  last_checked_at: string | null
-}
-
 interface SeriesHit {
   source_id: string
   name: string
@@ -66,18 +57,15 @@ interface SeriesHit {
 const fmtVol = (n: number | null) => (n == null ? null : (Number.isInteger(n) ? String(n) : String(n)))
 
 function FollowingSection() {
-  const [enabled, setEnabled] = useState(true)
-  const [follows, setFollows] = useState<FollowOut[]>([])
+  // undefined = not resolved yet: render NOTHING (optimistic render flickered
+  // on instances with release detection disabled); null = disabled.
+  const [follows, setFollows] = useState<FollowOut[] | null | undefined>(undefined)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<SeriesHit[]>([])
   const [searching, setSearching] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const load = () => {
-    api.get<FollowOut[]>('/wishlist/follows')
-      .then(setFollows)
-      .catch(() => setEnabled(false))
-  }
+  const load = () => { getFollows().then(setFollows) }
   useEffect(load, [])
 
   useEffect(() => {
@@ -101,16 +89,17 @@ function FollowingSection() {
         name: r.name, source_id: r.source_id, author: r.author, cover_url: r.cover_url,
       })
       setQ(''); setResults([])
+      invalidateFollows()
       load()
     } catch { /* dup or offline — list stays as-is */ }
     finally { setBusy(false) }
   }
 
   const unfollow = async (id: number) => {
-    try { await api.delete(`/wishlist/${id}`); load() } catch { /* keep row */ }
+    try { await api.delete(`/wishlist/${id}`); invalidateFollows(); load() } catch { /* keep row */ }
   }
 
-  if (!enabled) return null
+  if (follows == null) return null
 
   return (
     <div>

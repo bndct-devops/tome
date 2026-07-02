@@ -57,6 +57,48 @@ All notable changes to Tome are documented here. Format loosely follows
   Small "i" hints explain the progress and reading-intensity charts in plain language.
 
 ### Fixed
+- **Metadata fetching got a deep overhaul.** The same book returned by two
+  sources used to eat two of the five result slots — each copy *partial*
+  (Hardcover knows series but not language; Google the reverse). Duplicates are
+  now merged across sources into one complete candidate, results are ranked by
+  the same relevance score everywhere (the right volume of a series now beats
+  the wrong volume from a "better" source), and every path — the fetch dialog,
+  bulk review, bulk apply, Bindery, auto-import — agrees on what the best match
+  is. Rate limits are handled honestly: sources are retried once with a pause,
+  and when one is still throttled the dialog says so instead of pretending the
+  book doesn't exist. Three more sharp edges filed down: auto-import no longer
+  renames a book on a low-confidence match (it fills blanks instead), applying
+  fetched metadata no longer wipes your hand-added tags, and bulk fetching
+  paces itself instead of firing a hundred parallel searches that tripped the
+  very rate limits above. A cross-check against realistic library shapes (manga
+  volumes, light novels with series-only titles, wrong-edition ISBNs, foreign
+  editions) caught four more: Hardcover's **series and publisher were never
+  actually filled in production** (an id-type mismatch made that lookup a
+  silent no-op since it shipped — fixed), foreign-language editions no longer
+  merge into (and poison) the English candidate, light novels no longer match
+  the manga adaptation of the same series (search is edition-aware now), and a
+  stored ISBN that points at the wrong edition — damage the old auto-apply
+  itself caused — no longer monopolises the results. Edition awareness also
+  understands custom book types now ("Webtoons", "graphic_novel", …), not just
+  the seeded four.
+- **AniList as a manga metadata source.** The existing sources are prose-first
+  and often know nothing about a manga volume beyond its title. Books with a
+  sequential-art type (manga, comics, webtoons, custom equivalents) now also
+  query AniList (no API key needed): it appears as its own candidate with the
+  series blurb, genres, staff and cover, and its series-level description,
+  author and genres back-fill volume-level hits from the other sources that
+  are missing them.
+- **Repeat searches are served from a short-lived cache.** Identical source
+  queries within 15 minutes (re-opening the fetch dialog, bulk-fetching a
+  series whose volumes share a series-level lookup) no longer re-hit the
+  external APIs — less rate-limiting, faster results. Concurrent duplicates
+  (a bulk fetch firing the same lookup for every volume at once) share a
+  single outbound request instead of racing past each other.
+- **No more flicker of the Follow UI on instances without release detection.**
+  The Follow button, Following section and Upcoming-releases card rendered
+  optimistically and hid after the server said the feature is off — a visible
+  flash on every page view. They now stay hidden until the check resolves, and
+  a disabled verdict is remembered for the session.
 - **Deleting a highlight from the web now sticks, even for a highlight you just
   made.** The deletion marker was stamped with the server's clock, but compared
   against the device's local wall-clock — so with a UTC server and a device in a

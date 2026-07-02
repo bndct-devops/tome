@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CalendarClock } from 'lucide-react'
-import { api } from '@/lib/api'
+import { getFollows, type FollowOut } from '@/lib/follows'
 import { formatDate } from '@/lib/utils'
 
 /**
@@ -10,28 +10,20 @@ import { formatDate } from '@/lib/utils'
  * users, most of the time, it simply isn't there.
  */
 
-interface FollowOut {
-  id: number
-  name: string
-  cover_url: string | null
-  latest_known_index: number | null
-  latest_known_title: string | null
-  latest_release_date: string | null
-}
-
 export function UpcomingReleases() {
   const [rows, setRows] = useState<FollowOut[]>([])
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
-    api.get<FollowOut[]>('/wishlist/follows')
-      .then(all => setRows(
+    getFollows().then(all => {
+      if (!all) return   // detection off (cached; no repeat 403s)
+      setRows(
         all
           .filter(f => f.latest_release_date != null && f.latest_release_date >= today)
           .sort((a, b) => (a.latest_release_date! < b.latest_release_date! ? -1 : 1))
           .slice(0, 5),
-      ))
-      .catch(() => {})   // 403 = detection off; card stays absent
+      )
+    })
   }, [])
 
   if (rows.length === 0) return null

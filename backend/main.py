@@ -440,12 +440,33 @@ async def _run_auto_import() -> None:
     # ------------------------------------------------------------------
 
     def _apply_metadata(book_id: int, best, content_hash: str) -> None:
+        from backend.services.metadata_rank import ScoreContext, score_candidate
+
         with SessionLocal() as db:
             book = db.get(Book, book_id)
             if not book:
                 return
-            book.title = best.title or book.title
-            book.author = best.author or book.author
+            # Title/author overwrite is confidence-gated: filenames make junky
+            # titles so a good match SHOULD replace them, but a wrong first hit
+            # used to silently rename the book. Below the bar, fill-if-empty.
+            confidence = score_candidate(best, ScoreContext(
+                title=book.title, author=book.author, isbn=book.isbn,
+                year=book.year, language=book.language,
+                series=book.series, series_index=book.series_index,
+                media_hint=book.book_type.slug if book.book_type else None,
+            ))
+            if confidence >= 6:
+                book.title = best.title or book.title
+                book.author = best.author or book.author
+            else:
+                if best.title and not book.title:
+                    book.title = best.title
+                if best.author and not book.author:
+                    book.author = best.author
+                logger.info(
+                    "Auto-import: low-confidence match (score %d) for book #%d — "
+                    "keeping extracted title/author", confidence, book_id,
+                )
             if best.description and not book.description:
                 book.description = best.description
             if best.publisher and not book.publisher:
