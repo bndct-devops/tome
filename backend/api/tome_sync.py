@@ -28,6 +28,7 @@ from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import Annotation, AnnotationTombstone, ApiKey, ReadingSession, TomeSyncPosition
 from backend.models.ko_stats import StatsImport
 from backend.models.send_queue import SendQueueItem
+from backend.services.book_progress import apply_progress_to_status
 
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
@@ -231,39 +232,13 @@ def put_position(
         )
         db.add(pos)
 
-    # Keep UserBookStatus in sync.
-    # Completion is sticky: a "read" book stays read/100% regardless of what the
-    # device reports next (e.g. opening the book again from page 1).
-    # Resume position always tracks the device (last-write-wins) — that is
-    # handled above on the TomeSyncPosition row, not here.
-    status_row = (
-        db.query(UserBookStatus)
-        .filter(UserBookStatus.user_id == user.id, UserBookStatus.book_id == book_id)
-        .first()
+    # Keep UserBookStatus in sync via the shared sticky-completion rule.
+    # Position sync tracks the device last-write-wins (monotonic=False) — a
+    # re-opened book CAN report lower progress; only completion is sticky.
+    apply_progress_to_status(
+        db, user_id=user.id, book_id=book_id, pct=pct,
+        monotonic=False, cfi=body.progress or None,
     )
-    if status_row:
-        # Resume CFI tracks the device unconditionally (last-write-wins).
-        if body.progress:
-            status_row.cfi = body.progress
-        if status_row.status == "read":
-            # Sticky: leave status and progress_pct alone once finished.
-            pass
-        else:
-            status_row.progress_pct = pct
-            if status_row.status == "unread" and pct > 0:
-                status_row.status = "reading"
-            elif pct >= 0.99:
-                status_row.status = "read"
-                status_row.progress_pct = 1.0
-    else:
-        new_status = "read" if pct >= 0.99 else ("reading" if pct > 0 else "unread")
-        db.add(UserBookStatus(
-            user_id=user.id,
-            book_id=book_id,
-            status=new_status,
-            progress_pct=1.0 if new_status == "read" else pct,
-            cfi=body.progress,
-        ))
 
     db.commit()
     return {"ok": True, "timestamp": datetime.utcnow().isoformat() + "Z"}
@@ -389,37 +364,13 @@ def post_session(
     )
     db.add(session)
 
-    # Keep UserBookStatus in sync — catches up when position PUTs failed
-    # but queued sessions flush later.
-    # Completion is sticky: once a book is "read", a later session (e.g. a
-    # re-read) cannot drag it back to "reading" or lower its progress.
+    # Keep UserBookStatus in sync — catches up when position PUTs failed but
+    # queued sessions flush later. Shared sticky-completion rule; monotonic:
+    # a flushed session only ever advances progress, never lowers it.
     if body.progress_end is not None:
-        pct = body.progress_end
-        status_row = (
-            db.query(UserBookStatus)
-            .filter(UserBookStatus.user_id == user.id, UserBookStatus.book_id == body.book_id)
-            .first()
+        apply_progress_to_status(
+            db, user_id=user.id, book_id=body.book_id, pct=body.progress_end,
         )
-        if status_row:
-            if status_row.status == "read":
-                # Sticky: a later session never un-finishes a completed book.
-                pass
-            else:
-                if pct > (status_row.progress_pct or 0):
-                    status_row.progress_pct = pct
-                if status_row.status == "unread" and pct > 0:
-                    status_row.status = "reading"
-                elif pct >= 0.99:
-                    status_row.status = "read"
-                    status_row.progress_pct = 1.0
-        else:
-            new_status = "read" if pct >= 0.99 else ("reading" if pct > 0 else "unread")
-            db.add(UserBookStatus(
-                user_id=user.id,
-                book_id=body.book_id,
-                status=new_status,
-                progress_pct=1.0 if new_status == "read" else pct,
-            ))
 
     db.commit()
     db.refresh(session)

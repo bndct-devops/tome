@@ -23,4 +23,9 @@ class UserBookStatus(Base):
     rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     review: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     rated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # When the book was marked read. updated_at is NOT a finish date — it moves
+    # on every rating/review/CFI write (onupdate), so it must not be displayed
+    # as one. Stamped by apply_progress_to_status / the status endpoint on the
+    # transition into "read"; cleared when the book is un-finished.
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

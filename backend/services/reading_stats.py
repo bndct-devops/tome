@@ -135,10 +135,14 @@ def compute_book_reading_stats(
     ]
 
     # ── Reconcile with imported KOReader page-stats ──────────────────────────
-    # Page-stats win per book (same rule as the dashboard's reconciled_reading),
-    # so a book read only on the device isn't shown empty. Untouched when the
-    # book has no page-stats — ps_seconds is 0 and this whole block is skipped.
+    # Page-stats win per book for *device* reading (same rule as the dashboard's
+    # reconciled_reading), so a book read only on the device isn't shown empty.
+    # Web-reader and manual-log sessions are invisible to KOReader's history and
+    # stay ADDITIVE on top — replacing them made a hand-logged paper session on
+    # a Kindle-synced book vanish without a trace. Untouched when the book has
+    # no page-stats — ps_seconds is 0 and this whole block is skipped.
     from backend.models.ko_stats import PageStat
+    from backend.services.reconciled_reading import NON_DEVICE_SOURCES
 
     ps = (
         db.query(
@@ -157,7 +161,6 @@ def compute_book_reading_stats(
     ps_total_pages = 0
     ps_position = 0.0
     if ps_seconds > 0:
-        total_seconds = ps_seconds
         ps_position = min(float(ps[3] or 0.0), 1.0)   # furthest fraction reached
         # Latest pagination — total_pages from the max(start_time) row (SQLite's
         # bare-column rule applies: exactly one aggregate). max(total_pages)
@@ -194,16 +197,63 @@ def compute_book_reading_stats(
             .order_by("day")
             .all()
         )
+
+        # Additive sessions: web-reader + manual logs merge on top of page-stats.
+        additive = base.filter(ReadingSession.device.in_(NON_DEVICE_SOURCES))
+        add_agg = additive.with_entities(
+            func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
+            func.count(ReadingSession.id),
+            func.coalesce(func.sum(ReadingSession.pages_turned), 0),
+            func.min(ReadingSession.started_at),
+            func.max(func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)),
+        ).one()
+        add_secs, add_count, add_pages = int(add_agg[0] or 0), int(add_agg[1] or 0), int(add_agg[2] or 0)
+
+        total_seconds = ps_seconds + add_secs
+        pages_turned += add_pages
+
+        day_map: dict[str, list[int]] = {r.day: [int(r.seconds), int(r.pages)] for r in day_rows}
+        ps_day_count = len(day_map)
+        if add_count:
+            add_rows = (
+                additive.with_entities(
+                    func.date(ReadingSession.started_at, day_mod).label("date"),
+                    func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+                    func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
+                )
+                .group_by("date")
+                .all()
+            )
+            for r in add_rows:
+                e = day_map.setdefault(r.date, [0, 0])
+                e[0] += int(r.seconds or 0)
+                e[1] += int(r.pages or 0)
         session_timeline = [
-            {"date": r.day, "seconds": int(r.seconds), "pages": int(r.pages)}
-            for r in day_rows
+            {"date": d, "seconds": v[0], "pages": v[1]}
+            for d, v in sorted(day_map.items())
         ]
-        sessions = len(session_timeline)        # one "session" per reading day
+        # Device reading counts one "session" per reading day; additive sessions
+        # keep their real counts.
+        sessions = ps_day_count + add_count
         avg_session_seconds = round(total_seconds / sessions) if sessions else 0
-        if ps[1]:
-            first_read = datetime.fromtimestamp(int(ps[1]), timezone.utc).isoformat()
-        if ps[2]:
-            last_read = datetime.fromtimestamp(int(ps[2]), timezone.utc).isoformat()
+
+        first_dt = (
+            datetime.fromtimestamp(int(ps[1]), timezone.utc).replace(tzinfo=None)
+            if ps[1] else None
+        )
+        last_dt = (
+            datetime.fromtimestamp(int(ps[2]), timezone.utc).replace(tzinfo=None)
+            if ps[2] else None
+        )
+        if add_agg[3] is not None:
+            first_dt = min(first_dt, add_agg[3]) if first_dt else add_agg[3]
+        if add_agg[4] is not None:
+            last_dt = max(last_dt, add_agg[4]) if last_dt else add_agg[4]
+        if first_dt:
+            first_read = first_dt.isoformat() + "Z"
+        if last_dt:
+            last_read = last_dt.isoformat() + "Z"
+
         total_minutes = total_seconds / 60.0
         if total_minutes > 0 and pages_turned > 0:
             pace_pages_per_min = round(pages_turned / total_minutes, 2)
@@ -211,26 +261,25 @@ def compute_book_reading_stats(
     # ── Journey: cumulative progress per reading day (the progress line) ──────
     # Augments each session_timeline day with the furthest-progress reached, so
     # the frontend can plot a progress arc over the minutes-per-day bars.
+    # Page-stat days carry no position (dwell is *coverage* — you can be 35% in
+    # having dwelled on 11% of pages), but web/manual sessions record
+    # progress_end, so their days contribute points even on a device-synced book.
     day_progress: dict[str, float] = {}
-    if ps_seconds > 0:
-        # Covered (device) book: a per-day position can't be reconstructed from
-        # page dwell — that's *coverage*, not position (you can be 35% in having
-        # dwelled on only 11% of pages). So draw no progress line here; the
-        # headline % (synced position) and the intensity chart tell that story.
-        pass
-    else:
-        # Web sessions: the furthest progress_end reached on each day.
-        prog_rows = (
-            base.with_entities(
-                func.date(ReadingSession.started_at, day_mod).label("date"),
-                func.max(ReadingSession.progress_end).label("p"),
-            )
-            .group_by(func.date(ReadingSession.started_at, day_mod))
-            .all()
+    prog_base = (
+        base.filter(ReadingSession.device.in_(NON_DEVICE_SOURCES))
+        if ps_seconds > 0 else base
+    )
+    prog_rows = (
+        prog_base.with_entities(
+            func.date(ReadingSession.started_at, day_mod).label("date"),
+            func.max(ReadingSession.progress_end).label("p"),
         )
-        for r in prog_rows:
-            if r.p is not None:
-                day_progress[r.date] = min(float(r.p), 1.0)
+        .group_by(func.date(ReadingSession.started_at, day_mod))
+        .all()
+    )
+    for r in prog_rows:
+        if r.p is not None:
+            day_progress[r.date] = min(float(r.p), 1.0)
 
     # Forward-fill so the arc never dips on a day with reading-time-but-no-progress.
     running = 0.0
@@ -241,13 +290,24 @@ def compute_book_reading_stats(
 
     # ── Where the reading time came from (web reader vs device) ───────────────
     if ps_seconds > 0:
-        src_rows = (
+        # Page-stat devices + additive web/manual sessions, so a mixed reader
+        # actually sees the split (device-only rows used to hide the section).
+        src_rows = list(
             db.query(
                 func.coalesce(PageStat.device, "koreader").label("device"),
                 func.coalesce(func.sum(PageStat.duration_seconds), 0).label("seconds"),
                 func.count(func.distinct(epoch_day(PageStat.start_time, tz_offset))).label("units"),
             )
             .filter(PageStat.user_id == user_id, PageStat.book_id == book_id)
+            .group_by("device")
+            .all()
+        ) + list(
+            base.filter(ReadingSession.device.in_(NON_DEVICE_SOURCES))
+            .with_entities(
+                ReadingSession.device.label("device"),
+                func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
+                func.count(ReadingSession.id).label("units"),
+            )
             .group_by("device")
             .all()
         )
@@ -302,9 +362,13 @@ def compute_book_reading_stats(
         }
 
     # ── Finished date (when the book was marked read) ─────────────────────────
+    # Prefer the explicit finished_at; updated_at also moves on rating/review/
+    # CFI writes, so it only serves as a legacy fallback for pre-column rows.
     finished_at: Optional[str] = None
-    if status_row and status_row.status == "read" and status_row.updated_at:
-        finished_at = status_row.updated_at.isoformat() + "Z"
+    if status_row and status_row.status == "read":
+        ts = status_row.finished_at or status_row.updated_at
+        if ts:
+            finished_at = ts.isoformat() + "Z"
 
     # ── Progress = how far through the book ──────────────────────────────────
     # Best available evidence of position: the synced reading position OR the
@@ -448,19 +512,23 @@ def compute_book_aggregate_stats(
     KOReader page-stats win over live sessions for a given reader, so a book read
     only on the device still counts here (was previously shown as 0).
 
+    ``total_sessions`` counts *reading days* for both sources — page-stats have
+    no natural session, and mixing raw session counts with day counts made the
+    labelled sum lie for mixed-reader books.
+
     Returns a dict with keys:
       total_seconds, total_sessions, distinct_readers
     """
     from backend.models.ko_stats import PageStat
 
-    # Per-user live-session totals (seconds, session count).
+    # Per-user live-session totals (seconds, distinct reading days).
     sess_by_user = {
         uid: (int(secs or 0), int(cnt or 0))
         for uid, secs, cnt in (
             db.query(
                 ReadingSession.user_id,
                 func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
-                func.count(ReadingSession.id),
+                func.count(func.distinct(func.date(ReadingSession.started_at))),
             )
             .filter(ReadingSession.book_id == book_id)
             .group_by(ReadingSession.user_id)

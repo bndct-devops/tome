@@ -1223,8 +1223,8 @@ interface StatsLayoutProps {
 
 /** Activity bars (minutes per reading day) + an optional progress lane below.
  *  The progress lane is the per-book "journey" — % complete over calendar time —
- *  gated by `showProgress` so it only appears when there's no Reading-intensity
- *  chart (web/manual books); a book never stacks two look-alike area charts. */
+ *  drawn whenever the timeline carries 2+ progress points (the backend only
+ *  emits progress_pct where a position is actually known). */
 function ActivityChart({ timeline }: {
   timeline: { date: string; seconds: number; pages: number; progress_pct?: number | null }[]
 }) {
@@ -1298,7 +1298,7 @@ function ActivityChart({ timeline }: {
 
 // Friendly label for a ReadingSession.device value.
 function sourceLabel(device: string): string {
-  if (!device || device === 'web-reader') return 'Web reader'
+  if (!device || device === 'web-reader' || device === 'web') return 'Web reader'
   if (device === 'manual') return 'Manual'
   if (device === 'koreader') return 'KOReader'
   return device
@@ -1396,6 +1396,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
   onChange: () => void
   exportRows?: { date: string; seconds: number; pages: number; progress_pct: number | null }[]
 }) {
+  const { toast } = useToast()
   const [logging, setLogging] = useState(false)
   const [minutes, setMinutes] = useState('')
   const [pct, setPct] = useState('')
@@ -1415,6 +1416,8 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
       await api.post(`/books/${bookId}/sessions?tz_offset=${new Date().getTimezoneOffset()}`, body)
       setMinutes(''); setPct(''); setLogging(false)
       onChange()
+    } catch (e) {
+      toast.error((e as Error).message ?? 'Failed to log session')
     } finally {
       setSaving(false)
     }
@@ -1501,8 +1504,19 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
 // touch (native title tooltips don't). Reserved for the non-obvious charts.
 function InfoHint({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLSpanElement>(null)
+  // iOS Safari doesn't focus buttons on tap, so onBlur alone never closes the
+  // popover there — close on any tap outside instead.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [open])
   return (
-    <span className="relative inline-flex leading-none">
+    <span ref={rootRef} className="relative inline-flex leading-none">
       <button
         type="button"
         aria-label="What is this chart?"
@@ -1527,7 +1541,6 @@ function InfoHint({ text }: { text: string }) {
 }
 
 function MomentumChip({ momentum }: { momentum: NonNullable<BookReadingStats['momentum']> }) {
-  if (momentum.recent_seconds === 0 && momentum.prior_seconds === 0) return null
   const Icon = momentum.direction === 'up' ? TrendingUp : momentum.direction === 'down' ? TrendingDown : Minus
   const tone =
     momentum.direction === 'up' ? 'text-emerald-600 dark:text-emerald-400'
@@ -1599,11 +1612,13 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
           <ActivityChart timeline={own.session_timeline} />
         </div>
       )}
-      {/* Current progress — only when there's no journey line (device books).
-          Web books already show their % in the journey line's header, so this
-          avoids two "Progress" rows saying the same thing. */}
+      {/* Current progress — only when the journey line doesn't actually render
+          (it needs 2+ progress points; a single point used to suppress BOTH,
+          leaving real progress displayed nowhere). Web books with a drawn line
+          show their % in its header, so this avoids two "Progress" rows. */}
       {own.progress != null && own.progress > 0 &&
-        !own.session_timeline.some(d => d.progress_pct != null) && (
+        !(own.session_timeline.length > 1 &&
+          own.session_timeline.filter(d => d.progress_pct != null).length > 1) && (
         <div className="mt-4">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs text-muted-foreground/70">Progress</span>
@@ -1628,7 +1643,7 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
       )}
       {aggregate && (
         <p className="text-xs text-muted-foreground/60 mt-3">
-          All readers: {formatDuration(aggregate.total_seconds)} · {aggregate.total_sessions} sessions · {aggregate.distinct_readers} reader{aggregate.distinct_readers !== 1 ? 's' : ''}
+          All readers: {formatDuration(aggregate.total_seconds)} · {aggregate.total_sessions} reading day{aggregate.total_sessions !== 1 ? 's' : ''} · {aggregate.distinct_readers} reader{aggregate.distinct_readers !== 1 ? 's' : ''}
         </p>
       )}
       {/* Log a session by hand · export the log */}

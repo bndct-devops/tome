@@ -1132,10 +1132,11 @@ def add_manual_reading_session(
     entry advances progress/status the same way a synced one would. Returns the
     refreshed per-book ``own`` stats so the UI can update without a second call.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone as _timezone
     import uuid as _uuid
     from backend.models.tome_sync import ReadingSession
     from backend.models.user_book_status import UserBookStatus
+    from backend.services.book_progress import apply_progress_to_status
     from backend.services.reading_stats import compute_book_reading_stats
 
     book = db.get(Book, book_id)
@@ -1146,17 +1147,24 @@ def add_manual_reading_session(
 
     if payload.duration_minutes is None or payload.duration_minutes <= 0:
         raise HTTPException(status_code=422, detail="duration_minutes must be positive")
+    if payload.duration_minutes > 24 * 60:
+        # Also guards timedelta overflow (a huge value 500'd instead of 422ing).
+        raise HTTPException(status_code=422, detail="duration_minutes must be at most 1440 (24 hours)")
     if payload.end_progress is not None and not (0.0 <= payload.end_progress <= 1.0):
         raise HTTPException(status_code=422, detail="end_progress must be between 0 and 1")
+    if payload.pages is not None and payload.pages < 0:
+        raise HTTPException(status_code=422, detail="pages must be zero or positive")
 
     duration = round(payload.duration_minutes * 60)
     if payload.started_at:
         try:
-            started = datetime.fromisoformat(
-                payload.started_at.replace("Z", "+00:00")
-            ).replace(tzinfo=None)
+            started = datetime.fromisoformat(payload.started_at.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid started_at")
+        if started.tzinfo is not None:
+            # Convert to UTC — everything else in the DB is UTC-naive. Stripping
+            # the offset would store "23:30+02:00" as 23:30 UTC (2h off).
+            started = started.astimezone(_timezone.utc).replace(tzinfo=None)
     else:
         started = datetime.utcnow()
 
@@ -1189,26 +1197,13 @@ def add_manual_reading_session(
         session_uuid=str(_uuid.uuid4()),
     ))
 
-    # Sticky completion: a manual session never un-finishes a "read" book.
+    # Shared sticky-completion rule: a manual session advances progress/status
+    # the same way a synced one would, and never un-finishes a "read" book.
     if payload.end_progress is not None:
-        pct = payload.end_progress
-        if status_row:
-            if status_row.status != "read":
-                if pct > (status_row.progress_pct or 0):
-                    status_row.progress_pct = pct
-                if status_row.status == "unread" and pct > 0:
-                    status_row.status = "reading"
-                if pct >= 0.99:
-                    status_row.status = "read"
-                    status_row.progress_pct = 1.0
-        else:
-            new_status = "read" if pct >= 0.99 else ("reading" if pct > 0 else "unread")
-            db.add(UserBookStatus(
-                user_id=current_user.id,
-                book_id=book_id,
-                status=new_status,
-                progress_pct=1.0 if new_status == "read" else pct,
-            ))
+        apply_progress_to_status(
+            db, user_id=current_user.id, book_id=book_id,
+            pct=payload.end_progress, status_row=status_row,
+        )
 
     db.commit()
     return {"own": compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset)}

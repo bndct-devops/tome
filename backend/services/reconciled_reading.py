@@ -3,9 +3,13 @@
 Both sources can describe the *same* Kindle reading (the plugin POSTs live sessions AND
 KOReader's statistics.sqlite3 records every page), so naively summing them double-counts.
 
-Rule (book-level): if a book has ANY imported `ko_page_stats`, those are authoritative for
-its reading time (idle-capped, full history) and its live `reading_sessions` are ignored;
-books with no page-stats fall back to sessions (web reader, or never read on KOReader).
+Rule (per book, per source): if a book has ANY imported `ko_page_stats`, those are
+authoritative for its *device* reading time (idle-capped, full history) and its live
+device-origin `reading_sessions` are ignored — they describe the same reading twice.
+Web-reader and manual-log sessions (`NON_DEVICE_SOURCES`) are invisible to KOReader's
+history, so they stay ADDITIVE even on covered books; replacing them silently discarded
+e.g. a hand-logged paper session on a Kindle-synced book. Books with no page-stats fall
+back to sessions entirely.
 
 Invariant: when a user has no page-stats at all, `covered_book_ids` is empty and every
 helper returns exactly what the session-only query would — so existing stats behaviour is
@@ -21,11 +25,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Integer, func
+from sqlalchemy import Integer, func, or_
 from sqlalchemy.orm import Session
 
 from backend.models.ko_stats import PageStat
 from backend.models.tome_sync import ReadingSession
+
+# ReadingSession.device values that can never be described by imported KOReader
+# page-stats. Everything else (device names, NULL legacy rows) is device-origin.
+NON_DEVICE_SOURCES = ("web", "web-reader", "manual")
 
 
 def _epoch(dt: Optional[datetime]) -> Optional[int]:
@@ -51,7 +59,12 @@ def _rs_filtered(db: Session, user_id: int, covered: list[int],
                  cutoff: Optional[datetime], range_end: Optional[datetime]):
     q = db.query(ReadingSession).filter(ReadingSession.user_id == user_id)
     if covered:
-        q = q.filter(ReadingSession.book_id.notin_(covered))
+        # Covered books drop only their device-origin sessions (page-stats
+        # already describe that reading); web/manual sessions stay additive.
+        q = q.filter(or_(
+            ReadingSession.book_id.notin_(covered),
+            ReadingSession.device.in_(NON_DEVICE_SOURCES),
+        ))
     if cutoff is not None:
         q = q.filter(ReadingSession.started_at >= cutoff)
     if range_end is not None:

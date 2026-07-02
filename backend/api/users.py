@@ -118,6 +118,13 @@ def set_book_status(
     # Only overwrite progress_pct/cfi when explicitly sent (not just defaulting to None)
     raw = body.model_dump(exclude_unset=True)
     if row:
+        # finished_at marks the transition into "read" (updated_at is useless as
+        # a finish date — it moves on every rating/CFI write) and clears when
+        # the user un-finishes the book.
+        if body.status == "read" and row.status != "read":
+            row.finished_at = datetime.utcnow()
+        elif body.status != "read":
+            row.finished_at = None
         row.status = body.status
         if body.status == 'unread':
             row.progress_pct = None
@@ -135,6 +142,7 @@ def set_book_status(
             status=body.status,
             progress_pct=body.progress_pct,
             cfi=body.cfi,
+            finished_at=datetime.utcnow() if body.status == "read" else None,
             updated_at=datetime.utcnow(),
         )
         db.add(row)

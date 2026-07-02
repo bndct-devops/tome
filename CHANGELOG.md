@@ -29,6 +29,31 @@ All notable changes to Tome are documented here. Format loosely follows
   Small "i" hints explain the progress and reading-intensity charts in plain language.
 
 ### Fixed
+- **Hand-logged and web-reader sessions no longer vanish on device-synced books.**
+  On a book with imported KOReader history, the "history wins" rule replaced *all*
+  other reading records — so logging 30 minutes of paper reading appeared to do
+  nothing, and web-reader time was invisible. The rule is now per source: the
+  imported history replaces only the device's own live sessions (the same reading,
+  recorded twice), while web-reader and manual sessions add on top — everywhere,
+  from the book page's reading log down to the dashboard totals and streak days.
+  A pleasant side effect: **"Where you read"** now actually shows the web/device
+  split for mixed readers, and the progress line can draw through web-reading days
+  on a device-synced book. Manual logging also got sturdier: a failed log now
+  shows an error instead of silently resetting, absurd inputs (negative pages, a
+  duration over 24h) are rejected instead of crashing, and a timezone-annotated
+  start time is converted to UTC instead of having its offset ignored.
+- **The "Finished" date is now the date you finished.** It used to be the last
+  time anything touched the status row — rating a book in March that you finished
+  in January showed "Finished: Mar", and even a device sync could nudge it. The
+  finish date is now recorded explicitly at the moment a book becomes "read"
+  (existing read books keep their best-known date), survives later ratings,
+  reviews and position syncs, and clears if you un-finish the book. Also fixed on
+  the way: a book synced straight from unread to 100% in one sitting now lands on
+  "read" immediately (it used to sit at "reading" until the next sync), the
+  admin-only "All readers" line counts consistent units (reading days) instead of
+  mixing sessions with days, a book whose progress was known but had only one
+  progress point showed that progress nowhere, and the chart "i" hints now close
+  on outside tap on iPhones.
 - **A font change no longer scrambles a book's page stats.** KOReader re-paginates
   when the font or margins change, and Tome sometimes mixed page numbers from
   different paginations: a book finished at 250 pages then reopened once at a

@@ -145,6 +145,15 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN review TEXT"))
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN rated_at DATETIME"))
             conn.commit()
+        # Explicit finish date — updated_at also moves on rating/review/CFI writes,
+        # so it can't be shown as "Finished". Backfill from updated_at (the best
+        # available guess) for rows already marked read.
+        if ubs_cols and "finished_at" not in ubs_cols:
+            conn.execute(text("ALTER TABLE user_book_status ADD COLUMN finished_at DATETIME"))
+            conn.execute(text(
+                "UPDATE user_book_status SET finished_at = updated_at WHERE status = 'read'"
+            ))
+            conn.commit()
         # reading_goals from the parked feat/reading-goals WIP (never shipped) lacks
         # book_type_id and carries a stale (user_id, kind) unique constraint that
         # SQLite can't alter away — recreate the table on the current schema.
