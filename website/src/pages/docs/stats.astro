@@ -321,6 +321,7 @@ import { withBase } from '../../lib/path'
     <li><code>GET /api/stats?days=30&amp;tz_offset=-120</code> — the main bundle (everything on this page).</li>
     <li><code>GET /api/stats/completion-estimates</code> — projected finish dates for in-progress books.</li>
     <li><code>GET /api/stats/sessions</code> — paged session list, oldest first.</li>
+    <li><code>GET /api/stats/timeline</code> — lifetime per-book reading spans and active days (the Timeline board).</li>
     <li><code>DELETE /api/stats/sessions/{`{id}`}</code> — delete a misfire.</li>
     <li><code>GET /api/stats/dashboard</code> / <code>PUT /api/stats/dashboard</code> — your saved boards (opaque JSON, 256&nbsp;KB cap). This is what syncs layouts across devices.</li>
   </ul>

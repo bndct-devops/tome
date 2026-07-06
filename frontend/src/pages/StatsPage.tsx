@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type MouseEvent, useMemo } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type MouseEvent, useMemo } from 'react'
 import ReactGridLayout, {
   useContainerWidth,
   type Layout,
@@ -16,6 +16,7 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
 import { ReadingDNABody } from '@/components/stats/ReadingDNACard'
+import { TimelineRibbon } from '@/components/stats/TimelineRibbon'
 import { GoalWidgetBody } from '@/components/stats/GoalWidget'
 import { listGoals, type Goal } from '@/lib/goals'
 import {
@@ -332,6 +333,13 @@ const WIDGETS: WidgetDef[] = [
     render: ({ stats }) => <SessionTimeline sessions={stats.session_timeline} />,
   },
   {
+    id: 'reading-timeline',
+    title: 'Reading Timeline',
+    size: { w: 12, h: 7, minW: 6, minH: 3 },
+    fixedWindow: 'lifetime',
+    render: () => <TimelineRibbon />,
+  },
+  {
     id: 'reading-pace',
     title: 'Reading Pace',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
@@ -607,6 +615,7 @@ const WIDGET_DESC: Record<string, string> = {
   'series-spotlight': 'One series front and center — you pick which',
   'hour-dow': 'When you read — hour × weekday',
   'session-timeline': 'Daily sessions on a 24h track',
+  'reading-timeline': 'Your reading life — every book a bar in time',
   'reading-pace': 'Pages per minute over time',
   'pace-by-format': 'Speed by book format',
   'speed-trend': 'Are you getting faster?',
@@ -656,7 +665,7 @@ const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
   },
   {
     label: 'Habits',
-    ids: ['hour-dow', 'reading-clock', 'reading-dna', 'session-timeline', 'reading-pace', 'pace-by-format', 'true-wpm', 'dow-bar', 'time-of-day', 'time-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
+    ids: ['hour-dow', 'reading-clock', 'reading-dna', 'reading-timeline', 'session-timeline', 'reading-pace', 'pace-by-format', 'true-wpm', 'dow-bar', 'time-of-day', 'time-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
   },
   {
     label: 'Library',
@@ -689,6 +698,8 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
   // Habits — all full width except the Pace | Pace-by-Format pair
   'hour-dow': { x: 0, y: 0, w: 12, h: 2 },
   'session-timeline': { x: 0, y: 2, w: 12, h: 3 },
+  // Timeline — its own tab, one full-bleed ribbon
+  'reading-timeline': { x: 0, y: 0, w: 12, h: 7 },
   'reading-pace': { x: 0, y: 5, w: 6, h: 3 },
   'pace-by-format': { x: 6, y: 5, w: 6, h: 3 },
   'speed-trend': { x: 0, y: 8, w: 12, h: 2 },
@@ -729,6 +740,7 @@ const TAB_DEFS: { id: string; label: string; ids: string[] }[] = [
   { id: 'habits', label: 'Habits', ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'] },
   { id: 'library', label: 'Library', ids: ['year-in-review', 'series-completion', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
   { id: 'taste', label: 'Taste', ids: ['rating-distribution', 'taste-by-genre', 'rating-vs-time', 'rating-trend', 'top-rated', 'best-rated-series'] },
+  { id: 'timeline', label: 'Timeline', ids: ['reading-timeline'] },
   // Phase 4 word-count tiles (words-read / true-wpm / book-length) are gallery-only
   // — addable from "Add tile" but on no default board, matching the batch-2 convention.
 ]
@@ -1459,6 +1471,27 @@ const PAD_X: Record<PadWidth, string> = {
 }
 const PAD_LABEL: Record<PadWidth, string> = { none: 'None', bit: 'A bit', lot: 'A lot' }
 
+// A tab whose only tile is the Reading Timeline renders full-bleed in view mode:
+// no card, no grid, edge-to-edge and viewport-tall. Edit mode falls back to the
+// grid so the tile stays manageable like any other.
+function FullBleedTimeline() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [h, setH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (ref.current) setH(Math.max(420, window.innerHeight - ref.current.getBoundingClientRect().top - 16))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+  return (
+    <div ref={ref} style={{ height: h ?? 480 }}>
+      {h !== null && <TimelineRibbon standalone />}
+    </div>
+  )
+}
+
 // ── Persistence (localStorage for the POC; server-side comes later) ─────────────
 
 // v2: defaults became the real-Stats-page replica — bumping the key discards
@@ -1701,6 +1734,8 @@ export function StatsPage() {
     }
   }, [])
   const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+  // View-mode-only: a board holding nothing but the timeline escapes the grid.
+  const soloTimeline = !editMode && active.tiles.length === 1 && active.tiles[0].defId === 'reading-timeline'
   // genuinely no reading history (not just a quiet range): full onboarding state
   const neverRead = !!stats && stats.headline.total_sessions === 0 && stats.heatmap_daily.every((d) => d.seconds === 0)
 
@@ -2235,7 +2270,7 @@ export function StatsPage() {
 
       {/* edit mode gets extra bottom room so the last tile's resize handles have
           somewhere to scroll to */}
-      <div className={cn('py-6 transition-[padding] duration-200', PAD_X[pad], editMode && 'pb-[35vh]')}>
+      <div className={cn('py-6', editMode && 'transition-[padding] duration-200 pb-[35vh]', soloTimeline ? 'px-4' : PAD_X[pad])}>
       {/* one-time hint that the page is editable */}
       {stats && !neverRead && !hintDismissed && !editMode && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
@@ -2291,6 +2326,8 @@ export function StatsPage() {
             <p className="text-sm">This board is empty.</p>
             <p className="text-xs">{editMode ? 'Use “Add tile” to build your ' + active.label + ' board.' : 'Hit Edit, then Add tile.'}</p>
           </div>
+        ) : soloTimeline ? (
+          <FullBleedTimeline />
         ) : (
           <div ref={boardRef}>
             <FreeGrid tiles={active.tiles} layout={active.layout} ctx={{ stats, estimates, goals, reloadGoals }} editMode={editMode} onLayoutChange={setActiveLayout} onRemove={removeTile} onDuplicate={duplicateTile} onConfigChange={setConfig} />
