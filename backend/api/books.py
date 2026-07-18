@@ -1107,6 +1107,110 @@ def get_book_annotations(
     ]
 
 
+# ── Position history (restore a bad sync) ─────────────────────────────────────
+
+def _visible_book_or_404(db: Session, current_user: User, book_id: int) -> Book:
+    book = db.get(Book, book_id)
+    if not book or book.status != "active" or not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
+@router.get("/{book_id}/position-history")
+def get_position_history(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """The user's recent position log for this book, newest first, plus the
+    live position — the recovery UI for a bad sync (a device jumping a book
+    to 100% is otherwise unrecoverable)."""
+    from backend.models.tome_sync import PositionHistory, TomeSyncPosition
+
+    _visible_book_or_404(db, current_user, book_id)
+    current = (
+        db.query(TomeSyncPosition)
+        .filter(TomeSyncPosition.user_id == current_user.id,
+                TomeSyncPosition.book_id == book_id)
+        .first()
+    )
+    rows = (
+        db.query(PositionHistory)
+        .filter(PositionHistory.user_id == current_user.id,
+                PositionHistory.book_id == book_id)
+        .order_by(PositionHistory.id.desc())
+        .all()
+    )
+    return {
+        "current": {
+            "percentage": current.percentage,
+            "device": current.device,
+            "updated_at": current.updated_at.isoformat() + "Z",
+        } if current else None,
+        "history": [
+            {
+                "id": r.id,
+                "percentage": r.percentage,
+                "device": r.device,
+                "created_at": r.created_at.isoformat() + "Z",
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.post("/{book_id}/position-history/{history_id}/restore")
+def restore_position(
+    book_id: int,
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Set the live position back to a logged entry. Devices pick it up on
+    their next pull (per their pull-conflict strategy); the restore itself is
+    logged too, so it can be undone the same way.
+
+    Unlike normal progress writes, a restore is an explicit override of the
+    sticky-completion rule: recovering from a device that falsely jumped a
+    book to 100% must also un-finish it, or the position comes back but the
+    book stays "read"."""
+    from datetime import datetime
+    from backend.models.tome_sync import PositionHistory
+    from backend.models.user_book_status import UserBookStatus
+    from backend.services.book_progress import upsert_position
+
+    _visible_book_or_404(db, current_user, book_id)
+    entry = db.get(PositionHistory, history_id)
+    if not entry or entry.user_id != current_user.id or entry.book_id != book_id:
+        raise HTTPException(status_code=404, detail="History entry not found")
+
+    upsert_position(
+        db, user_id=current_user.id, book_id=book_id,
+        percentage=entry.percentage, progress=entry.progress, device="restore",
+    )
+    status_row = (
+        db.query(UserBookStatus)
+        .filter(UserBookStatus.user_id == current_user.id,
+                UserBookStatus.book_id == book_id)
+        .first()
+    )
+    if status_row is None:
+        status_row = UserBookStatus(user_id=current_user.id, book_id=book_id)
+        db.add(status_row)
+    status_row.progress_pct = entry.percentage
+    status_row.cfi = entry.progress
+    if entry.percentage >= 0.99:
+        status_row.status = "read"
+        if status_row.finished_at is None:
+            status_row.finished_at = datetime.utcnow()
+    else:
+        if status_row.status == "read":
+            status_row.finished_at = None
+        status_row.status = "reading" if entry.percentage > 0 else "unread"
+    db.commit()
+    return {"ok": True, "percentage": entry.percentage, "status": status_row.status}
+
+
 # ── Per-book reading stats ────────────────────────────────────────────────────
 
 @router.get("/{book_id}/reading-stats")

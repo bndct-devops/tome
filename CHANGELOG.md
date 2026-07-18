@@ -18,6 +18,13 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Position history — undo a bad sync.** Tome now keeps a short log of every
+  meaningful reading-position change per book (device, web, manual — the
+  idle heartbeat doesn't spam it). A history button on the book page's
+  Reading Stats header lists them, and any entry can be restored as the live
+  position with one click — including explicitly un-finishing a book that a
+  device falsely jumped to 100%. Devices pick the restored position up on
+  their next sync. The classic sync horror story is no longer unrecoverable.
 - **Command palette.** Press Cmd+K (Ctrl+K) anywhere to jump straight to a
   book, series, author, or page — full-text book search with covers, ranked
   series/author matches, and quick navigation, all keyboard-driven. Listed
