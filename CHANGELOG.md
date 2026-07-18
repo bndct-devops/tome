@@ -33,6 +33,17 @@ All notable changes to Tome are documented here. Format loosely follows
   dedicated attempt marker now records "tried, nothing there" once.
 
 ### Added
+- **Sync on suspend (KOReader plugin, build 35).** Two new opt-in settings
+  make morning stats current without waking the device (#128). "Sync on
+  suspend" catches up anything still pending — sessions, ratings, and the
+  reading-history backfill — when the device goes to sleep, provided WiFi is
+  already connected. "Aggressive sync" additionally turns WiFi on first for
+  devices that sleep the radio (e.g. PocketBook), letting the system power it
+  back down as the device suspends. Everything on this path is
+  queue-or-resume safe: if the device sleeps before the sync finishes, it
+  completes on the next connection. Reconnecting WiFi now also catches up the
+  reading-history backfill (previously launch-only) and flushes pending
+  sessions even before a book is opened.
 - **Sync closed books (KOReader plugin, build 34).** A new TomeSync menu
   action walks the device for books the plugin has never synced — read before
   Tome existed, sideloaded, or opened under another launcher — matches them

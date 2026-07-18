@@ -189,5 +189,9 @@ def test_build_bumped_for_rebake():
     # 1.8.0 / build 31 introduces half-star ratings server-side: the plugin's
     # rating_baseline splits into {remote, device} so a Tome half-star rounded
     # onto the whole-star sidecar is never pushed back as a "local edit".
-    assert TOMESYNC_PLUGIN_BUILD >= 31
-    assert TOMESYNC_PLUGIN_SEMVER == "1.8.0"
+    # 1.9.0 / build 35 adds sync on suspend (issue #128): opt-in catch-up of
+    # pending sessions/ratings + reading-history backfill at lid close, with an
+    # aggressive variant that turns WiFi on first; onNetworkConnected also runs
+    # the history backfill (was launch-only) and flushes without an open book.
+    assert TOMESYNC_PLUGIN_BUILD >= 35
+    assert TOMESYNC_PLUGIN_SEMVER == "1.9.0"
