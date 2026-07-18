@@ -22,6 +22,7 @@ from backend.api import tome_sync
 from backend.api import stats
 from backend.api import meta as meta_api
 from backend.api import admin_covers
+from backend.services import outbound_notifications  # noqa: F401  (registers ORM fanout listeners)
 from backend.api import quick_connect
 from backend.api import admin_duplicates
 from backend.api import word_count as word_count_api
