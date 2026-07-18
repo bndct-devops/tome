@@ -17,6 +17,16 @@ All notable changes to Tome are documented here. Format loosely follows
   to the book. The tab renders full-bleed — edge to edge, viewport-tall — and
   the ribbon is also available as a regular tile in the dashboard gallery.
 
+### Added
+- **Timeline: the tooltip now answers at day level.** Hovering a bar resolves
+  the exact day under the cursor — "15 May · 22m", or "no reading" on a gap
+  day — alongside the book's totals. The day data was always drawn as tick
+  intensity; now it's readable.
+- **Timeline on phones.** The series rail narrows so the ribbon keeps most of
+  the screen, and bars are tap-friendly: the first tap shows the details
+  tooltip, a second tap opens the book (tapping empty space or scrolling
+  dismisses it). Previously any tap navigated away immediately.
+
 ### Fixed
 - **Stats on phones: dead gap and misaligned range picker.** The Stats page
   header paid the notch inset a second time inside the app shell (the top bar

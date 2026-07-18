@@ -32,8 +32,11 @@ interface TimelineResponse {
 
 const DAY_MS = 86400000
 const dayNum = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY_MS)
+const dayStr = (n: number) => new Date(n * DAY_MS).toISOString().slice(0, 10)
 
 const RAIL_W = 200
+const RAIL_W_NARROW = 96 // phones: the full rail would eat half the viewport
+const NARROW_BELOW = 480
 const AXIS_H = 26
 const SUB_H = 22 // one sub-lane (bar row) inside a lane
 const BAR_H = 16
@@ -128,10 +131,19 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
       localStorage.setItem(ZOOM_KEY, String(next))
       return next
     })
-  const [hover, setHover] = useState<{ b: TimelineBook; x: number; y: number } | null>(null)
+  const [hover, setHover] = useState<{
+    b: TimelineBook
+    x: number
+    y: number
+    day: { date: string; seconds: number } | null
+  } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const colors = useChartColors()
   const navigate = useNavigate()
+  // Touch: first tap on a bar shows the tooltip, second tap navigates —
+  // tap-navigating instantly made "inspect" impossible on phones.
+  const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
+  const lastTapRef = useRef<number | null>(null)
 
   useEffect(() => {
     api
@@ -161,11 +173,14 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     return () => ro.disconnect()
   }, [data])
 
+  // Phones get a narrow rail — the full 200px rail ate half the viewport.
+  const railW = containerW > 0 && containerW < NARROW_BELOW ? RAIL_W_NARROW : RAIL_W
+
   const model = useMemo(() => {
     if (!data || !lanes) return null
     const minDay = Math.min(...lanes.map((l) => l.firstDay)) - 2
     const maxDay = dayNum(data.today) + 2
-    const fit = containerW > RAIL_W + 100 ? (containerW - RAIL_W - 1) / (maxDay - minDay) : 0
+    const fit = containerW > railW + 100 ? (containerW - railW - 1) / (maxDay - minDay) : 0
     const ppd = Math.max(ZOOMS[zoom], fit)
     const months: { x: number; label: string }[] = []
     const first = new Date(minDay * DAY_MS)
@@ -190,7 +205,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
       months,
       ref,
     }
-  }, [data, lanes, zoom, containerW])
+  }, [data, lanes, zoom, containerW, railW])
 
   // Land on the recent end — that's where the reading is.
   useEffect(() => {
@@ -204,6 +219,20 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
 
   const ppd = model.ppd
   const atFitFloor = ppd > ZOOMS[zoom] + 0.001 // preset already below fit — zooming out changes nothing
+
+  // Resolve the hovered/tapped position to the day under the cursor, so the
+  // tooltip answers at day resolution, not just book totals.
+  const hoverFor = (b: TimelineBook, clientX: number, clientY: number, barEl: HTMLElement) => {
+    const d0 = dayNum(b.first_day)
+    const idx = Math.floor((clientX - barEl.getBoundingClientRect().left) / ppd)
+    const date = dayStr(d0 + Math.max(0, Math.min(idx, dayNum(b.last_day) - d0)))
+    const day = b.days.find((d) => d.date === date) ?? { date, seconds: 0 }
+    return { b, x: clientX, y: clientY, day }
+  }
+  const clearHover = () => {
+    setHover(null)
+    lastTapRef.current = null
+  }
 
   return (
     // Standalone hugs its content (the page shows background below a short
@@ -234,11 +263,20 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
         </button>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto rounded-lg border border-border" onMouseLeave={() => setHover(null)}>
-        <div style={{ width: RAIL_W + model.width }}>
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-auto rounded-lg border border-border"
+        onMouseLeave={clearHover}
+        onScroll={clearHover}
+        onClick={(e) => {
+          // Tap on empty ribbon space (not a bar) dismisses the touch tooltip.
+          if (!(e.target as HTMLElement).closest('button')) clearHover()
+        }}
+      >
+        <div style={{ width: railW + model.width }}>
           {/* axis row — sticky against vertical scroll; corner sticky both ways */}
           <div className="sticky top-0 z-30 flex border-b border-border bg-card" style={{ height: AXIS_H }}>
-            <div className="sticky left-0 z-10 shrink-0 border-r border-border bg-card" style={{ width: RAIL_W }} />
+            <div className="sticky left-0 z-10 shrink-0 border-r border-border bg-card" style={{ width: railW }} />
             <div className="relative" style={{ width: model.width }}>
               {model.months
                 .filter((m) => m.x < model.width - 42)
@@ -261,7 +299,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
               <div key={lane.key} className="flex border-b border-border/60" style={{ height: laneH }}>
                 <div
                   className="sticky left-0 z-20 flex shrink-0 flex-col justify-center overflow-hidden border-r border-border bg-card px-2.5"
-                  style={{ width: RAIL_W }}
+                  style={{ width: railW }}
                 >
                   <span className="truncate text-[11px] font-medium leading-tight">{lane.label}</span>
                   <span className="truncate text-[10px] leading-tight text-muted-foreground">
@@ -284,9 +322,21 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                     return (
                       <button
                         key={b.book_id}
-                        onClick={() => navigate(`/books/${b.book_id}`)}
-                        onMouseMove={(e) => setHover({ b, x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHover(null)}
+                        onClick={(e) => {
+                          if (coarse && lastTapRef.current !== b.book_id) {
+                            // First tap inspects; the second tap opens the book.
+                            lastTapRef.current = b.book_id
+                            setHover(hoverFor(b, e.clientX, e.clientY, e.currentTarget))
+                            return
+                          }
+                          navigate(`/books/${b.book_id}`)
+                        }}
+                        onMouseMove={(e) => {
+                          if (!coarse) setHover(hoverFor(b, e.clientX, e.clientY, e.currentTarget))
+                        }}
+                        onMouseLeave={() => {
+                          if (!coarse) setHover(null)
+                        }}
                         aria-label={`${b.title} — ${formatDuration(b.total_seconds)} between ${b.first_day} and ${b.last_day}`}
                         className="group absolute block cursor-pointer overflow-hidden rounded-[4px] border transition-transform hover:-translate-y-px"
                         style={{
@@ -344,6 +394,12 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
               {formatDuration(hover.b.total_seconds)}
               {hover.b.finished_on ? ` · finished ${formatDate(hover.b.finished_on)}` : ''}
             </div>
+            {hover.day && (
+              <div className="mt-1 border-t border-border/60 pt-1" style={{ color: colors.accent }}>
+                {formatDate(hover.day.date)} ·{' '}
+                {hover.day.seconds > 0 ? formatDuration(hover.day.seconds) : 'no reading'}
+              </div>
+            )}
           </div>
         </div>
       )}
