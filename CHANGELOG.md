@@ -18,6 +18,12 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Shelves on your device (KOReader plugin, build 36).** The TomeSync series
+  browser gains a Shelves entry: your saved shelves listed with live counts,
+  each drilling into the same book list as a series — download per book or
+  all at once, read-status markers included. Shelf filters resolve
+  server-side (search, series, author, tag, format, language, library,
+  reading status, rating).
 - **Edit highlight notes from the web.** The Highlights page and the book
   page's Highlights & Notes section can now edit (or add) the note on any
   highlight — including ones made in KOReader — not just delete them. Edits

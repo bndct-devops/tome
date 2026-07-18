@@ -193,5 +193,8 @@ def test_build_bumped_for_rebake():
     # pending sessions/ratings + reading-history backfill at lid close, with an
     # aggressive variant that turns WiFi on first; onNetworkConnected also runs
     # the history backfill (was launch-only) and flushes without an open book.
-    assert TOMESYNC_PLUGIN_BUILD >= 35
-    assert TOMESYNC_PLUGIN_SEMVER == "1.9.0"
+    # 1.10.0 / build 36 adds the Shelves browse axis: the device lists the
+    # user's shelves and drills into their resolved book lists
+    # (GET /tome-sync/{shelves,shelf-books}); mixed lists download per-book.
+    assert TOMESYNC_PLUGIN_BUILD >= 36
+    assert TOMESYNC_PLUGIN_SEMVER == "1.10.0"

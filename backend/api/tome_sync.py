@@ -4,6 +4,7 @@ Auth: Bearer API key (not JWT) for all /api/tome-sync/ endpoints.
 Plugin download: Bearer JWT for /api/plugin/koreader.
 """
 import io
+import json
 import logging
 import zipfile
 from datetime import datetime, timedelta
@@ -24,7 +25,8 @@ from backend.core.permissions import book_visibility_filter, user_can_see_book
 from backend.core.ratings import validate_rating
 from backend.core.security import get_current_user
 from backend.models.user import User
-from backend.models.book import Book, BookFile
+from backend.models.book import Book, BookFile, BookTag
+from backend.models.library import Library, SavedFilter
 from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import Annotation, AnnotationTombstone, ApiKey, ReadingSession, TomeSyncPosition
 from backend.models.ko_stats import StatsImport
@@ -52,6 +54,10 @@ logger = logging.getLogger(__name__)
 # pull-conflict strategy settings (forward/backward × prompt/silent/never), and
 # a dedicated tomesync_state.lua for the data tables (migrated out of
 # G_reader_settings, pruned for books no longer on disk).
+# BUILD 36: shelves axis — the device browser gains a Shelves entry backed by
+# GET /tome-sync/{shelves,shelf-books}; shelf params resolve server-side via
+# the device-supported subset of the dashboard filters (drift-checked against
+# /books in tests). Mixed lists download by each book's own identity.
 # BUILD 33: catalog batch — device search (submit-based + recent searches),
 # author browse axis, read-status write-back (hold a book row); the shared
 # _bookListMenu drill-down shows per-book status markers. Server side: series
@@ -67,8 +73,8 @@ logger = logging.getLogger(__name__)
 # bypassing wifi_enable_action so "prompt" never dialogs onto the sleep
 # screen). onNetworkConnected also runs the history backfill now (was
 # launch-only) and no longer requires an open book to flush pending state.
-TOMESYNC_PLUGIN_BUILD = 35
-TOMESYNC_PLUGIN_SEMVER = "1.9.0"
+TOMESYNC_PLUGIN_BUILD = 36
+TOMESYNC_PLUGIN_SEMVER = "1.10.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -919,6 +925,142 @@ def get_author_books(
     )
     smap = _status_map(db, user.id, [b.id for b in books])
     return {"author": author, "books": [_book_entry(b, smap) for b in books]}
+
+
+# ── Shelves on the device (build 36) ─────────────────────────────────────────
+
+# The device-supported subset of the dashboard's shelf filter params. The
+# expressions mirror backend.api.books.list_books — that endpoint is the
+# source of these semantics; keep them in lockstep (test_tomesync_shelves has
+# a drift check comparing results against /books for the same params).
+_SHELF_SUPPORTED = {"q", "series", "no_series", "author", "tag", "format",
+                    "language", "library_id", "reading_status", "min_rating"}
+
+
+def _shelf_query(db: Session, user: User, params: dict):
+    """-> (query over Book, unsupported_keys). Values arrive as URL-shaped
+    strings ('true', '3'); coerce where needed."""
+    from sqlalchemy import text as sa_text
+
+    visibility = book_visibility_filter(db, user)
+    query = (
+        db.query(Book)
+        .options(joinedload(Book.files), joinedload(Book.book_type))
+        .filter(Book.status == "active", visibility)
+    )
+    unsupported = sorted(k for k, v in params.items()
+                         if k not in _SHELF_SUPPORTED and v not in (None, "", False))
+
+    q = params.get("q")
+    if q:
+        terms = str(q).split()
+        fts_term = " ".join(f'"{t.replace(chr(34), "")}"*' for t in terms if t)
+        fts_ids = [r[0] for r in db.execute(
+            sa_text("SELECT rowid FROM books_fts WHERE books_fts MATCH :q"),
+            {"q": fts_term}).fetchall()]
+        query = query.filter(Book.id.in_(fts_ids) if fts_ids else Book.id == -1)
+    if params.get("series"):
+        query = query.filter(Book.series == params["series"])
+    if str(params.get("no_series")).lower() == "true":
+        query = query.filter(Book.series.is_(None))
+    if params.get("author"):
+        query = query.filter(Book.author == params["author"])
+    if params.get("tag"):
+        query = query.join(Book.tags).filter(BookTag.tag == params["tag"])
+    if params.get("format"):
+        query = query.join(Book.files).filter(BookFile.format == str(params["format"]).lower())
+    if params.get("language"):
+        from backend.services.languages import normalize_language
+        target = normalize_language(str(params["language"]))
+        raw = [r[0] for r in db.query(Book.language).filter(
+            Book.language.isnot(None), Book.language != "").distinct().all()
+            if normalize_language(r[0]) == target]
+        query = query.filter(Book.language.in_(raw) if raw else Book.id == -1)
+    if params.get("library_id"):
+        try:
+            query = query.join(Book.libraries).filter(Library.id == int(params["library_id"]))
+        except (TypeError, ValueError):
+            pass
+    rs = params.get("reading_status")
+    if rs in ("reading", "read", "shelved"):
+        query = query.join(
+            UserBookStatus,
+            (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == user.id)
+        ).filter(UserBookStatus.status == rs)
+    elif rs == "unread":
+        from sqlalchemy import exists
+        subq = exists().where(
+            (UserBookStatus.book_id == Book.id) &
+            (UserBookStatus.user_id == user.id) &
+            (UserBookStatus.status != "unread")
+        )
+        query = query.filter(~subq)
+    if params.get("min_rating"):
+        try:
+            query = query.join(
+                UserBookStatus,
+                (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == user.id)
+            ).filter(UserBookStatus.rating >= float(params["min_rating"]))
+        except (TypeError, ValueError):
+            pass
+    return query, unsupported
+
+
+@router.get("/tome-sync/shelves")
+def get_shelves(
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """The user's shelves with resolved book counts, for the device browser."""
+    from sqlalchemy import distinct as sa_distinct
+
+    rows = (
+        db.query(SavedFilter)
+        .filter(SavedFilter.owner_id == user.id)
+        .order_by(SavedFilter.sort_order, SavedFilter.name)
+        .all()
+    )
+    out = []
+    for sf in rows:
+        try:
+            params = json.loads(sf.params or "{}")
+        except ValueError:
+            params = {}
+        query, _unsup = _shelf_query(db, user, params)
+        count = query.with_entities(func.count(sa_distinct(Book.id))).scalar() or 0
+        out.append({"id": sf.id, "name": sf.name, "book_count": int(count)})
+    return out
+
+
+@router.get("/tome-sync/shelf-books")
+def get_shelf_books(
+    shelf_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """One shelf's visible books, shaped like the series drill-down list."""
+    sf = db.get(SavedFilter, shelf_id)
+    if not sf or sf.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Shelf not found")
+    try:
+        params = json.loads(sf.params or "{}")
+    except ValueError:
+        params = {}
+    query, unsupported = _shelf_query(db, user, params)
+    books = (
+        query.order_by(Book.series.asc().nullslast(),
+                       Book.series_index.asc().nullslast(), Book.title.asc())
+        .all()
+    )
+    # Joins (tag/format/library) can fan rows out — dedupe preserving order.
+    seen: set[int] = set()
+    unique = [b for b in books if not (b.id in seen or seen.add(b.id))]
+    smap = _status_map(db, user.id, [b.id for b in unique])
+    return {
+        "shelf": sf.name,
+        "unsupported_filters": unsupported,
+        "books": [_book_entry(b, smap) for b in unique],
+    }
 
 
 @router.get("/tome-sync/search")
@@ -3734,6 +3876,68 @@ function TomeSync:_openAuthorBooks(author)
     local _ = code
 end
 
+-- ── Shelves axis (build 36) ──────────────────────────────────────────────────
+
+function TomeSync:_shelvesMenu()
+    whenConnected(function() self:_shelvesMenuImpl() end)
+end
+
+function TomeSync:_shelvesMenuImpl()
+    local ok, shelves, code = pcall(apiRequest, "GET", "/tome-sync/shelves")
+    if not ok or type(shelves) ~= "table" or (type(code) == "number" and code >= 300) then
+        UIManager:show(ConfirmBox:new{{
+            text = "Failed to load shelves.",
+            ok_text = "Retry",
+            cancel_text = "Close",
+            ok_callback = function() self:_shelvesMenuImpl() end,
+        }})
+        return
+    end
+    if #shelves == 0 then
+        UIManager:show(InfoMessage:new{{
+            text = "No shelves yet.\\nCreate one in the web app - any filtered view can be saved as a shelf.",
+            timeout = 5,
+        }})
+        return
+    end
+    local items = {{}}
+    for _, s in ipairs(shelves) do
+        table.insert(items, {{
+            text = s.name .. " (" .. s.book_count .. ")",
+            callback = function() self:_openShelfBooks(s.id, s.name) end,
+        }})
+    end
+    UIManager:show(Menu:new{{
+        title = "Shelves",
+        item_table = items,
+        width = Device.screen:getWidth() - 20,
+        height = Device.screen:getHeight() - 20,
+        show_parent = self.ui or UIManager,
+    }})
+end
+
+function TomeSync:_openShelfBooks(shelf_id, shelf_name)
+    local ok, data, code = pcall(apiRequest, "GET",
+        "/tome-sync/shelf-books?shelf_id=" .. tostring(shelf_id))
+    if ok and type(data) == "table" and data.books then
+        -- Shelves mix series, so books file by their own identity on download.
+        self:_bookListMenu{{
+            title  = shelf_name,
+            books  = data.books,
+            mixed  = true,
+            reload = function() self:_openShelfBooks(shelf_id, shelf_name) end,
+        }}
+    else
+        UIManager:show(ConfirmBox:new{{
+            text = "Failed to load shelf.",
+            ok_text = "Retry",
+            cancel_text = "Close",
+            ok_callback = function() self:_openShelfBooks(shelf_id, shelf_name) end,
+        }})
+    end
+    local _ = code
+end
+
 -- ── Search from the device (build 33) ────────────────────────────────────────
 
 function TomeSync:_recentSearches()
@@ -3855,9 +4059,13 @@ function TomeSync:_browseSeriesMenuImpl()
         callback = function() self:_searchMenu() end,
     }})
     table.insert(items, {{
-        text      = "Browse by author",
+        text     = "Browse by author",
+        callback = function() self:_authorsMenu() end,
+    }})
+    table.insert(items, {{
+        text      = "Shelves",
         separator = true,
-        callback  = function() self:_authorsMenu() end,
+        callback  = function() self:_shelvesMenu() end,
     }})
     for _, s in ipairs(series_list) do
         local name = s.name
