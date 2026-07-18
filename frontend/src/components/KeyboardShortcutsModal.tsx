@@ -18,6 +18,12 @@ interface ShortcutSection {
 
 const SECTIONS: ShortcutSection[] = [
   {
+    title: 'Everywhere',
+    rows: [
+      { keys: ['⌘', 'K'], description: 'Command palette — jump to a book, series, author, or page' },
+    ],
+  },
+  {
     title: 'Dashboard',
     rows: [
       { keys: ['/'], description: 'Focus search' },
