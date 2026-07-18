@@ -18,6 +18,12 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **One-click instance backup and staged restore.** Admin → Server gains an
+  Instance backup card: download a consistent snapshot of everything Tome
+  knows (database + covers + manifest; book files stay on disk), and restore
+  one by uploading it — the restore is validated, requires typing RESTORE,
+  and applies at the next server restart so it never happens under a live
+  database. The previous database is kept alongside as a safety copy.
 - **Import your Goodreads or StoryGraph history.** Settings → Import reading
   history takes either service's CSV export, matches it against your library
   (ISBN first, then title/author), and shows a full preview before anything

@@ -12,6 +12,7 @@ import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
 import { CoverAudit } from '@/components/CoverAudit'
+import { InstanceBackup } from '@/components/InstanceBackup'
 import { WordCountTab } from '@/components/WordCount'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
@@ -522,6 +523,8 @@ function ServerTab() {
 
   return (
     <div className="flex flex-col gap-4 max-w-xl">
+      {/* Instance backup / restore */}
+      <InstanceBackup />
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
