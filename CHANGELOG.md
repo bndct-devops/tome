@@ -18,6 +18,12 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Fixed
+- **Stats on phones: dead gap and misaligned range picker.** The Stats page
+  header paid the notch inset a second time inside the app shell (the top bar
+  already covers it), opening a large empty band between the top bar and the
+  page title on the installed app; and when the timeframe picker wrapped below
+  the title on narrow screens it stayed floated right, reading as misaligned.
+  The header now sits flush and the picker takes a full, left-aligned row.
 - **The mobile app no longer feels like a draggable website.** On phones the
   page content could be dragged sideways and rubber-banded (on iOS the Focus
   view's scaled cover fan still counted its full unscaled width as scrollable

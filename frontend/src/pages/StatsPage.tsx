@@ -2027,7 +2027,10 @@ export function StatsPage() {
         .react-grid-item:has(> .cfg-popover-open) { z-index: 40; }
       `}</style>
 
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
+      {/* No safe-top here: this header renders inside AppShell's scroller, below
+          the app bar that already pays the notch inset — repeating it doubled
+          the padding into a dead band on the installed PWA. */}
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm">
         {/* min-h + wrap: on phones the range pills don't fit beside the title row,
             so they wrap to a second line instead of overflowing the viewport */}
         <div className={cn('flex min-h-14 flex-wrap items-center gap-x-3 py-1.5 px-4')}>
@@ -2041,7 +2044,10 @@ export function StatsPage() {
           >
             <HelpCircle className="h-3.5 w-3.5" />
           </a>
-          <div className="ml-auto flex items-center gap-2">
+          {/* When the range control wraps to its own line (phones), it goes
+              full-width and left-aligned — keeping ml-auto there left it
+              floating right with dead space, reading as misaligned. */}
+          <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:w-full max-sm:overflow-x-auto">
             {/* range selector — presets + custom date range; refetches /stats */}
             <RangeControl
               days={days}
