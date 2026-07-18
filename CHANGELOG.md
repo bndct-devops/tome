@@ -18,6 +18,16 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Upload knows what you already have.** Files added to the upload dialog are
+  hashed in the browser and checked against the library before anything is
+  sent — exact duplicates get an "already in your library" note with a link to
+  the existing book and are skipped, instead of uploading megabytes just for
+  the server to silently discard them.
+- **Admin → Covers: cover-quality audit.** Lists books whose covers are
+  missing, unreadable, or genuinely low-resolution (real thumbnails, not
+  standard-source covers), with sizes shown. Books with no cover at all offer
+  a one-click auto-fix from the cover search (nothing to downgrade); low-res
+  ones deep-link to the book page to pick a better candidate by eye.
 - **"What's new" after an upgrade.** The first visit after the server moves to
   a new release shows a one-time panel with that release's notes, straight
   from the changelog — so features stop shipping invisibly. Dismiss it and it
