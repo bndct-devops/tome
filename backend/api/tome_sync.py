@@ -61,8 +61,14 @@ logger = logging.getLogger(__name__)
 # (POST /tome-sync/match-hashes) and adopts each sidecar's status/rating/
 # progress via the fill-gaps-only POST /tome-sync/sweep/{book_id}. Ack-gated
 # ledger keyed by sidecar mtime → resumable, re-run-safe.
-TOMESYNC_PLUGIN_BUILD = 34
-TOMESYNC_PLUGIN_SEMVER = "1.8.0"
+# BUILD 35: sync on suspend (issue #128) — opt-in catch-up of pending
+# sessions/ratings + reading-history backfill when the device sleeps, with an
+# aggressive variant that turns WiFi on first (turnOnWifiAndWaitForConnection,
+# bypassing wifi_enable_action so "prompt" never dialogs onto the sleep
+# screen). onNetworkConnected also runs the history backfill now (was
+# launch-only) and no longer requires an open book to flush pending state.
+TOMESYNC_PLUGIN_BUILD = 35
+TOMESYNC_PLUGIN_SEMVER = "1.9.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -2274,46 +2280,80 @@ end
 function TomeSync:onSuspend()
     UIManager:unschedule(self._heartbeat_task)
     self._heartbeat_armed = false
-    if not self.enabled or not self.book_id then return end
+    if not self.enabled then return end
 
-    -- Record the reading session (lid close = end of session)
-    local pct      = self:_getCurrentPercentage()
-    local cfi      = self:_getCurrentProgress()
-    local duration = self.session_start and (os.time() - self.session_start) or 0
-    local dev      = deviceName()
+    if self.book_id then
+        -- Record the reading session (lid close = end of session)
+        local pct      = self:_getCurrentPercentage()
+        local cfi      = self:_getCurrentProgress()
+        local duration = self.session_start and (os.time() - self.session_start) or 0
+        local dev      = deviceName()
 
-    pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
-        progress = cfi, percentage = pct, device = dev,
-    }})
+        pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
+            progress = cfi, percentage = pct, device = dev,
+        }})
 
-    -- Sync highlights/notes alongside position (bidirectional merge with the server).
-    pcall(function() self:_syncAnnotations() end)
-    -- Push a rating set this session (lid close ends the session like a book close).
-    pcall(function() self:_pushRatingOnLeave() end)
+        -- Sync highlights/notes alongside position (bidirectional merge with the server).
+        pcall(function() self:_syncAnnotations() end)
+        -- Push a rating set this session (lid close ends the session like a book close).
+        pcall(function() self:_pushRatingOnLeave() end)
 
-    if duration > 10 then
-        local session = {{
-            book_id          = self.book_id,
-            started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
-            ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", os.time()),
-            duration_seconds = duration,
-            progress_start   = self.progress_start,
-            progress_end     = pct,
-            pages_turned     = self.page_count,
-            device           = dev,
-            session_uuid     = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev),
-        }}
-        local sok, sresult, scode = pcall(apiRequest, "POST", "/tome-sync/session", session)
-        if not sok or not sresult or (type(scode) == "number" and scode >= 300) then
-            -- Failed to send — save for later
-            table.insert(self.pending_sessions, session)
-            -- Cap at 50 to prevent unbounded growth
-            while #self.pending_sessions > 50 do
-                table.remove(self.pending_sessions, 1)
+        if duration > 10 then
+            local session = {{
+                book_id          = self.book_id,
+                started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
+                ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", os.time()),
+                duration_seconds = duration,
+                progress_start   = self.progress_start,
+                progress_end     = pct,
+                pages_turned     = self.page_count,
+                device           = dev,
+                session_uuid     = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev),
+            }}
+            local sok, sresult, scode = pcall(apiRequest, "POST", "/tome-sync/session", session)
+            if not sok or not sresult or (type(scode) == "number" and scode >= 300) then
+                -- Failed to send — save for later
+                table.insert(self.pending_sessions, session)
+                -- Cap at 50 to prevent unbounded growth
+                while #self.pending_sessions > 50 do
+                    table.remove(self.pending_sessions, 1)
+                end
+                self:_saveState("tomesync_pending_sessions", self.pending_sessions)
+                logger.info("TomeSync: session queued for retry, pending:", #self.pending_sessions)
             end
-            self:_saveState("tomesync_pending_sessions", self.pending_sessions)
-            logger.info("TomeSync: session queued for retry, pending:", #self.pending_sessions)
         end
+    end
+
+    self:_suspendSync()
+end
+
+-- Sync on suspend (issue #128): before the device sleeps, catch up everything
+-- still queued — pending sessions/ratings and, when the launch backfill is
+-- enabled, the KOReader reading-history import — so stats are current in the
+-- morning without waking the device. Two opt-in levels:
+--   tomesync_sync_on_suspend   sync only if WiFi is already connected
+--   tomesync_suspend_wifi      also bring the radio up first (aggressive)
+-- The device may finish suspending before WiFi associates or mid-transfer;
+-- every step here is queue-or-resume safe (sessions/ratings re-flush, the
+-- history import resumes from the server watermark), so a cut connection just
+-- finishes on the next opportunity.
+function TomeSync:_suspendSync()
+    if not G_reader_settings:isTrue("tomesync_sync_on_suspend") then return end
+    local function catchUp()
+        self:_flushPendingSessions()
+        self:_flushPendingRatings()
+        if G_reader_settings:isTrue("tomesync_auto_sync_stats") then
+            pcall(function() self:_syncReadingStats(false) end)
+        end
+    end
+    if NetworkMgr:isConnected() then
+        catchUp()
+    elseif G_reader_settings:isTrue("tomesync_suspend_wifi") then
+        -- Deliberately NOT beforeWifiAction/whenConnected: those honour the
+        -- user's wifi_enable_action, and "prompt" would pop a dialog onto the
+        -- sleep screen. The toggle's promise is "turn WiFi on", so do exactly
+        -- that. The system powers the radio back down as part of suspend.
+        pcall(function() NetworkMgr:turnOnWifiAndWaitForConnection(catchUp) end)
     end
 end
 
@@ -2340,9 +2380,20 @@ end
 function TomeSync:onNetworkConnected()
     consecutive_failures = 0
     backoff_until = 0
-    if not self.enabled or not self.book_id then return end
+    -- No book_id guard: pending sessions/ratings and the history import are
+    -- device-level, and WiFi often comes up in the file manager (morning
+    -- catch-up) before any book is opened.
+    if not self.enabled then return end
     self:_flushPendingSessions()
     self:_flushPendingRatings()
+    -- Catch the reading-history backfill up too — previously launch-only, so
+    -- turning WiFi on without restarting KOReader left stats stale (issue #128).
+    -- Deferred so it doesn't contend with whatever brought the network up.
+    if G_reader_settings:isTrue("tomesync_auto_sync_stats") then
+        UIManager:scheduleIn(4, function()
+            pcall(function() self:_syncReadingStats(false) end)
+        end)
+    end
 end
 
 -- ── KOReader statistics.sqlite3 import (reading-history backfill) ────────────
@@ -4522,6 +4573,34 @@ function TomeSync:_menuItems()
         callback     = function()
             G_reader_settings:saveSetting("tomesync_auto_sync_stats",
                 not G_reader_settings:isTrue("tomesync_auto_sync_stats"))
+        end,
+    }})
+    table.insert(settings_items, {{
+        text         = "Sync on suspend",
+        help_text    = "When the device goes to sleep, catch up anything still "
+                       .. "pending - sessions, ratings and (if enabled above) "
+                       .. "reading history - so your stats are current in the "
+                       .. "morning without waking the device. Only syncs when "
+                       .. "WiFi is already connected; enable aggressive sync "
+                       .. "below to turn WiFi on first.",
+        checked_func = function() return G_reader_settings:isTrue("tomesync_sync_on_suspend") end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_sync_on_suspend",
+                not G_reader_settings:isTrue("tomesync_sync_on_suspend"))
+        end,
+    }})
+    table.insert(settings_items, {{
+        text         = "Aggressive sync (turn WiFi on at suspend)",
+        help_text    = "If WiFi is off when the device goes to sleep, turn it on, "
+                       .. "sync, and let the device power it back down as it "
+                       .. "suspends. Uses more battery than plain sync on "
+                       .. "suspend. If the device sleeps before the sync "
+                       .. "finishes, it completes on the next connection.",
+        enabled_func = function() return G_reader_settings:isTrue("tomesync_sync_on_suspend") end,
+        checked_func = function() return G_reader_settings:isTrue("tomesync_suspend_wifi") end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_suspend_wifi",
+                not G_reader_settings:isTrue("tomesync_suspend_wifi"))
         end,
     }})
 
