@@ -18,6 +18,10 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Fixed
+- **The notifications panel no longer renders behind sticky page content.** The
+  top bar sat at the same layer as page-level sticky toolbars (and below the new
+  timeline axis), so the open notification dropdown was cut by the Stats
+  toolbar. The top bar now stacks above content-level sticky elements.
 - **Chapter maps now extract from EPUB2 books.** Older EPUBs keep their table
   of contents in an NCX file rather than an EPUB3 nav document; chapter
   extraction ignored the NCX, so classics and older rips silently produced no

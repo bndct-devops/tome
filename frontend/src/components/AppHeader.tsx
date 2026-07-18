@@ -19,8 +19,10 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
   onUploadClick?: () => void
 }) {
   const { user } = useAuth()
+  // z-40: above content-level stickies (page toolbars at z-20, timeline axis at
+  // z-30) so the notification dropdown isn't cut, below modals at z-50.
   return (
-    <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 shrink-0 safe-top">
+    <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40 shrink-0 safe-top">
       <div className="px-4 h-14 flex items-center gap-3">
         <button
           className="md:hidden flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted shrink-0"
