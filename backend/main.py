@@ -22,6 +22,7 @@ from backend.api import tome_sync
 from backend.api import stats
 from backend.api import meta as meta_api
 from backend.api import admin_covers
+from backend.api import reading_import
 from backend.services import outbound_notifications  # noqa: F401  (registers ORM fanout listeners)
 from backend.api import quick_connect
 from backend.api import admin_duplicates
@@ -738,6 +739,7 @@ def create_app() -> FastAPI:
     app.include_router(goals_api.router, prefix="/api")
     app.include_router(meta_api.router, prefix="/api")
     app.include_router(admin_covers.router, prefix="/api")
+    app.include_router(reading_import.router, prefix="/api")
     app.include_router(annotations_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
