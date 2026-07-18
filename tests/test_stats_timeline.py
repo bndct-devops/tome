@@ -7,8 +7,11 @@ to sessions entirely.
 """
 from datetime import datetime, timezone
 
+from backend.core.security import hash_password, create_access_token
 from backend.models.tome_sync import ReadingSession
 from backend.models.ko_stats import PageStat
+from backend.models.library import Library
+from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
 
 
@@ -81,7 +84,6 @@ def test_timeline_ordered_and_meta(client, db, admin_user, make_book):
     titles = [b["title"] for b in data["books"]]
     assert titles == ["Earlier Book", "Later Book"]            # sorted by first activity
     lb = data["books"][1]
-    assert lb["status"] == "read"
     assert lb["finished_on"] == "2026-03-06"
 
 
@@ -94,3 +96,40 @@ def test_timeline_drops_subminute_noise(client, db, admin_user, make_book):
     db.flush()
     titles = [b["title"] for b in _timeline(client)["books"]]
     assert titles == ["Real Read"]
+
+
+def test_timeline_excludes_soft_deleted(client, db, admin_user, make_book):
+    user, _ = admin_user
+    gone = make_book(title="Soft Deleted")
+    _add_session(db, user, gone, 300, datetime(2026, 5, 1, 9), device="web")
+    gone.status = "deleted"
+    db.flush()
+    assert "Soft Deleted" not in [b["title"] for b in _timeline(client)["books"]]
+
+
+def test_timeline_respects_visibility(client, db, admin_user, make_book):
+    """A member's reading on a book that later moved into someone else's private
+    library disappears from their timeline — same rule as every other stats
+    surface (book_visibility_filter is the single source of truth)."""
+    admin, _ = admin_user
+    hidden = make_book(title="Private Book")
+    lib = Library(name="Admin Private", is_public=False, owner_id=admin.id)
+    db.add(lib)
+    db.flush()
+    hidden.libraries.append(lib)
+
+    member = User(username="tl_member", email="tl_member@example.com",
+                  hashed_password=hash_password("pass1234"), is_active=True,
+                  is_admin=False, role="member", must_change_password=False)
+    db.add(member)
+    db.flush()
+    db.add(UserPermission(user_id=member.id))
+    db.flush()
+    _add_session(db, member, hidden, 600, datetime(2026, 5, 2, 9), device="web")
+    db.flush()
+
+    token = create_access_token(subject=member.id)
+    r = client.get("/api/stats/timeline",
+                   headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert r.json()["books"] == []

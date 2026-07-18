@@ -1179,7 +1179,14 @@ def get_reading_timeline(
         if secs > 0 and day is not None:
             per_book[book_id][day] = secs
 
-    meta = {b.id: b for b in db.query(Book).filter(Book.id.in_(per_book.keys())).all()}
+    meta = {
+        b.id: b
+        for b in db.query(Book).filter(
+            Book.id.in_(per_book.keys()),
+            Book.status == "active",
+            book_visibility_filter(db, current_user),
+        )
+    }
     statuses = {
         s.book_id: s
         for s in db.query(UserBookStatus).filter(
@@ -1190,7 +1197,7 @@ def get_reading_timeline(
     books = []
     for book_id, days in per_book.items():
         b = meta.get(book_id)
-        if b is None or not days:  # deleted book — its sessions linger; skip
+        if b is None or not days:  # deleted/hidden book — its sessions linger; skip
             continue
         if sum(days.values()) < 60:  # sub-minute lifetime totals are page-flip noise
             continue
@@ -1203,8 +1210,6 @@ def get_reading_timeline(
             "series": b.series,
             "series_index": b.series_index,
             "has_cover": bool(b.cover_path),
-            "status": st.status if st else "unread",
-            "progress_pct": st.progress_pct if st else None,
             "finished_on": st.finished_at.strftime("%Y-%m-%d") if st and st.finished_at else None,
             "first_day": ordered[0][0],
             "last_day": ordered[-1][0],

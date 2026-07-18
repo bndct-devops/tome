@@ -9,6 +9,7 @@ import { Minus, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface TimelineBook {
   book_id: number
@@ -17,8 +18,6 @@ interface TimelineBook {
   series: string | null
   series_index: number | null
   has_cover: boolean
-  status: string
-  progress_pct: number | null
   finished_on: string | null
   first_day: string
   last_day: string
@@ -102,11 +101,12 @@ function buildLanes(books: TimelineBook[]): LaneGroup[] {
   return lanes
 }
 
-const fmtIndex = (si: number) => (Number.isInteger(si) ? String(si) : String(si))
-
 // Session-lived cache: switching tabs remounts the widget; the ribbon should
 // reappear instantly, not re-fetch and flash its loading state every visit.
+// Keyed by user id — logout/login and admin impersonation don't full-reload
+// the SPA, so an unkeyed cache would flash the previous account's timeline.
 let cachedData: TimelineResponse | null = null
+let cachedForUser: number | null = null
 
 const ZOOM_KEY = 'tome_timeline_zoom'
 const initialZoom = () => {
@@ -117,7 +117,9 @@ const initialZoom = () => {
 }
 
 export function TimelineRibbon({ standalone = false }: { standalone?: boolean } = {}) {
-  const [data, setData] = useState<TimelineResponse | null>(cachedData)
+  const { user } = useAuth()
+  const cacheHit = user != null && user.id === cachedForUser ? cachedData : null
+  const [data, setData] = useState<TimelineResponse | null>(cacheHit)
   const [failed, setFailed] = useState(false)
   const [zoom, setZoomState] = useState(initialZoom)
   const setZoom = (fn: (z: number) => number) =>
@@ -136,11 +138,13 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
       .get<TimelineResponse>(`/stats/timeline?tz_offset=${new Date().getTimezoneOffset()}`)
       .then((d) => {
         cachedData = d
+        cachedForUser = user?.id ?? null
         setData(d)
       })
       .catch(() => {
-        if (!cachedData) setFailed(true)
+        if (!cacheHit) setFailed(true)
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const lanes = useMemo(() => (data && data.books.length ? buildLanes(data.books) : null), [data])
@@ -308,7 +312,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                         ))}
                         {showIndex && (
                           <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-semibold leading-none text-foreground/80">
-                            {fmtIndex(b.series_index!)}
+                            {String(b.series_index)}
                           </span>
                         )}
                       </button>
@@ -324,7 +328,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
       {hover && (
         <div
           className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"
-          style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: hover.y + 16 }}
+          style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
         >
           {hover.b.has_cover && (
             <img src={`/api/books/${hover.b.book_id}/cover`} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
