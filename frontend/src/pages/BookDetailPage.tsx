@@ -186,6 +186,8 @@ export function BookDetailPage() {
   // is a real preference, not a per-page whim.
   const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('tome_book_stats_open') !== '0')
   const [showPositionHistory, setShowPositionHistory] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
+  const [editingNoteDraft, setEditingNoteDraft] = useState('')
   const [descExpanded, setDescExpanded] = useState(false)
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
@@ -978,6 +980,18 @@ export function BookDetailPage() {
     }
   }
 
+  async function saveHighlightNote(annotationId: number) {
+    try {
+      const note = editingNoteDraft.trim() || null
+      await api.put(`/annotations/${annotationId}`, { note })
+      setAnnotations(prev => prev.map(a => (a.id === annotationId ? { ...a, note } : a)))
+      setEditingNoteId(null)
+      toast.success(note ? 'Note saved — syncs to your devices' : 'Note removed')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save note')
+    }
+  }
+
   const highlightsBlock = annotations.length > 0 ? (
     <div className="mt-6">
       <button
@@ -1008,14 +1022,27 @@ export function BookDetailPage() {
                     </button>
                   </span>
                 ) : (
-                  <button
-                    onClick={() => setConfirmingHighlight(a.id)}
-                    title="Delete this highlight"
-                    aria-label="Delete this highlight"
-                    className="p-1 -mt-1 -mr-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingNoteDraft(a.note ?? '')
+                        setEditingNoteId(prev => (prev === a.id ? null : a.id))
+                      }}
+                      title={a.note ? 'Edit note' : 'Add a note'}
+                      aria-label={a.note ? 'Edit note' : 'Add a note'}
+                      className="p-1 -mt-1 rounded text-muted-foreground/50 hover:text-foreground transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingHighlight(a.id)}
+                      title="Delete this highlight"
+                      aria-label="Delete this highlight"
+                      className="p-1 -mt-1 -mr-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
                 )}
               </div>
               {a.highlighted_text && (
@@ -1023,12 +1050,31 @@ export function BookDetailPage() {
                   {a.highlighted_text}
                 </p>
               )}
-              {a.note && (
+              {editingNoteId === a.id ? (
+                <div className="mt-2 flex flex-col gap-1.5">
+                  <textarea
+                    value={editingNoteDraft}
+                    onChange={e => setEditingNoteDraft(e.target.value)}
+                    autoFocus
+                    rows={2}
+                    placeholder="Your note — syncs back to KOReader on the next sync"
+                    className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <span className="flex items-center gap-2 text-xs">
+                    <button onClick={() => saveHighlightNote(a.id)} className="font-medium text-primary hover:underline">
+                      Save note
+                    </button>
+                    <button onClick={() => setEditingNoteId(null)} className="text-muted-foreground hover:text-foreground">
+                      Cancel
+                    </button>
+                  </span>
+                </div>
+              ) : a.note ? (
                 <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
                   <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   <span className="leading-relaxed">{a.note}</span>
                 </p>
-              )}
+              ) : null}
             </li>
           ))}
         </ul>
