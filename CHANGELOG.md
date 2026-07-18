@@ -18,6 +18,11 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **"Time left in chapter" in the web reader.** The reader footer now shows
+  "~12 min left" beside the chapter name, computed from the book's chapter
+  map and your own measured reading pace (a sensible default until you have
+  reading history). Quietly absent for books without a chapter map or word
+  count.
 - **Position history — undo a bad sync.** Tome now keeps a short log of every
   meaningful reading-position change per book (device, web, manual — the
   idle heartbeat doesn't spam it). A history button on the book page's

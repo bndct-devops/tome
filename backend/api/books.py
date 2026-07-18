@@ -1107,6 +1107,65 @@ def get_book_annotations(
     ]
 
 
+# ── Reader pacing ("time left in chapter") ────────────────────────────────────
+
+@router.get("/{book_id}/reader-pacing")
+def get_reader_pacing(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Everything the web reader needs for "time left in chapter": the book's
+    chapter map (fraction-of-book boundaries), its word count, and the user's
+    true WPM. The WPM mirrors the stats rule exactly — finished word-counted
+    books with >= 5 min of reconciled read-time — and is null until the user
+    has such history (the reader falls back to a default pace)."""
+    from backend.models.book import BookChapter
+    from backend.services import reconciled_reading as rr
+    from backend.services.reading_day import date_modifier
+
+    book = _visible_book_or_404(db, current_user, book_id)
+    chapters = (
+        db.query(BookChapter)
+        .filter(BookChapter.book_id == book_id)
+        .order_by(BookChapter.idx)
+        .all()
+    )
+
+    wpm = None
+    covered = rr.covered_book_ids(db, current_user.id)
+    secs_by_book = rr.book_seconds(db, current_user.id, date_modifier(0), covered, None, None)
+    rows = (
+        db.query(Book.id, Book.word_count)
+        .join(UserBookStatus, UserBookStatus.book_id == Book.id)
+        .filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.status == "read",
+            Book.status == "active",
+            Book.word_count.isnot(None),
+        )
+        .all()
+    )
+    WPM_MIN_SECONDS = 300
+    words = secs = 0
+    for bid, wc in rows:
+        s = int(secs_by_book.get(bid, (0, 0, 0))[0])
+        if s >= WPM_MIN_SECONDS:
+            words += int(wc)
+            secs += s
+    if secs > 0:
+        wpm = round(words * 60 / secs, 1)
+
+    return {
+        "word_count": book.word_count,
+        "wpm": wpm,
+        "chapters": [
+            {"title": c.title, "start_fraction": c.start_fraction, "end_fraction": c.end_fraction}
+            for c in chapters
+        ],
+    }
+
+
 # ── Position history (restore a bad sync) ─────────────────────────────────────
 
 def _visible_book_or_404(db: Session, current_user: User, book_id: int) -> Book:

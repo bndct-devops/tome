@@ -669,6 +669,31 @@ export default function ReaderPage() {
 
   // ── EPUB-only state ─────────────────────────────────────────────────────────
   const [chapterLabel, setChapterLabel] = useState('')
+  // "Time left in chapter": chapter fraction boundaries × book word count ×
+  // the user's true WPM (measured; 250 default until they have history).
+  const pacingRef = useRef<{
+    word_count: number | null
+    wpm: number | null
+    chapters: { title: string; start_fraction: number; end_fraction: number }[]
+  } | null>(null)
+  const lastFractionRef = useRef(0)
+  const [chapterMinsLeft, setChapterMinsLeft] = useState<number | null>(null)
+  const computeChapterLeft = useCallback((f: number) => {
+    lastFractionRef.current = f
+    const pacing = pacingRef.current
+    if (!pacing?.word_count || pacing.chapters.length === 0) return
+    const ch =
+      pacing.chapters.find(c => f >= c.start_fraction && f < c.end_fraction) ??
+      (f >= (pacing.chapters[pacing.chapters.length - 1]?.start_fraction ?? 1)
+        ? pacing.chapters[pacing.chapters.length - 1]
+        : null)
+    if (ch) {
+      const wordsLeft = pacing.word_count * Math.max(0, ch.end_fraction - f)
+      setChapterMinsLeft(wordsLeft / (pacing.wpm || 250))
+    } else {
+      setChapterMinsLeft(null)
+    }
+  }, [])
   const [toc, setToc] = useState<TocItem[]>([])
   const [showToc, setShowToc] = useState(false)
   const [fontSize, setFontSize] = useState<number>(
@@ -987,6 +1012,16 @@ export default function ReaderPage() {
       const annotationsPromise = api
         .get<ReaderAnnotation[]>(`/books/${bookId}/annotations`)
         .catch(() => [] as ReaderAnnotation[])
+      // Pacing data for "time left in chapter" — non-blocking; the footer
+      // simply stays quiet for books without a chapter map or word count.
+      // Recompute on arrival: the initial relocate usually fires first.
+      api
+        .get<NonNullable<typeof pacingRef.current>>(`/books/${bookId}/reader-pacing`)
+        .then(p => {
+          pacingRef.current = p
+          computeChapterLeft(lastFractionRef.current)
+        })
+        .catch(() => {})
 
       view.addEventListener('load', (e: Event) => {
         applyStylesRef.current()
@@ -1024,6 +1059,9 @@ export default function ReaderPage() {
         const pct = Math.round((detail.fraction ?? 0) * 100)
         setProgress(pct)
         if (detail.tocItem?.label) setChapterLabel(detail.tocItem.label.trim())
+
+        // Chapter time-left from fraction boundaries — no pagination involved.
+        computeChapterLeft(detail.fraction ?? 0)
 
         if (!readyToSave.current) return
 
@@ -2015,6 +2053,11 @@ export default function ReaderPage() {
 
         <span className="flex-1 text-xs truncate text-center" style={{ color: themeColors.text, opacity: 0.5 }}>
           {chapterLabel}
+          {chapterMinsLeft != null && chapterMinsLeft >= 0.5 && (
+            <span title={pacingRef.current?.wpm ? 'Based on your measured reading pace' : 'Based on a default pace (no reading history yet)'}>
+              {chapterLabel ? ' · ' : ''}~{Math.max(1, Math.round(chapterMinsLeft))} min left
+            </span>
+          )}
         </span>
 
         <div className="flex items-center gap-2">
