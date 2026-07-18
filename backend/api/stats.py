@@ -1158,6 +1158,68 @@ def get_completion_estimates(
     return result
 
 
+@router.get("/stats/timeline")
+def get_reading_timeline(
+    tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Lifetime reading timeline: every book with recorded reading and its active
+    days, reconciled across live sessions and imported KOReader page-stats.
+    Day bucketing is the canonical reading day (4h rollover)."""
+    tzm = date_modifier(tz_offset)
+    covered = rr.covered_book_ids(db, current_user.id)
+    day_secs = rr.book_day_seconds(db, current_user.id, tzm, covered)
+    today = effective_today(tz_offset).isoformat()
+    if not day_secs:
+        return {"books": [], "today": today}
+
+    per_book: dict[int, dict[str, int]] = defaultdict(dict)
+    for (book_id, day), secs in day_secs.items():
+        if secs > 0 and day is not None:
+            per_book[book_id][day] = secs
+
+    meta = {
+        b.id: b
+        for b in db.query(Book).filter(
+            Book.id.in_(per_book.keys()),
+            Book.status == "active",
+            book_visibility_filter(db, current_user),
+        )
+    }
+    statuses = {
+        s.book_id: s
+        for s in db.query(UserBookStatus).filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.book_id.in_(per_book.keys()),
+        )
+    }
+    books = []
+    for book_id, days in per_book.items():
+        b = meta.get(book_id)
+        if b is None or not days:  # deleted/hidden book — its sessions linger; skip
+            continue
+        if sum(days.values()) < 60:  # sub-minute lifetime totals are page-flip noise
+            continue
+        ordered = sorted(days.items())
+        st = statuses.get(book_id)
+        books.append({
+            "book_id": book_id,
+            "title": b.title,
+            "author": b.author,
+            "series": b.series,
+            "series_index": b.series_index,
+            "has_cover": bool(b.cover_path),
+            "finished_on": st.finished_at.strftime("%Y-%m-%d") if st and st.finished_at else None,
+            "first_day": ordered[0][0],
+            "last_day": ordered[-1][0],
+            "total_seconds": sum(days.values()),
+            "days": [{"date": d, "seconds": s} for d, s in ordered],
+        })
+    books.sort(key=lambda x: (x["first_day"], x["book_id"]))
+    return {"books": books, "today": today}
+
+
 @router.get("/stats/sessions")
 def list_sessions(
     offset: int = Query(0, ge=0),

@@ -255,6 +255,29 @@ def book_month_seconds(db, user_id, tzm, covered, start_dt) -> dict[tuple[int, s
     return out
 
 
+def book_day_seconds(db, user_id, tzm, covered) -> dict[tuple[int, str], int]:
+    """(book_id, 'YYYY-MM-DD') -> seconds, all time. For the reading timeline."""
+    rs_day = func.date(ReadingSession.started_at, tzm)
+    rows = (
+        _rs_filtered(db, user_id, covered, None, None)
+        .filter(ReadingSession.book_id.isnot(None))
+        .with_entities(ReadingSession.book_id, rs_day.label("d"),
+                       func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("secs"))
+        .group_by(ReadingSession.book_id, "d").all()
+    )
+    out: dict[tuple[int, str], int] = {(r.book_id, r.d): int(r.secs or 0) for r in rows}
+    if covered:
+        rows2 = (
+            _ps_filtered(db, user_id, None, None)
+            .with_entities(PageStat.book_id, _ps_day(tzm).label("d"),
+                           func.coalesce(func.sum(PageStat.duration_seconds), 0).label("secs"))
+            .group_by(PageStat.book_id, "d").all()
+        )
+        for r in rows2:
+            out[(r.book_id, r.d)] = out.get((r.book_id, r.d), 0) + int(r.secs or 0)
+    return out
+
+
 # ── Hour × day-of-week ──────────────────────────────────────────────────────────
 
 def hour_dow(db, user_id, tzm, covered, cutoff, range_end) -> dict[tuple[int, int], tuple[int, int]]:

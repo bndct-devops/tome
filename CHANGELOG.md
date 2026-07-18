@@ -6,7 +6,22 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Reading Timeline — your reading life on one ribbon.** A new Timeline tab on
+  Reading Stats draws every book you've ever read as a bar in time: one lane
+  per series (named in a frozen rail on the left), volumes as numbered bars
+  spanning first to last active day, and the intensity of each day's reading
+  shaded inside the bar. Lifetime data, including imported KOReader history,
+  reconciled the same way as the rest of stats. Zoom from a year-at-a-glance
+  down to month detail, hover any bar for the cover and totals, click through
+  to the book. The tab renders full-bleed — edge to edge, viewport-tall — and
+  the ribbon is also available as a regular tile in the dashboard gallery.
+
 ### Fixed
+- **The notifications panel no longer renders behind sticky page content.** The
+  top bar sat at the same layer as page-level sticky toolbars (and below the new
+  timeline axis), so the open notification dropdown was cut by the Stats
+  toolbar. The top bar now stacks above content-level sticky elements.
 - **Chapter maps now extract from EPUB2 books.** Older EPUBs keep their table
   of contents in an NCX file rather than an EPUB3 nav document; chapter
   extraction ignored the NCX, so classics and older rips silently produced no
