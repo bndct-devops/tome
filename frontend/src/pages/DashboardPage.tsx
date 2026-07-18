@@ -1011,8 +1011,9 @@ export function DashboardPage() {
     </div>
   )
 
+  // h-dvh, not h-screen — see AppShell: 100vh overhangs mobile toolbars.
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-dvh bg-background flex flex-col overflow-hidden">
       {/* ── Navbar (shared with the standalone pages via AppShell) ───────── */}
       <AppHeader
         onMenuClick={() => setMobileSidebarOpen(true)}
@@ -1076,7 +1077,7 @@ export function DashboardPage() {
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto px-4 py-4 min-w-0">
+        <main className="flex-1 overflow-y-auto px-4 py-4 min-w-0 overscroll-contain">
           {/* Section heading */}
           {activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>

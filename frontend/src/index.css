@@ -360,6 +360,39 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ── App-feel on touch devices ─────────────────────────────────────────────
+   Native browser gestures are what make the PWA feel like a website: the
+   whole viewport rubber-bands past its edges, double-tap zooms, and a long
+   press selects UI text. Kill each at the source. Pinch-zoom is handled by
+   the viewport meta (respected on Android and in the installed iOS app; a
+   Safari *tab* always allows it for accessibility). */
+html,
+body {
+  /* No scroll chaining out of the document: stops the edge bounce and
+     Android's pull-to-refresh. The app shell scrolls internally anyway. */
+  overscroll-behavior: none;
+  /* Pan and pinch stay native, double-tap-to-zoom (and its 350ms tap delay)
+     goes — taps should feel immediate, like buttons, everywhere. */
+  touch-action: manipulation;
+}
+@media (pointer: coarse) {
+  /* UI chrome is not prose: a long press on a label or a cover should do
+     nothing, not start a text selection / image callout. Text entry and the
+     reader keep native behavior (the EPUB reader renders in its own iframe,
+     so highlight-by-selection is untouched). */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* Touch feedback for interactive elements */
 .touch-feedback {
   transition: transform 0.2s var(--spring);

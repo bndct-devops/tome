@@ -63,8 +63,10 @@ export function AppShell({
   // freshens the lists in the background, it never blanks them.
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
+  // h-dvh, not h-screen: 100vh overshoots the visible area under mobile
+  // browser toolbars, leaving the page itself pannable by the overhang.
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-dvh bg-background flex flex-col overflow-hidden">
       <AppHeader
         onMenuClick={() => setMobileSidebarOpen(true)}
         search={
@@ -102,7 +104,7 @@ export function AppShell({
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
-        <main className="flex-1 overflow-y-auto min-w-0">{children}</main>
+        <main className="flex-1 overflow-y-auto min-w-0 overscroll-contain">{children}</main>
       </div>
     </div>
   )
