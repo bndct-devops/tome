@@ -104,7 +104,9 @@ export function AppShell({
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
-        <main className="flex-1 overflow-y-auto min-w-0 overscroll-contain">{children}</main>
+        {/* overflow-x-hidden: see DashboardPage's main — WebKit pans pre-transform
+            layout overflow sideways; keep the app clamped to the viewport. */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 overscroll-contain">{children}</main>
       </div>
     </div>
   )
