@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = False
     smtp_daily_limit: int = 50
 
+    # Update awareness (env TOME_UPDATE_CHECK): lets admins see "new version
+    # available" in Settings via a daily-cached GitHub releases lookup. Set
+    # false to never call out (air-gapped installs); nothing else phones home.
+    update_check: bool = True
+
     # Auto-import settings
     auto_import: bool = False
     auto_import_interval: int = 300  # seconds

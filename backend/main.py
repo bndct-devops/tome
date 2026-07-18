@@ -20,6 +20,7 @@ from backend.api import opds_pins
 from backend.api import kosync
 from backend.api import tome_sync
 from backend.api import stats
+from backend.api import meta as meta_api
 from backend.api import quick_connect
 from backend.api import admin_duplicates
 from backend.api import word_count as word_count_api
@@ -733,6 +734,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications_api.router, prefix="/api")
     app.include_router(oidc_api.router, prefix="/api")
     app.include_router(goals_api.router, prefix="/api")
+    app.include_router(meta_api.router, prefix="/api")
     app.include_router(annotations_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)

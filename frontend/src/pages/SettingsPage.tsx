@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowLeft, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
+  ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
   AlertTriangle, ExternalLink, Send,
 } from 'lucide-react'
@@ -44,6 +44,19 @@ export function SettingsPage() {
   useEffect(() => {
     api.get<{ version: string }>('/health').then(r => setTomeVersion(r.version)).catch(() => {})
   }, [])
+
+  // Quiet update indicator (admins): daily-cached server-side check against
+  // GitHub releases; renders a link in About only when something is newer.
+  const [updateInfo, setUpdateInfo] = useState<{ latest: string; url: string } | null>(null)
+  useEffect(() => {
+    if (!user?.is_admin) return
+    api
+      .get<{ update_available: boolean; latest: string | null; url: string }>('/meta/update-check')
+      .then(r => {
+        if (r.update_available && r.latest) setUpdateInfo({ latest: r.latest, url: r.url })
+      })
+      .catch(() => {})
+  }, [user?.is_admin])
 
   // ── SSO linking ────────────────────────────────────────────────────────────
   const [ssoEnabled, setSsoEnabled] = useState(false)
@@ -1528,6 +1541,20 @@ export function SettingsPage() {
             >
               GitHub
             </a>
+            {updateInfo && (
+              <>
+                <span>&middot;</span>
+                <a
+                  href={updateInfo.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                  v{updateInfo.latest} available
+                </a>
+              </>
+            )}
           </div>
         </section>
 
