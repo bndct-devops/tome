@@ -1077,7 +1077,10 @@ export function DashboardPage() {
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto px-4 py-4 min-w-0 overscroll-contain">
+        {/* overflow-x-hidden: WebKit counts pre-transform layout boxes (e.g. the
+            focus rotary's scaled 540px stage) as scrollable overflow, letting the
+            content pan sideways on phones; Chromium doesn't, so test on Safari. */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 min-w-0 overscroll-contain">
           {/* Section heading */}
           {activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>

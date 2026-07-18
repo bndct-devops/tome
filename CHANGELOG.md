@@ -19,12 +19,15 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ### Fixed
 - **The mobile app no longer feels like a draggable website.** On phones the
-  whole viewport could be rubber-banded past its edges, double-tap zoomed, and
-  a long press selected interface text — classic browser-tab behavior. The app
-  now suppresses edge bounce and scroll chaining, removes double-tap zoom (taps
-  fire immediately), disables text selection on interface chrome for touch
-  devices (text fields and the reader keep it), and sizes the shell to the
-  real visible viewport instead of overhanging behind mobile browser toolbars.
+  page content could be dragged sideways and rubber-banded (on iOS the Focus
+  view's scaled cover fan still counted its full unscaled width as scrollable
+  overflow), the viewport bounced past its edges, double-tap zoomed, and a
+  long press selected interface text — classic browser-tab behavior. The app
+  now clamps content to the viewport width, suppresses edge bounce and scroll
+  chaining, removes double-tap zoom (taps fire immediately), disables text
+  selection on interface chrome for touch devices (text fields and the reader
+  keep it), and sizes the shell to the real visible viewport instead of
+  overhanging behind mobile browser toolbars.
 - **The notifications panel no longer renders behind sticky page content.** The
   top bar sat at the same layer as page-level sticky toolbars (and below the new
   timeline axis), so the open notification dropdown was cut by the Stats
