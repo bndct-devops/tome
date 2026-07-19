@@ -81,8 +81,10 @@ import { withBase } from '../../lib/path'
     <strong>never anything else</strong>: no downloads, no in-browser reading, no route to
     book files at all — the public endpoint is structurally incapable of serving content.
     Links are unguessable, marked <code>noindex</code>, limited to what you yourself can
-    see, and revocable at any time (the link dies instantly). Creating and revoking are
-    recorded in the audit log.
+    see, and revocable at any time (the link dies instantly) — or give them an optional
+    1/7/30-day expiry when creating. <strong>Settings → Share links</strong> lists every
+    link you've minted, with copy and revoke. Creating and revoking are recorded in the
+    audit log.
   </p>
 
   <h2>Visibility rules</h2>

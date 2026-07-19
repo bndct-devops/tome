@@ -15,12 +15,14 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
   onClose: () => void
 }) {
   const [token, setToken] = useState<string | null | undefined>(undefined) // undefined = loading
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [expiryDays, setExpiryDays] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    api.get<{ token: string | null }>(endpoint)
-      .then(r => setToken(r.token))
+    api.get<{ token: string | null; expires_at: string | null }>(endpoint)
+      .then(r => { setToken(r.token); setExpiresAt(r.expires_at) })
       .catch(() => setToken(null))
   }, [endpoint])
 
@@ -29,8 +31,11 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
   async function create() {
     setBusy(true)
     try {
-      const r = await api.post<{ token: string }>(endpoint)
+      const r = await api.post<{ token: string; expires_at: string | null }>(
+        endpoint, expiryDays ? { expires_in_days: expiryDays } : {},
+      )
       setToken(r.token)
+      setExpiresAt(r.expires_at)
     } finally {
       setBusy(false)
     }
@@ -94,14 +99,37 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading…
               </div>
             ) : token === null ? (
-              <button
-                onClick={create}
-                disabled={busy}
-                className="mt-4 flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                Create share link
-              </button>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+                  {[
+                    { d: null, label: 'Never expires' },
+                    { d: 1, label: '1 day' },
+                    { d: 7, label: '7 days' },
+                    { d: 30, label: '30 days' },
+                  ].map(o => (
+                    <button
+                      key={String(o.d)}
+                      onClick={() => setExpiryDays(o.d)}
+                      className={
+                        'rounded-md px-2 py-1 text-xs transition ' +
+                        (expiryDays === o.d
+                          ? 'bg-card font-medium text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground')
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={create}
+                  disabled={busy}
+                  className="flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                  Create share link
+                </button>
+              </div>
             ) : (
               <div className="mt-4 flex flex-col gap-2.5">
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
@@ -114,14 +142,22 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
                     {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
                 </div>
-                <button
-                  onClick={revoke}
-                  disabled={busy}
-                  className="flex w-fit items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-                >
-                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  Revoke link
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={revoke}
+                    disabled={busy}
+                    className="flex w-fit items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                  >
+                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Revoke link
+                  </button>
+                  <span className="text-[11px] text-muted-foreground">
+                    {expiresAt
+                      ? `Expires ${new Date(expiresAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+                      : 'Never expires'}
+                    {' · to change expiry, revoke and re-create'}
+                  </span>
+                </div>
               </div>
             )}
           </div>

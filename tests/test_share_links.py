@@ -229,3 +229,48 @@ def test_series_share_includes_arcs_and_meta(client: TestClient, db: Session, ad
     assert sc["arcs"][0]["name"] == "Opening Arc"
     # Shelf and book shares must NOT carry a series object.
     assert "series" not in {k for k in data.keys()} - {"series"} or True
+
+
+def test_share_expiry_lifecycle(client: TestClient, db: Session, admin_user, make_book):
+    from datetime import datetime, timedelta
+
+    user, _ = admin_user
+    book = make_book(title="Expiring Shared")
+    r = client.post(f"/api/books/{book.id}/share", json={"expires_in_days": 7})
+    assert r.status_code == 201
+    token = r.json()["token"]
+    assert r.json()["expires_at"] is not None
+    assert client.get(f"/api/share/{token}").status_code == 200
+
+    # Force-expire and verify the public endpoint treats it as gone.
+    link = db.query(ShareLink).filter_by(token=token).one()
+    link.expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    assert client.get(f"/api/share/{token}").status_code == 404
+
+    # Overview flags it, and revoking from the overview works.
+    rows = client.get("/api/share-links").json()
+    mine = next(x for x in rows if x["token"] == token)
+    assert mine["expired"] is True
+    assert mine["kind"] == "book"
+    client.delete(f"/api/share-links/{mine['id']}")
+    assert all(x["token"] != token for x in client.get("/api/share-links").json())
+
+
+def test_share_expiry_rejects_odd_values(client: TestClient, db: Session, admin_user, make_book):
+    book = make_book(title="Odd Expiry")
+    r = client.post(f"/api/books/{book.id}/share", json={"expires_in_days": 3})
+    assert r.status_code == 422
+
+
+def test_share_overview_owner_only(client: TestClient, db: Session, admin_user, make_book):
+    other = _make_member(db, "overview_other")
+    book = make_book(title="Other Overview Book")
+    from backend.core.security import create_access_token
+    otoken = create_access_token(subject=other.id)
+    t = client.post(f"/api/books/{book.id}/share",
+                    headers={"Authorization": f"Bearer {otoken}"}).json()["token"]
+    # Admin's overview must not contain the member's link, nor revoke it.
+    assert all(x["token"] != t for x in client.get("/api/share-links").json())
+    link_id = db.query(ShareLink).filter_by(token=t).one().id
+    assert client.delete(f"/api/share-links/{link_id}").status_code == 404

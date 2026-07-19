@@ -102,5 +102,7 @@ class ShareLink(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # NULL = never expires. Expired links 404 exactly like revoked ones.
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     shelf: Mapped[Optional["SavedFilter"]] = relationship("SavedFilter")

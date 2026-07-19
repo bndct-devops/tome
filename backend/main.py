@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
         # the old shape, and links are cheap to re-mint).
         sl_info = conn.execute(text("PRAGMA table_info(share_links)")).fetchall()
         sl_notnull = {r[1]: bool(r[3]) for r in sl_info}
-        if sl_info and (sl_notnull.get("saved_filter_id") or "series_name" not in sl_notnull):
+        if sl_info and (sl_notnull.get("saved_filter_id") or "series_name" not in sl_notnull or "expires_at" not in sl_notnull):
             conn.execute(text("DROP TABLE share_links"))
             conn.commit()
             from backend.models.library import ShareLink as _SL
