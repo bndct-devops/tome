@@ -72,3 +72,28 @@ class SavedFilter(Base):
     params: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ShareLink(Base):
+    """An opt-in, tokenized, read-only public view of one shelf.
+
+    HARD BOUNDARY (owner's explicit constraint): the public payload is
+    metadata only — cover, title, author/series identity, tags, description,
+    the owner's rating, and their highlights. No file paths, no downloads, no
+    reader, no route from a share to any book content, ever. The public
+    endpoint lives in its own router with an explicit whitelist serializer and
+    zero imports from file-serving modules — the boundary is structural, not
+    policy. One link per shelf; revoking deletes the row (the token dies)."""
+    __tablename__ = "share_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    saved_filter_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("saved_filters.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    shelf: Mapped["SavedFilter"] = relationship("SavedFilter")

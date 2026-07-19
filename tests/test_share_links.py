@@ -1,0 +1,132 @@
+"""Public shelf share links — the metadata-only boundary, by assertion.
+
+The most important tests here pin the response SHAPE: a field that ever
+appears beyond the whitelist is a leak, whatever its value.
+"""
+import json
+
+from sqlalchemy.orm import Session
+from starlette.testclient import TestClient
+
+from backend.core.security import create_access_token, hash_password
+from backend.models.library import Library, SavedFilter, ShareLink
+from backend.models.tome_sync import Annotation
+from backend.models.user import User, UserPermission
+from backend.models.user_book_status import UserBookStatus
+
+BOOK_WHITELIST = {"id", "title", "author", "series", "series_index",
+                  "description", "tags", "rating", "highlights"}
+HIGHLIGHT_WHITELIST = {"text", "note", "chapter"}
+
+
+def _shelf(db: Session, owner_id: int, name: str, params: dict) -> SavedFilter:
+    sf = SavedFilter(name=name, owner_id=owner_id, params=json.dumps(params))
+    db.add(sf)
+    db.flush()
+    return sf
+
+
+def _make_member(db: Session, username: str) -> User:
+    u = User(username=username, email=f"{username}@example.com",
+             hashed_password=hash_password("pass1234"), is_active=True,
+             is_admin=False, role="member", must_change_password=False)
+    db.add(u)
+    db.flush()
+    db.add(UserPermission(user_id=u.id))
+    db.flush()
+    return u
+
+
+def test_share_lifecycle_and_public_payload(client: TestClient, db: Session, admin_user, make_book):
+    user, _ = admin_user
+    book = make_book(title="Shared Book", series="Shared Series", series_index=1)
+    book.description = "A description"
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, rating=4.5,
+                          review="PRIVATE REVIEW TEXT"))
+    db.add(Annotation(user_id=user.id, book_id=book.id, anchor="x1",
+                      highlighted_text="A quoted passage", note="my note",
+                      chapter="Chapter 3"))
+    sf = _shelf(db, user.id, "Public Faves", {"series": "Shared Series"})
+    db.flush()
+
+    token = client.post(f"/api/shelves/{sf.id}/share").json()["token"]
+    assert len(token) >= 20
+
+    # Public fetch: NO auth header.
+    r = client.get(f"/api/share/{token}", headers={"Authorization": ""})
+    assert r.status_code == 200
+    assert "noindex" in r.headers.get("X-Robots-Tag", "")
+    data = r.json()
+    assert data["shelf"] == "Public Faves"
+    assert set(data.keys()) == {"shelf", "books"}
+    b = data["books"][0]
+    # THE boundary: exact whitelist, nothing else, ever.
+    assert set(b.keys()) == BOOK_WHITELIST
+    assert b["rating"] == 4.5
+    assert "PRIVATE REVIEW TEXT" not in r.text     # reviews are not shared
+    h = b["highlights"][0]
+    assert set(h.keys()) == HIGHLIGHT_WHITELIST
+    assert h["text"] == "A quoted passage"
+    # No file-shaped anything anywhere in the payload.
+    for needle in ("file", "path", "download", ".epub", "hash", "anchor"):
+        assert needle not in r.text.lower(), f"leaked: {needle}"
+
+
+def test_share_revoke_kills_token(client: TestClient, db: Session, admin_user, make_book):
+    user, _ = admin_user
+    sf = _shelf(db, user.id, "Ephemeral", {})
+    db.flush()
+    token = client.post(f"/api/shelves/{sf.id}/share").json()["token"]
+    assert client.get(f"/api/share/{token}").status_code == 200
+    client.delete(f"/api/shelves/{sf.id}/share")
+    assert client.get(f"/api/share/{token}").status_code == 404
+
+
+def test_share_unknown_token_404(client: TestClient):
+    assert client.get("/api/share/definitely-not-a-token").status_code == 404
+
+
+def test_share_management_owner_only(client: TestClient, db: Session, admin_user):
+    other = _make_member(db, "share_other")
+    sf = _shelf(db, other.id, "Not Yours", {})
+    db.flush()
+    # Admin (the client's default auth) is not the owner: 404, no token created.
+    assert client.post(f"/api/shelves/{sf.id}/share").status_code == 404
+    assert db.query(ShareLink).count() == 0
+
+
+def test_share_respects_owner_visibility(client: TestClient, db: Session, admin_user, make_book):
+    """A member's share can never expose a book the member cannot see —
+    even if the book matches the shelf filter."""
+    admin, _ = admin_user
+    hidden = make_book(title="Hidden From Member", series="VisSeries", series_index=1)
+    lib = Library(name="Admin Only", is_public=False, owner_id=admin.id)
+    db.add(lib)
+    db.flush()
+    hidden.libraries.append(lib)
+
+    member = _make_member(db, "share_member")
+    visible = make_book(title="Visible Book", series="VisSeries", series_index=2)
+    sf = _shelf(db, member.id, "Member Shelf", {"series": "VisSeries"})
+    db.flush()
+
+    mtoken = create_access_token(subject=member.id)
+    token = client.post(f"/api/shelves/{sf.id}/share",
+                        headers={"Authorization": f"Bearer {mtoken}"}).json()["token"]
+    data = client.get(f"/api/share/{token}").json()
+    titles = [b["title"] for b in data["books"]]
+    assert "Visible Book" in titles
+    assert "Hidden From Member" not in titles
+
+
+def test_share_create_and_revoke_audited(client: TestClient, db: Session, admin_user):
+    from backend.models.audit_log import AuditLog
+
+    user, _ = admin_user
+    sf = _shelf(db, user.id, "Audited Shelf", {})
+    db.flush()
+    client.post(f"/api/shelves/{sf.id}/share")
+    client.delete(f"/api/shelves/{sf.id}/share")
+    acts = [r.action for r in db.query(AuditLog).all()]
+    assert "share_link.created" in acts
+    assert "share_link.revoked" in acts

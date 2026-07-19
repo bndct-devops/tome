@@ -930,81 +930,9 @@ def get_author_books(
 
 # ── Shelves on the device (build 36) ─────────────────────────────────────────
 
-# The device-supported subset of the dashboard's shelf filter params. The
-# expressions mirror backend.api.books.list_books — that endpoint is the
-# source of these semantics; keep them in lockstep (test_tomesync_shelves has
-# a drift check comparing results against /books for the same params).
-_SHELF_SUPPORTED = {"q", "series", "no_series", "author", "tag", "format",
-                    "language", "library_id", "reading_status", "min_rating"}
-
-
-def _shelf_query(db: Session, user: User, params: dict):
-    """-> (query over Book, unsupported_keys). Values arrive as URL-shaped
-    strings ('true', '3'); coerce where needed."""
-    from sqlalchemy import text as sa_text
-
-    visibility = book_visibility_filter(db, user)
-    query = (
-        db.query(Book)
-        .options(joinedload(Book.files), joinedload(Book.book_type))
-        .filter(Book.status == "active", visibility)
-    )
-    unsupported = sorted(k for k, v in params.items()
-                         if k not in _SHELF_SUPPORTED and v not in (None, "", False))
-
-    q = params.get("q")
-    if q:
-        terms = str(q).split()
-        fts_term = " ".join(f'"{t.replace(chr(34), "")}"*' for t in terms if t)
-        fts_ids = [r[0] for r in db.execute(
-            sa_text("SELECT rowid FROM books_fts WHERE books_fts MATCH :q"),
-            {"q": fts_term}).fetchall()]
-        query = query.filter(Book.id.in_(fts_ids) if fts_ids else Book.id == -1)
-    if params.get("series"):
-        query = query.filter(Book.series == params["series"])
-    if str(params.get("no_series")).lower() == "true":
-        query = query.filter(Book.series.is_(None))
-    if params.get("author"):
-        query = query.filter(Book.author == params["author"])
-    if params.get("tag"):
-        query = query.join(Book.tags).filter(BookTag.tag == params["tag"])
-    if params.get("format"):
-        query = query.join(Book.files).filter(BookFile.format == str(params["format"]).lower())
-    if params.get("language"):
-        from backend.services.languages import normalize_language
-        target = normalize_language(str(params["language"]))
-        raw = [r[0] for r in db.query(Book.language).filter(
-            Book.language.isnot(None), Book.language != "").distinct().all()
-            if normalize_language(r[0]) == target]
-        query = query.filter(Book.language.in_(raw) if raw else Book.id == -1)
-    if params.get("library_id"):
-        try:
-            query = query.join(Book.libraries).filter(Library.id == int(params["library_id"]))
-        except (TypeError, ValueError):
-            pass
-    rs = params.get("reading_status")
-    if rs in ("reading", "read", "shelved"):
-        query = query.join(
-            UserBookStatus,
-            (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == user.id)
-        ).filter(UserBookStatus.status == rs)
-    elif rs == "unread":
-        from sqlalchemy import exists
-        subq = exists().where(
-            (UserBookStatus.book_id == Book.id) &
-            (UserBookStatus.user_id == user.id) &
-            (UserBookStatus.status != "unread")
-        )
-        query = query.filter(~subq)
-    if params.get("min_rating"):
-        try:
-            query = query.join(
-                UserBookStatus,
-                (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == user.id)
-            ).filter(UserBookStatus.rating >= float(params["min_rating"]))
-        except (TypeError, ValueError):
-            pass
-    return query, unsupported
+# Shelf params resolve through the shared resolver (also used by public
+# share links) — see backend/services/shelf_resolver.py.
+from backend.services.shelf_resolver import shelf_query as _shelf_query  # noqa: E402
 
 
 @router.get("/tome-sync/shelves")

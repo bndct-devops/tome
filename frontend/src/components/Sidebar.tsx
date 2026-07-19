@@ -2,13 +2,14 @@ import { Fragment, useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import {
-  BookOpen, Plus, Pencil, Trash2,
+  BookOpen, Plus, Pencil, Share2, Trash2,
   ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
   Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { ShareShelfModal } from '@/components/ShareShelfModal'
 import type { Library, SavedFilter } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
@@ -235,6 +236,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     setLibModalOpen(true)
   }
 
+  const [shareShelf, setShareShelf] = useState<SavedFilter | null>(null)
+
   function openEditFilterModal(sf: SavedFilter) {
     setModalTitle('Edit Shelf')
     setModalInitialName(sf.name)
@@ -275,6 +278,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           onSave={modalOnSave}
           onClose={() => setModalOpen(false)}
         />
+      )}
+      {shareShelf && (
+        <ShareShelfModal shelf={shareShelf} onClose={() => setShareShelf(null)} />
       )}
       {libModalOpen && (
         <LibraryModal
@@ -593,6 +599,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     active={activeSavedFilter === sf.id}
                     onClick={() => selectSavedFilter(sf)}
                     onEdit={() => openEditFilterModal(sf)}
+                    onShare={() => setShareShelf(sf)}
                     onDelete={async () => {
                       await api.delete(`/saved-filters/${sf.id}`)
                       if (activeSavedFilter === sf.id) selectAllBooks()
@@ -783,6 +790,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                       active={activeSavedFilter === sf.id}
                       onClick={() => selectSavedFilter(sf)}
                       onEdit={() => openEditFilterModal(sf)}
+                      onShare={() => setShareShelf(sf)}
                       onDelete={async () => {
                         await api.delete(`/saved-filters/${sf.id}`)
                         if (activeSavedFilter === sf.id) selectAllBooks()
@@ -1075,7 +1083,7 @@ function Section({ title, icon, onAdd, onTitleClick, children }: {
   )
 }
 
-function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdit, onDelete }: {
+function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdit, onShare, onDelete }: {
   label: string
   iconName: string
   count?: number
@@ -1083,6 +1091,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
   isPrivate?: boolean
   onClick: () => void
   onEdit?: () => void
+  onShare?: () => void
   onDelete?: () => Promise<void>
 }) {
   return (
@@ -1117,6 +1126,16 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
             aria-label="Edit"
           >
             <Pencil className="w-3 h-3" />
+          </button>
+        )}
+        {onShare && (
+          <button
+            onClick={e => { e.stopPropagation(); onShare() }}
+            className="p-0.5 rounded hover:text-foreground transition-colors"
+            title="Share"
+            aria-label="Share"
+          >
+            <Share2 className="w-3 h-3" />
           </button>
         )}
         {onDelete && (
