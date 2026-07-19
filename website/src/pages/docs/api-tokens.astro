@@ -24,6 +24,26 @@ r.raise_for_status()
 for book in r.json()["items"]:
     print(book["title"])`
 
+const homepageSnippet = `- Tome:
+    icon: mdi-book-open-page-variant
+    href: https://your-tome.example.com
+    widget:
+      type: customapi
+      url: https://your-tome.example.com/api/home/stats
+      headers:
+        Authorization: Bearer tome_xxxxxxxx
+      mappings:
+        - field: current_streak_days
+          label: Streak
+          suffix: " days"
+        - field: books_finished_30d
+          label: Finished (30d)
+        - field: reading_seconds_30d
+          label: Read (30d)
+          format: duration
+        - field: pages_turned_30d
+          label: Pages (30d)`
+
 const jsSnippet = `const TOKEN = process.env.TOME_TOKEN
 const res = await fetch('https://your-tome.example.com/api/books?limit=5', {
   headers: { Authorization: \`Bearer \${TOKEN}\` },
@@ -89,6 +109,31 @@ items.forEach(b => console.log(b.title))`
     { label: 'Python', code: pythonSnippet },
     { label: 'JS',     code: jsSnippet },
   ]} />
+
+  <h2>Homepage widget</h2>
+  <p>
+    If you run <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a>,
+    a token is all you need to put your reading stats on a dashboard tile - no Tome-side setup.
+    Tome's <code>GET /api/home/stats</code> endpoint returns a flat JSON summary (current streak,
+    books finished, time read, and pages turned over the last 30 days) that maps straight onto
+    Homepage's <code>customapi</code> widget:
+  </p>
+
+  <pre><code>{homepageSnippet}</code></pre>
+
+  <p>
+    The <code>duration</code> format expects seconds, which is exactly what
+    <code>reading_seconds_30d</code> is - no conversion needed. One nuance: streak days are
+    bucketed in UTC by default. If your streak looks off-by-one around midnight, append
+    <code>?tz_offset=-120</code> to the widget URL (JS convention: the negative of your UTC
+    offset in minutes, so UTC+2 is <code>-120</code>).
+  </p>
+
+  <Callout variant="warning" title="The token rides in a config file">
+    Homepage stores <code>services.yaml</code> in plain text. Use a dedicated token named
+    <code>homepage</code> so you can revoke it independently, and keep the file out of any
+    public dotfiles repo.
+  </Callout>
 
   <h2>Revoking</h2>
   <p>
