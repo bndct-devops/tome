@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { NotificationChannels } from '@/components/NotificationChannels'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -1493,6 +1494,12 @@ export function SettingsPage() {
         </section>
 
         {/* ── Export ───────────────────────────────────────────────────── */}
+        {/* ── Outbound notifications ────────────────────────────────────── */}
+        <section>
+          <SectionHeader title="Notifications" subtle />
+          <NotificationChannels />
+        </section>
+
         <section>
           <SectionHeader title="Export" subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">

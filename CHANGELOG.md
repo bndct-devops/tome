@@ -18,6 +18,13 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Push notifications to ntfy, Gotify, or any webhook.** Settings →
+  Notifications lets each user add outbound channels; every in-app
+  notification (wish fulfilled, new volume detected, reading goals) is
+  pushed the moment it happens instead of waiting for the next visit. Each
+  channel has a test button, can be paused, and tokens are stored
+  server-side only. `TOME_OUTBOUND_NOTIFY=false` switches the whole feature
+  off; nothing is sent unless a user configures a channel.
 - **"Time left in chapter" in the web reader.** The reader footer now shows
   "~12 min left" beside the chapter name, computed from the book's chapter
   map and your own measured reading pace (a sensible default until you have

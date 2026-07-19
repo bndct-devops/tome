@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import get_current_user
-from backend.models.notification import Notification
+from backend.models.notification import Notification, NotificationChannel
 from backend.models.user import User
 
 router = APIRouter(tags=["notifications"])
@@ -81,4 +81,115 @@ def mark_all_notifications_read(
         Notification.read == False,  # noqa: E712
     ).update({"read": True})
     db.commit()
+    return {"ok": True}
+
+
+# ── Outbound channels (ntfy / Gotify / webhook) ───────────────────────────────
+
+CHANNEL_KINDS = ("ntfy", "gotify", "webhook")
+
+
+class ChannelIn(BaseModel):
+    kind: str
+    url: str
+    token: Optional[str] = None
+
+
+class ChannelOut(BaseModel):
+    id: int
+    kind: str
+    url: str
+    has_token: bool
+    enabled: bool
+
+
+def _channel_out(c: NotificationChannel) -> ChannelOut:
+    return ChannelOut(id=c.id, kind=c.kind, url=c.url,
+                      has_token=bool(c.token), enabled=c.enabled)
+
+
+@router.get("/notification-channels", response_model=list[ChannelOut])
+def list_channels(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(NotificationChannel)
+        .filter(NotificationChannel.user_id == current_user.id)
+        .order_by(NotificationChannel.id)
+        .all()
+    )
+    return [_channel_out(c) for c in rows]
+
+
+@router.post("/notification-channels", response_model=ChannelOut, status_code=201)
+def create_channel(
+    body: ChannelIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.kind not in CHANNEL_KINDS:
+        raise HTTPException(status_code=422, detail=f"kind must be one of {CHANNEL_KINDS}")
+    url = body.url.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(status_code=422, detail="url must be http(s)")
+    c = NotificationChannel(user_id=current_user.id, kind=body.kind,
+                            url=url, token=(body.token or None))
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _channel_out(c)
+
+
+@router.delete("/notification-channels/{channel_id}")
+def delete_channel(
+    channel_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    c = db.get(NotificationChannel, channel_id)
+    if not c or c.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    db.delete(c)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/notification-channels/{channel_id}/toggle", response_model=ChannelOut)
+def toggle_channel(
+    channel_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    c = db.get(NotificationChannel, channel_id)
+    if not c or c.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    c.enabled = not c.enabled
+    db.commit()
+    db.refresh(c)
+    return _channel_out(c)
+
+
+@router.post("/notification-channels/{channel_id}/test")
+def test_channel(
+    channel_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send a test notification synchronously and report the outcome — the
+    only way to debug a typo'd topic URL at setup time."""
+    from backend.services.outbound_notifications import deliver
+
+    c = db.get(NotificationChannel, channel_id)
+    if not c or c.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        deliver(c.kind, c.url, c.token, {
+            "kind": "test",
+            "title": "Tome test notification",
+            "body": "Your channel is wired up correctly.",
+            "link": "/",
+        })
+    except Exception as exc:  # noqa: BLE001 — surfaced to the user, not hidden
+        return {"ok": False, "error": str(exc)[:300]}
     return {"ok": True}

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = False
     smtp_daily_limit: int = 50
 
+    # Outbound notifications (env TOME_OUTBOUND_NOTIFY): fan in-app
+    # notifications out to each user's configured ntfy/Gotify/webhook
+    # channels. Off = the kill-switch; per-user channels also toggle.
+    outbound_notify: bool = True
+
     # Update awareness (env TOME_UPDATE_CHECK): lets admins see "new version
     # available" in Settings via a daily-cached GitHub releases lookup. Set
     # false to never call out (air-gapped installs); nothing else phones home.

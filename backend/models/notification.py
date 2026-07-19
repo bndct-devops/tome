@@ -37,3 +37,27 @@ class Notification(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="notifications")
+
+
+class NotificationChannel(Base):
+    """A per-user outbound delivery target for notifications.
+
+    The in-app bell only fires when the user visits; a channel pushes the same
+    events to ntfy, Gotify, or a plain webhook the moment they happen. Purely
+    additive: rows here never affect in-app behaviour."""
+    __tablename__ = "notification_channels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # ntfy | gotify | webhook
+    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    # ntfy: optional bearer token; gotify: the app token; webhook: unused.
+    token: Mapped[Optional[str]] = mapped_column(String(512))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User")
