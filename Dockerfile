@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir .
 COPY backend/ ./backend/
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
+# What's-New panel reads release notes from the changelog at runtime
+COPY CHANGELOG.md ./
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 ENV TOME_DATA_DIR=/data \

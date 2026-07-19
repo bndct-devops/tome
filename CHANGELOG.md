@@ -18,6 +18,14 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **"What's new" after an upgrade.** The first visit after the server moves to
+  a new release shows a one-time panel with that release's notes, straight
+  from the changelog — so features stop shipping invisibly. Dismiss it and it
+  stays gone until the next release; fresh installs never see it.
+- **Update indicator for admins.** Settings → About quietly shows "vX.Y.Z
+  available" (linking to GitHub releases) when a newer release exists, via a
+  daily-cached server-side check. Set `TOME_UPDATE_CHECK=false` to disable
+  the lookup entirely — nothing else phones home.
 - **Timeline: the tooltip now answers at day level.** Hovering a bar resolves
   the exact day under the cursor — "15 May · 22m", or "no reading" on a gap
   day — alongside the book's totals. The day data was always drawn as tick
