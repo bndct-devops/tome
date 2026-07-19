@@ -18,6 +18,13 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Import your Goodreads or StoryGraph history.** Settings → Import reading
+  history takes either service's CSV export, matches it against your library
+  (ISBN first, then title/author), and shows a full preview before anything
+  is written. Importing only fills gaps — statuses, ratings, reviews, and
+  finish dates you already have are never overwritten — and "to read"
+  shelves are skipped. Pre-Tome reading finally lands on the lifetime
+  timeline.
 - **Push notifications to ntfy, Gotify, or any webhook.** Settings →
   Notifications lets each user add outbound channels; every in-app
   notification (wish fulfilled, new volume detected, reading goals) is
