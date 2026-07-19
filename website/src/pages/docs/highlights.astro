@@ -58,6 +58,15 @@ import { withBase } from '../../lib/path'
     a quote card; on a day with none, it shows a random highlight instead.
   </p>
 
+  <h2>Editing and deleting</h2>
+  <p>
+    Every highlight card has a pencil and a trash icon (hover, or always visible on touch).
+    The pencil edits — or adds — the note on any highlight, including ones made in KOReader;
+    the edit wins on your devices at their next sync, exactly like an edit made on another
+    device. Deleting removes the highlight everywhere: the server keeps a tombstone so the
+    device drops its copy on the next sync instead of re-uploading it.
+  </p>
+
   <h2>Dates &amp; details</h2>
   <p>
     Each card shows when the highlight was made, with a hover for the full detail — the exact time,

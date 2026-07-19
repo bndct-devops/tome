@@ -16,25 +16,61 @@ All notable changes to Tome are documented here. Format loosely follows
   down to month detail, hover any bar for the cover and totals, click through
   to the book. The tab renders full-bleed — edge to edge, viewport-tall — and
   the ribbon is also available as a regular tile in the dashboard gallery.
-
-### Added
+- **Sync on suspend (KOReader plugin, build 35).** Two new opt-in settings
+  make morning stats current without waking the device (#128). "Sync on
+  suspend" catches up anything still pending — sessions, ratings, and the
+  reading-history backfill — when the device goes to sleep, provided WiFi is
+  already connected. "Aggressive sync" additionally turns WiFi on first for
+  devices that sleep the radio (e.g. PocketBook), letting the system power it
+  back down as the device suspends. Everything on this path is
+  queue-or-resume safe: if the device sleeps before the sync finishes, it
+  completes on the next connection. Reconnecting WiFi now also catches up the
+  reading-history backfill (previously launch-only) and flushes pending
+  sessions even before a book is opened.
 - **Shelves on your device (KOReader plugin, build 36).** The TomeSync series
   browser gains a Shelves entry: your saved shelves listed with live counts,
   each drilling into the same book list as a series — download per book or
   all at once, read-status markers included. Shelf filters resolve
   server-side (search, series, author, tag, format, language, library,
   reading status, rating).
-- **Edit highlight notes from the web.** The Highlights page and the book
-  page's Highlights & Notes section can now edit (or add) the note on any
-  highlight — including ones made in KOReader — not just delete them. Edits
-  win on your devices at their next sync, exactly like an edit made on
-  another device.
-- **One-click instance backup and staged restore.** Admin → Server gains an
-  Instance backup card: download a consistent snapshot of everything Tome
-  knows (database + covers + manifest; book files stay on disk), and restore
-  one by uploading it — the restore is validated, requires typing RESTORE,
-  and applies at the next server restart so it never happens under a live
-  database. The previous database is kept alongside as a safety copy.
+- **Sync closed books (KOReader plugin, build 34).** A new TomeSync menu
+  action walks the device for books the plugin has never synced — read before
+  Tome existed, sideloaded, or opened under another launcher — matches them
+  against your library by content hash, and adopts each one's status, rating
+  and reading position from its KOReader sidecar. Adoption only fills what
+  Tome doesn't already have: it can never overwrite live sync state or your
+  own curation. The sweep is resumable (interrupting it loses nothing) and
+  cheap to re-run — books are skipped until their sidecar actually changes.
+  Matched books also become fully synced from then on, positions, highlights
+  and all.
+- **Search your library from the device (KOReader plugin, build 33).** The
+  series browser gains a "Search library…" entry: submit-based free-text search
+  over title, author, and series, with your last searches one tap away. Results
+  open the same drill-down list as a series — tap to download, hold to set read
+  status.
+- **Browse by author on the device (build 33).** A new author axis in the
+  series browser — the natural way into standalone books, which previously all
+  hid behind the single "No Series" bucket. Downloads file each book by its own
+  series/author identity, exactly like the web.
+- **Set read status from the device browser (build 33).** Hold any book row in
+  a series, author, or search list to mark it unread / reading / read on the
+  server — no need to open the book. The lists also show each book's current
+  status alongside the existing "on device" marker.
+- **Position pull strategy (KOReader plugin, build 32).** What happens on book
+  open when the server position differs from the device is now configurable,
+  like stock KOSync: "Server position is ahead" and "Server position is
+  behind" each offer *Ask before jumping / Jump automatically / Do nothing*
+  (TomeSync settings). Defaults keep the historic behavior — forward jumps
+  happen silently, backward jumps never — and the ask-dialog is deferred a
+  moment after open so it can never swallow a "on book opening" profile the
+  way the old layout-reset bug did.
+- **Position history — undo a bad sync.** Tome now keeps a short log of every
+  meaningful reading-position change per book (device, web, manual — the
+  idle heartbeat doesn't spam it). A history button on the book page's
+  Reading Stats header lists them, and any entry can be restored as the live
+  position with one click — including explicitly un-finishing a book that a
+  device falsely jumped to 100%. Devices pick the restored position up on
+  their next sync. The classic sync horror story is no longer unrecoverable.
 - **Import your Goodreads or StoryGraph history.** Settings → Import reading
   history takes either service's CSV export, matches it against your library
   (ISBN first, then title/author), and shows a full preview before anything
@@ -54,13 +90,11 @@ All notable changes to Tome are documented here. Format loosely follows
   map and your own measured reading pace (a sensible default until you have
   reading history). Quietly absent for books without a chapter map or word
   count.
-- **Position history — undo a bad sync.** Tome now keeps a short log of every
-  meaningful reading-position change per book (device, web, manual — the
-  idle heartbeat doesn't spam it). A history button on the book page's
-  Reading Stats header lists them, and any entry can be restored as the live
-  position with one click — including explicitly un-finishing a book that a
-  device falsely jumped to 100%. Devices pick the restored position up on
-  their next sync. The classic sync horror story is no longer unrecoverable.
+- **Edit highlight notes from the web.** The Highlights page and the book
+  page's Highlights & Notes section can now edit (or add) the note on any
+  highlight — including ones made in KOReader — not just delete them. Edits
+  win on your devices at their next sync, exactly like an edit made on
+  another device.
 - **Command palette.** Press Cmd+K (Ctrl+K) anywhere to jump straight to a
   book, series, author, or page — full-text book search with covers, ranked
   series/author matches, and quick navigation, all keyboard-driven. The
@@ -79,6 +113,12 @@ All notable changes to Tome are documented here. Format loosely follows
   standard-source covers), with sizes shown. Books with no cover at all offer
   a one-click auto-fix from the cover search (nothing to downgrade); low-res
   ones deep-link to the book page to pick a better candidate by eye.
+- **One-click instance backup and staged restore.** Admin → Server gains an
+  Instance backup card: download a consistent snapshot of everything Tome
+  knows (database + covers + manifest; book files stay on disk), and restore
+  one by uploading it — the restore is validated, requires typing RESTORE,
+  and applies at the next server restart so it never happens under a live
+  database. The previous database is kept alongside as a safety copy.
 - **"What's new" after an upgrade.** The first visit after the server moves to
   a new release shows a one-time panel with that release's notes, straight
   from the changelog — so features stop shipping invisibly. Dismiss it and it
@@ -95,6 +135,26 @@ All notable changes to Tome are documented here. Format loosely follows
   the screen, and bars are tap-friendly: the first tap shows the details
   tooltip, a second tap opens the book (tapping empty space or scrolling
   dismisses it). Previously any tap navigated away immediately.
+- **Highlights page polish.** The deferred cluster from the original
+  commonplace-book release: an **only-notes filter** (show just the highlights
+  carrying your own notes — composes with search and on-this-day), a real
+  **file export** (download all matching highlights as a Markdown file, next to
+  the existing copy-to-clipboard), **keyboard shortcuts** (`/` search, `Esc`
+  clear, `c` collapse all, `n` only-notes, `e` export — listed in the `?`
+  help), and a **shuffle button** on the Home tab's highlight spotlight that
+  re-rolls to a different quote.
+- **Time per chapter.** Book pages now show where your reading time went
+  chapter by chapter: the book's table of contents is extracted at ingest into
+  device-independent chapter boundaries, and KOReader per-page reading data is
+  mapped into them — robust to font/margin changes, since every page record is
+  interpreted against its own pagination. Renders on the book detail page next
+  to the reading-intensity curve whenever both a chapter map and synced page
+  data exist. Existing libraries get chapter maps via the Admin → Word Counts
+  backfill, which now also extracts chapters (and intrinsic page counts, below)
+  in the same pass.
+- **Intrinsic page counts for fixed-layout books.** PDFs and comic archives now
+  store their real page count at ingest (EPUB deliberately doesn't — reflowable
+  pagination is not a property of the book). Backfilled by the same admin job.
 
 ### Fixed
 - **The audit log covers new features again.** A coverage pass wired audit
@@ -134,73 +194,6 @@ All notable changes to Tome are documented here. Format loosely follows
   Books whose files genuinely have no usable table of contents were re-parsed
   on every run because "done" was inferred from having chapter rows; a
   dedicated attempt marker now records "tried, nothing there" once.
-
-### Added
-- **Sync on suspend (KOReader plugin, build 35).** Two new opt-in settings
-  make morning stats current without waking the device (#128). "Sync on
-  suspend" catches up anything still pending — sessions, ratings, and the
-  reading-history backfill — when the device goes to sleep, provided WiFi is
-  already connected. "Aggressive sync" additionally turns WiFi on first for
-  devices that sleep the radio (e.g. PocketBook), letting the system power it
-  back down as the device suspends. Everything on this path is
-  queue-or-resume safe: if the device sleeps before the sync finishes, it
-  completes on the next connection. Reconnecting WiFi now also catches up the
-  reading-history backfill (previously launch-only) and flushes pending
-  sessions even before a book is opened.
-- **Sync closed books (KOReader plugin, build 34).** A new TomeSync menu
-  action walks the device for books the plugin has never synced — read before
-  Tome existed, sideloaded, or opened under another launcher — matches them
-  against your library by content hash, and adopts each one's status, rating
-  and reading position from its KOReader sidecar. Adoption only fills what
-  Tome doesn't already have: it can never overwrite live sync state or your
-  own curation. The sweep is resumable (interrupting it loses nothing) and
-  cheap to re-run — books are skipped until their sidecar actually changes.
-  Matched books also become fully synced from then on, positions, highlights
-  and all.
-- **Search your library from the device (KOReader plugin, build 33).** The
-  series browser gains a "Search library…" entry: submit-based free-text search
-  over title, author, and series, with your last searches one tap away. Results
-  open the same drill-down list as a series — tap to download, hold to set read
-  status.
-- **Browse by author on the device (build 33).** A new author axis in the
-  series browser — the natural way into standalone books, which previously all
-  hid behind the single "No Series" bucket. Downloads file each book by its own
-  series/author identity, exactly like the web.
-- **Set read status from the device browser (build 33).** Hold any book row in
-  a series, author, or search list to mark it unread / reading / read on the
-  server — no need to open the book. The lists also show each book's current
-  status alongside the existing "on device" marker.
-
-- **Position pull strategy (KOReader plugin, build 32).** What happens on book
-  open when the server position differs from the device is now configurable,
-  like stock KOSync: "Server position is ahead" and "Server position is
-  behind" each offer *Ask before jumping / Jump automatically / Do nothing*
-  (TomeSync settings). Defaults keep the historic behavior — forward jumps
-  happen silently, backward jumps never — and the ask-dialog is deferred a
-  moment after open so it can never swallow a "on book opening" profile the
-  way the old layout-reset bug did.
-- **Highlights page polish.** The deferred cluster from the original
-  commonplace-book release: an **only-notes filter** (show just the highlights
-  carrying your own notes — composes with search and on-this-day), a real
-  **file export** (download all matching highlights as a Markdown file, next to
-  the existing copy-to-clipboard), **keyboard shortcuts** (`/` search, `Esc`
-  clear, `c` collapse all, `n` only-notes, `e` export — listed in the `?`
-  help), and a **shuffle button** on the Home tab's highlight spotlight that
-  re-rolls to a different quote.
-- **Time per chapter.** Book pages now show where your reading time went
-  chapter by chapter: the book's table of contents is extracted at ingest into
-  device-independent chapter boundaries, and KOReader per-page reading data is
-  mapped into them — robust to font/margin changes, since every page record is
-  interpreted against its own pagination. Renders on the book detail page next
-  to the reading-intensity curve whenever both a chapter map and synced page
-  data exist. Existing libraries get chapter maps via the Admin → Word Counts
-  backfill, which now also extracts chapters (and intrinsic page counts, below)
-  in the same pass.
-- **Intrinsic page counts for fixed-layout books.** PDFs and comic archives now
-  store their real page count at ingest (EPUB deliberately doesn't — reflowable
-  pagination is not a property of the book). Backfilled by the same admin job.
-
-### Fixed
 - **A fast server clock can no longer silently swallow highlights (build 32).**
   Highlight edits and deletes made in the web reader are stamped with the
   server's clock; on a device whose clock runs behind (UTC container vs local

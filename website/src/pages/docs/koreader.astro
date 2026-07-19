@@ -85,6 +85,12 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     </figcaption>
   </figure>
 
+  <p>
+    Notes edited (or added) on a highlight in the <em>web app</em> — from the Highlights page
+    or a book page — arrive on the device at its next sync, exactly like an edit made on
+    another device. Deleting a highlight on the web removes it on the device too.
+  </p>
+
   <h3>Ratings &amp; reviews sync</h3>
   <p>
     KOReader has a native <strong>Book status</strong> screen with a 1–5 star rating and a
@@ -119,6 +125,15 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <p><strong>From the home screen</strong> (no book open): open the wrench menu →
     <strong>TomeSync → Browse Series</strong>. A list shows every series in your library with
     book counts and authors. Tap a series to download all volumes at once.
+  </p>
+  <p>
+    The browser has four ways in: the series list itself, <strong>Search library…</strong>
+    (free-text over title, author, and series, with your recent searches one tap away),
+    <strong>Browse by author</strong> (the natural route to standalone books), and
+    <strong>Shelves</strong> — your saved shelves from the web app, listed with live book
+    counts and resolved server-side, so a "German" or "unread manga" shelf is one tap away
+    on the device. All of them open the same volume list: tap to download, hold a row to set
+    read status.
   </p>
   <p><strong>From inside a book:</strong></p>
   <ul>
@@ -177,6 +192,25 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     <li><strong>Close a book</strong> — pushes final position, highlights, and a rating set this session, and records a session.</li>
   </ul>
   <p>Sessions shorter than 10 seconds are filtered out.</p>
+
+  <h3>Sync on suspend</h3>
+  <p>
+    Two opt-in settings (TomeSync → Settings) make your morning stats current without ever
+    waking the device:
+  </p>
+  <ul>
+    <li><strong>Sync on suspend</strong> — when the device goes to sleep, catch up anything
+      still pending (queued sessions, ratings, and — if enabled — the reading-history
+      backfill), provided WiFi is already connected.</li>
+    <li><strong>Aggressive sync (turn WiFi on at suspend)</strong> — additionally brings the
+      radio up first, syncs, and lets the device power it back down as it sleeps. Meant for
+      devices that aggressively sleep WiFi (e.g. PocketBook). Uses more battery.</li>
+  </ul>
+  <p>
+    Everything on this path is resume-safe: if the device falls asleep mid-sync, it simply
+    finishes on the next connection. Reconnecting WiFi also catches up the reading-history
+    backfill without restarting KOReader.
+  </p>
 
   <h2>Keeping the plugin updated</h2>
   <p>

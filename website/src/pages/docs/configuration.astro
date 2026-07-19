@@ -45,6 +45,10 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_SMTP_USE_TLS</code></td><td><code>true</code></td><td>STARTTLS (port 587)</td></tr>
       <tr><td><code>TOME_SMTP_USE_SSL</code></td><td><code>false</code></td><td>Implicit SSL (port 465)</td></tr>
       <tr><td><code>TOME_SMTP_DAILY_LIMIT</code></td><td><code>50</code></td><td>Per-user sends/day (0 = unlimited)</td></tr>
+      <tr><td><code>TOME_UPDATE_CHECK</code></td><td><code>true</code></td><td>Admin "update available" indicator in Settings → About via a daily-cached GitHub releases lookup. Set <code>false</code> for air-gapped installs — nothing else phones home; the post-upgrade "What's new" panel is local and unaffected</td></tr>
+      <tr><td><code>TOME_OUTBOUND_NOTIFY</code></td><td><code>true</code></td><td>Kill switch for per-user outbound notification channels (ntfy / Gotify / webhook). Nothing is ever sent unless a user configures a channel</td></tr>
+      <tr><td><code>TOME_ALLOW_INFILE_BAKE</code></td><td><code>true</code></td><td>Hard off-switch for the admin "Bake to File" action that rewrites library files with Tome's metadata</td></tr>
+      <tr><td><code>TOME_WISHLIST_ENABLED</code></td><td><code>true</code></td><td>Kill switch for the <a href={withBase("/docs/wishlist")}>Wishlist</a></td></tr>
       <tr><td><code>TOME_SEND_TO_KOREADER</code></td><td><code>false</code></td><td>Enable the <a href={withBase("/docs/koreader#send-to-koreader")}>Send to KOReader</a> inbox (beta) — queue books to the device, no email</td></tr>
     </tbody>
   </table>

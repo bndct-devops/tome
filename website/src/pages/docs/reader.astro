@@ -42,6 +42,16 @@ import { withBase } from '../../lib/path'
     See <a href={withBase("/docs/koreader")}>TomeSync</a>.
   </Callout>
 
+  <h3>Time left in chapter</h3>
+  <p>
+    The footer shows "~12 min left" beside the chapter name, computed from the book's
+    chapter map and <em>your</em> measured reading pace (the same true-WPM the stats page
+    derives from finished, word-counted books — a sensible default until you have history;
+    the tooltip says which pace is in use). It's fraction-based rather than page-based, so
+    it doesn't care about font size or layout. Quietly absent for books without a chapter
+    map or word count.
+  </p>
+
   <h3>Keyboard shortcuts</h3>
   <table>
     <thead><tr><th>Key</th><th>Action</th></tr></thead>

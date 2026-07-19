@@ -38,6 +38,13 @@ import { withBase } from '../../lib/path'
     matching auto-created library.
   </Callout>
 
+  <p>
+    Files are hashed in the browser before anything uploads: exact duplicates of books
+    already in the library get an "already in your library" note with a link to the
+    existing book and are skipped — no more uploading megabytes just to find out the
+    server already had it.
+  </p>
+
   <h2>Scanning the library folder</h2>
   <p>
     If you add files directly to the <code>/books</code> volume (or however you mounted
@@ -112,6 +119,14 @@ import { withBase } from '../../lib/path'
     Bulk metadata fetch is capped at 100 books per request. For larger batches, consider
     <a href={withBase("/docs/scribe")}>Scribe</a> which handles thousands.
   </Callout>
+
+  <h2>Command palette</h2>
+  <p>
+    Press <kbd>Cmd</kbd>+<kbd>K</kbd> (<kbd>Ctrl</kbd>+<kbd>K</kbd>) anywhere in Tome to
+    jump straight to a book, series, author, or page — full-text search with covers,
+    entirely keyboard-driven. The header search box hints it, and it's listed in the
+    <kbd>?</kbd> shortcuts help.
+  </p>
 
   <h2>Filtering</h2>
   <p>

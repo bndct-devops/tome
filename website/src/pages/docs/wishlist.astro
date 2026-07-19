@@ -140,6 +140,15 @@ import { withBase } from '../../lib/path'
     Fulfilment also sends an email when the server has <a href={withBase("/docs/send-to-device")}>SMTP
     configured</a>; if it isn't, only the in-app notice fires.
   </p>
+  <p>
+    The bell only rings when you visit — for pushes the moment things happen, add an
+    <strong>outbound channel</strong> in Settings → Notifications: an
+    <a href="https://ntfy.sh">ntfy</a> topic, a Gotify server, or any plain webhook. Every
+    in-app notification (wish fulfilled, new volume detected, reading goals) is delivered to
+    your enabled channels; each channel has a test button and can be paused, and tokens are
+    stored server-side only. Operators can disable the whole feature with
+    <code>TOME_OUTBOUND_NOTIFY=false</code>.
+  </p>
 
   <h2>Configuration</h2>
   <table class="docs-table">
