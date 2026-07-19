@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-19 - "Omnibus"
+
 ### Added
 - **Share a shelf, a series, or a single book — metadata only, by design.**
   Shelves (share icon in the sidebar), series (share icon on the series
