@@ -8,6 +8,7 @@ from backend.core.security import get_current_user
 from backend.core.permissions import require_role
 from backend.models.library import BookType
 from backend.models.user import User
+from backend.services.audit import audit
 
 router = APIRouter(tags=["book-types"])
 
@@ -52,6 +53,8 @@ def create_book_type(
     db.add(bt)
     db.commit()
     db.refresh(bt)
+    audit(db, "book_type.created", user_id=current_user.id, username=current_user.username,
+          resource_type="book_type", resource_id=bt.id, resource_title=bt.label)
     return bt
 
 
@@ -72,6 +75,8 @@ def update_book_type(
     bt.sort_order = body.sort_order
     db.commit()
     db.refresh(bt)
+    audit(db, "book_type.updated", user_id=current_user.id, username=current_user.username,
+          resource_type="book_type", resource_id=bt.id, resource_title=bt.label)
     return bt
 
 
@@ -88,5 +93,8 @@ def delete_book_type(
     from backend.models.book import Book
     if db.query(Book).filter(Book.book_type_id == bt_id).count() > 0:
         raise HTTPException(status_code=400, detail="Cannot delete: books still use this type")
+    label = bt.label
     db.delete(bt)
     db.commit()
+    audit(db, "book_type.deleted", user_id=current_user.id, username=current_user.username,
+          resource_type="book_type", resource_id=bt_id, resource_title=label)

@@ -32,6 +32,7 @@ from backend.core.permissions import book_visibility_filter, user_can_see_book
 from backend.models.book import Book
 from backend.models.tome_sync import Annotation, AnnotationTombstone
 from backend.models.user import User
+from backend.services.audit import audit
 
 router = APIRouter(tags=["annotations"])
 
@@ -309,6 +310,9 @@ def delete_annotation(
         ))
 
     db.commit()
+    audit(db, "annotation.deleted", user_id=current_user.id, username=current_user.username,
+          resource_type="annotation", resource_id=annotation_id,
+          details={"book_id": book_id})
 
 
 @router.get("/annotations/spotlight")

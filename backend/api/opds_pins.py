@@ -11,6 +11,7 @@ from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.models.opds_pin import OpdsPin
 from backend.models.user import User
+from backend.services.audit import audit
 
 router = APIRouter(prefix="/opds-pins", tags=["opds-pins"])
 
@@ -70,6 +71,8 @@ def create_opds_pin(
     db.commit()
     db.refresh(entry)
 
+    audit(db, "opds_pin.created", user_id=user.id, username=user.username,
+          resource_type="opds_pin", resource_id=entry.id, resource_title=entry.label)
     return OpdsPinCreated(id=entry.id, pin=pin, label=entry.label, pin_preview=preview)
 
 
@@ -85,5 +88,8 @@ def revoke_opds_pin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PIN not found")
     if entry.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your PIN")
+    label = entry.label
     db.delete(entry)
     db.commit()
+    audit(db, "opds_pin.revoked", user_id=user.id, username=user.username,
+          resource_type="opds_pin", resource_id=pin_id, resource_title=label)

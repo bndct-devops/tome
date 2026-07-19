@@ -14,6 +14,16 @@ from sqlalchemy.orm import Session
 from backend.models.audit_log import AuditLog
 
 
+# ── Coverage convention ──────────────────────────────────────────────────────
+# Every endpoint that is ADMIN-GATED, DESTRUCTIVE, SECURITY-RELEVANT
+# (credentials, tokens, account links), or BULK-MUTATING gets an audit() call
+# in the same PR that adds it — this is a checklist item for new features, not
+# retrofit work. Deliberately NOT audited: reads, device telemetry
+# (position/session/annotation sync heartbeats), and per-user micro-writes
+# (status toggles, goals, dashboard layouts) — logging those would flood the
+# trail without forensic value.
+
+
 def audit(
     db: Session,
     action: str,

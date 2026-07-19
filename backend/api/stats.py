@@ -22,6 +22,7 @@ from backend.models.library import BookType
 from backend.services.streaks import reconciled_user_streaks
 from backend.services.reading_day import ROLLOVER_HOURS, date_modifier, effective_today, epoch_day
 from backend.services import reconciled_reading as rr
+from backend.services.audit import audit
 
 router = APIRouter(tags=["stats"])
 
@@ -1287,8 +1288,12 @@ def delete_session(
     )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    details = {"book_id": session.book_id, "seconds": session.duration_seconds,
+               "started_at": session.started_at.isoformat() if session.started_at else None}
     db.delete(session)
     db.commit()
+    audit(db, "session.deleted", user_id=current_user.id, username=current_user.username,
+          resource_type="reading_session", resource_id=session_id, details=details)
     return {"ok": True}
 
 

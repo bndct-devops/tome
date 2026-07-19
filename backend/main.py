@@ -58,6 +58,26 @@ from backend.models.book import BookChapter  # noqa: F401
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    # A staged restore was applied before the engine existed (see
+    # instance_backup.apply_staged_restore_if_present) — it left a marker
+    # because it could not write the audit entry itself. Log it now, into the
+    # RESTORED database, so the restore shows up in the audit trail.
+    _restore_marker = settings.data_dir / "restore_applied.json"
+    if _restore_marker.is_file():
+        try:
+            import json as _json
+            from backend.core.database import SessionLocal as _SL
+            from backend.services.audit import audit as _audit
+            _info = _json.loads(_restore_marker.read_text())
+            _sdb = _SL()
+            try:
+                _audit(_sdb, "backup.restore_applied", username="system", details=_info)
+            finally:
+                _sdb.close()
+        except Exception:  # noqa: BLE001 — marker cleanup must never block startup
+            pass
+        _restore_marker.unlink(missing_ok=True)
     # Add columns that create_all can't add to existing tables
     from sqlalchemy import text, inspect
     with engine.connect() as conn:

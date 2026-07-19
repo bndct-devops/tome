@@ -1267,6 +1267,9 @@ def restore_position(
             status_row.finished_at = None
         status_row.status = "reading" if entry.percentage > 0 else "unread"
     db.commit()
+    audit(db, "books.position_restored", user_id=current_user.id, username=current_user.username,
+          resource_type="book", resource_id=book_id,
+          details={"percentage": entry.percentage, "history_id": history_id})
     return {"ok": True, "percentage": entry.percentage, "status": status_row.status}
 
 
@@ -1840,6 +1843,9 @@ async def set_book_cover(
     book.cover_path = cover_filename
     db.commit()
     db.refresh(book)
+    audit(db, "books.cover_changed", user_id=current_user.id, username=current_user.username,
+          resource_type="book", resource_id=book.id, resource_title=book.title,
+          details={"source": "url" if url else "upload"})
     return book
 
 

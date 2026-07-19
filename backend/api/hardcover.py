@@ -22,6 +22,7 @@ from backend.models.book import Book
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.services import hardcover_sync
+from backend.services.audit import audit
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,8 @@ async def hardcover_link(
     current_user.hardcover_linked_at = datetime.utcnow()
     current_user.hardcover_sync_enabled = True
     db.commit()
+    audit(db, "hardcover.linked", user_id=current_user.id, username=current_user.username,
+          details={"hardcover_username": identity["username"]})
     # Linking is the opt-in — start the initial backfill right away instead of
     # making the user find "Sync now" or wait out the interval.
     started = hardcover_sync.start_manual_sync(current_user.id)
@@ -132,6 +135,7 @@ def hardcover_unlink(
     current_user.hardcover_linked_at = None
     current_user.hardcover_sync_enabled = False
     db.commit()
+    audit(db, "hardcover.unlinked", user_id=current_user.id, username=current_user.username)
 
 
 class SyncSettingsRequest(BaseModel):

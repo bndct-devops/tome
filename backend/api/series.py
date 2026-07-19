@@ -97,6 +97,9 @@ def create_arc(
             detail="An arc with this name already exists for that series",
         )
     db.refresh(arc)
+    audit(db, "series.arc_created", user_id=current_user.id, username=current_user.username,
+          resource_type="series", resource_title=arc.series_name,
+          details={"arc": arc.name})
     return arc
 
 
@@ -141,8 +144,12 @@ def delete_arc(
     arc = db.get(Arc, arc_id)
     if not arc:
         raise HTTPException(status_code=404, detail="Arc not found")
+    series_name, arc_name = arc.series_name, arc.name
     db.delete(arc)
     db.commit()
+    audit(db, "series.arc_deleted", user_id=current_user.id, username=current_user.username,
+          resource_type="series", resource_title=series_name,
+          details={"arc": arc_name})
 
 
 # ── Bulk arc endpoint — must be registered before any /{arc_id} catch-alls ───
@@ -198,6 +205,9 @@ def bulk_upsert_arcs(
             db.add(arc)
 
     db.commit()
+    audit(db, "series.arcs_bulk_set", user_id=current_user.id, username=current_user.username,
+          resource_type="series", resource_title=name,
+          details={"arc_count": len(body)})
 
     return (
         db.query(Arc)
@@ -254,6 +264,9 @@ def upsert_series_meta(
         meta.status = body.status
     db.commit()
     db.refresh(meta)
+    audit(db, "series.meta_updated", user_id=current_user.id, username=current_user.username,
+          resource_type="series", resource_title=name,
+          details={"status": body.status})
     return meta
 
 
@@ -268,6 +281,7 @@ from sqlalchemy import func as _func
 from backend.models.user_series_rating import UserSeriesRating
 from backend.models.user_book_status import UserBookStatus
 from backend.models.book import Book
+from backend.services.audit import audit
 
 NO_SERIES_SENTINEL = "__unserialized__"
 

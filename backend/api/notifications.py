@@ -15,6 +15,7 @@ from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.models.notification import Notification, NotificationChannel
 from backend.models.user import User
+from backend.services.audit import audit
 
 router = APIRouter(tags=["notifications"])
 
@@ -138,6 +139,9 @@ def create_channel(
     db.add(c)
     db.commit()
     db.refresh(c)
+    audit(db, "notify_channel.created", user_id=current_user.id, username=current_user.username,
+          resource_type="notification_channel", resource_id=c.id,
+          details={"kind": c.kind, "url": c.url})  # never the token
     return _channel_out(c)
 
 
@@ -150,8 +154,11 @@ def delete_channel(
     c = db.get(NotificationChannel, channel_id)
     if not c or c.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Channel not found")
+    details = {"kind": c.kind, "url": c.url}
     db.delete(c)
     db.commit()
+    audit(db, "notify_channel.deleted", user_id=current_user.id, username=current_user.username,
+          resource_type="notification_channel", resource_id=channel_id, details=details)
     return {"ok": True}
 
 
