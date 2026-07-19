@@ -27,6 +27,11 @@ def _set_wal_mode(dbapi_connection, connection_record):
 
 def create_db_engine():
     settings.ensure_dirs()
+    # A staged instance-restore swaps the DB in here — before any engine or
+    # connection exists — so a live pool never sees the file change underneath
+    # it. No staging file = no-op.
+    from backend.services.instance_backup import apply_staged_restore_if_present
+    apply_staged_restore_if_present(settings.data_dir, settings.db_path, settings.covers_dir)
     # NullPool: a fresh SQLite connection per checkout, closed on release.
     # SQLite connections are essentially free (no network handshake) and WAL
     # mode lets many readers run concurrently — so pooling buys nothing and a
