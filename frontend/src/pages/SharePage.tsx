@@ -28,7 +28,8 @@ interface SharedBook {
 }
 
 interface ShareResponse {
-  shelf: string
+  kind: 'shelf' | 'series' | 'book'
+  title: string
   books: SharedBook[]
 }
 
@@ -48,8 +49,8 @@ function Rating({ value }: { value: number }) {
   )
 }
 
-function SharedBookCard({ b }: { b: SharedBook }) {
-  const [open, setOpen] = useState(false)
+function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
   const hasMore = !!b.description || b.highlights.length > 0
   return (
     <li className="rounded-xl border border-border bg-card p-4">
@@ -168,9 +169,10 @@ export function SharePage() {
       <header className="border-b border-border bg-card/50 safe-top">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2.5 px-4">
           <Quote className="h-4 w-4 text-primary" />
-          <h1 className="font-display text-lg text-foreground">{data.shelf}</h1>
+          <h1 className="font-display text-lg text-foreground">{data.title}</h1>
           <span className="text-xs text-muted-foreground">
-            · a shared shelf · {data.books.length} book{data.books.length !== 1 ? 's' : ''}
+            · a shared {data.kind}
+            {data.kind !== 'book' ? ` · ${data.books.length} book${data.books.length !== 1 ? 's' : ''}` : ''}
           </span>
         </div>
       </header>
@@ -179,7 +181,9 @@ export function SharePage() {
           <p className="py-12 text-center text-sm text-muted-foreground">This shelf is empty.</p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {data.books.map(b => <SharedBookCard key={b.id} b={b} />)}
+            {data.books.map(b => (
+              <SharedBookCard key={b.id} b={b} defaultOpen={data.kind === 'book'} />
+            ))}
           </ul>
         )}
         <footer className="flex items-center justify-center gap-1.5 pb-4 pt-10 text-xs text-muted-foreground/60">

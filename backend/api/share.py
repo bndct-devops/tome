@@ -43,6 +43,28 @@ def _own_shelf_or_404(db: Session, user: User, shelf_id: int) -> SavedFilter:
 
 # ── Management (authenticated, owner only) ────────────────────────────────────
 
+def _get_or_create(db: Session, user: User, *, resource_type: str,
+                   resource_title: str, **target) -> ShareLink:
+    link = db.query(ShareLink).filter_by(owner_id=user.id, **target).first()
+    if link is None:
+        link = ShareLink(token=secrets.token_urlsafe(16), owner_id=user.id, **target)
+        db.add(link)
+        db.commit()
+        db.refresh(link)
+        audit(db, "share_link.created", user_id=user.id, username=user.username,
+              resource_type=resource_type, resource_title=resource_title)
+    return link
+
+
+def _revoke(db: Session, user: User, *, resource_type: str,
+            resource_title: str, **target) -> None:
+    link = db.query(ShareLink).filter_by(owner_id=user.id, **target).first()
+    if link:
+        db.delete(link)
+        db.commit()
+        audit(db, "share_link.revoked", user_id=user.id, username=user.username,
+              resource_type=resource_type, resource_title=resource_title)
+
 @router.get("/shelves/{shelf_id}/share")
 def get_share(
     shelf_id: int,
@@ -61,19 +83,8 @@ def create_share(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     sf = _own_shelf_or_404(db, current_user, shelf_id)
-    link = db.query(ShareLink).filter(ShareLink.saved_filter_id == shelf_id).first()
-    if link is None:
-        link = ShareLink(
-            token=secrets.token_urlsafe(16),
-            saved_filter_id=shelf_id,
-            owner_id=current_user.id,
-        )
-        db.add(link)
-        db.commit()
-        db.refresh(link)
-        audit(db, "share_link.created", user_id=current_user.id,
-              username=current_user.username, resource_type="shelf",
-              resource_id=shelf_id, resource_title=sf.name)
+    link = _get_or_create(db, current_user, resource_type="shelf",
+                          resource_title=sf.name, saved_filter_id=shelf_id)
     return {"token": link.token}
 
 
@@ -84,13 +95,92 @@ def revoke_share(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     sf = _own_shelf_or_404(db, current_user, shelf_id)
-    link = db.query(ShareLink).filter(ShareLink.saved_filter_id == shelf_id).first()
-    if link:
-        db.delete(link)
-        db.commit()
-        audit(db, "share_link.revoked", user_id=current_user.id,
-              username=current_user.username, resource_type="shelf",
-              resource_id=shelf_id, resource_title=sf.name)
+    _revoke(db, current_user, resource_type="shelf",
+            resource_title=sf.name, saved_filter_id=shelf_id)
+    return {"ok": True}
+
+
+# Series shares: the name is the identity (matches the /series/{name}/meta
+# convention). One link per (owner, series).
+
+@router.get("/series/{name}/share")
+def get_series_share(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    link = db.query(ShareLink).filter_by(owner_id=current_user.id, series_name=name).first()
+    return {"token": link.token if link else None}
+
+
+@router.post("/series/{name}/share", status_code=201)
+def create_series_share(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    from backend.models.book import Book
+    from backend.core.permissions import book_visibility_filter
+    exists = db.query(Book.id).filter(
+        Book.status == "active", Book.series == name,
+        book_visibility_filter(db, current_user),
+    ).first()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Series not found")
+    link = _get_or_create(db, current_user, resource_type="series",
+                          resource_title=name, series_name=name)
+    return {"token": link.token}
+
+
+@router.delete("/series/{name}/share")
+def revoke_series_share(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    _revoke(db, current_user, resource_type="series",
+            resource_title=name, series_name=name)
+    return {"ok": True}
+
+
+# Single-book shares. One link per (owner, book).
+
+@router.get("/books/{book_id}/share")
+def get_book_share(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    link = db.query(ShareLink).filter_by(owner_id=current_user.id, book_id=book_id).first()
+    return {"token": link.token if link else None}
+
+
+@router.post("/books/{book_id}/share", status_code=201)
+def create_book_share(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    from backend.models.book import Book
+    from backend.core.permissions import user_can_see_book
+    book = db.get(Book, book_id)
+    if not book or book.status != "active" or not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    link = _get_or_create(db, current_user, resource_type="book",
+                          resource_title=book.title, book_id=book_id)
+    return {"token": link.token}
+
+
+@router.delete("/books/{book_id}/share")
+def revoke_book_share(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    from backend.models.book import Book
+    book = db.get(Book, book_id)
+    _revoke(db, current_user, resource_type="book",
+            resource_title=book.title if book else str(book_id), book_id=book_id)
     return {"ok": True}
 
 
@@ -104,20 +194,40 @@ def public_share(
 ) -> dict:
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
     link = db.query(ShareLink).filter(ShareLink.token == token).first()
-    if link is None:
-        raise HTTPException(status_code=404, detail="This share link does not exist (or was revoked)")
-    sf = db.get(SavedFilter, link.saved_filter_id)
-    owner = db.get(User, link.owner_id)
-    if sf is None or owner is None:
+    owner = db.get(User, link.owner_id) if link else None
+    if link is None or owner is None:
         raise HTTPException(status_code=404, detail="This share link does not exist (or was revoked)")
 
-    try:
-        params = json.loads(sf.params or "{}")
-    except ValueError:
-        params = {}
-    # Visibility is the OWNER's — a share can never show more than they can see.
-    query, _unsupported = shelf_query(db, owner, params)
     from backend.models.book import Book
+    from backend.core.permissions import book_visibility_filter, user_can_see_book
+
+    if link.saved_filter_id is not None:
+        sf = db.get(SavedFilter, link.saved_filter_id)
+        if sf is None:
+            raise HTTPException(status_code=404, detail="This share link does not exist (or was revoked)")
+        try:
+            params = json.loads(sf.params or "{}")
+        except ValueError:
+            params = {}
+        # Visibility is the OWNER's — a share can never show more than they see.
+        query, _unsupported = shelf_query(db, owner, params)
+        kind, title = "shelf", sf.name
+    elif link.series_name is not None:
+        query = db.query(Book).filter(
+            Book.status == "active", Book.series == link.series_name,
+            book_visibility_filter(db, owner),
+        )
+        kind, title = "series", link.series_name
+    else:
+        book = db.get(Book, link.book_id) if link.book_id else None
+        if not book or book.status != "active" or not user_can_see_book(db, owner, book):
+            raise HTTPException(status_code=404, detail="This share link does not exist (or was revoked)")
+        return {
+            "kind": "book",
+            "title": book.title,
+            "books": _serialize_books(db, owner, [book]),
+        }
+
     books = (
         query.order_by(Book.series.asc().nullslast(),
                        Book.series_index.asc().nullslast(), Book.title.asc())
@@ -125,8 +235,13 @@ def public_share(
     )
     seen: set[int] = set()
     unique = [b for b in books if not (b.id in seen or seen.add(b.id))]
-    book_ids = [b.id for b in unique]
+    return {"kind": kind, "title": title, "books": _serialize_books(db, owner, unique)}
 
+
+def _serialize_books(db: Session, owner: User, books: list) -> list[dict]:
+    """THE whitelist. Every public payload goes through here; a field that
+    isn't listed cannot leak."""
+    book_ids = [b.id for b in books]
     ratings = {
         s.book_id: s.rating
         for s in db.query(UserBookStatus).filter(
@@ -147,23 +262,19 @@ def public_share(
             "note": a.note,
             "chapter": a.chapter,
         })
-
-    return {
-        "shelf": sf.name,
-        "books": [
-            {
-                # book id is needed solely for the (already-public) cover
-                # endpoint; everything below is the complete public surface.
-                "id": b.id,
-                "title": b.title,
-                "author": b.author,
-                "series": b.series,
-                "series_index": b.series_index,
-                "description": b.description,
-                "tags": sorted({t.tag for t in b.tags}),
-                "rating": ratings.get(b.id),
-                "highlights": highlights.get(b.id, []),
-            }
-            for b in unique
-        ],
-    }
+    return [
+        {
+            # book id is needed solely for the (already-public) cover
+            # endpoint; everything below is the complete public surface.
+            "id": b.id,
+            "title": b.title,
+            "author": b.author,
+            "series": b.series,
+            "series_index": b.series_index,
+            "description": b.description,
+            "tags": sorted({t.tag for t in b.tags}),
+            "rating": ratings.get(b.id),
+            "highlights": highlights.get(b.id, []),
+        }
+        for b in books
+    ]

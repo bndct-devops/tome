@@ -5,7 +5,7 @@ import {
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon, Shuffle,
+  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon, Shuffle, Share2,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
@@ -16,6 +16,7 @@ import { SeriesStackCard } from '@/components/SeriesStackCard'
 import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
 import { SeriesFollowButton } from '@/components/SeriesFollowButton'
+import { ShareModal } from '@/components/ShareShelfModal'
 import { UpcomingReleases } from '@/components/UpcomingReleases'
 import { CoverImage } from '@/components/CoverImage'
 import { Sidebar } from '@/components/Sidebar'
@@ -292,6 +293,7 @@ export function DashboardPage() {
   const [seriesLoading, setSeriesLoading] = useState(false)
   const [expandedSeries, setExpandedSeries] = useState<string | null>(null)
   const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>(null)
+  const [shareSeries, setShareSeries] = useState<string | null>(null)
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   const [contentType, setContentType] = useState<string>('volume')
@@ -1028,6 +1030,14 @@ export function DashboardPage() {
         onUploadClick={isMember(user) ? () => setUploadModalOpen(true) : undefined}
       />
 
+      {shareSeries && (
+        <ShareModal
+          title={shareSeries}
+          endpoint={`/series/${encodeURIComponent(shareSeries)}/share`}
+          noun="series"
+          onClose={() => setShareSeries(null)}
+        />
+      )}
       <UploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
@@ -1500,6 +1510,15 @@ export function DashboardPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">{seriesDetail.name}</h2>
                               <SeriesStatusBadge status={seriesMetaMap[seriesDetail.name]} />
+                              {seriesDetail.name !== '__unserialized__' && (
+                                <button
+                                  onClick={() => setShareSeries(seriesDetail.name)}
+                                  title="Share this series — a public metadata-only page"
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                             {seriesDetail.author && (
                               <p className="text-sm text-muted-foreground mt-0.5">{seriesDetail.author}</p>

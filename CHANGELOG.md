@@ -7,12 +7,13 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
-- **Share a shelf with anyone — metadata only, by design.** Every shelf can
-  mint a revocable public link: a clean read-only page with covers, titles,
-  tags, descriptions, and your ratings and highlights for the books on it.
-  It never exposes files — no downloads, no reading, no route to book content
-  at all; the link is unguessable, marked noindex, and dies the moment you
-  revoke it. Share from the shelf's share icon in the sidebar.
+- **Share a shelf, a series, or a single book — metadata only, by design.**
+  Shelves (share icon in the sidebar), series (share icon on the series
+  page), and individual books (Share button on the book page) can each mint
+  a revocable public link: a clean read-only page with covers, titles, tags,
+  descriptions, and your ratings and highlights. It never exposes files — no
+  downloads, no reading, no route to book content at all; links are
+  unguessable, marked noindex, and die the moment you revoke them.
 - **Reading Timeline — your reading life on one ribbon.** A new Timeline tab on
   Reading Stats draws every book you've ever read as a bar in time: one lane
   per series (named in a frozen rail on the left), volumes as numbered bars

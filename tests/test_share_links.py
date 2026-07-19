@@ -57,8 +57,9 @@ def test_share_lifecycle_and_public_payload(client: TestClient, db: Session, adm
     assert r.status_code == 200
     assert "noindex" in r.headers.get("X-Robots-Tag", "")
     data = r.json()
-    assert data["shelf"] == "Public Faves"
-    assert set(data.keys()) == {"shelf", "books"}
+    assert data["title"] == "Public Faves"
+    assert data["kind"] == "shelf"
+    assert set(data.keys()) == {"kind", "title", "books"}
     b = data["books"][0]
     # THE boundary: exact whitelist, nothing else, ever.
     assert set(b.keys()) == BOOK_WHITELIST
@@ -130,3 +131,37 @@ def test_share_create_and_revoke_audited(client: TestClient, db: Session, admin_
     acts = [r.action for r in db.query(AuditLog).all()]
     assert "share_link.created" in acts
     assert "share_link.revoked" in acts
+
+
+def test_series_share_public_payload(client: TestClient, db: Session, admin_user, make_book):
+    user, _ = admin_user
+    make_book(title="SVol 1", series="Shareable Series", series_index=1)
+    make_book(title="SVol 2", series="Shareable Series", series_index=2)
+    make_book(title="Other", series="Other Series")
+
+    token = client.post("/api/series/Shareable Series/share").json()["token"]
+    data = client.get(f"/api/share/{token}").json()
+    assert data["kind"] == "series"
+    assert data["title"] == "Shareable Series"
+    assert [b["title"] for b in data["books"]] == ["SVol 1", "SVol 2"]
+    assert all(set(b.keys()) == BOOK_WHITELIST for b in data["books"])
+
+
+def test_book_share_public_payload_and_revoke(client: TestClient, db: Session, admin_user, make_book):
+    user, _ = admin_user
+    book = make_book(title="Single Shared")
+    token = client.post(f"/api/books/{book.id}/share").json()["token"]
+    r = client.get(f"/api/share/{token}")
+    data = r.json()
+    assert data["kind"] == "book"
+    assert data["title"] == "Single Shared"
+    assert len(data["books"]) == 1
+    assert set(data["books"][0].keys()) == BOOK_WHITELIST
+    for needle in ("file", "path", "download", ".epub"):
+        assert needle not in r.text.lower()
+    client.delete(f"/api/books/{book.id}/share")
+    assert client.get(f"/api/share/{token}").status_code == 404
+
+
+def test_series_share_unknown_series_404(client: TestClient):
+    assert client.post("/api/series/No Such Series/share").status_code == 404

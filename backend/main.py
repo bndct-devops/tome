@@ -82,6 +82,18 @@ async def lifespan(app: FastAPI):
     # Add columns that create_all can't add to existing tables
     from sqlalchemy import text, inspect
     with engine.connect() as conn:
+        # share_links grew series/book targets while unreleased. The original
+        # shape had saved_filter_id NOT NULL, which SQLite cannot relax via
+        # ALTER — rebuild the table (feature unreleased: only dev DBs can have
+        # the old shape, and links are cheap to re-mint).
+        sl_info = conn.execute(text("PRAGMA table_info(share_links)")).fetchall()
+        sl_notnull = {r[1]: bool(r[3]) for r in sl_info}
+        if sl_info and (sl_notnull.get("saved_filter_id") or "series_name" not in sl_notnull):
+            conn.execute(text("DROP TABLE share_links"))
+            conn.commit()
+            from backend.models.library import ShareLink as _SL
+            _SL.__table__.create(bind=conn)
+            conn.commit()
         cols = {r[1] for r in conn.execute(text("PRAGMA table_info(books)")).fetchall()}
         if "content_type" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN content_type VARCHAR(16) DEFAULT 'volume' NOT NULL"))

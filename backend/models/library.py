@@ -83,17 +83,24 @@ class ShareLink(Base):
     reader, no route from a share to any book content, ever. The public
     endpoint lives in its own router with an explicit whitelist serializer and
     zero imports from file-serving modules — the boundary is structural, not
-    policy. One link per shelf; revoking deletes the row (the token dies)."""
+    policy. Revoking deletes the row (the token dies).
+
+    Three share targets, exactly one set per row: a shelf (saved_filter_id),
+    a series (series_name), or a single book (book_id)."""
     __tablename__ = "share_links"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    saved_filter_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("saved_filters.id", ondelete="CASCADE"), nullable=False, unique=True
+    saved_filter_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("saved_filters.id", ondelete="CASCADE"), nullable=True, unique=True
+    )
+    series_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    book_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=True
     )
     owner_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    shelf: Mapped["SavedFilter"] = relationship("SavedFilter")
+    shelf: Mapped[Optional["SavedFilter"]] = relationship("SavedFilter")

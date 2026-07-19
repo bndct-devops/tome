@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { ShareShelfModal } from '@/components/ShareShelfModal'
+import { ShareModal } from '@/components/ShareShelfModal'
 import type { Library, SavedFilter } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
@@ -280,7 +280,12 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         />
       )}
       {shareShelf && (
-        <ShareShelfModal shelf={shareShelf} onClose={() => setShareShelf(null)} />
+        <ShareModal
+          title={shareShelf.name}
+          endpoint={`/shelves/${shareShelf.id}/share`}
+          noun="shelf"
+          onClose={() => setShareShelf(null)}
+        />
       )}
       {libModalOpen && (
         <LibraryModal
