@@ -63,8 +63,12 @@ All notable changes to Tome are documented here. Format loosely follows
   their next sync. The classic sync horror story is no longer unrecoverable.
 - **Command palette.** Press Cmd+K (Ctrl+K) anywhere to jump straight to a
   book, series, author, or page — full-text book search with covers, ranked
-  series/author matches, and quick navigation, all keyboard-driven. Listed
-  under "?" shortcuts help.
+  series/author matches, and quick navigation, all keyboard-driven. The
+  header search box hints it, and it's listed under "?" shortcuts help.
+- **Search previews everywhere.** On Stats, Highlights, Wishlist, and the
+  other section pages, typing in the header search now shows a live dropdown
+  of top matches (Enter still opens the full filtered grid) — previously
+  those pages gave no feedback until Enter.
 - **Upload knows what you already have.** Files added to the upload dialog are
   hashed in the browser and checked against the library before anything is
   sent — exact duplicates get an "already in your library" note with a link to
