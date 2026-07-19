@@ -18,3 +18,31 @@ export function formatDuration(seconds: number): string {
 export function formatDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
+
+/** Copy text to the clipboard, working outside secure contexts too.
+ *
+ * navigator.clipboard only exists on HTTPS/localhost — on a LAN-IP dev page
+ * it's undefined and a bare writeText() call dies silently. Falls back to the
+ * legacy execCommand path via an invisible textarea. Returns success. */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (window.isSecureContext && navigator.clipboard) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch { /* fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Copy, Link2, Loader2, Share2, Trash2, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { copyToClipboard } from '@/lib/utils'
 
 export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
   title: string
@@ -45,12 +46,22 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
     }
   }
 
-  function copy() {
+  async function copy() {
     if (!url) return
-    navigator.clipboard.writeText(url).then(() => {
+    if (await copyToClipboard(url)) {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    })
+    } else {
+      // Last resort: select the URL so a manual Cmd/Ctrl+C works.
+      const el = document.querySelector('[data-share-url]')
+      if (el) {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+      }
+    }
   }
 
   return createPortal(
@@ -94,7 +105,7 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
             ) : (
               <div className="mt-4 flex flex-col gap-2.5">
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
-                  <code className="min-w-0 flex-1 truncate text-xs text-foreground">{url}</code>
+                  <code data-share-url className="min-w-0 flex-1 truncate text-xs text-foreground">{url}</code>
                   <button
                     onClick={copy}
                     title="Copy link"
