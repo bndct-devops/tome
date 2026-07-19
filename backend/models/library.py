@@ -72,3 +72,37 @@ class SavedFilter(Base):
     params: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ShareLink(Base):
+    """An opt-in, tokenized, read-only public view of one shelf.
+
+    HARD BOUNDARY (owner's explicit constraint): the public payload is
+    metadata only — cover, title, author/series identity, tags, description,
+    the owner's rating, and their highlights. No file paths, no downloads, no
+    reader, no route from a share to any book content, ever. The public
+    endpoint lives in its own router with an explicit whitelist serializer and
+    zero imports from file-serving modules — the boundary is structural, not
+    policy. Revoking deletes the row (the token dies).
+
+    Three share targets, exactly one set per row: a shelf (saved_filter_id),
+    a series (series_name), or a single book (book_id)."""
+    __tablename__ = "share_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    saved_filter_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("saved_filters.id", ondelete="CASCADE"), nullable=True, unique=True
+    )
+    series_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    book_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=True
+    )
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # NULL = never expires. Expired links 404 exactly like revoked ones.
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    shelf: Mapped[Optional["SavedFilter"]] = relationship("SavedFilter")

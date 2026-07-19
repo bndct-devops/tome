@@ -5,7 +5,7 @@ import {
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon, StickyNote, ChevronDown, Archive, AlignLeft,
-  Plus, TrendingUp, TrendingDown, Minus, Info, History as HistoryIcon
+  Plus, TrendingUp, TrendingDown, Minus, Info, History as HistoryIcon, Share2
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -13,6 +13,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
 import { PositionHistoryModal } from '@/components/PositionHistoryModal'
+import { ShareModal } from '@/components/ShareShelfModal'
 import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
@@ -186,6 +187,7 @@ export function BookDetailPage() {
   // is a real preference, not a per-page whim.
   const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('tome_book_stats_open') !== '0')
   const [showPositionHistory, setShowPositionHistory] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
   const [editingNoteDraft, setEditingNoteDraft] = useState('')
   const [descExpanded, setDescExpanded] = useState(false)
@@ -1235,6 +1237,14 @@ export function BookDetailPage() {
                     )}
                   </div>
                 )}
+                <button
+                  onClick={() => setShowShare(true)}
+                  title="Share this book — a public metadata-only page"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Share</span>
+                </button>
                 {book.content_type !== 'chapter' && (
                   <button
                     onClick={() => setFetchModalOpen(true)}
@@ -1318,6 +1328,14 @@ export function BookDetailPage() {
           open={coverPickerOpen}
           onClose={() => setCoverPickerOpen(false)}
           onApplied={updated => { setBook(updated); setDraft(updated) }}
+        />
+      )}
+      {showShare && book && (
+        <ShareModal
+          title={book.title}
+          endpoint={`/books/${book.id}/share`}
+          noun="book"
+          onClose={() => setShowShare(false)}
         />
       )}
       {showPositionHistory && (

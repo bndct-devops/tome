@@ -73,6 +73,20 @@ import { withBase } from '../../lib/path'
     Each user has their own shelves. They don't affect what other users see.
   </Callout>
 
+  <h3>Sharing a shelf, series, or book</h3>
+  <p>
+    Hover a shelf in the sidebar, open a series page, or open a book page and hit the share
+    icon to mint a public link — a clean, read-only page anyone can open without an account. It shows covers, titles, tags,
+    descriptions, and your ratings and highlights for the books on the shelf, and
+    <strong>never anything else</strong>: no downloads, no in-browser reading, no route to
+    book files at all — the public endpoint is structurally incapable of serving content.
+    Links are unguessable, marked <code>noindex</code>, limited to what you yourself can
+    see, and revocable at any time (the link dies instantly) — or give them an optional
+    1/7/30-day expiry when creating. <strong>Settings → Share links</strong> lists every
+    link you've minted, with copy and revoke. Creating and revoking are recorded in the
+    audit log.
+  </p>
+
   <h2>Visibility rules</h2>
   <p>
     Who sees what depends on role and library membership. For the full breakdown, see

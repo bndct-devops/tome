@@ -9,6 +9,7 @@ import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
+import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -1499,6 +1500,12 @@ export function SettingsPage() {
         <section>
           <SectionHeader title="Notifications" subtle />
           <NotificationChannels />
+        </section>
+
+        {/* ── Share links overview ──────────────────────────────────────── */}
+        <section>
+          <SectionHeader title="Share links" subtle />
+          <ShareLinksOverview />
         </section>
 
         {/* ── Reading-history import ────────────────────────────────────── */}
