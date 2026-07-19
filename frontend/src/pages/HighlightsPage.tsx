@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link } from 'react-router-dom'
 import {
   Search, Quote, StickyNote, Loader2, BookOpen,
-  CalendarHeart, Copy, X, ChevronDown, Info, ChevronsDownUp, ChevronsUpDown, Trash2,
+  CalendarHeart, Copy, X, ChevronDown, Info, ChevronsDownUp, ChevronsUpDown, Trash2, Pencil,
   Download,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -111,10 +111,27 @@ function fullInfo(h: Highlight): string {
   return parts.join('  ·  ')
 }
 
-function HighlightCard({ h, q, showDot, onDelete }: { h: Highlight; q: string; showDot: boolean; onDelete: (h: Highlight) => void }) {
+function HighlightCard({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: string; showDot: boolean; onDelete: (h: Highlight) => void; onEdited: (h: Highlight, note: string | null) => void }) {
   const tint = h.color ? (COLOR_TINT[h.color.toLowerCase()] ?? 'bg-primary/50') : 'bg-primary/40'
   const date = shortDate(h.datetime)
   const [confirming, setConfirming] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function saveNote() {
+    if (saving) return
+    setSaving(true)
+    try {
+      const note = draft.trim() || null
+      await api.put(`/annotations/${h.id}`, { note })
+      onEdited(h, note)
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <li className="group rounded-lg border border-border bg-muted/40 px-3.5 py-3">
       <div className="flex items-start justify-between gap-3 mb-1.5">
@@ -150,14 +167,24 @@ function HighlightCard({ h, q, showDot, onDelete }: { h: Highlight; q: string; s
               </button>
             </span>
           ) : (
-            <button
-              onClick={() => setConfirming(true)}
-              title="Delete this highlight"
-              aria-label="Delete this highlight"
-              className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <>
+              <button
+                onClick={() => { setDraft(h.note ?? ''); setEditing(e => !e) }}
+                title={h.note ? 'Edit note' : 'Add a note'}
+                aria-label={h.note ? 'Edit note' : 'Add a note'}
+                className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-foreground transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setConfirming(true)}
+                title="Delete this highlight"
+                aria-label="Delete this highlight"
+                className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -166,12 +193,29 @@ function HighlightCard({ h, q, showDot, onDelete }: { h: Highlight; q: string; s
           {q ? mark(h.highlighted_text, q) : h.highlighted_text}
         </p>
       )}
-      {h.note && (
+      {editing ? (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            autoFocus
+            rows={2}
+            placeholder="Your note — syncs back to KOReader on the next sync"
+            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <span className="flex items-center gap-2 text-xs">
+            <button onClick={saveNote} disabled={saving} className="font-medium text-primary hover:underline disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save note'}
+            </button>
+            <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">Cancel</button>
+          </span>
+        </div>
+      ) : h.note ? (
         <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
           <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <span className="leading-relaxed">{q ? mark(h.note, q) : h.note}</span>
         </p>
-      )}
+      ) : null}
     </li>
   )
 }
@@ -300,6 +344,11 @@ export function HighlightsPage() {
   async function copyGroup(g: BookGroup) {
     await navigator.clipboard.writeText(groupToMarkdown(g))
     toast.success(`Copied ${g.items.length} from “${g.title}”`)
+  }
+
+  function noteEdited(h: Highlight, note: string | null) {
+    setItems(prev => prev.map(x => (x.id === h.id ? { ...x, note } : x)))
+    toast.success(note ? 'Note saved — syncs to your devices' : 'Note removed')
   }
 
   async function deleteHighlight(h: Highlight) {
@@ -526,7 +575,7 @@ export function HighlightsPage() {
                   <div className={cn('grid transition-[grid-template-rows] duration-300 ease-out', isCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
                     <div className="overflow-hidden">
                       <ul className="space-y-2.5">
-                        {g.items.map(h => <HighlightCard key={h.id} h={h} q={debounced} showDot={showDots} onDelete={deleteHighlight} />)}
+                        {g.items.map(h => <HighlightCard key={h.id} h={h} q={debounced} showDot={showDots} onDelete={deleteHighlight} onEdited={noteEdited} />)}
                       </ul>
                     </div>
                   </div>

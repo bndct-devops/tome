@@ -18,6 +18,11 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Edit highlight notes from the web.** The Highlights page and the book
+  page's Highlights & Notes section can now edit (or add) the note on any
+  highlight — including ones made in KOReader — not just delete them. Edits
+  win on your devices at their next sync, exactly like an edit made on
+  another device.
 - **One-click instance backup and staged restore.** Admin → Server gains an
   Instance backup card: download a consistent snapshot of everything Tome
   knows (database + covers + manifest; book files stay on disk), and restore
