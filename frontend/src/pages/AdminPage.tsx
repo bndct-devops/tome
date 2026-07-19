@@ -11,6 +11,7 @@ import {
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
+import { CoverAudit } from '@/components/CoverAudit'
 import { WordCountTab } from '@/components/WordCount'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
@@ -2004,7 +2005,7 @@ function WishlistTab() {
 
 // ── AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'wordcount' | 'sync' | 'duplicates' | 'email' | 'wishlist'
+type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'wordcount' | 'sync' | 'duplicates' | 'covers' | 'email' | 'wishlist'
 
 export function AdminPage() {
   const { user } = useAuth()
@@ -2031,6 +2032,7 @@ export function AdminPage() {
     { id: 'wordcount', label: 'Word Counts' },
     { id: 'sync', label: 'Sync Status' },
     { id: 'duplicates', label: 'Duplicates' },
+    { id: 'covers', label: 'Covers' },
     { id: 'email', label: 'Email' },
     { id: 'wishlist', label: 'Wishlist' },
   ]
@@ -2075,6 +2077,7 @@ export function AdminPage() {
         {tab === 'wordcount' && <WordCountTab />}
         {tab === 'sync' && <SyncStatusTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
+        {tab === 'covers' && <CoverAudit />}
         {tab === 'email' && <EmailTab />}
         {tab === 'wishlist' && <WishlistTab />}
       </main>

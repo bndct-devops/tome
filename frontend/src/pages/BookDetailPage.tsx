@@ -5,13 +5,14 @@ import {
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon, StickyNote, ChevronDown, Archive, AlignLeft,
-  Plus, TrendingUp, TrendingDown, Minus, Info
+  Plus, TrendingUp, TrendingDown, Minus, Info, History as HistoryIcon
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
+import { PositionHistoryModal } from '@/components/PositionHistoryModal'
 import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
@@ -184,6 +185,7 @@ export function BookDetailPage() {
   // intensity + time-per-chapter) has grown tall enough that "keep it closed"
   // is a real preference, not a per-page whim.
   const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('tome_book_stats_open') !== '0')
+  const [showPositionHistory, setShowPositionHistory] = useState(false)
   const [descExpanded, setDescExpanded] = useState(false)
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
@@ -752,6 +754,14 @@ export function BookDetailPage() {
           Reading Stats
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !statsOpen && '-rotate-90')} />
         </button>
+        <button
+          type="button"
+          onClick={() => setShowPositionHistory(true)}
+          title="Position history — restore a bad sync"
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <HistoryIcon className="w-3.5 h-3.5" />
+        </button>
       </div>
       {statsOpen && (
         hasReadingData ? (
@@ -1262,6 +1272,18 @@ export function BookDetailPage() {
           open={coverPickerOpen}
           onClose={() => setCoverPickerOpen(false)}
           onApplied={updated => { setBook(updated); setDraft(updated) }}
+        />
+      )}
+      {showPositionHistory && (
+        <PositionHistoryModal
+          bookId={Number(id)}
+          onClose={() => setShowPositionHistory(false)}
+          onRestored={() => {
+            refreshStats()
+            api.get<BookStatus>(`/books/${id}/status`)
+              .then(s => { setBookStatus(s.status); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null) })
+              .catch(() => {})
+          }}
         />
       )}
     </div>

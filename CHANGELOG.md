@@ -17,6 +17,50 @@ All notable changes to Tome are documented here. Format loosely follows
   to the book. The tab renders full-bleed — edge to edge, viewport-tall — and
   the ribbon is also available as a regular tile in the dashboard gallery.
 
+### Added
+- **"Time left in chapter" in the web reader.** The reader footer now shows
+  "~12 min left" beside the chapter name, computed from the book's chapter
+  map and your own measured reading pace (a sensible default until you have
+  reading history). Quietly absent for books without a chapter map or word
+  count.
+- **Position history — undo a bad sync.** Tome now keeps a short log of every
+  meaningful reading-position change per book (device, web, manual — the
+  idle heartbeat doesn't spam it). A history button on the book page's
+  Reading Stats header lists them, and any entry can be restored as the live
+  position with one click — including explicitly un-finishing a book that a
+  device falsely jumped to 100%. Devices pick the restored position up on
+  their next sync. The classic sync horror story is no longer unrecoverable.
+- **Command palette.** Press Cmd+K (Ctrl+K) anywhere to jump straight to a
+  book, series, author, or page — full-text book search with covers, ranked
+  series/author matches, and quick navigation, all keyboard-driven. Listed
+  under "?" shortcuts help.
+- **Upload knows what you already have.** Files added to the upload dialog are
+  hashed in the browser and checked against the library before anything is
+  sent — exact duplicates get an "already in your library" note with a link to
+  the existing book and are skipped, instead of uploading megabytes just for
+  the server to silently discard them.
+- **Admin → Covers: cover-quality audit.** Lists books whose covers are
+  missing, unreadable, or genuinely low-resolution (real thumbnails, not
+  standard-source covers), with sizes shown. Books with no cover at all offer
+  a one-click auto-fix from the cover search (nothing to downgrade); low-res
+  ones deep-link to the book page to pick a better candidate by eye.
+- **"What's new" after an upgrade.** The first visit after the server moves to
+  a new release shows a one-time panel with that release's notes, straight
+  from the changelog — so features stop shipping invisibly. Dismiss it and it
+  stays gone until the next release; fresh installs never see it.
+- **Update indicator for admins.** Settings → About quietly shows "vX.Y.Z
+  available" (linking to GitHub releases) when a newer release exists, via a
+  daily-cached server-side check. Set `TOME_UPDATE_CHECK=false` to disable
+  the lookup entirely — nothing else phones home.
+- **Timeline: the tooltip now answers at day level.** Hovering a bar resolves
+  the exact day under the cursor — "15 May · 22m", or "no reading" on a gap
+  day — alongside the book's totals. The day data was always drawn as tick
+  intensity; now it's readable.
+- **Timeline on phones.** The series rail narrows so the ribbon keeps most of
+  the screen, and bars are tap-friendly: the first tap shows the details
+  tooltip, a second tap opens the book (tapping empty space or scrolling
+  dismisses it). Previously any tap navigated away immediately.
+
 ### Fixed
 - **Stats on phones: dead gap and misaligned range picker.** The Stats page
   header paid the notch inset a second time inside the app shell (the top bar

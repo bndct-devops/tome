@@ -9,8 +9,23 @@ interface UploadItem {
   id: string
   file: File
   bookTypeId: string
-  status: 'pending' | 'uploading' | 'done' | 'error'
+  status: 'pending' | 'uploading' | 'done' | 'error' | 'duplicate'
   errorMsg?: string
+  /** Book already holding these exact bytes (pre-upload hash check). */
+  dupBookId?: number
+}
+
+// Hash in the browser and ask the server before uploading — the server would
+// detect the duplicate anyway (upload attaches nothing for identical bytes),
+// but only after the whole file crossed the wire.
+async function sha256Hex(file: File): Promise<string | null> {
+  if (file.size > 512 * 1024 * 1024) return null // don't buffer >512MB in RAM
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
 }
 
 function formatIcon(file: File) {
@@ -52,6 +67,32 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
     }))
     setItems(prev => [...prev, ...newItems])
     setSummary(null)
+    void flagDuplicates(newItems)
+  }
+
+  async function flagDuplicates(newItems: UploadItem[]) {
+    // Sequential hashing keeps peak memory at one file's buffer.
+    const hashed: { id: string; hash: string }[] = []
+    for (const it of newItems) {
+      const hash = await sha256Hex(it.file)
+      if (hash) hashed.push({ id: it.id, hash })
+    }
+    if (!hashed.length) return
+    try {
+      const resp = await api.post<{ existing: Record<string, number> }>(
+        '/books/check-hashes',
+        { hashes: hashed.map(h => h.hash) },
+      )
+      setItems(prev => prev.map(p => {
+        const h = hashed.find(x => x.id === p.id)
+        const bookId = h ? resp.existing[h.hash] : undefined
+        return bookId && p.status === 'pending'
+          ? { ...p, status: 'duplicate', dupBookId: bookId }
+          : p
+      }))
+    } catch {
+      // Offline / older server: uploads proceed, the server still dedupes.
+    }
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -90,7 +131,12 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
     const allMatchedWishIds: number[] = []
     const matchedBookIds: number[] = []
 
+    let skipped = 0
     for (const item of items) {
+      if (item.status === 'duplicate') {
+        skipped++
+        continue
+      }
       setItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'uploading' } : it))
       const form = new FormData()
       form.append('file', item.file)
@@ -124,13 +170,16 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
     }
     if (success > 0) {
       onDone()
+      const skipNote = skipped > 0 ? `, ${skipped} already in library` : ''
       if (failed === 0) {
-        toast.success(`${success} book${success !== 1 ? 's' : ''} uploaded`)
+        toast.success(`${success} book${success !== 1 ? 's' : ''} uploaded${skipNote}`)
       } else {
-        toast.info(`${success} uploaded, ${failed} failed`)
+        toast.info(`${success} uploaded, ${failed} failed${skipNote}`)
       }
     } else if (failed > 0) {
       toast.error(`Upload failed for ${failed} file${failed !== 1 ? 's' : ''}`)
+    } else if (skipped > 0) {
+      toast.info(`Nothing to upload — ${skipped} file${skipped !== 1 ? 's are' : ' is'} already in your library`)
     }
   }
 
@@ -258,7 +307,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                   </select>
                   {/* Status */}
                   <span className="shrink-0 w-5 flex items-center justify-center">
-                    {item.status === 'pending' && (
+                    {(item.status === 'pending' || item.status === 'duplicate') && (
                       <button
                         onClick={() => removeItem(item.id)}
                         className="text-muted-foreground hover:text-destructive transition-colors"
@@ -280,6 +329,19 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                   </div>
                   {item.status === 'error' && item.errorMsg && (
                     <p className="px-2.5 pb-2 text-xs text-destructive">{item.errorMsg}</p>
+                  )}
+                  {item.status === 'duplicate' && (
+                    <p className="px-2.5 pb-2 text-xs text-warning">
+                      Already in your library — will be skipped.{' '}
+                      <a
+                        href={`/books/${item.dupBookId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:no-underline"
+                      >
+                        View book
+                      </a>
+                    </p>
                   )}
                 </div>
               ))}

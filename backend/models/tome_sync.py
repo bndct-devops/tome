@@ -90,6 +90,35 @@ class TomeSyncPosition(Base):
     book: Mapped["Book"] = relationship("Book")  # type: ignore[name-defined]
 
 
+class PositionHistory(Base):
+    """Append-only log of meaningful position changes per user+book.
+
+    The safety net under position sync: one bad write (a device jumping a book
+    to 100%, a mis-tapped chapter skip that propagated) is otherwise
+    unrecoverable because TomeSyncPosition is a single overwritten row. Written
+    by upsert_position only when the position moved meaningfully (so the
+    ten-page heartbeat doesn't spam near-duplicates), pruned to the newest
+    HISTORY_KEEP entries per (user, book)."""
+    __tablename__ = "position_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    progress: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # CFI or page ref
+    percentage: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    device: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False, index=True
+    )
+
+    user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
+    book: Mapped["Book"] = relationship("Book")  # type: ignore[name-defined]
+
+
 class Annotation(Base):
     """A highlight (and optional note) synced from KOReader, per user+book.
 

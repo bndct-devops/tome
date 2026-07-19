@@ -22,8 +22,37 @@ from typing import Optional
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.models.tome_sync import TomeSyncPosition
+from backend.models.tome_sync import PositionHistory, TomeSyncPosition
 from backend.models.user_book_status import UserBookStatus
+
+# Position history: record a new entry only when the position moved at least
+# this much (or the locator string changed) — the device heartbeat re-PUTs
+# every few pages and would otherwise fill the log with near-duplicates.
+HISTORY_MIN_DELTA = 0.002
+# Newest entries kept per (user, book); pruned on insert.
+HISTORY_KEEP = 40
+
+
+def _record_history(
+    db: Session, *, user_id: int, book_id: int,
+    percentage: float, progress: Optional[str], device: Optional[str],
+) -> None:
+    db.add(PositionHistory(
+        user_id=user_id, book_id=book_id,
+        percentage=percentage, progress=progress, device=device,
+    ))
+    # Prune beyond the cap — ids beat created_at for same-second inserts.
+    stale = (
+        db.query(PositionHistory.id)
+        .filter(PositionHistory.user_id == user_id, PositionHistory.book_id == book_id)
+        .order_by(PositionHistory.id.desc())
+        .offset(HISTORY_KEEP)
+        .all()
+    )
+    if stale:
+        db.query(PositionHistory).filter(
+            PositionHistory.id.in_([s.id for s in stale])
+        ).delete(synchronize_session=False)
 
 
 def upsert_position(
@@ -58,6 +87,8 @@ def upsert_position(
             with db.begin_nested():
                 db.add(row)
                 db.flush()
+            _record_history(db, user_id=user_id, book_id=book_id,
+                            percentage=percentage, progress=progress, device=device)
             return row
         except IntegrityError:
             # Another writer created the row between our SELECT and INSERT.
@@ -70,10 +101,17 @@ def upsert_position(
             if row is None:
                 raise
 
+    moved = (
+        abs(percentage - (row.percentage or 0.0)) >= HISTORY_MIN_DELTA
+        or (progress or "") != (row.progress or "")
+    )
     row.percentage = percentage
     row.progress = progress
     row.device = device
     row.updated_at = datetime.utcnow()
+    if moved:
+        _record_history(db, user_id=user_id, book_id=book_id,
+                        percentage=percentage, progress=progress, device=device)
     return row
 
 

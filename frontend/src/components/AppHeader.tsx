@@ -4,6 +4,8 @@ import { useAuth, isMember } from '@/contexts/AuthContext'
 import { TomeMark } from '@/components/TomeMark'
 import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
+import { WhatsNewPanel } from '@/components/WhatsNewPanel'
+import { CommandPalette } from '@/components/CommandPalette'
 
 /**
  * The one top navbar — menu button, wordmark, a search slot, and the right-side
@@ -53,6 +55,11 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
           )}
         </div>
       </div>
+      {/* Post-upgrade release-notes panel — mounted here because both shell
+          variants (AppShell and DashboardPage) render this header. */}
+      <WhatsNewPanel />
+      {/* Cmd+K palette — same reasoning: one mount that exists on every page. */}
+      <CommandPalette />
     </header>
   )
 }

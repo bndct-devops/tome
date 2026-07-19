@@ -358,3 +358,39 @@ def test_progress_fallback_uses_furthest_page_not_distinct(client: TestClient, m
 
     own = _get_stats(client, book.id)["own"]
     assert own["progress"] == pytest.approx(0.5)              # 500/1000, not 50/1000
+
+
+# ── Reader pacing (time left in chapter) ──────────────────────────────────────
+
+def test_reader_pacing_shape(client: TestClient, make_book, admin_user, db: Session):
+    from backend.models.book import BookChapter
+
+    user, _ = admin_user
+    book = make_book(title="Paced Book")
+    book.word_count = 80_000
+    db.add(BookChapter(book_id=book.id, idx=0, title="One", start_fraction=0.0, end_fraction=0.5))
+    db.add(BookChapter(book_id=book.id, idx=1, title="Two", start_fraction=0.5, end_fraction=1.0))
+    db.flush()
+
+    r = client.get(f"/api/books/{book.id}/reader-pacing")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["word_count"] == 80_000
+    assert [c["title"] for c in data["chapters"]] == ["One", "Two"]
+    # No finished word-counted books yet -> no personal pace.
+    assert data["wpm"] is None
+
+
+def test_reader_pacing_wpm_from_history(client: TestClient, make_book, admin_user, db: Session):
+    user, _ = admin_user
+    finished = make_book(title="Finished Fast")
+    finished.word_count = 60_000
+    db.add(UserBookStatus(user_id=user.id, book_id=finished.id, status="read"))
+    # 60k words over 200 minutes -> 300 wpm
+    _make_session(db, user.id, finished.id, datetime(2026, 5, 1, 9),
+                  duration_seconds=200 * 60, device="web")
+    db.flush()
+
+    target = make_book(title="Now Reading")
+    data = client.get(f"/api/books/{target.id}/reader-pacing").json()
+    assert data["wpm"] == 300.0
