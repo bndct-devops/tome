@@ -11,7 +11,8 @@ All notable changes to Tome are documented here. Format loosely follows
   Shelves (share icon in the sidebar), series (share icon on the series
   page), and individual books (Share button on the book page) can each mint
   a revocable public link: a clean read-only page with covers, titles, tags,
-  descriptions, and your ratings and highlights. It never exposes files — no
+  descriptions, your ratings and highlights — and your reading of it: time,
+  reading days, finish dates, and a little day-by-day activity strip. It never exposes files — no
   downloads, no reading, no route to book content at all; links are
   unguessable, marked noindex, and die the moment you revoke them.
 - **Reading Timeline — your reading life on one ribbon.** A new Timeline tab on

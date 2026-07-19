@@ -222,10 +222,16 @@ def public_share(
         book = db.get(Book, link.book_id) if link.book_id else None
         if not book or book.status != "active" or not user_can_see_book(db, owner, book):
             raise HTTPException(status_code=404, detail="This share link does not exist (or was revoked)")
+        serialized = _serialize_books(db, owner, [book])
         return {
             "kind": "book",
             "title": book.title,
-            "books": _serialize_books(db, owner, [book]),
+            "totals": {
+                "books": 1,
+                "read": sum(1 for b in serialized if (b["stats"] or {}).get("status") == "read"),
+                "total_seconds": sum((b["stats"] or {}).get("total_seconds", 0) for b in serialized),
+            },
+            "books": serialized,
         }
 
     books = (
@@ -235,21 +241,65 @@ def public_share(
     )
     seen: set[int] = set()
     unique = [b for b in books if not (b.id in seen or seen.add(b.id))]
-    return {"kind": kind, "title": title, "books": _serialize_books(db, owner, unique)}
+    serialized = _serialize_books(db, owner, unique)
+    return {
+        "kind": kind,
+        "title": title,
+        "totals": {
+            "books": len(serialized),
+            "read": sum(1 for b in serialized if (b["stats"] or {}).get("status") == "read"),
+            "total_seconds": sum((b["stats"] or {}).get("total_seconds", 0) for b in serialized),
+        },
+        "books": serialized,
+    }
 
 
 def _serialize_books(db: Session, owner: User, books: list) -> list[dict]:
     """THE whitelist. Every public payload goes through here; a field that
-    isn't listed cannot leak."""
+    isn't listed cannot leak.
+
+    Includes the owner's reading stats for each book (time, days, status,
+    finish date, per-day activity) — that is the owner's own data, not book
+    content, and it is what makes a share worth looking at. Still zero routes
+    to files."""
+    from backend.services import reconciled_reading as rr
+    from backend.services.reading_day import date_modifier
+
     book_ids = [b.id for b in books]
-    ratings = {
-        s.book_id: s.rating
+    status_rows = {
+        s.book_id: s
         for s in db.query(UserBookStatus).filter(
             UserBookStatus.user_id == owner.id,
             UserBookStatus.book_id.in_(book_ids or [0]),
-            UserBookStatus.rating.isnot(None),
         )
     }
+    ratings = {bid: s.rating for bid, s in status_rows.items() if s.rating is not None}
+
+    # Reconciled per-day reading (UTC day-bucketing — the owner's exact tz is
+    # unknown server-side and a public page doesn't need it to the hour).
+    covered = rr.covered_book_ids(db, owner.id)
+    day_secs = rr.book_day_seconds(db, owner.id, date_modifier(0), covered)
+    activity: dict[int, list[dict]] = {}
+    for (bid, day), secs in sorted(day_secs.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+        if bid in (set(book_ids)) and secs > 0 and day is not None:
+            activity.setdefault(bid, []).append({"date": day, "seconds": secs})
+
+    def _stats(bid: int) -> dict | None:
+        days = activity.get(bid, [])
+        srow = status_rows.get(bid)
+        status = srow.status if srow and srow.status in ("reading", "read") else None
+        if not days and not status:
+            return None
+        return {
+            "status": status,
+            "total_seconds": sum(d["seconds"] for d in days),
+            "reading_days": len(days),
+            "first_day": days[0]["date"] if days else None,
+            "last_day": days[-1]["date"] if days else None,
+            "finished_on": (srow.finished_at.date().isoformat()
+                            if srow and srow.finished_at else None),
+            "activity": days,
+        }
     highlights: dict[int, list[dict]] = {}
     for a in db.query(Annotation).filter(
         Annotation.user_id == owner.id,
@@ -274,6 +324,7 @@ def _serialize_books(db: Session, owner: User, books: list) -> list[dict]:
             "description": b.description,
             "tags": sorted({t.tag for t in b.tags}),
             "rating": ratings.get(b.id),
+            "stats": _stats(b.id),
             "highlights": highlights.get(b.id, []),
         }
         for b in books

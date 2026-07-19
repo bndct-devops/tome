@@ -15,8 +15,10 @@ from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
 
 BOOK_WHITELIST = {"id", "title", "author", "series", "series_index",
-                  "description", "tags", "rating", "highlights"}
+                  "description", "tags", "rating", "stats", "highlights"}
 HIGHLIGHT_WHITELIST = {"text", "note", "chapter"}
+STATS_WHITELIST = {"status", "total_seconds", "reading_days", "first_day",
+                   "last_day", "finished_on", "activity"}
 
 
 def _shelf(db: Session, owner_id: int, name: str, params: dict) -> SavedFilter:
@@ -59,7 +61,7 @@ def test_share_lifecycle_and_public_payload(client: TestClient, db: Session, adm
     data = r.json()
     assert data["title"] == "Public Faves"
     assert data["kind"] == "shelf"
-    assert set(data.keys()) == {"kind", "title", "books"}
+    assert set(data.keys()) == {"kind", "title", "totals", "books"}
     b = data["books"][0]
     # THE boundary: exact whitelist, nothing else, ever.
     assert set(b.keys()) == BOOK_WHITELIST
@@ -165,3 +167,35 @@ def test_book_share_public_payload_and_revoke(client: TestClient, db: Session, a
 
 def test_series_share_unknown_series_404(client: TestClient):
     assert client.post("/api/series/No Such Series/share").status_code == 404
+
+
+def test_share_includes_owner_reading_stats(client: TestClient, db: Session, admin_user, make_book):
+    from datetime import datetime
+    from backend.models.tome_sync import ReadingSession
+
+    user, _ = admin_user
+    book = make_book(title="Stats Shared")
+    db.add(ReadingSession(user_id=user.id, book_id=book.id,
+                          started_at=datetime(2026, 6, 1, 12), ended_at=datetime(2026, 6, 1, 13),
+                          duration_seconds=3600, pages_turned=50, device="web"))
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                          finished_at=datetime(2026, 6, 2)))
+    db.flush()
+
+    token = client.post(f"/api/books/{book.id}/share").json()["token"]
+    data = client.get(f"/api/share/{token}").json()
+    st = data["books"][0]["stats"]
+    assert set(st.keys()) == STATS_WHITELIST
+    assert st["status"] == "read"
+    assert st["total_seconds"] == 3600
+    assert st["reading_days"] == 1
+    assert st["finished_on"] == "2026-06-02"
+    assert st["activity"] == [{"date": "2026-06-01", "seconds": 3600}]
+    assert data["totals"] == {"books": 1, "read": 1, "total_seconds": 3600}
+
+
+def test_share_stats_null_without_reading(client: TestClient, db: Session, admin_user, make_book):
+    book = make_book(title="Untouched Shared")
+    token = client.post(f"/api/books/{book.id}/share").json()["token"]
+    data = client.get(f"/api/share/{token}").json()
+    assert data["books"][0]["stats"] is None

@@ -24,13 +24,74 @@ interface SharedBook {
   description: string | null
   tags: string[]
   rating: number | null
+  stats: SharedStats | null
   highlights: SharedHighlight[]
+}
+
+interface SharedStats {
+  status: 'reading' | 'read' | null
+  total_seconds: number
+  reading_days: number
+  first_day: string | null
+  last_day: string | null
+  finished_on: string | null
+  activity: { date: string; seconds: number }[]
 }
 
 interface ShareResponse {
   kind: 'shelf' | 'series' | 'book'
   title: string
+  totals: { books: number; read: number; total_seconds: number }
   books: SharedBook[]
+}
+
+function fmtDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.round((seconds % 3600) / 60)
+  if (h === 0) return `${m}m`
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+function fmtDay(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
+const DAY_MS = 86400000
+const dayNum = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY_MS)
+
+/** The owner's reading of this book as a day-intensity strip — the same
+ *  visual language as the app's Timeline ticks. */
+function ActivityStrip({ stats }: { stats: SharedStats }) {
+  if (!stats.activity.length || !stats.first_day || !stats.last_day) return null
+  const d0 = dayNum(stats.first_day)
+  const span = Math.max(dayNum(stats.last_day) - d0 + 1, 1)
+  const sorted = stats.activity.map(d => d.seconds).sort((a, z) => a - z)
+  const ref = sorted[Math.floor(sorted.length * 0.9)] || 1
+  return (
+    <div className="mt-2.5">
+      <div className="relative h-4 overflow-hidden rounded bg-primary/10">
+        {stats.activity.map(d => (
+          <span
+            key={d.date}
+            title={`${fmtDay(d.date)} · ${fmtDuration(d.seconds)}`}
+            className="absolute bottom-0 top-0 bg-primary"
+            style={{
+              left: `${((dayNum(d.date) - d0) / span) * 100}%`,
+              width: `${Math.max(100 / span, 0.6)}%`,
+              minWidth: 2,
+              opacity: 0.35 + 0.6 * Math.min(1, Math.sqrt(d.seconds / ref)),
+            }}
+          />
+        ))}
+      </div>
+      <p className="mt-1 flex justify-between text-[10px] text-muted-foreground/60">
+        <span>{fmtDay(stats.first_day)}</span>
+        <span>{fmtDay(stats.last_day)}</span>
+      </p>
+    </div>
+  )
 }
 
 function Rating({ value }: { value: number }) {
@@ -51,7 +112,7 @@ function Rating({ value }: { value: number }) {
 
 function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
-  const hasMore = !!b.description || b.highlights.length > 0
+  const hasMore = !!b.description || b.highlights.length > 0 || (b.stats?.activity.length ?? 0) > 1
   return (
     <li className="rounded-xl border border-border bg-card p-4">
       <div className="flex gap-4">
@@ -71,6 +132,19 @@ function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen
           )}
           {b.author && <p className="mt-0.5 text-sm text-muted-foreground">{b.author}</p>}
           {b.rating != null && <div className="mt-1.5"><Rating value={b.rating} /></div>}
+          {b.stats && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {b.stats.status === 'read' ? 'Read' : b.stats.status === 'reading' ? 'Reading' : null}
+              {b.stats.total_seconds > 0 && (
+                <>
+                  {b.stats.status ? ' · ' : ''}
+                  {fmtDuration(b.stats.total_seconds)} over {b.stats.reading_days}{' '}
+                  {b.stats.reading_days === 1 ? 'day' : 'days'}
+                </>
+              )}
+              {b.stats.finished_on ? ` · finished ${fmtDay(b.stats.finished_on)}` : ''}
+            </p>
+          )}
           {b.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {b.tags.map(t => (
@@ -93,6 +167,7 @@ function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen
       </div>
       {open && (
         <div className="mt-3 border-t border-border/60 pt-3">
+          {b.stats && b.stats.activity.length > 1 && <div className="mb-3"><ActivityStrip stats={b.stats} /></div>}
           {b.description && (
             <p className="text-sm leading-relaxed text-muted-foreground">{b.description}</p>
           )}
@@ -172,7 +247,9 @@ export function SharePage() {
           <h1 className="font-display text-lg text-foreground">{data.title}</h1>
           <span className="text-xs text-muted-foreground">
             · a shared {data.kind}
-            {data.kind !== 'book' ? ` · ${data.books.length} book${data.books.length !== 1 ? 's' : ''}` : ''}
+            {data.kind !== 'book' ? ` · ${data.totals.books} book${data.totals.books !== 1 ? 's' : ''}` : ''}
+            {data.totals.read > 0 && data.kind !== 'book' ? ` · ${data.totals.read} read` : ''}
+            {data.totals.total_seconds > 0 ? ` · ${fmtDuration(data.totals.total_seconds)} read time` : ''}
           </span>
         </div>
       </header>
