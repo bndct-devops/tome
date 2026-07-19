@@ -74,6 +74,13 @@ import { withBase } from '../../lib/path'
     Two users in different time zones see different "today."
   </Callout>
 
+  <p>
+    Reading from before Tome can come along too: <strong>Settings → Import reading
+    history</strong> takes a Goodreads or StoryGraph CSV export, matches it against your
+    library (ISBN first, then title/author) with a full preview, and only ever fills gaps —
+    statuses, ratings, reviews, and finish dates you already have are never overwritten.
+  </p>
+
   <h2>Overview board</h2>
   <p>
     The "where am I right now?" board. Designed to be glanceable. Like every section below,
@@ -259,6 +266,31 @@ import { withBase } from '../../lib/path'
     A cumulative line chart of <code>books.added_at</code> grouped by month and split by book
     type. Not about reading — about hoarding. Goes up and to the right. Useful for noticing
     acquisition sprees you'd otherwise forget about.
+  </p>
+
+  <h2>Timeline board</h2>
+  <p>
+    Your reading life as a Gantt chart. One lane per series (standalones get their own),
+    named in a frozen rail on the left; every book is a bar spanning its first to last
+    active reading day, with the volume number at the bar's start. Inside each bar, every
+    day you actually read is a tick whose intensity encodes that day's minutes — scaled
+    against your 90th-percentile reading day, so one marathon doesn't flatten every normal
+    evening. Gaps inside a bar are days the book rested; gaps between bars are pauses
+    between volumes.
+  </p>
+  <p>
+    The data is lifetime and fully reconciled: live sessions and imported KOReader history
+    merge with the same page-stats-win-per-book rule as the rest of stats, bucketed by the
+    canonical 4-hour-rollover reading day. Lanes sort by most recent activity and the view
+    opens at today, so the top-right corner is what you're reading now — pan left for
+    history. Zoom from a year-at-a-glance down to month detail; hovering a bar answers at
+    day resolution ("15 May · 22m", or "no reading" on a gap day) alongside the book's
+    totals, and clicking opens the book. On phones the rail narrows and the first tap
+    inspects while a second tap navigates.
+  </p>
+  <p>
+    Timeline is its own board and renders full-bleed — edge to edge, viewport-tall. The
+    ribbon is also available as a regular tile from the gallery for any other board.
   </p>
 
   <h2>Word-count &amp; page insights</h2>

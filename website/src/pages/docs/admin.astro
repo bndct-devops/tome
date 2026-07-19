@@ -88,6 +88,33 @@ import { withBase } from '../../lib/path'
     read-write first.
   </Callout>
 
+  <h2>Cover audit</h2>
+  <p>
+    <strong>Admin → Covers</strong> lists books whose covers are missing, unreadable, or
+    genuinely low-resolution (real thumbnails — the threshold is chosen so standard-source
+    covers pass), with dimensions shown. Books with no cover at all offer a one-click
+    auto-fix that applies the first cover-search candidate — safe, since there is nothing to
+    downgrade. Low-resolution covers deliberately don't auto-fix (a blind refetch could make
+    them worse); their rows deep-link to the book page, where the cover picker shows
+    candidates to judge by eye.
+  </p>
+
+  <h2>Instance backup &amp; restore</h2>
+  <p>
+    <strong>Admin → Server → Instance backup</strong> downloads everything Tome knows in one
+    archive: a consistent snapshot of the database (safe to take while the server runs) plus
+    the cover cache and a manifest. Book files are not included — they live on disk and
+    belong to your own backups.
+  </p>
+  <p>
+    Restoring is deliberately two-phase: upload an archive, type <code>RESTORE</code> to arm
+    it, and the swap happens at the <em>next server restart</em> — never under a live
+    database. The current database is kept alongside as
+    <code>tome.db.pre-restore-&lt;timestamp&gt;</code>, a staged restore can be cancelled any
+    time before the restart, and an invalid archive is rejected at upload. Backup downloads
+    and every restore step land in the <a href="#audit-log">audit log</a>.
+  </p>
+
   <h2>Word counts</h2>
   <p>
     Tome records each EPUB's word count, shown in the <strong>Details</strong> panel on the book
@@ -126,4 +153,14 @@ import { withBase } from '../../lib/path'
     who sent which book to which device, and whether it succeeded. SMTP itself is configured via
     environment variables; see <a href={withBase("/docs/send-to-device")}>Send to Device</a>.
   </p>
+  <h2 id="audit-log">Audit log</h2>
+  <p>
+    <strong>Admin → Audit Log</strong> records who did what, when: user management, book
+    deletions and uploads, metadata edits, downloads (single and bulk), credential
+    lifecycles (API tokens, OPDS PINs, KOReader plugin keys, notification channels —
+    never the secrets themselves), backup and restore steps, imports, and curation
+    changes. Reads and device sync telemetry are deliberately not logged — they would
+    flood the trail without forensic value.
+  </p>
+
 </DocsLayout>
