@@ -12,6 +12,7 @@ from backend.core.permissions import book_visibility_filter, is_admin as _is_adm
 from backend.core.security import get_current_user
 from backend.models.book import Book
 from backend.models.user import User
+from backend.services.audit import audit
 
 router = APIRouter()
 
@@ -59,6 +60,9 @@ def bulk_download(
                 zf.write(str(serve), f"{folder}/{raw.name}")
 
     buf.seek(0)
+    # Parity with the single-download path, which audits each download.
+    audit(db, "books.bulk_downloaded", user_id=current_user.id, username=current_user.username,
+          details={"book_count": len(books), "requested": len(body.book_ids)})
     return StreamingResponse(
         buf,
         media_type="application/zip",

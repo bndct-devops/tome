@@ -22,6 +22,7 @@ from backend.models.book import Book
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.services.reading_import import match_rows, parse_csv
+from backend.services.audit import audit
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/import", tags=["import"])
@@ -133,4 +134,6 @@ def apply_reading_csv(
             row.review = item.review[:10000]
             applied["review"] += 1
     db.commit()
+    audit(db, "reading_import.applied", user_id=current_user.id, username=current_user.username,
+          details={"items": len(body.items), "applied": applied, "skipped": skipped})
     return {"ok": True, "applied": applied, "skipped": skipped}

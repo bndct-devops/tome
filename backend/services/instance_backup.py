@@ -131,6 +131,15 @@ def apply_staged_restore_if_present(data_dir: Path, db_path: Path, covers_dir: P
                     m.name = m.name[len(_MEMBER_COVERS) + 1:]
                     tar.extract(m, covers_dir)
         staged.unlink(missing_ok=True)
+        # Leave a marker for the app to audit-log once the DB is up — this
+        # runs before any engine exists, so it cannot write the entry itself.
+        try:
+            (data_dir / "restore_applied.json").write_text(json.dumps({
+                "applied_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                **summary,
+            }))
+        except OSError:
+            pass
         log.warning("Restore applied: %s users, %s books (backup from %s)",
                     summary["users"], summary["books"], summary["created_at"])
         return True

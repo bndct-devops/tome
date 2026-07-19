@@ -1620,7 +1620,7 @@ function RangeControl({
   const valid = !!from && !!to && from <= to
 
   return (
-    <div className="relative ml-auto flex items-center gap-1 rounded-lg bg-muted p-0.5">
+    <div className="relative ml-auto max-sm:ml-0 flex items-center gap-1 rounded-lg bg-muted p-0.5">
       {RANGES.map((r) => (
         <button
           key={r.days}

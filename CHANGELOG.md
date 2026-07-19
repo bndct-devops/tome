@@ -97,6 +97,14 @@ All notable changes to Tome are documented here. Format loosely follows
   dismisses it). Previously any tap navigated away immediately.
 
 ### Fixed
+- **The audit log covers new features again.** A coverage pass wired audit
+  entries into everything that had shipped without them: instance backup
+  download and restore staging/cancel/apply, OPDS PIN and KOReader plugin
+  key lifecycles, book type and series/arc curation, Hardcover account
+  link/unlink, notification channels (never the token), reading-history
+  imports, cover changes, bulk downloads, session deletes, highlight
+  deletes, and position restores. Device sync telemetry and personal
+  micro-writes stay deliberately unlogged.
 - **Stats on phones: dead gap and misaligned range picker.** The Stats page
   header paid the notch inset a second time inside the app shell (the top bar
   already covers it), opening a large empty band between the top bar and the

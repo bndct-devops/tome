@@ -33,6 +33,7 @@ from backend.models.ko_stats import StatsImport
 from backend.models.send_queue import SendQueueItem
 from backend.services.book_progress import apply_progress_to_status, upsert_position
 from backend.services.hardcover_sync import nudge as hardcover_nudge
+from backend.services.audit import audit
 
 router = APIRouter(tags=["tome-sync"])
 logger = logging.getLogger(__name__)
@@ -1446,6 +1447,9 @@ def create_api_key(
     db.add(api_key)
     db.commit()
     db.refresh(api_key)
+    audit(db, "plugin_key.created", user_id=current_user.id, username=current_user.username,
+          resource_type="plugin_key", resource_id=api_key.id, resource_title=api_key.label,
+          details={"prefix": api_key.key_prefix})
     # Return the full key only once — it cannot be retrieved again
     return {
         "id": api_key.id,
@@ -1466,8 +1470,11 @@ def revoke_api_key(
     ).first()
     if not api_key:
         raise HTTPException(status_code=404, detail="API key not found")
+    label = api_key.label
     db.delete(api_key)
     db.commit()
+    audit(db, "plugin_key.revoked", user_id=current_user.id, username=current_user.username,
+          resource_type="plugin_key", resource_id=key_id, resource_title=label)
 
 
 # ── Plugin version ────────────────────────────────────────────────────────────

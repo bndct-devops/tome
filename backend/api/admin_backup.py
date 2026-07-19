@@ -16,10 +16,14 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import FileResponse
 
 from backend import __version__
+from sqlalchemy.orm import Session
+
 from backend.core.config import settings
+from backend.core.database import get_db
 from backend.core.permissions import is_admin
 from backend.core.security import get_current_user
 from backend.models.user import User
+from backend.services.audit import audit
 from backend.services.instance_backup import (
     create_backup_tarball,
     staged_path,
@@ -38,10 +42,14 @@ def _require_admin(user: User) -> None:
 @router.get("/download")
 def download_backup(
     background: BackgroundTasks,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _require_admin(current_user)
     path = create_backup_tarball(settings.db_path, settings.covers_dir, __version__)
+    audit(db, "backup.downloaded", user_id=current_user.id,
+          username=current_user.username,
+          details={"size_bytes": path.stat().st_size})
     background.add_task(lambda: path.unlink(missing_ok=True))
     stamp = time.strftime("%Y%m%d-%H%M")
     return FileResponse(
@@ -68,6 +76,7 @@ def restore_status(current_user: User = Depends(get_current_user)) -> dict:
 def stage_restore(
     file: UploadFile = File(...),
     confirm: str = Form(""),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     _require_admin(current_user)
@@ -86,14 +95,22 @@ def stage_restore(
         shutil.move(str(tmp), str(target))
     finally:
         tmp.unlink(missing_ok=True)
+    audit(db, "backup.restore_staged", user_id=current_user.id,
+          username=current_user.username, details=summary)
     log.warning("Restore staged by %s: %s", current_user.username, summary)
     return {"staged": True, "requires_restart": True, "summary": summary}
 
 
 @router.delete("/restore")
-def unstage_restore(current_user: User = Depends(get_current_user)) -> dict:
+def unstage_restore(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
     _require_admin(current_user)
     staged = staged_path(settings.data_dir)
     existed = staged.is_file()
     staged.unlink(missing_ok=True)
+    if existed:
+        audit(db, "backup.restore_cancelled", user_id=current_user.id,
+              username=current_user.username)
     return {"ok": True, "was_staged": existed}
