@@ -18,6 +18,10 @@ All notable changes to Tome are documented here. Format loosely follows
   the ribbon is also available as a regular tile in the dashboard gallery.
 
 ### Added
+- **Command palette.** Press Cmd+K (Ctrl+K) anywhere to jump straight to a
+  book, series, author, or page — full-text book search with covers, ranked
+  series/author matches, and quick navigation, all keyboard-driven. Listed
+  under "?" shortcuts help.
 - **Upload knows what you already have.** Files added to the upload dialog are
   hashed in the browser and checked against the library before anything is
   sent — exact duplicates get an "already in your library" note with a link to
