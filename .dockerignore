@@ -17,4 +17,6 @@ docs
 tests
 scripts
 *.md
+# …except the changelog — the What's-New panel serves it at runtime
+!CHANGELOG.md
 !pyproject.toml
