@@ -38,11 +38,44 @@ interface SharedStats {
   activity: { date: string; seconds: number }[]
 }
 
+interface SharedArc {
+  name: string
+  start_index: number
+  end_index: number
+  description: string | null
+}
+
+interface SharedSeries {
+  author: string | null
+  description: string | null
+  status: string | null
+  rating: number | null
+  arcs: SharedArc[]
+}
+
 interface ShareResponse {
   kind: 'shelf' | 'series' | 'book'
   title: string
   totals: { books: number; read: number; total_seconds: number }
   books: SharedBook[]
+  series?: SharedSeries
+}
+
+/** Group a series' volumes into arc sections (same rule as the app's series
+ *  page: a volume belongs to the arc whose index range contains it). */
+function groupByArc(books: SharedBook[], arcs: SharedArc[]): { arc: SharedArc | null; books: SharedBook[] }[] {
+  const used = new Set<number>()
+  const groups: { arc: SharedArc | null; books: SharedBook[] }[] = []
+  for (const arc of arcs) {
+    const members = books.filter(b =>
+      b.series_index != null && !used.has(b.id) &&
+      b.series_index >= arc.start_index && b.series_index <= arc.end_index)
+    members.forEach(b => used.add(b.id))
+    if (members.length) groups.push({ arc, books: members })
+  }
+  const rest = books.filter(b => !used.has(b.id))
+  if (rest.length) groups.push({ arc: null, books: rest })
+  return groups
 }
 
 function fmtDuration(seconds: number): string {
@@ -254,8 +287,63 @@ export function SharePage() {
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-6">
+        {data.kind === 'series' && data.series && (
+          <section className="mb-6 rounded-xl border border-border bg-card p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-xl text-foreground">{data.title}</h2>
+              {data.series.status && (
+                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
+                  {data.series.status}
+                </span>
+              )}
+            </div>
+            {data.series.author && (
+              <p className="mt-0.5 text-sm text-muted-foreground">{data.series.author}</p>
+            )}
+            {data.series.rating != null && (
+              <div className="mt-1.5"><Rating value={data.series.rating} /></div>
+            )}
+            <p className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>
+                {data.totals.read} read · {data.totals.books - data.totals.read} unread
+                {data.totals.total_seconds > 0 ? ` · ${fmtDuration(data.totals.total_seconds)}` : ''}
+              </span>
+              <span>{data.totals.books} volumes</span>
+            </p>
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${data.totals.books ? (data.totals.read / data.totals.books) * 100 : 0}%` }}
+              />
+            </div>
+            {data.series.description && (
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{data.series.description}</p>
+            )}
+          </section>
+        )}
         {data.books.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">This shelf is empty.</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">Nothing here yet.</p>
+        ) : data.kind === 'series' && data.series && data.series.arcs.length > 0 ? (
+          groupByArc(data.books, data.series.arcs).map((g, gi) => (
+            <section key={gi} className="mb-6">
+              <div className="mb-2 flex items-baseline gap-2 border-b border-border/60 pb-1.5">
+                <h3 className="font-display text-sm text-foreground">
+                  {g.arc ? g.arc.name : 'Other volumes'}
+                </h3>
+                {g.arc && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Vol. {g.arc.start_index}–{g.arc.end_index}
+                  </span>
+                )}
+              </div>
+              {g.arc?.description && (
+                <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{g.arc.description}</p>
+              )}
+              <ul className="flex flex-col gap-3">
+                {g.books.map(b => <SharedBookCard key={b.id} b={b} />)}
+              </ul>
+            </section>
+          ))
         ) : (
           <ul className="flex flex-col gap-3">
             {data.books.map(b => (

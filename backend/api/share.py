@@ -242,7 +242,7 @@ def public_share(
     seen: set[int] = set()
     unique = [b for b in books if not (b.id in seen or seen.add(b.id))]
     serialized = _serialize_books(db, owner, unique)
-    return {
+    out = {
         "kind": kind,
         "title": title,
         "totals": {
@@ -251,6 +251,43 @@ def public_share(
             "total_seconds": sum((b["stats"] or {}).get("total_seconds", 0) for b in serialized),
         },
         "books": serialized,
+    }
+    if kind == "series":
+        out["series"] = _series_context(db, owner, title, unique)
+    return out
+
+
+def _series_context(db: Session, owner: User, name: str, books: list) -> dict:
+    """Series-level metadata for the public page — status, arcs (name, range,
+    description), the vol-1 description, and the owner's series rating. All
+    curation, no content."""
+    from backend.models.series_meta import Arc, SeriesMeta
+    from backend.models.user_series_rating import UserSeriesRating
+
+    meta = db.query(SeriesMeta).filter(SeriesMeta.series_name == name).first()
+    arcs = (
+        db.query(Arc)
+        .filter(Arc.series_name == name)
+        .order_by(Arc.start_index)
+        .all()
+    )
+    rating_row = (
+        db.query(UserSeriesRating)
+        .filter(UserSeriesRating.user_id == owner.id,
+                UserSeriesRating.series_name == name)
+        .first()
+    )
+    first = books[0] if books else None
+    return {
+        "author": first.author if first else None,
+        "description": first.description if first else None,
+        "status": meta.status if meta else None,
+        "rating": rating_row.rating if rating_row else None,
+        "arcs": [
+            {"name": a.name, "start_index": a.start_index,
+             "end_index": a.end_index, "description": a.description}
+            for a in arcs
+        ],
     }
 
 

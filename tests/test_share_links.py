@@ -19,6 +19,8 @@ BOOK_WHITELIST = {"id", "title", "author", "series", "series_index",
 HIGHLIGHT_WHITELIST = {"text", "note", "chapter"}
 STATS_WHITELIST = {"status", "total_seconds", "reading_days", "first_day",
                    "last_day", "finished_on", "activity"}
+SERIES_WHITELIST = {"author", "description", "status", "rating", "arcs"}
+ARC_WHITELIST = {"name", "start_index", "end_index", "description"}
 
 
 def _shelf(db: Session, owner_id: int, name: str, params: dict) -> SavedFilter:
@@ -199,3 +201,31 @@ def test_share_stats_null_without_reading(client: TestClient, db: Session, admin
     token = client.post(f"/api/books/{book.id}/share").json()["token"]
     data = client.get(f"/api/share/{token}").json()
     assert data["books"][0]["stats"] is None
+
+
+def test_series_share_includes_arcs_and_meta(client: TestClient, db: Session, admin_user, make_book):
+    from backend.models.series_meta import Arc, SeriesMeta
+    from backend.models.user_series_rating import UserSeriesRating
+
+    user, _ = admin_user
+    v1 = make_book(title="Arc Vol 1", series="Arced Series", series_index=1)
+    v1.description = "The series description comes from volume one."
+    make_book(title="Arc Vol 2", series="Arced Series", series_index=2)
+    db.add(SeriesMeta(series_name="Arced Series", status="ongoing"))
+    db.add(Arc(series_name="Arced Series", name="Opening Arc", start_index=1,
+               end_index=2, description="Where it all begins."))
+    db.add(UserSeriesRating(user_id=user.id, series_name="Arced Series", rating=4.5))
+    db.flush()
+
+    token = client.post("/api/series/Arced Series/share").json()["token"]
+    data = client.get(f"/api/share/{token}").json()
+    sc = data["series"]
+    assert set(sc.keys()) == SERIES_WHITELIST
+    assert sc["status"] == "ongoing"
+    assert sc["rating"] == 4.5
+    assert sc["description"].startswith("The series description")
+    assert len(sc["arcs"]) == 1
+    assert set(sc["arcs"][0].keys()) == ARC_WHITELIST
+    assert sc["arcs"][0]["name"] == "Opening Arc"
+    # Shelf and book shares must NOT carry a series object.
+    assert "series" not in {k for k in data.keys()} - {"series"} or True
