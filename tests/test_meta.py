@@ -44,8 +44,14 @@ def test_parse_matches_version_section():
     assert all("Older thing" not in (e["title"] + e["body"]) for e in entries)
 
 
-def test_parse_falls_back_to_unreleased():
-    entries = meta.parse_changelog_section(SAMPLE, "9.9.9")
+def test_parse_no_fallback_by_default():
+    # A release cut without its changelog section must show NOTHING — the
+    # panel never leaks [Unreleased] content for a version that shipped.
+    assert meta.parse_changelog_section(SAMPLE, "9.9.9") == []
+
+
+def test_parse_unreleased_fallback_is_opt_in():
+    entries = meta.parse_changelog_section(SAMPLE, "9.9.9", unreleased_fallback=True)
     assert len(entries) == 1
     assert entries[0]["title"] == "Unreleased thing."
 

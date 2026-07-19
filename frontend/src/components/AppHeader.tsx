@@ -89,7 +89,7 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         value={value}
         onChange={e => onChange(e.target.value)}
       />
-      {value && (
+      {value ? (
         <button
           type="button"
           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -98,6 +98,12 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         >
           <X className="w-3.5 h-3.5" />
         </button>
+      ) : (
+        // Discoverability for the command palette — nothing else in the UI
+        // hints that it exists. Hidden on phones (no hardware keyboard).
+        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground sm:block">
+          ⌘K
+        </kbd>
       )}
     </>
   )

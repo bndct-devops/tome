@@ -1543,31 +1543,44 @@ export function SettingsPage() {
 
         {/* ── About ────────────────────────────────────────────────────── */}
         <section>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
-            <Info className="w-3.5 h-3.5 shrink-0" />
-            <span>Tome v{tomeVersion}</span>
-            <span>&middot;</span>
-            <a
-              href="https://github.com/bndct-devops/tome"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-muted-foreground transition-colors"
-            >
-              GitHub
-            </a>
-            {updateInfo && (
-              <>
-                <span>&middot;</span>
+          <SectionHeader title="About" subtle />
+          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2.5">
+                <Info className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-semibold text-foreground">Tome</span>
+                <span className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                  v{tomeVersion}
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                {updateInfo && (
+                  <a
+                    href={updateInfo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+                  >
+                    <ArrowUpCircle className="w-3.5 h-3.5" />
+                    Update to v{updateInfo.latest}
+                  </a>
+                )}
                 <a
-                  href={updateInfo.url}
+                  href="https://github.com/bndct-devops/tome"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
                 >
-                  <ArrowUpCircle className="w-3.5 h-3.5" />
-                  v{updateInfo.latest} available
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  GitHub
                 </a>
-              </>
+              </div>
+            </div>
+            {updateInfo && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                A newer release is available — the link opens the release notes.
+                Update by pulling the new image and restarting the container.
+              </p>
             )}
           </div>
         </section>

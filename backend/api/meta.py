@@ -32,10 +32,14 @@ GITHUB_RELEASES_URL = "https://github.com/bndct-devops/tome/releases"
 _CHANGELOG = Path(__file__).resolve().parents[2] / "CHANGELOG.md"
 
 
-def parse_changelog_section(text: str, version: str) -> list[dict]:
-    """Entries of the ``## [version]`` section (or ``## [Unreleased]`` if that
-    version has no section — dev builds). Each ``- **Title.** body`` bullet
-    becomes {kind, title, body}; continuation lines fold into the body."""
+def parse_changelog_section(text: str, version: str,
+                            unreleased_fallback: bool = False) -> list[dict]:
+    """Entries of the ``## [version]`` section. Each ``- **Title.** body``
+    bullet becomes {kind, title, body}; continuation lines fold into the body.
+
+    ``unreleased_fallback`` is opt-in and NOT used by the endpoint: the panel
+    must only ever show notes for the version actually running — a release cut
+    without its changelog section shows nothing, never [Unreleased] content."""
     lines = text.splitlines()
     section: list[str] = []
     in_section = False
@@ -48,7 +52,7 @@ def parse_changelog_section(text: str, version: str) -> list[dict]:
             continue
         if in_section:
             section.append(line)
-    if not section and version != "Unreleased":
+    if not section and unreleased_fallback and version != "Unreleased":
         return parse_changelog_section(text, "Unreleased")
 
     entries: list[dict] = []

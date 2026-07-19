@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth, isMember } from '@/contexts/AuthContext'
+import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import { Sidebar } from '@/components/Sidebar'
@@ -45,6 +46,30 @@ export function AppShell({
     navigate(q ? `/?tab=books&q=${encodeURIComponent(q)}` : '/?tab=books')
   }
 
+  // Live preview under the box: the dashboard's search filters its grid as you
+  // type, but on these pages Enter used to be the only feedback. A dropdown of
+  // top matches keeps focus in the box (auto-navigating mid-typing would steal
+  // keystrokes); Enter still opens the full filtered grid.
+  const [searchPreview, setSearchPreview] = useState<
+    { id: number; title: string; author: string | null }[]
+  >([])
+  useEffect(() => {
+    const q = searchInput.trim()
+    if (!q) {
+      setSearchPreview([])
+      return
+    }
+    const t = setTimeout(() => {
+      api
+        .get<{ id: number; title: string; author: string | null }[]>(
+          `/books?q=${encodeURIComponent(q)}&limit=6`,
+        )
+        .then(r => setSearchPreview(Array.isArray(r) ? r : []))
+        .catch(() => {})
+    }, 250)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
   // "/" focuses the search — same shortcut the dashboard's box advertises.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -70,13 +95,44 @@ export function AppShell({
       <AppHeader
         onMenuClick={() => setMobileSidebarOpen(true)}
         search={
-          <HeaderSearch
-            value={searchInput}
-            onChange={setSearchInput}
-            onClear={() => setSearchInput('')}
-            onSubmit={submitSearch}
-            inputRef={searchInputRef}
-          />
+          <div className="relative flex-1 sm:max-w-md">
+            <HeaderSearch
+              value={searchInput}
+              onChange={setSearchInput}
+              onClear={() => setSearchInput('')}
+              onSubmit={submitSearch}
+              inputRef={searchInputRef}
+            />
+            {searchInput.trim() && searchPreview.length > 0 && (
+              <div className="absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-border bg-card shadow-xl">
+                {searchPreview.map(b => (
+                  <button
+                    key={b.id}
+                    onClick={() => { setSearchInput(''); navigate(`/books/${b.id}`) }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted"
+                  >
+                    <img
+                      src={`/api/books/${b.id}/cover`}
+                      alt=""
+                      className="h-9 w-6 shrink-0 rounded-sm object-cover"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-foreground">{b.title}</span>
+                      {b.author && (
+                        <span className="block truncate text-xs text-muted-foreground">{b.author}</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => navigate(`/?tab=books&q=${encodeURIComponent(searchInput.trim())}`)}
+                  className="w-full border-t border-border px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  See all results for &quot;{searchInput.trim()}&quot;
+                </button>
+              </div>
+            )}
+          </div>
         }
         actions={actions}
         onUploadClick={isMember(user) ? () => setUploadOpen(true) : undefined}
