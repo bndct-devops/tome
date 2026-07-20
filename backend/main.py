@@ -341,6 +341,13 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=backfill_missing_raw_hashes, daemon=True,
                      name="ko-hash-backfill").start()
 
+    # One-shot repair of KOReader-history matches the pre-volume-guard fuzzy
+    # matcher attributed to the wrong sibling volume (issue #152). Idempotent:
+    # corrected rows no longer qualify, so later startups are no-ops.
+    from backend.services.ko_stats_import import repair_fuzzy_matches_startup
+    threading.Thread(target=repair_fuzzy_matches_startup, daemon=True,
+                     name="ko-stats-repair").start()
+
     release_task: asyncio.Task | None = None
     if settings.release_detection:
         logger.info("Release detection enabled — checking follows every %d seconds",

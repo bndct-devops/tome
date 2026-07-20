@@ -13,6 +13,7 @@ onto one book.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -28,6 +29,8 @@ from backend.models.book import Book, BookFile
 from backend.services.ko_hash import lookup_book_ids
 from backend.models.ko_stats import KoStatsBookMatch, PageStat, StatsImport
 
+logger = logging.getLogger(__name__)
+
 # NOTE: the import deliberately does NOT write Tome read-status (read/reading/finished).
 # Status is user-curation, not telemetry — a fuzzy match plus possibly-incomplete history
 # must not flip a hard, library-wide flag. KOReader data feeds *time & pages* only; status
@@ -35,7 +38,12 @@ from backend.models.ko_stats import KoStatsBookMatch, PageStat, StatsImport
 
 # ── Title parsing / normalization ─────────────────────────────────────────────
 
-_VOL_RE = re.compile(r"\b(?:vol(?:ume)?\.?|book|tome|part)\s*0*(\d+)\b", re.I)
+# Decimal capture so "Vol. 2.5" stays 2.5 instead of truncating to 2 (the
+# resolve endpoint made the same call) — a half-volume is a different book.
+_VOL_RE = re.compile(r"\b(?:vol(?:ume)?\.?|book|tome|part)\s*0*(\d+(?:\.\d+)?)\b", re.I)
+# French-style tome abbreviation ("Série T2" / "Série T.2"). Bounded to 1-3
+# digits so a standalone "T 1927" year can't be misread as a volume.
+_VOL_T_RE = re.compile(r"\bt\.?\s*0*(\d{1,3})\b", re.I)
 _MID_RE = re.compile(r"(.*?)\s+0*(\d{1,3})\s*[-–]\s+\S")   # "Series 01 - Subtitle"
 _TRAIL_RE = re.compile(r"(.*?)[\s,:–-]+0*(\d{1,3})\s*$")    # "Series 05" / "Series - 02"
 
@@ -63,18 +71,23 @@ def _author_key(a: str) -> str:
     return re.sub(r"[^a-z ]", " ", a).strip()
 
 
-def parse_ko_title(title: str) -> tuple[str, Optional[int]]:
-    """-> (normalized base, volume:int|None)."""
+def parse_ko_title(title: str) -> tuple[str, Optional[float]]:
+    """-> (normalized base, volume:float|None). Volumes are floats so 2.5
+    (half-volumes) survive; integer volumes compare equal to their int form."""
     t = _strip_paren(title or "")
-    vol: Optional[int] = None
+    vol: Optional[float] = None
     m = _VOL_RE.search(t)
+    mt = _VOL_T_RE.search(t)
     if m:
-        vol = int(m.group(1))
+        vol = float(m.group(1))
         base = _VOL_RE.sub(" ", t)
+    elif mt:
+        vol = float(mt.group(1))
+        base = _VOL_T_RE.sub(" ", t)
     elif _MID_RE.match(t):
-        m3 = _MID_RE.match(t); base, vol = m3.group(1), int(m3.group(2))
+        m3 = _MID_RE.match(t); base, vol = m3.group(1), float(m3.group(2))
     elif _TRAIL_RE.match(t):
-        m2 = _TRAIL_RE.match(t); base, vol = m2.group(1), int(m2.group(2))
+        m2 = _TRAIL_RE.match(t); base, vol = m2.group(1), float(m2.group(2))
     else:
         base = t
     return _norm(_desub(base)), vol
@@ -108,6 +121,19 @@ def _basename(p: str) -> str:
     return os.path.basename((p or "").replace("\\", "/")).strip().lower()
 
 
+def _candidate_volumes(c: BookCandidate) -> set[float]:
+    """Every volume number a candidate credibly claims: its ``series_index``
+    and any volume parsed out of its own title. Empty set = no volume signal
+    (standalones, distinct-title volumes)."""
+    vols: set[float] = set()
+    if c.series_index is not None:
+        vols.add(float(c.series_index))
+    title_vol = parse_ko_title(c.title or "")[1]
+    if title_vol is not None:
+        vols.add(title_vol)
+    return vols
+
+
 def match_book(
     candidates: list[BookCandidate],
     ko_title: str,
@@ -127,12 +153,13 @@ def match_book(
     kauth = _author_key(ko_authors or "")
     knt = _norm(_desub(ko_title or ""))
 
-    # Pre-index candidates by (norm series, int index) and norm title.
-    series_vol: dict[tuple[str, int], list[BookCandidate]] = {}
+    # Pre-index candidates by (norm series, float index) and norm title.
+    # Float keys so half-volumes (2.5) are exact-matchable like integers.
+    series_vol: dict[tuple[str, float], list[BookCandidate]] = {}
     series_names: set[str] = set()
     for c in candidates:
-        if c.series and c.series_index is not None and float(c.series_index).is_integer():
-            key = (_norm(c.series), int(c.series_index))
+        if c.series and c.series_index is not None:
+            key = (_norm(c.series), float(c.series_index))
             series_vol.setdefault(key, []).append(c)
             series_names.add(_norm(c.series))
 
@@ -160,7 +187,19 @@ def match_book(
             parsed_vol_candidate = True
 
     # Layer 3: plain title fuzzy (distinct-title volumes like "Dungeon Mauling").
+    # A parsed KO volume is authoritative here too (issue #152): sibling volumes
+    # whose titles differ only in the digit ("… Book 2" vs "… Book 5") score
+    # 0.95+, and same-titled series volumes score 1.0 after de-subtitling — so a
+    # volume Tome doesn't own would strong-match a sibling and silently import
+    # a whole book's reading history onto it. A candidate claiming a different
+    # volume (via series_index or its own title) is excluded; candidates with no
+    # volume signal stay eligible so standalones and distinct-title volumes
+    # still match. Better parked-unmatched than confidently wrong.
     for c in candidates:
+        if kvol is not None:
+            cvols = _candidate_volumes(c)
+            if cvols and kvol not in cvols:
+                continue
         r = SequenceMatcher(None, knt, _norm(_desub(c.title or ""))).ratio()
         if r > best:
             best, best_c = r, c
@@ -353,3 +392,166 @@ def import_batch(
         "page_rows_skipped": len(rows) - imported,
         "watermark": max_start,
     }
+
+
+# ── Startup repair: re-verify stored fuzzy matches (issue #152) ───────────────
+
+def repair_fuzzy_matches(db: Session) -> dict:
+    """Re-run the (volume-guarded) matcher over every stored fuzzy match and
+    clean up the fallout of matches the old matcher got wrong.
+
+    Before the Layer-3 volume guard, a volume Tome doesn't own could
+    strong-match a sibling volume and import a whole book's page-stats onto it
+    (issue #152: vol 2's 20 h landed on the never-opened vol 5). The wrong
+    verdicts are recoverable because every fuzzy match row stores the KO title
+    and authors it was decided from.
+
+    For each non-confirmed ``method='fuzzy', status='matched'`` row, resolve it
+    again — hash first (deterministic, mirrors ``import_batch``), then the
+    fixed matcher. When the verdict changes, the row is updated and the
+    previously-matched book's page-stats are handled conservatively:
+
+    - If no other match row (for that user) still points at the old book, all
+      of its rows came from the bad match → delete them, reset the user's
+      device watermarks so the next sync re-uploads history under the fixed
+      rules, and notify the user.
+    - Otherwise the book mixes ghost and genuine rows, which cannot be told
+      apart (``total_pages`` shifts with device re-renders, so it can't
+      partition them) → keep everything and notify the user to use
+      "Clear imported history" on the book page if it looks wrong.
+
+    Idempotent: repaired rows no longer satisfy the filter, so the next
+    startup is a no-op. Never raises — callers run it fire-and-forget.
+    """
+    from backend.models.book import Book as _Book
+    from backend.models.notification import Notification
+    from backend.models.user import User
+
+    rows = (
+        db.query(KoStatsBookMatch)
+        .filter(
+            KoStatsBookMatch.method == "fuzzy",
+            KoStatsBookMatch.status == "matched",
+            KoStatsBookMatch.confirmed.is_(False),
+            KoStatsBookMatch.book_id.isnot(None),
+        )
+        .all()
+    )
+    result = {"checked": len(rows), "changed": 0, "pages_deleted": 0, "kept_mixed": 0}
+    if not rows:
+        return result
+
+    cand_cache: dict[int, tuple[list[BookCandidate], dict[str, int]]] = {}
+    # (user_id, old_book_id) pairs whose attribution was revoked — cleanup runs
+    # after every row is re-verdicted so "does anything else point at this
+    # book" sees the final state, not a half-updated one.
+    revoked: set[tuple[int, int]] = set()
+
+    for row in rows:
+        user = db.get(User, row.user_id)
+        if user is None:
+            continue
+        if user.id not in cand_cache:
+            cand_cache[user.id] = _load_candidates(db, user)
+        candidates, _path_index = cand_cache[user.id]
+
+        old_book_id = row.book_id
+        hash_hit = lookup_book_ids(db, [row.ko_md5]).get(row.ko_md5) if row.ko_md5 else None
+        if hash_hit is not None:
+            new_book_id, confidence, method, status = hash_hit, 1.0, "ko_hash", "matched"
+        else:
+            res = match_book(candidates, row.ko_title or "", row.ko_authors)
+            new_book_id = res.book_id if res.status == "matched" else None
+            confidence, method, status = res.confidence, res.method, res.status
+
+        if new_book_id == old_book_id and status == "matched":
+            continue  # the match still stands under the fixed rules
+
+        row.book_id = new_book_id
+        row.confidence = confidence
+        row.method = method
+        row.status = status
+        result["changed"] += 1
+        revoked.add((row.user_id, old_book_id))
+
+    db.flush()
+
+    for user_id, book_id in sorted(revoked):
+        pages = (
+            db.query(PageStat)
+            .filter(PageStat.user_id == user_id, PageStat.book_id == book_id)
+            .count()
+        )
+        if pages == 0:
+            continue
+        book = db.get(_Book, book_id)
+        title = book.title if book else "a deleted book"
+        # Only 'matched' rows ever imported pages — a parked review row also
+        # carries a book_id but contributed nothing, so it must not block cleanup.
+        other_sources = (
+            db.query(KoStatsBookMatch.id)
+            .filter(
+                KoStatsBookMatch.user_id == user_id,
+                KoStatsBookMatch.book_id == book_id,
+                KoStatsBookMatch.status == "matched",
+            )
+            .first()
+        )
+        if other_sources is None:
+            # The bad match was this book's only import source — every row is ghost.
+            db.query(PageStat).filter(
+                PageStat.user_id == user_id, PageStat.book_id == book_id
+            ).delete(synchronize_session=False)
+            # Full re-upload on next sync rebuilds anything the bad match starved
+            # (rows behind the watermark that now resolve elsewhere). Idempotent
+            # ingest makes the re-send a no-op for everything already correct.
+            db.query(StatsImport).filter(StatsImport.user_id == user_id).update(
+                {StatsImport.last_start_time_synced: 0}, synchronize_session=False
+            )
+            result["pages_deleted"] += pages
+            db.add(Notification(
+                user_id=user_id,
+                kind="stats_repair",
+                title=f'Removed misattributed reading history from "{title}"',
+                body=(
+                    "An earlier import matched another book's KOReader history to "
+                    "this book. The wrong entries were removed; your device will "
+                    "re-sync its history on the next connection."
+                ),
+                link=f"/books/{book_id}" if book else None,
+            ))
+        else:
+            result["kept_mixed"] += 1
+            db.add(Notification(
+                user_id=user_id,
+                kind="stats_repair",
+                title=f'Reading history on "{title}" may include another book\'s sessions',
+                body=(
+                    "An earlier import matched another book's KOReader history to "
+                    "this book, which also has correctly imported history. The two "
+                    "cannot be told apart automatically. If the numbers look wrong, "
+                    "use \"Clear imported history\" in the book's Reading Stats."
+                ),
+                link=f"/books/{book_id}" if book else None,
+            ))
+
+    db.commit()
+    return result
+
+
+def repair_fuzzy_matches_startup() -> None:
+    """Daemon-thread entry point: run the repair against a fresh session and
+    swallow everything — bookkeeping must never take the server down."""
+    from backend.core.database import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            result = repair_fuzzy_matches(db)
+        if result["changed"]:
+            logger.info(
+                "ko-stats repair: %(checked)d fuzzy matches checked, "
+                "%(changed)d corrected, %(pages_deleted)d ghost page-stats deleted, "
+                "%(kept_mixed)d mixed books kept for manual review", result,
+            )
+    except Exception:
+        logger.exception("ko-stats fuzzy-match repair failed")
