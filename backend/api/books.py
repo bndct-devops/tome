@@ -1412,6 +1412,60 @@ def add_manual_reading_session(
     return {"own": compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset)}
 
 
+@router.delete("/{book_id}/imported-history")
+def clear_imported_history(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete the current user's imported KOReader page-stats for one book.
+
+    The escape hatch for history the statistics import attributed to the wrong
+    book (issue #152) — cases the automatic repair refuses to touch because the
+    book mixes ghost and genuine rows. Scope is deliberately narrow: only
+    imported page-stats (the "Reading intensity" data), never live or manual
+    ReadingSessions, positions, or read-status — those have their own tooling.
+
+    Fuzzy match rows pointing at the book are reset to unmatched so future
+    syncs re-decide them under the volume-guarded matcher instead of re-filing
+    onto the same book. Hash/filename matches are left alone: their identity is
+    deterministic, so future reading of the book re-imports correctly — this
+    clears history, it does not disable tracking.
+    """
+    from backend.models.ko_stats import KoStatsBookMatch, PageStat
+
+    book = db.get(Book, book_id)
+    if not book or book.status != "active":
+        raise HTTPException(status_code=404, detail="Book not found")
+    if not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    deleted = (
+        db.query(PageStat)
+        .filter(PageStat.user_id == current_user.id, PageStat.book_id == book_id)
+        .delete(synchronize_session=False)
+    )
+    matches_reset = 0
+    fuzzy_matches = (
+        db.query(KoStatsBookMatch)
+        .filter(
+            KoStatsBookMatch.user_id == current_user.id,
+            KoStatsBookMatch.book_id == book_id,
+            KoStatsBookMatch.method == "fuzzy",
+        )
+        .all()
+    )
+    for m in fuzzy_matches:
+        m.book_id = None
+        m.status = "unmatched"
+        m.method = "none"
+        m.confidence = 0.0
+        matches_reset += 1
+
+    db.commit()
+    return {"pages_deleted": deleted, "matches_reset": matches_reset}
+
+
 # ── Single book ───────────────────────────────────────────────────────────────
 
 @router.get("/{book_id}", response_model=BookDetailOut)

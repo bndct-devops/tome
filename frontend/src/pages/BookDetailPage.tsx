@@ -783,7 +783,9 @@ export function BookDetailPage() {
                 onChange={refreshStats}
               />
             )}
-            {readingStats.intensity && <IntensityBlock data={readingStats.intensity} />}
+            {readingStats.intensity && (
+              <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
+            )}
             {readingStats.chapters && readingStats.chapters.length > 0 && (
               <ChapterTimesBlock chapters={readingStats.chapters} />
             )}
@@ -1522,9 +1524,18 @@ function SourceSplit({ sources }: { sources: { device: string; seconds: number; 
 
 // ── Reading intensity: per-page dwell across the book, from imported KOReader page-stats ─────
 
-function IntensityBlock({ data }: { data: BookIntensity }) {
+function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookId: number; onChange?: () => void }) {
   const max = Math.max(...data.curve, 1)
   const finished = data.pct_read >= 99
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const clearImported = () => {
+    setClearing(true)
+    api.delete(`/books/${bookId}/imported-history`)
+      .then(() => { setConfirmClear(false); onChange?.() })
+      .catch(() => {})
+      .finally(() => setClearing(false))
+  }
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -1532,13 +1543,45 @@ function IntensityBlock({ data }: { data: BookIntensity }) {
           <p className="font-display text-sm text-foreground">Reading intensity</p>
           <InfoHint text="Where in the book your time went — taller means more time spent on those pages." />
         </span>
-        <p className="text-xs text-muted-foreground">
-          <span className="font-medium tabular-nums text-foreground">{data.pages_read.toLocaleString()}</span>
-          {' '}of {data.total_pages.toLocaleString()} pages
-          {!finished && <span className="tabular-nums"> · {data.pct_read}%</span>}
-          {' · '}{formatDuration(data.total_seconds)} on device
-        </p>
+        <span className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium tabular-nums text-foreground">{data.pages_read.toLocaleString()}</span>
+            {' '}of {data.total_pages.toLocaleString()} pages
+            {!finished && <span className="tabular-nums"> · {data.pct_read}%</span>}
+            {' · '}{formatDuration(data.total_seconds)} on device
+          </p>
+          <button
+            type="button"
+            onClick={() => setConfirmClear(o => !o)}
+            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Clear imported history — remove this book's KOReader page data"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </span>
       </div>
+      {confirmClear && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded bg-muted/40 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            Remove all of this book&apos;s imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on.
+          </span>
+          <button
+            type="button"
+            onClick={clearImported}
+            disabled={clearing}
+            className="rounded border border-destructive/40 px-2 py-0.5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+          >
+            {clearing ? 'Clearing…' : 'Clear'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmClear(false)}
+            className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {/* Dwell across the book, 0% → 100%. Taller bar = more time spent there. */}
       <div className="mt-3 relative h-16">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />

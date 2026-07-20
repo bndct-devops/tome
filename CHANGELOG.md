@@ -7,6 +7,21 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Fixed
+- Imported KOReader reading history can no longer land on the wrong volume of
+  a series (#152). When a volume read on the device was missing from the Tome
+  library, the history importer's title matching could confidently attribute
+  its entire reading log to a sibling volume — hours of sessions and page
+  data on a book never opened. The matcher now treats a parsed volume number
+  as authoritative: a candidate claiming a different volume is never matched,
+  half-volumes (2.5) resolve exactly instead of truncating, and French-style
+  "T2" tome numbering is understood. History for a volume Tome doesn't own is
+  parked until the book exists rather than guessed onto a lookalike.
+- On update, previously mis-imported history heals itself: stored matches are
+  re-verified against the fixed rules on startup, ghost page data whose book
+  has no other import source is removed, the device re-syncs its history on
+  the next connection, and a notification explains what happened. Books where
+  wrong and genuine history are mixed are left untouched and flagged instead.
+
 - Chart tooltips on Reading Stats no longer detach from the cursor or hide
   behind neighbouring tiles (#151). The activity heatmap, the hour-by-day
   heatmap, and the timeline ribbon all rendered their hover tooltip inside
@@ -15,6 +30,11 @@ All notable changes to Tome are documented here. Format loosely follows
   and follow the mouse everywhere.
 
 ### Added
+- **Clear imported history per book.** The Reading intensity panel on a book
+  page grows a small trash action that removes the current user's imported
+  KOReader page data for that book — the manual escape hatch for mixed cases
+  the automatic repair deliberately leaves alone. Web and manual sessions are
+  unaffected, and reading the book on a device again re-imports from there on.
 - **Runaway reading sessions are over (KOReader plugin, build 37).** A device
   that never actually sleeps — a cover that fails to suspend it, or a reader
   who fell asleep mid-chapter — used to book the whole wall-clock span as
