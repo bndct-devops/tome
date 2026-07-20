@@ -52,6 +52,18 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     <em>what</em> you did to get there.
   </p>
 
+  <h3>Idle time cap</h3>
+  <p>
+    Session time is counted per page turn, and any single gap is credited at most the
+    <strong>idle time cap</strong> (default 10 minutes, adjustable under
+    <strong>TomeSync → Settings → Idle time cap</strong>, including off). If the device sits
+    awake without a page turn — you fell asleep over the book, or the cover didn't put it to
+    sleep — the time beyond the cap simply isn't booked, and the session ends at your last page
+    turn instead of whenever the device finally suspended. This is the same approach KOReader's
+    own statistics plugin takes, so a 15-minute bedtime read stays 15 minutes even if the
+    device stayed awake all night.
+  </p>
+
   <h3>Bidirectional position sync</h3>
   <p>
     Read on KOReader in bed, pick up on the web reader in the morning, come back to KOReader the

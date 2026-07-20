@@ -15,6 +15,7 @@ import {
 import { FileText, Trash2, Loader2, ChevronDown, BookOpen, ArrowUpDown, Scissors, TriangleAlert } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { InfoHint } from '@/components/InfoHint'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, HeatmapChart, type StatsResponse, type SessionEntry } from '@/components/stats/shared'
 
@@ -381,6 +382,7 @@ export function SessionLog({ bookId, onChange }: { bookId?: number; onChange?: (
           {trimId === s.id && (
             <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2 text-xs">
               <span className="text-muted-foreground">New duration</span>
+              <InfoHint text="Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace." />
               <input
                 type="number"
                 min={1}
