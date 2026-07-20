@@ -1,5 +1,5 @@
 // Library-tab stats widgets — chart/content-only, shared by StatsPage and the Lab.
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -18,6 +18,7 @@ import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { SessionLog } from '@/components/stats/widgets/overview'
 
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {
   if (!summary) {
@@ -177,6 +178,9 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
   const [sortKey, setSortKey] = useState<BookTimeSortKey>('seconds')
   const [sortAsc, setSortAsc] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // Per-book session drill-down (#150): expand a row to see, trim or delete
+  // that book's individual sessions without paging the global session log.
+  const [openBook, setOpenBook] = useState<number | null>(null)
 
   const handleSort = (key: BookTimeSortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc)
@@ -215,24 +219,43 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
             <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('pages_turned')}>
               <span className="inline-flex items-center gap-1">Pages <SortIcon col="pages_turned" /></span>
             </th>
+            <th className="w-8 py-2 px-2" />
           </tr>
         </thead>
         <tbody>
           {visible.map((b, idx) => (
-            <tr key={b.book_id} className={cn('hover:bg-accent/30 transition-colors', idx % 2 === 0 ? 'bg-muted/20' : '')}>
-              <td className="py-1.5 px-2">
-                <div className="w-8 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                  {b.has_cover ? <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" loading="lazy" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
-                </div>
-              </td>
-              <td className="py-1.5 px-2">
-                <a href={`/books/${b.book_id}`} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">{b.title}</a>
-              </td>
-              <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">{b.author || '--'}</td>
-              <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{formatDuration(b.seconds)}</td>
-              <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.sessions}</td>
-              <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.pages_turned}</td>
-            </tr>
+            <Fragment key={b.book_id}>
+              <tr className={cn('hover:bg-accent/30 transition-colors', idx % 2 === 0 ? 'bg-muted/20' : '')}>
+                <td className="py-1.5 px-2">
+                  <div className="w-8 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    {b.has_cover ? <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" loading="lazy" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
+                  </div>
+                </td>
+                <td className="py-1.5 px-2">
+                  <a href={`/books/${b.book_id}`} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">{b.title}</a>
+                </td>
+                <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">{b.author || '--'}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{formatDuration(b.seconds)}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.sessions}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.pages_turned}</td>
+                <td className="py-1.5 px-2">
+                  <button
+                    onClick={() => setOpenBook(openBook === b.book_id ? null : b.book_id)}
+                    className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    title={openBook === b.book_id ? 'Hide sessions' : 'Show sessions'}
+                  >
+                    <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', openBook === b.book_id && 'rotate-180')} />
+                  </button>
+                </td>
+              </tr>
+              {openBook === b.book_id && (
+                <tr>
+                  <td colSpan={7} className="px-2 pb-3 pt-1">
+                    <SessionLog bookId={b.book_id} />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>

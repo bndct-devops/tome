@@ -196,5 +196,10 @@ def test_build_bumped_for_rebake():
     # 1.10.0 / build 36 adds the Shelves browse axis: the device lists the
     # user's shelves and drills into their resolved book lists
     # (GET /tome-sync/{shelves,shelf-books}); mixed lists download per-book.
-    assert TOMESYNC_PLUGIN_BUILD >= 36
-    assert TOMESYNC_PLUGIN_SEMVER == "1.10.0"
+    # 1.11.0 / build 37 adds idle-capped session accounting (issue #150):
+    # active time accumulates per page turn with each gap credited at most
+    # the idle cap (default 10 min, configurable, 0 = off), so a device left
+    # awake unread no longer books wall-clock time; ended_at becomes the last
+    # activity plus the final credit rather than the eventual suspend.
+    assert TOMESYNC_PLUGIN_BUILD >= 37
+    assert TOMESYNC_PLUGIN_SEMVER == "1.11.0"

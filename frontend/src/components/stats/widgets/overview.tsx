@@ -12,7 +12,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-import { FileText, Trash2, Loader2, ChevronDown, BookOpen } from 'lucide-react'
+import { FileText, Trash2, Loader2, ChevronDown, BookOpen, ArrowUpDown, Scissors, TriangleAlert } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { useChartColors } from '@/lib/useChartAccent'
@@ -238,18 +238,24 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
 }
 
 // Paginated session log — same rows as the Stats page's "Recent Sessions" card,
-// without the card frame. Self-contained: fetches, paginates and deletes via the
-// API, so it works as a dashboard tile without pushing pagination state upward.
-export function SessionLog() {
+// without the card frame. Self-contained: fetches, paginates, deletes and trims
+// via the API, so it works as a dashboard tile without pushing state upward.
+// With `bookId` it becomes the per-book drill-down inside the time table (#150).
+export function SessionLog({ bookId }: { bookId?: number } = {}) {
   const [sessions, setSessions] = useState<SessionEntry[]>([])
   const [total, setTotal] = useState(0)
   const [loaded, setLoaded] = useState(0)
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState<Set<number>>(new Set())
+  const [sort, setSort] = useState<'recent' | 'longest'>('recent')
+  const [trimId, setTrimId] = useState<number | null>(null)
+  const [trimMinutes, setTrimMinutes] = useState('')
+  const [trimBusy, setTrimBusy] = useState(false)
 
   const load = (offset: number, replace: boolean) => {
     setLoading(true)
-    api.get<{ total: number; sessions: SessionEntry[] }>(`/stats/sessions?offset=${offset}&limit=20`)
+    const bookParam = bookId != null ? `&book_id=${bookId}` : ''
+    api.get<{ total: number; sessions: SessionEntry[] }>(`/stats/sessions?offset=${offset}&limit=20&sort=${sort}${bookParam}`)
       .then((res) => {
         setSessions((prev) => (replace ? res.sessions : [...prev, ...res.sessions]))
         setTotal(res.total)
@@ -260,7 +266,33 @@ export function SessionLog() {
   }
   useEffect(() => {
     load(0, true)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, bookId])
+
+  const openTrim = (s: SessionEntry) => {
+    setTrimId(s.id)
+    const preFill = s.suggested_seconds ?? s.duration_seconds ?? 60
+    setTrimMinutes(String(Math.max(1, Math.round(preFill / 60))))
+  }
+
+  const applyTrim = (s: SessionEntry) => {
+    const seconds = Math.round(Number(trimMinutes) * 60)
+    if (!Number.isFinite(seconds) || seconds < 60) return
+    setTrimBusy(true)
+    api.patch(`/stats/sessions/${s.id}`, { duration_seconds: seconds })
+      .then(() => {
+        setSessions((prev) =>
+          prev.map((row) =>
+            row.id === s.id
+              ? { ...row, duration_seconds: seconds, suspect: false, suggested_seconds: null }
+              : row,
+          ),
+        )
+        setTrimId(null)
+      })
+      .catch(() => {})
+      .finally(() => setTrimBusy(false))
+  }
 
   const deleteSession = (id: number) => {
     setDeleting((prev) => new Set(prev).add(id))
@@ -279,7 +311,17 @@ export function SessionLog() {
   }
   return (
     <div className="flex flex-col gap-0">
-      <div className="hidden sm:grid grid-cols-[1fr_120px_80px_80px_40px] gap-2 px-2 pb-2 text-[11px] font-medium text-muted-foreground border-b border-border">
+      <div className="flex justify-end pb-1">
+        <button
+          onClick={() => setSort(sort === 'recent' ? 'longest' : 'recent')}
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          title="Toggle sort order"
+        >
+          <ArrowUpDown className="w-3 h-3" />
+          {sort === 'recent' ? 'Newest first' : 'Longest first'}
+        </button>
+      </div>
+      <div className="hidden sm:grid grid-cols-[1fr_120px_90px_80px_60px] gap-2 px-2 pb-2 text-[11px] font-medium text-muted-foreground border-b border-border">
         <span>Book</span>
         <span>Date</span>
         <span>Duration</span>
@@ -287,37 +329,88 @@ export function SessionLog() {
         <span />
       </div>
       {sessions.map((s, idx) => (
-        <div
-          key={s.id}
-          className={cn(
-            'grid grid-cols-1 sm:grid-cols-[1fr_120px_80px_80px_40px] gap-1 sm:gap-2 px-2 py-2 items-center hover:bg-accent/30 transition-colors text-xs rounded',
-            idx % 2 === 0 ? 'bg-muted/20' : ''
-          )}
-        >
-          <div className="font-medium text-foreground truncate">
-            {s.book_id ? (
-              <a href={`/books/${s.book_id}`} className="hover:text-primary transition-colors">{s.book_title}</a>
-            ) : (
-              <span className="text-muted-foreground">{s.book_title}</span>
+        <div key={s.id}>
+          <div
+            className={cn(
+              'grid grid-cols-1 sm:grid-cols-[1fr_120px_90px_80px_60px] gap-1 sm:gap-2 px-2 py-2 items-center hover:bg-accent/30 transition-colors text-xs rounded',
+              idx % 2 === 0 ? 'bg-muted/20' : ''
             )}
+          >
+            <div className="font-medium text-foreground truncate">
+              {s.book_id ? (
+                <a href={`/books/${s.book_id}`} className="hover:text-primary transition-colors">{s.book_title}</a>
+              ) : (
+                <span className="text-muted-foreground">{s.book_title}</span>
+              )}
+            </div>
+            <div className="text-muted-foreground">
+              {s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
+            </div>
+            <div className="text-muted-foreground inline-flex items-center gap-1">
+              {s.duration_seconds != null ? formatDuration(s.duration_seconds) : '--'}
+              {s.suspect && (
+                <TriangleAlert
+                  className="w-3 h-3 text-warning shrink-0"
+                  aria-label="Unusually long session"
+                />
+              )}
+            </div>
+            <div className="text-muted-foreground truncate">{s.device || '--'}</div>
+            <div className="flex justify-end gap-0.5">
+              <button
+                onClick={() => (trimId === s.id ? setTrimId(null) : openTrim(s))}
+                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                title="Trim session"
+              >
+                <Scissors className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => deleteSession(s.id)}
+                disabled={deleting.has(s.id)}
+                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                title="Delete session"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="text-muted-foreground">
-            {s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
-          </div>
-          <div className="text-muted-foreground">
-            {s.duration_seconds != null ? formatDuration(s.duration_seconds) : '--'}
-          </div>
-          <div className="text-muted-foreground truncate">{s.device || '--'}</div>
-          <div className="flex justify-end">
-            <button
-              onClick={() => deleteSession(s.id)}
-              disabled={deleting.has(s.id)}
-              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-              title="Delete session"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {trimId === s.id && (
+            <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2 text-xs">
+              <span className="text-muted-foreground">New duration</span>
+              <input
+                type="number"
+                min={1}
+                value={trimMinutes}
+                onChange={(e) => setTrimMinutes(e.target.value)}
+                className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-right tabular-nums"
+              />
+              <span className="text-muted-foreground">min</span>
+              {s.suggested_seconds != null && (
+                <button
+                  onClick={() => setTrimMinutes(String(Math.max(1, Math.round(s.suggested_seconds! / 60))))}
+                  className="text-primary hover:text-primary/80 transition-colors"
+                  title="Your page turns at your usual reading pace"
+                >
+                  Suggested: {formatDuration(s.suggested_seconds)}
+                </button>
+              )}
+              <div className="ml-auto flex gap-1.5">
+                <button
+                  onClick={() => applyTrim(s)}
+                  disabled={trimBusy}
+                  className="rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  Trim
+                </button>
+                <button
+                  onClick={() => setTrimId(null)}
+                  className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ))}
       {loaded < total && (

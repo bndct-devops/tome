@@ -6,6 +6,29 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Runaway reading sessions are over (KOReader plugin, build 37).** A device
+  that never actually sleeps — a cover that fails to suspend it, or a reader
+  who fell asleep mid-chapter — used to book the whole wall-clock span as
+  reading, turning a 15-minute evening into an 8-hour session (#150). The
+  plugin now counts active reading the way KOReader's own statistics do:
+  each gap between page turns is credited at most an idle cap (10 minutes by
+  default, configurable in TomeSync settings, including off), and the session
+  ends at the last page turn rather than whenever the device finally slept.
+- **Trim a session instead of deleting it.** Sessions that idled — real
+  reading followed by hours of nothing — can now be shortened from the
+  Recent Sessions list: a scissors button opens a small editor, pre-filled
+  with a suggested duration computed from the session's page turns at your
+  own median reading pace, so the reading stays and the idle tail goes.
+  Suspicious sessions (implausibly long, or minutes per page turn) are
+  marked with a warning icon, the list can sort longest-first, and the
+  per-book time table on the Library tab expands per book to show, trim or
+  delete that book's sessions directly.
+- **A heads-up when a runaway session syncs.** Sessions arriving from older
+  plugin builds still get sanity-checked on the server: an implausibly long
+  one raises a bell notification pointing at Reading Stats, so a bad night
+  never silently distorts your numbers.
+
 ## [2.0.0] - 2026-07-19 - "Omnibus"
 
 ### Added
