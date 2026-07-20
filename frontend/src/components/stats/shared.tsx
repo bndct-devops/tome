@@ -1,6 +1,7 @@
 // Shared stats types + chrome, used by both the Stats page and the Stats Lab dashboard.
 // Extracted from StatsPage so the two render from a single source of truth (no drift).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 
@@ -235,15 +236,20 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
           }),
         )}
       </svg>
-      {tooltip && (
-        <div
-          className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
-          style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 180), top: tooltip.y - 44 }}
-        >
-          <div className="font-medium">{formatDate(tooltip.date)}</div>
-          <div className="text-muted-foreground">{formatDuration(tooltip.seconds)}</div>
-        </div>
-      )}
+      {tooltip &&
+        createPortal(
+          // Portaled to <body>: inside a dashboard tile an ancestor transform would
+          // re-anchor position:fixed to the tile and trap z-index in its stacking
+          // context, putting the tooltip far from the cursor and behind siblings.
+          <div
+            className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
+            style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 180), top: tooltip.y - 44 }}
+          >
+            <div className="font-medium">{formatDate(tooltip.date)}</div>
+            <div className="text-muted-foreground">{formatDuration(tooltip.seconds)}</div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

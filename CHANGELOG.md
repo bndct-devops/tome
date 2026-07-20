@@ -6,6 +6,14 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- Chart tooltips on Reading Stats no longer detach from the cursor or hide
+  behind neighbouring tiles (#151). The activity heatmap, the hour-by-day
+  heatmap, and the timeline ribbon all rendered their hover tooltip inside
+  the dashboard tile, where the grid's CSS transform re-anchored it and
+  clipped it under adjacent cards; tooltips now render at the document root
+  and follow the mouse everywhere.
+
 ## [2.0.0] - 2026-07-19 - "Omnibus"
 
 ### Added
