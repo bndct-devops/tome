@@ -23,6 +23,7 @@ from backend.services.streaks import reconciled_user_streaks
 from backend.services.reading_day import ROLLOVER_HOURS, date_modifier, effective_today, epoch_day
 from backend.services import reconciled_reading as rr
 from backend.services.audit import audit
+from backend.services.session_hygiene import is_suspect, median_secs_per_page, suggested_seconds
 
 router = APIRouter(tags=["stats"])
 
@@ -1225,15 +1226,32 @@ def get_reading_timeline(
 def list_sessions(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    book_id: Optional[int] = Query(None),
+    sort: str = Query("recent", pattern="^(recent|longest)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """List individual reading sessions for the current user, newest first."""
+    """List individual reading sessions for the current user.
+
+    ``sort=longest`` and the ``book_id`` filter exist so runaway sessions
+    (#150) are findable without paging through the whole history. Each row
+    carries ``suspect`` and, when computable, ``suggested_seconds`` — the
+    session's page turns re-priced at the user's median pace — feeding the
+    trim dialog's pre-fill.
+    """
     base = (
         db.query(ReadingSession)
         .filter(ReadingSession.user_id == current_user.id)
     )
+    if book_id is not None:
+        base = base.filter(ReadingSession.book_id == book_id)
     total = base.count()
+    order = (
+        ReadingSession.duration_seconds.desc()
+        if sort == "longest"
+        else ReadingSession.started_at.desc()
+    )
+    median_pace = median_secs_per_page(db, current_user.id)
     rows = (
         base
         .outerjoin(Book, Book.id == ReadingSession.book_id)
@@ -1249,7 +1267,7 @@ def list_sessions(
             ReadingSession.progress_start,
             ReadingSession.progress_end,
         )
-        .order_by(ReadingSession.started_at.desc())
+        .order_by(order)
         .offset(offset)
         .limit(limit)
         .all()
@@ -1268,6 +1286,10 @@ def list_sessions(
                 "device": r.device,
                 "progress_start": r.progress_start,
                 "progress_end": r.progress_end,
+                "suspect": is_suspect(r.duration_seconds, r.pages_turned),
+                "suggested_seconds": suggested_seconds(
+                    r.duration_seconds, r.pages_turned, median_pace
+                ),
             }
             for r in rows
         ],
@@ -1295,6 +1317,51 @@ def delete_session(
     audit(db, "session.deleted", user_id=current_user.id, username=current_user.username,
           resource_type="reading_session", resource_id=session_id, details=details)
     return {"ok": True}
+
+
+class TrimSessionRequest(BaseModel):
+    duration_seconds: int
+
+
+@router.patch("/stats/sessions/{session_id}")
+def trim_session(
+    session_id: int,
+    body: TrimSessionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Shorten a runaway session (#150) without losing the reading it started
+    with — a 15-minute read that idled for 8 hours trims back to 15 minutes.
+
+    Trim only: the new duration must be shorter than the recorded one. This
+    is a cleanup tool for idle time, not a session editor. ``ended_at`` moves
+    back with it so the session's wall span matches the reading."""
+    session = (
+        db.query(ReadingSession)
+        .filter(ReadingSession.id == session_id, ReadingSession.user_id == current_user.id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.duration_seconds is None:
+        raise HTTPException(status_code=400, detail="Session has no duration to trim")
+    if body.duration_seconds < 1:
+        raise HTTPException(status_code=400, detail="Duration must be positive")
+    if body.duration_seconds >= session.duration_seconds:
+        raise HTTPException(status_code=400, detail="Trim can only shorten a session")
+
+    details = {
+        "book_id": session.book_id,
+        "seconds_before": session.duration_seconds,
+        "seconds_after": body.duration_seconds,
+    }
+    session.duration_seconds = body.duration_seconds
+    if session.started_at is not None:
+        session.ended_at = session.started_at + timedelta(seconds=body.duration_seconds)
+    db.commit()
+    audit(db, "session.trimmed", user_id=current_user.id, username=current_user.username,
+          resource_type="reading_session", resource_id=session_id, details=details)
+    return {"ok": True, "duration_seconds": body.duration_seconds}
 
 
 # ── Dashboard persistence ────────────────────────────────────────────────────

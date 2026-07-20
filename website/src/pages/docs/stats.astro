@@ -81,6 +81,34 @@ import { withBase } from '../../lib/path'
     statuses, ratings, reviews, and finish dates you already have are never overwritten.
   </p>
 
+  <h2>Fixing a runaway session</h2>
+  <p>
+    A device that never actually went to sleep can sync a session hours longer than the reading
+    it contains — 15 minutes of pages, then a night of idle screen. The
+    <a href={withBase("/docs/koreader")}>TomeSync plugin</a> prevents this at the source with its
+    idle time cap, but sessions from older plugin builds (or other clients) are sanity-checked
+    on arrival: anything implausibly long, or averaging many minutes per page turn, is flagged
+    with a warning icon and raises a bell notification.
+  </p>
+  <p>
+    Any session list lets you fix one: <strong>trim</strong> (the scissors icon) shortens the
+    session to what you actually read, while delete removes it entirely. The trim editor
+    pre-fills a suggestion — the session's own page turns priced at your median seconds-per-page,
+    computed from your recent plausible sessions so the runaways can't skew their own baseline.
+    It's only ever a pre-fill; nothing is changed until you confirm. Session lists live in three
+    places: the <strong>Recent Sessions</strong> tile (sortable longest-first), the per-book
+    time table on the Library board, and a collapsible <strong>Sessions</strong> section under
+    Reading Stats on every book page — so they stay reachable even if you've removed the tiles
+    from your dashboard.
+  </p>
+
+  <Callout variant="info" title="Nothing else is touched">
+    Trimming rewrites exactly two fields on that one session — its duration and end time. Page
+    turns, progress, start time, device, other sessions, and imported KOReader history are all
+    untouched, and the previous duration is recorded in the audit log, so a trim is never a
+    silent loss of data.
+  </Callout>
+
   <h2>Overview board</h2>
   <p>
     The "where am I right now?" board. Designed to be glanceable. Like every section below,

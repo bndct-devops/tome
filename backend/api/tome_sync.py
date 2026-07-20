@@ -33,6 +33,7 @@ from backend.models.ko_stats import StatsImport
 from backend.models.send_queue import SendQueueItem
 from backend.services.book_progress import apply_progress_to_status, upsert_position
 from backend.services.hardcover_sync import nudge as hardcover_nudge
+from backend.services.session_hygiene import is_suspect, notify_suspect_session
 from backend.services.audit import audit
 
 router = APIRouter(tags=["tome-sync"])
@@ -74,8 +75,8 @@ logger = logging.getLogger(__name__)
 # bypassing wifi_enable_action so "prompt" never dialogs onto the sleep
 # screen). onNetworkConnected also runs the history backfill now (was
 # launch-only) and no longer requires an open book to flush pending state.
-TOMESYNC_PLUGIN_BUILD = 36
-TOMESYNC_PLUGIN_SEMVER = "1.10.0"
+TOMESYNC_PLUGIN_BUILD = 37
+TOMESYNC_PLUGIN_SEMVER = "1.11.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -461,6 +462,11 @@ def post_session(
         apply_progress_to_status(
             db, user_id=user.id, book_id=body.book_id, pct=body.progress_end,
         )
+
+    # Old plugin builds (< 37) book wall-clock time when a device sits awake
+    # unread — flag implausible sessions so the user can trim them (#150).
+    if is_suspect(body.duration_seconds, body.pages_turned):
+        notify_suspect_session(db, user.id, book.title, body.duration_seconds or 0)
 
     db.commit()
     db.refresh(session)
@@ -1727,6 +1733,10 @@ local SWEEP_EXTS = {{ epub = true, pdf = true, cbz = true, cbr = true, mobi = tr
 -- ── HTTP client ──────────────────────────────────────────────────────────────
 
 local HEARTBEAT_PAGES = 50
+-- Longest credible gap between page turns. Anything beyond it is idle time
+-- (device left awake, reader asleep) and is not booked to the session. The
+-- user can change or disable this in settings; 0 = off.
+local IDLE_CAP_DEFAULT_MINUTES = 10
 local PLUGIN_VERSION  = "{TOMESYNC_PLUGIN_VERSION}"
 local BUILD           = {TOMESYNC_PLUGIN_BUILD}      -- monotonic; the only thing compared
 local SEMVER          = "{TOMESYNC_PLUGIN_SEMVER}"   -- human-facing display only
@@ -1747,6 +1757,13 @@ end
 local function deviceName()
     local ok, name = pcall(function() return Device:getFriendlyDeviceName() end)
     return (ok and name) or "KOReader"
+end
+
+local function idleCapSeconds()
+    local mins = G_reader_settings:readSetting("tomesync_idle_cap_minutes")
+    if mins == nil then mins = IDLE_CAP_DEFAULT_MINUTES end
+    if mins == 0 then return math.huge end
+    return mins * 60
 end
 
 local function apiRequest(method, path, body)
@@ -2050,6 +2067,8 @@ function TomeSync:init()
     self.book_id        = nil
     self.session_start  = nil
     self.page_count     = 0
+    self.active_seconds = 0
+    self.last_activity  = nil
     self.progress_start = nil
     self.last_progress  = nil
     self.enabled        = true
@@ -2327,6 +2346,7 @@ function TomeSync:onPageUpdate(pageno)
         return
     end
 
+    self:_creditActivity(os.time())
     self.page_count = self.page_count + 1
     -- Idle-debounced heartbeat: reaching the page threshold ARMS the push, and
     -- every further turn re-delays it — the HTTP call runs 10s after the LAST
@@ -2337,6 +2357,31 @@ function TomeSync:onPageUpdate(pageno)
         UIManager:unschedule(self._heartbeat_task)
         UIManager:scheduleIn(10, self._heartbeat_task)
     end
+end
+
+-- Credit the time spent on the page just finished, capped at the idle
+-- limit — a gap longer than the cap means the device sat awake unread.
+function TomeSync:_creditActivity(now)
+    if self.last_activity then
+        local gap = now - self.last_activity
+        if gap > 0 then
+            self.active_seconds = (self.active_seconds or 0) + math.min(gap, idleCapSeconds())
+        end
+    end
+    self.last_activity = now
+end
+
+-- Active reading time and honest end for the current session. Every gap
+-- between page turns is credited at most the idle cap, including the tail
+-- after the last turn — a device left awake overnight books the evening's
+-- reading, not the night, and the session ends when the reading did. With
+-- the cap off this degrades to exactly now - session_start / now.
+function TomeSync:_sessionTotals(now)
+    if not self.session_start then return 0, now end
+    local last = self.last_activity or self.session_start
+    local tail = now - last
+    if tail > 0 then tail = math.min(tail, idleCapSeconds()) else tail = 0 end
+    return (self.active_seconds or 0) + tail, last + tail
 end
 
 function TomeSync:_heartbeatNow()
@@ -2363,7 +2408,7 @@ function TomeSync:onSuspend()
         -- Record the reading session (lid close = end of session)
         local pct      = self:_getCurrentPercentage()
         local cfi      = self:_getCurrentProgress()
-        local duration = self.session_start and (os.time() - self.session_start) or 0
+        local duration, session_end = self:_sessionTotals(os.time())
         local dev      = deviceName()
 
         pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
@@ -2379,7 +2424,7 @@ function TomeSync:onSuspend()
             local session = {{
                 book_id          = self.book_id,
                 started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
-                ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", os.time()),
+                ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", session_end),
                 duration_seconds = duration,
                 progress_start   = self.progress_start,
                 progress_end     = pct,
@@ -2440,6 +2485,8 @@ function TomeSync:onResume()
     -- Start a fresh session (lid open = new session)
     self.session_start  = os.time()
     self.page_count     = 0
+    self.active_seconds = 0
+    self.last_activity  = self.session_start
     self.progress_start = self:_getCurrentPercentage()
     self.last_progress  = self.progress_start
 
@@ -2638,7 +2685,7 @@ function TomeSync:onCloseDocument()
 
     local pct      = self:_getCurrentPercentage()
     local cfi      = self:_getCurrentProgress()
-    local duration = self.session_start and (os.time() - self.session_start) or 0
+    local duration, session_end = self:_sessionTotals(os.time())
     local dev      = deviceName()
 
     pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
@@ -2655,7 +2702,7 @@ function TomeSync:onCloseDocument()
         pcall(apiRequest, "POST", "/tome-sync/session", {{
             book_id          = self.book_id,
             started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
-            ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", os.time()),
+            ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", session_end),
             duration_seconds = duration,
             progress_start   = self.progress_start,
             progress_end     = pct,
@@ -2668,6 +2715,8 @@ function TomeSync:onCloseDocument()
     self.book_id        = nil
     self.session_start  = nil
     self.page_count     = 0
+    self.active_seconds = 0
+    self.last_activity  = nil
     self.progress_start = nil
     self.last_progress  = nil
     last_session_init.book_id = nil
@@ -2713,8 +2762,10 @@ function TomeSync:_initSession()
     last_session_init.at = os.time()
 
     logger.dbg("TomeSync: book opened, id =", self.book_id)
-    self.session_start = os.time()
-    self.page_count    = 0
+    self.session_start  = os.time()
+    self.page_count     = 0
+    self.active_seconds = 0
+    self.last_activity  = self.session_start
 
     local ok, pos, code = pcall(apiRequest, "GET", "/tome-sync/position/" .. self.book_id)
     if ok and pos and code == 200 then
@@ -4745,6 +4796,46 @@ function TomeSync:_menuItems()
             G_reader_settings:saveSetting("tomesync_suspend_wifi",
                 not G_reader_settings:isTrue("tomesync_suspend_wifi"))
         end,
+    }})
+    -- Idle cap: how long a single page may count before the rest of the gap is
+    -- treated as the device sitting awake unread (fell asleep, cover open).
+    local function idleCapItems()
+        local function current()
+            local m = G_reader_settings:readSetting("tomesync_idle_cap_minutes")
+            if m == nil then m = IDLE_CAP_DEFAULT_MINUTES end
+            return m
+        end
+        local items = {{}}
+        for _, entry in ipairs({{
+            {{ 5,  "5 minutes" }},
+            {{ 10, "10 minutes (default)" }},
+            {{ 15, "15 minutes" }},
+            {{ 30, "30 minutes" }},
+            {{ 0,  "Off - count wall-clock time" }},
+        }}) do
+            local value, label = entry[1], entry[2]
+            table.insert(items, {{
+                text         = label,
+                checked_func = function() return current() == value end,
+                callback     = function()
+                    if value == IDLE_CAP_DEFAULT_MINUTES then
+                        G_reader_settings:delSetting("tomesync_idle_cap_minutes")
+                    else
+                        G_reader_settings:saveSetting("tomesync_idle_cap_minutes", value)
+                    end
+                end,
+            }})
+        end
+        return items
+    end
+    table.insert(settings_items, {{
+        text           = "Idle time cap",
+        help_text      = "Longest gap between page turns that still counts as "
+                       .. "reading. If the device is left awake without turning "
+                       .. "pages - you fell asleep, or the cover did not put it "
+                       .. "to sleep - time beyond the cap is not booked to the "
+                       .. "reading session.",
+        sub_item_table = idleCapItems(),
     }})
 
     -- In-book items

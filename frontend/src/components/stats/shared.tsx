@@ -118,6 +118,10 @@ export interface SessionEntry {
   device: string | null
   progress_start: number | null
   progress_end: number | null
+  // Runaway-session hygiene (#150): implausibly long for one sitting, and the
+  // plausible real duration (page turns at the user's median pace) if computable.
+  suspect: boolean
+  suggested_seconds: number | null
 }
 
 // ── Chrome ────────────────────────────────────────────────────────────────────

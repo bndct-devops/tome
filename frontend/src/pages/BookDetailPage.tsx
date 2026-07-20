@@ -5,7 +5,7 @@ import {
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon, StickyNote, ChevronDown, Archive, AlignLeft,
-  Plus, TrendingUp, TrendingDown, Minus, Info, History as HistoryIcon, Share2
+  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -19,6 +19,8 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
 import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
+import { SessionLog } from '@/components/stats/widgets/overview'
+import { InfoHint } from '@/components/InfoHint'
 import { api } from '@/lib/api'
 import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
@@ -186,6 +188,9 @@ export function BookDetailPage() {
   // intensity + time-per-chapter) has grown tall enough that "keep it closed"
   // is a real preference, not a per-page whim.
   const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('tome_book_stats_open') !== '0')
+  // Per-book session list (#150) — collapsed by default; the always-available
+  // place to trim/delete a runaway session (the Stats tiles are removable).
+  const [sessionsOpen, setSessionsOpen] = useState(false)
   const [showPositionHistory, setShowPositionHistory] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
@@ -781,6 +786,24 @@ export function BookDetailPage() {
             {readingStats.intensity && <IntensityBlock data={readingStats.intensity} />}
             {readingStats.chapters && readingStats.chapters.length > 0 && (
               <ChapterTimesBlock chapters={readingStats.chapters} />
+            )}
+            {readingStats.own.sessions > 0 && (
+              <div className="rounded-xl border border-border bg-card px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setSessionsOpen(o => !o)}
+                  aria-expanded={sessionsOpen}
+                  className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  Sessions ({readingStats.own.sessions})
+                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !sessionsOpen && '-rotate-90')} />
+                </button>
+                {sessionsOpen && (
+                  <div className="mt-3">
+                    <SessionLog bookId={Number(id)} onChange={refreshStats} />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -1770,46 +1793,6 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
         </form>
       )}
     </div>
-  )
-}
-
-// A small "i" that explains a chart on hover or tap. Tap-toggle so it works on
-// touch (native title tooltips don't). Reserved for the non-obvious charts.
-function InfoHint({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLSpanElement>(null)
-  // iOS Safari doesn't focus buttons on tap, so onBlur alone never closes the
-  // popover there — close on any tap outside instead.
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [open])
-  return (
-    <span ref={rootRef} className="relative inline-flex leading-none">
-      <button
-        type="button"
-        aria-label="What is this chart?"
-        onClick={() => setOpen(o => !o)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onBlur={() => setOpen(false)}
-        className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-      >
-        <Info className="w-3 h-3" />
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute left-0 top-5 z-20 w-52 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs leading-snug text-muted-foreground shadow-lg"
-        >
-          {text}
-        </span>
-      )}
-    </span>
   )
 }
 

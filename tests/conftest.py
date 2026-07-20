@@ -41,6 +41,16 @@ from backend.models.reading_goal import ReadingGoal  # noqa: F401 — registers 
 # We raise RuntimeError rather than silently no-op so any accidental attempt
 # fails loudly instead of pretending to send.
 
+# Pin anyio tests to asyncio. anyio's default `anyio_backend` fixture
+# parametrizes over every *installed* backend, so a dev machine with trio in
+# the venv silently doubles every anyio test with a [trio] variant — and the
+# code under test (metadata_fetch's asyncio.gather, FastAPI itself) is
+# asyncio-only by design. CI has no trio, so those variants never ran there.
+@pytest.fixture(scope="module")
+def anyio_backend():
+    return "asyncio"
+
+
 @pytest.fixture(autouse=True, scope="function")
 def _block_smtp():
     """Autouse fixture: replace smtplib.SMTP / SMTP_SSL with a hard block."""
