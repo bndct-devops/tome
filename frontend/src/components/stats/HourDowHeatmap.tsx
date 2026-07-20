@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useChartColors } from '@/lib/useChartAccent'
 
 interface HourDowCell {
@@ -109,24 +110,29 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
         ))}
       </svg>
 
-      {tooltip && (
-        <div
-          className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
-          style={{
-            left: Math.min(tooltip.x + 12, window.innerWidth - 180),
-            top: tooltip.y - 44,
-          }}
-        >
-          <div className="font-medium">
-            {DOW_LABELS[tooltip.dow]} {tooltip.hour}:00
-          </div>
-          <div className="text-muted-foreground">
-            {tooltip.seconds > 0
-              ? `${formatDuration(tooltip.seconds)} · ${tooltip.sessions} session${tooltip.sessions !== 1 ? 's' : ''}`
-              : 'No activity'}
-          </div>
-        </div>
-      )}
+      {tooltip &&
+        createPortal(
+          // Portaled to <body>: inside a dashboard tile an ancestor transform would
+          // re-anchor position:fixed to the tile and trap z-index in its stacking
+          // context, putting the tooltip far from the cursor and behind siblings.
+          <div
+            className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
+            style={{
+              left: Math.min(tooltip.x + 12, window.innerWidth - 180),
+              top: tooltip.y - 44,
+            }}
+          >
+            <div className="font-medium">
+              {DOW_LABELS[tooltip.dow]} {tooltip.hour}:00
+            </div>
+            <div className="text-muted-foreground">
+              {tooltip.seconds > 0
+                ? `${formatDuration(tooltip.seconds)} · ${tooltip.sessions} session${tooltip.sessions !== 1 ? 's' : ''}`
+                : 'No activity'}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

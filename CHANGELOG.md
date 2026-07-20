@@ -6,6 +6,14 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- Chart tooltips on Reading Stats no longer detach from the cursor or hide
+  behind neighbouring tiles (#151). The activity heatmap, the hour-by-day
+  heatmap, and the timeline ribbon all rendered their hover tooltip inside
+  the dashboard tile, where the grid's CSS transform re-anchored it and
+  clipped it under adjacent cards; tooltips now render at the document root
+  and follow the mouse everywhere.
+
 ### Added
 - **Runaway reading sessions are over (KOReader plugin, build 37).** A device
   that never actually sleeps — a cover that fails to suspend it, or a reader
