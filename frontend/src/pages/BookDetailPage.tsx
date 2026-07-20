@@ -19,6 +19,7 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
 import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
+import { SessionLog } from '@/components/stats/widgets/overview'
 import { api } from '@/lib/api'
 import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
@@ -186,6 +187,9 @@ export function BookDetailPage() {
   // intensity + time-per-chapter) has grown tall enough that "keep it closed"
   // is a real preference, not a per-page whim.
   const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('tome_book_stats_open') !== '0')
+  // Per-book session list (#150) — collapsed by default; the always-available
+  // place to trim/delete a runaway session (the Stats tiles are removable).
+  const [sessionsOpen, setSessionsOpen] = useState(false)
   const [showPositionHistory, setShowPositionHistory] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
@@ -781,6 +785,24 @@ export function BookDetailPage() {
             {readingStats.intensity && <IntensityBlock data={readingStats.intensity} />}
             {readingStats.chapters && readingStats.chapters.length > 0 && (
               <ChapterTimesBlock chapters={readingStats.chapters} />
+            )}
+            {readingStats.own.sessions > 0 && (
+              <div className="rounded-xl border border-border bg-card px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setSessionsOpen(o => !o)}
+                  aria-expanded={sessionsOpen}
+                  className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  Sessions ({readingStats.own.sessions})
+                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !sessionsOpen && '-rotate-90')} />
+                </button>
+                {sessionsOpen && (
+                  <div className="mt-3">
+                    <SessionLog bookId={Number(id)} onChange={refreshStats} />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ) : (

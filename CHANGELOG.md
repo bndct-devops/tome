@@ -29,9 +29,11 @@ All notable changes to Tome are documented here. Format loosely follows
   with a suggested duration computed from the session's page turns at your
   own median reading pace, so the reading stays and the idle tail goes.
   Suspicious sessions (implausibly long, or minutes per page turn) are
-  marked with a warning icon, the list can sort longest-first, and the
-  per-book time table on the Library tab expands per book to show, trim or
-  delete that book's sessions directly.
+  marked with a warning icon and the list can sort longest-first. The same
+  session list lives in two more places: the per-book time table on the
+  Library stats tab expands per book, and every book page grows a
+  collapsible "Sessions" section under Reading Stats — so sessions stay
+  editable even on a stats dashboard with those tiles removed.
 - **A heads-up when a runaway session syncs.** Sessions arriving from older
   plugin builds still get sanity-checked on the server: an implausibly long
   one raises a bell notification pointing at Reading Stats, so a bad night

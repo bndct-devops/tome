@@ -240,8 +240,10 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
 // Paginated session log — same rows as the Stats page's "Recent Sessions" card,
 // without the card frame. Self-contained: fetches, paginates, deletes and trims
 // via the API, so it works as a dashboard tile without pushing state upward.
-// With `bookId` it becomes the per-book drill-down inside the time table (#150).
-export function SessionLog({ bookId }: { bookId?: number } = {}) {
+// With `bookId` it becomes the per-book drill-down inside the time table and on
+// BookDetailPage (#150); `onChange` lets that host refresh its own aggregates
+// after a trim or delete.
+export function SessionLog({ bookId, onChange }: { bookId?: number; onChange?: () => void } = {}) {
   const [sessions, setSessions] = useState<SessionEntry[]>([])
   const [total, setTotal] = useState(0)
   const [loaded, setLoaded] = useState(0)
@@ -289,6 +291,7 @@ export function SessionLog({ bookId }: { bookId?: number } = {}) {
           ),
         )
         setTrimId(null)
+        onChange?.()
       })
       .catch(() => {})
       .finally(() => setTrimBusy(false))
@@ -301,6 +304,7 @@ export function SessionLog({ bookId }: { bookId?: number } = {}) {
         setSessions((prev) => prev.filter((s) => s.id !== id))
         setTotal((prev) => prev - 1)
         setLoaded((prev) => prev - 1)
+        onChange?.()
       })
       .catch(() => {})
       .finally(() => setDeleting((prev) => { const n = new Set(prev); n.delete(id); return n }))
