@@ -4,6 +4,7 @@
 // that day's minutes as intensity (one hue, sequential). Data is lifetime and
 // reconciled (imported KOReader history included), from GET /stats/timeline.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Minus, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -375,34 +376,39 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
         </div>
       </div>
 
-      {hover && (
-        <div
-          className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"
-          style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
-        >
-          {hover.b.has_cover && (
-            <img src={`/api/books/${hover.b.book_id}/cover`} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
-          )}
-          <div className="min-w-0">
-            <div className="truncate font-semibold">{hover.b.title}</div>
-            {hover.b.author && <div className="truncate text-muted-foreground">{hover.b.author}</div>}
-            <div className="mt-1 text-muted-foreground">
-              {formatDate(hover.b.first_day)} – {formatDate(hover.b.last_day)} · {hover.b.days.length}{' '}
-              {hover.b.days.length === 1 ? 'day' : 'days'}
-            </div>
-            <div className="text-muted-foreground">
-              {formatDuration(hover.b.total_seconds)}
-              {hover.b.finished_on ? ` · finished ${formatDate(hover.b.finished_on)}` : ''}
-            </div>
-            {hover.day && (
-              <div className="mt-1 border-t border-border/60 pt-1" style={{ color: colors.accent }}>
-                {formatDate(hover.day.date)} ·{' '}
-                {hover.day.seconds > 0 ? formatDuration(hover.day.seconds) : 'no reading'}
-              </div>
+      {hover &&
+        createPortal(
+          // Portaled to <body>: inside a dashboard tile an ancestor transform would
+          // re-anchor position:fixed to the tile and trap z-index in its stacking
+          // context, putting the tooltip far from the cursor and behind siblings.
+          <div
+            className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"
+            style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
+          >
+            {hover.b.has_cover && (
+              <img src={`/api/books/${hover.b.book_id}/cover`} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
             )}
-          </div>
-        </div>
-      )}
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{hover.b.title}</div>
+              {hover.b.author && <div className="truncate text-muted-foreground">{hover.b.author}</div>}
+              <div className="mt-1 text-muted-foreground">
+                {formatDate(hover.b.first_day)} – {formatDate(hover.b.last_day)} · {hover.b.days.length}{' '}
+                {hover.b.days.length === 1 ? 'day' : 'days'}
+              </div>
+              <div className="text-muted-foreground">
+                {formatDuration(hover.b.total_seconds)}
+                {hover.b.finished_on ? ` · finished ${formatDate(hover.b.finished_on)}` : ''}
+              </div>
+              {hover.day && (
+                <div className="mt-1 border-t border-border/60 pt-1" style={{ color: colors.accent }}>
+                  {formatDate(hover.day.date)} ·{' '}
+                  {hover.day.seconds > 0 ? formatDuration(hover.day.seconds) : 'no reading'}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
