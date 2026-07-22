@@ -384,20 +384,14 @@ def link_kosync_document(
             book_id=book_id,
         ))
 
-    # Update UserBookStatus
-    pct = progress.percentage
-    new_status = "read" if pct >= 0.95 else "reading"
-    ubs = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
-    if ubs:
-        ubs.progress_pct = pct
-        ubs.status = new_status
-    else:
-        db.add(UserBookStatus(
-            user_id=current_user.id,
-            book_id=book_id,
-            status=new_status,
-            progress_pct=pct,
-        ))
+    # Shared sticky-completion rule — same semantics as a KOSync push landing
+    # on an already-linked book (position-sync: tracks the report, downward
+    # included; never un-finishes a read book; finishes at 0.99).
+    from backend.services.book_progress import apply_progress_to_status
+    apply_progress_to_status(
+        db, user_id=current_user.id, book_id=book_id,
+        pct=progress.percentage, monotonic=False,
+    )
 
     db.commit()
     return {"ok": True}
