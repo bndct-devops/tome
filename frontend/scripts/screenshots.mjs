@@ -55,6 +55,8 @@ const bookIds = {}
 
 // ── Wishlist demo state (set SHOT_TOKEN in main() after login) ────────────────
 let SHOT_TOKEN = null
+// Document hash pushed for the kosync-link shot; linked away in its cleanup.
+let KOSYNC_SHOT_DOC = null
 async function wapi(pathname, opts = {}) {
   return fetch(`${API}${pathname}`, {
     ...opts,
@@ -791,6 +793,57 @@ const SHOTS = [
     },
     autoCrop: true,
   },
+  // Book page "Link KOReader sync" picker (#156) — a KOSync client (Readest)
+  // has synced a document that isn't attached to any book yet. State is
+  // seeded via the API in `after` (kosync account + one unlinked push with a
+  // fresh random hash) and the doc is linked away to an un-shot book in
+  // `cleanup`, so the picker reappears on every run and no other shot ever
+  // sees kosync chips. Registering benedict's kosync account persists in the
+  // showcase DB — the Settings KOSync section shows "linked" from then on.
+  {
+    name: 'kosync-link',
+    path: () => `/books/${bookIds.hailMary ?? 1}`,
+    viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 },
+    settle: 800,
+    after: async (page) => {
+      const auth = { Authorization: `Bearer ${SHOT_TOKEN}`, 'Content-Type': 'application/json' }
+      // KOSync account for the showcase user (md5('showcase-sync') below).
+      await fetch(`${API}/api/auth/me/kosync`, { method: 'POST', headers: auth, body: JSON.stringify({ password: 'showcase-sync' }) })
+      // Self-heal: link away any unlinked docs left over from an aborted run.
+      const st = await (await fetch(`${API}/api/books/${bookIds.hailMary}/kosync-progress`, { headers: auth })).json().catch(() => ({}))
+      for (const d of st.unlinked_documents ?? []) {
+        await fetch(`${API}/api/books/${bookIds.berserk10}/link-kosync`, { method: 'POST', headers: auth, body: JSON.stringify({ document: d.document }) }).catch(() => {})
+      }
+      // One fresh unlinked Readest push, matching the book's 42% story.
+      KOSYNC_SHOT_DOC = crypto.randomUUID().replace(/-/g, '')
+      await fetch(`${API}/api/v1/syncs/progress`, {
+        method: 'PUT',
+        headers: { 'x-auth-user': USER, 'x-auth-key': '6eb4e22a1b3647d2644c64313cd9f5b5', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: KOSYNC_SHOT_DOC, progress: '/body/DocFragment[8]/body/p[12]', percentage: 0.42, device: 'Readest' }),
+      })
+      await page.reload({ waitUntil: 'networkidle' })
+      await page.waitForTimeout(900)
+      await page.locator('button:has-text("Link KOReader sync")').first().click()
+      await page.waitForTimeout(400)
+      await page.evaluate(() => {
+        const target = document.querySelector('select')?.closest('div.mt-4')
+        if (target) {
+          target.scrollIntoView({ block: 'center' })
+          target.style.padding = '48px 32px'
+        }
+      })
+      await page.waitForTimeout(300)
+    },
+    cleanup: async (token, api) => {
+      if (!KOSYNC_SHOT_DOC) return
+      await fetch(`${api}/api/books/${bookIds.berserk10}/link-kosync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: KOSYNC_SHOT_DOC }),
+      }).catch(() => {})
+    },
+    element: 'div.mt-4:has(select)',
+  },
 ]
 
 async function login() {
@@ -847,7 +900,7 @@ async function seekToAnnotation(page) {
 
 async function resolveBookIds(token) {
   // Look up book IDs by title. Keeps the script working across re-seeds.
-  const wanted = { frankenstein: 'Frankenstein', goodGuys2: 'Heir Today, Pawn Tomorrow', hitchhiker: "The Hitchhiker's Guide to the Galaxy", dune: 'Dune', berserk1: 'Berserk, Vol. 1', dungeonMauling: 'Dungeon Mauling' }
+  const wanted = { frankenstein: 'Frankenstein', goodGuys2: 'Heir Today, Pawn Tomorrow', hitchhiker: "The Hitchhiker's Guide to the Galaxy", dune: 'Dune', berserk1: 'Berserk, Vol. 1', dungeonMauling: 'Dungeon Mauling', hailMary: 'Project Hail Mary', berserk10: 'Berserk, Vol. 10' }
   for (const [key, title] of Object.entries(wanted)) {
     try {
       const r = await fetch(`${API}/api/books?q=${encodeURIComponent(title)}&per_page=5`, {
