@@ -1,7 +1,21 @@
-"""KOSync-compatible API. Mounted at /api/v1/."""
+"""KOSync-compatible API. Mounted at /api/v1/.
+
+Serves stock-KOReader kosync clients and third-party implementations
+(e.g. Readest) — the sync path for people who don't run the Tome plugin.
+
+Bridge design (issue #156): positions flow ONE WAY, Tome → KOSync. The GET
+endpoint serves the web/plugin position when it is newer than the last KOSync
+push, so a KOSync client opens at (roughly) the right spot. The PUT endpoint
+never writes ``TomeSyncPosition`` — third-party pushes must not move
+positions on devices running the Tome plugin, feed PositionHistory, or enter
+the plugin's conflict handling. KOSync pushes surface in Tome as progress %
+and read status only.
+"""
+import calendar
 import time
 import logging
-from typing import Any
+from datetime import datetime
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -9,10 +23,58 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap, OPDSPendingLink, ReadingHistory
 from backend.models.user import User
-from backend.models.user_book_status import UserBookStatus
 
 router = APIRouter(prefix="/v1", tags=["kosync"])
 logger = logging.getLogger(__name__)
+
+
+def _epoch(dt: datetime) -> int:
+    """Naive-UTC datetime (the DB convention) → epoch seconds."""
+    return calendar.timegm(dt.utctimetuple())
+
+
+def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optional[KOSyncDocumentMap]:
+    """Resolve a KOSync document hash to this user's document map.
+
+    Existing map wins. Otherwise try a deterministic link: the KOSync
+    ``document`` field is KOReader's partial-MD5 of the device file (Readest
+    computes the same hash — confirmed in #156), and ``ko_hashes`` records
+    that hash for every artifact Tome scanned or served. A hit is exact
+    identity, so the map is created and persisted on the spot — this replaces
+    guesswork for any file that came from Tome. Only active, visible books
+    are linked. Returns None when the file never passed through Tome (the
+    caller may fall back to the legacy OPDS heuristic, or a manual link).
+    """
+    doc_map = (
+        db.query(KOSyncDocumentMap)
+        .filter(
+            KOSyncDocumentMap.tome_user_id == tome_user_id,
+            KOSyncDocumentMap.document == document,
+        )
+        .first()
+    )
+    if doc_map:
+        return doc_map
+
+    from backend.core.permissions import user_can_see_book
+    from backend.models.book import Book
+    from backend.services.ko_hash import lookup_book_ids
+
+    hit = lookup_book_ids(db, [document]).get(document)
+    if hit is None:
+        return None
+    book = db.get(Book, hit)
+    tome_user = db.get(User, tome_user_id)
+    if not book or book.status != "active" or not tome_user:
+        return None
+    if not user_can_see_book(db, tome_user, book):
+        return None
+
+    doc_map = KOSyncDocumentMap(tome_user_id=tome_user_id, document=document, book_id=hit)
+    db.add(doc_map)
+    db.commit()
+    logger.info("kosync: auto-linked document %s to book %s via ko-hash", document, hit)
+    return doc_map
 
 
 # ── Auth helper ───────────────────────────────────────────────────────────────
@@ -130,14 +192,13 @@ def update_progress(
         device=device,
     ) if user.user_id else None
 
-    # Cross-reference to Tome book via document map and update UserBookStatus
+    # Cross-reference to Tome book and update read status. Deterministic
+    # ko-hash identity first; the legacy "next unknown push claims the oldest
+    # pending OPDS download" heuristic only as fallback for files Tome never
+    # hashed (it guesses, and a wrong guess writes status onto the wrong book).
     if user.user_id:
-        doc_map = db.query(KOSyncDocumentMap).filter(
-            KOSyncDocumentMap.tome_user_id == user.user_id,
-            KOSyncDocumentMap.document == document,
-        ).first()
+        doc_map = _find_or_hash_link(db, user.user_id, document)
 
-        # If not mapped yet, try to auto-link to the most recent pending OPDS download
         if not doc_map:
             pending = (
                 db.query(OPDSPendingLink)
@@ -156,22 +217,15 @@ def update_progress(
                 db.commit()
 
         if doc_map:
-            pct = float(percentage)
-            new_status = "read" if pct >= 0.95 else "reading"
-            ubs = db.query(UserBookStatus).filter(
-                UserBookStatus.user_id == user.user_id,
-                UserBookStatus.book_id == doc_map.book_id,
-            ).first()
-            if ubs:
-                ubs.progress_pct = pct
-                ubs.status = new_status
-            else:
-                db.add(UserBookStatus(
-                    user_id=user.user_id,
-                    book_id=doc_map.book_id,
-                    status=new_status,
-                    progress_pct=pct,
-                ))
+            # Shared sticky-completion rule (same as web/plugin/manual writes):
+            # position-sync semantics (monotonic=False tracks the report,
+            # downward included), completion is sticky, finishes at 0.99.
+            # Deliberately NOT TomeSyncPosition — see module docstring.
+            from backend.services.book_progress import apply_progress_to_status
+            apply_progress_to_status(
+                db, user_id=user.user_id, book_id=doc_map.book_id,
+                pct=float(percentage), monotonic=False,
+            )
             if history_entry:
                 history_entry.book_id = doc_map.book_id
             db.commit()
@@ -193,6 +247,37 @@ def get_progress(
         KOSyncProgress.user_id == user.id,
         KOSyncProgress.document == document,
     ).first()
+
+    # Bridge (issue #156): if Tome knows a newer position for this book —
+    # web reader or a TomeSync-plugin device — serve that instead of the last
+    # KOSync push, so a KOSync client picks up reading done elsewhere.
+    # Read-only: nothing here writes plugin-visible state. The percentage is
+    # the reliable cross-client signal; the locator string is included as-is
+    # (an xpointer from a KOReader-family device resolves exactly, a web CFI
+    # doesn't — clients like Readest then fall back to the percentage).
+    if user.user_id:
+        doc_map = _find_or_hash_link(db, user.user_id, document)
+        if doc_map:
+            from backend.models.tome_sync import TomeSyncPosition
+            pos = (
+                db.query(TomeSyncPosition)
+                .filter(
+                    TomeSyncPosition.user_id == user.user_id,
+                    TomeSyncPosition.book_id == doc_map.book_id,
+                )
+                .first()
+            )
+            if pos is not None and pos.updated_at is not None:
+                pos_ts = _epoch(pos.updated_at)
+                if entry is None or pos_ts > entry.timestamp:
+                    return {
+                        "document": document,
+                        "percentage": float(pos.percentage or 0.0),
+                        "progress": pos.progress or str(pos.percentage or 0.0),
+                        "device": pos.device or "web",
+                        "device_id": None,
+                        "timestamp": pos_ts,
+                    }
 
     if not entry:
         return {}

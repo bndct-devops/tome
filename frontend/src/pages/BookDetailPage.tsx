@@ -128,6 +128,19 @@ interface ReadingStatsResponse {
   chapters: ChapterTime[] | null
 }
 
+interface KosyncUnlinkedDoc {
+  document: string
+  percentage: number
+  device: string | null
+  timestamp: number
+}
+
+interface KosyncStatus {
+  linked: boolean
+  device?: string
+  unlinked_documents?: KosyncUnlinkedDoc[]
+}
+
 async function downloadFile(book: BookDetail, f: BookFile) {
   const token = localStorage.getItem('tome_token')
   const resp = await fetch(`/api/books/${book.id}/download/${f.id}`, {
@@ -180,6 +193,12 @@ export function BookDetailPage() {
   const [reviewDraft, setReviewDraft] = useState('')  // in-progress edit
   const [editingReview, setEditingReview] = useState(false)
   const [kosyncDevice, setKosyncDevice] = useState<string | null>(null)
+  // Manual KOSync linking (#156): sync documents pushed by a KOSync client
+  // (stock KOReader / Readest) that aren't attached to any Tome book yet.
+  const [kosyncUnlinked, setKosyncUnlinked] = useState<KosyncUnlinkedDoc[]>([])
+  const [kosyncPickerOpen, setKosyncPickerOpen] = useState(false)
+  const [kosyncLinkDoc, setKosyncLinkDoc] = useState('')
+  const [kosyncLinking, setKosyncLinking] = useState(false)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [confirmingHighlight, setConfirmingHighlight] = useState<number | null>(null)
   const [highlightsOpen, setHighlightsOpen] = useState(true)
@@ -270,8 +289,11 @@ export function BookDetailPage() {
     api.get<LibraryType[]>('/libraries').then(setLibraries).catch(() => toast.error('Failed to load libraries'))
     api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => {})
     api.get<typeof adjacent>(`/books/${id}/adjacent`).then(setAdjacent).catch(() => {})
-    api.get<{ linked: boolean; device?: string }>(`/books/${id}/kosync-progress`)
-      .then(r => { if (r.linked && r.device) setKosyncDevice(r.device) })
+    api.get<KosyncStatus>(`/books/${id}/kosync-progress`)
+      .then(r => {
+        if (r.linked && r.device) setKosyncDevice(r.device)
+        setKosyncUnlinked(!r.linked && r.unlinked_documents ? r.unlinked_documents : [])
+      })
       .catch(() => {})  // KOSync is optional — silent fail is fine
     api.get<Annotation[]>(`/books/${id}/annotations`).then(setAnnotations).catch(() => {})
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
@@ -343,6 +365,28 @@ export function BookDetailPage() {
       toast.error('Failed to update reading status')
     } finally {
       setStatusSaving(false)
+    }
+  }
+
+  async function linkKosyncDocument() {
+    if (!id || !kosyncLinkDoc || kosyncLinking) return
+    setKosyncLinking(true)
+    try {
+      await api.post(`/books/${id}/link-kosync`, { document: kosyncLinkDoc })
+      // Linking applies the synced progress to this book — refresh both.
+      const [ks, s] = await Promise.all([
+        api.get<KosyncStatus>(`/books/${id}/kosync-progress`),
+        api.get<BookStatus>(`/books/${id}/status`),
+      ])
+      if (ks.linked && ks.device) setKosyncDevice(ks.device)
+      setKosyncUnlinked(!ks.linked && ks.unlinked_documents ? ks.unlinked_documents : [])
+      applyStatus(s)
+      setKosyncPickerOpen(false)
+      toast.info('KOReader sync linked')
+    } catch {
+      toast.error('Failed to link sync document')
+    } finally {
+      setKosyncLinking(false)
     }
   }
 
@@ -693,6 +737,50 @@ export function BookDetailPage() {
               <span className="ml-1 opacity-60">· {kosyncDevice}</span>
             )}
           </span>
+        </div>
+      )}
+      {kosyncUnlinked.length > 0 && !kosyncDevice && (
+        <div className="w-full mt-1.5 text-xs">
+          {!kosyncPickerOpen ? (
+            <button
+              type="button"
+              onClick={() => { setKosyncPickerOpen(true); setKosyncLinkDoc(kosyncUnlinked[0]?.document ?? '') }}
+              className="text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2 transition-colors"
+              title="Attach progress synced from a KOReader-compatible app to this book"
+            >
+              Link KOReader sync…
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2">
+              <span className="text-muted-foreground">Synced document</span>
+              <select
+                value={kosyncLinkDoc}
+                onChange={e => setKosyncLinkDoc(e.target.value)}
+                className="rounded border border-border bg-background px-1.5 py-0.5 max-w-[16rem]"
+              >
+                {kosyncUnlinked.map(d => (
+                  <option key={d.document} value={d.document}>
+                    {d.device || 'unknown device'} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString()} · {d.document.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={kosyncLinking || !kosyncLinkDoc}
+                onClick={linkKosyncDocument}
+                className="rounded border border-border px-2 py-0.5 text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+              >
+                {kosyncLinking ? 'Linking…' : 'Link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setKosyncPickerOpen(false)}
+                className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

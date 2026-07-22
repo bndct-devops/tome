@@ -1,0 +1,88 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import UnreleasedNote from '../../components/UnreleasedNote.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="KOSync-compatible apps" description="Sync reading positions with Readest and KOReader's built-in progress sync — no plugin required.">
+  <SectionHero section="integrations" />
+  <h1>KOSync-compatible apps</h1>
+  <p>
+    Tome speaks the KOSync protocol — the sync API popularised by KOReader's built-in
+    <strong>Progress sync</strong> and supported by third-party readers like
+    <a href="https://github.com/readest/readest" target="_blank" rel="noopener">Readest</a>.
+    Point any of them at your server and reading positions follow you between those apps
+    <em>and</em> from Tome's web reader.
+  </p>
+  <DocsMeta />
+
+  <UnreleasedNote />
+
+  <Callout variant="info" title="Using KOReader? The plugin does more">
+    On KOReader itself, <a href={withBase("/docs/koreader")}>the TomeSync plugin</a> is the
+    full experience: exact position sync, session recording for stats, series downloads,
+    highlight sync. The KOSync endpoint is for everything that <em>isn't</em> running the
+    plugin — Readest on your phone or desktop, or a KOReader setup you'd rather keep stock.
+  </Callout>
+
+  <h2>Setup</h2>
+  <Steps>
+    <li>In Tome, open <strong>Settings → KOReader</strong> and set a sync password under
+      <strong>KOSync</strong>. This creates your sync account (same username as your Tome login).</li>
+    <li>In the client, configure a custom sync server pointing at
+      <code>https://your-server/api/v1</code>.
+      In KOReader that's <strong>Tools → Progress sync → Custom sync server</strong>;
+      in Readest it's under <strong>Settings → Sync</strong>.</li>
+    <li>Log in with your Tome username and the sync password. Done — reading a book pushes
+      progress on close, and opening it pulls the latest position.</li>
+  </Steps>
+
+  <h2>What syncs</h2>
+  <p>
+    Positions sync at <strong>percentage precision</strong> across app families. Two KOReader-family
+    clients exchange exact locators as usual, but the web reader speaks EPUB CFI and KOSync
+    clients don't — the formats aren't convertible, so cross-family sync opens the book at the
+    right percentage rather than the exact paragraph.
+  </p>
+  <ul>
+    <li><strong>From Tome to your app:</strong> the sync pull answers with whatever is newest —
+      the last KOSync push, the web reader's position, or a TomeSync device's position. Read a
+      few chapters in the browser at lunch and Readest picks up where you stopped.</li>
+    <li><strong>From your app to Tome:</strong> pushes update the book's progress and read
+      status (books finish at 99%, and a finished book stays finished on a re-read). They
+      deliberately do <em>not</em> move positions on devices running the TomeSync plugin —
+      third-party clients can't disturb your e-reader's sync.</li>
+  </ul>
+
+  <h2>Linking synced books</h2>
+  <p>
+    KOSync identifies a book by a hash of the file, so Tome has to connect that hash to the
+    right library entry before progress can flow. Any file that was downloaded from Tome —
+    web download, OPDS, or the plugin — is recognised automatically by its hash on the first
+    push or pull. Nothing to do.
+  </p>
+  <p>
+    For a file Tome has never served (sideloaded from elsewhere), the book page offers a
+    manual picker: it lists synced documents that aren't attached to any book yet, with
+    device, progress and date, and one click links the right one.
+  </p>
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="kosync-link" alt="The Link KOReader sync picker on a book page, offering an unlinked Readest document" />
+  </div>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><strong>"401 Unauthorized"</strong> — the sync password doesn't match. Set it again in
+      <strong>Settings → KOReader</strong>; re-saving overwrites the old credential.</li>
+    <li><strong>Progress lands in the app but not in Tome</strong> — the document isn't linked
+      to a book yet. Open the book's page and use <em>Link KOReader sync</em>.</li>
+    <li><strong>The app doesn't jump to the web position</strong> — some clients only apply a
+      pulled position when it's ahead of the local one, or ask before jumping backwards.
+      Check the client's conflict setting (KOReader: <strong>Progress sync → Sync behaviour</strong>).</li>
+  </ul>
+</DocsLayout>

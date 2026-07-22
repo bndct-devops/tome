@@ -6,6 +6,31 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **KOSync clients now pick up your Tome reading position** (#156). The
+  KOSync-compatible endpoint (stock KOReader sync, Readest, and friends)
+  used to be an island: it only ever served what a KOSync client itself had
+  pushed, so progress from the web reader never reached those apps. The sync
+  pull now answers with the newer of the two - the last KOSync push or
+  Tome's own position (web reader or TomeSync device) - at percentage
+  precision, since KOSync locators and web CFIs aren't convertible. The
+  bridge is strictly read-only: KOSync pushes still never move positions on
+  devices running the TomeSync plugin.
+- **KOSync documents auto-link by file hash.** Linking a synced document to
+  its Tome book no longer depends on the OPDS-download heuristic: any file
+  that came from Tome is recognised by its KOReader partial-MD5 and linked
+  automatically on the first push or pull. The OPDS heuristic remains as a
+  fallback for files Tome has never seen.
+- **Manual sync linking in the UI.** When a KOSync client has synced a
+  document that isn't attached to any book, the book page offers a small
+  "Link KOReader sync" picker - no more calling the API by hand.
+
+### Fixed
+- KOSync progress pushes now follow the same read-status rules as every
+  other sync path: finishing requires 99% (was 95%), completion is sticky
+  (a re-read no longer drags a finished book back to "reading"), and the
+  finish date is recorded.
+
 ### Fixed
 - Imported KOReader reading history can no longer land on the wrong volume of
   a series (#152). When a volume read on the device was missing from the Tome
