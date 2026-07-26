@@ -1338,8 +1338,13 @@ def list_sessions(
     )
     clusters = []
     if covered and (book_id is None or book_id in covered):
+        # min_secs=0: sub-threshold noise blips (an accidental open of a few
+        # seconds) are exactly what people come here to delete — they hold
+        # seconds in the totals and draw Activity bars, so they must be listed
+        # even though session COUNTS everywhere else keep the noise floor.
         clusters = rr._cluster_rows(
-            db, current_user.id, date_modifier(tz_offset), None, None, book_id=book_id
+            db, current_user.id, date_modifier(tz_offset), None, None,
+            book_id=book_id, min_secs=0,
         )
         if day is not None:
             clusters = [c for c in clusters if c.day == day]
