@@ -3,6 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
+import UnreleasedNote from '../../components/UnreleasedNote.astro'
 import { ThemedShot } from '../../components/ThemedShot'
 import { withBase } from '../../lib/path'
 ---
@@ -107,6 +108,37 @@ import { withBase } from '../../lib/path'
     turns, progress, start time, device, other sessions, and imported KOReader history are all
     untouched, and the previous duration is recorded in the audit log, so a trim is never a
     silent loss of data.
+  </Callout>
+
+  <h2>Imported KOReader history in the session lists</h2>
+  <UnreleasedNote />
+  <p>
+    Reading synced from KOReader's own statistics database — including everything read before
+    Tome existed, if you enabled the <a href={withBase("/docs/koreader")}>reading-history
+    backfill</a> — appears in the same session lists as everything else. The raw per-page
+    timings are grouped into sittings the way KOReader itself thinks about sessions (a gap of
+    more than 30 minutes starts a new one), and each sitting shows as a row tagged
+    <strong>imported</strong>.
+  </p>
+  <p>
+    Imported sittings can be deleted individually — the fix for a book opened by accident,
+    whose stray minutes used to be removable only by wiping the book's entire imported
+    history. Deleting one removes exactly that sitting's page timings and the totals drop with
+    it. They can't be trimmed: KOReader already caps idle time at the source, so there is
+    nothing to cut. Two labels tell the rest of the story: on a book with imported history,
+    the plugin's live sessions describe the same reading a second time, so they stay listed
+    with a <strong>not counted</strong> tag while the imported rows carry the totals — nothing
+    is ever counted twice, and nothing silently disappears. The small info icon next to every
+    session list explains all labels in place.
+  </p>
+  <p>
+    For getting at one stray day quickly, the <strong>Activity</strong> chart on a book's
+    Reading Stats block is clickable: each bar opens a popup with the sittings that started on
+    that day, with the same trim and delete actions — no scrolling the full log.
+  </p>
+  <Callout variant="info" title="Deleted history stays deleted">
+    The device only ever uploads statistics newer than its last sync, so a deleted sitting is
+    not re-imported on the next connection. New reading syncs and counts as normal.
   </Callout>
 
   <h2>Overview board</h2>

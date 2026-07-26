@@ -247,3 +247,160 @@ def test_trim_validation(hygiene_client, make_book):
         headers={"Authorization": f"Bearer {other_jwt}"},
     )
     assert r.status_code == 404
+
+
+# ── imported KOReader history in the session list ─────────────────────────────
+
+def _add_page_stats(db, user, book, *, base, count=5, dur=60, device="Kindle", page0=1):
+    from backend.models.ko_stats import PageStat
+    for i in range(count):
+        db.add(PageStat(user_id=user.id, book_id=book.id, page=page0 + i,
+                        total_pages=100, start_time=base + i * dur,
+                        duration_seconds=dur, device=device))
+    db.flush()
+
+
+def test_imported_clusters_listed_device_sessions_labeled(hygiene_client, make_book):
+    """Imported sittings appear as `kind: "imported"` rows. A covered book's
+    device-origin live session (the same reading, described twice) stays
+    listed but is `counted: false` — labeled, never silently hidden.
+    Web/manual sessions stay counted."""
+    c, db, user, jwt, _key = hygiene_client
+    book = make_book(title="Covered Book")
+    base = 1_700_000_000  # 2023-11-14
+    _add_page_stats(db, user, book, base=base, count=5, dur=60)                 # sitting 1: 300s
+    _add_page_stats(db, user, book, base=base + 7200, count=3, dur=120, page0=10)  # sitting 2: 360s
+    # Device-origin live session on the covered book — listed, but not counted.
+    superseded = _add_session(db, user, book, start=datetime(2023, 11, 14, 23, 0), seconds=600, pages=10)
+    # Manual log — additive, listed and counted.
+    manual = ReadingSession(user_id=user.id, book_id=book.id,
+                            started_at=datetime(2026, 7, 1, 20, 0),
+                            duration_seconds=900, pages_turned=12, device="manual")
+    db.add(manual)
+    db.flush()
+    headers = {"Authorization": f"Bearer {jwt}"}
+
+    r = c.get("/api/stats/sessions", headers=headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 4
+    by_id = {row["id"]: row for row in data["sessions"]}
+    assert by_id[manual.id]["counted"] is True
+    assert by_id[superseded.id]["counted"] is False
+    imported = [row for row in data["sessions"] if row["kind"] == "imported"]
+    assert {row["duration_seconds"] for row in imported} == {300, 360}
+    for row in imported:
+        assert row["counted"] is True
+        assert row["range_start"] <= row["range_end"]
+        assert row["device"] == "Kindle"
+        assert row["suggested_seconds"] is None
+
+    # longest-first: manual 900, superseded device 600, sittings 360 / 300
+    r = c.get("/api/stats/sessions?sort=longest", headers=headers)
+    assert [row["duration_seconds"] for row in r.json()["sessions"]] == [900, 600, 360, 300]
+
+    # merged pagination: pages concatenate to the full list without dup or gap
+    r1 = c.get("/api/stats/sessions?limit=2&offset=0", headers=headers).json()
+    r2 = c.get("/api/stats/sessions?limit=2&offset=2", headers=headers).json()
+    ids = [row["id"] for row in r1["sessions"] + r2["sessions"]]
+    assert len(ids) == 4 == len(set(ids))
+
+
+def test_imported_cluster_delete(hygiene_client, make_book):
+    """Deleting an imported row removes exactly that sitting's page-stats;
+    deleting the last one un-covers the book and its live sessions count again."""
+    from backend.models.ko_stats import PageStat
+    c, db, user, jwt, _key = hygiene_client
+    book = make_book(title="Accidental Open")
+    base = 1_700_000_000
+    _add_page_stats(db, user, book, base=base, count=5, dur=60)                 # real sitting
+    _add_page_stats(db, user, book, base=base + 7200, count=2, dur=150, page0=50)  # accidental
+    live = _add_session(db, user, book, start=datetime(2023, 11, 15, 9, 0), seconds=400, pages=7)
+    live_id = live.id  # the instance detaches once the endpoint commits/rolls back
+    headers = {"Authorization": f"Bearer {jwt}"}
+
+    rows = c.get(f"/api/stats/sessions?book_id={book.id}", headers=headers).json()["sessions"]
+    accidental = next(r for r in rows if r["kind"] == "imported" and r["duration_seconds"] == 300)
+
+    r = c.delete(
+        f"/api/stats/imported-sessions?book_id={book.id}"
+        f"&start={accidental['range_start']}&end={accidental['range_end']}",
+        headers=headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["deleted_rows"] == 2
+    assert db.query(PageStat).filter_by(user_id=user.id, book_id=book.id).count() == 5
+    entry = db.query(AuditLog).filter_by(action="imported_session.deleted").first()
+    assert entry is not None
+
+    # same range again: nothing left there
+    r = c.delete(
+        f"/api/stats/imported-sessions?book_id={book.id}"
+        f"&start={accidental['range_start']}&end={accidental['range_end']}",
+        headers=headers,
+    )
+    assert r.status_code == 404
+
+    # one imported sitting remains; the live device session is listed as not counted
+    rows = c.get(f"/api/stats/sessions?book_id={book.id}", headers=headers).json()["sessions"]
+    assert [(r["kind"], r["counted"]) for r in rows] == [("session", False), ("imported", True)]
+    remaining = rows[1]
+
+    # delete the last sitting → book is no longer covered → live session counts again
+    r = c.delete(
+        f"/api/stats/imported-sessions?book_id={book.id}"
+        f"&start={remaining['range_start']}&end={remaining['range_end']}",
+        headers=headers,
+    )
+    assert r.status_code == 200
+    rows = c.get(f"/api/stats/sessions?book_id={book.id}", headers=headers).json()["sessions"]
+    assert [(r["id"], r["counted"]) for r in rows] == [(live_id, True)]
+
+
+def test_imported_delete_scoped_to_own_rows(hygiene_client, make_book):
+    """The range delete never touches another user's page-stats."""
+    from backend.models.ko_stats import PageStat
+    c, db, user, jwt, _key = hygiene_client
+    book = make_book(title="Shared Book")
+    base = 1_700_000_000
+    _add_page_stats(db, user, book, base=base, count=3, dur=60)
+    other, other_jwt = _make_user(db, "otherreader")
+    _add_page_stats(db, other, book, base=base, count=3, dur=60)
+
+    r = c.delete(
+        f"/api/stats/imported-sessions?book_id={book.id}&start={base}&end={base + 600}",
+        headers={"Authorization": f"Bearer {other_jwt}"},
+    )
+    assert r.status_code == 200
+    assert db.query(PageStat).filter_by(user_id=user.id).count() == 3
+    assert db.query(PageStat).filter_by(user_id=other.id).count() == 0
+
+
+def test_sessions_day_filter(hygiene_client, make_book):
+    """`day` narrows the merged list to sittings that started that reading day
+    (Activity-bar click-through)."""
+    c, db, user, jwt, _key = hygiene_client
+    book = make_book(title="Day Filter Book")
+    base = 1_700_000_000  # 2023-11-14 22:13 UTC → reading day 2023-11-14 (4h rollover)
+    _add_page_stats(db, user, book, base=base, count=5, dur=60)
+    _add_page_stats(db, user, book, base=base + 5 * 86_400, count=3, dur=120, page0=10)
+    manual = ReadingSession(user_id=user.id, book_id=book.id,
+                            started_at=datetime(2023, 11, 14, 23, 30),
+                            duration_seconds=600, pages_turned=8, device="manual")
+    db.add(manual)
+    db.flush()
+    headers = {"Authorization": f"Bearer {jwt}"}
+
+    r = c.get(f"/api/stats/sessions?book_id={book.id}&day=2023-11-14&tz_offset=0", headers=headers)
+    data = r.json()
+    assert data["total"] == 2
+    assert {row["kind"] for row in data["sessions"]} == {"session", "imported"}
+
+    r = c.get(f"/api/stats/sessions?book_id={book.id}&day=2023-11-19&tz_offset=0", headers=headers)
+    data = r.json()
+    assert data["total"] == 1
+    assert data["sessions"][0]["kind"] == "imported"
+    assert data["sessions"][0]["duration_seconds"] == 360
+
+    r = c.get(f"/api/stats/sessions?book_id={book.id}&day=14-11-2023", headers=headers)
+    assert r.status_code == 422

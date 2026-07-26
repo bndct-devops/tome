@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
 
 // A small "i" that explains a chart or control on hover or tap. Tap-toggle so
 // it works on touch (native title tooltips don't). Reserved for the non-obvious.
-export function InfoHint({ text }: { text: string }) {
+// Pass `text` for a plain sentence, or `children` for structured content (a
+// legend, a definition list); `wide` widens the popover for the latter.
+export function InfoHint({ text, children, wide }: { text?: string; children?: ReactNode; wide?: boolean }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
   // iOS Safari doesn't focus buttons on tap, so onBlur alone never closes the
@@ -32,9 +34,9 @@ export function InfoHint({ text }: { text: string }) {
       {open && (
         <span
           role="tooltip"
-          className="absolute left-0 top-5 z-20 w-52 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs leading-snug text-muted-foreground shadow-lg"
+          className={`absolute left-0 top-5 z-20 ${wide ? 'w-80' : 'w-52'} rounded-md border border-border bg-background px-2.5 py-1.5 text-xs leading-snug text-muted-foreground shadow-lg`}
         >
-          {text}
+          {children ?? text}
         </span>
       )}
     </span>

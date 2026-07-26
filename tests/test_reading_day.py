@@ -65,10 +65,13 @@ def test_rereads_ignore_a_session_crossing_utc_midnight(client, db, admin_user, 
 
 def test_per_book_timeline_one_day_across_midnight(client, db, admin_user, make_book):
     """The per-book reading log buckets a midnight-crossing device read into one
-    reading day (one 'session'), not two."""
+    reading day (one 'session'), not two.
+
+    Page rows 20 minutes apart: within the 30-minute session gap, so the read
+    is one gap-cluster — and one reading day despite crossing midnight."""
     user, _ = admin_user
     book = make_book(title="Night Owl Book")
-    for i, ts in enumerate([_epoch(2026, 6, 1, 23, 30), _epoch(2026, 6, 2, 0, 15)]):
+    for i, ts in enumerate([_epoch(2026, 6, 1, 23, 50), _epoch(2026, 6, 2, 0, 10)]):
         db.add(PageStat(user_id=user.id, book_id=book.id, page=i + 1, total_pages=100,
                         start_time=ts, duration_seconds=600, device="Kindle"))
     db.flush()

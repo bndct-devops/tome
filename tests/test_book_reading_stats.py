@@ -293,6 +293,31 @@ def test_aggregate_includes_page_stats(client: TestClient, make_book, admin_user
     assert agg["total_sessions"] == 2          # two distinct reading days, not zero
 
 
+def test_backfill_only_book_counts_gap_clusters(client: TestClient, make_book, admin_user, db: Session):
+    """A backfill-only book counts real sittings (gap-clustered page-stats),
+    matching the rows the session log lists — not one-per-reading-day.
+
+    Two sittings on the same day, two hours apart, are two sessions."""
+    from backend.models.ko_stats import PageStat
+    user, _ = admin_user
+    book = make_book(title="Backfill Only Book")
+    base = 1_700_000_000
+    for start in (base, base + 7200):  # same day, gap > 30 min → two clusters
+        db.add(PageStat(user_id=user.id, book_id=book.id, page=1, total_pages=100,
+                        start_time=start, duration_seconds=300, device="Kindle"))
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    assert own["sessions"] == 2
+    assert own["total_seconds"] == 600
+
+    # A manual session stays additive on top of the clusters.
+    _make_session(db, user.id, book.id, datetime(2026, 7, 1, 20, 0), device="manual")
+    db.flush()
+    own = _get_stats(client, book.id)["own"]
+    assert own["sessions"] == 3
+
+
 def test_manual_session_completion_is_sticky(client: TestClient, make_book, admin_user, db: Session):
     """A manual session never un-finishes an already-read book."""
     user, _ = admin_user

@@ -142,3 +142,42 @@ def test_per_book_session_counts_are_clustered(db, admin_user, make_book):
     covered = covered_book_ids(db, user.id)
     bs = book_seconds(db, user.id, "+0 hours", covered, None, None)
     assert bs[book.id][1] == 3
+
+
+def test_session_timeline_ribbon_reconciled(client, db, admin_user, make_book):
+    """The Habits session-timeline ribbon draws imported sittings and drops the
+    superseded live device sessions that describe the same reading; web/manual
+    sessions on covered books stay."""
+    user, _ = admin_user
+    covered = make_book(title="Covered Book")
+    webonly = make_book(title="Web Book")
+    # Imported sitting on the covered book + a live device session (same reading)
+    _add_pagestats(db, user, covered, [120, 80], day=(2026, 1, 10))
+    db.add(ReadingSession(user_id=user.id, book_id=covered.id,
+                          started_at=datetime(2026, 1, 10, 12, 0),
+                          ended_at=datetime(2026, 1, 10, 12, 30),
+                          duration_seconds=1800, pages_turned=20, device="Kindle"))
+    # Manual session on the covered book — additive, stays drawn
+    db.add(ReadingSession(user_id=user.id, book_id=covered.id,
+                          started_at=datetime(2026, 1, 11, 20, 0),
+                          ended_at=datetime(2026, 1, 11, 20, 30),
+                          duration_seconds=1800, pages_turned=20, device="manual"))
+    # Session-only book — unaffected
+    db.add(ReadingSession(user_id=user.id, book_id=webonly.id,
+                          started_at=datetime(2026, 1, 12, 9, 0),
+                          ended_at=datetime(2026, 1, 12, 9, 30),
+                          duration_seconds=1800, pages_turned=20, device="web"))
+    db.flush()
+
+    tl = client.get("/api/stats?days=0").json()["session_timeline"]
+    ids = [e["id"] for e in tl]
+    # newest first: web book, manual, imported cluster
+    assert [str(i).startswith("ps-") for i in ids] == [False, False, True]
+    imported = tl[2]
+    assert imported["duration_seconds"] == 200
+    assert imported["title"] == "Covered Book"
+    assert imported["started_at"] < imported["ended_at"]
+    # the superseded 1800s device session is not drawn
+    assert not any(e["duration_seconds"] == 1800 and e["title"] == "Covered Book"
+                   and not str(e["id"]).startswith("ps-") and e["started_at"].startswith("2026-01-10")
+                   for e in tl)

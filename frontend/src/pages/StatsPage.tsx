@@ -28,6 +28,7 @@ import {
   ReadingActivity365,
   BooksFinishedArea,
   SessionLog,
+  SessionLogHint,
   RecentlyFinished,
   StreakCalendar,
 } from '@/components/stats/widgets/overview'
@@ -113,6 +114,9 @@ type WidgetDef = {
   /** Set when the widget ignores the page range picker (e.g. "12 mo") — rendered
       as a small chip so the fixed window is visible, not a surprise. */
   fixedWindow?: string
+  /** Optional info popover rendered beside the tile title (an InfoHint-style
+      component) — for tiles whose rows carry labels that need explaining. */
+  infoHint?: React.ComponentType
   /** List-like content with intrinsic height (not a fill-the-box chart): in view
       mode the tile shrinks to fit what's actually there, so two in-progress books
       don't rattle around a five-row tile. Edit mode shows the true template. */
@@ -285,6 +289,7 @@ const WIDGETS: WidgetDef[] = [
     title: 'Recent Sessions',
     size: { w: 12, h: 6, minW: 5, minH: 2 },
     autoH: true,
+    infoHint: SessionLogHint,
     render: () => <SessionLog />,
   },
   {
@@ -1177,6 +1182,7 @@ function TileShell({
             12px + a 12px icon keeps long labels ("Reading Time") on one line in a
             narrow ~126px stat tile instead of clipping to "Reading Ti…". */}
         <h3 className="min-w-0 truncate font-display text-xs font-medium text-muted-foreground">{def.titleFor?.(config) ?? def.title}</h3>
+        {def.infoHint && <def.infoHint />}
         {def.fixedWindow && (
           <span title="This tile uses a fixed window and ignores the range picker" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
             {def.fixedWindow}

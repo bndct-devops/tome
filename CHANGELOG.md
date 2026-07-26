@@ -24,6 +24,29 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Manual sync linking in the UI.** When a KOSync client has synced a
   document that isn't attached to any book, the book page offers a small
   "Link KOReader sync" picker - no more calling the API by hand.
+- **Imported KOReader history shows up as sessions - and single sittings can
+  be deleted.** Reading synced from KOReader's statistics (including history
+  from before Tome existed) used to count toward the totals but never appear
+  in Recent Sessions or the per-book session list, so a book could claim "1
+  session" over an empty list and an accidental open was impossible to remove
+  without wiping the book's whole imported history. The session lists now
+  include imported sittings (marked "imported", grouped the same way KOReader
+  groups sessions), each deletable on its own; the book page's session count
+  matches the sittings that count. Imported sittings can't be trimmed -
+  KOReader's own idle-capping already applies. On books with imported
+  history, the plugin's live device sessions describe the same reading a
+  second time, so they are excluded from the totals - but they stay in the
+  list with a "not counted" label rather than disappearing. An info popover
+  next to the session lists explains all of this in place.
+- **Click a day in the book page's Activity chart to manage that day's
+  sessions.** Each bar opens a popup with the sittings that started on that
+  day - trim or delete right there instead of scrolling the full session
+  log to find the one stray entry.
+- The Habits tab's session timeline now draws imported KOReader sittings
+  too, so device reading on stats-synced books appears in the ribbon
+  instead of leaving those days blank. The superseded live device sessions
+  are left out of the drawing - the same reading would otherwise paint
+  twice.
 
 ### Fixed
 - KOSync progress pushes now follow the same read-status rules as every

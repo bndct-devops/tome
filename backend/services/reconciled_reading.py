@@ -92,8 +92,15 @@ MIN_SESSION_SECONDS = 10
 
 
 def _cluster_rows(db, user_id: int, tzm: str,
-                  cutoff: Optional[datetime], range_end: Optional[datetime]):
-    """Gap-clustered page-stat sessions: (book_id, day, start, secs, pages).
+                  cutoff: Optional[datetime], range_end: Optional[datetime],
+                  book_id: Optional[int] = None):
+    """Gap-clustered page-stat sessions:
+    (book_id, day, start, last_start, secs, pages, device).
+
+    ``last_start`` is the cluster's final row's start_time — the inclusive upper
+    bound for a range delete of exactly this cluster's rows (durations can
+    overshoot past the next cluster's first row, so start+duration is unsafe
+    as a boundary). ``device`` is MAX() over the cluster — display-only.
 
     Pure SQL (SQLite window functions): number the breaks with LAG, run a
     cumulative sum for cluster ids, aggregate. The day is the cluster's START
@@ -110,17 +117,19 @@ def _cluster_rows(db, user_id: int, tzm: str,
         where.append("start_time >= :ce"); params["ce"] = ce
     if ee is not None:
         where.append("start_time < :ee"); params["ee"] = ee
+    if book_id is not None:
+        where.append("book_id = :bid"); params["bid"] = book_id
 
     sql = text(f"""
         WITH ordered AS (
-            SELECT book_id, start_time, duration_seconds,
+            SELECT book_id, start_time, duration_seconds, device,
                    CASE WHEN start_time - LAG(start_time) OVER w > :gap
                         THEN 1 ELSE 0 END AS brk
             FROM ko_page_stats
             WHERE {' AND '.join(where)}
             WINDOW w AS (PARTITION BY book_id ORDER BY start_time)
         ), clustered AS (
-            SELECT book_id, start_time, duration_seconds,
+            SELECT book_id, start_time, duration_seconds, device,
                    SUM(brk) OVER (PARTITION BY book_id ORDER BY start_time
                                   ROWS UNBOUNDED PRECEDING) AS cluster_id
             FROM ordered
@@ -128,8 +137,10 @@ def _cluster_rows(db, user_id: int, tzm: str,
         SELECT book_id,
                date(MIN(start_time), 'unixepoch', :tzm) AS day,
                MIN(start_time) AS start,
+               MAX(start_time) AS last_start,
                SUM(duration_seconds) AS secs,
-               COUNT(*) AS pages
+               COUNT(*) AS pages,
+               MAX(device) AS device
         FROM clustered
         GROUP BY book_id, cluster_id
         HAVING SUM(duration_seconds) >= :min_secs
