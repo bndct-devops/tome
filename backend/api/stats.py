@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -278,13 +278,23 @@ def get_stats(
         for r in in_progress_rows
     ]
 
-    # Session timeline — recent sessions with start/end times for timeline view
+    # Session timeline — recent sittings with start/end times for timeline view.
+    # Reconciled like the session log: imported KOReader clusters ARE the device
+    # sittings for covered books, so they're drawn and the superseded live
+    # device sessions are excluded — a ribbon has no way to carry the list's
+    # "not counted" label, and drawing both would paint the same reading twice.
+    tl_base = base.filter(
+        ReadingSession.started_at.isnot(None),
+        ReadingSession.ended_at.isnot(None),
+        ReadingSession.book_id.isnot(None),
+    )
+    if covered:
+        tl_base = tl_base.filter(or_(
+            ReadingSession.book_id.notin_(covered),
+            ReadingSession.device.in_(rr.NON_DEVICE_SOURCES),
+        ))
     timeline_rows = (
-        base.filter(
-            ReadingSession.started_at.isnot(None),
-            ReadingSession.ended_at.isnot(None),
-            ReadingSession.book_id.isnot(None),
-        )
+        tl_base
         .join(Book, Book.id == ReadingSession.book_id)
         .with_entities(
             ReadingSession.id,
@@ -307,6 +317,34 @@ def get_stats(
         }
         for r in timeline_rows
     ]
+    if covered:
+        def _tl_iso(epoch: int) -> str:
+            return datetime.fromtimestamp(epoch, timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+
+        clusters = rr._cluster_rows(db, current_user.id, day_modifier, cutoff, range_end)
+        clusters.sort(key=lambda c: -int(c.start))
+        clusters = clusters[:50]
+        cl_titles = dict(
+            db.query(Book.id, Book.title)
+            .filter(Book.id.in_({c.book_id for c in clusters}))
+            .all()
+        ) if clusters else {}
+        session_timeline.extend(
+            {
+                "id": f"ps-{c.book_id}-{int(c.start)}",
+                "title": cl_titles[c.book_id],
+                "started_at": _tl_iso(int(c.start)),
+                # last page's start — close enough for a ribbon span; the exact
+                # end would need that page's dwell, which the aggregate drops.
+                "ended_at": _tl_iso(int(c.last_start)),
+                "duration_seconds": int(c.secs or 0),
+            }
+            for c in clusters
+            if c.book_id in cl_titles  # deleted books: mirror the join above
+        )
+        # Fixed-width "YYYY-MM-DDTHH:MM:SSZ" strings sort correctly as text.
+        session_timeline.sort(key=lambda e: e["started_at"], reverse=True)
+        session_timeline = session_timeline[:50]
 
     # ── Period comparison ─────────────────────────────────────────────────────
     period_comparison = None
@@ -1228,31 +1266,58 @@ def list_sessions(
     limit: int = Query(50, ge=1, le=200),
     book_id: Optional[int] = Query(None),
     sort: str = Query("recent", pattern="^(recent|longest)$"),
+    tz_offset: int = Query(0),
+    day: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """List individual reading sessions for the current user.
+    """List the current user's reading sessions, merged with imported KOReader
+    history.
+
+    ``day`` (a reading-day string as emitted in ``session_timeline``, bucketed
+    with ``tz_offset`` + 4h rollover) narrows the list to sittings that
+    *started* on that day — the Activity chart's click-through. A sitting that
+    crosses midnight belongs to the day it began, matching how it was counted.
+
+    The list mirrors what reconciled totals count, so every listed row is
+    deletable and every deletion moves the totals. Two row kinds:
+    - ``session`` — a recorded ReadingSession (live, web, or manual).
+    - ``imported`` — a gap-clustered sitting from imported KOReader page-stats,
+      carrying ``range_start``/``range_end`` (epoch seconds) for
+      ``DELETE /stats/imported-sessions``. Not trimmable (already idle-capped).
+    Every row also carries ``counted``: device-origin live sessions on a book
+    covered by page-stats are ``counted: false`` — reconciliation excludes them
+    from totals (the imported clusters already describe that reading) but they
+    stay listed, labeled, rather than silently hidden.
 
     ``sort=longest`` and the ``book_id`` filter exist so runaway sessions
-    (#150) are findable without paging through the whole history. Each row
-    carries ``suspect`` and, when computable, ``suggested_seconds`` — the
+    (#150) are findable without paging through the whole history. Session rows
+    carry ``suspect`` and, when computable, ``suggested_seconds`` — the
     session's page turns re-priced at the user's median pace — feeding the
     trim dialog's pre-fill.
     """
+    covered = set(rr.covered_book_ids(db, current_user.id))
     base = (
         db.query(ReadingSession)
         .filter(ReadingSession.user_id == current_user.id)
     )
     if book_id is not None:
         base = base.filter(ReadingSession.book_id == book_id)
-    total = base.count()
+    if day is not None:
+        base = base.filter(
+            func.date(ReadingSession.started_at, date_modifier(tz_offset)) == day
+        )
+    total_sessions = base.count()
     order = (
         ReadingSession.duration_seconds.desc()
         if sort == "longest"
         else ReadingSession.started_at.desc()
     )
     median_pace = median_secs_per_page(db, current_user.id)
-    rows = (
+    # k-way merge pagination: the merged page [offset, offset+limit) can only
+    # contain rows from each source's own top (offset+limit).
+    window = offset + limit
+    sess_rows = (
         base
         .outerjoin(Book, Book.id == ReadingSession.book_id)
         .with_entities(
@@ -1268,15 +1333,56 @@ def list_sessions(
             ReadingSession.progress_end,
         )
         .order_by(order)
-        .offset(offset)
-        .limit(limit)
+        .limit(window)
         .all()
     )
-    return {
-        "total": total,
-        "sessions": [
-            {
+    clusters = []
+    if covered and (book_id is None or book_id in covered):
+        clusters = rr._cluster_rows(
+            db, current_user.id, date_modifier(tz_offset), None, None, book_id=book_id
+        )
+        if day is not None:
+            clusters = [c for c in clusters if c.day == day]
+    total = total_sessions + len(clusters)
+
+    def _sess_key(r) -> int:
+        if sort == "longest":
+            return int(r.duration_seconds or 0)
+        return (
+            int(r.started_at.replace(tzinfo=timezone.utc).timestamp())
+            if r.started_at else 0
+        )
+
+    def _cluster_key(c) -> int:
+        return int(c.secs or 0) if sort == "longest" else int(c.start)
+
+    entries = (
+        [(_sess_key(r), "session", r) for r in sess_rows]
+        + [(_cluster_key(c), "imported", c) for c in clusters]
+    )
+    entries.sort(key=lambda t: t[0], reverse=True)
+    page = entries[offset:offset + limit]
+
+    cluster_books = {e[2].book_id for e in page if e[1] == "imported"}
+    cluster_titles: dict[int, str] = (
+        dict(db.query(Book.id, Book.title).filter(Book.id.in_(cluster_books)).all())
+        if cluster_books else {}
+    )
+
+    def _iso(epoch: int) -> str:
+        return datetime.fromtimestamp(epoch, timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+
+    out = []
+    for _, kind, r in page:
+        if kind == "session":
+            superseded = (
+                r.book_id in covered
+                and (r.device or "") not in rr.NON_DEVICE_SOURCES
+            )
+            out.append({
                 "id": r.id,
+                "kind": "session",
+                "counted": not superseded,
                 "book_id": r.book_id,
                 "book_title": r.book_title or "(deleted book)",
                 "started_at": (r.started_at.isoformat() + "Z") if r.started_at else None,
@@ -1290,10 +1396,28 @@ def list_sessions(
                 "suggested_seconds": suggested_seconds(
                     r.duration_seconds, r.pages_turned, median_pace
                 ),
-            }
-            for r in rows
-        ],
-    }
+            })
+        else:
+            start, last_start = int(r.start), int(r.last_start)
+            out.append({
+                "id": f"ps-{r.book_id}-{start}",
+                "kind": "imported",
+                "counted": True,
+                "book_id": r.book_id,
+                "book_title": cluster_titles.get(r.book_id, "(deleted book)"),
+                "started_at": _iso(start),
+                "ended_at": _iso(last_start),
+                "duration_seconds": int(r.secs or 0),
+                "pages_turned": int(r.pages or 0),
+                "device": r.device or "KOReader",
+                "progress_start": None,
+                "progress_end": None,
+                "suspect": False,
+                "suggested_seconds": None,
+                "range_start": start,
+                "range_end": last_start,
+            })
+    return {"total": total, "sessions": out}
 
 
 @router.delete("/stats/sessions/{session_id}")
@@ -1317,6 +1441,48 @@ def delete_session(
     audit(db, "session.deleted", user_id=current_user.id, username=current_user.username,
           resource_type="reading_session", resource_id=session_id, details=details)
     return {"ok": True}
+
+
+@router.delete("/stats/imported-sessions")
+def delete_imported_session(
+    book_id: int = Query(...),
+    start: int = Query(..., description="Cluster range_start (epoch seconds, inclusive)"),
+    end: int = Query(..., description="Cluster range_end (epoch seconds, inclusive)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Delete one imported-history cluster: the user's own KOReader page-stat
+    rows for a book within [start, end] — the range a `kind: "imported"` row
+    from GET /stats/sessions carries. The accidental-open eraser: removes one
+    sitting without touching the rest of the book's imported history (the
+    per-book purge on BookDetailPage remains the wipe-everything tool).
+
+    Deleting a book's LAST cluster un-covers it, so any device-origin live
+    sessions it has resurface in lists and totals — the fallback source
+    becomes authoritative again, consistent with reconciliation.
+    """
+    from backend.models.ko_stats import PageStat
+
+    if end < start:
+        raise HTTPException(status_code=400, detail="Invalid range")
+    deleted = (
+        db.query(PageStat)
+        .filter(
+            PageStat.user_id == current_user.id,
+            PageStat.book_id == book_id,
+            PageStat.start_time >= start,
+            PageStat.start_time <= end,
+        )
+        .delete(synchronize_session=False)
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="No imported history in that range")
+    db.commit()
+    audit(db, "imported_session.deleted", user_id=current_user.id,
+          username=current_user.username, resource_type="ko_page_stats",
+          resource_id=book_id,
+          details={"book_id": book_id, "start": start, "end": end, "rows": deleted})
+    return {"ok": True, "deleted_rows": deleted}
 
 
 class TrimSessionRequest(BaseModel):

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Camera, Download, Edit2, Save, X,
@@ -19,7 +20,7 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
 import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
-import { SessionLog } from '@/components/stats/widgets/overview'
+import { SessionLog, SessionLogHint } from '@/components/stats/widgets/overview'
 import { InfoHint } from '@/components/InfoHint'
 import { api } from '@/lib/api'
 import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingStatus } from '@/lib/books'
@@ -47,6 +48,8 @@ interface Annotation {
 
 interface BookReadingStats {
   total_seconds: number
+  // Reconciled sitting count: recorded web/manual sessions plus gap-clustered
+  // imported KOReader history — exactly the rows the session log lists.
   sessions: number
   pages_turned: number
   avg_session_seconds: number
@@ -879,15 +882,18 @@ export function BookDetailPage() {
             )}
             {readingStats.own.sessions > 0 && (
               <div className="rounded-xl border border-border bg-card px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setSessionsOpen(o => !o)}
-                  aria-expanded={sessionsOpen}
-                  className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
-                >
-                  Sessions ({readingStats.own.sessions})
-                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !sessionsOpen && '-rotate-90')} />
-                </button>
+                <span className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSessionsOpen(o => !o)}
+                    aria-expanded={sessionsOpen}
+                    className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+                  >
+                    Sessions ({readingStats.own.sessions})
+                    <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !sessionsOpen && '-rotate-90')} />
+                  </button>
+                  <SessionLogHint />
+                </span>
                 {sessionsOpen && (
                   <div className="mt-3">
                     <SessionLog bookId={Number(id)} onChange={refreshStats} />
@@ -1480,9 +1486,14 @@ interface StatsLayoutProps {
  *  The progress lane is the per-book "journey" — % complete over calendar time —
  *  drawn whenever the timeline carries 2+ progress points (the backend only
  *  emits progress_pct where a position is actually known). */
-function ActivityChart({ timeline }: {
+function ActivityChart({ timeline, bookId, onChange }: {
   timeline: { date: string; seconds: number; pages: number; progress_pct?: number | null }[]
+  bookId?: number
+  onChange?: () => void
 }) {
+  // Click-through: a bar opens that day's sessions for quick trim/delete —
+  // e.g. an accidentally imported sitting, without scrolling to the full log.
+  const [dayOpen, setDayOpen] = useState<string | null>(null)
   if (timeline.length < 2) return null
   // Real time axis: fill the calendar days between the first and last reading
   // day with zero bars. Active-days-only bars, evenly spaced, misrepresent the
@@ -1528,13 +1539,18 @@ function ActivityChart({ timeline }: {
           {days.map(d => {
             const pct = d.seconds > 0 ? Math.max(d.seconds / max, 0.06) : 0
             const mins = Math.round(d.seconds / 60)
-            const tip = `${fmtDay(d.date)}: ${mins}m${d.pages > 0 ? `, ${d.pages} pages` : ''}${d.progress_pct != null ? ` · ${d.progress_pct}% in` : ''}`
+            const clickable = d.seconds > 0 && bookId != null
+            const tip = `${fmtDay(d.date)}: ${mins}m${d.pages > 0 ? `, ${d.pages} pages` : ''}${d.progress_pct != null ? ` · ${d.progress_pct}% in` : ''}${clickable ? ' — click for sessions' : ''}`
             return (
               <div
                 key={d.date}
-                className="flex-1 min-w-px bg-primary/60 hover:bg-primary transition-colors rounded-t-sm"
+                className={cn(
+                  'flex-1 min-w-px bg-primary/60 hover:bg-primary transition-colors rounded-t-sm',
+                  clickable && 'cursor-pointer',
+                )}
                 style={{ height: pct > 0 ? `${Math.round(pct * 100)}%` : '0%' }}
                 title={d.seconds > 0 ? tip : undefined}
+                onClick={clickable ? () => setDayOpen(d.date) : undefined}
               />
             )
           })}
@@ -1544,6 +1560,35 @@ function ActivityChart({ timeline }: {
         <span>{first?.date ? fmtDay(first.date) : ''}</span>
         <span>{last?.date ? fmtDay(last.date) : ''}</span>
       </div>
+      {dayOpen && bookId != null && createPortal(
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setDayOpen(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+              <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
+                <span className="flex items-center gap-1.5">
+                  <h2 className="font-display text-sm text-foreground">
+                    Sessions · {new Date(dayOpen + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                  </h2>
+                  <SessionLogHint />
+                </span>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setDayOpen(null)}
+                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="overflow-y-auto px-5 py-3">
+                <SessionLog bookId={bookId} day={dayOpen} onChange={onChange} />
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
       {hasJourney && lanePts.length > 1 && (
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1">
@@ -1997,7 +2042,7 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
       </div>
       {own.session_timeline.length > 1 && (
         <div className="mt-4">
-          <ActivityChart timeline={own.session_timeline} />
+          <ActivityChart timeline={own.session_timeline} bookId={bookId} onChange={onChange} />
         </div>
       )}
       {/* Current progress — only when the journey line doesn't actually render

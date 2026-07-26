@@ -205,6 +205,24 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   </ul>
   <p>Sessions shorter than 10 seconds are filtered out.</p>
 
+  <h3>Reading-history backfill</h3>
+  <p>
+    KOReader's built-in statistics plugin records every page you dwell on — going back to long
+    before Tome existed. TomeSync can push that database to your server:
+    <strong>TomeSync → Settings → Auto-sync reading history on launch</strong>, or run it once
+    via <strong>Sync reading history</strong>. The first sync backfills everything (chunked and
+    resumable — a dropped connection just continues next time); later syncs send only new
+    reading. It carries reading time and pages only, never your read/unread status.
+  </p>
+  <p>
+    Once a book has imported history, that history becomes the source of truth for its device
+    reading: it feeds the per-page <strong>Reading intensity</strong> and
+    <strong>Time per chapter</strong> charts on the book page, and its sittings appear in the
+    <a href={withBase("/docs/stats")}>session lists</a> tagged <em>imported</em>. The plugin's
+    own live sessions for such a book are excluded from the totals so nothing is counted
+    twice.
+  </p>
+
   <h3>Sync on suspend</h3>
   <p>
     Two opt-in settings (TomeSync → Settings) make your morning stats current without ever

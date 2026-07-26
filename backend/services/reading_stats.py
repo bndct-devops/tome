@@ -143,7 +143,7 @@ def compute_book_reading_stats(
     # a Kindle-synced book vanish without a trace. Untouched when the book has
     # no page-stats — ps_seconds is 0 and this whole block is skipped.
     from backend.models.ko_stats import PageStat
-    from backend.services.reconciled_reading import NON_DEVICE_SOURCES
+    from backend.services.reconciled_reading import NON_DEVICE_SOURCES, _cluster_rows
 
     ps = (
         db.query(
@@ -214,7 +214,6 @@ def compute_book_reading_stats(
         pages_turned += add_pages
 
         day_map: dict[str, list[int]] = {r.day: [int(r.seconds), int(r.pages)] for r in day_rows}
-        ps_day_count = len(day_map)
         if add_count:
             add_rows = (
                 additive.with_entities(
@@ -233,9 +232,13 @@ def compute_book_reading_stats(
             {"date": d, "seconds": v[0], "pages": v[1]}
             for d, v in sorted(day_map.items())
         ]
-        # Device reading counts one "session" per reading day; additive sessions
-        # keep their real counts.
-        sessions = ps_day_count + add_count
+        # Device reading counts real sittings: gap-clustered page-stats, the
+        # same clusters the session log lists — so "Sessions (N)" on the card
+        # always equals the rows the dropdown can show (plus additive
+        # web/manual sessions, which keep their own counts).
+        sessions = len(
+            _cluster_rows(db, user_id, day_mod, None, None, book_id=book_id)
+        ) + add_count
         avg_session_seconds = round(total_seconds / sessions) if sessions else 0
 
         first_dt = (

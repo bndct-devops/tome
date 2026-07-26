@@ -25,7 +25,8 @@ export interface StatsResponse {
   by_category: { category: string; seconds: number; sessions: number; book_count: number }[]
   reading_pace: { session_id: number; title: string; date: string | null; pages_per_min: number; duration_seconds: number; pages_turned: number }[]
   books_in_progress: { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number; last_read: string | null }[]
-  session_timeline: { id: number; title: string; started_at: string; ended_at: string; duration_seconds: number }[]
+  // id is a string ("ps-<book>-<start>") for imported KOReader sittings.
+  session_timeline: { id: number | string; title: string; started_at: string; ended_at: string; duration_seconds: number }[]
   year_summary?: {
     books_finished: number
     total_hours: number
@@ -108,7 +109,14 @@ export interface CompletionEstimate {
 }
 
 export interface SessionEntry {
-  id: number
+  // Recorded sessions have a numeric DB id; imported KOReader history clusters
+  // get a synthetic string id ("ps-<book>-<start>").
+  id: number | string
+  kind: 'session' | 'imported'
+  // False for a device live session on a book with imported KOReader history:
+  // the imported sittings already describe that reading, so this row is listed
+  // (labeled "not counted") but excluded from totals.
+  counted: boolean
   book_id: number | null
   book_title: string
   started_at: string | null
@@ -122,6 +130,9 @@ export interface SessionEntry {
   // plausible real duration (page turns at the user's median pace) if computable.
   suspect: boolean
   suggested_seconds: number | null
+  // Imported clusters only: the epoch range for DELETE /stats/imported-sessions.
+  range_start?: number
+  range_end?: number
 }
 
 // ── Chrome ────────────────────────────────────────────────────────────────────
