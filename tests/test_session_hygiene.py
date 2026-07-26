@@ -404,3 +404,43 @@ def test_sessions_day_filter(hygiene_client, make_book):
 
     r = c.get(f"/api/stats/sessions?book_id={book.id}&day=14-11-2023", headers=headers)
     assert r.status_code == 422
+
+
+def test_noise_blip_listed_and_deletable(hygiene_client, make_book):
+    """A sub-10s page-stat blip (accidental open) is not a counted sitting, but
+    it holds seconds in the totals — so the list shows it and it can be
+    deleted. Caught on prod: an Activity bar whose day popup said "No sessions
+    recorded" because the only sitting that day was 7 seconds long."""
+    c, db, user, jwt, _key = hygiene_client
+    book = make_book(title="Blip Book")
+    base = 1_700_000_000
+    _add_page_stats(db, user, book, base=base, count=5, dur=60)          # real sitting
+    _add_page_stats(db, user, book, base=base + 40 * 86_400, count=1, dur=7,
+                    page0=99)                                            # 7s accidental open
+    headers = {"Authorization": f"Bearer {jwt}"}
+
+    rows = c.get(f"/api/stats/sessions?book_id={book.id}&tz_offset=0",
+                 headers=headers).json()["sessions"]
+    assert [r["duration_seconds"] for r in rows] == [7, 300]
+
+    # the blip's reading day resolves like the timeline's: filterable by day
+    blip = rows[0]
+    day = blip["started_at"][:10]
+    rows = c.get(f"/api/stats/sessions?book_id={book.id}&day={day}&tz_offset=0",
+                 headers=headers).json()["sessions"]
+    assert [r["duration_seconds"] for r in rows] == [7]
+
+    # per-book count keeps the noise floor: one sitting, not two
+    r = c.get(f"/api/books/{book.id}/reading-stats", headers=headers)
+    assert r.json()["own"]["sessions"] == 1
+
+    # and it is deletable like any imported sitting
+    r = c.delete(
+        f"/api/stats/imported-sessions?book_id={book.id}"
+        f"&start={blip['range_start']}&end={blip['range_end']}",
+        headers=headers,
+    )
+    assert r.status_code == 200
+    rows = c.get(f"/api/stats/sessions?book_id={book.id}&tz_offset=0",
+                 headers=headers).json()["sessions"]
+    assert [r["duration_seconds"] for r in rows] == [300]

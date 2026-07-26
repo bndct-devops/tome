@@ -93,7 +93,8 @@ MIN_SESSION_SECONDS = 10
 
 def _cluster_rows(db, user_id: int, tzm: str,
                   cutoff: Optional[datetime], range_end: Optional[datetime],
-                  book_id: Optional[int] = None):
+                  book_id: Optional[int] = None,
+                  min_secs: int = MIN_SESSION_SECONDS):
     """Gap-clustered page-stat sessions:
     (book_id, day, start, last_start, secs, pages, device).
 
@@ -101,6 +102,12 @@ def _cluster_rows(db, user_id: int, tzm: str,
     bound for a range delete of exactly this cluster's rows (durations can
     overshoot past the next cluster's first row, so start+duration is unsafe
     as a boundary). ``device`` is MAX() over the cluster — display-only.
+
+    ``min_secs`` drops sub-threshold clusters (page-flip noise) — the default
+    for anything that COUNTS sessions. The session list passes 0: a 7-second
+    accidental open still holds page-stat seconds (they're in the totals and
+    draw an Activity bar), so it must be listable and deletable even though it
+    is not a sitting worth counting.
 
     Pure SQL (SQLite window functions): number the breaks with LAG, run a
     cumulative sum for cluster ids, aggregate. The day is the cluster's START
@@ -111,7 +118,7 @@ def _cluster_rows(db, user_id: int, tzm: str,
 
     where, params = ["user_id = :uid"], {"uid": user_id, "tzm": tzm,
                                          "gap": SESSION_GAP_SECONDS,
-                                         "min_secs": MIN_SESSION_SECONDS}
+                                         "min_secs": min_secs}
     ce, ee = _epoch(cutoff), _epoch(range_end)
     if ce is not None:
         where.append("start_time >= :ce"); params["ce"] = ce

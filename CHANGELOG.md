@@ -49,6 +49,13 @@ All notable changes to Tome are documented here. Format loosely follows
   twice.
 
 ### Fixed
+- A seconds-long accidental open synced from KOReader history now shows up
+  in the session lists and the Activity day popup so it can be deleted.
+  Such blips are below the noise floor for session counting (a 7-second
+  page flip is not a sitting) and were filtered out of the lists entirely -
+  but their seconds still drew an Activity bar and set "last read", so the
+  one entry people most want to remove was the one entry that never
+  appeared, and its day popup claimed "No sessions recorded".
 - KOSync progress pushes now follow the same read-status rules as every
   other sync path: finishing requires 99% (was 95%), completion is sticky
   (a re-read no longer drags a finished book back to "reading"), and the
