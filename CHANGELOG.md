@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-26 - "Palimpsest"
+
 ### Added
 - **KOSync clients now pick up your Tome reading position** (#156). The
   KOSync-compatible endpoint (stock KOReader sync, Readest, and friends)
@@ -47,44 +49,6 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of leaving those days blank. The superseded live device sessions
   are left out of the drawing - the same reading would otherwise paint
   twice.
-
-### Fixed
-- A seconds-long accidental open synced from KOReader history now shows up
-  in the session lists and the Activity day popup so it can be deleted.
-  Such blips are below the noise floor for session counting (a 7-second
-  page flip is not a sitting) and were filtered out of the lists entirely -
-  but their seconds still drew an Activity bar and set "last read", so the
-  one entry people most want to remove was the one entry that never
-  appeared, and its day popup claimed "No sessions recorded".
-- KOSync progress pushes now follow the same read-status rules as every
-  other sync path: finishing requires 99% (was 95%), completion is sticky
-  (a re-read no longer drags a finished book back to "reading"), and the
-  finish date is recorded.
-
-### Fixed
-- Imported KOReader reading history can no longer land on the wrong volume of
-  a series (#152). When a volume read on the device was missing from the Tome
-  library, the history importer's title matching could confidently attribute
-  its entire reading log to a sibling volume — hours of sessions and page
-  data on a book never opened. The matcher now treats a parsed volume number
-  as authoritative: a candidate claiming a different volume is never matched,
-  half-volumes (2.5) resolve exactly instead of truncating, and French-style
-  "T2" tome numbering is understood. History for a volume Tome doesn't own is
-  parked until the book exists rather than guessed onto a lookalike.
-- On update, previously mis-imported history heals itself: stored matches are
-  re-verified against the fixed rules on startup, ghost page data whose book
-  has no other import source is removed, the device re-syncs its history on
-  the next connection, and a notification explains what happened. Books where
-  wrong and genuine history are mixed are left untouched and flagged instead.
-
-- Chart tooltips on Reading Stats no longer detach from the cursor or hide
-  behind neighbouring tiles (#151). The activity heatmap, the hour-by-day
-  heatmap, and the timeline ribbon all rendered their hover tooltip inside
-  the dashboard tile, where the grid's CSS transform re-anchored it and
-  clipped it under adjacent cards; tooltips now render at the document root
-  and follow the mouse everywhere.
-
-### Added
 - **Clear imported history per book.** The Reading intensity panel on a book
   page grows a small trash action that removes the current user's imported
   KOReader page data for that book — the manual escape hatch for mixed cases
@@ -113,6 +77,40 @@ All notable changes to Tome are documented here. Format loosely follows
   plugin builds still get sanity-checked on the server: an implausibly long
   one raises a bell notification pointing at Reading Stats, so a bad night
   never silently distorts your numbers.
+
+### Fixed
+- A seconds-long accidental open synced from KOReader history now shows up
+  in the session lists and the Activity day popup so it can be deleted.
+  Such blips are below the noise floor for session counting (a 7-second
+  page flip is not a sitting) and were filtered out of the lists entirely -
+  but their seconds still drew an Activity bar and set "last read", so the
+  one entry people most want to remove was the one entry that never
+  appeared, and its day popup claimed "No sessions recorded".
+- KOSync progress pushes now follow the same read-status rules as every
+  other sync path: finishing requires 99% (was 95%), completion is sticky
+  (a re-read no longer drags a finished book back to "reading"), and the
+  finish date is recorded.
+- Imported KOReader reading history can no longer land on the wrong volume of
+  a series (#152). When a volume read on the device was missing from the Tome
+  library, the history importer's title matching could confidently attribute
+  its entire reading log to a sibling volume — hours of sessions and page
+  data on a book never opened. The matcher now treats a parsed volume number
+  as authoritative: a candidate claiming a different volume is never matched,
+  half-volumes (2.5) resolve exactly instead of truncating, and French-style
+  "T2" tome numbering is understood. History for a volume Tome doesn't own is
+  parked until the book exists rather than guessed onto a lookalike.
+- On update, previously mis-imported history heals itself: stored matches are
+  re-verified against the fixed rules on startup, ghost page data whose book
+  has no other import source is removed, the device re-syncs its history on
+  the next connection, and a notification explains what happened. Books where
+  wrong and genuine history are mixed are left untouched and flagged instead.
+
+- Chart tooltips on Reading Stats no longer detach from the cursor or hide
+  behind neighbouring tiles (#151). The activity heatmap, the hour-by-day
+  heatmap, and the timeline ribbon all rendered their hover tooltip inside
+  the dashboard tile, where the grid's CSS transform re-anchored it and
+  clipped it under adjacent cards; tooltips now render at the document root
+  and follow the mouse everywhere.
 
 ## [2.0.0] - 2026-07-19 - "Omnibus"
 
