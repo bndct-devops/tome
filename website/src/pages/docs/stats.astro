@@ -3,7 +3,6 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
-import UnreleasedNote from '../../components/UnreleasedNote.astro'
 import { ThemedShot } from '../../components/ThemedShot'
 import { withBase } from '../../lib/path'
 ---
@@ -111,7 +110,6 @@ import { withBase } from '../../lib/path'
   </Callout>
 
   <h2>Imported KOReader history in the session lists</h2>
-  <UnreleasedNote />
   <p>
     Reading synced from KOReader's own statistics database — including everything read before
     Tome existed, if you enabled the <a href={withBase("/docs/koreader")}>reading-history
