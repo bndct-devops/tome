@@ -6,6 +6,28 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Security
+- Updated `react-router` to 7.18.2, clearing four advisories: an unauthenticated
+  route-matching DoS (CVE-2026-55685), an open redirect via backslash in `<Link>`
+  and `useNavigate`, a constructor injection in SSR hydration, and an XSS in the
+  RSC error handler. Only the open redirect is reachable in Tome - the SSR and
+  RSC issues cover render modes Tome does not use, and the DoS is client-side in
+  a static SPA, so it can only affect the tab it runs in. A fifth advisory
+  (GHSA-qwww-vcr4-c8h2, CSRF bypass in RSC mode) has no 7.x fix at all and is
+  equally unreachable from a `BrowserRouter` app; it is left for a future major
+  upgrade rather than pulled into a patch release.
+- Updated `postcss` to 8.5.25, clearing a path-traversal advisory in source-map
+  auto-loading. Build-time only - postcss reaches Tome through Vite and is not
+  part of a deployed instance.
+- Updated `brace-expansion`, a dev-only transitive dependency, to clear a
+  denial-of-service advisory.
+
+### Build
+- Release images now publish a major-version tag as well, so
+  `ghcr.io/bndct-devops/tome:2` follows the newest 2.x release without pinning a
+  minor or patch. The existing `:2.1`, `:2.1.1` and `:latest` tags are unchanged.
+  Thanks to @bl1nk for the contribution. (#163)
+
 ## [2.1.0] - 2026-07-26 - "Palimpsest"
 
 ### Added
