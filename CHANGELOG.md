@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-08-01
+
 ### Security
 - Updated `react-router` to 7.18.2, clearing four advisories: an unauthenticated
   route-matching DoS (CVE-2026-55685), an open redirect via backslash in `<Link>`
