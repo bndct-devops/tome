@@ -6,6 +6,15 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- KOReader plugin (build 38 / 1.11.1): popup menus — the series browser,
+  Authors, Shelves, the Inbox and the TomeSync menu itself — could freeze on
+  their first page when a full-screen home-screen plugin (such as
+  bookshelf.koplugin) covers the file browser: page turns happened internally
+  but the screen never repainted, and stale refreshes could leave blank white
+  rectangles behind. The menus now repaint through their own window instead of
+  the hidden file browser.
+
 ## [2.1.1] - 2026-08-01
 
 ### Security

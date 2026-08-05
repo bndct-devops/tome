@@ -75,8 +75,8 @@ logger = logging.getLogger(__name__)
 # bypassing wifi_enable_action so "prompt" never dialogs onto the sleep
 # screen). onNetworkConnected also runs the history backfill now (was
 # launch-only) and no longer requires an open book to flush pending state.
-TOMESYNC_PLUGIN_BUILD = 37
-TOMESYNC_PLUGIN_SEMVER = "1.11.0"
+TOMESYNC_PLUGIN_BUILD = 38
+TOMESYNC_PLUGIN_SEMVER = "1.11.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -3705,7 +3705,6 @@ function TomeSync:_bookListMenu(data)
         item_table  = items,
         width       = Device.screen:getWidth() - 20,
         height      = Device.screen:getHeight() - 20,
-        show_parent = self.ui or UIManager,
     }}
     -- Hold a book row to set its read status (write-back to Tome).
     menu.onMenuHold = function(_, item)
@@ -3835,7 +3834,6 @@ function TomeSync:_authorsMenuImpl()
         item_table = items,
         width = Device.screen:getWidth() - 20,
         height = Device.screen:getHeight() - 20,
-        show_parent = self.ui or UIManager,
     }})
 end
 
@@ -3898,7 +3896,6 @@ function TomeSync:_shelvesMenuImpl()
         item_table = items,
         width = Device.screen:getWidth() - 20,
         height = Device.screen:getHeight() - 20,
-        show_parent = self.ui or UIManager,
     }})
 end
 
@@ -4075,7 +4072,6 @@ function TomeSync:_browseSeriesMenuImpl()
         item_table = items,
         width = Device.screen:getWidth() - 20,
         height = Device.screen:getHeight() - 20,
-        show_parent = self.ui or UIManager,
     }}
     UIManager:show(menu)
 end
@@ -4493,7 +4489,6 @@ function TomeSync:_inboxMenuImpl()
         item_table  = menu_items,
         width       = Device.screen:getWidth() - 20,
         height      = Device.screen:getHeight() - 20,
-        show_parent = self.ui or UIManager,
     }}
     UIManager:show(self._inbox_menu)
 end
@@ -4992,7 +4987,6 @@ function TomeSync:_showPopupMenu(title, raw)
         item_table  = items,
         width       = Device.screen:getWidth() - 20,
         height      = Device.screen:getHeight() - 20,
-        show_parent = self.ui or UIManager,
     }}
     UIManager:show(self._gesture_menu)
 end
