@@ -201,5 +201,11 @@ def test_build_bumped_for_rebake():
     # the idle cap (default 10 min, configurable, 0 = off), so a device left
     # awake unread no longer books wall-clock time; ended_at becomes the last
     # activity plus the final credit rather than the eventual suspend.
-    assert TOMESYNC_PLUGIN_BUILD >= 37
-    assert TOMESYNC_PLUGIN_SEMVER == "1.11.0"
+    # 1.11.1 / build 38 fixes popup menus (series browser, authors, shelves,
+    # inbox, gesture menu) passing show_parent = self.ui: when a full-screen
+    # home-screen plugin (e.g. bookshelf.koplugin) sits above the FileManager,
+    # repaints routed at the hidden FileManager are skipped entirely, so page
+    # flips inside the popup never redraw. Menus now use the Menu default
+    # (show_parent = the menu itself), which is always the visible window.
+    assert TOMESYNC_PLUGIN_BUILD >= 38
+    assert TOMESYNC_PLUGIN_SEMVER == "1.11.1"
