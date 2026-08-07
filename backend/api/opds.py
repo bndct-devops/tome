@@ -12,6 +12,7 @@ from backend.core.database import get_db
 from backend.core.security import get_current_user_basic
 from backend.core.config import settings
 from backend.core.permissions import book_visibility_filter, is_admin as _is_admin
+from backend.core.urls import public_base_url
 from backend.models.book import Book, BookFile
 from backend.models.library import Library
 from backend.models.user import User
@@ -29,7 +30,10 @@ PER_PAGE = 50
 
 
 def _base_url(request: Request) -> str:
-    return str(request.base_url).rstrip("/")
+    # Resolve the public origin (TOME_PUBLIC_URL / X-Forwarded-Proto aware) —
+    # a naive request.base_url emits http:// links behind a TLS-terminating
+    # proxy, and OPDS clients then send Basic-Auth credentials to them (#167).
+    return public_base_url(request)
 
 
 def _apply_visibility(query, db: Session, user: User):

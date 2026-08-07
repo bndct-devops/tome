@@ -53,6 +53,60 @@ def test_feed_robust_against_global_namespace_clobber():
         ET.register_namespace("", "http://www.w3.org/2005/Atom")
 
 
+def _hrefs(xml_text: str) -> list[str]:
+    import re
+    return [m for m in re.findall(r'href="([^"]+)"', xml_text) if m.startswith("http")]
+
+
+class _AdminUser:
+    id = 1
+    is_admin = True
+    role = "admin"
+    username = "t"
+
+
+def test_opds_links_honor_forwarded_proto(client):
+    """Behind a TLS-terminating proxy (X-Forwarded-Proto: https) every feed
+    link must be https — a naive request.base_url emits http:// (GH #167)."""
+    client.app.dependency_overrides[get_current_user_basic] = lambda: _AdminUser()
+    try:
+        resp = client.get("/opds", headers={"X-Forwarded-Proto": "https"})
+        assert resp.status_code == 200
+        hrefs = _hrefs(resp.text)
+        assert hrefs, "expected absolute links in the feed"
+        assert all(h.startswith("https://") for h in hrefs), hrefs
+    finally:
+        client.app.dependency_overrides.pop(get_current_user_basic, None)
+
+
+def test_opds_links_honor_public_url(client, monkeypatch):
+    """TOME_PUBLIC_URL is authoritative when set."""
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "public_url", "https://tome.example.org")
+    client.app.dependency_overrides[get_current_user_basic] = lambda: _AdminUser()
+    try:
+        resp = client.get("/opds")
+        assert resp.status_code == 200
+        hrefs = _hrefs(resp.text)
+        assert hrefs
+        assert all(h.startswith("https://tome.example.org/") for h in hrefs), hrefs
+    finally:
+        client.app.dependency_overrides.pop(get_current_user_basic, None)
+
+
+def test_opds_links_plain_http_unchanged(client):
+    """No proxy headers, no TOME_PUBLIC_URL: links keep the request origin."""
+    client.app.dependency_overrides[get_current_user_basic] = lambda: _AdminUser()
+    try:
+        resp = client.get("/opds")
+        assert resp.status_code == 200
+        hrefs = _hrefs(resp.text)
+        assert hrefs
+        assert all(h.startswith("http://testserver/") for h in hrefs), hrefs
+    finally:
+        client.app.dependency_overrides.pop(get_current_user_basic, None)
+
+
 def test_opds_root_endpoint_serves_default_namespace(client):
     """End-to-end: the live /opds endpoint returns atom+xml with a default ns."""
 
