@@ -350,15 +350,15 @@ export function LibraryHealthTab() {
 
       {healthData && healthData.missing.length > 0 && (
         <div className="rounded-xl border border-destructive/20 bg-card overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-destructive/5">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-border bg-destructive/5">
             <div className="flex items-center gap-2 min-w-0">
               <FileX className="w-4 h-4 text-destructive shrink-0" />
-              <span className="text-xs font-medium">Orphaned entries</span>
+              <span className="text-xs font-medium whitespace-nowrap">Orphaned entries</span>
               <span className="text-xs text-muted-foreground truncate">
                 {healthData.missing.length} file{healthData.missing.length !== 1 ? 's' : ''} in the database but missing from disk
               </span>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
               {confirmRemoveMissing && (
                 <button
                   onClick={() => setConfirmRemoveMissing(false)}

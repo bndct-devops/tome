@@ -1629,15 +1629,16 @@ function DuplicatesTab() {
           })}
 
           {(decidedGroups.length > 0 || applying) && (
-            <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-card shadow-lg">
-              <span className="text-xs text-muted-foreground">
+            <div className="sticky bottom-16 sm:bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-card shadow-lg">
+              {/* bottom-16 below sm clears the fixed keyboard-shortcuts FAB */}
+              <span className="text-xs text-muted-foreground min-w-0">
                 {[
                   mergeCount > 0 ? `merge ${mergeCount} group${mergeCount !== 1 ? 's' : ''}` : null,
                   deleteBookCount > 0 ? `delete ${deleteBookCount} book${deleteBookCount !== 1 ? 's' : ''} (removes files)` : null,
                   dismissCount > 0 ? `dismiss ${dismissCount} group${dismissCount !== 1 ? 's' : ''}` : null,
                 ].filter(Boolean).join(' · ')}
               </span>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 ml-auto">
                 {confirmApply && !applying && (
                   <button
                     onClick={() => setConfirmApply(false)}
