@@ -107,6 +107,7 @@ Multi-select books on the dashboard to:
 - Edit metadata (shared fields across selection)
 - Fetch metadata from external sources
 - Download as a ZIP archive
+- Delete (removes the books and their files from disk — members can only delete their own uploads)
 
 ---
 

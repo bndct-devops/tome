@@ -1301,7 +1301,7 @@ interface DuplicateBookOut {
   cover_path: string | null
   series: string | null
   year: number | null
-  files: { id: number; format: string; file_size: number | null }[]
+  files: { id: number; format: string; file_size: number | null; path_exists: boolean }[]
   tags: string[]
   library_ids: number[]
 }
@@ -1337,18 +1337,24 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+type GroupDecision = 'merge' | 'delete' | 'dismiss'
+
 function DuplicatesTab() {
   const [groups, setGroups] = useState<DuplicateGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [keepIds, setKeepIds] = useState<Record<string, number>>({})
-  const [merging, setMerging] = useState<string | null>(null)
-  const [dismissing, setDismissing] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<Record<string, string>>({})
+  const [decisions, setDecisions] = useState<Record<string, GroupDecision>>({})
+  const [applying, setApplying] = useState(false)
+  const [applyProgress, setApplyProgress] = useState<{ done: number; total: number } | null>(null)
+  const [confirmApply, setConfirmApply] = useState(false)
+  const [applyResult, setApplyResult] = useState<{ applied: number; failed: { label: string; error: string }[] } | null>(null)
 
   function fetchGroups() {
     setLoading(true)
     setError(null)
+    setDecisions({})
+    setConfirmApply(false)
     api.get<DuplicatesResponse>('/admin/duplicates')
       .then(d => {
         setGroups(d.groups)
@@ -1367,33 +1373,60 @@ function DuplicatesTab() {
 
   useEffect(() => { fetchGroups() }, [])
 
-  async function handleMerge(group: DuplicateGroup) {
-    const keepId = keepIds[group.group_id]
-    if (keepId == null) return
-    const removeIds = group.books.map(b => b.id).filter(id => id !== keepId)
-    setMerging(group.group_id)
-    setActionError(prev => { const n = { ...prev }; delete n[group.group_id]; return n })
-    try {
-      await api.post('/admin/duplicates/merge', { keep_id: keepId, remove_ids: removeIds })
-      fetchGroups()
-    } catch (e) {
-      setActionError(prev => ({ ...prev, [group.group_id]: e instanceof Error ? e.message : 'Merge failed' }))
-    } finally {
-      setMerging(null)
-    }
+  function toggleDecision(groupId: string, action: GroupDecision) {
+    setConfirmApply(false)
+    setDecisions(prev => {
+      const next = { ...prev }
+      if (next[groupId] === action) delete next[groupId]
+      else next[groupId] = action
+      return next
+    })
   }
 
-  async function handleDismiss(group: DuplicateGroup) {
-    setDismissing(group.group_id)
-    setActionError(prev => { const n = { ...prev }; delete n[group.group_id]; return n })
-    try {
-      await api.post('/admin/duplicates/dismiss', { book_ids: group.books.map(b => b.id) })
-      fetchGroups()
-    } catch (e) {
-      setActionError(prev => ({ ...prev, [group.group_id]: e instanceof Error ? e.message : 'Dismiss failed' }))
-    } finally {
-      setDismissing(null)
+  const decidedGroups = groups.filter(g => decisions[g.group_id])
+  const mergeCount = decidedGroups.filter(g => decisions[g.group_id] === 'merge').length
+  const dismissCount = decidedGroups.filter(g => decisions[g.group_id] === 'dismiss').length
+  const deleteBookCount = decidedGroups
+    .filter(g => decisions[g.group_id] === 'delete')
+    .reduce((n, g) => n + g.books.filter(b => b.id !== keepIds[g.group_id]).length, 0)
+
+  async function applyAll() {
+    if (!decidedGroups.length) return
+    setApplying(true)
+    setApplyResult(null)
+    setApplyProgress({ done: 0, total: decidedGroups.length })
+    let applied = 0
+    const failed: { label: string; error: string }[] = []
+    for (let i = 0; i < decidedGroups.length; i++) {
+      const group = decidedGroups[i]
+      const action = decisions[group.group_id]
+      const keepId = keepIds[group.group_id]
+      const removeIds = group.books.map(b => b.id).filter(id => id !== keepId)
+      const label = group.books.find(b => b.id === keepId)?.title ?? group.books[0]?.title ?? 'group'
+      try {
+        if (action === 'merge') {
+          await api.post('/admin/duplicates/merge', { keep_id: keepId, remove_ids: removeIds })
+        } else if (action === 'delete') {
+          const res = await api.post<{ deleted: number[]; errors: { book_id: number; error: string }[] }>(
+            '/books/bulk-delete',
+            { book_ids: removeIds },
+          )
+          if (res.errors.length) {
+            throw new Error(`${res.errors.length} book${res.errors.length !== 1 ? 's' : ''} could not be deleted`)
+          }
+        } else {
+          await api.post('/admin/duplicates/dismiss', { book_ids: group.books.map(b => b.id) })
+        }
+        applied++
+      } catch (e) {
+        failed.push({ label, error: e instanceof Error ? e.message : 'Failed' })
+      }
+      setApplyProgress({ done: i + 1, total: decidedGroups.length })
     }
+    setApplyResult({ applied, failed })
+    setApplying(false)
+    setApplyProgress(null)
+    fetchGroups()
   }
 
   if (loading) {
@@ -1428,6 +1461,25 @@ function DuplicatesTab() {
         </button>
       </div>
 
+      {applyResult && (
+        <div className={cn(
+          'rounded-xl border p-4 text-xs space-y-1',
+          applyResult.failed.length
+            ? 'border-warning/20 bg-warning/5'
+            : 'border-success/20 bg-success/5',
+        )}>
+          <p className={cn('font-medium', applyResult.failed.length ? 'text-warning' : 'text-success')}>
+            Applied {applyResult.applied} group{applyResult.applied !== 1 ? 's' : ''}
+            {applyResult.failed.length > 0 && `, ${applyResult.failed.length} failed`}
+          </p>
+          {applyResult.failed.length > 0 && (
+            <ul className="space-y-0.5 text-muted-foreground">
+              {applyResult.failed.map((f, i) => <li key={i}>{f.label}: {f.error}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
       {groups.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
           No duplicates found. Your library looks clean.
@@ -1435,15 +1487,16 @@ function DuplicatesTab() {
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-xs text-muted-foreground">
-            {groups.length} duplicate group{groups.length !== 1 ? 's' : ''} found. Select which book to keep, then merge or dismiss each group.
+            {groups.length} duplicate group{groups.length !== 1 ? 's' : ''} found. Pick which book to keep and an action per group — Merge, Delete Others, or Dismiss — then apply everything at once.
           </p>
           {groups.map(group => {
-            const isMerging = merging === group.group_id
-            const isDismissing = dismissing === group.group_id
-            const busy = isMerging || isDismissing
-            const err = actionError[group.group_id]
+            const decision = decisions[group.group_id]
+            const othersCount = group.books.filter(b => b.id !== keepIds[group.group_id]).length
             return (
-              <div key={group.group_id} className="border border-border rounded-xl bg-card overflow-hidden">
+              <div key={group.group_id} className={cn(
+                'border rounded-xl bg-card overflow-hidden transition-colors',
+                decision ? 'border-primary/40' : 'border-border',
+              )}>
                 {/* Group header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
                   <span className={cn(
@@ -1453,23 +1506,47 @@ function DuplicatesTab() {
                     {MATCH_REASON_LABEL[group.match_reason]}
                   </span>
                   <div className="flex items-center gap-2">
-                    {err && <span className="text-xs text-destructive">{err}</span>}
                     <button
-                      onClick={() => handleDismiss(group)}
-                      disabled={busy}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground disabled:opacity-50"
-                      title="Dismiss this group — it will not appear again"
+                      onClick={() => toggleDecision(group.group_id, 'dismiss')}
+                      disabled={applying}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50',
+                        decision === 'dismiss'
+                          ? 'bg-accent text-foreground border-primary/40'
+                          : 'border-border hover:bg-accent text-muted-foreground',
+                      )}
+                      title="Queue: not a duplicate — never show this group again"
                     >
-                      {isDismissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                      <X className="w-3.5 h-3.5" />
                       Dismiss
                     </button>
                     <button
-                      onClick={() => handleMerge(group)}
-                      disabled={busy || keepIds[group.group_id] == null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      onClick={() => toggleDecision(group.group_id, 'merge')}
+                      disabled={applying || keepIds[group.group_id] == null}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50',
+                        decision === 'merge'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'border-border hover:bg-accent text-muted-foreground',
+                      )}
+                      title="Queue: fold the other copies into the kept book"
                     >
-                      {isMerging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitMerge className="w-3.5 h-3.5" />}
+                      <GitMerge className="w-3.5 h-3.5" />
                       Merge
+                    </button>
+                    <button
+                      onClick={() => toggleDecision(group.group_id, 'delete')}
+                      disabled={applying || keepIds[group.group_id] == null}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50',
+                        decision === 'delete'
+                          ? 'bg-destructive text-destructive-foreground border-destructive'
+                          : 'border-border hover:bg-accent text-muted-foreground',
+                      )}
+                      title="Queue: keep the selected book and delete the others — their files are removed from disk"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {decision === 'delete' ? `Delete ${othersCount} other${othersCount !== 1 ? 's' : ''}` : 'Delete Others'}
                     </button>
                   </div>
                 </div>
@@ -1526,9 +1603,16 @@ function DuplicatesTab() {
                             {book.files.map(f => (
                               <span
                                 key={f.id}
-                                className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border font-mono"
+                                className={cn(
+                                  'text-[10px] px-1.5 py-0.5 rounded border font-mono',
+                                  f.path_exists
+                                    ? 'bg-muted text-muted-foreground border-border'
+                                    : 'bg-destructive/10 text-destructive border-destructive/20',
+                                )}
+                                title={f.path_exists ? undefined : 'File is missing from disk'}
                               >
                                 {f.format.toUpperCase()} {formatBytes(f.file_size)}
+                                {!f.path_exists && ' — MISSING'}
                               </span>
                             ))}
                           </div>
@@ -1543,6 +1627,52 @@ function DuplicatesTab() {
               </div>
             )
           })}
+
+          {(decidedGroups.length > 0 || applying) && (
+            <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-card shadow-lg">
+              <span className="text-xs text-muted-foreground">
+                {[
+                  mergeCount > 0 ? `merge ${mergeCount} group${mergeCount !== 1 ? 's' : ''}` : null,
+                  deleteBookCount > 0 ? `delete ${deleteBookCount} book${deleteBookCount !== 1 ? 's' : ''} (removes files)` : null,
+                  dismissCount > 0 ? `dismiss ${dismissCount} group${dismissCount !== 1 ? 's' : ''}` : null,
+                ].filter(Boolean).join(' · ')}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {confirmApply && !applying && (
+                  <button
+                    onClick={() => setConfirmApply(false)}
+                    className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  onClick={() => { setDecisions({}); setConfirmApply(false) }}
+                  disabled={applying}
+                  className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground disabled:opacity-50"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => confirmApply ? applyAll() : setConfirmApply(true)}
+                  disabled={applying}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-opacity disabled:opacity-50',
+                    deleteBookCount > 0
+                      ? 'bg-destructive text-destructive-foreground hover:opacity-90'
+                      : 'bg-primary text-primary-foreground hover:opacity-90',
+                  )}
+                >
+                  {applying && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {applying
+                    ? `Applying ${applyProgress?.done ?? 0}/${applyProgress?.total ?? decidedGroups.length}…`
+                    : confirmApply
+                    ? `Confirm — apply ${decidedGroups.length} decision${decidedGroups.length !== 1 ? 's' : ''}`
+                    : `Apply All (${decidedGroups.length})`}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

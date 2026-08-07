@@ -108,31 +108,33 @@ SORT_FIELDS = {
     "added_at": Book.added_at,
 }
 
-@router.get("", response_model=list[BookOut])
-def list_books(
-    response: Response,
-    q: Optional[str] = Query(None, description="Full-text search across title/author/series/tags"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=500),
-    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating)$"),
-    order: str = Query("asc", pattern="^(asc|desc)$"),
-    min_rating: Optional[int] = Query(None, ge=1, le=5, description="Filter to books the current user rated at least this many stars"),
-    series: Optional[str] = Query(None, description="Exact series name filter"),
-    no_series: Optional[bool] = Query(None, description="Filter to books with no series"),
-    author: Optional[str] = Query(None, description="Exact author filter"),
-    tag: Optional[str] = Query(None, description="Tag name filter"),
-    format: Optional[str] = Query(None, description="File format filter (epub, pdf, …)"),
-    language: Optional[str] = Query(None, description="Language filter — canonical code (en, de, …); matches messy stored variants"),
-    library_id: Optional[int] = Query(None, description="Filter to books in this library"),
-    reading_status: Optional[str] = Query(None, description="Filter by reading status: unread, reading, read"),
-    missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any"),
-    content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
-    added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
-    ownership: Optional[str] = Query(None, description="Ownership filter: 'mine' or 'shared' (member only)"),
-    group_by_series: Optional[bool] = Query(None, description="Collapse series into one representative book each, annotated with series_count"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+def _filtered_books_query(
+    db: Session,
+    current_user: User,
+    *,
+    q: Optional[str] = None,
+    series: Optional[str] = None,
+    no_series: Optional[bool] = None,
+    author: Optional[str] = None,
+    tag: Optional[str] = None,
+    format: Optional[str] = None,
+    language: Optional[str] = None,
+    library_id: Optional[int] = None,
+    reading_status: Optional[str] = None,
+    min_rating: Optional[int] = None,
+    missing: Optional[str] = None,
+    content_type: Optional[str] = None,
+    added_by: Optional[int] = None,
+    ownership: Optional[str] = None,
+    with_rating_join: bool = False,
 ):
+    """Build the filtered books query shared by the list and ids endpoints.
+
+    Returns (query, join_effective_rating, eff_rating). eff_rating is None
+    unless min_rating or with_rating_join forced the rating outer-joins;
+    join_effective_rating lets the caller re-apply those joins after a
+    group-by rebuild (which drops them).
+    """
     from backend.core.permissions import is_admin as _is_admin
 
     query = db.query(Book).filter(Book.status == "active")
@@ -201,22 +203,22 @@ def list_books(
     # ── Rating filter / sort prep ────────────────────────────────────────────
     # Effective rating = the user's own volume rating, else the inherited series
     # rating (COALESCE). Two aliased outer-joins (current user only) carry both
-    # without colliding with the reading_status join above. _join_effective_rating
+    # without colliding with the reading_status join above. join_effective_rating
     # is re-applied after the group_by rebuild (which drops joins) so grouped sort
     # works too. min_rating is applied before group_by so it flows into id_sq.
     from sqlalchemy.orm import aliased as _aliased
     from sqlalchemy import func as _rfunc
     from backend.models.user_series_rating import UserSeriesRating
 
-    def _join_effective_rating(q):
+    def _join_effective_rating(inner):
         ubs = _aliased(UserBookStatus)
         usr = _aliased(UserSeriesRating)
-        q = q.outerjoin(ubs, (ubs.book_id == Book.id) & (ubs.user_id == current_user.id))
-        q = q.outerjoin(usr, (usr.series_name == Book.series) & (usr.user_id == current_user.id))
-        return q, _rfunc.coalesce(ubs.rating, usr.rating)
+        inner = inner.outerjoin(ubs, (ubs.book_id == Book.id) & (ubs.user_id == current_user.id))
+        inner = inner.outerjoin(usr, (usr.series_name == Book.series) & (usr.user_id == current_user.id))
+        return inner, _rfunc.coalesce(ubs.rating, usr.rating)
 
-    rating_active = min_rating is not None or sort == "rating"
-    if rating_active:
+    eff_rating = None
+    if min_rating is not None or with_rating_join:
         query, eff_rating = _join_effective_rating(query)
         if min_rating is not None:
             query = query.filter(eff_rating >= min_rating)
@@ -226,7 +228,7 @@ def list_books(
         no_cover = Book.cover_path.is_(None)
         no_description = sa_or_(Book.description.is_(None), Book.description == "")
         no_author = sa_or_(Book.author.is_(None), Book.author == "")
-        no_series = sa_or_(Book.series.is_(None), Book.series == "")
+        no_series_f = sa_or_(Book.series.is_(None), Book.series == "")
         if missing == "cover":
             query = query.filter(no_cover)
         elif missing == "description":
@@ -234,16 +236,15 @@ def list_books(
         elif missing == "author":
             query = query.filter(no_author)
         elif missing == "series":
-            query = query.filter(no_series)
+            query = query.filter(no_series_f)
         elif missing == "any":
-            query = query.filter(sa_or_(no_cover, no_description, no_author, no_series))
+            query = query.filter(sa_or_(no_cover, no_description, no_author, no_series_f))
 
     if content_type:
         query = query.filter(Book.content_type == content_type)
 
     # ── Ownership / uploader filters ─────────────────────────────────────────
-    from backend.core.permissions import is_admin as _is_admin_check
-    if added_by is not None and _is_admin_check(current_user):
+    if added_by is not None and _is_admin(current_user):
         query = query.filter(Book.added_by == added_by)
     if ownership == "mine":
         query = query.filter(Book.added_by == current_user.id)
@@ -260,6 +261,79 @@ def list_books(
                 Book.added_by.is_(None),
             )
         )
+
+    return query, _join_effective_rating, eff_rating
+
+
+@router.get("/ids")
+def list_book_ids(
+    q: Optional[str] = Query(None),
+    series: Optional[str] = Query(None),
+    no_series: Optional[bool] = Query(None),
+    author: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    format: Optional[str] = Query(None),
+    language: Optional[str] = Query(None),
+    library_id: Optional[int] = Query(None),
+    reading_status: Optional[str] = Query(None),
+    min_rating: Optional[int] = Query(None, ge=1, le=5),
+    missing: Optional[str] = Query(None),
+    content_type: Optional[str] = Query(None),
+    added_by: Optional[int] = Query(None),
+    ownership: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """IDs of every book matching the given filters.
+
+    Powers dashboard select-all so it covers the whole filtered set, not just
+    the pages the infinite scroll has loaded. Same filters and visibility
+    rules as the list endpoint.
+    """
+    query, _jr, _er = _filtered_books_query(
+        db, current_user,
+        q=q, series=series, no_series=no_series, author=author, tag=tag,
+        format=format, language=language, library_id=library_id,
+        reading_status=reading_status, min_rating=min_rating, missing=missing,
+        content_type=content_type, added_by=added_by, ownership=ownership,
+    )
+    ids = [row[0] for row in query.with_entities(Book.id).distinct().all()]
+    return {"ids": ids}
+
+
+@router.get("", response_model=list[BookOut])
+def list_books(
+    response: Response,
+    q: Optional[str] = Query(None, description="Full-text search across title/author/series/tags"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating)$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
+    min_rating: Optional[int] = Query(None, ge=1, le=5, description="Filter to books the current user rated at least this many stars"),
+    series: Optional[str] = Query(None, description="Exact series name filter"),
+    no_series: Optional[bool] = Query(None, description="Filter to books with no series"),
+    author: Optional[str] = Query(None, description="Exact author filter"),
+    tag: Optional[str] = Query(None, description="Tag name filter"),
+    format: Optional[str] = Query(None, description="File format filter (epub, pdf, …)"),
+    language: Optional[str] = Query(None, description="Language filter — canonical code (en, de, …); matches messy stored variants"),
+    library_id: Optional[int] = Query(None, description="Filter to books in this library"),
+    reading_status: Optional[str] = Query(None, description="Filter by reading status: unread, reading, read"),
+    missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any"),
+    content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
+    added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
+    ownership: Optional[str] = Query(None, description="Ownership filter: 'mine' or 'shared' (member only)"),
+    group_by_series: Optional[bool] = Query(None, description="Collapse series into one representative book each, annotated with series_count"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query, _join_effective_rating, eff_rating = _filtered_books_query(
+        db, current_user,
+        q=q, series=series, no_series=no_series, author=author, tag=tag,
+        format=format, language=language, library_id=library_id,
+        reading_status=reading_status, min_rating=min_rating, missing=missing,
+        content_type=content_type, added_by=added_by, ownership=ownership,
+        with_rating_join=(sort == "rating"),
+    )
 
     # ── Group by series ──────────────────────────────────────────────────────
     # Collapse each series to one representative volume (lowest series_index)
@@ -846,6 +920,7 @@ def library_health(
     )
 
     issues = []
+    missing = []
     for book in books:
         meta = {
             "title": book.title,
@@ -856,6 +931,22 @@ def library_health(
         }
         for bf in book.files:
             actual_path = Path(bf.file_path)
+
+            # A file that is gone from disk is an orphaned entry, not a
+            # misplaced one — report it separately and skip the layout check.
+            if not actual_path.exists():
+                missing.append({
+                    "book_id": book.id,
+                    "file_id": bf.id,
+                    "title": book.title or "",
+                    "author": book.author or "",
+                    "series": book.series or "",
+                    "format": bf.format,
+                    "path": str(actual_path.relative_to(settings.library_dir)) if actual_path.is_relative_to(settings.library_dir) else str(actual_path),
+                    "book_file_count": len(book.files),
+                })
+                continue
+
             expected_rel = get_library_path(meta, actual_path.name)
             expected_abs = settings.library_dir / expected_rel
 
@@ -877,6 +968,70 @@ def library_health(
         "total_files": total_files,
         "misplaced_count": len(issues),
         "issues": issues,
+        "missing_count": len(missing),
+        "missing": missing,
+    }
+
+
+class RemoveMissingRequest(PydanticBaseModel):
+    file_ids: list[int]
+
+
+@router.post("/remove-missing")
+def remove_missing_files(
+    req: RemoveMissingRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove BookFile entries whose file no longer exists on disk. Admin only.
+
+    A book left with no files at all is deleted entirely (metadata, statuses,
+    cover). Entries whose file still exists are refused — this endpoint never
+    touches anything that is actually on disk.
+    """
+    require_role(current_user, "admin")
+
+    if not req.file_ids:
+        raise HTTPException(status_code=400, detail="file_ids must not be empty")
+
+    skipped: list[dict] = []
+    by_book: dict[int, list[BookFile]] = {}
+    files = db.query(BookFile).filter(BookFile.id.in_(req.file_ids)).all()
+    for bf in files:
+        if Path(bf.file_path).exists():
+            skipped.append({"file_id": bf.id, "error": "file exists on disk"})
+            continue
+        by_book.setdefault(bf.book_id, []).append(bf)
+
+    removed_file_rows = 0
+    removed_books: list[dict] = []
+    for book_id, dead in by_book.items():
+        book = db.get(Book, book_id)
+        if book is None:
+            continue
+        dead_ids = {bf.id for bf in dead}
+        if all(f.id in dead_ids for f in book.files):
+            # Every file of this book is a dead entry — remove the whole book.
+            # The disk unlink inside is a no-op (the files are already gone).
+            title = book.title
+            _delete_book_record(book, db, current_user)
+            removed_books.append({"book_id": book_id, "title": title})
+        else:
+            for bf in dead:
+                db.delete(bf)
+            db.commit()
+            removed_file_rows += len(dead)
+
+    if removed_file_rows or removed_books:
+        audit(db, "books.missing_removed",
+              user_id=current_user.id,
+              username=current_user.username,
+              details={"file_rows": removed_file_rows, "books_removed": len(removed_books)})
+
+    return {
+        "removed_file_rows": removed_file_rows,
+        "removed_books": removed_books,
+        "skipped": skipped,
     }
 
 
@@ -2204,26 +2359,13 @@ def read_epub(
     return FileResponse(str(file_path), media_type="application/epub+zip")
 
 
-@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_book(
-    book_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    require_role(current_user, "member")
+def _delete_book_record(book: Book, db: Session, actor: User) -> None:
+    """Delete a book row, then its files and cover on disk.
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    # Members can only delete their own uploads; admins can delete any book
-    from backend.core.permissions import is_admin as _is_admin
-    if not _is_admin(current_user) and book.added_by != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only delete books you uploaded")
-
-    # Delete the row first, remove files after. A crash between the two leaves
-    # orphaned files that the next scan re-imports; the reverse order leaves a
-    # permanent ghost row (files gone, nothing on disk to heal it from).
+    Delete the row first, remove files after. A crash between the two leaves
+    orphaned files that the next scan re-imports; the reverse order leaves a
+    permanent ghost row (files gone, nothing on disk to heal it from).
+    """
     deleted_id, deleted_title = book.id, book.title
     file_paths = [Path(bf.file_path) for bf in book.files]
     cover_file = settings.covers_dir / book.cover_path if book.cover_path else None
@@ -2233,7 +2375,7 @@ def delete_book(
     db.delete(book)
     db.commit()
 
-    audit(db, "books.deleted", user_id=current_user.id, username=current_user.username,
+    audit(db, "books.deleted", user_id=actor.id, username=actor.username,
           resource_type="book", resource_id=deleted_id, resource_title=deleted_title)
 
     from backend.services.metadata_embed import purge_book_cache
@@ -2255,6 +2397,72 @@ def delete_book(
             cover_file.unlink(missing_ok=True)
         except OSError:
             logger.warning("delete_book: could not remove cover %s", cover_file)
+
+
+class BulkDeleteRequest(PydanticBaseModel):
+    book_ids: list[int]
+
+
+@router.post("/bulk-delete")
+def bulk_delete_books(
+    req: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete several books (and their files on disk) in one request.
+
+    Same permission rules as the single delete: members only their own
+    uploads, admins any book. Failures are reported per book instead of
+    aborting the batch.
+    """
+    require_role(current_user, "member")
+
+    if not req.book_ids:
+        raise HTTPException(status_code=400, detail="book_ids must not be empty")
+    if len(req.book_ids) > 500:
+        raise HTTPException(status_code=400, detail="At most 500 books per request")
+
+    from backend.core.permissions import is_admin as _is_admin
+
+    deleted: list[int] = []
+    errors: list[dict] = []
+    for book_id in dict.fromkeys(req.book_ids):  # dedupe, keep order
+        book = db.query(Book).filter(Book.id == book_id).first()
+        if not book:
+            errors.append({"book_id": book_id, "error": "Book not found"})
+            continue
+        if not _is_admin(current_user) and book.added_by != current_user.id:
+            errors.append({"book_id": book_id, "error": "You can only delete books you uploaded"})
+            continue
+        try:
+            _delete_book_record(book, db, current_user)
+            deleted.append(book_id)
+        except Exception as e:
+            db.rollback()
+            logger.warning("bulk_delete: failed to delete book %s: %s", book_id, e)
+            errors.append({"book_id": book_id, "error": str(e)})
+
+    return {"deleted": deleted, "errors": errors}
+
+
+@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_book(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_role(current_user, "member")
+
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Members can only delete their own uploads; admins can delete any book
+    from backend.core.permissions import is_admin as _is_admin
+    if not _is_admin(current_user) and book.added_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete books you uploaded")
+
+    _delete_book_record(book, db, current_user)
 
 
 

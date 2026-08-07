@@ -6,6 +6,50 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- Library Health now detects orphaned entries — books whose files no longer
+  exist on disk (for example after files were deleted or moved outside of
+  Tome). A new section lists them and a one-click "Remove Dead Entries" action
+  cleans them up: dead file entries are removed and books left with no files
+  at all are deleted entirely. Entries whose file still exists are never
+  touched. (#165)
+- Duplicates (Admin) gained a "Delete Others" action: keep the selected book
+  and delete the other copies in the group, including their files on disk,
+  with an inline confirmation step. Files that are missing from disk are now
+  badged as such on each duplicate, so dead copies are easy to spot. (#165)
+- New `POST /api/books/bulk-delete` endpoint deletes several books in one
+  request with per-book permission checks and error reporting. The dashboard's
+  multi-select delete now uses it instead of issuing one request per book,
+  and failures are reported instead of silently skipped. (#165)
+- The Duplicates tab now works in one pass: pick the book to keep and an
+  action (Merge, Delete Others, Dismiss) per group, then hit a single "Apply
+  All" — instead of the screen refreshing and resetting your selections after
+  every individual merge or dismiss. A summary reports what was applied and
+  any failures. (#165)
+
+### Fixed
+- KOReader plugin (build 38 / 1.11.1): popup menus — the series browser,
+  Authors, Shelves, the Inbox and the TomeSync menu itself — could freeze on
+  their first page when a full-screen home-screen plugin (such as
+  bookshelf.koplugin) covers the file browser: page turns happened internally
+  but the screen never repainted, and stale refreshes could leave blank white
+  rectangles behind. The menus now repaint through their own window instead of
+  the hidden file browser.
+- "Select all" on the dashboard now selects every book matching the current
+  filters, not just the ones the infinite scroll had already loaded — so bulk
+  actions on large libraries no longer silently miss the books further down.
+  (#165)
+- Toggling "Group series" no longer occasionally shows duplicate books in the
+  grid: an in-flight page request from the previous view could land after the
+  toggle and append stale results onto the fresh list. Page requests are now
+  cancelled when the view changes, and appends are deduplicated. (#165)
+- Merging duplicates now actually transfers the removed book's files to the
+  kept book. Previously the transferred file entries were silently deleted
+  together with the removed book, leaving the files on disk untracked.
+- Merging duplicates no longer carries dead file references over to the kept
+  book: entries whose file is missing from disk are dropped during the merge
+  instead of leaving the kept book with a file that errors on open. (#165)
+
 ## [2.1.1] - 2026-08-01
 
 ### Security
