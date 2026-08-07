@@ -3,6 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
+import UnreleasedNote from '../../components/UnreleasedNote.astro'
 import { ThemedShot } from '../../components/ThemedShot'
 import { withBase } from '../../lib/path'
 ---
@@ -52,15 +53,27 @@ import { withBase } from '../../lib/path'
   </table>
 
   <h3>Resolving duplicates</h3>
+  <UnreleasedNote />
   <p>
-    For each duplicate group, you have two options:
+    Resolution works in one pass: for each group, pick the book to keep and queue an action, then
+    apply everything with a single <strong>Apply All</strong>. Nothing happens until you confirm,
+    and a summary afterwards reports what was applied and anything that failed. Three actions are
+    available per group:
   </p>
   <ul>
-    <li><strong>Merge</strong> — keep one book, delete the others. Reading status and sessions are
-      preserved on the kept book.</li>
-    <li><strong>Dismiss</strong> — mark the pair as not-a-duplicate. Dismissed pairs are stored
+    <li><strong>Merge</strong> — fold the other copies into the kept book. Files, tags, library
+      memberships, and reading status carry over. File entries whose file is missing from disk are
+      dropped rather than carried along.</li>
+    <li><strong>Delete Others</strong> — keep the selected book and delete the other copies,
+      including their files on disk. Useful when the copies really are redundant files, not
+      alternate formats worth merging.</li>
+    <li><strong>Dismiss</strong> — mark the group as not-a-duplicate. Dismissed pairs are stored
       permanently and excluded from future scans.</li>
   </ul>
+  <p>
+    Copies whose file no longer exists on disk are badged <strong>MISSING</strong> on their format
+    chip, so dead entries are easy to tell apart from the real copy before you decide.
+  </p>
 
   <Callout variant="info" title="Fuzzy matches need review">
     The fuzzy title strategy intentionally casts a wide net. It may flag different volumes of the
@@ -69,9 +82,31 @@ import { withBase } from '../../lib/path'
 
   <h2>Library health</h2>
   <p>
-    The Library Health tab scans the filesystem for books whose on-disk path doesn't match their
-    expected location based on current metadata. This happens when you rename a series, change an
-    author, or import books before their metadata was corrected.
+    The Library Health tab scans the filesystem for two kinds of problems: books whose on-disk
+    path doesn't match their expected location based on current metadata, and orphaned entries —
+    books whose file no longer exists on disk at all.
+  </p>
+
+  <h3>Orphaned entries</h3>
+  <UnreleasedNote />
+  <p>
+    If files were deleted or moved outside of Tome (from a shell, another tool, or a cleanup gone
+    wrong), their database entries stay behind: the books error on open, and re-importing the same
+    file gets skipped as a duplicate of the dead entry. The scan lists every such entry with a
+    badge showing what removal would do: <em>book entry will be removed</em> when no file is left,
+    or <em>file entry only</em> when the book keeps another file that still exists.
+  </p>
+  <p>
+    <strong>Remove Dead Entries</strong> (confirm-gated) cleans them up in one click — dead file
+    entries are removed, and books left with no files are deleted entirely. Entries whose file
+    actually exists on disk are always refused: this action only ever touches the database, never
+    your files.
+  </p>
+
+  <h3>Misplaced files</h3>
+  <p>
+    Path mismatches happen when you rename a series, change an author, or import books before
+    their metadata was corrected.
   </p>
   <p>
     Misplaced files are grouped by series and author. For each one, Tome shows the current path

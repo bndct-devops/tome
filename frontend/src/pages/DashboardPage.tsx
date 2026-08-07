@@ -131,12 +131,11 @@ interface BulkDeleteModalProps {
   books: Book[]
   selectedIds: Set<number>
   onCancel: () => void
-  onConfirm: (onProgress: (done: number, total: number) => void) => Promise<void>
+  onConfirm: () => Promise<void>
 }
 
 function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: BulkDeleteModalProps) {
   const [deleting, setDeleting] = useState(false)
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
   if (!open) return null
 
@@ -144,10 +143,8 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
 
   async function handleDelete() {
     setDeleting(true)
-    setProgress({ done: 0, total: selectedIds.size })
-    await onConfirm((done, total) => setProgress({ done, total }))
+    await onConfirm()
     setDeleting(false)
-    setProgress(null)
   }
 
   return (
@@ -211,14 +208,19 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
                   </div>
                 )
               })}
+              {selectedIds.size > selectedBooks.length && (
+                <p className="text-xs text-muted-foreground py-2">
+                  …and {selectedIds.size - selectedBooks.length} more not shown
+                </p>
+              )}
             </div>
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
-            {progress && (
+            {deleting && (
               <span className="text-xs text-muted-foreground mr-auto">
-                Deleting {progress.done}/{progress.total}...
+                Deleting {selectedIds.size} book{selectedIds.size !== 1 ? 's' : ''}...
               </span>
             )}
             <button
@@ -548,7 +550,18 @@ export function DashboardPage() {
       return handleToggle(id, index, shiftKey, prev)
     })
   }
-  function selectAll() { setSelected(new Set(books.map(b => b.id))) }
+  async function selectAll() {
+    // Select the whole filtered set, not just the pages the infinite scroll
+    // has loaded (issue #165 follow-up). Loaded books are selected instantly
+    // so the UI responds; the full id list replaces them when it arrives.
+    setSelected(new Set(books.map(b => b.id)))
+    try {
+      const res = await api.get<{ ids: number[] }>(`/books/ids?${buildFilterParams()}`)
+      setSelected(new Set(res.ids))
+    } catch {
+      // keep the loaded-books selection as fallback
+    }
+  }
   function clearSelection() { setSelected(new Set()) }
   function exitSelectionMode() { setSelectionMode(false); setSelected(new Set()) }
 
@@ -595,21 +608,29 @@ export function DashboardPage() {
     }
   }
 
-  async function bulkDelete(onProgress?: (done: number, total: number) => void) {
+  async function bulkDelete() {
     if (!selected.size) return
     setBulkPending(true)
-    let deleted = 0
     const ids = [...selected]
-    for (let i = 0; i < ids.length; i++) {
-      try {
-        await api.delete(`/books/${ids[i]}`)
-        deleted++
-      } catch {
-        // continue with rest
+    const CHUNK = 500 // server caps bulk-delete at 500 ids per request
+    let deleted = 0
+    let failed = 0
+    try {
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const res = await api.post<{ deleted: number[]; errors: { book_id: number; error: string }[] }>(
+          '/books/bulk-delete',
+          { book_ids: ids.slice(i, i + CHUNK) },
+        )
+        deleted += res.deleted.length
+        failed += res.errors.length
       }
-      onProgress?.(i + 1, ids.length)
+      toastSuccess(`Deleted ${deleted} book${deleted !== 1 ? 's' : ''}`)
+      if (failed) {
+        toastError(`${failed} book${failed !== 1 ? 's' : ''} could not be deleted`)
+      }
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Delete failed')
     }
-    toastSuccess(`Deleted ${deleted} book${deleted !== 1 ? 's' : ''}`)
     setDeleteModalOpen(false)
     clearSelection()
     loadBooks()
@@ -731,6 +752,25 @@ export function DashboardPage() {
 
   const PAGE_SIZE = 60
 
+  function buildFilterParams(): URLSearchParams {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    if (filterSeries) params.set('series', filterSeries)
+    if (filterNoSeries) params.set('no_series', 'true')
+    if (filterAuthor) params.set('author', filterAuthor)
+    if (filterTag) params.set('tag', filterTag)
+    if (filterFormat) params.set('format', filterFormat)
+    if (filterLanguage) params.set('language', filterLanguage)
+    if (filterLibrary) params.set('library_id', String(filterLibrary))
+    if (filterReadingStatus) params.set('reading_status', filterReadingStatus)
+    if (filterMinRating) params.set('min_rating', String(filterMinRating))
+    if (filterMissing) params.set('missing', filterMissing)
+    if (contentType) params.set('content_type', contentType)
+    if (filterOwnership) params.set('ownership', filterOwnership)
+    if (filterAddedBy) params.set('added_by', String(filterAddedBy))
+    return params
+  }
+
   const loadBooks = useCallback((reset = true) => {
     const skip = reset ? 0 : booksRef.current.length
 
@@ -746,26 +786,15 @@ export function DashboardPage() {
       setLoadingMore(true)
     }
 
-    const signal = reset ? abortRef.current!.signal : undefined
-    const params = new URLSearchParams()
+    // Load-more requests share the reset's controller: a new reset (filter
+    // change, group toggle) aborts any in-flight page so its stale results
+    // can't be appended onto the fresh list (viewport-duplicates bug).
+    const signal = abortRef.current?.signal
+    const params = buildFilterParams()
     params.set('sort', sort)
     params.set('order', order)
     params.set('skip', String(skip))
     params.set('limit', String(PAGE_SIZE))
-    if (search) params.set('q', search)
-    if (filterSeries) params.set('series', filterSeries)
-    if (filterNoSeries) params.set('no_series', 'true')
-    if (filterAuthor) params.set('author', filterAuthor)
-    if (filterTag) params.set('tag', filterTag)
-    if (filterFormat) params.set('format', filterFormat)
-    if (filterLanguage) params.set('language', filterLanguage)
-    if (filterLibrary) params.set('library_id', String(filterLibrary))
-    if (filterReadingStatus) params.set('reading_status', filterReadingStatus)
-    if (filterMinRating) params.set('min_rating', String(filterMinRating))
-    if (filterMissing) params.set('missing', filterMissing)
-    if (contentType) params.set('content_type', contentType)
-    if (filterOwnership) params.set('ownership', filterOwnership)
-    if (filterAddedBy) params.set('added_by', String(filterAddedBy))
     if (groupActive) params.set('group_by_series', 'true')
     api.getWithHeaders<Book[]>(`/books?${params}`, signal)
       .then(({ data: newBooks, headers }) => {
@@ -774,7 +803,13 @@ export function DashboardPage() {
           const raw = headers.get('x-total-count')
           setTotalCount(raw !== null ? Number(raw) : null)
         }
-        const merged = reset ? newBooks : [...booksRef.current, ...newBooks]
+        let merged: Book[]
+        if (reset) {
+          merged = newBooks
+        } else {
+          const seen = new Set(booksRef.current.map(b => b.id))
+          merged = [...booksRef.current, ...newBooks.filter(b => !seen.has(b.id))]
+        }
         booksRef.current = merged
         setBooks(merged)
         hasMoreRef.current = newBooks.length === PAGE_SIZE
@@ -796,9 +831,17 @@ export function DashboardPage() {
         toastError('Failed to load books')
       })
       .finally(() => {
-        if (signal?.aborted) return
-        if (reset) { setLoading(false); setRefreshing(false) }
-        else setLoadingMore(false)
+        if (reset) {
+          // An aborted reset was superseded by a newer one that owns the
+          // loading flags — leave them alone.
+          if (signal?.aborted) return
+          setLoading(false)
+          setRefreshing(false)
+        } else {
+          // Always clear, even when aborted: this request is finished and a
+          // stuck loadingMore would stall the infinite scroll for good.
+          setLoadingMore(false)
+        }
       })
   }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, groupActive])
 
