@@ -7,6 +7,12 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Fixed
+- OPDS feed links now carry the correct public scheme behind a TLS-terminating
+  reverse proxy. The feed built its links from the request as the app server
+  saw it — plain http — so every navigation, download, and cover link came out
+  as `http://` even when the catalog was reached over https. OPDS now resolves
+  the public origin the same way the KOReader plugin URL and OIDC redirect do:
+  `TOME_PUBLIC_URL` when set, otherwise the `X-Forwarded-Proto` header. (#167)
 - KOReader plugin (build 38 / 1.11.1): popup menus — the series browser,
   Authors, Shelves, the Inbox and the TomeSync menu itself — could freeze on
   their first page when a full-screen home-screen plugin (such as
