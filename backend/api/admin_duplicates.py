@@ -12,6 +12,7 @@ from subsequent GET results.
 import difflib
 import itertools
 import uuid
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,6 +38,7 @@ class BookFileOut(BaseModel):
     id: int
     format: str
     file_size: Optional[int]
+    path_exists: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -95,7 +97,15 @@ def _book_to_out(book: Book) -> DuplicateBookOut:
         series=book.series,
         series_index=book.series_index,
         year=book.year,
-        files=[BookFileOut(id=f.id, format=f.format, file_size=f.file_size) for f in book.files],
+        files=[
+            BookFileOut(
+                id=f.id,
+                format=f.format,
+                file_size=f.file_size,
+                path_exists=Path(f.file_path).exists(),
+            )
+            for f in book.files
+        ],
         tags=[t.tag for t in book.tags],
         library_ids=book.library_ids,
     )
@@ -301,15 +311,27 @@ def merge_duplicates(
         raise HTTPException(status_code=400, detail="keep_id must not appear in remove_ids")
 
     merged_count = 0
+    dropped_missing_files = 0
 
     for remove_id in body.remove_ids:
         remove = db.get(Book, remove_id)
         if not remove:
             continue
 
-        # Move BookFile rows to keep
+        # Move BookFile rows to keep — but never carry over a dead reference:
+        # a row whose file is gone from disk would leave the kept book with a
+        # phantom file that 404s on open (issue #165). Drop those instead.
         for bf in list(remove.files):
-            bf.book_id = keep.id
+            if Path(bf.file_path).exists():
+                # Reassign via the relationship, not the raw FK: a row still
+                # sitting in remove.files gets swept by the delete-orphan
+                # cascade when `remove` is deleted below.
+                bf.book = keep
+            else:
+                # Detach so the delete-orphan cascade drops the row — a direct
+                # db.delete would collide with the cascade when `remove` goes.
+                remove.files.remove(bf)
+                dropped_missing_files += 1
         db.flush()
 
         # Copy tags not already present on keep
@@ -365,10 +387,18 @@ def merge_duplicates(
         resource_type="book",
         resource_id=keep.id,
         resource_title=keep.title,
-        details={"kept_id": body.keep_id, "removed_ids": body.remove_ids},
+        details={
+            "kept_id": body.keep_id,
+            "removed_ids": body.remove_ids,
+            "dropped_missing_files": dropped_missing_files,
+        },
     )
 
-    return {"merged": merged_count, "kept_id": body.keep_id}
+    return {
+        "merged": merged_count,
+        "kept_id": body.keep_id,
+        "dropped_missing_files": dropped_missing_files,
+    }
 
 
 # ── POST /admin/duplicates/dismiss ────────────────────────────────────────────

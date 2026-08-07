@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useShiftSelect } from '@/lib/useShiftSelect'
-import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, ChevronRight, Trash } from 'lucide-react'
+import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, ChevronRight, Trash, FileX } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -16,10 +16,29 @@ interface HealthIssue {
   expected_path: string
 }
 
+interface MissingEntry {
+  book_id: number
+  file_id: number
+  title: string
+  author: string
+  series: string
+  format: string
+  path: string
+  book_file_count: number
+}
+
 interface HealthData {
   total_files: number
   misplaced_count: number
   issues: HealthIssue[]
+  missing_count: number
+  missing: MissingEntry[]
+}
+
+interface RemoveMissingResult {
+  removed_file_rows: number
+  removed_books: { book_id: number; title: string }[]
+  skipped: { file_id: number; error: string }[]
 }
 
 interface ReorganizeResult {
@@ -81,6 +100,9 @@ export function LibraryHealthTab() {
   const [reorganizing, setReorganizing] = useState(false)
   const [purging, setPurging] = useState(false)
   const [purgeResult, setPurgeResult] = useState<string[] | null>(null)
+  const [removingMissing, setRemovingMissing] = useState(false)
+  const [confirmRemoveMissing, setConfirmRemoveMissing] = useState(false)
+  const [missingResult, setMissingResult] = useState<RemoveMissingResult | null>(null)
   const [dryRunResult, setDryRunResult] = useState<ReorganizeResult | null>(null)
   const [result, setResult] = useState<ReorganizeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -104,6 +126,8 @@ export function LibraryHealthTab() {
     setError(null)
     setDryRunResult(null)
     setResult(null)
+    setMissingResult(null)
+    setConfirmRemoveMissing(false)
     setSelected(new Set())
     try {
       const data = await api.get<HealthData>('/books/library-health')
@@ -142,6 +166,27 @@ export function LibraryHealthTab() {
     }
   }
 
+  async function removeMissing() {
+    if (!healthData?.missing.length) return
+    setRemovingMissing(true)
+    setError(null)
+    try {
+      const res = await api.post<RemoveMissingResult>('/books/remove-missing', {
+        file_ids: healthData.missing.map(m => m.file_id),
+      })
+      setMissingResult(res)
+      setConfirmRemoveMissing(false)
+      // Re-scan to refresh both lists
+      const data = await api.get<HealthData>('/books/library-health')
+      setHealthData(data)
+      setGroups(groupIssues(data.issues))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Removing dead entries failed')
+    } finally {
+      setRemovingMissing(false)
+    }
+  }
+
   function toggleGroup(groupIdx: number, collapsed: boolean) {
     setGroups(prev => prev.map((g, i) => i === groupIdx ? { ...g, collapsed } : g))
   }
@@ -175,9 +220,16 @@ export function LibraryHealthTab() {
             <h2 className="text-sm font-semibold">Library Health</h2>
             {healthData && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {healthData.misplaced_count === 0
+                {healthData.misplaced_count === 0 && healthData.missing_count === 0
                   ? `All ${healthData.total_files} files are correctly placed.`
-                  : `${healthData.misplaced_count} of ${healthData.total_files} files need reorganization.`}
+                  : [
+                      healthData.misplaced_count > 0
+                        ? `${healthData.misplaced_count} of ${healthData.total_files} files need reorganization`
+                        : null,
+                      healthData.missing_count > 0
+                        ? `${healthData.missing_count} ${healthData.missing_count === 1 ? 'entry is' : 'entries are'} missing from disk`
+                        : null,
+                    ].filter(Boolean).join(' · ') + '.'}
               </p>
             )}
           </div>
@@ -266,6 +318,97 @@ export function LibraryHealthTab() {
               {purgeResult.map((f, i) => <li key={i}>{f}</li>)}
             </ul>
           )}
+        </div>
+      )}
+
+      {missingResult && (
+        <div className="rounded-xl border border-success/20 bg-success/5 p-4 text-xs space-y-1">
+          <p className="font-medium text-success flex items-center gap-1.5">
+            <Check className="w-3.5 h-3.5" />
+            Dead entries removed
+          </p>
+          <p className="text-muted-foreground">
+            {[
+              missingResult.removed_books.length > 0
+                ? `${missingResult.removed_books.length} book ${missingResult.removed_books.length === 1 ? 'entry' : 'entries'} removed`
+                : null,
+              missingResult.removed_file_rows > 0
+                ? `${missingResult.removed_file_rows} file ${missingResult.removed_file_rows === 1 ? 'entry' : 'entries'} removed`
+                : null,
+              missingResult.skipped.length > 0
+                ? `${missingResult.skipped.length} skipped (file exists on disk)`
+                : null,
+            ].filter(Boolean).join(' · ') || 'Nothing to remove.'}
+          </p>
+          {missingResult.removed_books.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-muted-foreground">
+              {missingResult.removed_books.map(b => <li key={b.book_id}>{b.title}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {healthData && healthData.missing.length > 0 && (
+        <div className="rounded-xl border border-destructive/20 bg-card overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-border bg-destructive/5">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileX className="w-4 h-4 text-destructive shrink-0" />
+              <span className="text-xs font-medium whitespace-nowrap">Orphaned entries</span>
+              <span className="text-xs text-muted-foreground truncate">
+                {healthData.missing.length} file{healthData.missing.length !== 1 ? 's' : ''} in the database but missing from disk
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
+              {confirmRemoveMissing && (
+                <button
+                  onClick={() => setConfirmRemoveMissing(false)}
+                  disabled={removingMissing}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={() => confirmRemoveMissing ? removeMissing() : setConfirmRemoveMissing(true)}
+                disabled={removingMissing}
+                className="px-3 py-1.5 text-xs rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+                title="Removes the database entries only — no files are touched"
+              >
+                {removingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
+                {removingMissing
+                  ? 'Removing...'
+                  : confirmRemoveMissing
+                  ? `Confirm — remove ${healthData.missing.length} ${healthData.missing.length === 1 ? 'entry' : 'entries'}`
+                  : 'Remove Dead Entries'}
+              </button>
+            </div>
+          </div>
+          <ul className="divide-y divide-border">
+            {healthData.missing.map(m => {
+              const missingForBook = healthData.missing.filter(x => x.book_id === m.book_id).length
+              const wholeBook = missingForBook >= m.book_file_count
+              return (
+                <li key={m.file_id} className="flex items-start gap-3 px-4 py-3 text-xs">
+                  <div className="min-w-0 space-y-1 flex-1">
+                    <p className="font-medium truncate">
+                      {m.title}
+                      {m.author && <span className="text-muted-foreground font-normal"> — {m.author}</span>}
+                    </p>
+                    <p className="text-muted-foreground font-mono truncate line-through">{m.path}</p>
+                  </div>
+                  <span className="shrink-0 text-muted-foreground uppercase tracking-wide">{m.format}</span>
+                  <span className={cn(
+                    'shrink-0 text-[10px] px-1.5 py-0.5 rounded border',
+                    wholeBook
+                      ? 'border-destructive/30 text-destructive bg-destructive/10'
+                      : 'border-border text-muted-foreground bg-muted',
+                  )}>
+                    {wholeBook ? 'book entry will be removed' : 'file entry only'}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
 
@@ -381,7 +524,7 @@ export function LibraryHealthTab() {
         </div>
       )}
 
-      {healthData && healthData.misplaced_count === 0 && (
+      {healthData && healthData.misplaced_count === 0 && healthData.missing_count === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
           <Check className="w-8 h-8 text-success" />
           <p className="text-sm">All files are correctly placed.</p>
