@@ -6,6 +6,22 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Security
+- Updated `pdfjs-dist` to 6.2.108, clearing an arbitrary-JavaScript-execution
+  advisory triggered by opening a malicious PDF (GHSA / CVE for PDF.js). This
+  one is real in Tome: the web reader renders library PDFs with PDF.js in the
+  app's origin, so a crafted PDF opened in the reader could run script with
+  access to the session. Anyone hosting PDFs for multiple users should update.
+- Updated `fast-uri` (build-time, via vite-plugin-pwa's workbox tooling) to
+  3.1.5, clearing a host-confusion advisory. Not reachable in Tome - it only
+  parses our own build configuration during `vite build`.
+- Updated `js-yaml` to 4.3.1 in the frontend (dev-only, eslint's config
+  loader) and the website build, clearing a quadratic-CPU advisory. Neither
+  parses untrusted input.
+- Updated `postcss` to 8.5.26 in the website build, picking up the completed
+  fix for the source-map advisory partially addressed in v2.1.1. Build-time
+  only, same as before.
+
 ### Added
 - Library Health now detects orphaned entries — books whose files no longer
   exist on disk (for example after files were deleted or moved outside of
