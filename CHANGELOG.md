@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-09
+
 ### Security
 - Updated `pdfjs-dist` to 6.2.108, clearing an arbitrary-JavaScript-execution
   advisory triggered by opening a malicious PDF (GHSA / CVE for PDF.js). This
