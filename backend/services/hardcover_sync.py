@@ -78,6 +78,14 @@ AUTHOR_SIM_MIN = 0.7
 # ISBNs too (Podium!) and have no page counts — never pin one.
 AUDIO_FORMAT_ID = 2
 
+# Marks wishes CREATED BY the shelf pull — the only wishes the shelf mirror is
+# allowed to dismiss/reopen. Deliberately distinct from source="hardcover",
+# which user-created wishes (metadata search) and series follows also carry:
+# filtering the mirror on that dismissed every open follow on first sync
+# (their "series:<id>" source_ids can never appear in a shelf of book ids).
+SHELF_WISH_SOURCE = "hardcover_shelf"
+SHELF_WISH_NOTE = "Added from your Hardcover Want to Read shelf"
+
 # ── GraphQL documents ─────────────────────────────────────────────────────────
 # Pinned to the beta schema as of 2026-07. Responses are parsed defensively;
 # schema drift surfaces as a per-row error, not a crash.
@@ -771,6 +779,49 @@ async def _push_row(client: httpx.AsyncClient, token: str, user: User,
     row.hardcover_fail_count = 0
 
 
+def repair_shelf_sync_collateral(db: Session) -> dict:
+    """One-time startup repair for the first shipped 2.2.0 build, whose shelf
+    mirror filtered wishes on source="hardcover" without kind — dismissing
+    every open series follow (kind="follow") and every user-created wish whose
+    metadata happened to come from Hardcover, on the first sync cycle.
+
+    Precisely reversible because the legitimate paths are distinguishable:
+    users DELETE their own wishes/follows (rows vanish), and an admin dismiss
+    writes a "wishlist.dismissed" audit entry. A dismissed source="hardcover"
+    row with no such audit entry can only be the bug's work → reopen it.
+
+    Also reclassifies wishes the shelf sync itself created under the old
+    ambiguous source (identified by their fixed note text) to
+    SHELF_WISH_SOURCE, keeping their dismiss/reopen mirroring intact.
+    Idempotent; safe to run every boot. Commits."""
+    from backend.models.audit_log import AuditLog
+
+    reclassified = (
+        db.query(Wish)
+        .filter(Wish.kind == "wish", Wish.source == "hardcover",
+                Wish.note == SHELF_WISH_NOTE)
+        .update({"source": SHELF_WISH_SOURCE}, synchronize_session=False)
+    )
+    admin_dismissed = (
+        db.query(AuditLog.resource_id)
+        .filter(AuditLog.action == "wishlist.dismissed",
+                AuditLog.resource_id.isnot(None))
+    )
+    reopened = (
+        db.query(Wish)
+        .filter(Wish.status == "dismissed", Wish.source == "hardcover",
+                ~Wish.id.in_(admin_dismissed))
+        .update({"status": "open"}, synchronize_session=False)
+    )
+    db.commit()
+    if reclassified or reopened:
+        logger.info(
+            "Hardcover shelf-sync repair: reopened %d wrongly-dismissed "
+            "wishes/follows, reclassified %d shelf-created wishes",
+            reopened, reclassified)
+    return {"reopened": reopened, "reclassified": reclassified}
+
+
 def mark_token_expired(db: Session, user: User) -> None:
     """Flip token status and notify once."""
     if user.hardcover_token_status == "expired":
@@ -1035,18 +1086,21 @@ async def _wishes_from_shelf(db: Session, client: httpx.AsyncClient, token: str,
     from backend.services.wish_matcher import find_matching_books
     from backend.services.wishlist import create_wish
 
-    stats = {"wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    stats = {"wished": 0, "wish_dismissed": 0, "wish_reopened": 0, "adopted": 0}
     if not settings.wishlist_enabled:
         return stats
 
-    # The shelf is authoritative for the wishes it created: un-shelving
-    # dismisses, re-shelving reopens. Both silent — the user made the change
-    # themselves on Hardcover; no notification. Fulfilled wishes are final and
-    # never reopened (the book is here; a lingering shelf entry changes nothing).
+    # The shelf is authoritative for the wishes it created — and ONLY those
+    # (SHELF_WISH_SOURCE; never follows, never user-created wishes that merely
+    # cite Hardcover as their metadata source). Un-shelving dismisses,
+    # re-shelving reopens. Both silent — the user made the change themselves on
+    # Hardcover; no notification. Fulfilled wishes are final and never
+    # reopened (the book is here; a lingering shelf entry changes nothing).
     hc_wishes = (
         db.query(Wish)
-        .filter(Wish.user_id == user.id, Wish.status.in_(("open", "dismissed")),
-                Wish.source == "hardcover", Wish.source_id.isnot(None))
+        .filter(Wish.user_id == user.id, Wish.kind == "wish",
+                Wish.status.in_(("open", "dismissed")),
+                Wish.source == SHELF_WISH_SOURCE, Wish.source_id.isnot(None))
         .all()
     )
     shelf_ids = {str(bid) for bid in shelf}
@@ -1064,7 +1118,8 @@ async def _wishes_from_shelf(db: Session, client: httpx.AsyncClient, token: str,
     }
     existing_wish_ids = {w.source_id for w in hc_wishes} | {
         w.source_id for w in
-        db.query(Wish).filter(Wish.user_id == user.id, Wish.source == "hardcover",
+        db.query(Wish).filter(Wish.user_id == user.id,
+                              Wish.source == SHELF_WISH_SOURCE,
                               Wish.status == "fulfilled").all()
     }
     unresolved = [bid for bid in shelf
@@ -1082,20 +1137,53 @@ async def _wishes_from_shelf(db: Session, client: httpx.AsyncClient, token: str,
         authors = [((c.get("author") or {}).get("name") or "").strip()
                    for c in (b.get("contributions") or [])]
         author = next((a for a in authors if a), None)
-        # Owned-but-unmatched guard: a plausible library copy means the book is
-        # here already — skip the wish rather than asking for a duplicate.
+        # Owned-but-unmatched: a plausible library copy means the book is here
+        # already — never wish for it. With exactly ONE candidate the shelf
+        # entry itself IS the missing catalogue match (matching is lazy and an
+        # unread book never triggers it), so adopt it and queue the book
+        # instead of dead-ending. Multiple candidates are too ambiguous to
+        # write a book-level match.
         probe = Wish(user_id=user.id, title=title, author=author, kind="wish")
-        if find_matching_books(db, probe):
-            logger.info(
-                "Hardcover pull: shelf entry %r looks already owned (unmatched) — "
-                "no wish created", title)
+        candidates = find_matching_books(db, probe)
+        if candidates:
+            cand = candidates[0]
+            if (len(candidates) == 1 and cand.hardcover_book_id is None
+                    and cand.status == "active"
+                    and _isbn_hit_plausible(cand, title)):
+                cand.hardcover_book_id = int(b["id"])
+                cand.hardcover_slug = b.get("slug")
+                cand.hardcover_match_method = "shelf"
+                cand.hardcover_matched_at = datetime.utcnow()
+                if budget.spend():
+                    await _adopt_best_edition(client, token, cand)
+                row = (
+                    db.query(UserBookStatus)
+                    .filter_by(user_id=user.id, book_id=cand.id)
+                    .first()
+                )
+                if row is None:
+                    db.add(UserBookStatus(
+                        user_id=user.id, book_id=cand.id, status="want_to_read",
+                        hardcover_synced_status="want_to_read",
+                        hardcover_user_book_id=shelf.get(int(b["id"])),
+                    ))
+                elif row.status == "unread":
+                    row.status = "want_to_read"
+                    row.hardcover_synced_status = "want_to_read"
+                    row.hardcover_user_book_id = shelf.get(int(b["id"]))
+                stats["adopted"] += 1
+            else:
+                logger.info(
+                    "Hardcover pull: shelf entry %r looks already owned "
+                    "(unmatched, %d candidates) — no wish created",
+                    title, len(candidates))
             continue
         cover = ((b.get("image") or {}).get("url") or "").strip() or None
         try:
             create_wish(db, user, WishCreate(
                 title=title, author=author, cover_url=cover,
-                source="hardcover", source_id=str(int(b["id"])),
-                note="Added from your Hardcover Want to Read shelf",
+                source=SHELF_WISH_SOURCE, source_id=str(int(b["id"])),
+                note=SHELF_WISH_NOTE,
             ))
             stats["wished"] += 1
         except HTTPException as exc:
@@ -1111,7 +1199,7 @@ async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] =
     budget = _Budget(MAX_REQUESTS_PER_CYCLE)
     totals = {"users": 0, "pushed": 0, "failed": 0, "skipped_unmatched": 0,
               "pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0,
-              "wish_reopened": 0, "exhausted": False}
+              "wish_reopened": 0, "adopted": 0, "exhausted": False}
     with SessionLocal() as db:
         q = db.query(User).filter(
             User.hardcover_token.isnot(None),
@@ -1152,12 +1240,13 @@ async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] =
                     logger.info("Hardcover pull failed for %s: %s", user.username, exc)
                     continue
                 for k in ("pulled", "reverted", "wished", "wish_dismissed",
-                          "wish_reopened"):
+                          "wish_reopened", "adopted"):
                     # A partial-fetch abort returns without the wish counters.
                     totals[k] += pull_stats.get(k, 0)
     totals["exhausted"] = budget.exhausted
     if any(totals[k] for k in ("pushed", "failed", "pulled", "reverted",
-                               "wished", "wish_dismissed", "wish_reopened")):
+                               "wished", "wish_dismissed", "wish_reopened",
+                               "adopted")):
         logger.info("Hardcover sync (%s): %s", reason, totals)
     return totals
 

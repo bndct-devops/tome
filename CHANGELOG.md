@@ -42,9 +42,9 @@ All notable changes to Tome are documented here. Format loosely follows
   progress remain push-only as before. Shelving a book Tome doesn't have at
   all creates a wish on your Tome wishlist instead (with cover and author from
   the Hardcover catalogue), un-shelving it on Hardcover dismisses that wish
-  again, and re-shelving it reopens the same wish. Books already in the
-  library that merely lack a catalogue match are recognised and skipped
-  rather than wished for twice.
+  again, and re-shelving it reopens the same wish. A shelved book that is
+  already in the library but was never catalogue-matched adopts its match
+  straight from the shelf entry and lands queued, instead of being skipped.
 - Library Health now detects orphaned entries — books whose files no longer
   exist on disk (for example after files were deleted or moved outside of
   Tome). A new section lists them and a one-click "Remove Dead Entries" action
@@ -66,6 +66,12 @@ All notable changes to Tome are documented here. Format loosely follows
   any failures. (#165)
 
 ### Fixed
+- The Hardcover shelf sync's first cycle could wrongly dismiss open series
+  follows and user-created wishes whose metadata came from Hardcover (they
+  share the "hardcover" source marker with wishes the sync creates). The
+  shelf mirror now only ever touches wishes it created itself, and on the
+  first start after updating, wrongly-dismissed follows and wishes are
+  reopened automatically — admin-dismissed wishes stay closed.
 - OPDS feed links now carry the correct public scheme behind a TLS-terminating
   reverse proxy. The feed built its links from the request as the app server
   saw it — plain http — so every navigation, download, and cover link came out
