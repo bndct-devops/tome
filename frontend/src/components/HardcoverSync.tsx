@@ -20,7 +20,7 @@ interface HardcoverStatus {
 
 /**
  * Settings card: link a personal Hardcover account and push ratings + reading
- * progress one-way to it. Linking is the opt-in; the toggle pauses without
+ * progress to it (Want to Read syncs both ways). Linking is the opt-in; the toggle pauses without
  * unlinking. Match auditing/fixing lives on the dedicated /hardcover page —
  * this card only manages the connection. Renders nothing when the server has
  * the feature killed (404) — the parent section hides with us via onAvailable.
@@ -102,7 +102,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
     try {
       const r = await api.post<{ started: boolean }>('/hardcover/sync-now', {})
       if (r.started) {
-        toast.info('Sync started — pushing your ratings and progress to Hardcover')
+        toast.info('Sync started — pushing ratings and progress, syncing Want to Read both ways')
         setStatus(s => s ? { ...s, sync_running: true } : s)
       } else {
         toast.info('A sync is already running')
@@ -125,9 +125,9 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
             <div>
               <p className="text-sm font-medium text-foreground">Hardcover Sync</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Push your ratings and reading progress to your Hardcover profile — one-way,
-                nothing is ever deleted there. Needs your personal API token (separate from
-                the server's metadata token).
+                Push your ratings and reading progress to your Hardcover profile — nothing
+                is ever deleted there. Your Hardcover Want to Read shelf syncs both ways.
+                Needs your personal API token (separate from the server's metadata token).
               </p>
             </div>
           </div>

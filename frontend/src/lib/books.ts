@@ -111,7 +111,7 @@ export interface SavedFilter {
   sort_order: number
 }
 
-export type ReadingStatus = 'unread' | 'reading' | 'read' | 'shelved'
+export type ReadingStatus = 'unread' | 'reading' | 'read' | 'shelved' | 'want_to_read'
 
 export interface Arc {
   id: number

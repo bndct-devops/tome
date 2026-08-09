@@ -23,6 +23,28 @@ All notable changes to Tome are documented here. Format loosely follows
   only, same as before.
 
 ### Added
+- New "Want to Read" reading status — the missing state between the wishlist
+  and actually starting a book: owned, not started, queued next. Set it from
+  the book page (next to Shelved), filter by it on the dashboard, and it
+  self-promotes to Reading the moment real progress arrives from KOReader or
+  the web reader. Series "continue" suggestions prefer a queued volume over a
+  plain unread one, and the Library Completion stats tile shows a queued
+  count. When an admin fulfils your wish, the arriving book lands on your
+  Want to Read automatically — the intent that created the wish carries over
+  (never overwriting a book you're already reading). Volumes arriving for a
+  followed series do the same.
+- Hardcover sync now covers Want to Read — in both directions. Queueing a
+  book in Tome shelves it as "Want to Read" on your Hardcover profile, and
+  books you shelve on Hardcover appear as Want to Read in Tome (for books
+  Tome has matched to the Hardcover catalogue). Removing a book from the
+  Hardcover shelf reverts it in Tome only when both sides had agreed on it;
+  a book you're actively reading in Tome is never touched, and ratings and
+  progress remain push-only as before. Shelving a book Tome doesn't have at
+  all creates a wish on your Tome wishlist instead (with cover and author from
+  the Hardcover catalogue), un-shelving it on Hardcover dismisses that wish
+  again, and re-shelving it reopens the same wish. Books already in the
+  library that merely lack a catalogue match are recognised and skipped
+  rather than wished for twice.
 - Library Health now detects orphaned entries — books whose files no longer
   exist on disk (for example after files were deleted or moved outside of
   Tome). A new section lists them and a one-click "Remove Dead Entries" action

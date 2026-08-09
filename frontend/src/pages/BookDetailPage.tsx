@@ -354,6 +354,7 @@ export function BookDetailPage() {
     reading: 'Marked as reading',
     read: 'Marked as read',
     shelved: 'Shelved — kept your progress',
+    want_to_read: 'Added to Want to Read',
   }
 
   async function handleStatusChange(s: ReadingStatus) {
@@ -699,10 +700,27 @@ export function BookDetailPage() {
           {s}
         </button>
       ))}
-      {/* Shelved — set apart from the linear unread→reading→read progression.
-          Keeps your reading position; just removes the book from Continue
-          Reading, series progress, and stats until you pick it back up. */}
+      {/* Want to Read + Shelved — set apart from the linear unread→reading→read
+          progression. Want to Read = queued next (self-promotes to reading on
+          first progress); Shelved keeps your reading position but removes the
+          book from Continue Reading, series progress, and stats until you pick
+          it back up. */}
       <span className="mx-1 h-4 w-px bg-border self-center" aria-hidden />
+      <button
+        key={bookStatus === 'want_to_read' ? `want_to_read-${statusPopKey}` : 'want_to_read'}
+        disabled={statusSaving}
+        onClick={() => handleStatusChange('want_to_read')}
+        title="Want to Read — queue this book up next"
+        className={cn(
+          'px-2.5 py-1 rounded-md text-xs font-medium border transition-all inline-flex items-center gap-1.5',
+          bookStatus === 'want_to_read'
+            ? 'bg-primary/10 border-primary text-primary animate-[pop_0.2s_ease-out]'
+            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+        )}
+      >
+        <BookMarked className="w-3.5 h-3.5" />
+        Want to Read
+      </button>
       <button
         key={bookStatus === 'shelved' ? `shelved-${statusPopKey}` : 'shelved'}
         disabled={statusSaving}

@@ -712,3 +712,66 @@ def test_series_coverage_author_disambiguation(client: TestClient, db: Session, 
     w = client.get("/api/wishlist?status=open").json()[0]
     titles = {v["title"] for v in (w["series_coverage"] or [])}
     assert titles == {"Ugland Vol 1"}
+
+
+# ── Want to Read handoff ──────────────────────────────────────────────────────
+
+def test_fulfill_queues_book_for_requester(client: TestClient, db: Session, admin_user, make_book):
+    """Fulfilling a wish sets the requester's status to want_to_read."""
+    from backend.models.user_book_status import UserBookStatus
+
+    member, member_token = _make_member(db, "member_queue")
+    client.headers["Authorization"] = f"Bearer {member_token}"
+    wish_id = client.post("/api/wishlist", json=_wish_payload()).json()["id"]
+
+    book = make_book(title="Wished Arrival")
+    _admin, admin_token = admin_user
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    resp = client.post(f"/api/admin/wishlist/{wish_id}/fulfill", json={"book_id": book.id})
+    assert resp.status_code == 200, resp.text
+
+    row = db.query(UserBookStatus).filter_by(user_id=member.id, book_id=book.id).one()
+    assert row.status == "want_to_read"
+
+
+def test_fulfill_never_downgrades_engagement(client: TestClient, db: Session, admin_user, make_book):
+    """A requester already reading the arriving book keeps their status."""
+    from backend.models.user_book_status import UserBookStatus
+
+    member, member_token = _make_member(db, "member_reading")
+    client.headers["Authorization"] = f"Bearer {member_token}"
+    wish_id = client.post("/api/wishlist", json=_wish_payload()).json()["id"]
+
+    book = make_book(title="Already Reading Arrival")
+    db.add(UserBookStatus(user_id=member.id, book_id=book.id, status="reading", progress_pct=0.4))
+    db.flush()
+
+    _admin, admin_token = admin_user
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    resp = client.post(f"/api/admin/wishlist/{wish_id}/fulfill", json={"book_id": book.id})
+    assert resp.status_code == 200, resp.text
+
+    row = db.query(UserBookStatus).filter_by(user_id=member.id, book_id=book.id).one()
+    assert row.status == "reading"
+    assert row.progress_pct == 0.4
+
+
+def test_series_wish_volume_arrival_queues(client: TestClient, db: Session, admin_user, make_book):
+    """A volume matching a standing whole-series wish lands queued for the requester."""
+    from backend.models.user_book_status import UserBookStatus
+    from backend.services.wish_matcher import match_on_book_created
+
+    member, member_token = _make_member(db, "member_series_queue")
+    client.headers["Authorization"] = f"Bearer {member_token}"
+    resp = client.post("/api/wishlist", json={
+        "title": "Great Series", "series": "Great Series", "author": "Serial Author",
+    })
+    assert resp.status_code == 201, resp.text
+
+    book = make_book(title="Great Series Vol. 3", series="Great Series",
+                     series_index=3, author="Serial Author")
+    match_on_book_created(db, book)
+    db.flush()
+
+    row = db.query(UserBookStatus).filter_by(user_id=member.id, book_id=book.id).first()
+    assert row is not None and row.status == "want_to_read"

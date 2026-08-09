@@ -312,6 +312,14 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN hardcover_error VARCHAR(255)"))
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN hardcover_fail_count INTEGER NOT NULL DEFAULT 0"))
             conn.commit()
+        # Hardcover Want-to-Read pull resolves shelf entries by matched book id
+        # every cycle — create_all only builds indexes for brand-new tables, and
+        # this must run after the hardcover_book_id column-add above.
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_books_hardcover_book_id "
+            "ON books (hardcover_book_id)"
+        ))
+        conn.commit()
     ReadingGoal.__table__.create(bind=engine, checkfirst=True)
     init_fts(engine)
     backfill_fts(engine)

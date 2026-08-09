@@ -1,4 +1,10 @@
-"""One-way Tome → Hardcover sync of ratings and reading progress.
+"""Tome ↔ Hardcover sync of ratings, reading progress, and Want to Read.
+
+Direction: ratings/progress/reading/read are ONE-WAY Tome → Hardcover. The
+Want to Read shelf is the single bidirectional piece — Tome pushes
+``want_to_read`` as status 1 and pulls the shelf back each cycle (see
+``pull_want_to_read``): entries land on unread/missing Tome rows, and removing
+a shelf entry on Hardcover reverts a previously-agreed ``want_to_read`` row.
 
 Design (docs/plans/hardcover-sync-plan.md):
 
@@ -39,6 +45,7 @@ from datetime import datetime
 from typing import Optional
 
 import httpx
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -47,14 +54,16 @@ from backend.models.book import Book
 from backend.models.notification import Notification
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
+from backend.models.wish import Wish
 
 logger = logging.getLogger(__name__)
 
 HARDCOVER_URL = "https://api.hardcover.app/v1/graphql"
 
 # Hardcover user_book status ids. unread/shelved are deliberately unmapped —
-# they are never pushed.
-STATUS_ID = {"reading": 2, "read": 3}
+# they are never pushed. want_to_read maps to Hardcover's "Want to Read" shelf
+# and is the one status that also syncs BACK from Hardcover (see pull_want_to_read).
+STATUS_ID = {"want_to_read": 1, "reading": 2, "read": 3}
 
 MIN_REQUEST_SPACING = 1.1      # seconds between requests, all users combined (60/min limit)
 MAX_REQUESTS_PER_CYCLE = 300   # cap so a 2000-book backlog spreads over cycles
@@ -124,6 +133,28 @@ query BookEdition($id: Int!) {
             reading_format_id
             language { code2 }
         }
+    }
+}
+"""
+
+Q_WTR_SHELF = """
+query WantToReadShelf($uid: Int!, $offset: Int!) {
+    user_books(where: {user_id: {_eq: $uid}, status_id: {_eq: 1}},
+               order_by: {id: asc}, limit: 100, offset: $offset) {
+        id
+        book_id
+    }
+}
+"""
+
+Q_BOOKS_BY_IDS = """
+query BooksByIds($ids: [Int!]!) {
+    books(where: {id: {_in: $ids}}) {
+        id
+        title
+        slug
+        image { url }
+        contributions { author { name } }
     }
 }
 """
@@ -628,9 +659,13 @@ def needs_sync(row: UserBookStatus) -> bool:
     if row.status in STATUS_ID:
         if row.status != row.hardcover_synced_status:
             return True
-        pct = row.progress_pct or 0.0
-        if pct - (row.hardcover_synced_pct or 0.0) >= 0.01:
-            return True
+        # Progress only matters for books actually being read: a want_to_read
+        # row may carry leftover sample progress, which must not create a
+        # read-row on Hardcover's Want to Read shelf.
+        if row.status != "want_to_read":
+            pct = row.progress_pct or 0.0
+            if pct - (row.hardcover_synced_pct or 0.0) >= 0.01:
+                return True
     return False
 
 
@@ -696,8 +731,9 @@ async def _push_row(client: httpx.AsyncClient, token: str, user: User,
             row.hardcover_synced_status = row.status
 
     # Progress (page-based, forward-only — see needs_sync). No pages on the
-    # edition → status-only sync.
-    if status_id is not None:
+    # edition → status-only sync. Skipped entirely for want_to_read: queued
+    # books get a shelf entry, never a read-row.
+    if status_id is not None and row.status != "want_to_read":
         pages = _progress_pages(row, book.hardcover_pages)
         pct = 1.0 if row.status == "read" else (row.progress_pct or 0.0)
         if pages is not None and pct - (row.hardcover_synced_pct or 0.0) >= 0.01:
@@ -862,12 +898,220 @@ async def sync_user(db: Session, client: httpx.AsyncClient, user: User,
     return stats
 
 
+async def pull_want_to_read(db: Session, client: httpx.AsyncClient, user: User,
+                            budget: _Budget) -> dict:
+    """Pull the user's Hardcover Want to Read shelf into Tome.
+
+    The one inbound direction. Rules (docs/plans/want-to-read-plan.md):
+    - Shelf entries resolve via ``Book.hardcover_book_id`` — only books Tome
+      has already matched apply; the rest are picked up once matched later.
+    - Additive apply: a resolved entry only fills a missing status row or
+      upgrades an explicit "unread" to ``want_to_read``. Engagement
+      (reading/read/shelved) always wins — never downgraded.
+    - Echo prevention: applied rows get ``hardcover_synced_status`` stamped so
+      the push reconciler sees no diff.
+    - Convergence: a Tome row that is ``want_to_read`` AND was last agreed with
+      Hardcover (snapshot says want_to_read) but whose entry left the shelf is
+      checked individually — gone entirely → revert to unread; merely moved to
+      another Hardcover status → leave both sides alone (no fighting).
+    - An incomplete shelf fetch (budget/API trouble) aborts the WHOLE pull for
+      this user — applying a partial shelf would mass-revert agreed rows.
+    """
+    stats = {"pulled": 0, "reverted": 0}
+    token = user_token(user)
+    if not token or user.hardcover_user_id is None:
+        return stats
+
+    # 1. Full shelf fetch (paginated). Partial → abort, see docstring.
+    shelf: dict[int, int] = {}  # hardcover book_id -> hardcover user_book id
+    offset = 0
+    while True:
+        if not budget.spend():
+            logger.info("Hardcover pull: budget exhausted mid-shelf-fetch for %s — "
+                        "skipping pull this cycle", user.username)
+            return stats
+        data = await _gql(client, token, Q_WTR_SHELF,
+                          {"uid": user.hardcover_user_id, "offset": offset})
+        rows = data.get("user_books")
+        if rows is None:
+            logger.info("Hardcover pull: unexpected shelf response shape for %s — "
+                        "skipping pull this cycle", user.username)
+            return stats
+        for r in rows:
+            if r.get("book_id") is not None and r.get("id") is not None:
+                shelf[int(r["book_id"])] = int(r["id"])
+        if len(rows) < 100:
+            break
+        offset += 100
+
+    # 2. Additive apply onto matched books.
+    if shelf:
+        matched_books = (
+            db.query(Book)
+            .filter(Book.hardcover_book_id.in_(shelf.keys()), Book.status == "active")
+            .all()
+        )
+        for book in matched_books:
+            row = (
+                db.query(UserBookStatus)
+                .filter_by(user_id=user.id, book_id=book.id)
+                .first()
+            )
+            if row is None:
+                db.add(UserBookStatus(
+                    user_id=user.id, book_id=book.id, status="want_to_read",
+                    hardcover_synced_status="want_to_read",
+                    hardcover_user_book_id=shelf[book.hardcover_book_id],
+                ))
+                stats["pulled"] += 1
+            elif row.status == "unread":
+                row.status = "want_to_read"
+                row.hardcover_synced_status = "want_to_read"
+                row.hardcover_user_book_id = shelf[book.hardcover_book_id]
+                stats["pulled"] += 1
+
+    # 3. Convergence: previously-agreed rows whose entry left the shelf.
+    agreed = (
+        db.query(UserBookStatus, Book)
+        .join(Book, UserBookStatus.book_id == Book.id)
+        .filter(
+            UserBookStatus.user_id == user.id,
+            UserBookStatus.status == "want_to_read",
+            UserBookStatus.hardcover_synced_status == "want_to_read",
+            Book.hardcover_book_id.isnot(None),
+        )
+        .all()
+    )
+    for row, book in agreed:
+        if book.hardcover_book_id in shelf:
+            continue
+        # Distinguish removed from moved: a targeted lookup per candidate
+        # (candidates are rare — only just-unshelved books reach here).
+        if not budget.spend():
+            break
+        data = await _gql(client, token, Q_USER_BOOK,
+                          {"uid": user.hardcover_user_id, "bid": book.hardcover_book_id})
+        existing = data.get("user_books") or []
+        if existing:
+            # Moved to another Hardcover status (reading/read/…): leave the
+            # Tome row queued and the snapshot intact so nothing re-pushes.
+            continue
+        row.status = "unread"
+        row.hardcover_synced_status = None
+        row.hardcover_user_book_id = None
+        row.hardcover_read_id = None
+        stats["reverted"] += 1
+
+    db.commit()
+
+    # 4. Shelf entries with NO Tome book at all become wishes (full circle:
+    # shelve a volume on Hardcover → it lands on the Tome wishlist). Runs after
+    # the status commit so an API/schema failure here can never cost applied
+    # statuses. Guarded against the owned-but-unmatched case: if the library
+    # already has a plausible copy (title/author fuzzy), no wish is created —
+    # the book just hasn't been catalogue-matched yet.
+    try:
+        stats.update(await _wishes_from_shelf(db, client, token, user, shelf, budget))
+        db.commit()
+    except (HardcoverAPIError, HardcoverRateLimited):
+        db.rollback()
+        logger.info("Hardcover pull: wish sync skipped for %s (API trouble)", user.username)
+    return stats
+
+
+async def _wishes_from_shelf(db: Session, client: httpx.AsyncClient, token: str,
+                             user: User, shelf: dict[int, int],
+                             budget: _Budget) -> dict:
+    """Create wishes for shelf entries that resolve to no Tome book, and keep
+    Hardcover-sourced wishes mirroring the shelf: un-shelving dismisses them,
+    re-shelving reopens them. Fulfilled wishes are final either way.
+
+    Consequence: for wishes this sync created, the shelf outranks an in-Tome
+    dismissal — an admin-dismissed one reopens next cycle while the book stays
+    shelved. Dedup for creation is create_wish's (user, source, source_id)
+    uniqueness. Does not commit — the caller owns the transaction.
+    """
+    from backend.schemas.wish import WishCreate
+    from backend.services.wish_matcher import find_matching_books
+    from backend.services.wishlist import create_wish
+
+    stats = {"wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    if not settings.wishlist_enabled:
+        return stats
+
+    # The shelf is authoritative for the wishes it created: un-shelving
+    # dismisses, re-shelving reopens. Both silent — the user made the change
+    # themselves on Hardcover; no notification. Fulfilled wishes are final and
+    # never reopened (the book is here; a lingering shelf entry changes nothing).
+    hc_wishes = (
+        db.query(Wish)
+        .filter(Wish.user_id == user.id, Wish.status.in_(("open", "dismissed")),
+                Wish.source == "hardcover", Wish.source_id.isnot(None))
+        .all()
+    )
+    shelf_ids = {str(bid) for bid in shelf}
+    for wish in hc_wishes:
+        if wish.status == "open" and wish.source_id not in shelf_ids:
+            wish.status = "dismissed"
+            stats["wish_dismissed"] += 1
+        elif wish.status == "dismissed" and wish.source_id in shelf_ids:
+            wish.status = "open"
+            stats["wish_reopened"] += 1
+
+    known_ids = {
+        hc_id for (hc_id,) in
+        db.query(Book.hardcover_book_id).filter(Book.hardcover_book_id.in_(shelf.keys()))
+    }
+    existing_wish_ids = {w.source_id for w in hc_wishes} | {
+        w.source_id for w in
+        db.query(Wish).filter(Wish.user_id == user.id, Wish.source == "hardcover",
+                              Wish.status == "fulfilled").all()
+    }
+    unresolved = [bid for bid in shelf
+                  if bid not in known_ids and str(bid) not in existing_wish_ids]
+    if not unresolved:
+        return stats
+
+    if not budget.spend():
+        return stats
+    data = await _gql(client, token, Q_BOOKS_BY_IDS, {"ids": unresolved})
+    for b in data.get("books") or []:
+        title = (b.get("title") or "").strip()
+        if not title or b.get("id") is None:
+            continue
+        authors = [((c.get("author") or {}).get("name") or "").strip()
+                   for c in (b.get("contributions") or [])]
+        author = next((a for a in authors if a), None)
+        # Owned-but-unmatched guard: a plausible library copy means the book is
+        # here already — skip the wish rather than asking for a duplicate.
+        probe = Wish(user_id=user.id, title=title, author=author, kind="wish")
+        if find_matching_books(db, probe):
+            logger.info(
+                "Hardcover pull: shelf entry %r looks already owned (unmatched) — "
+                "no wish created", title)
+            continue
+        cover = ((b.get("image") or {}).get("url") or "").strip() or None
+        try:
+            create_wish(db, user, WishCreate(
+                title=title, author=author, cover_url=cover,
+                source="hardcover", source_id=str(int(b["id"])),
+                note="Added from your Hardcover Want to Read shelf",
+            ))
+            stats["wished"] += 1
+        except HTTPException as exc:
+            # Cap reached / raced duplicate — skip quietly, retry next cycle.
+            logger.info("Hardcover pull: wish for %r not created (%s)", title, exc.detail)
+    return stats
+
+
 async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] = None) -> dict:
     """One reconcile pass over all linked, enabled users."""
     from backend.core.database import SessionLocal
 
     budget = _Budget(MAX_REQUESTS_PER_CYCLE)
-    totals = {"users": 0, "pushed": 0, "failed": 0, "skipped_unmatched": 0, "exhausted": False}
+    totals = {"users": 0, "pushed": 0, "failed": 0, "skipped_unmatched": 0,
+              "pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0,
+              "wish_reopened": 0, "exhausted": False}
     with SessionLocal() as db:
         q = db.query(User).filter(
             User.hardcover_token.isnot(None),
@@ -890,8 +1134,30 @@ async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] =
                     break
                 for k in ("pushed", "failed", "skipped_unmatched"):
                     totals[k] += stats[k]
+                # Inbound: Want to Read shelf pull (the one bidirectional piece).
+                # Runs after the push pass so freshly-pushed rows already carry
+                # their snapshot and read back as agreed, not as new pulls.
+                try:
+                    pull_stats = await pull_want_to_read(db, client, user, budget)
+                except HardcoverRateLimited:
+                    db.rollback()
+                    logger.warning("Hardcover pull: rate limited — ending cycle early")
+                    break
+                except HardcoverAuthError:
+                    db.rollback()
+                    mark_token_expired(db, user)
+                    continue
+                except HardcoverAPIError as exc:
+                    db.rollback()
+                    logger.info("Hardcover pull failed for %s: %s", user.username, exc)
+                    continue
+                for k in ("pulled", "reverted", "wished", "wish_dismissed",
+                          "wish_reopened"):
+                    # A partial-fetch abort returns without the wish counters.
+                    totals[k] += pull_stats.get(k, 0)
     totals["exhausted"] = budget.exhausted
-    if totals["pushed"] or totals["failed"]:
+    if any(totals[k] for k in ("pushed", "failed", "pulled", "reverted",
+                               "wished", "wish_dismissed", "wish_reopened")):
         logger.info("Hardcover sync (%s): %s", reason, totals)
     return totals
 

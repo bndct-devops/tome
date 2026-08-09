@@ -185,7 +185,7 @@ def _filtered_books_query(
         query = query.filter(Book.language.in_(raw_matches) if raw_matches else Book.id == -1)
     if library_id:
         query = query.join(Book.libraries).filter(Library.id == library_id)
-    if reading_status in ("reading", "read", "shelved"):
+    if reading_status in ("reading", "read", "shelved", "want_to_read"):
         query = query.join(
             UserBookStatus,
             (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == current_user.id)
@@ -1420,7 +1420,12 @@ def restore_position(
     else:
         if status_row.status == "read":
             status_row.finished_at = None
-        status_row.status = "reading" if entry.percentage > 0 else "unread"
+        if entry.percentage > 0:
+            status_row.status = "reading"
+        elif status_row.status != "want_to_read":
+            # A zero-position restore resets to unread — but a queued book
+            # stays queued (it never had a position to lose).
+            status_row.status = "unread"
     db.commit()
     audit(db, "books.position_restored", user_id=current_user.id, username=current_user.username,
           resource_type="book", resource_id=book_id,

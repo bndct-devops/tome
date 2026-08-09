@@ -113,8 +113,8 @@ def set_book_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if body.status not in ("unread", "reading", "read", "shelved"):
-        raise HTTPException(400, "status must be unread, reading, read, or shelved")
+    if body.status not in ("unread", "reading", "read", "shelved", "want_to_read"):
+        raise HTTPException(400, "status must be unread, reading, read, shelved, or want_to_read")
     from backend.models.book import Book
     book = db.get(Book, book_id)
     if not book:

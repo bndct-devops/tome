@@ -69,7 +69,7 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <span className="text-2xl font-bold text-foreground">{data.pct}%</span>
-        <span className="text-xs text-muted-foreground">{data.read} of {data.owned} owned read{data.reading ? ` · ${data.reading} reading` : ''}</span>
+        <span className="text-xs text-muted-foreground">{data.read} of {data.owned} owned read{data.reading ? ` · ${data.reading} reading` : ''}{data.want_to_read ? ` · ${data.want_to_read} want to read` : ''}</span>
       </div>
       <div className="flex flex-col gap-2">
         {data.by_type.map((t) => (

@@ -239,3 +239,66 @@ def test_mark_read_at_full_progress(client: TestClient, make_book):
     data = _get_status(client, book.id)
     assert data["status"] == "read"
     assert data["progress_pct"] == pytest.approx(1.0)
+
+
+# ── want_to_read ──────────────────────────────────────────────────────────────
+
+def test_want_to_read_accepted_and_filterable(client: TestClient, make_book):
+    """want_to_read is a valid fifth status and drives the list filter."""
+    queued = make_book(title="Queued Book")
+    plain = make_book(title="Plain Unread Book")
+
+    data = _put_status(client, queued.id, {"status": "want_to_read"})
+    assert data["status"] == "want_to_read"
+
+    resp = client.get("/api/books", params={"reading_status": "want_to_read"})
+    assert resp.status_code == 200
+    ids = [b["id"] for b in resp.json()]
+    assert queued.id in ids and plain.id not in ids
+
+    # A queued book is no longer "unread" for the filter
+    resp = client.get("/api/books", params={"reading_status": "unread"})
+    ids = [b["id"] for b in resp.json()]
+    assert queued.id not in ids and plain.id in ids
+
+
+def test_want_to_read_keeps_progress(client: TestClient, make_book):
+    """Unlike unread, queueing a sampled book keeps its position (like shelved)."""
+    book = make_book(title="Sampled Then Queued")
+    _put_status(client, book.id, {"status": "reading", "progress_pct": 0.1, "cfi": "x"})
+
+    data = _put_status(client, book.id, {"status": "want_to_read"})
+    assert data["progress_pct"] == pytest.approx(0.1)
+    assert data["cfi"] == "x"
+
+
+def test_invalid_status_rejected(client: TestClient, make_book):
+    book = make_book(title="Bad Status")
+    resp = client.put(f"/api/books/{book.id}/status", json={"status": "wishlisted"})
+    assert resp.status_code == 400
+
+
+def test_want_to_read_promotes_to_reading_on_progress(db: Session, client: TestClient, admin_user, make_book):
+    """First real progress self-promotes a queued book (device/web sync path)."""
+    from backend.services.book_progress import apply_progress_to_status
+
+    user, _ = admin_user
+    book = make_book(title="Queued Promotion")
+    _put_status(client, book.id, {"status": "want_to_read"})
+
+    row = apply_progress_to_status(db, user_id=user.id, book_id=book.id, pct=0.05)
+    db.flush()
+    assert row.status == "reading"
+
+
+def test_want_to_read_finishes_straight_to_read(db: Session, client: TestClient, admin_user, make_book):
+    from backend.services.book_progress import apply_progress_to_status
+
+    user, _ = admin_user
+    book = make_book(title="Queued Straight To Read")
+    _put_status(client, book.id, {"status": "want_to_read"})
+
+    row = apply_progress_to_status(db, user_id=user.id, book_id=book.id, pct=1.0)
+    db.flush()
+    assert row.status == "read"
+    assert row.finished_at is not None

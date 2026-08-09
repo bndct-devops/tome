@@ -903,3 +903,312 @@ def test_sync_now_retries_unmatched_books(client, db, admin_user, make_book, mon
     # Explicit click clears the failed-match marker so the matcher tries again.
     assert book.hardcover_match_method is None
     assert book.hardcover_matched_at is None
+
+
+# ── want_to_read: reconciler diff + push ──────────────────────────────────────
+
+def test_needs_sync_want_to_read():
+    # Newly queued → status push needed
+    assert hs.needs_sync(_row(status="want_to_read"))
+    # Agreed on both sides → quiet, even with leftover sample progress
+    assert not hs.needs_sync(_row(status="want_to_read",
+                                  hardcover_synced_status="want_to_read",
+                                  progress_pct=0.15))
+
+
+@respx.mock
+async def test_push_row_want_to_read_no_read_row(db, admin_user, make_book):
+    """Queued books get a shelf entry (status 1) but never a progress read-row,
+    even when they carry leftover sample progress and the edition has pages."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Queued Push")
+    book.hardcover_book_id = 77
+    book.hardcover_edition_id = 555
+    book.hardcover_pages = 400
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="want_to_read",
+                         progress_pct=0.2)
+    db.add(row)
+    db.flush()
+
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        assert "InsertRead" not in body and "UpdateRead" not in body \
+            and "query Reads" not in body, "want_to_read must never touch read rows"
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        if "mutation InsertUserBook" in body:
+            assert '"status_id": 1' in body or '"status_id":1' in body
+            return httpx.Response(200, json={"data": {"insert_user_book": {"id": 1001, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+
+    assert row.hardcover_user_book_id == 1001
+    assert row.hardcover_synced_status == "want_to_read"
+    assert not hs.needs_sync(row)
+
+
+# ── want_to_read: pull direction ──────────────────────────────────────────────
+
+def _link_pull_user(user):
+    from backend.core.crypto import encrypt_secret
+    user.hardcover_token = encrypt_secret("Bearer hc_tok")
+    user.hardcover_token_status = "ok"
+    user.hardcover_sync_enabled = True
+    user.hardcover_user_id = 42
+
+
+def _shelf_responder(shelf_entries, user_book_lookups=None):
+    """Responder serving the WTR shelf query and targeted UserBook lookups."""
+    def responder(request):
+        body = request.read().decode()
+        if "query WantToReadShelf" in body:
+            return httpx.Response(200, json={"data": {"user_books": shelf_entries}})
+        if "query UserBook" in body:
+            import json as _json
+            bid = _json.loads(body)["variables"]["bid"]
+            found = (user_book_lookups or {}).get(bid, [])
+            return httpx.Response(200, json={"data": {"user_books": found}})
+        return httpx.Response(200, json={"data": {}})
+    return responder
+
+
+@respx.mock
+async def test_pull_wtr_applies_to_missing_and_unread(db, admin_user, make_book):
+    user, _ = admin_user
+    _link_pull_user(user)
+    matched_new = make_book(title="Shelved On HC")
+    matched_new.hardcover_book_id = 77
+    matched_unread = make_book(title="Unread In Tome")
+    matched_unread.hardcover_book_id = 88
+    db.add(UserBookStatus(user_id=user.id, book_id=matched_unread.id, status="unread"))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_responder(
+        [{"id": 501, "book_id": 77}, {"id": 502, "book_id": 88}]))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats == {"pulled": 2, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    for book, ub_id in ((matched_new, 501), (matched_unread, 502)):
+        row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+        assert row.status == "want_to_read"
+        assert row.hardcover_synced_status == "want_to_read"
+        assert row.hardcover_user_book_id == ub_id
+        # Echo prevention: the push reconciler must see no diff
+        assert not hs.needs_sync(row)
+
+
+@respx.mock
+async def test_pull_wtr_never_downgrades_engagement(db, admin_user, make_book):
+    user, _ = admin_user
+    _link_pull_user(user)
+    book = make_book(title="Reading In Tome")
+    book.hardcover_book_id = 77
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="reading",
+                          progress_pct=0.6))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_responder(
+        [{"id": 501, "book_id": 77}]))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats == {"pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    assert row.status == "reading"
+
+
+@respx.mock
+async def test_pull_wtr_convergence_removed_vs_moved(db, admin_user, make_book):
+    """Both sides had agreed want_to_read. Entry gone from HC entirely → revert
+    to unread; entry merely moved to another HC status → leave both sides be."""
+    user, _ = admin_user
+    _link_pull_user(user)
+    removed = make_book(title="Unshelved On HC")
+    removed.hardcover_book_id = 77
+    moved = make_book(title="Moved To Reading On HC")
+    moved.hardcover_book_id = 88
+    for book in (removed, moved):
+        db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="want_to_read",
+                              hardcover_synced_status="want_to_read",
+                              hardcover_user_book_id=600 + book.id))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_responder(
+        [],  # WTR shelf is now empty
+        user_book_lookups={77: [], 88: [{"id": 999, "status_id": 2, "user_book_reads": []}]},
+    ))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats == {"pulled": 0, "reverted": 1, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    removed_row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=removed.id).one()
+    assert removed_row.status == "unread"
+    assert removed_row.hardcover_synced_status is None
+    moved_row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=moved.id).one()
+    assert moved_row.status == "want_to_read"
+    assert moved_row.hardcover_synced_status == "want_to_read"
+    # Snapshot intact → nothing re-pushes over the user's HC-side change
+    assert not hs.needs_sync(moved_row)
+
+
+@respx.mock
+async def test_pull_wtr_tome_only_row_untouched_by_convergence(db, admin_user, make_book):
+    """A Tome-set want_to_read that was never pushed (no snapshot) must survive
+    an empty HC shelf — convergence only reverts previously-agreed rows."""
+    user, _ = admin_user
+    _link_pull_user(user)
+    book = make_book(title="Tome Only Queue")
+    book.hardcover_book_id = 77
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="want_to_read"))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_responder([]))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats == {"pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    assert row.status == "want_to_read"
+
+
+@respx.mock
+async def test_pull_wtr_partial_fetch_aborts(db, admin_user, make_book):
+    """Budget exhaustion mid-fetch must abort the whole pull — applying a
+    partial shelf would mass-revert agreed rows."""
+    user, _ = admin_user
+    _link_pull_user(user)
+    book = make_book(title="Agreed Queued")
+    book.hardcover_book_id = 77
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="want_to_read",
+                          hardcover_synced_status="want_to_read"))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_responder([]))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(0))
+
+    assert stats == {"pulled": 0, "reverted": 0}
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    assert row.status == "want_to_read"  # untouched
+
+
+# ── want_to_read pull: unresolved entries → wishlist ──────────────────────────
+
+def _shelf_with_books_responder(shelf_entries, books_by_ids):
+    def responder(request):
+        body = request.read().decode()
+        if "query WantToReadShelf" in body:
+            return httpx.Response(200, json={"data": {"user_books": shelf_entries}})
+        if "query BooksByIds" in body:
+            return httpx.Response(200, json={"data": {"books": books_by_ids}})
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        return httpx.Response(200, json={"data": {}})
+    return responder
+
+
+@respx.mock
+async def test_pull_wtr_unresolved_entry_creates_wish(db, admin_user):
+    """A shelf entry with no Tome book becomes a wish — and stays deduped."""
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    _link_pull_user(user)
+
+    responder = _shelf_with_books_responder(
+        [{"id": 501, "book_id": 999}],
+        [{"id": 999, "title": "Not In Tome Yet", "slug": "not-in-tome",
+          "image": {"url": "https://img.example/x.jpg"},
+          "contributions": [{"author": {"name": "Shelf Author"}}]}],
+    )
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+    assert stats["wished"] == 1
+
+    wish = db.query(Wish).filter_by(user_id=user.id, source="hardcover", source_id="999").one()
+    assert wish.status == "open"
+    assert wish.title == "Not In Tome Yet"
+    assert wish.author == "Shelf Author"
+    assert wish.cover_url == "https://img.example/x.jpg"
+
+    # Second cycle: the existing wish blocks re-creation (no API refetch needed)
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+    assert stats["wished"] == 0
+    assert db.query(Wish).filter_by(user_id=user.id, source="hardcover").count() == 1
+
+
+@respx.mock
+async def test_pull_wtr_owned_but_unmatched_creates_no_wish(db, admin_user, make_book):
+    """A library book that simply lacks a catalogue match must not spawn a wish."""
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    _link_pull_user(user)
+    make_book(title="Already Owned Novel", author="Owned Author")  # no hardcover_book_id
+
+    responder = _shelf_with_books_responder(
+        [{"id": 501, "book_id": 999}],
+        [{"id": 999, "title": "Already Owned Novel", "slug": "owned",
+          "contributions": [{"author": {"name": "Owned Author"}}]}],
+    )
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+    assert stats["wished"] == 0
+    assert db.query(Wish).filter_by(user_id=user.id).count() == 0
+
+
+@respx.mock
+async def test_pull_wtr_unshelve_dismisses_hardcover_wish(db, admin_user):
+    """Un-shelving on Hardcover auto-dismisses the wish it created."""
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    _link_pull_user(user)
+    db.add(Wish(user_id=user.id, title="Was Shelved", source="hardcover",
+                source_id="999", status="open", kind="wish"))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_with_books_responder([], []))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+    assert stats["wish_dismissed"] == 1
+
+    wish = db.query(Wish).filter_by(user_id=user.id, source_id="999").one()
+    assert wish.status == "dismissed"
+
+
+@respx.mock
+async def test_pull_wtr_reshelve_reopens_dismissed_wish(db, admin_user):
+    """Re-shelving a previously un-shelved book reopens its dismissed wish
+    instead of being blocked by the dedup — the shelf is authoritative for
+    the wishes it created. Fulfilled wishes stay final."""
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    _link_pull_user(user)
+    db.add(Wish(user_id=user.id, title="Shelved Again", source="hardcover",
+                source_id="999", status="dismissed", kind="wish"))
+    db.add(Wish(user_id=user.id, title="Already Fulfilled", source="hardcover",
+                source_id="888", status="fulfilled", kind="wish"))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_with_books_responder(
+        [{"id": 501, "book_id": 999}, {"id": 502, "book_id": 888}], []))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats["wish_reopened"] == 1
+    assert stats["wished"] == 0  # reopened, not recreated
+    assert db.query(Wish).filter_by(user_id=user.id, source_id="999").one().status == "open"
+    assert db.query(Wish).filter_by(user_id=user.id, source_id="888").one().status == "fulfilled"

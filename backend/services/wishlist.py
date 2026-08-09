@@ -84,6 +84,30 @@ def create_wish(db: Session, user: User, payload: WishCreate) -> Wish:
     return wish
 
 
+def queue_book_for_requester(db: Session, user_id: int, book_id: int) -> bool:
+    """Carry a wish's intent across fulfilment: mark the arriving book
+    want_to_read for the requester.
+
+    Guarded — only creates a missing status row or upgrades an explicit
+    "unread"; never downgrades reading/read/shelved. Idempotent. Returns True
+    when a change was made. Does not commit — the caller owns the transaction.
+    """
+    from backend.models.user_book_status import UserBookStatus
+
+    row = (
+        db.query(UserBookStatus)
+        .filter_by(user_id=user_id, book_id=book_id)
+        .first()
+    )
+    if row is None:
+        db.add(UserBookStatus(user_id=user_id, book_id=book_id, status="want_to_read"))
+        return True
+    if row.status == "unread":
+        row.status = "want_to_read"
+        return True
+    return False
+
+
 def fulfill_wish(db: Session, wish: Wish, book: Optional["Book"], admin: User) -> Wish:  # type: ignore[name-defined]
     """Mark a wish as fulfilled, create an in-app notification, attempt email.
 
@@ -102,6 +126,11 @@ def fulfill_wish(db: Session, wish: Wish, book: Optional["Book"], admin: User) -
     wish.fulfilled_by = admin.id
     wish.fulfilled_at = datetime.utcnow()
     db.flush()
+
+    # The intent that created the wish carries over: the arriving book lands
+    # on the requester's Want to Read queue (guarded, never downgrades).
+    if book is not None:
+        queue_book_for_requester(db, wish.user_id, book.id)
 
     # In-app notification (always) — wording differs for a series completion
     if book is not None:

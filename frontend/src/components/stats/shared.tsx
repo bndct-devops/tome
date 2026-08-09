@@ -57,7 +57,7 @@ export interface StatsResponse {
   }
   lifetime: { seconds: number; sessions: number; pages: number; books_finished: number; active_days: number; longest_streak_days: number }
   records: { longest_session_seconds: number; longest_session_title: string | null; biggest_day_seconds: number; biggest_day_date: string | null; most_pages_day: number; most_pages_date: string | null }
-  tbr: { owned: number; read: number; reading: number; shelved: number; unread: number; pct: number; by_type: { type: string; owned: number; read: number; pct: number }[] }
+  tbr: { owned: number; read: number; reading: number; shelved: number; want_to_read: number; unread: number; pct: number; by_type: { type: string; owned: number; read: number; pct: number }[] }
   language: { language: string; code: string; seconds: number; books: number }[]
   words: {
     total_words: number
