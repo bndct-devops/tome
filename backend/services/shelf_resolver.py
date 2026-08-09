@@ -65,7 +65,7 @@ def shelf_query(db: Session, user: User, params: dict):
         except (TypeError, ValueError):
             pass
     rs = params.get("reading_status")
-    if rs in ("reading", "read", "shelved"):
+    if rs in ("reading", "read", "shelved", "want_to_read"):
         query = query.join(
             UserBookStatus,
             (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == user.id)

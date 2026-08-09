@@ -338,9 +338,12 @@ def match_on_book_created(db: Session, book: "Book") -> list[Wish]:
             )
 
             # Standing whole-series wish (series set, no series_index): notify the
-            # requester that a volume arrived. Keeps the wish open.
+            # requester that a volume arrived and queue it on their Want to Read
+            # (guarded upsert, never downgrades). Keeps the wish open.
             if wish.series and wish.series_index is None and wish.status == "open":
                 _notify_volume_available(db, wish, book)
+                from backend.services.wishlist import queue_book_for_requester
+                queue_book_for_requester(db, wish.user_id, book.id)
         if matches:
             db.flush()
         return matches

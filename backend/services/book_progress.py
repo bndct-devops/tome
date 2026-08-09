@@ -182,7 +182,8 @@ def apply_progress_to_status(
         status_row.progress_pct = 1.0
         status_row.finished_at = datetime.utcnow()
         _nudge_hardcover()
-    elif status_row.status == "unread" and pct > 0:
+    elif status_row.status in ("unread", "want_to_read") and pct > 0:
+        # First real progress self-promotes a queued (want_to_read) book too.
         status_row.status = "reading"
 
     return status_row

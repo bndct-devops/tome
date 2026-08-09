@@ -45,7 +45,7 @@ class Book(Base):
     # hardcover_pages is the matched edition's page count, captured at match time
     # — Tome stores no page counts of its own, and progress→pages math must use
     # the edition's own pagination anyway.
-    hardcover_book_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    hardcover_book_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     hardcover_edition_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     hardcover_pages: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # isbn13 | isbn10 | search | manual (user-pinned, never auto-cleared) |

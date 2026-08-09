@@ -57,7 +57,7 @@ interface SeriesDetailBook {
   title: string
   series_index: number | null
   cover_path: string | null
-  reading_status: 'unread' | 'reading' | 'read' | 'shelved'
+  reading_status: 'unread' | 'reading' | 'read' | 'shelved' | 'want_to_read'
   progress_pct: number | null
 }
 
@@ -384,6 +384,9 @@ export function DashboardPage() {
     if (books.length === 0) return null
     const reading = books.find(b => b.reading_status === 'reading')
     if (reading) return reading
+    // Explicit intent beats position: a queued (want-to-read) volume is next.
+    const queued = books.find(b => b.reading_status === 'want_to_read')
+    if (queued) return queued
     // Find first unread where previous volume (by index order) is read
     for (let i = 1; i < books.length; i++) {
       if (books[i].reading_status === 'unread' && books[i - 1].reading_status === 'read') {
@@ -1980,7 +1983,7 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground font-medium w-14">Status</span>
-                {(['', 'unread', 'reading', 'read', 'shelved'] as const).map(s => (
+                {(['', 'unread', 'want_to_read', 'reading', 'read', 'shelved'] as const).map(s => (
                   <button
                     key={s}
                     onClick={() => setFilter('reading_status', s)}
@@ -1991,7 +1994,7 @@ export function DashboardPage() {
                         : 'border-border bg-card text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                    {s === '' ? 'All' : s === 'want_to_read' ? 'Want to Read' : s.charAt(0).toUpperCase() + s.slice(1)}
                   </button>
                 ))}
               </div>

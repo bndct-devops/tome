@@ -813,6 +813,7 @@ def get_stats(
     tbr_read = status_counts.get("read", 0)
     tbr_reading = status_counts.get("reading", 0)
     tbr_shelved = status_counts.get("shelved", 0)
+    tbr_want = status_counts.get("want_to_read", 0)
     type_rows = (
         db.query(
             func.coalesce(BookType.label, "Uncategorized"),
@@ -831,8 +832,9 @@ def get_stats(
         "read": tbr_read,
         "reading": tbr_reading,
         "shelved": tbr_shelved,
+        "want_to_read": tbr_want,
         # books with no status row are implicitly unread
-        "unread": max(owned - tbr_read - tbr_reading - tbr_shelved, 0),
+        "unread": max(owned - tbr_read - tbr_reading - tbr_shelved - tbr_want, 0),
         "pct": round(tbr_read / owned * 100, 1) if owned else 0,
         "by_type": sorted(
             [
