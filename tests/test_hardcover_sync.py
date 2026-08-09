@@ -995,7 +995,7 @@ async def test_pull_wtr_applies_to_missing_and_unread(db, admin_user, make_book)
     async with httpx.AsyncClient() as client:
         stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
 
-    assert stats == {"pulled": 2, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    assert stats == {"pulled": 2, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0, "adopted": 0}
     for book, ub_id in ((matched_new, 501), (matched_unread, 502)):
         row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
         assert row.status == "want_to_read"
@@ -1020,7 +1020,7 @@ async def test_pull_wtr_never_downgrades_engagement(db, admin_user, make_book):
     async with httpx.AsyncClient() as client:
         stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
 
-    assert stats == {"pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    assert stats == {"pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0, "adopted": 0}
     row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
     assert row.status == "reading"
 
@@ -1048,7 +1048,7 @@ async def test_pull_wtr_convergence_removed_vs_moved(db, admin_user, make_book):
     async with httpx.AsyncClient() as client:
         stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
 
-    assert stats == {"pulled": 0, "reverted": 1, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    assert stats == {"pulled": 0, "reverted": 1, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0, "adopted": 0}
     removed_row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=removed.id).one()
     assert removed_row.status == "unread"
     assert removed_row.hardcover_synced_status is None
@@ -1074,7 +1074,7 @@ async def test_pull_wtr_tome_only_row_untouched_by_convergence(db, admin_user, m
     async with httpx.AsyncClient() as client:
         stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
 
-    assert stats == {"pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0}
+    assert stats == {"pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0, "wish_reopened": 0, "adopted": 0}
     row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
     assert row.status == "want_to_read"
 
@@ -1134,7 +1134,7 @@ async def test_pull_wtr_unresolved_entry_creates_wish(db, admin_user):
         stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
     assert stats["wished"] == 1
 
-    wish = db.query(Wish).filter_by(user_id=user.id, source="hardcover", source_id="999").one()
+    wish = db.query(Wish).filter_by(user_id=user.id, source=hs.SHELF_WISH_SOURCE, source_id="999").one()
     assert wish.status == "open"
     assert wish.title == "Not In Tome Yet"
     assert wish.author == "Shelf Author"
@@ -1144,7 +1144,7 @@ async def test_pull_wtr_unresolved_entry_creates_wish(db, admin_user):
     async with httpx.AsyncClient() as client:
         stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
     assert stats["wished"] == 0
-    assert db.query(Wish).filter_by(user_id=user.id, source="hardcover").count() == 1
+    assert db.query(Wish).filter_by(user_id=user.id, source=hs.SHELF_WISH_SOURCE).count() == 1
 
 
 @respx.mock
@@ -1175,7 +1175,7 @@ async def test_pull_wtr_unshelve_dismisses_hardcover_wish(db, admin_user):
 
     user, _ = admin_user
     _link_pull_user(user)
-    db.add(Wish(user_id=user.id, title="Was Shelved", source="hardcover",
+    db.add(Wish(user_id=user.id, title="Was Shelved", source=hs.SHELF_WISH_SOURCE,
                 source_id="999", status="open", kind="wish"))
     db.flush()
 
@@ -1197,9 +1197,9 @@ async def test_pull_wtr_reshelve_reopens_dismissed_wish(db, admin_user):
 
     user, _ = admin_user
     _link_pull_user(user)
-    db.add(Wish(user_id=user.id, title="Shelved Again", source="hardcover",
+    db.add(Wish(user_id=user.id, title="Shelved Again", source=hs.SHELF_WISH_SOURCE,
                 source_id="999", status="dismissed", kind="wish"))
-    db.add(Wish(user_id=user.id, title="Already Fulfilled", source="hardcover",
+    db.add(Wish(user_id=user.id, title="Already Fulfilled", source=hs.SHELF_WISH_SOURCE,
                 source_id="888", status="fulfilled", kind="wish"))
     db.flush()
 
@@ -1212,3 +1212,112 @@ async def test_pull_wtr_reshelve_reopens_dismissed_wish(db, admin_user):
     assert stats["wished"] == 0  # reopened, not recreated
     assert db.query(Wish).filter_by(user_id=user.id, source_id="999").one().status == "open"
     assert db.query(Wish).filter_by(user_id=user.id, source_id="888").one().status == "fulfilled"
+
+
+# ── regression: the mirror must never touch follows or user-created wishes ────
+
+@respx.mock
+async def test_pull_wtr_never_touches_follows_or_native_wishes(db, admin_user):
+    """The prod incident: series follows (kind='follow', source='hardcover')
+    and user-created wishes whose metadata came from Hardcover were dismissed
+    by the shelf mirror on the first sync. Both must survive an empty shelf."""
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    _link_pull_user(user)
+    for i in range(4):
+        db.add(Wish(user_id=user.id, title=f"Followed Series {i}", kind="follow",
+                    status="open", source="hardcover", source_id=f"series:{i}"))
+    db.add(Wish(user_id=user.id, title="Native Series Wish", kind="wish",
+                status="open", source="hardcover", source_id="12345",
+                series="Native Series"))
+    db.flush()
+
+    respx.post(HARDCOVER_URL).mock(side_effect=_shelf_with_books_responder([], []))
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats["wish_dismissed"] == 0
+    assert db.query(Wish).filter_by(user_id=user.id, status="open").count() == 5
+
+
+def test_repair_reopens_bug_dismissed_rows_only(db, admin_user):
+    """Startup repair: reopen rows the buggy mirror dismissed (no audit entry),
+    leave admin-dismissed wishes closed, reclassify shelf-created wishes."""
+    from backend.models.audit_log import AuditLog
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    bug_follow = Wish(user_id=user.id, title="Bug-Dismissed Follow", kind="follow",
+                      status="dismissed", source="hardcover", source_id="series:1")
+    bug_wish = Wish(user_id=user.id, title="Bug-Dismissed Wish", kind="wish",
+                    status="dismissed", source="hardcover", source_id="111")
+    admin_closed = Wish(user_id=user.id, title="Admin-Dismissed Wish", kind="wish",
+                        status="dismissed", source="hardcover", source_id="222")
+    old_shelf_wish = Wish(user_id=user.id, title="Shelf-Created", kind="wish",
+                          status="open", source="hardcover", source_id="333",
+                          note=hs.SHELF_WISH_NOTE)
+    google_wish = Wish(user_id=user.id, title="Google Wish", kind="wish",
+                       status="dismissed", source="google_books", source_id="g1")
+    db.add_all([bug_follow, bug_wish, admin_closed, old_shelf_wish, google_wish])
+    db.flush()
+    db.add(AuditLog(user_id=user.id, username="testadmin",
+                    action="wishlist.dismissed", resource_type="wish",
+                    resource_id=admin_closed.id))
+    db.flush()
+
+    result = hs.repair_shelf_sync_collateral(db)
+    assert result == {"reopened": 2, "reclassified": 1}
+
+    assert db.get(Wish, bug_follow.id).status == "open"
+    assert db.get(Wish, bug_wish.id).status == "open"
+    assert db.get(Wish, admin_closed.id).status == "dismissed"
+    assert db.get(Wish, old_shelf_wish.id).source == hs.SHELF_WISH_SOURCE
+    assert db.get(Wish, google_wish.id).status == "dismissed"  # not hardcover's mess
+
+    # Idempotent: second run is a no-op
+    assert hs.repair_shelf_sync_collateral(db) == {"reopened": 0, "reclassified": 0}
+
+
+@respx.mock
+async def test_pull_wtr_adopts_owned_unmatched_book(db, admin_user, make_book):
+    """A shelf entry whose book exists in the library but was never
+    catalogue-matched adopts the match from the shelf and gets queued,
+    instead of dead-ending as neither status nor wish."""
+    from backend.models.wish import Wish
+
+    user, _ = admin_user
+    _link_pull_user(user)
+    book = make_book(title="Owned Unmatched Novel", author="Local Author")
+    assert book.hardcover_book_id is None
+
+    def responder(request):
+        body = request.read().decode()
+        if "query WantToReadShelf" in body:
+            return httpx.Response(200, json={"data": {"user_books": [
+                {"id": 501, "book_id": 999}]}})
+        if "query BooksByIds" in body:
+            return httpx.Response(200, json={"data": {"books": [
+                {"id": 999, "title": "Owned Unmatched Novel", "slug": "owned-unmatched",
+                 "contributions": [{"author": {"name": "Local Author"}}]}]}})
+        if "query BookEdition" in body:
+            return httpx.Response(200, json={"data": {"books": [
+                {"id": 999, "pages": 320, "slug": "owned-unmatched",
+                 "editions": [{"id": 777, "pages": 320, "users_count": 5,
+                               "reading_format_id": 1, "language": {"code2": "en"}}]}]}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        stats = await hs.pull_want_to_read(db, client, user, hs._Budget(50))
+
+    assert stats["adopted"] == 1
+    assert stats["wished"] == 0
+    assert book.hardcover_book_id == 999
+    assert book.hardcover_match_method == "shelf"
+    assert book.hardcover_edition_id == 777
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    assert row.status == "want_to_read"
+    assert row.hardcover_user_book_id == 501
+    assert not hs.needs_sync(row)
+    assert db.query(Wish).filter_by(user_id=user.id).count() == 0

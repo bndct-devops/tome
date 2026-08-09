@@ -331,6 +331,16 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as db:
         seed_book_types(db)
 
+    # Repair collateral from the first 2.2.0 build's Hardcover shelf mirror
+    # (wrongly-dismissed follows/wishes; see repair_shelf_sync_collateral).
+    # Idempotent, no-op on clean installs.
+    from backend.services.hardcover_sync import repair_shelf_sync_collateral
+    try:
+        with SessionLocal() as db:
+            repair_shelf_sync_collateral(db)
+    except Exception:
+        logger.exception("Hardcover shelf-sync repair failed (continuing startup)")
+
     # Start background auto-import task if enabled
     auto_import_task: asyncio.Task | None = None
     if settings.auto_import:
