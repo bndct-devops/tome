@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+from maping import Recorder
+from maping.asgi import MapingMiddleware
+
 from backend.core.database import engine, Base, init_fts, backfill_fts
 from backend.core.config import settings
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
@@ -58,6 +61,9 @@ from backend.models.book import BookChapter  # noqa: F401
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    recorder: Recorder = app.state.maping_recorder
+    await recorder.start()
+
     Base.metadata.create_all(bind=engine)
 
     # A staged restore was applied before the engine existed (see
@@ -388,6 +394,8 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+
+    await recorder.shutdown()
 
 
 async def _auto_import_loop() -> None:
@@ -744,6 +752,8 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    app.state.maping_recorder = Recorder()
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],  # Vite dev server
@@ -823,4 +833,7 @@ def create_app() -> FastAPI:
     return app
 
 
-app = create_app()
+# Not wrapped inside create_app() itself: tests call create_app() directly
+# and construct their own TestClient against it.
+_app = create_app()
+app = MapingMiddleware(_app, recorder=_app.state.maping_recorder)
