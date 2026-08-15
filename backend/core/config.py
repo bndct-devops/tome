@@ -85,6 +85,17 @@ class Settings(BaseSettings):
     # email/Amazon). Set to false to disable — the flag remains the kill switch.
     send_to_koreader: bool = True
 
+    # KOSync → plugin position bridge (env TOME_KOSYNC_POSITION_BRIDGE).
+    # Experimental, off by default. The KOSync endpoint is deliberately a
+    # one-way bridge (issue #156): third-party pushes never write
+    # TomeSyncPosition. With this flag on, the PLUGIN's position pull
+    # additionally considers the newest KOSync push for the same book —
+    # read-side only, TomeSyncPosition is still never written from KOSync
+    # data — so a device running the Tome plugin picks up progress made on a
+    # third-party KOSync client (Crosspoint, Readest, stock KOReader sync).
+    # See issue #175.
+    kosync_position_bridge: bool = False
+
     # JWT settings
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days

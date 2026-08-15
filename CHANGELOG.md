@@ -6,6 +6,23 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- Experimental KOSync position bridge (`TOME_KOSYNC_POSITION_BRIDGE`, off by
+  default) — with it enabled, a device running the TomeSync plugin picks up
+  reading progress pushed by third-party KOSync clients (Crosspoint, Readest,
+  stock KOReader sync) on the same book. The bridge is read-only: KOSync
+  pushes still never overwrite plugin or web positions on the server; the
+  plugin's pull just sees whichever known position is newest. Since KOSync
+  clients send no resolvable locator, the jump lands at the right percentage,
+  not the exact line. Marked experimental until it has seen real multi-client
+  use. (#175)
+
+### Fixed
+- "Sync now" in the TomeSync plugin (build 39) now pulls the server position
+  before pushing, using the same forward/backward conflict strategy as book
+  open. Previously it only pushed, so tapping it on a device that was behind
+  overwrote newer progress from another device. (#175)
+
 ## [2.2.0] - 2026-08-09
 
 ### Security

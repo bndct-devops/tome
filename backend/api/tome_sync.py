@@ -3,6 +3,7 @@
 Auth: Bearer API key (not JWT) for all /api/tome-sync/ endpoints.
 Plugin download: Bearer JWT for /api/plugin/koreader.
 """
+import calendar
 import io
 import json
 import logging
@@ -75,8 +76,14 @@ logger = logging.getLogger(__name__)
 # bypassing wifi_enable_action so "prompt" never dialogs onto the sleep
 # screen). onNetworkConnected also runs the history backfill now (was
 # launch-only) and no longer requires an open book to flush pending state.
-TOMESYNC_PLUGIN_BUILD = 38
-TOMESYNC_PLUGIN_SEMVER = "1.11.1"
+# BUILD 39: "Sync now" pulls before it pushes (issue #175) — the server
+# position runs through the same forward/backward pull-conflict strategy as
+# book open, so a device that is behind no longer overwrites newer progress
+# from another device; the push happens after the pull settles. Pairs with the
+# server-side TOME_KOSYNC_POSITION_BRIDGE read bridge (experimental, off by
+# default), which lets that pull also see third-party KOSync client pushes.
+TOMESYNC_PLUGIN_BUILD = 39
+TOMESYNC_PLUGIN_SEMVER = "1.12.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -107,6 +114,30 @@ def _get_position(db: Session, user_id: int, book_id: int) -> Optional[TomeSyncP
     return (
         db.query(TomeSyncPosition)
         .filter(TomeSyncPosition.user_id == user_id, TomeSyncPosition.book_id == book_id)
+        .first()
+    )
+
+
+def _newest_kosync_progress(db: Session, user_id: int, book_id: int):
+    """Newest KOSync push for this (Tome user, book), or None.
+
+    Read side of the #175 interop bridge (TOME_KOSYNC_POSITION_BRIDGE): joins
+    the user's document maps to KOSyncProgress through their linked KOSync
+    account(s). Both stores are server-stamped, so comparing timestamps is
+    free of device clock skew.
+    """
+    from backend.models.kosync import KOSyncDocumentMap, KOSyncProgress, KOSyncUser
+
+    return (
+        db.query(KOSyncProgress)
+        .join(KOSyncUser, KOSyncProgress.user_id == KOSyncUser.id)
+        .join(
+            KOSyncDocumentMap,
+            (KOSyncDocumentMap.document == KOSyncProgress.document)
+            & (KOSyncDocumentMap.tome_user_id == KOSyncUser.user_id),
+        )
+        .filter(KOSyncUser.user_id == user_id, KOSyncDocumentMap.book_id == book_id)
+        .order_by(KOSyncProgress.timestamp.desc())
         .first()
     )
 
@@ -281,6 +312,31 @@ def get_position(
         raise HTTPException(status_code=404, detail="Book not found")
 
     pos = _get_position(db, user.id, book_id)
+
+    # Experimental interop bridge (issue #175, TOME_KOSYNC_POSITION_BRIDGE):
+    # serve the newest KOSync push when it beats the stored plugin/web
+    # position — the mirror of kosync.py's GET, which serves the Tome position
+    # to KOSync clients when that side is newer. Read-only: TomeSyncPosition
+    # is never written from KOSync data, so the #156 write-side rule holds.
+    # The locator travels as-is (a stock-KOReader xpointer resolves exactly on
+    # the device; anything else makes the plugin fall back to the percentage).
+    if settings.kosync_position_bridge:
+        ks = _newest_kosync_progress(db, user.id, book_id)
+        if ks is not None:
+            pos_ts = (
+                calendar.timegm(pos.updated_at.utctimetuple())
+                if pos is not None and pos.updated_at is not None
+                else None
+            )
+            if pos_ts is None or ks.timestamp > pos_ts:
+                return {
+                    "book_id": book_id,
+                    "progress": ks.progress,
+                    "percentage": ks.percentage,
+                    "device": ks.device or "kosync",
+                    "updated_at": datetime.utcfromtimestamp(ks.timestamp).isoformat() + "Z",
+                }
+
     if not pos:
         raise HTTPException(status_code=404, detail="No position stored")
 
@@ -2871,6 +2927,61 @@ function TomeSync:_pushPosition()
     }})
 end
 
+-- "Sync now" position sync (issue #175): pull first, then push. This was
+-- push-only, so a device that was behind overwrote newer progress from
+-- another device on the server. The pull reuses the same conflict strategy
+-- as book open (forward silent/prompt, backward never, by default); the push
+-- is deferred until the pull has settled — including through the prompt — so
+-- the final server state reflects the outcome.
+function TomeSync:_syncPositionNow()
+    local ok, pos, code = pcall(apiRequest, "GET", "/tome-sync/position/" .. self.book_id)
+    if ok and pos and code == 200 then
+        local server_pct = pos.percentage or 0
+        local local_pct  = self:_getCurrentPercentage()
+        -- Shifts the session's start by the jump so the jumped-over range is
+        -- not credited as reading (progress made before the jump stays counted).
+        local function shiftSessionStart()
+            if self.progress_start then
+                self.progress_start = math.max(0, math.min(1,
+                    self.progress_start + (server_pct - local_pct)))
+            end
+        end
+        local mode = nil
+        if server_pct > (local_pct + 0.01) and server_pct < 0.99 then
+            mode = G_reader_settings:readSetting("tomesync_pull_forward") or "silent"
+        elseif server_pct < (local_pct - 0.01) and server_pct > 0.01 then
+            mode = G_reader_settings:readSetting("tomesync_pull_backward") or "never"
+        end
+        if mode == "silent" then
+            shiftSessionStart()
+            self:_gotoServerPosition(pos, server_pct)
+            self:_pushPosition()
+            return
+        elseif mode == "prompt" then
+            -- Menu context, book already open — no Profiles auto-exec dispatch
+            -- to protect here, unlike the open-time prompt.
+            UIManager:show(ConfirmBox:new{{
+                text = string.format(
+                    "TomeSync: Server position is at %.0f%% (this device: %.0f%%).\\nJump there?",
+                    server_pct * 100, local_pct * 100
+                ),
+                ok_text = "Jump",
+                ok_callback = function()
+                    shiftSessionStart()
+                    self:_gotoServerPosition(pos, server_pct)
+                    self:_pushPosition()
+                end,
+                cancel_callback = function()
+                    -- Explicit keep-local: the device wins, last-write-wins.
+                    self:_pushPosition()
+                end,
+            }})
+            return
+        end
+    end
+    self:_pushPosition()
+end
+
 -- ── Rating sync (bidirectional, per open book) ───────────────────────────────
 -- KOReader's native Book status screen stores a 1–5 star rating + a free-text
 -- review in the per-book sidecar under `summary` (`rating` / `note`). Tome holds
@@ -4848,7 +4959,7 @@ function TomeSync:_menuItems()
             callback     = function()
                 whenConnected(function()
                     if self.book_id then
-                        self:_pushPosition()
+                        self:_syncPositionNow()
                         self:_syncAnnotations()
                         self:_pushRatingOnLeave()
                     end
