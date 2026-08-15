@@ -207,5 +207,10 @@ def test_build_bumped_for_rebake():
     # repaints routed at the hidden FileManager are skipped entirely, so page
     # flips inside the popup never redraw. Menus now use the Menu default
     # (show_parent = the menu itself), which is always the visible window.
-    assert TOMESYNC_PLUGIN_BUILD >= 38
-    assert TOMESYNC_PLUGIN_SEMVER == "1.11.1"
+    # 1.12.0 / build 39 makes "Sync now" pull before it pushes (issue #175):
+    # the server position runs through the same forward/backward pull-conflict
+    # strategy as book open, so a device that is behind no longer overwrites
+    # newer progress from another device. Pairs with the server-side
+    # TOME_KOSYNC_POSITION_BRIDGE read bridge (experimental, default off).
+    assert TOMESYNC_PLUGIN_BUILD >= 39
+    assert TOMESYNC_PLUGIN_SEMVER == "1.12.0"

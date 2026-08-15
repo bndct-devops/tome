@@ -136,6 +136,7 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 | `TOME_AUTO_IMPORT` | No | `false` | Auto-import files from the bindery on a schedule |
 | `TOME_AUTO_IMPORT_INTERVAL` | No | `300` | Seconds between auto-import scans |
 | `TOME_SCAN_WORKERS` | No | `1` | Parallel scan workers (>1 = multi-process; ~60–80 MB each) |
+| `TOME_KOSYNC_POSITION_BRIDGE` | No | `false` | Experimental: let TomeSync plugin devices pick up progress pushed by third-party KOSync clients (read-only bridge) |
 
 ### Supported Formats
 
