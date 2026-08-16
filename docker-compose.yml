@@ -19,6 +19,12 @@ services:
       # Drop new files here for Bindery to pick up
       - ./bindery:/bindery
     environment:
+      # Optional. Run Tome as this host UID/GID (default 1000:1000) so it can
+      # read/write your mounts. Set to the user that owns ./books and ./bindery
+      # on the host - on Synology / QNAP / TrueNAS use your docker user's ids
+      # (`id <user>`). Only needed if you see PermissionError in the logs.
+      # - PUID=1000
+      # - PGID=1000
       # Optional. If unset, Tome generates a long random key on first start
       # and saves it to /data/secret.key.
       # - TOME_SECRET_KEY=

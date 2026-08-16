@@ -22,7 +22,7 @@ import { withBase } from '../../lib/path'
   <ul>
     <li><strong>The scan is still running.</strong> Watch the progress bar at the top of the dashboard — a fresh scan of a few thousand files can take a minute.</li>
     <li><strong>The file format isn't supported.</strong> Tome handles EPUB, CBZ, CBR, and PDF. Anything else gets ignored silently.</li>
-    <li><strong>Filesystem permissions.</strong> The container runs as UID 1000. If your <code>/books</code> mount is owned by root with mode 700, Tome can't read it. Fix the host-side ownership.</li>
+    <li><strong>Filesystem permissions.</strong> The container runs as UID 1000 by default. If your <code>/books</code> mount is owned by another user, set <code>PUID</code> / <code>PGID</code> to that user (see below).</li>
   </ul>
 
   <h2>Covers are missing</h2>
@@ -118,12 +118,26 @@ import { withBase } from '../../lib/path'
     constant factor, not a runaway query.
   </p>
 
-  <h2>Permission errors on /books</h2>
+  <h2>Permission errors on /books or /bindery</h2>
   <p>
-    The container runs as UID 1000 (user <code>tome</code>). If the host-side owner of your
-    library folder is different, you'll see <code>PermissionError</code> in the logs and books
-    won't import. Either <code>chown -R 1000:1000 /path/to/books</code> on the host, or pass
-    <code>user: "&lt;your-uid&gt;:&lt;your-gid&gt;"</code> in your compose file to override.
+    The container runs as UID 1000 (user <code>tome</code>) unless told otherwise. If the
+    host-side owner of your library or bindery folder is different, you'll see
+    <code>PermissionError</code> in the logs, books won't import, and Bindery accepts fail
+    with <code>Permission denied</code> on the source file. Set <code>PUID</code> and
+    <code>PGID</code> in your compose file to the host user that owns those folders
+    (<code>id &lt;user&gt;</code>), then recreate the container:
+  </p>
+  <pre><code>environment:
+  - PUID=1026
+  - PGID=100</code></pre>
+  <p>
+    Synology is the common case: File Station grants the share ACL to your docker user, and
+    uid 1000 typically ends up able to <em>create</em> files in the bindery but not delete
+    them, so an accept copies the book into <code>/books</code> and then fails removing the
+    original. Use the docker user's ids from <em>Control Panel → User</em> (or
+    <code>id</code> over SSH). Ownership of <code>/data</code> is fixed automatically on
+    start; <code>/books</code> and <code>/bindery</code> are never chowned by Tome. See
+    <a href={withBase("/docs/configuration#file-ownership")}>Configuration → File ownership</a>.
   </p>
 
   <Callout variant="info" title="Still stuck?">

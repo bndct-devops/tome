@@ -16,8 +16,26 @@ All notable changes to Tome are documented here. Format loosely follows
   clients send no resolvable locator, the jump lands at the right percentage,
   not the exact line. Marked experimental until it has seen real multi-client
   use. (#175)
+- The Docker image now honours `PUID` / `PGID` (LinuxServer.io convention) to
+  run Tome as the host user that owns your mounts. Defaults to `1000:1000`,
+  which is exactly what the image did before, so existing installs need no
+  changes. Set them to your NAS docker user on Synology / QNAP / TrueNAS,
+  where ACLs are granted to that user rather than to uid 1000. On start the
+  entrypoint also fixes ownership of `/data` (never `/books` or `/bindery`),
+  so switching UID on an existing install no longer breaks on the 0600
+  `secret.key`. Compose files that already pass `user:` keep working. (#177)
 
 ### Fixed
+- Bindery accept and auto-import no longer leave an orphaned copy in the
+  library when the file can be copied into `/books` but not deleted from
+  `/bindery` (a permission failure on the source, as on Synology ACLs that
+  allow create but not delete). Previously every retry produced another
+  `Title (2).epub` with no book record; the half-finished copy is now removed
+  before the error is reported. (#177)
+- Starting Tome as a different UID than the one that created `/data` now
+  fails with a message that names the fix (PUID/PGID, chown, or
+  `TOME_SECRET_KEY`) instead of a bare `PermissionError` traceback on
+  `secret.key`. (#177)
 - "Sync now" in the TomeSync plugin (build 39) now pulls the server position
   before pushing, using the same forward/backward conflict strategy as book
   open. Previously it only pushed, so tapping it on a device that was behind
