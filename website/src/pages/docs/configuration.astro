@@ -21,6 +21,7 @@ import { withBase } from '../../lib/path'
       <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
     </thead>
     <tbody>
+      <tr><td><code>PUID</code> / <code>PGID</code></td><td><code>1000</code> / <code>1000</code></td><td>Host UID/GID the container runs as — set to the owner of your mounts (see <a href="#file-ownership">File ownership</a>)</td></tr>
       <tr><td><code>TOME_SECRET_KEY</code></td><td>auto-generated</td><td>JWT signing key</td></tr>
       <tr><td><code>TOME_DATA_DIR</code></td><td><code>/data</code></td><td>SQLite DB, covers, secret key</td></tr>
       <tr><td><code>TOME_LIBRARY_DIR</code></td><td><code>/books</code></td><td>Ebook library root</td></tr>
@@ -71,6 +72,29 @@ import { withBase } from '../../lib/path'
     refuses to start with that exact value. Either unset it (to auto-generate) or use a real
     random string.
   </Callout>
+
+  <h2 id="file-ownership">File ownership (PUID / PGID)</h2>
+  <p>
+    Inside the container Tome runs as an unprivileged user. <code>PUID</code> and <code>PGID</code>
+    set that user's numeric UID and GID (the same convention as LinuxServer.io images), so
+    the bind-mounted <code>/data</code>, <code>/books</code> and <code>/bindery</code> are read
+    and written as the user that owns them on the host. The default is <code>1000:1000</code>,
+    which is what the image always ran as, so an existing install needs no change.
+  </p>
+  <p>
+    Set them when the logs show <code>PermissionError</code> on <code>/books</code> or
+    <code>/bindery</code>. On Synology, QNAP and TrueNAS the share ACL is granted to your
+    docker user, not to uid 1000; run <code>id &lt;user&gt;</code> on the host and pass those
+    ids. On Unraid shares are usually <code>99:100</code>.
+  </p>
+  <p>
+    On start the container fixes ownership of <code>/data</code> to match, so switching
+    <code>PUID</code> on an existing install works without a manual <code>chown</code>. It never
+    touches <code>/books</code> or <code>/bindery</code> — those are your files (and may be
+    read-only mounts). If Tome already created files there under the old uid, chown those
+    yourself. Compose files that pass <code>user: "uid:gid"</code> instead still work; in
+    that mode the container cannot fix <code>/data</code> ownership for you.
+  </p>
 
   <h2>Paths</h2>
   <p>
