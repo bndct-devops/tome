@@ -136,7 +136,7 @@ export function BookLength({ data }: { data: StatsResponse['book_lengths'] }) {
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
           <BarChart data={data.buckets} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: tick }} width={26} axisLine={false} tickLine={false} />

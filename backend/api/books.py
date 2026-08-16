@@ -564,6 +564,9 @@ def get_series(
             .all()
         )
         first_book = series_books[0] if series_books else None
+        # Cover comes from the first volume that actually has one — returning a
+        # coverless book's id made every grid render request its cover and 404.
+        cover_book = next((b for b in series_books if b.cover_path), None)
 
         read_count = sum(1 for b in series_books if all_statuses.get(b.id) == "read")
         reading_count = sum(1 for b in series_books if all_statuses.get(b.id) == "reading")
@@ -580,7 +583,7 @@ def get_series(
         result.append({
             "name": series_name,
             "book_count": book_count,
-            "cover_book_id": first_book.id if first_book else None,
+            "cover_book_id": cover_book.id if cover_book else None,
             "description": first_book.description if first_book else None,
             "author": first_book.author if first_book else None,
             "read_count": read_count,
@@ -597,7 +600,10 @@ def get_series(
     if unserialized_count:
         first_unserialized = (
             db.query(Book)
-            .filter(Book.status == "active", Book.series.is_(None), visibility)
+            .filter(
+                Book.status == "active", Book.series.is_(None),
+                Book.cover_path.isnot(None), visibility,
+            )
             .order_by(Book.id)
             .first()
         )

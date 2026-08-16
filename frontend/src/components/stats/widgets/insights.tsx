@@ -140,7 +140,7 @@ export function ReadingByLanguage({ data }: { data: StatsResponse['language'] })
   }
   const total = pts.reduce((s, l) => s + l.seconds, 0)
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <PieChart>
         <Pie data={pts} dataKey="seconds" nameKey="language" cx="50%" cy="50%" innerRadius="45%" outerRadius="85%" label={false} stroke="none" isAnimationActive={false}>
           {pts.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}

@@ -57,7 +57,7 @@ export function CategoryBreakdown({ data }: { data: StatsResponse['by_category']
   if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No category data.</p>
   const total = data.reduce((s, c) => s + c.seconds, 0)
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <PieChart>
         <Pie data={data} dataKey="seconds" nameKey="category" cx="50%" cy="50%" outerRadius="90%" label={false} stroke="none" isAnimationActive={false}>
           {data.map((_, i) => (
@@ -105,7 +105,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
     }
   }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />

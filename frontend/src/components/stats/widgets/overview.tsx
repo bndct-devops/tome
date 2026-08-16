@@ -90,7 +90,7 @@ function DurationYTick({ x, y, payload, fill }: { x?: number; y?: number; payloa
 export function ReadingTimePerDay({ daily, chartType = 'bar' }: { daily: StatsResponse['daily']; chartType?: ChartKind }) {
   const { accent, tick, cursor } = useChartColors()
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={daily} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
         <YAxis tick={<DurationYTick fill={tick} />} width={52} axisLine={false} tickLine={false} />
@@ -139,7 +139,7 @@ export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_book
     return <p className="text-sm text-muted-foreground text-center py-12">No reading sessions recorded.</p>
   }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <BarChart data={topBooks} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
         <XAxis type="number" tickFormatter={formatDuration} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis type="category" dataKey="title" width={140} tick={<TitleTick fill={tick} />} axisLine={false} tickLine={false} interval={0} />
@@ -208,7 +208,7 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
   const dataKey = chartType === 'bar' ? 'daily' : 'count'
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={cumulative} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
         <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tick }} width={30} axisLine={false} tickLine={false} />
