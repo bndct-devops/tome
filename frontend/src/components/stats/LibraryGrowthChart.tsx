@@ -53,7 +53,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="month"

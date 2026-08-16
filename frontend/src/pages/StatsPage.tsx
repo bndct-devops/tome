@@ -1101,6 +1101,22 @@ function TileShell({
   const [glare, setGlare] = useState({ x: 50, y: 50 })
   const tiltRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  // Charts mount only after the body has a real size: Recharts' responsive
+  // container measures -1×-1 when rendered before react-grid-layout has laid
+  // the tile out (console warning ×4 on every Stats load — UX sweep finding),
+  // and the first chart paint was skipped until a resize tick.
+  const [bodySized, setBodySized] = useState(false)
+  useLayoutEffect(() => {
+    const box = contentRef.current
+    if (!box) return
+    const check = () => {
+      if (box.clientWidth > 0 && box.clientHeight > 0) setBodySized(true)
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(box)
+    return () => ro.disconnect()
+  }, [])
   // Measure after every commit: data loads, range/config changes, and grid width
   // changes all re-render this tree, and each can change the content's height.
   // scrollHeight sees the intrinsic height even when the box clips it.
@@ -1244,7 +1260,7 @@ function TileShell({
         // Capture phase, so inner handlers never fire; scrolling still works.
         onClickCapture={editMode ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
       >
-        {children}
+        {bodySized ? children : null}
       </div>
     </div>
   )
@@ -2325,7 +2341,9 @@ export function StatsPage() {
           <BarChart3 className="h-16 w-16 opacity-20" />
           <p className="text-sm font-medium text-foreground">No reading data yet</p>
           <p className="max-w-xs text-center text-xs">
-            Reading stats will appear here once you start using the TomeSync KOReader plugin.
+            Reading stats appear once sessions arrive — synced from the TomeSync
+            KOReader plugin, logged by hand on a book page, or imported from a
+            KOReader statistics file.
           </p>
           <Link to="/settings" className="text-xs text-primary hover:underline">
             Download the plugin from Settings

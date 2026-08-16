@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CalendarClock } from 'lucide-react'
+import { BookOpen, CalendarClock } from 'lucide-react'
 import { getFollows, type FollowOut } from '@/lib/follows'
 import { formatDate } from '@/lib/utils'
 
@@ -39,7 +39,13 @@ export function UpcomingReleases() {
           <div key={f.id} className="flex items-center gap-2.5">
             {f.cover_url
               ? <img src={f.cover_url} alt="" className="w-7 h-10 rounded object-cover shrink-0" />
-              : <span className="w-7 h-10 rounded bg-muted shrink-0" />}
+              : (
+                /* Same book-icon placeholder the library grid uses — a bare
+                   gray square read as a broken image (UX sweep finding). */
+                <span className="w-7 h-10 rounded bg-muted shrink-0 flex items-center justify-center">
+                  <BookOpen className="w-3.5 h-3.5 text-muted-foreground/50" />
+                </span>
+              )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
               <p className="text-[11px] text-muted-foreground truncate">

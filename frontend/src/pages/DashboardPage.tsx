@@ -19,6 +19,7 @@ import { SeriesFollowButton } from '@/components/SeriesFollowButton'
 import { ShareModal } from '@/components/ShareShelfModal'
 import { UpcomingReleases } from '@/components/UpcomingReleases'
 import { CoverImage } from '@/components/CoverImage'
+import { HScrollRow } from '@/components/HScrollRow'
 import { Sidebar } from '@/components/Sidebar'
 import { SaveFilterButton } from '@/components/SaveFilterButton'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
@@ -752,6 +753,14 @@ export function DashboardPage() {
   const [forgottenDismissedSig, setForgottenDismissedSig] = useState<string>(
     () => localStorage.getItem('tome_forgotten_dismissed') || ''
   )
+  // Home hydration gate: the five above-the-fold fetches (stats, continue
+  // reading, finished, added, forgotten) count down here. Until all have
+  // settled the Home tab shows skeletons — never a false "Nothing in
+  // progress" empty state, and sections mount in one paint instead of
+  // inserting one by one and shifting the layout (CLS).
+  const [homeSettled, setHomeSettled] = useState(0)
+  const homeHydrated = homeSettled >= 5
+  const countSettled = () => setHomeSettled(n => n + 1)
 
   const PAGE_SIZE = 60
 
@@ -947,6 +956,7 @@ export function DashboardPage() {
   useEffect(() => {
     // status_updated = last reading activity, so the hero is the book you actually read last
     api.get<Book[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=20')
+      .finally(countSettled)
       .then(books => {
         setContinueReading(books)
         if (books.length > 0) {
@@ -964,11 +974,11 @@ export function DashboardPage() {
 
   useEffect(() => {
     const tzOffset = new Date().getTimezoneOffset()
-    api.get<HomeStats>(`/home/stats?tz_offset=${tzOffset}`).then(setHomeStats).catch(() => {})
-    api.get<Book[]>('/books?reading_status=read&sort=status_updated&order=desc&limit=6').then(setRecentlyFinished).catch(() => {})
-    api.get<Book[]>('/books?sort=added_at&order=desc&limit=6').then(setRecentlyAdded).catch(() => {})
+    api.get<HomeStats>(`/home/stats?tz_offset=${tzOffset}`).finally(countSettled).then(setHomeStats).catch(() => {})
+    api.get<Book[]>('/books?reading_status=read&sort=status_updated&order=desc&limit=6').finally(countSettled).then(setRecentlyFinished).catch(() => {})
+    api.get<Book[]>('/books?sort=added_at&order=desc&limit=6').finally(countSettled).then(setRecentlyAdded).catch(() => {})
     api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
-    api.get<ForgottenBook[]>('/home/forgotten-books').then(setForgottenBooks).catch(() => {})
+    api.get<ForgottenBook[]>('/home/forgotten-books').finally(countSettled).then(setForgottenBooks).catch(() => {})
     api.get<HighlightSpotlight>('/annotations/spotlight').then(setSpotlight).catch(() => {})
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
@@ -1161,8 +1171,25 @@ export function DashboardPage() {
                   {/* Chromeless — the figures sit on the page itself. Boxing them
                       gave the strip the same weight as the content panel below,
                       and the dashboard read as four equal crates. */}
+                  {!homeStats && (
+                    /* Same footprint as the loaded strip so the row doesn't
+                       collapse-then-expand when stats arrive (layout shift). */
+                    <div className="px-1 py-1 grid grid-cols-3 gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit" aria-hidden="true">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className={cn('sm:px-5 animate-pulse', i === 0 && 'sm:pl-0')}>
+                          <div className="h-3 w-16 rounded bg-muted mb-1.5 mt-0.5" />
+                          <div className="h-6 w-14 rounded bg-muted" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {homeStats && (
-                    <div className="px-1 py-1 grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit">
+                    <div className={cn(
+                      'px-1 py-1 grid gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit',
+                      /* Three chips wrap 2+1 on phones and look ragged — give an
+                         odd count three even columns instead. */
+                      homeStatItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
+                    )}>
                       {homeStatItems.map((s, i) => (
                         <div
                           key={s.label}
@@ -1192,6 +1219,36 @@ export function DashboardPage() {
                   stat strip deliberately carry less chrome so this reads primary. */}
               <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border min-w-0 overflow-hidden">
 
+              {!homeHydrated ? (
+                /* Skeleton until every above-the-fold fetch has settled — the
+                   real sections then mount in a single paint. Rendering the
+                   empty state before data resolves flashed "Nothing in
+                   progress" at every cold load (UX sweep finding, CLS 0.27). */
+                <div aria-busy="true">
+                  <section className="flex flex-col gap-3 px-5 py-5">
+                    <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+                    <div className="flex gap-4 overflow-hidden pb-2">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="shrink-0 w-32 animate-pulse">
+                          <div className="aspect-[2/3] rounded-lg bg-muted" />
+                          <div className="h-3 w-24 rounded bg-muted mt-2" />
+                          <div className="h-2.5 w-16 rounded bg-muted mt-1.5" />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="flex flex-col gap-3 px-5 py-5 border-t border-border">
+                    <div className="h-5 w-32 rounded bg-muted animate-pulse" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-14 rounded-xl bg-muted/60 animate-pulse" />
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              ) : (
+              <>
+
               {/* ── Forgotten Books ───────────────────────────────────────── */}
               {(() => {
                 const forgottenSig = forgottenBooks.map(b => b.book_id).sort((a, b) => a - b).join(',')
@@ -1212,7 +1269,7 @@ export function DashboardPage() {
                         Dismiss
                       </button>
                     </header>
-                    <div className="flex gap-3 overflow-x-auto pb-1">
+                    <HScrollRow className="gap-3 pb-1" controlsTop="top-[60px]">
                       {forgottenBooks.map(b => (
                         <a
                           key={b.book_id}
@@ -1234,7 +1291,7 @@ export function DashboardPage() {
                           </p>
                         </a>
                       ))}
-                    </div>
+                    </HScrollRow>
                   </section>
                 )
               })()}
@@ -1259,7 +1316,7 @@ export function DashboardPage() {
                   /* Horizontal band (not a grid): one scrollable row keeps Home's
                      left column on a consistent banded rhythm that aligns with the
                      rail, instead of a tall wall of covers. */
-                  <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+                  <HScrollRow className="gap-4 pb-2 px-1" wrapClassName="-mx-1" controlsTop="top-24">
                     {continueReading.map((book, i) => {
                       const status = readingStatuses[book.id]
                       return (
@@ -1277,7 +1334,7 @@ export function DashboardPage() {
                         </div>
                       )
                     })}
-                  </div>
+                  </HScrollRow>
                 )}
               </section>
 
@@ -1336,7 +1393,7 @@ export function DashboardPage() {
               {recentlyFinished.length > 0 && (
                 <section className="flex flex-col gap-3 px-5 py-5">
                   <h2 className="text-base font-semibold text-foreground">Recently Finished</h2>
-                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+                  <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
                     {recentlyFinished.map(book => (
                       <div key={book.id} className="shrink-0 w-24">
                         <BookCard
@@ -1350,7 +1407,7 @@ export function DashboardPage() {
                         />
                       </div>
                     ))}
-                  </div>
+                  </HScrollRow>
                 </section>
               )}
 
@@ -1358,7 +1415,7 @@ export function DashboardPage() {
               {recentlyAdded.length > 0 && (
                 <section className="flex flex-col gap-3 px-5 py-5">
                   <h2 className="text-base font-semibold text-foreground">Recently Added</h2>
-                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+                  <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
                     {recentlyAdded.map(book => (
                       <div key={book.id} className="shrink-0 w-24">
                         <BookCard
@@ -1373,7 +1430,7 @@ export function DashboardPage() {
                         />
                       </div>
                     ))}
-                  </div>
+                  </HScrollRow>
                 </section>
               )}
 
@@ -1448,6 +1505,9 @@ export function DashboardPage() {
                     })()}
                   </div>
                 </div>
+              )}
+
+              </>
               )}
 
               </div>{/* ── /Main column ── */}

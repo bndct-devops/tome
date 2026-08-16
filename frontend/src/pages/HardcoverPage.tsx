@@ -60,9 +60,14 @@ const FILTERS: { key: Filter; label: string }[] = [
 ]
 
 function displayTitle(b: HcBook): string {
-  // Series-titled volumes ("Black Summoner") need the volume to be readable.
+  // Series-titled volumes ("Black Summoner") need the volume to be readable —
+  // but a title that already carries its volume ("Berserk, Vol. 1") must not
+  // get a second "· Vol. 1" appended (UX sweep finding).
   if (b.series && b.series_index != null) {
-    return `${b.title === b.series ? b.series : b.title} · Vol. ${b.series_index}`
+    const idx = String(b.series_index)
+    const alreadyThere = new RegExp(`vol(?:ume)?\\.?\\s*0*${idx.replace('.', '\\.')}\\b`, 'i').test(b.title)
+    if (alreadyThere) return b.title
+    return `${b.title === b.series ? b.series : b.title} · Vol. ${idx}`
   }
   return b.title
 }

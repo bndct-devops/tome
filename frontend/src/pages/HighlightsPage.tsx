@@ -441,9 +441,11 @@ export function HighlightsPage() {
             </span>
           )}
         </div>
-        {/* Controls */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+        {/* Controls — on phones the search input gets its own full-width row;
+            squeezed next to three labelled buttons it shrank to a ~90px
+            keyhole ("Se…") (UX sweep finding). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative basis-full sm:basis-auto sm:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
             <input
               ref={searchRef}

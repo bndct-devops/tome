@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useChartColors } from '@/lib/useChartAccent'
+import { HScrollRow } from '@/components/HScrollRow'
 
 interface HourDowCell {
   dow: number
@@ -49,11 +50,14 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
   const TOP_PAD = 18
 
   return (
-    <div className="relative overflow-x-auto">
+    /* HScrollRow, not bare overflow-x-auto: on phones the 24-hour grid is wider
+       than the tile and silently clipped after ~hour 16 with nothing hinting the
+       evening columns exist (UX sweep finding). The edge fades signal the rest. */
+    <HScrollRow>
       <svg
         width={LEFT_PAD + 24 * (CELL + GAP)}
         height={TOP_PAD + 7 * (CELL + GAP)}
-        className="mx-auto"
+        className="mx-auto shrink-0"
         style={{ display: 'block' }}
       >
         {Array.from({ length: 24 }, (_, h) => (
@@ -133,6 +137,6 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
           </div>,
           document.body,
         )}
-    </div>
+    </HScrollRow>
   )
 }
