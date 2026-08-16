@@ -14,7 +14,6 @@ Endpoints:
 """
 import logging
 import os
-import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -33,7 +32,7 @@ from backend.services.book_types import assign_book_to_type_library
 from backend.services.filename_parser import parse_filename
 from backend.services.metadata import extract_metadata, sha256_file
 from backend.services.metadata_fetch import fetch_candidates
-from backend.services.organizer import get_library_path, resolve_unique_path
+from backend.services.organizer import get_library_path, move_into_library, resolve_unique_path
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 
 router = APIRouter(tags=["bindery"])
@@ -419,10 +418,9 @@ def bindery_accept(
             # Determine destination path
             rel = get_library_path(path_meta, full_path.name)
             dest = resolve_unique_path(settings.library_dir, rel)
-            dest.parent.mkdir(parents=True, exist_ok=True)
 
-            # Move the file
-            shutil.move(str(full_path), str(dest))
+            # Move the file (cleans up a half-finished cross-device copy on failure)
+            move_into_library(full_path, dest)
 
             # Determine cover: use extracted cover or download from cover_url
             cover_path: str | None = meta.get("cover_path")

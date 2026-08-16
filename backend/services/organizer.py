@@ -10,6 +10,7 @@ Rules (in priority order):
 All path components are sanitized to be filesystem-safe.
 """
 import re
+import shutil
 from pathlib import Path
 
 
@@ -115,3 +116,42 @@ def resolve_unique_path(base_dir: Path, rel_path: Path) -> Path:
         if not candidate.exists():
             return candidate
         n += 1
+
+
+def move_into_library(src: Path, dest: Path) -> None:
+    """Move ``src`` to ``dest``, creating parents, without leaving debris on failure.
+
+    ``/bindery`` and ``/books`` are usually separate mounts, so ``shutil.move``
+    falls back to copy-then-unlink. When the copy succeeds but the unlink is
+    refused (typical on NAS ACLs that grant create-but-not-delete, see #177),
+    a plain ``shutil.move`` leaves a complete orphan in the library that no
+    DB row points at, and every retry mints another ``Title (2).ext``. Here
+    the freshly written destination and any parent directories created for
+    it are removed again before the error is re-raised, so the library is
+    left exactly as it was found. (Leftover empty dirs matter too: they keep
+    the uid of the failed attempt, and block a retry under a corrected
+    PUID/PGID.)
+    """
+    created_dirs: list[Path] = []
+    parent = dest.parent
+    while not parent.exists():
+        created_dirs.append(parent)
+        parent = parent.parent
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    existed_before = dest.exists()
+    try:
+        shutil.move(str(src), str(dest))
+    except OSError:
+        if not existed_before and dest.exists() and src.exists():
+            try:
+                dest.unlink()
+            except OSError:
+                pass
+        # innermost first; rmdir only removes empty dirs so this is safe
+        for d in created_dirs:
+            try:
+                d.rmdir()
+            except OSError:
+                break
+        raise

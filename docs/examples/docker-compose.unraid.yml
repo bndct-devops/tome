@@ -13,6 +13,13 @@ services:
       - /mnt/user/data/media/ebooks:/books
       - /mnt/user/appdata/tome/bindery:/bindery
     environment:
+      # Unraid shares are usually owned by nobody:users (99:100). If Tome
+      # logs PermissionError on /books or /bindery, run it as that user.
+      # Leave commented on an existing install that already works: files Tome
+      # created so far are owned by uid 1000, and switching would need a
+      # chown of those.
+      # - PUID=99
+      # - PGID=100
       # Generate a long random value, or omit and Tome will generate one on
       # first start and save it to /data/secret.key.
       # - TOME_SECRET_KEY=
