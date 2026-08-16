@@ -1533,10 +1533,14 @@ export function BinderyPage() {
           <button
             onClick={fetchAll}
             disabled={loading || unreviewedLoading}
+            title="Rescan the bindery folder"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', (loading || unreviewedLoading) && 'animate-spin')} />
-            <span className="hidden sm:inline">Refresh</span>
+            {/* Label stays at every size — collapsed to a bare icon it sat next
+                to the global sync indicator as two identical circular-arrow
+                glyphs (UX sweep finding). */}
+            <span>Refresh</span>
           </button>
         }
       >

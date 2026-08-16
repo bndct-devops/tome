@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
+import { HScrollRow } from '@/components/HScrollRow'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
 import { CoverAudit } from '@/components/CoverAudit'
 import { InstanceBackup } from '@/components/InstanceBackup'
@@ -412,7 +413,7 @@ function ScannerTab() {
       <select
         value={defaultTypeId}
         onChange={e => setDefaultTypeId(e.target.value ? Number(e.target.value) : '')}
-        className="w-full text-sm bg-background border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        className="tome-select w-full text-sm bg-background border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
       >
         <option value="">No type (staging / admin only)</option>
         {bookTypes.map(t => (
@@ -428,7 +429,7 @@ function ScannerTab() {
   )
 
   return (
-    <div className="flex flex-col gap-4 max-w-xl">
+    <div className="flex flex-col gap-4 max-w-xl mx-auto w-full">
       <div className="border border-border rounded-xl bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold">Scan Library</h3>
@@ -522,7 +523,7 @@ function ServerTab() {
   )
 
   return (
-    <div className="flex flex-col gap-4 max-w-xl">
+    <div className="flex flex-col gap-4 max-w-xl mx-auto w-full">
       {/* Instance backup / restore */}
       <InstanceBackup />
       {/* Stats */}
@@ -743,7 +744,7 @@ function TypesTab() {
                 value={addForm.label}
                 onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
                 placeholder="e.g. Novel"
-                className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
             <div>
@@ -751,7 +752,7 @@ function TypesTab() {
               <select
                 value={addForm.color}
                 onChange={e => setAddForm(f => ({ ...f, color: e.target.value as ColorOption }))}
-                className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -766,7 +767,7 @@ function TypesTab() {
                 type="number"
                 value={addForm.sort_order}
                 onChange={e => setAddForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
           </div>
@@ -802,7 +803,7 @@ function TypesTab() {
                       <input
                         value={editForm.label}
                         onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
-                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
                     <div>
@@ -810,7 +811,7 @@ function TypesTab() {
                       <select
                         value={editForm.color}
                         onChange={e => setEditForm(f => ({ ...f, color: e.target.value as ColorOption }))}
-                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                       >
                         {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
@@ -825,7 +826,7 @@ function TypesTab() {
                         type="number"
                         value={editForm.sort_order}
                         onChange={e => setEditForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
                   </div>
@@ -970,7 +971,7 @@ function AuditTab() {
         <h2 className="text-sm font-semibold">Audit Log</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <select value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1) }}
-            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+            className="tome-select text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
             {ACTION_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
           <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }}
@@ -2144,6 +2145,10 @@ type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'li
 export function AdminPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('users')
+  // Keep the active tab visible in the scrollable bar (no-op when it all fits)
+  useEffect(() => {
+    document.getElementById(`admin-tab-${tab}`)?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+  }, [tab])
 
   if (!isAdmin(user)) {
     return (
@@ -2185,18 +2190,23 @@ export function AdminPage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto border-t border-border/50">
-          <div className="flex items-center gap-1 px-4 py-1.5 mx-auto max-w-4xl">
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={cn(
-                  'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap',
-                  tab === t.id ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                )}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+        {/* HScrollRow, not bare overflow-x-auto: on phones 8 of 13 tabs were
+            off-screen with nothing hinting the bar scrolls (UX sweep finding).
+            The active tab also keeps itself in view. */}
+        <div className="border-t border-border/50">
+          <HScrollRow>
+            <div className="flex items-center gap-1 px-4 py-1.5 mx-auto max-w-4xl">
+              {tabs.map(t => (
+                <button key={t.id} id={`admin-tab-${t.id}`} onClick={() => setTab(t.id)}
+                  className={cn(
+                    'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap',
+                    tab === t.id ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  )}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </HScrollRow>
         </div>
       </header>
 

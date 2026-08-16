@@ -1075,7 +1075,7 @@ function Section({ title, icon, onAdd, onTitleClick, children }: {
         {onAdd && (
           <button
             onClick={onAdd}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="p-2.5 -m-2 text-muted-foreground hover:text-foreground transition-colors"
             title={`New ${title.toLowerCase().replace(/s$/, '')}`}
             aria-label={`New ${title.toLowerCase().replace(/s$/, '')}`}
           >

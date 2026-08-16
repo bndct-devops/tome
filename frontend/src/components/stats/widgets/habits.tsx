@@ -48,11 +48,15 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
     if (!grouped[d]) grouped[d] = []
     grouped[d].push(s)
   }
+  const dayEntries = Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).slice(0, 14)
   return (
-    <div className="flex flex-col gap-1">
-      {Object.entries(grouped)
-        .sort(([a], [b]) => b.localeCompare(a))
-        .slice(0, 14)
+    /* h-full + justify-center: with only a day or two of sessions the tile
+       used to show one dense row and ~300px of bare card below it (UX sweep
+       finding). Centering the stack and captioning the coverage makes a
+       sparse window read as composed instead of broken. */
+    <div className="flex h-full min-h-0 flex-col justify-center gap-1">
+      <div className="flex flex-col gap-1 min-h-0 overflow-y-auto">
+      {dayEntries
         .map(([dateStr, daySessions]) => (
           <div key={dateStr} className="flex items-center gap-3 py-1">
             <span className="text-[10px] text-muted-foreground w-16 shrink-0 text-right">{formatDate(dateStr)}</span>
@@ -82,6 +86,10 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
             </div>
           </div>
         ))}
+      </div>
+      <p className="shrink-0 pt-1 text-center text-[10px] text-muted-foreground">
+        {dayEntries.length} active {dayEntries.length === 1 ? 'day' : 'days'} in this window
+      </p>
     </div>
   )
 }
@@ -92,7 +100,7 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
   const avg = pace.reduce((s, p) => s + p.pages_per_min, 0) / pace.length
   return (
     <div className="flex h-full flex-col">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
         <AreaChart data={[...pace].reverse()} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
           <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
@@ -139,7 +147,7 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
         </span>
         <span className="text-xs text-muted-foreground ml-1">({secondAvg.toFixed(1)} vs {firstAvg.toFixed(1)} pages/min)</span>
       </div>
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
         <AreaChart data={paceData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
           <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
@@ -238,7 +246,7 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
 export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: StatsResponse['monthly_comparison']; chartType?: ChartKind }) {
   const { accent, tick, cursor } = useChartColors()
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis yAxisId="hours" tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
@@ -312,7 +320,7 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
     return <p className="text-sm text-muted-foreground text-center py-12">No session data.</p>
   }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <BarChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis tick={<DurTick fill={tick} />} width={52} axisLine={false} tickLine={false} />
@@ -345,7 +353,7 @@ function SplitDonut({ rows }: { rows: { name: string; seconds: number }[] }) {
   if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No session data.</p>
   const total = data.reduce((s, r) => s + r.seconds, 0)
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <PieChart>
         <Pie data={data} dataKey="seconds" nameKey="name" cx="50%" cy="50%" innerRadius="55%" outerRadius="90%" stroke="none" isAnimationActive={false}>
           {data.map((_, i) => (

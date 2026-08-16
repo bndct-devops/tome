@@ -68,6 +68,56 @@ All notable changes to Tome are documented here. Format loosely follows
   before pushing, using the same forward/backward conflict strategy as book
   open. Previously it only pushed, so tapping it on a device that was behind
   overwrote newer progress from another device. (#175)
+- The Home tab no longer flashes a false "Nothing in progress" empty state
+  while it loads. Sections now hydrate behind skeleton placeholders and mount
+  in one paint, cutting the cold-load layout shift from "poor" (CLS 0.27) to
+  "good" (0.04) - content stops jumping down as data arrives.
+- Cold starts no longer show a blank white page while the app downloads: the
+  page ships a minimal theme-aware splash (your stored theme's background and
+  the Tome mark), so slow connections and PWA updates get a branded loading
+  state instead of a void - and dark-theme users no longer get a white flash.
+- The UI fonts are now bundled with the app instead of loaded from the Google
+  Fonts CDN. Air-gapped and privacy-conscious installs render the real
+  typefaces with no third-party request.
+- On phones, the Stats hour-by-day heatmap signals that it scrolls: edge fades
+  now hint at the evening columns that were silently cut off after ~4pm.
+- The Session Timeline tile no longer shows a wall of empty card below a
+  sparse window - rows center vertically and a caption states how many active
+  days the window covers.
+- Stats charts wait for their tile to be laid out before rendering, fixing the
+  skipped first paint and the "width(-1)" console warnings on every visit.
+- Series pages no longer draw clipped "ghost" bars for unread volumes in the
+  time-per-volume chart - unread volumes are a hairline tick on the baseline.
+- Series with no cover art no longer fire a failing cover request on every
+  grid render; the series list now points at the first volume that actually
+  has a cover, or none at all.
+- Home carousels (Continue Reading, Recently Finished, Recently Added, Pick up
+  where you left off) show edge fades and an always-visible scroll chevron
+  while covers continue past the edge, instead of silently clipping the last
+  card - the fade alone was invisible over dark artwork, and at widths where
+  the cutoff fell between two cards there was no signal at all.
+- Tap targets that were far below the platform minimum are now comfortably
+  tappable on phones: book-page breadcrumbs, prev/next volume arrows, the
+  sidebar's "new library" button, the password-reveal eye, and the book-page
+  action row.
+- The Highlights search box gets its own full-width row on phones instead of
+  shrinking to an unusable sliver next to the filter buttons.
+- The Admin tab bar hints that it scrolls on phones (edge fades, and the
+  active tab keeps itself in view) - eight of its thirteen tabs were invisible
+  with no affordance.
+- Bindery's refresh button keeps its label on phones; collapsed to a bare icon
+  it sat next to the global sync indicator as two identical glyphs.
+- Hardcover match cards no longer repeat the volume number when the title
+  already carries it ("Berserk, Vol. 1 · Vol. 1").
+- Upcoming releases shows the standard book placeholder instead of a bare gray
+  square when a followed series has no cover art yet.
+- Native dropdowns in the Admin area now match the app's input styling, and
+  the narrow admin tabs (Scanner, Server) center like the rest.
+- The three Home stat chips wrap as three even columns on phones instead of a
+  ragged two-plus-one.
+- The Stats empty state now mentions all three ways sessions arrive (TomeSync
+  plugin, manual logging, KOReader import) instead of implying the plugin is
+  required.
 
 ## [2.2.0] - 2026-08-09
 

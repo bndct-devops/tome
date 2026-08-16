@@ -67,8 +67,7 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
         <div className="absolute inset-0 flex items-end gap-1">
           {volumes.map(v => {
             const isRead = v.seconds > 0
-            // Read volumes scale by time (min 10%); unread show a faint floor stub
-            const pct = isRead ? Math.max(v.seconds / max, 0.1) : 0.08
+            const pct = isRead ? Math.max(v.seconds / max, 0.1) : 0
             const mins = Math.round(v.seconds / 60)
             const label = v.series_index != null ? `Vol ${v.series_index}` : v.title
             const tip = `${label}: ${mins > 0 ? `${mins}m` : 'unread'}`
@@ -76,12 +75,15 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
               <div
                 key={v.book_id}
                 className={cn(
-                  'flex-1 min-w-px rounded-t-sm transition-colors',
+                  'flex-1 min-w-px transition-colors',
+                  // Unread volumes are a hairline tick on the baseline — the old
+                  // 8%-height rounded stubs read as clipped, half-loaded bars
+                  // (UX sweep finding).
                   isRead
-                    ? 'bg-primary/60 hover:bg-primary'
-                    : 'bg-primary/15 hover:bg-primary/30',
+                    ? 'rounded-t-sm bg-primary/60 hover:bg-primary'
+                    : 'bg-primary/15 hover:bg-primary/40',
                 )}
-                style={{ height: `${Math.round(pct * 100)}%` }}
+                style={{ height: isRead ? `${Math.round(pct * 100)}%` : '3px' }}
                 title={tip}
               />
             )

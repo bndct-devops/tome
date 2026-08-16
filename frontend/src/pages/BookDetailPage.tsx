@@ -1227,11 +1227,13 @@ export function BookDetailPage() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 safe-top">
         <div className="max-w-5xl mx-auto px-4 py-2 sm:py-0 sm:h-14 flex items-center justify-between gap-2 min-h-14">
           <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 shrink">
-            <Link to="/" title="Home" aria-label="Home" className="flex items-center hover:text-foreground transition-colors shrink-0">
+            {/* p-2.5/-m-1.5: the bare 14px icons were the whole tap target on
+                phones (UX sweep finding) — pad the hit area, not the visuals. */}
+            <Link to="/" title="Home" aria-label="Home" className="flex items-center hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
               <Home className="w-3.5 h-3.5" />
             </Link>
             <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-            <Link to="/?tab=books" title="Library" className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0">
+            <Link to="/?tab=books" title="Library" className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
               <Library className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Library</span>
             </Link>
@@ -1257,23 +1259,23 @@ export function BookDetailPage() {
                     <Link
                       to={`/books/${adjacent.prev.id}`}
                       title={adjacent.prev.title}
-                      className="p-1 rounded hover:text-foreground hover:bg-accent transition-colors"
+                      className="p-2 rounded hover:text-foreground hover:bg-accent transition-colors"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </Link>
                   ) : (
-                    <span className="p-1 opacity-25"><ChevronLeft className="w-3.5 h-3.5" /></span>
+                    <span className="p-2 opacity-25"><ChevronLeft className="w-3.5 h-3.5" /></span>
                   )}
                   {adjacent.next ? (
                     <Link
                       to={`/books/${adjacent.next.id}`}
                       title={adjacent.next.title}
-                      className="p-1 rounded hover:text-foreground hover:bg-accent transition-colors"
+                      className="p-2 rounded hover:text-foreground hover:bg-accent transition-colors"
                     >
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   ) : (
-                    <span className="p-1 opacity-25"><ChevronRight className="w-3.5 h-3.5" /></span>
+                    <span className="p-2 opacity-25"><ChevronRight className="w-3.5 h-3.5" /></span>
                   )}
                 </div>
               </>
@@ -1287,14 +1289,14 @@ export function BookDetailPage() {
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-transparent bg-destructive text-white hover:opacity-90 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-transparent bg-destructive text-white hover:opacity-90 transition-all disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     {deleting ? 'Deleting…' : 'Confirm'}
                   </button>
                   <button
                     onClick={() => setConfirmDelete(false)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                   >
                     <X className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Cancel</span>
@@ -1303,7 +1305,7 @@ export function BookDetailPage() {
               ) : (
                 <button
                   onClick={() => setConfirmDelete(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all duration-200"
+                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all duration-200"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Delete</span>
@@ -1318,7 +1320,7 @@ export function BookDetailPage() {
                     <button
                       onClick={() => setLibMenuOpen(o => !o)}
                       className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200",
+                        "flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border transition-all duration-200",
                         localLibIds.length > 0
                           ? "border-primary/40 bg-primary/10 text-primary"
                           : "border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5"
@@ -1377,7 +1379,7 @@ export function BookDetailPage() {
                 <button
                   onClick={() => setShowShare(true)}
                   title="Share this book — a public metadata-only page"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
+                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Share</span>
@@ -1385,7 +1387,7 @@ export function BookDetailPage() {
                 {book.content_type !== 'chapter' && (
                   <button
                     onClick={() => setFetchModalOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
+                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Fetch Metadata</span>
@@ -1393,7 +1395,7 @@ export function BookDetailPage() {
                 )}
                 <button
                   onClick={startEdit}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
+                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Edit</span>
@@ -1405,14 +1407,14 @@ export function BookDetailPage() {
                 <button
                   onClick={saveEdit}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />
                   {saving ? 'Saving…' : 'Save'}
                 </button>
                 <button
                   onClick={cancelEdit}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Cancel</span>

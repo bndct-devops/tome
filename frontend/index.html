@@ -12,13 +12,66 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Tome" />
     <meta name="description" content="Self-hosted ebook library" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&display=swap" />
     <title>Tome</title>
+    <script>
+      // Pre-apply the stored theme before the bundle loads so there is no
+      // white flash for dark-theme users and the splash matches the app.
+      try {
+        var t = localStorage.getItem('tome_theme')
+        var dark = t
+          ? ['dark', 'black', 'ember'].indexOf(t) >= 0
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (t && t !== 'light' && t !== 'dark' && t.indexOf('custom-') !== 0) {
+          document.documentElement.classList.add('theme-' + t)
+        }
+        if (t && t.indexOf('custom-') === 0) {
+          try {
+            var all = JSON.parse(localStorage.getItem('tome_custom_themes') || '[]')
+            for (var i = 0; i < all.length; i++) {
+              if (all[i].id === t && all[i].dark) dark = true
+            }
+          } catch (e) {}
+        }
+        if (dark) document.documentElement.classList.add('dark')
+        document.documentElement.style.backgroundColor = dark ? '#0f0d0c' : '#f8f7f4'
+      } catch (e) {}
+    </script>
+    <style>
+      #tome-splash {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #f8f7f4;
+        color: #8a353c;
+      }
+      .dark #tome-splash {
+        background: #0f0d0c;
+        color: #be706e;
+      }
+      #tome-splash svg {
+        width: 56px;
+        height: 56px;
+        animation: tome-splash-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes tome-splash-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.45; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #tome-splash svg { animation: none; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="tome-splash" aria-hidden="true">
+        <svg viewBox="0 1 64 64" fill="none" stroke="currentColor">
+          <path d="M4 18 Q 4 14 8 14 L 28 18 Q 32 19 32 22 Q 32 19 36 18 L 56 14 Q 60 14 60 18 L 60 46 Q 60 49 56 49 L 36 49 Q 32 50 32 52 Q 32 50 28 49 L 8 49 Q 4 49 4 46 Z" stroke-width="7" stroke-linejoin="round"/>
+          <line x1="32" y1="22" x2="32" y2="52" stroke-width="7" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

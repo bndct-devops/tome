@@ -55,7 +55,7 @@ export function RatingDistribution({ data }: { data: Ratings['distribution'] }) 
   if (total === 0) return <Empty />
   const chartData = data.map((d) => ({ label: `${d.rating}★`, count: d.count, rating: d.rating }))
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <BarChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="label" tick={{ fontSize: 12, fill: tick }} axisLine={false} tickLine={false} />
         <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tick }} width={26} axisLine={false} tickLine={false} />
@@ -95,7 +95,7 @@ export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
     )
   }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <RadarChart data={data} margin={{ top: 8, right: 28, bottom: 8, left: 28 }}>
         <PolarGrid stroke={tick} strokeOpacity={0.2} />
         <PolarAngleAxis dataKey="category" tick={{ fontSize: 10, fill: tick }} />
@@ -154,7 +154,7 @@ export function RatingVsTime({ books }: { books: Ratings['books'] }) {
   const pts = books.filter((b) => b.seconds > 0).map((b) => ({ hours: +(b.seconds / 3600).toFixed(1), rating: b.rating, title: b.title }))
   if (pts.length === 0) return <Empty text="No rated books with reading time yet." />
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} />
         <XAxis type="number" dataKey="hours" name="Hours" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
@@ -197,7 +197,7 @@ export function RatingTrend({ trend }: { trend: Ratings['trend'] }) {
     try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }) } catch { return d }
   }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} vertical={false} />
         <XAxis dataKey="date" tickFormatter={fmt} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} minTickGap={28} />
