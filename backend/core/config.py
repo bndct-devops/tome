@@ -172,10 +172,27 @@ class Settings(BaseSettings):
 
         key_file = self.secret_key_file
         if key_file.exists():
-            return key_file.read_text().strip()
+            try:
+                return key_file.read_text().strip()
+            except PermissionError as exc:
+                raise RuntimeError(
+                    f"Cannot read {key_file}: it was created by a different user "
+                    f"(the file is mode 0600). Tome is running as uid={os.getuid()} "
+                    f"gid={os.getgid()}. Either run the container with PUID/PGID "
+                    f"matching the owner of your /data directory, chown /data on "
+                    f"the host to the uid Tome runs as, or set TOME_SECRET_KEY "
+                    f"explicitly."
+                ) from exc
 
         new_key = secrets.token_urlsafe(64)
-        key_file.write_text(new_key)
+        try:
+            key_file.write_text(new_key)
+        except PermissionError as exc:
+            raise RuntimeError(
+                f"Cannot write {key_file}: /data is not writable by uid={os.getuid()} "
+                f"gid={os.getgid()}. Run the container with PUID/PGID matching the "
+                f"owner of your /data directory, or chown it on the host."
+            ) from exc
         try:
             key_file.chmod(0o600)
         except OSError:

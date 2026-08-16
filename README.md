@@ -126,6 +126,7 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `PUID` / `PGID` | No | `1000` / `1000` | Host UID/GID the container runs as. Set to the owner of your mounts (Synology/QNAP/TrueNAS: your docker user; Unraid: `99`/`100`) |
 | `TOME_SECRET_KEY` | Yes | -- | JWT signing secret |
 | `TOME_DATA_DIR` | No | `/data` | DB and cover cache |
 | `TOME_LIBRARY_DIR` | No | `/books` | Library root |

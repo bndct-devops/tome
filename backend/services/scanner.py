@@ -12,7 +12,6 @@ Two distinct operations:
 """
 import logging
 import multiprocessing
-import shutil
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,7 +23,7 @@ from backend.core.config import settings
 from backend.models.book import Book, BookFile
 from backend.services.metadata import SUPPORTED_FORMATS, extract_metadata, get_format, sha256_file
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash
-from backend.services.organizer import get_library_path, resolve_unique_path
+from backend.services.organizer import get_library_path, move_into_library, resolve_unique_path
 
 # Below this many new files, the serial path wins (process-pool startup isn't
 # worth it). Above it, scan_library fans the CPU-bound extract/hash out to a
@@ -221,10 +220,9 @@ def _import_file(
     # Determine destination inside library
     rel_path = get_library_path(meta, src.name)
     dest = resolve_unique_path(library_dir, rel_path)
-    dest.parent.mkdir(parents=True, exist_ok=True)
 
-    # Move the file
-    shutil.move(str(src), str(dest))
+    # Move the file (cleans up a half-finished cross-device copy on failure)
+    move_into_library(src, dest)
     logger.info("Moved %s → %s", src.name, dest.relative_to(library_dir))
 
     # Clean up empty parent dirs in incoming
