@@ -503,6 +503,13 @@ async def _run_auto_import() -> None:
             # Extract embedded metadata
             meta = extract_metadata(file_path, settings.covers_dir)
 
+            # NOTE: sibling-identity inheritance is deliberately NOT applied
+            # here. Unattended auto-import must not rewrite what a file claims
+            # about itself based on fuzzy matching — the sibling matcher only
+            # powers the human-confirmed Bindery review (preview + series
+            # cards), where its proposal is editable before anything commits.
+            # Revisit if/when LLM-assisted matching (option C) earns auto-apply.
+
             # Determine destination in library
             rel_lib = get_library_path(meta, file_path.name)
             dest = resolve_unique_path(settings.library_dir, rel_lib)
@@ -606,7 +613,10 @@ async def _run_auto_import() -> None:
             )
 
             # Detach identifiers needed for phase 2
-            return book.id, book.title, book.author, book.isbn, book.series, book.series_index, content_hash, book.content_type
+            media_hint = book.book_type.slug if book.book_type else None
+            return (book.id, book.title, book.author, book.isbn, book.series,
+                    book.series_index, content_hash, book.content_type,
+                    media_hint, book.language)
 
     # ------------------------------------------------------------------
     # Phase 2 helper — apply metadata + cover (sync, in thread)
@@ -614,31 +624,37 @@ async def _run_auto_import() -> None:
 
     def _apply_metadata(book_id: int, best, content_hash: str) -> None:
         from backend.services.metadata_rank import ScoreContext, score_candidate
+        from backend.services.sibling_match import apply_tier
 
         with SessionLocal() as db:
             book = db.get(Book, book_id)
             if not book:
                 return
-            # Title/author overwrite is confidence-gated: filenames make junky
-            # titles so a good match SHOULD replace them, but a wrong first hit
-            # used to silently rename the book. Below the bar, fill-if-empty.
+            # Three confidence tiers (thresholds in sibling_match): a strong
+            # match applies fully; a middling one only fills gaps in the prose
+            # fields; a weak one is discarded outright. The old two-tier gate
+            # protected title/author but still let a wrong match pollute ISBN,
+            # tags and cover on a metadata-poor file.
             confidence = score_candidate(best, ScoreContext(
                 title=book.title, author=book.author, isbn=book.isbn,
                 year=book.year, language=book.language,
                 series=book.series, series_index=book.series_index,
                 media_hint=book.book_type.slug if book.book_type else None,
             ))
-            if confidence >= 6:
+            tier = apply_tier(confidence)
+            if tier == "discard":
+                logger.info(
+                    "Auto-import: discarding low-confidence match (score %d) "
+                    "for book #%d — raw metadata kept for review", confidence, book_id,
+                )
+                return
+            if tier == "full":
                 book.title = best.title or book.title
                 book.author = best.author or book.author
             else:
-                if best.title and not book.title:
-                    book.title = best.title
-                if best.author and not book.author:
-                    book.author = best.author
                 logger.info(
-                    "Auto-import: low-confidence match (score %d) for book #%d — "
-                    "keeping extracted title/author", confidence, book_id,
+                    "Auto-import: mid-confidence match (score %d) for book #%d — "
+                    "filling prose gaps only", confidence, book_id,
                 )
             if best.description and not book.description:
                 book.description = best.description
@@ -646,6 +662,9 @@ async def _run_auto_import() -> None:
                 book.publisher = best.publisher
             if best.year and not book.year:
                 book.year = best.year
+            if tier != "full":
+                db.commit()
+                return
             if best.isbn and not book.isbn:
                 book.isbn = best.isbn
             if best.language and not book.language:
@@ -690,7 +709,8 @@ async def _run_auto_import() -> None:
             if result is None:
                 continue
 
-            book_id, title, author, isbn, series, series_index, content_hash, content_type = result
+            (book_id, title, author, isbn, series, series_index,
+             content_hash, content_type, media_hint, language) = result
 
             # Phase 2: skip external fetch for chapters — APIs return wrong volume results
             if content_type == "chapter":
@@ -704,6 +724,8 @@ async def _run_auto_import() -> None:
                     isbn=isbn,
                     series=series,
                     series_index=series_index,
+                    language=language,
+                    media_hint=media_hint,
                 )
                 if fetch_result.candidates:
                     best = fetch_result.candidates[0]

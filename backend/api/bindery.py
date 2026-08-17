@@ -162,13 +162,8 @@ def bindery_count(
     return {"count": count}
 
 
-@router.get("", response_model=list[BinderyItem])
-def bindery_list(
-    current_user: User = Depends(get_current_user),
-) -> list[BinderyItem]:
-    """List all pending files in the bindery with parsed metadata."""
-    _require_bindery(current_user)
-
+def _collect_items() -> list[BinderyItem]:
+    """Walk the incoming dir into parsed BinderyItems (shared by list/groups)."""
     incoming = settings.incoming_dir.resolve()
     items: list[BinderyItem] = []
 
@@ -218,6 +213,90 @@ def bindery_list(
     return items
 
 
+@router.get("", response_model=list[BinderyItem])
+def bindery_list(
+    current_user: User = Depends(get_current_user),
+) -> list[BinderyItem]:
+    """List all pending files in the bindery with parsed metadata."""
+    _require_bindery(current_user)
+    return _collect_items()
+
+
+@router.get("/groups")
+def bindery_groups(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """Pending files grouped by series, each group carrying a proposed identity.
+
+    The unit of review becomes the series, not the file: 12 volumes of one
+    series are one decision (name, author, type, libraries) plus per-volume
+    confirmation. When the series already exists in the library the proposal
+    adopts its canonical identity (sibling_match), so drift-named files
+    ("Frieren - Beyond Journey's End") land under the existing spelling.
+    """
+    _require_bindery(current_user)
+    import re as _re
+    from backend.services.organizer import get_library_path
+    from backend.services.sibling_match import find_series_identity
+
+    def norm(s: str) -> str:
+        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9]+", " ", s.lower())).strip()
+
+    items = _collect_items()
+    groups: dict[str, list[BinderyItem]] = {}
+    for it in items:
+        key = f"s:{norm(it.series)}" if it.series else (f"f:{it.folder}" if it.folder else f"p:{it.path}")
+        groups.setdefault(key, []).append(it)
+
+    out: list[dict] = []
+    for key, members in groups.items():
+        members.sort(key=lambda i: (i.series_index is None, i.series_index or 0, i.filename))
+        series_guess = next((m.series for m in members if m.series), None) \
+            or (members[0].folder if key.startswith("f:") else None)
+        author_guess = next((m.author for m in members if m.author), None)
+        identity = find_series_identity(db, series_guess, author_guess)
+
+        proposed_series = identity.series if identity else series_guess
+        proposed_author = (identity.author if identity else None) or author_guess
+        files = []
+        for m in members:
+            dest = get_library_path({
+                "title": m.title,
+                "author": proposed_author,
+                "series": proposed_series,
+                "series_index": m.series_index,
+            }, m.filename)
+            files.append({
+                "path": m.path,
+                "filename": m.filename,
+                "title": m.title,
+                "series_index": m.series_index,
+                "content_type": m.content_type,
+                "format": m.format,
+                "size": m.size,
+                "dest_preview": str(dest),
+            })
+        out.append({
+            "key": key,
+            "series": proposed_series,
+            "author": proposed_author,
+            "book_type_id": identity.book_type_id if identity else None,
+            "language": identity.language if identity else None,
+            "library_ids": identity.library_ids if identity else [],
+            "library_match": {
+                "series": identity.series,
+                "volume_count": identity.volume_count,
+                "from_reviewed": identity.from_reviewed,
+            } if identity else None,
+            "files": files,
+        })
+
+    # Real series first (largest first), then folder groups, then singletons
+    out.sort(key=lambda g: (not g["series"], -len(g["files"])))
+    return out
+
+
 @router.post("/preview")
 async def bindery_preview(
     body: PreviewRequest,
@@ -233,13 +312,30 @@ async def bindery_preview(
 
     meta = extract_metadata(full_path, settings.covers_dir)
 
+    # Sibling identity: if this series already exists in the library, rank
+    # candidates with the canonical series/author/type as context and tell the
+    # UI what it matched so review can adopt the existing settings in one click.
+    from backend.services.filename_parser import parse_filename
+    from backend.services.sibling_match import find_series_identity
+    parsed = parse_filename(full_path.name)
+    identity = find_series_identity(
+        db, meta.get("series") or parsed.series,
+        meta.get("author") or parsed.author)
+    media_hint = None
+    if identity and identity.book_type_id:
+        from backend.models.library import BookType
+        bt = db.get(BookType, identity.book_type_id)
+        media_hint = bt.slug if bt else None
+
     fetch_result = await fetch_candidates(
         title=meta.get("title") or full_path.stem,
-        author=meta.get("author"),
+        author=(identity.author if identity else None) or meta.get("author"),
         isbn=meta.get("isbn"),
-        series=meta.get("series"),
+        series=(identity.series if identity else None) or meta.get("series"),
         series_index=meta.get("series_index"),
         query_override=body.query,
+        language=(identity.language if identity else None) or meta.get("language"),
+        media_hint=media_hint,
     )
 
     # Serialise MetadataCandidate dataclasses to dicts
@@ -271,6 +367,16 @@ async def bindery_preview(
         "candidates": candidates,
         "query_used": fetch_result.query_used,
         "sources": fetch_result.sources,
+        # The adopt-existing-series shortcut in the review UI hangs off this.
+        "library_match": {
+            "series": identity.series,
+            "author": identity.author,
+            "book_type_id": identity.book_type_id,
+            "language": identity.language,
+            "library_ids": identity.library_ids,
+            "volume_count": identity.volume_count,
+            "from_reviewed": identity.from_reviewed,
+        } if identity else None,
     }
 
 
@@ -342,6 +448,10 @@ def bindery_accept(
                 content_hash=content_hash,
                 content_type=item.content_type,
                 status="active",
+                # Accepting IS the review — without this the book landed in the
+                # unreviewed queue and didn't count as authoritative for
+                # sibling-identity matching (pre-existing bug).
+                is_reviewed=True,
                 added_by=current_user.id,
                 book_type_id=item.book_type_id,
             )

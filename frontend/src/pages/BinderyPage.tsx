@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
+  RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search, Layers,
   ChevronRight, ChevronDown, ArrowLeft, FolderOpen,
   Inbox, Zap, Eye, HelpCircle, Library as LibraryIcon,
 } from 'lucide-react'
@@ -64,6 +64,28 @@ interface BinderyAcceptFile {
 }
 
 type View = 'list' | 'review'
+
+interface SeriesGroupFile {
+  path: string
+  filename: string
+  title: string
+  series_index: number | null
+  content_type: string
+  format: string
+  size: number
+  dest_preview: string
+}
+
+interface SeriesGroup {
+  key: string
+  series: string | null
+  author: string | null
+  book_type_id: number | null
+  language: string | null
+  library_ids: number[]
+  library_match: { series: string; volume_count: number; from_reviewed: boolean } | null
+  files: SeriesGroupFile[]
+}
 
 // Per-item form state used in review
 interface ItemForm {
@@ -597,6 +619,105 @@ interface ConfirmDialogProps {
   onCancel: () => void
 }
 
+function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
+  group: SeriesGroup
+  bookTypes: BookType[]
+  libraries: LibraryOption[]
+  busy: boolean
+  onAccept: (form: { series: string; author: string; book_type_id: string; library_ids: number[] }) => void
+}) {
+  const [series, setSeries] = useState(group.series ?? '')
+  const [author, setAuthor] = useState(group.author ?? '')
+  const [typeId, setTypeId] = useState(group.book_type_id != null ? String(group.book_type_id) : '')
+  const [libraryIds, setLibraryIds] = useState<number[]>(group.library_ids)
+  const destFolder = group.files[0]?.dest_preview.split('/').slice(0, -1).join('/')
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Layers className="w-4 h-4 text-primary/70 shrink-0" />
+            <span className="text-sm font-semibold text-foreground truncate">
+              {series || 'Ungrouped files'}
+            </span>
+            {group.library_match && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-medium"
+                title={`Matches "${group.library_match.series}" already in your library — name, author, type and libraries adopted from it`}
+              >
+                <Check className="w-3 h-3" />
+                In library · {group.library_match.volume_count} vol{group.library_match.volume_count === 1 ? '' : 's'}
+                {group.library_match.from_reviewed ? ' · reviewed' : ''}
+              </span>
+            )}
+            {!group.library_match && group.series && (
+              <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium">
+                New series
+              </span>
+            )}
+          </div>
+          {destFolder && (
+            <p className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={destFolder}>
+              → {destFolder}/
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => onAccept({ series, author, book_type_id: typeId, library_ids: libraryIds })}
+          disabled={busy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all shrink-0"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          Accept {group.files.length} volume{group.files.length === 1 ? '' : 's'}
+        </button>
+      </div>
+
+      {/* One identity decision for the whole group */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <input
+          value={series}
+          onChange={e => setSeries(e.target.value)}
+          placeholder="Series"
+          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <input
+          value={author}
+          onChange={e => setAuthor(e.target.value)}
+          placeholder="Author"
+          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <SelectMenu
+          value={typeId}
+          onChange={setTypeId}
+          options={[{ value: '', label: 'No type' }, ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
+          className="[&>button]:py-1.5 [&>button]:text-xs"
+        />
+        <LibrariesSelect
+          value={libraryIds}
+          onChange={setLibraryIds}
+          libraries={libraries}
+          className="[&>button]:py-1.5 [&>button]:text-xs"
+        />
+      </div>
+
+      {/* Per-volume confirmation strip */}
+      <div className="flex flex-wrap gap-1.5">
+        {group.files.map(f => (
+          <span
+            key={f.path}
+            title={`${f.filename} → ${f.dest_preview}`}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted/60 text-[11px] text-foreground"
+          >
+            {f.series_index != null ? `Vol ${f.series_index}` : (f.title || f.filename)}
+            <span className="text-muted-foreground uppercase text-[9px]">{f.format}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destructive, onConfirm, onCancel }: ConfirmDialogProps) {
   if (!open) return null
   return (
@@ -730,11 +851,16 @@ export function BinderyPage() {
     }
   }, [])
 
+  const [groups, setGroups] = useState<SeriesGroup[]>([])
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.get<BinderyItem[]>('/bindery')
+      const [data, grouped] = await Promise.all([
+        api.get<BinderyItem[]>('/bindery'),
+        api.get<SeriesGroup[]>('/bindery/groups').catch(() => [] as SeriesGroup[]),
+      ])
       setItems(data)
+      setGroups(grouped)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load bindery')
     } finally {
@@ -749,6 +875,44 @@ export function BinderyPage() {
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
+
+  // ---------------------------------------------------------------------------
+  // Series-group accept — one identity decision covers every volume in a group
+  // ---------------------------------------------------------------------------
+
+  const [acceptingGroup, setAcceptingGroup] = useState<string | null>(null)
+
+  async function acceptGroup(
+    group: SeriesGroup,
+    form: { series: string; author: string; book_type_id: string; library_ids: number[] },
+  ) {
+    setAcceptingGroup(group.key)
+    try {
+      const files: BinderyAcceptFile[] = group.files.map(f => ({
+        path: f.path,
+        title: f.title || f.filename.replace(/\.[^.]+$/, ''),
+        author: form.author || null,
+        series: form.series || null,
+        series_index: f.series_index,
+        content_type: f.content_type,
+        book_type_id: form.book_type_id ? parseInt(form.book_type_id, 10) : null,
+        language: group.language,
+        library_ids: form.library_ids,
+      }))
+      const res = await api.post<{ accepted: unknown[]; errors: { path: string; error: string }[] }>(
+        '/bindery/accept', { files })
+      if (res.errors?.length) {
+        toast.error(`${res.errors.length} of ${files.length} failed — ${res.errors[0].error}`)
+      } else {
+        toast.success(`Accepted ${files.length} volume${files.length === 1 ? '' : 's'}${form.series ? ` of ${form.series}` : ''}`)
+      }
+      await fetchAll()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Accept failed')
+    } finally {
+      setAcceptingGroup(null)
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Grouping
@@ -1464,6 +1628,29 @@ export function BinderyPage() {
             </div>
           )}
         </div>
+
+        {/* Series review — one decision per series, volumes confirmed as chips.
+            Cards render for real series groups; loose singletons stay in the
+            flat file list below. */}
+        {!loading && groups.some(g => g.files.length > 1 || g.library_match) && (
+          <div className="px-4 py-3 border-b border-border bg-muted/20 flex flex-col gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Series review
+            </p>
+            {groups
+              .filter(g => g.files.length > 1 || g.library_match)
+              .map(g => (
+                <SeriesGroupCard
+                  key={g.key}
+                  group={g}
+                  bookTypes={bookTypes}
+                  libraries={libraries}
+                  busy={acceptingGroup === g.key}
+                  onAccept={form => acceptGroup(g, form)}
+                />
+              ))}
+          </div>
+        )}
 
         {/* Column headers */}
         {items.length > 0 && (

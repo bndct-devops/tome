@@ -36,6 +36,34 @@ All notable changes to Tome are documented here. Format loosely follows
   fails with a message that names the fix (PUID/PGID, chown, or
   `TOME_SECRET_KEY`) instead of a bare `PermissionError` traceback on
   `secret.key`. (#177)
+- Bindery review now recognises series you already own: when a pending file's
+  series matches existing volumes, the review proposes their exact spelling,
+  author, book type and libraries (volumes a human has reviewed outvote
+  unreviewed ones), ending series-name drift like "Frieren - Beyond Journey's
+  End" arriving next to "Frieren: Beyond Journey's End". The proposal is
+  always editable and only applies when you accept - unattended auto-import
+  deliberately keeps its hands off.
+
+- Bindery review is now series-first: pending files group into series cards
+  where name, author, book type and libraries are decided once for the whole
+  group, volumes are confirmed as chips, and a destination-folder preview
+  shows where the files will land. When the series already exists in the
+  library the card adopts its exact identity and says so ("In library - 3
+  vols - reviewed"), so a drift-named batch files under the existing spelling
+  in one click. Loose files keep the flat list and per-file review flow.
+
+### Changed
+- Auto-import now applies external metadata in three confidence tiers instead
+  of two: a strong match applies fully as before, a middling one only fills
+  gaps in description, publisher and year, and a weak one is discarded
+  entirely - previously a wrong match could still plant its ISBN, tags and
+  cover on a metadata-poor file even when the title/author guard held.
+
+### Fixed
+- Books accepted through the Bindery review flow now count as reviewed.
+  Previously they were created with the flag unset, so a human-confirmed
+  volume still appeared in the unreviewed queue and didn't count as
+  authoritative when new volumes of the same series inherit their identity.
 - "Sync now" in the TomeSync plugin (build 39) now pulls the server position
   before pushing, using the same forward/backward conflict strategy as book
   open. Previously it only pushed, so tapping it on a device that was behind
