@@ -82,8 +82,8 @@ logger = logging.getLogger(__name__)
 # from another device; the push happens after the pull settles. Pairs with the
 # server-side TOME_KOSYNC_POSITION_BRIDGE read bridge (experimental, off by
 # default), which lets that pull also see third-party KOSync client pushes.
-TOMESYNC_PLUGIN_BUILD = 39
-TOMESYNC_PLUGIN_SEMVER = "1.12.0"
+TOMESYNC_PLUGIN_BUILD = 40
+TOMESYNC_PLUGIN_SEMVER = "1.13.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -588,6 +588,29 @@ def import_ko_stats(
         books=[b.model_dump() for b in body.books],
         page_stats=[p.model_dump() for p in body.page_stats],
     )
+
+
+class RenameDeviceRequest(PydanticBaseModel):
+    from_device: str
+    to_device: str
+
+
+@router.post("/tome-sync/stats/rename-device")
+def rename_ko_stats_device(
+    body: RenameDeviceRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Carry a device's imported history + sync watermark over to the name it
+    now reports (plugin build 40 moved every device off the literal "KOReader";
+    Settings > Device name renames later). See `ko_stats_import.rename_device`."""
+    from backend.services.ko_stats_import import rename_device
+    result = rename_device(db, user, from_device=body.from_device, to_device=body.to_device)
+    if result["rows_relabelled"] or result["watermark_moved"]:
+        audit(db, "ko_stats.device_renamed", user_id=user.id, username=user.username,
+              resource_type="ko_page_stats", resource_id=user.id,
+              details={"from": body.from_device, "to": body.to_device, **result})
+    return result
 
 
 # ── Annotation endpoints ──────────────────────────────────────────────────────
@@ -1810,9 +1833,24 @@ local function jval(v)
     return v
 end
 
+-- Device identity as reported to Tome: the label on live sessions and imported
+-- history, and the key of this device's reading-history sync watermark. A
+-- user-set name (Settings > Device name) wins; otherwise KOReader's
+-- Device.model ("KindlePaperWhite4", "Kobo_clara", an Android product name);
+-- "KOReader" only when neither exists. Builds before 40 always reported the
+-- literal "KOReader" (they called a Device method that does not exist in
+-- KOReader), so every device of a user shared ONE history watermark - see
+-- _adoptDeviceName for the one-time migration.
+local LEGACY_DEVICE_NAME = "KOReader"
+local function autoDeviceName()
+    local model = Device and Device.model
+    if type(model) == "string" and model ~= "" then return model end
+    return LEGACY_DEVICE_NAME
+end
 local function deviceName()
-    local ok, name = pcall(function() return Device:getFriendlyDeviceName() end)
-    return (ok and name) or "KOReader"
+    local custom = G_reader_settings:readSetting("tomesync_device_name")
+    if type(custom) == "string" and custom ~= "" then return custom end
+    return autoDeviceName()
 end
 
 local function idleCapSeconds()
@@ -2585,6 +2623,81 @@ function TomeSync:_statsDbPath()
     return require("datastorage"):getSettingsDir() .. "/statistics.sqlite3"
 end
 
+-- Move this device's imported reading history (page-stat rows + sync
+-- watermark) from the name it previously reported to the one it reports now.
+-- Live sessions keep the label they were recorded with: on a multi-device
+-- setup the old label was shared, so they can't be attributed after the fact.
+-- Idempotent server-side; a failed call is simply retried on the next sync.
+function TomeSync:_renameDeviceHistory(from, to)
+    if not from or from == "" or from == to then return true end
+    local ok, resp = pcall(apiRequest, "POST", "/tome-sync/stats/rename-device",
+        {{ from_device = from, to_device = to }})
+    return ok and type(resp) == "table"
+end
+
+-- `tomesync_device_name_adopted` remembers the last name whose history was
+-- migrated. First run on build 40+ moves the pre-40 "KOReader" history; a
+-- later rename in Settings moves it again from the previous name.
+-- Returns true when this device's history is known to be filed under its
+-- current name (nothing to do, or the move succeeded). False = the server did
+-- not confirm; the caller must NOT sync history from watermark 0 in that state,
+-- or sittings the user deleted in Tome would be re-imported.
+function TomeSync:_adoptDeviceName()
+    local name = deviceName()
+    if name == LEGACY_DEVICE_NAME then return true end
+    local adopted = G_reader_settings:readSetting("tomesync_device_name_adopted")
+    if adopted == name then return true end
+    if self:_renameDeviceHistory(adopted or LEGACY_DEVICE_NAME, name) then
+        G_reader_settings:saveSetting("tomesync_device_name_adopted", name)
+        return true
+    end
+    return false
+end
+
+-- Settings > Device name: the label Tome shows for this device. Empty restores
+-- the automatic name (KOReader's device model).
+function TomeSync:_editDeviceName()
+    local current = G_reader_settings:readSetting("tomesync_device_name") or ""
+    local dialog
+    dialog = InputDialog:new{{
+        title       = "Device name",
+        input       = current,
+        hint        = autoDeviceName(),
+        description = "How this device is labelled in Tome's reading log and "
+                      .. "stats. Leave empty to use the automatic name "
+                      .. "(\\"" .. autoDeviceName() .. "\\"). Give each "
+                      .. "device a distinct name - the reading-history sync "
+                      .. "keeps its place per device name.",
+        buttons     = {{{{
+            {{
+                text     = "Cancel",
+                id       = "close",
+                callback = function() UIManager:close(dialog) end,
+            }},
+            {{
+                text             = "Save",
+                is_enter_default = true,
+                callback         = function()
+                    local name = dialog:getInputText():gsub("^%s+", ""):gsub("%s+$", "")
+                    if name == "" then
+                        G_reader_settings:delSetting("tomesync_device_name")
+                    else
+                        G_reader_settings:saveSetting("tomesync_device_name", name)
+                    end
+                    UIManager:close(dialog)
+                    if NetworkMgr:isConnected() then
+                        pcall(function() self:_adoptDeviceName() end)
+                    end
+                    UIManager:show(InfoMessage:new{{
+                        text = "Device name: " .. deviceName(), timeout = 2 }})
+                end,
+            }},
+        }}}},
+    }}
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
 function TomeSync:_syncReadingStats(manual)
     local function tell(msg)
         if manual then UIManager:show(InfoMessage:new{{ text = msg, timeout = 3 }}) end
@@ -2593,6 +2706,16 @@ function TomeSync:_syncReadingStats(manual)
     if not NetworkMgr:isConnected() then tell("Offline - reading history will sync later."); return end
     local path = self:_statsDbPath()
     if lfs.attributes(path, "mode") ~= "file" then tell("No KOReader statistics database found."); return end
+
+    -- Carry this device's history + watermark over from the name it used to
+    -- report, so a name change (incl. the build-40 move off "KOReader") resumes
+    -- instead of re-sending the whole database. Until the server confirms the
+    -- move, don't sync at all: a run from watermark 0 would re-import sittings
+    -- the user deleted in Tome.
+    if not self:_adoptDeviceName() then
+        tell("Could not register this device's name with Tome - reading-history sync postponed.")
+        return
+    end
 
     -- Server is the source of truth for "how far did we get".
     local wm = apiRequest("GET", "/tome-sync/stats/watermark?device=" .. urlEncode(deviceName()))
@@ -4861,6 +4984,15 @@ function TomeSync:_menuItems()
             G_reader_settings:saveSetting("tomesync_auto_check",
                 not G_reader_settings:isTrue("tomesync_auto_check"))
         end,
+    }})
+    table.insert(settings_items, {{
+        text_func      = function() return "Device name: " .. deviceName() end,
+        help_text      = "The label Tome shows for this device (reading log, "
+                       .. "\\"Where you read\\"). Defaults to the device model; "
+                       .. "set a name if you use several devices of the same "
+                       .. "kind.",
+        keep_menu_open = true,
+        callback       = function() self:_editDeviceName() end,
     }})
     table.insert(settings_items, {{
         text         = "Auto-sync reading history on launch",

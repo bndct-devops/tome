@@ -270,8 +270,9 @@ def test_imported_clusters_listed_device_sessions_labeled(hygiene_client, make_b
     base = 1_700_000_000  # 2023-11-14
     _add_page_stats(db, user, book, base=base, count=5, dur=60)                 # sitting 1: 300s
     _add_page_stats(db, user, book, base=base + 7200, count=3, dur=120, page0=10)  # sitting 2: 360s
-    # Device-origin live session on the covered book — listed, but not counted.
-    superseded = _add_session(db, user, book, start=datetime(2023, 11, 14, 23, 0), seconds=600, pages=10)
+    # Device-origin live session recorded during sitting 1 (base = 22:13:20Z)
+    # — the same reading described twice: listed, but not counted.
+    superseded = _add_session(db, user, book, start=datetime(2023, 11, 14, 22, 14), seconds=600, pages=10)
     # Manual log — additive, listed and counted.
     manual = ReadingSession(user_id=user.id, book_id=book.id,
                             started_at=datetime(2026, 7, 1, 20, 0),
@@ -308,14 +309,16 @@ def test_imported_clusters_listed_device_sessions_labeled(hygiene_client, make_b
 
 def test_imported_cluster_delete(hygiene_client, make_book):
     """Deleting an imported row removes exactly that sitting's page-stats;
-    deleting the last one un-covers the book and its live sessions count again."""
+    deleting the sitting a live session overlaps un-supersedes that session,
+    so it counts again."""
     from backend.models.ko_stats import PageStat
     c, db, user, jwt, _key = hygiene_client
     book = make_book(title="Accidental Open")
-    base = 1_700_000_000
+    base = 1_700_000_000  # 2023-11-14 22:13:20Z
     _add_page_stats(db, user, book, base=base, count=5, dur=60)                 # real sitting
     _add_page_stats(db, user, book, base=base + 7200, count=2, dur=150, page0=50)  # accidental
-    live = _add_session(db, user, book, start=datetime(2023, 11, 15, 9, 0), seconds=400, pages=7)
+    # live device session recorded during the real sitting — superseded by it
+    live = _add_session(db, user, book, start=datetime(2023, 11, 14, 22, 14), seconds=400, pages=7)
     live_id = live.id  # the instance detaches once the endpoint commits/rolls back
     headers = {"Authorization": f"Bearer {jwt}"}
 
@@ -341,12 +344,12 @@ def test_imported_cluster_delete(hygiene_client, make_book):
     )
     assert r.status_code == 404
 
-    # one imported sitting remains; the live device session is listed as not counted
+    # the real sitting remains and still describes the live session: not counted
     rows = c.get(f"/api/stats/sessions?book_id={book.id}", headers=headers).json()["sessions"]
     assert [(r["kind"], r["counted"]) for r in rows] == [("session", False), ("imported", True)]
     remaining = rows[1]
 
-    # delete the last sitting → book is no longer covered → live session counts again
+    # delete that sitting → nothing overlaps the live session → it counts again
     r = c.delete(
         f"/api/stats/imported-sessions?book_id={book.id}"
         f"&start={remaining['range_start']}&end={remaining['range_end']}",

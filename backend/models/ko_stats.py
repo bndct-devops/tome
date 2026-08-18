@@ -47,6 +47,9 @@ class PageStat(Base):
         # The re-reads block group-bys (user, book, page) over the full history;
         # existing DBs get this via the startup CREATE INDEX IF NOT EXISTS.
         Index("ix_ko_page_stats_user_book_page", "user_id", "book_id", "page"),
+        # The reconciliation overlap probe (reconciled_reading.superseded_clause)
+        # is a (user, book, start_time BETWEEN ...) range seek per live session.
+        Index("ix_ko_page_stats_user_book_start", "user_id", "book_id", "start_time"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

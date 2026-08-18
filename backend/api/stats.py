@@ -291,7 +291,7 @@ def get_stats(
     if covered:
         tl_base = tl_base.filter(or_(
             ReadingSession.book_id.notin_(covered),
-            ReadingSession.device.in_(rr.NON_DEVICE_SOURCES),
+            rr.counted_clause(),
         ))
     timeline_rows = (
         tl_base
@@ -1287,8 +1287,10 @@ def list_sessions(
     - ``imported`` — a gap-clustered sitting from imported KOReader page-stats,
       carrying ``range_start``/``range_end`` (epoch seconds) for
       ``DELETE /stats/imported-sessions``. Not trimmable (already idle-capped).
-    Every row also carries ``counted``: device-origin live sessions on a book
-    covered by page-stats are ``counted: false`` — reconciliation excludes them
+    Every row also carries ``counted``: device-origin live sessions whose
+    sitting imported page-stats also describe (see
+    ``reconciled_reading.superseded_clause``) are ``counted: false`` —
+    reconciliation excludes them
     from totals (the imported clusters already describe that reading) but they
     stay listed, labeled, rather than silently hidden.
 
@@ -1379,17 +1381,21 @@ def list_sessions(
     def _iso(epoch: int) -> str:
         return datetime.fromtimestamp(epoch, timezone.utc).replace(tzinfo=None).isoformat() + "Z"
 
+    # Which of this page's live sessions are superseded by imported history —
+    # one probe over the page's ids, same predicate the totals use.
+    page_ids = [e[2].id for e in page if e[1] == "session" and e[2].book_id in covered]
+    superseded_ids: set[int] = set(
+        r[0] for r in db.query(ReadingSession.id)
+        .filter(ReadingSession.id.in_(page_ids), rr.superseded_clause()).all()
+    ) if page_ids else set()
+
     out = []
     for _, kind, r in page:
         if kind == "session":
-            superseded = (
-                r.book_id in covered
-                and (r.device or "") not in rr.NON_DEVICE_SOURCES
-            )
             out.append({
                 "id": r.id,
                 "kind": "session",
-                "counted": not superseded,
+                "counted": r.id not in superseded_ids,
                 "book_id": r.book_id,
                 "book_title": r.book_title or "(deleted book)",
                 "started_at": (r.started_at.isoformat() + "Z") if r.started_at else None,
@@ -1464,9 +1470,10 @@ def delete_imported_session(
     sitting without touching the rest of the book's imported history (the
     per-book purge on BookDetailPage remains the wipe-everything tool).
 
-    Deleting a book's LAST cluster un-covers it, so any device-origin live
-    sessions it has resurface in lists and totals — the fallback source
-    becomes authoritative again, consistent with reconciliation.
+    Deleting a cluster un-supersedes the live device sessions that overlapped
+    it, so they resurface in the totals (they were "not counted" only because
+    this imported history described the same sitting) — consistent with
+    reconciliation; the session log shows them, and they can be deleted too.
     """
     from backend.models.ko_stats import PageStat
 

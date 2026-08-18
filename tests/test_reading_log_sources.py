@@ -55,7 +55,9 @@ def test_web_sessions_additive_in_dashboard_totals(client, db, admin_user, make_
     when = datetime.utcfromtimestamp(BASE + 5 * DAY)
     db.add(ReadingSession(user_id=user.id, book_id=book.id, started_at=when, ended_at=when,
                           duration_seconds=900, device="web"))          # additive
-    db.add(ReadingSession(user_id=user.id, book_id=book.id, started_at=when, ended_at=when,
+    # the device's live recording of the SAME sitting the page-stats describe
+    same = datetime.utcfromtimestamp(BASE)
+    db.add(ReadingSession(user_id=user.id, book_id=book.id, started_at=same, ended_at=same,
                           duration_seconds=1200, device="Kindle"))      # double-counts → dropped
     db.flush()
 

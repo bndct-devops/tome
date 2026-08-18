@@ -9,7 +9,7 @@ from __future__ import annotations
 from bisect import bisect_right
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from sqlalchemy import func, Integer
 from sqlalchemy.orm import Session
@@ -18,6 +18,12 @@ from backend.models.book import Book
 from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 from backend.services.reading_day import date_modifier, effective_today, epoch_day, epoch_day_int
+
+
+class _SrcRow(NamedTuple):
+    device: str
+    seconds: int
+    units: int
 
 
 def _covered_fraction(page_rows) -> float:
@@ -136,14 +142,15 @@ def compute_book_reading_stats(
     ]
 
     # ── Reconcile with imported KOReader page-stats ──────────────────────────
-    # Page-stats win per book for *device* reading (same rule as the dashboard's
-    # reconciled_reading), so a book read only on the device isn't shown empty.
-    # Web-reader and manual-log sessions are invisible to KOReader's history and
-    # stay ADDITIVE on top — replacing them made a hand-logged paper session on
-    # a Kindle-synced book vanish without a trace. Untouched when the book has
-    # no page-stats — ps_seconds is 0 and this whole block is skipped.
+    # Page-stats win per *sitting* for device reading (same rule as the
+    # dashboard's reconciled_reading): a live device session that imported
+    # history overlaps is superseded; everything else — web-reader and
+    # manual-log sessions, and device sessions no page-stats describe (a second
+    # device that never synced its history, issue #181) — stays ADDITIVE on top.
+    # Untouched when the book has no page-stats — ps_seconds is 0 and this
+    # whole block is skipped.
     from backend.models.ko_stats import PageStat
-    from backend.services.reconciled_reading import NON_DEVICE_SOURCES, _cluster_rows
+    from backend.services.reconciled_reading import _cluster_rows, counted_clause
 
     ps = (
         db.query(
@@ -199,8 +206,9 @@ def compute_book_reading_stats(
             .all()
         )
 
-        # Additive sessions: web-reader + manual logs merge on top of page-stats.
-        additive = base.filter(ReadingSession.device.in_(NON_DEVICE_SOURCES))
+        # Additive sessions: everything not superseded by page-stats — web-reader
+        # + manual logs, and device sessions with no overlapping imported history.
+        additive = base.filter(counted_clause())
         add_agg = additive.with_entities(
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
             func.count(ReadingSession.id),
@@ -269,10 +277,7 @@ def compute_book_reading_stats(
     # having dwelled on 11% of pages), but web/manual sessions record
     # progress_end, so their days contribute points even on a device-synced book.
     day_progress: dict[str, float] = {}
-    prog_base = (
-        base.filter(ReadingSession.device.in_(NON_DEVICE_SOURCES))
-        if ps_seconds > 0 else base
-    )
+    prog_base = base.filter(counted_clause()) if ps_seconds > 0 else base
     prog_rows = (
         prog_base.with_entities(
             func.date(ReadingSession.started_at, day_mod).label("date"),
@@ -294,9 +299,12 @@ def compute_book_reading_stats(
 
     # ── Where the reading time came from (web reader vs device) ───────────────
     if ps_seconds > 0:
-        # Page-stat devices + additive web/manual sessions, so a mixed reader
-        # actually sees the split (device-only rows used to hide the section).
-        src_rows = list(
+        # Page-stat devices + additive sessions, so a mixed reader actually sees
+        # the split (device-only rows used to hide the section). A live device
+        # session that counts may carry the same device label as the page-stat
+        # rows, so merge by label rather than listing it twice.
+        merged: dict[str, list[int]] = {}
+        for r in (
             db.query(
                 func.coalesce(PageStat.device, "koreader").label("device"),
                 func.coalesce(func.sum(PageStat.duration_seconds), 0).label("seconds"),
@@ -306,15 +314,18 @@ def compute_book_reading_stats(
             .group_by("device")
             .all()
         ) + list(
-            base.filter(ReadingSession.device.in_(NON_DEVICE_SOURCES))
+            base.filter(counted_clause())
             .with_entities(
-                ReadingSession.device.label("device"),
+                func.coalesce(ReadingSession.device, "web-reader").label("device"),
                 func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("seconds"),
                 func.count(ReadingSession.id).label("units"),
             )
             .group_by("device")
             .all()
-        )
+        ):
+            e = merged.setdefault(r.device, [0, 0])
+            e[0] += int(r.seconds or 0); e[1] += int(r.units or 0)
+        src_rows = [_SrcRow(d, v[0], v[1]) for d, v in merged.items()]
     else:
         src_rows = (
             base.with_entities(

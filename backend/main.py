@@ -254,6 +254,11 @@ async def lifespan(app: FastAPI):
             "CREATE INDEX IF NOT EXISTS ix_ko_page_stats_user_book_page "
             "ON ko_page_stats (user_id, book_id, page)"
         ))
+        # Range seek for the per-sitting overlap probe in reconciled_reading.
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_ko_page_stats_user_book_start "
+            "ON ko_page_stats (user_id, book_id, start_time)"
+        ))
         conn.commit()
         # Web-created annotations carry an EPUB CFI so the web reader can
         # re-paint them without a text search (annotations table pre-exists).

@@ -181,3 +181,116 @@ def test_session_timeline_ribbon_reconciled(client, db, admin_user, make_book):
     assert not any(e["duration_seconds"] == 1800 and e["title"] == "Covered Book"
                    and not str(e["id"]).startswith("ps-") and e["started_at"].startswith("2026-01-10")
                    for e in tl)
+
+
+# ── Per-sitting supersession (issue #181) ────────────────────────────────────────
+
+def _live(db, user, book, start, secs, pages=10, device="KOReader"):
+    """A plugin-recorded device session, [start, start+secs]."""
+    from datetime import timedelta
+    row = ReadingSession(user_id=user.id, book_id=book.id, started_at=start,
+                         ended_at=start + timedelta(seconds=secs),
+                         duration_seconds=secs, pages_turned=pages, device=device)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _pagestats_at(db, user, book, start_epoch, rows, device="KOReader", page0=1):
+    for i, secs in enumerate(rows):
+        db.add(PageStat(user_id=user.id, book_id=book.id, page=page0 + i, total_pages=300,
+                        start_time=start_epoch + i * 60, duration_seconds=secs, device=device))
+
+
+def test_second_device_live_sessions_survive_history_import(client, db, admin_user, make_book):
+    """Issue #181: a week of phone reading (live sessions only) must not vanish
+    when a Kindle later syncs its own reading history for the same book. Both
+    devices report the literal device name "KOReader" (the plugin's fallback),
+    so the rule can't lean on device identity — supersession is per sitting:
+    only the live sessions that imported page-stats overlap in time drop out.
+    """
+    user, _ = admin_user
+    book = make_book(title="Una corte de rosas y espinas")
+
+    # Phone: 5 evenings, one 3600s live session each, no history sync at all.
+    phone = [
+        _live(db, user, book, datetime(2026, 8, 10 + i, 21, 0), 3600, pages=40)
+        for i in range(5)
+    ]
+    # Kindle, Aug 16: two sittings — each recorded BOTH as a live session and as
+    # imported page-stats (the same reading, described twice).
+    k1_start, k2_start = datetime(2026, 8, 16, 12, 10), datetime(2026, 8, 16, 22, 50)
+    kindle_live = [
+        _live(db, user, book, k1_start, 3060, pages=30),   # 51m
+        _live(db, user, book, k2_start, 3780, pages=38),   # 1h3m
+    ]
+    _pagestats_at(db, user, book, _epoch(2026, 8, 16, 12) + 600, [100] * 30)            # 3000s
+    _pagestats_at(db, user, book, _epoch(2026, 8, 16, 22) + 3000, [100] * 37, page0=40)  # 3700s
+    db.flush()
+
+    # Dashboard totals: phone hours + Kindle page-stats, Kindle live sessions dropped.
+    h = client.get("/api/stats?days=0").json()["headline"]
+    assert h["total_reading_seconds"] == 5 * 3600 + 3000 + 3700
+    assert h["pages_turned"] == 5 * 40 + 30 + 37
+
+    # Per-book block: same total, first read is the phone's first evening,
+    # sessions = 5 phone + 2 imported clusters.
+    b = client.get(f"/api/books/{book.id}/reading-stats").json()["own"]
+    assert b["total_seconds"] == 5 * 3600 + 3000 + 3700
+    assert b["sessions"] == 7
+    assert b["first_read"].startswith("2026-08-10")
+    assert b["last_read"].startswith("2026-08-16T2")
+    days = {d["date"]: d["seconds"] for d in b["session_timeline"]}
+    assert days["2026-08-10"] == 3600 and days["2026-08-16"] == 6700
+    # "Where you read": one merged KOReader row, not a page-stat row plus a session row.
+    src = {r["device"]: r for r in b["by_source"]}
+    assert set(src) == {"KOReader"}
+    assert src["KOReader"]["seconds"] == 5 * 3600 + 3000 + 3700
+
+    # Session log: phone rows counted, Kindle live rows labelled not counted.
+    rows = client.get("/api/stats/sessions?limit=50").json()["sessions"]
+    counted = {r["id"]: r["counted"] for r in rows if r["kind"] == "session"}
+    assert all(counted[s.id] for s in phone)
+    assert not any(counted[s.id] for s in kindle_live)
+    assert sum(1 for r in rows if r["kind"] == "imported") == 2
+
+    # Habits ribbon: phone sittings drawn, Kindle live ones replaced by clusters.
+    tl = client.get("/api/stats?days=0").json()["session_timeline"]
+    live_ids = {e["id"] for e in tl if not str(e["id"]).startswith("ps-")}
+    assert {s.id for s in phone} <= live_ids
+    assert not ({s.id for s in kindle_live} & live_ids)
+
+
+def test_live_session_counts_until_its_history_arrives(client, db, admin_user, make_book):
+    """Same device, ordinary flow: the live session posts at close, the page-stats
+    for it arrive on a later launch. Before: it counts. After: it is superseded
+    and the page-stats carry the sitting — totals never double and never dip."""
+    user, _ = admin_user
+    book = make_book(title="Kindle Book")
+    # older synced sitting: page-stats + its live session
+    _pagestats_at(db, user, book, _epoch(2026, 8, 1, 20), [120] * 10)          # 1200s
+    _live(db, user, book, datetime(2026, 8, 1, 20, 0), 1200, pages=10)
+    # tonight's sitting: live only so far
+    tonight = _live(db, user, book, datetime(2026, 8, 2, 20, 0), 1800, pages=15)
+    db.flush()
+    assert client.get("/api/stats?days=0").json()["headline"]["total_reading_seconds"] == 3000
+    row = next(r for r in client.get("/api/stats/sessions").json()["sessions"] if r["id"] == tonight.id)
+    assert row["counted"] is True
+
+    # history sync catches up
+    _pagestats_at(db, user, book, _epoch(2026, 8, 2, 20), [120] * 15, page0=11)  # 1800s
+    db.flush()
+    assert client.get("/api/stats?days=0").json()["headline"]["total_reading_seconds"] == 3000
+    row = next(r for r in client.get("/api/stats/sessions").json()["sessions"] if r["id"] == tonight.id)
+    assert row["counted"] is False
+
+
+def test_manual_session_never_superseded_even_when_overlapping(client, db, admin_user, make_book):
+    """A hand-logged session on a device-synced book is additive even if its
+    window overlaps page-stats (KOReader can't describe a paper session)."""
+    user, _ = admin_user
+    book = make_book(title="Paper and Kindle")
+    _pagestats_at(db, user, book, _epoch(2026, 8, 1, 20), [120] * 10)   # 1200s
+    _live(db, user, book, datetime(2026, 8, 1, 20, 5), 900, device="manual")
+    db.flush()
+    assert client.get("/api/stats?days=0").json()["headline"]["total_reading_seconds"] == 2100
