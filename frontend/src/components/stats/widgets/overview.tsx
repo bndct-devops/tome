@@ -258,8 +258,8 @@ export function SessionLogHint() {
           reading history. Delete only: KOReader already caps idle time, so there is nothing to trim.
         </span>
         <span>
-          <span className="font-medium text-foreground">not counted</span> — a live device session on
-          a book whose imported history already covers that reading. Listed for completeness,
+          <span className="font-medium text-foreground">not counted</span> — a live device session
+          whose sitting is also described by imported history. Listed for completeness,
           excluded from the totals so nothing is counted twice.
         </span>
         <span>

@@ -342,7 +342,13 @@ def import_batch(
                 ))
             seen_md5[md5] = resolved
 
-    # Idempotent page-stat ingest: INSERT OR IGNORE on the identity unique constraint.
+    # Idempotent page-stat ingest. Identity is (user, book, page, start_time)
+    # regardless of the device label: a device that changes the name it
+    # reports (build 40 moved everyone off the literal "KOReader") re-sends
+    # its history under the new label, and those rows must be no-ops, not a
+    # second copy. The unique constraint still carries `device`, so the
+    # label-agnostic check is a pre-filter here; ON CONFLICT DO NOTHING keeps
+    # same-label re-sends cheap.
     rows = []
     max_start = 0
     for ps in page_stats:
@@ -361,7 +367,20 @@ def import_batch(
     imported = 0
     if rows:
         for chunk in (rows[i:i + 500] for i in range(0, len(rows), 500)):
-            stmt = sqlite_insert(PageStat).values(chunk).on_conflict_do_nothing(
+            bids = {r["book_id"] for r in chunk}
+            lo = min(r["start_time"] for r in chunk)
+            hi = max(r["start_time"] for r in chunk)
+            existing = set(
+                db.query(PageStat.book_id, PageStat.page, PageStat.start_time)
+                .filter(PageStat.user_id == user.id, PageStat.book_id.in_(bids),
+                        PageStat.start_time >= lo, PageStat.start_time <= hi)
+                .all()
+            )
+            fresh = [r for r in chunk
+                     if (r["book_id"], r["page"], r["start_time"]) not in existing]
+            if not fresh:
+                continue
+            stmt = sqlite_insert(PageStat).values(fresh).on_conflict_do_nothing(
                 index_elements=["user_id", "book_id", "page", "start_time", "device"]
             )
             imported += db.execute(stmt).rowcount or 0
@@ -392,6 +411,78 @@ def import_batch(
         "page_rows_skipped": len(rows) - imported,
         "watermark": max_start,
     }
+
+
+def rename_device(db: Session, user, *, from_device: str, to_device: str) -> dict:
+    """Move a device's imported history from the name it used to report to the
+    one it reports now: relabel its page-stat rows and carry its sync watermark
+    over, so the plugin resumes instead of re-sending everything.
+
+    Only page-stats and the watermark. Live `reading_sessions` keep their
+    recorded label - before build 40 every device reported "KOReader", so on a
+    multi-device setup those rows can't be attributed after the fact (and the
+    stats reconcile by time overlap, not by label, so nothing depends on it).
+    Idempotent: a second call finds nothing under `from_device`.
+    """
+    from sqlalchemy import and_, exists
+    from sqlalchemy.orm import aliased
+
+    from_device = (from_device or "").strip()
+    to_device = (to_device or "").strip()
+    if not from_device or not to_device or from_device == to_device:
+        return {"rows_relabelled": 0, "rows_deduplicated": 0, "watermark_moved": False}
+
+    # Rows already present under the new label (a sync ran before the rename
+    # landed) are the same reading twice - drop the old-label copy first, or
+    # the relabel would trip the identity constraint. Self-join via alias.
+    other = aliased(PageStat)
+    dup_ids = [
+        r[0] for r in
+        db.query(PageStat.id)
+        .filter(PageStat.user_id == user.id, PageStat.device == from_device)
+        .filter(exists().where(and_(
+            other.user_id == PageStat.user_id, other.book_id == PageStat.book_id,
+            other.page == PageStat.page, other.start_time == PageStat.start_time,
+            other.device == to_device,
+        )))
+        .all()
+    ]
+    deduped = 0
+    for i in range(0, len(dup_ids), 500):
+        deduped += (
+            db.query(PageStat)
+            .filter(PageStat.id.in_(dup_ids[i:i + 500]))
+            .delete(synchronize_session=False)
+        )
+    relabelled = (
+        db.query(PageStat)
+        .filter(PageStat.user_id == user.id, PageStat.device == from_device)
+        .update({PageStat.device: to_device}, synchronize_session=False)
+    )
+
+    moved = False
+    old_wm = (
+        db.query(StatsImport)
+        .filter(StatsImport.user_id == user.id, StatsImport.device == from_device)
+        .first()
+    )
+    if old_wm:
+        new_wm = (
+            db.query(StatsImport)
+            .filter(StatsImport.user_id == user.id, StatsImport.device == to_device)
+            .first()
+        )
+        if new_wm:
+            new_wm.last_start_time_synced = max(
+                new_wm.last_start_time_synced, old_wm.last_start_time_synced)
+            new_wm.rows_imported += old_wm.rows_imported
+            db.delete(old_wm)
+        else:
+            old_wm.device = to_device
+        moved = True
+    db.commit()
+    return {"rows_relabelled": relabelled, "rows_deduplicated": deduped,
+            "watermark_moved": moved}
 
 
 # ── Startup repair: re-verify stored fuzzy matches (issue #152) ───────────────

@@ -113,8 +113,8 @@ export interface SessionEntry {
   // get a synthetic string id ("ps-<book>-<start>").
   id: number | string
   kind: 'session' | 'imported'
-  // False for a device live session on a book with imported KOReader history:
-  // the imported sittings already describe that reading, so this row is listed
+  // False for a device live session whose sitting imported KOReader history
+  // also describes (page-stats overlap it in time), so this row is listed
   // (labeled "not counted") but excluded from totals.
   counted: boolean
   book_id: number | null

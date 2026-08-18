@@ -3,13 +3,19 @@
 Both sources can describe the *same* Kindle reading (the plugin POSTs live sessions AND
 KOReader's statistics.sqlite3 records every page), so naively summing them double-counts.
 
-Rule (per book, per source): if a book has ANY imported `ko_page_stats`, those are
-authoritative for its *device* reading time (idle-capped, full history) and its live
-device-origin `reading_sessions` are ignored — they describe the same reading twice.
+Rule (per sitting): a device-origin live `reading_session` is *superseded* when imported
+`ko_page_stats` describe the same reading — i.e. a page row of the same book starts inside
+the session's window (`superseded_clause`, ± `OVERLAP_SLACK_SECONDS`). Superseded sessions
+stay in the DB and the session log ("not counted") but drop out of every total; the
+page-stats (idle-capped, page-accurate) carry that sitting instead. A live session no
+page-stats overlap counts as itself — reading on a second device that never synced its
+history, or reading synced live before the history backfill caught up (issue #181: the
+old *per-book* rule discarded a phone's whole week of live sessions the moment a Kindle
+uploaded two sittings of the same book).
 Web-reader and manual-log sessions (`NON_DEVICE_SOURCES`) are invisible to KOReader's
-history, so they stay ADDITIVE even on covered books; replacing them silently discarded
-e.g. a hand-logged paper session on a Kindle-synced book. Books with no page-stats fall
-back to sessions entirely.
+history, so they are never superseded; replacing them silently discarded e.g. a
+hand-logged paper session on a Kindle-synced book. Books with no page-stats fall back to
+sessions entirely.
 
 Invariant: when a user has no page-stats at all, `covered_book_ids` is empty and every
 helper returns exactly what the session-only query would — so existing stats behaviour is
@@ -28,7 +34,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Integer, func, or_
+from sqlalchemy import Integer, and_, exists, func, or_
 from sqlalchemy.orm import Session
 
 from backend.models.ko_stats import PageStat
@@ -38,14 +44,59 @@ from backend.models.tome_sync import ReadingSession
 # page-stats. Everything else (device names, NULL legacy rows) is device-origin.
 NON_DEVICE_SOURCES = ("web", "web-reader", "manual")
 
+# A live session and page-stats written by the same device share one clock, so a
+# sitting's first page row starts within seconds of the session. The slack only
+# absorbs write-ordering jitter around open/close — it is deliberately small so a
+# second device's reading of the same book minutes later is NOT swallowed.
+OVERLAP_SLACK_SECONDS = 120
+
 
 def _epoch(dt: Optional[datetime]) -> Optional[int]:
     return int(dt.replace(tzinfo=timezone.utc).timestamp()) if dt else None
 
 
 def covered_book_ids(db: Session, user_id: int) -> list[int]:
-    """Book ids that have imported page-stats (page-stats win for these books)."""
+    """Book ids that have imported page-stats. Empty means "no reconciliation at
+    all" (every helper is then the plain session query); non-empty is a cheap
+    pre-filter — only sessions on these books can be superseded, so the
+    per-row overlap probe is skipped for everything else."""
     return [r[0] for r in db.query(PageStat.book_id).filter(PageStat.user_id == user_id).distinct()]
+
+
+def _rs_epoch(col):
+    # ReadingSession datetimes are naive UTC; strftime('%s') reads them as UTC.
+    return func.cast(func.strftime("%s", col), Integer)
+
+
+def superseded_clause():
+    """SQL predicate on ReadingSession: a device-origin live session whose reading
+    is also described by imported page-stats — some `ko_page_stats` row of the
+    same user+book starts inside [started_at - slack, ended_at + slack].
+
+    Auto-correlates against the enclosing ReadingSession query. NULL device is
+    legacy plugin data and counts as device-origin, like everywhere else.
+    """
+    start = _rs_epoch(ReadingSession.started_at)
+    end = func.coalesce(
+        _rs_epoch(ReadingSession.ended_at),
+        start + func.coalesce(ReadingSession.duration_seconds, 0),
+    )
+    overlap = exists().where(
+        PageStat.user_id == ReadingSession.user_id,
+        PageStat.book_id == ReadingSession.book_id,
+        PageStat.start_time >= start - OVERLAP_SLACK_SECONDS,
+        PageStat.start_time <= end + OVERLAP_SLACK_SECONDS,
+    )
+    return and_(
+        or_(ReadingSession.device.is_(None),
+            ReadingSession.device.notin_(NON_DEVICE_SOURCES)),
+        overlap,
+    )
+
+
+def counted_clause():
+    """Negation of `superseded_clause`: sessions that contribute to totals."""
+    return ~superseded_clause()
 
 
 def _ps_filtered(db: Session, user_id: int, cutoff: Optional[datetime], range_end: Optional[datetime]):
@@ -62,11 +113,11 @@ def _rs_filtered(db: Session, user_id: int, covered: list[int],
                  cutoff: Optional[datetime], range_end: Optional[datetime]):
     q = db.query(ReadingSession).filter(ReadingSession.user_id == user_id)
     if covered:
-        # Covered books drop only their device-origin sessions (page-stats
-        # already describe that reading); web/manual sessions stay additive.
+        # Only sessions on covered books can be superseded (cheap pre-filter);
+        # for those, drop exactly the device sittings page-stats already describe.
         q = q.filter(or_(
             ReadingSession.book_id.notin_(covered),
-            ReadingSession.device.in_(NON_DEVICE_SOURCES),
+            counted_clause(),
         ))
     if cutoff is not None:
         q = q.filter(ReadingSession.started_at >= cutoff)

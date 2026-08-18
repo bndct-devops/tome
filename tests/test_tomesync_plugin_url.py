@@ -212,5 +212,10 @@ def test_build_bumped_for_rebake():
     # strategy as book open, so a device that is behind no longer overwrites
     # newer progress from another device. Pairs with the server-side
     # TOME_KOSYNC_POSITION_BRIDGE read bridge (experimental, default off).
-    assert TOMESYNC_PLUGIN_BUILD >= 39
-    assert TOMESYNC_PLUGIN_SEMVER == "1.12.0"
+    # 1.13.0 / build 40 gives every device a real identity (issue #181): the
+    # reported name is Device.model or a user-set "Device name" instead of the
+    # literal "KOReader" every install used to send, so devices stop sharing
+    # one reading-history watermark; imported history + watermark migrate to
+    # the new name on first sync via /tome-sync/stats/rename-device.
+    assert TOMESYNC_PLUGIN_BUILD >= 40
+    assert TOMESYNC_PLUGIN_SEMVER == "1.13.0"

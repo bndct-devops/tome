@@ -219,8 +219,15 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     reading: it feeds the per-page <strong>Reading intensity</strong> and
     <strong>Time per chapter</strong> charts on the book page, and its sittings appear in the
     <a href={withBase("/docs/stats")}>session lists</a> tagged <em>imported</em>. The plugin's
-    own live sessions for such a book are excluded from the totals so nothing is counted
-    twice.
+    own live sessions for the same sittings are excluded from the totals so nothing is counted
+    twice; reading of that book on another device that has not synced its history still counts
+    through its live sessions.
+  </p>
+  <p>
+    The sync keeps its place per device, under the name shown in
+    <strong>TomeSync → Settings → Device name</strong>. It defaults to the device model
+    (for example <code>KindlePaperWhite4</code>); set a name if you use several devices of the
+    same kind. Renaming carries the device's imported history and sync position over.
   </p>
 
   <h3>Sync on suspend</h3>

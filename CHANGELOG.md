@@ -26,6 +26,29 @@ All notable changes to Tome are documented here. Format loosely follows
   `secret.key`. Compose files that already pass `user:` keep working. (#177)
 
 ### Fixed
+- Reading time from a second device no longer vanishes when another device
+  syncs its KOReader reading history for the same book. Imported history used
+  to supersede *every* live device session on that book; it now supersedes
+  only the sessions it actually describes (the sittings its page timings
+  overlap in time), so a week of phone reading stays counted after a Kindle
+  uploads two evenings of the same title. Existing data is fixed on upgrade
+  with no action needed; live sessions also count as normal until their own
+  device's history sync catches up, instead of dropping out early. (#181)
+- KOReader plugin (build 40 / 1.13.0): every device used to report the
+  literal name "KOReader", so all of a user's devices shared one
+  reading-history sync position and were indistinguishable in the reading
+  log. The plugin now reports the device model (`KindlePaperWhite4`,
+  `Kobo_clara`, ...) or a name you set under TomeSync → Settings → Device
+  name, and carries its imported history and sync position over to the new
+  name on first sync - nothing is re-sent or duplicated, and the sync is
+  postponed rather than restarted from scratch if the server has not
+  confirmed the move. Live sessions recorded before the update keep their
+  old label. One caveat for setups where two devices both synced history
+  under the shared old name: the first device to update takes over that
+  history's label; the second re-sends its own history once (deduplicated,
+  so no double counting), which does bring back any of its imported
+  sittings you had deleted in Tome. Update via Check for updates as usual.
+  (#181)
 - Bindery accept and auto-import no longer leave an orphaned copy in the
   library when the file can be copied into `/books` but not deleted from
   `/bindery` (a permission failure on the source, as on Synology ACLs that

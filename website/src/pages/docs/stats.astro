@@ -123,10 +123,12 @@ import { withBase } from '../../lib/path'
     whose stray minutes used to be removable only by wiping the book's entire imported
     history. Deleting one removes exactly that sitting's page timings and the totals drop with
     it. They can't be trimmed: KOReader already caps idle time at the source, so there is
-    nothing to cut. Two labels tell the rest of the story: on a book with imported history,
-    the plugin's live sessions describe the same reading a second time, so they stay listed
-    with a <strong>not counted</strong> tag while the imported rows carry the totals — nothing
-    is ever counted twice, and nothing silently disappears. The small info icon next to every
+    nothing to cut. Two labels tell the rest of the story: when imported history describes a
+    sitting the plugin also recorded as a live session, that live session stays listed with a
+    <strong>not counted</strong> tag while the imported row carries the totals — nothing is
+    ever counted twice, and nothing silently disappears. The rule is per sitting, not per
+    book: reading the same book on a second device that never synced its history still
+    counts through its live sessions. The small info icon next to every
     session list explains all labels in place.
   </p>
   <p>
