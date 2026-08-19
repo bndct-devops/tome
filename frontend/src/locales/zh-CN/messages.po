@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-08-19 19:42+0200\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: zh-CN\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#: src/pages/SettingsPage.tsx
+msgid "Language"
+msgstr "语言"
+
+#: src/pages/SettingsPage.tsx
+msgid "Translations are community-maintained. Anything not yet translated is shown in English."
+msgstr "翻译由社区维护。尚未翻译的内容将以英文显示。"

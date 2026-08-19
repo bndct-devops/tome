@@ -22,6 +22,8 @@ import {
   type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
 } from '@/lib/theme'
 import { useAuth } from '@/contexts/AuthContext'
+import { Trans, useLingui } from '@lingui/react/macro'
+import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
 
 interface ApiKey {
   id: number
@@ -179,6 +181,15 @@ export function SettingsPage() {
     } finally {
       setQcAuthorizing(false)
     }
+  }
+
+  // ── Language ──────────────────────────────────────────────────────────────
+  const { t } = useLingui()
+  const [activeLocale, setActiveLocale] = useState<string>(getActiveLocale)
+
+  async function handleLocaleSelect(code: string) {
+    await setLocale(code)
+    setActiveLocale(code)
   }
 
   // ── Theme ─────────────────────────────────────────────────────────────────
@@ -918,6 +929,24 @@ export function SettingsPage() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Language — catalogs are community-maintained, see docs/translating.md */}
+          <div className="mt-6">
+            <p className="text-xs text-muted-foreground mb-1.5"><Trans>Language</Trans></p>
+            <select
+              value={activeLocale}
+              onChange={e => handleLocaleSelect(e.target.value)}
+              aria-label={t`Language`}
+              className="h-9 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {LOCALES.map(l => (
+                <option key={l.code} value={l.code}>{l.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
+            </p>
           </div>
         </section>
 

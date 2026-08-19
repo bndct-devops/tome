@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
+import { lingui, linguiTransformerBabelPreset } from '@lingui/vite-plugin'
+import babel from '@rolldown/plugin-babel'
 
 export default defineConfig({
   // Some deps (react-draggable, prop-types — pulled in by react-grid-layout) read
@@ -13,6 +15,12 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    // Lingui: <Trans>, t`` and msg`` macros are compiled away by a Babel plugin.
+    // @vitejs/plugin-react v6 no longer runs Babel itself, so the macro runs via
+    // @rolldown/plugin-babel (the preset scopes it to our sources). lingui() turns
+    // `import ... from './messages.po'` into compiled message catalogs.
+    lingui(),
+    babel({ presets: [linguiTransformerBabelPreset()] }),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',

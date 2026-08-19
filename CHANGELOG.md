@@ -29,6 +29,12 @@ All notable changes to Tome are documented here. Format loosely follows
   month was quiet); books Tome can't estimate yet are counted as "not
   estimated" rather than guessed. The series Reading Stats block no longer
   shows its own "Est. remaining", the header line replaces it. (#187)
+- Language picker in Settings → Appearance. The web UI is now translatable:
+  source strings stay in English, translations live in `frontend/src/locales/`
+  and are community-maintained (see `docs/translating.md`). Anything not yet
+  translated falls back to English. Ships with a Simplified Chinese (zh-CN)
+  catalog that is just getting started; the KOReader plugin and the website
+  stay English for now. (#183)
 
 ## [2.3.0] - 2026-08-20
 
