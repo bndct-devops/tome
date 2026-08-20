@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import { getFollows, invalidateFollows, type FollowOut } from '@/lib/follows'
 import { useToast } from '@/contexts/ToastContext'
 import { cn, formatDate } from '@/lib/utils'
+import { t } from '@lingui/core/macro'
 
 /**
  * Follow/unfollow a series from its detail page (release detection). Renders
@@ -33,12 +34,12 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
         await api.delete(`/wishlist/${follow.id}`)
       } else {
         await api.post('/wishlist/follow', { name: seriesName })
-        toast.success(`Following "${seriesName}" — you'll hear when a new volume is out`)
+        toast.success(t`Following "${seriesName}" — you'll hear when a new volume is out`)
       }
       invalidateFollows()
       getFollows().then(setRows)
     } catch (e) {
-      toast.error((e as Error).message ?? 'Could not resolve this series on Hardcover')
+      toast.error((e as Error).message ?? t`Could not resolve this series on Hardcover`)
     } finally {
       setBusy(false)
     }
@@ -59,16 +60,16 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
             ? 'border-primary/40 bg-primary/10 text-foreground hover:bg-primary/15'
             : 'border-border bg-card text-foreground hover:bg-muted',
         )}
-        title={follow ? 'Stop following this series' : 'Get notified when a new volume is released'}
+        title={follow ? t`Stop following this series` : t`Get notified when a new volume is released`}
       >
         {busy
           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
           : follow ? <BellRing className="w-3.5 h-3.5 text-primary" /> : <BellPlus className="w-3.5 h-3.5" />}
-        {follow ? 'Following' : 'Follow'}
+        {follow ? t`Following` : t`Follow`}
       </button>
       {follow && vol != null && date && (
         <p className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap text-[10px] text-muted-foreground text-center">
-          {upcoming ? 'Next' : 'Latest'}: Vol {Number.isInteger(vol) ? vol : vol.toFixed(1)} · {formatDate(date)}
+          {(() => { const v = Number.isInteger(vol) ? vol : vol.toFixed(1); const d = formatDate(date); return upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}` })()}
         </p>
       )}
     </div>

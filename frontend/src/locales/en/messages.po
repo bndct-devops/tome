@@ -136,6 +136,11 @@ msgstr "{0, plural, one {{fin} finished · # book read} other {{fin} finished ·
 msgid "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 
+#. placeholder {0}: status.syncedDocuments
+#: src/components/SyncStatusBadge.tsx
+msgid "{0, plural, one {# book tracked} other {# books tracked}}"
+msgstr "{0, plural, one {# book tracked} other {# books tracked}}"
+
 #. placeholder {0}: data.totals.books
 #. placeholder {0}: s.book_count
 #: src/pages/DashboardPage.tsx
@@ -246,6 +251,11 @@ msgstr "{0, plural, one {Edit Metadata for # Book} other {Edit Metadata for # Bo
 msgid "{0, plural, one {In library · # vol} other {In library · # vols}}"
 msgstr "{0, plural, one {In library · # vol} other {In library · # vols}}"
 
+#. placeholder {0}: status.syncedDocuments
+#: src/components/SyncStatusBadge.tsx
+msgid "{0, plural, one {Last sync from {lastDevice} · # book tracked} other {Last sync from {lastDevice} · # books tracked}}"
+msgstr "{0, plural, one {Last sync from {lastDevice} · # book tracked} other {Last sync from {lastDevice} · # books tracked}}"
+
 #. placeholder {0}: confirmReject?.length ?? 0
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Permanently delete # file from the bindery? This cannot be undone.} other {Permanently delete # files from the bindery? This cannot be undone.}}"
@@ -295,6 +305,7 @@ msgid "{d}d ago"
 msgstr "{d}d ago"
 
 #: src/components/NotificationBell.tsx
+#: src/components/SyncStatusBadge.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -372,11 +383,16 @@ msgstr "{h}h"
 msgid "{h}h {m}m"
 msgstr "{h}h {m}m"
 
+#: src/components/PositionHistoryModal.tsx
+msgid "{h}h ago"
+msgstr "{h}h ago"
+
 #: src/pages/SettingsPage.tsx
 msgid "{hours}h ago"
 msgstr "{hours}h ago"
 
 #: src/components/NotificationBell.tsx
+#: src/components/SyncStatusBadge.tsx
 #: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr "{hrs}h ago"
@@ -389,6 +405,10 @@ msgstr "{imp} imported + {inc} incoming"
 msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 
+#: src/components/PositionHistoryModal.tsx
+msgid "{m} min ago"
+msgstr "{m} min ago"
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{m}m"
@@ -399,6 +419,7 @@ msgid "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 msgstr "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 
 #: src/components/NotificationBell.tsx
+#: src/components/SyncStatusBadge.tsx
 #: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr "{mins}m ago"
@@ -448,6 +469,10 @@ msgstr "{name} · Vol. {start_index}–{end_index}"
 #: src/pages/StatsPage.tsx
 msgid "{name} copy"
 msgstr "{name} copy"
+
+#: src/components/ThemeToggle.tsx
+msgid "{name} theme"
+msgstr "{name} theme"
 
 #: src/pages/AdminPage.tsx
 msgid "{othersCount, plural, one {Delete # other} other {Delete # others}}"
@@ -789,7 +814,12 @@ msgstr "All your reading goals — rings fill as you read, managed in place"
 msgid "All-time hours, pages, books, streak"
 msgstr "All-time hours, pages, books, streak"
 
+#: src/components/SendButton.tsx
+msgid "Already in your KOReader inbox"
+msgstr "Already in your KOReader inbox"
+
 #: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Amber"
 msgstr "Amber"
 
@@ -939,6 +969,10 @@ msgstr "Best match applied to all {matched} files"
 msgid "Best-Rated Series"
 msgstr "Best-Rated Series"
 
+#: src/components/SendButton.tsx
+msgid "Beta"
+msgstr "Beta"
+
 #: src/components/Sidebar.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Bindery"
@@ -949,6 +983,7 @@ msgid "Bindery flow explained — open docs"
 msgstr "Bindery flow explained — open docs"
 
 #: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Black"
 msgstr "Black"
 
@@ -1138,6 +1173,7 @@ msgstr "Click \"Download plugin ZIP\" above. An API key is automatically created
 msgid "Click for details"
 msgstr "Click for details"
 
+#: src/components/PositionHistoryModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/StatsPage.tsx
@@ -1286,6 +1322,10 @@ msgstr "Core"
 msgid "Could not link SSO. Please try again."
 msgstr "Could not link SSO. Please try again."
 
+#: src/components/SeriesFollowButton.tsx
+msgid "Could not resolve this series on Hardcover"
+msgstr "Could not resolve this series on Hardcover"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Could not set match"
 msgstr "Could not set match"
@@ -1351,6 +1391,7 @@ msgstr "Cumulative Books Added — Last 24 Months"
 msgid "Cumulative finishes over time"
 msgstr "Cumulative finishes over time"
 
+#: src/components/PositionHistoryModal.tsx
 #: src/pages/StatsPage.tsx
 msgid "current"
 msgstr "current"
@@ -1384,6 +1425,7 @@ msgid "Danger Zone"
 msgstr "Danger Zone"
 
 #: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Dark"
 msgstr "Dark"
 
@@ -1680,6 +1722,7 @@ msgid "Email delivery is not set up yet."
 msgstr "Email delivery is not set up yet."
 
 #: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Ember"
 msgstr "Ember"
 
@@ -1881,6 +1924,10 @@ msgstr "Failed to load wishlist"
 msgid "Failed to log session"
 msgstr "Failed to log session"
 
+#: src/components/SendButton.tsx
+msgid "Failed to queue for KOReader"
+msgstr "Failed to queue for KOReader"
+
 #: src/pages/SettingsPage.tsx
 msgid "Failed to register"
 msgstr "Failed to register"
@@ -1990,13 +2037,22 @@ msgstr "Focus"
 msgid "Focus search"
 msgstr "Focus search"
 
+#: src/components/SeriesFollowButton.tsx
+msgid "Follow"
+msgstr "Follow"
+
 #: src/pages/WishlistPage.tsx
 msgid "Follow a series — search Hardcover…"
 msgstr "Follow a series — search Hardcover…"
 
+#: src/components/SeriesFollowButton.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Following"
 msgstr "Following"
+
+#: src/components/SeriesFollowButton.tsx
+msgid "Following \"{seriesName}\" — you'll hear when a new volume is out"
+msgstr "Following \"{seriesName}\" — you'll hear when a new volume is out"
 
 #: src/pages/BinderyPage.tsx
 msgid "for {targetLabel} — click a file to switch"
@@ -2057,6 +2113,10 @@ msgstr "Generate PIN"
 msgid "Genres"
 msgstr "Genres"
 
+#: src/components/SeriesFollowButton.tsx
+msgid "Get notified when a new volume is released"
+msgstr "Get notified when a new volume is released"
+
 #: src/pages/WishlistPage.tsx
 msgid "Get notified when a new volume of a followed series is released."
 msgstr "Get notified when a new volume of a followed series is released."
@@ -2113,6 +2173,10 @@ msgstr "hiatus"
 #: src/pages/BookDetailPage.tsx
 msgid "Hide details"
 msgstr "Hide details"
+
+#: src/components/stats/widgets/taste.tsx
+msgid "Highest"
+msgstr "Highest"
 
 #: src/pages/StatsPage.tsx
 msgid "Highest & Lowest Rated"
@@ -2278,6 +2342,10 @@ msgstr "just now"
 msgid "Just now"
 msgstr "Just now"
 
+#: src/components/SyncStatusBadge.tsx
+msgid "Just synced"
+msgstr "Just synced"
+
 #: src/pages/AdminPage.tsx
 msgid "Keep this one"
 msgstr "Keep this one"
@@ -2301,6 +2369,10 @@ msgstr "KOReader Sync"
 #: src/pages/BookDetailPage.tsx
 msgid "KOReader sync linked"
 msgstr "KOReader sync linked"
+
+#: src/components/SyncStatusBadge.tsx
+msgid "KOReader sync: {label}. {tooltip}"
+msgstr "KOReader sync: {label}. {tooltip}"
 
 #: src/pages/SettingsPage.tsx
 msgid "KOSync registered successfully"
@@ -2348,6 +2420,10 @@ msgstr "Latest finishes, newest first"
 #: src/pages/WishlistPage.tsx
 msgid "Latest: vol {v}"
 msgstr "Latest: vol {v}"
+
+#: src/components/SeriesFollowButton.tsx
+msgid "Latest: Vol {v} · {d}"
+msgstr "Latest: Vol {v} · {d}"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -2407,6 +2483,7 @@ msgid "Lifetime words read, by year"
 msgstr "Lifetime words read, by year"
 
 #: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Light"
 msgstr "Light"
 
@@ -2459,6 +2536,7 @@ msgstr "Loading books…"
 msgid "Loading..."
 msgstr "Loading..."
 
+#: src/components/PositionHistoryModal.tsx
 #: src/components/ShareLinksOverview.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/SharePage.tsx
@@ -2500,6 +2578,10 @@ msgstr "Longest Streak"
 #: src/pages/StatsPage.tsx
 msgid "Longest: {d}d"
 msgstr "Longest: {d}d"
+
+#: src/components/stats/widgets/taste.tsx
+msgid "Lowest"
+msgstr "Lowest"
 
 #: src/pages/DashboardPage.tsx
 msgid "Manage"
@@ -2614,6 +2696,10 @@ msgstr "Missing: {filterMissingLabel}"
 msgid "Mo"
 msgstr "Mo"
 
+#: src/components/SendButton.tsx
+msgid "More send options"
+msgstr "More send options"
+
 #: src/pages/StatsPage.tsx
 msgid "Morning vs evening reader?"
 msgstr "Morning vs evening reader?"
@@ -2659,6 +2745,7 @@ msgstr "Name…"
 msgid "Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync."
 msgstr "Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync."
 
+#: src/components/SyncStatusBadge.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Never"
 msgstr "Never"
@@ -2730,6 +2817,10 @@ msgstr "Next month"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Next page"
 msgstr "Next page"
+
+#: src/components/SeriesFollowButton.tsx
+msgid "Next: Vol {v} · {d}"
+msgstr "Next: Vol {v} · {d}"
 
 #: src/pages/SettingsPage.tsx
 msgid "No API keys. Download the plugin to auto-create one."
@@ -2850,6 +2941,26 @@ msgstr "No pace data by format."
 #: src/pages/SettingsPage.tsx
 msgid "No PINs yet. Generate one to use with OPDS clients."
 msgstr "No PINs yet. Generate one to use with OPDS clients."
+
+#: src/components/PositionHistoryModal.tsx
+msgid "No position changes recorded yet — history starts with the next sync."
+msgstr "No position changes recorded yet — history starts with the next sync."
+
+#: src/components/stats/widgets/taste.tsx
+msgid "No rated books with reading time yet."
+msgstr "No rated books with reading time yet."
+
+#: src/components/stats/widgets/taste.tsx
+msgid "No rated books yet."
+msgstr "No rated books yet."
+
+#: src/components/stats/widgets/taste.tsx
+msgid "No rated series yet."
+msgstr "No rated series yet."
+
+#: src/components/stats/widgets/taste.tsx
+msgid "No ratings yet."
+msgstr "No ratings yet."
 
 #: src/pages/AdminPage.tsx
 msgid "No reading activity yet. Records appear when users start reading books."
@@ -3214,6 +3325,10 @@ msgstr "PIN created — copy it now, it won't be shown again."
 msgid "Port"
 msgstr "Port"
 
+#: src/components/PositionHistoryModal.tsx
+msgid "Position history"
+msgstr "Position history"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Position history — restore a bad sync"
 msgstr "Position history — restore a bad sync"
@@ -3300,6 +3415,10 @@ msgstr "Queue: fold the other copies into the kept book"
 msgid "Queue: not a duplicate — never show this group again"
 msgstr "Queue: not a duplicate — never show this group again"
 
+#: src/components/SendButton.tsx
+msgid "Queued {n} to KOReader — arrives next time KOReader syncs"
+msgstr "Queued {n} to KOReader — arrives next time KOReader syncs"
+
 #: src/pages/BinderyPage.tsx
 msgid "Quick Accept"
 msgstr "Quick Accept"
@@ -3324,6 +3443,10 @@ msgstr "Range"
 #: src/pages/StatsPage.tsx
 msgid "Range follows the page's range picker; days show the newest slice of it."
 msgstr "Range follows the page's range picker; days show the newest slice of it."
+
+#: src/components/stats/widgets/taste.tsx
+msgid "Rate a few books to see a trend."
+msgstr "Rate a few books to see a trend."
 
 #: src/components/SeriesRating.tsx
 msgid "Rate the whole series"
@@ -3620,6 +3743,14 @@ msgstr "Resource:"
 msgid "Restart KOReader"
 msgstr "Restart KOReader"
 
+#: src/components/PositionHistoryModal.tsx
+msgid "Restore"
+msgstr "Restore"
+
+#: src/components/PositionHistoryModal.tsx
+msgid "Restoring sets the live position (and read status) back to that point; devices pick it up on their next sync. Restoring below 100% un-finishes a falsely completed book."
+msgstr "Restoring sets the live position (and read status) back to that point; devices pick it up on their next sync. Restoring below 100% un-finishes a falsely completed book."
+
 #: src/pages/DashboardPage.tsx
 msgid "Resume {volLabel}"
 msgstr "Resume {volLabel}"
@@ -3846,9 +3977,18 @@ msgstr "Send History"
 msgid "Send test email"
 msgstr "Send test email"
 
+#: src/components/SendButton.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Send to Device"
 msgstr "Send to Device"
+
+#: src/components/SendButton.tsx
+msgid "Send to KOReader"
+msgstr "Send to KOReader"
+
+#: src/components/SendButton.tsx
+msgid "Send via email…"
+msgstr "Send via email…"
 
 #: src/pages/AdminPage.tsx
 msgid "Sending..."
@@ -4162,6 +4302,10 @@ msgstr "Status"
 msgid "Status: {filterStatusLabel}"
 msgstr "Status: {filterStatusLabel}"
 
+#: src/components/SeriesFollowButton.tsx
+msgid "Stop following this series"
+msgstr "Stop following this series"
+
 #: src/pages/StatsPage.tsx
 msgid "Streak"
 msgstr "Streak"
@@ -4263,6 +4407,7 @@ msgid "the sync password set above"
 msgstr "the sync password set above"
 
 #: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Theme"
 msgstr "Theme"
 
@@ -4374,6 +4519,10 @@ msgstr "Toggle metadata edit"
 msgid "Toggle only-notes filter"
 msgstr "Toggle only-notes filter"
 
+#: src/components/ThemeToggle.tsx
+msgid "Toggle theme"
+msgstr "Toggle theme"
+
 #: src/pages/SettingsPage.tsx
 msgid "Token name"
 msgstr "Token name"
@@ -4470,6 +4619,7 @@ msgstr "unknown author"
 msgid "Unknown author"
 msgstr "Unknown author"
 
+#: src/components/PositionHistoryModal.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "unknown device"
 msgstr "unknown device"
@@ -4742,6 +4892,7 @@ msgstr "Year"
 msgid "Year in Review"
 msgstr "Year in Review"
 
+#: src/components/SyncStatusBadge.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/WishlistPage.tsx

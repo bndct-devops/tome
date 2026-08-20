@@ -4,6 +4,8 @@ import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { BookFile } from '@/lib/books'
 import { SendToDeviceModal } from '@/components/SendToDeviceModal'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface SendStatus {
   configured: boolean
@@ -56,14 +58,15 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
         { book_ids: books.map(b => b.id) },
       )
       if (res.queued > 0) {
-        toast.success(
-          `Queued ${res.queued} to KOReader — arrives next time KOReader syncs`,
-        )
+        {
+          const n = res.queued
+          toast.success(t`Queued ${n} to KOReader — arrives next time KOReader syncs`)
+        }
       } else {
-        toast.info('Already in your KOReader inbox')
+        toast.info(t`Already in your KOReader inbox`)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to queue for KOReader')
+      toast.error(err instanceof Error ? err.message : t`Failed to queue for KOReader`)
     } finally {
       setSending(false)
     }
@@ -73,9 +76,11 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
   // button it would lift each half independently and break the seam. The plain
   // (non-split) rail button adds the lift back below for parity with the old
   // Send-to-Device button.
+  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const btn = variant === 'bulk'
     ? 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all'
     : 'flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all duration-200'
+  /* eslint-enable lingui/no-unlocalized-strings */
 
   // Feature off (or unknown) → plain email button, current behaviour.
   if (!status?.koreader) {
@@ -87,7 +92,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
           className={variant === 'rail' ? `mt-2 w-full ${btn} hover:-translate-y-0.5 hover:shadow-sm` : btn}
         >
           <Send className="w-3.5 h-3.5 text-muted-foreground" />
-          Send to Device
+          <Trans>Send to Device</Trans>
         </button>
         <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
       </>
@@ -106,15 +111,15 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
           {sending
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <Send className="w-3.5 h-3.5 text-muted-foreground" />}
-          Send to KOReader
+          <Trans>Send to KOReader</Trans>
           <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border border-border rounded px-1 leading-tight">
-            Beta
+            <Trans>Beta</Trans>
           </span>
         </button>
         <button
           onClick={() => setMenuOpen(o => !o)}
           disabled={disabled}
-          aria-label="More send options"
+          aria-label={t`More send options`}
           className={`${btn} rounded-l-none border-l-0 px-2`}
         >
           <ChevronDown className="w-3.5 h-3.5" />
@@ -126,7 +131,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors"
             >
               <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-              Send via email…
+              <Trans>Send via email…</Trans>
             </button>
           </div>
         )}

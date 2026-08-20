@@ -22,11 +22,13 @@ import { formatDuration } from '@/lib/utils'
 import { StarRating } from '@/components/StarRating'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 type Ratings = StatsResponse['ratings']
 
-function Empty({ text = 'No ratings yet.' }: { text?: string }) {
-  return <p className="text-sm text-muted-foreground text-center py-10">{text}</p>
+function Empty({ text }: { text?: string }) {
+  return <p className="text-sm text-muted-foreground text-center py-10">{text ?? t`No ratings yet.`}</p>
 }
 
 function Stars({ value }: { value: number }) {
@@ -76,7 +78,7 @@ export function RatingDistribution({ data }: { data: Ratings['distribution'] }) 
 // 2 ── Taste by genre: avg rating per book-type (radar, bars fallback) ──────────
 export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
   const { accent, tick } = useChartColors()
-  if (data.length === 0) return <Empty text="No rated books yet." />
+  if (data.length === 0) return <Empty text={t`No rated books yet.`} />
   if (data.length < 3) {
     return (
       <div className="flex h-full flex-col justify-center gap-3">
@@ -135,12 +137,12 @@ export function TopRatedBooks({ books }: { books: Ratings['books'] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5">
-        {low.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Highest</p>}
+        {low.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Highest</Trans></p>}
         {top.map((b) => <RatedRow key={b.book_id} b={b} />)}
       </div>
       {low.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Lowest</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Lowest</Trans></p>
           {low.map((b) => <RatedRow key={b.book_id} b={b} />)}
         </div>
       )}
@@ -152,7 +154,7 @@ export function TopRatedBooks({ books }: { books: Ratings['books'] }) {
 export function RatingVsTime({ books }: { books: Ratings['books'] }) {
   const { accent, tick, cursor } = useChartColors()
   const pts = books.filter((b) => b.seconds > 0).map((b) => ({ hours: +(b.seconds / 3600).toFixed(1), rating: b.rating, title: b.title }))
-  if (pts.length === 0) return <Empty text="No rated books with reading time yet." />
+  if (pts.length === 0) return <Empty text={t`No rated books with reading time yet.`} />
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
@@ -175,7 +177,7 @@ export function RatingVsTime({ books }: { books: Ratings['books'] }) {
 
 // 5 ── Best-rated series ─────────────────────────────────────────────────────────
 export function BestRatedSeries({ series }: { series: Ratings['series'] }) {
-  if (series.length === 0) return <Empty text="No rated series yet." />
+  if (series.length === 0) return <Empty text={t`No rated series yet.`} />
   return (
     <div className="flex flex-col gap-2.5">
       {series.slice(0, 12).map((s) => (
@@ -192,7 +194,7 @@ export function BestRatedSeries({ series }: { series: Ratings['series'] }) {
 // 6 ── Rating trend over time ────────────────────────────────────────────────────
 export function RatingTrend({ trend }: { trend: Ratings['trend'] }) {
   const { accent, tick, cursor } = useChartColors()
-  if (trend.length < 2) return <Empty text="Rate a few books to see a trend." />
+  if (trend.length < 2) return <Empty text={t`Rate a few books to see a trend.`} />
   const fmt = (d: string) => {
     try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }) } catch { return d }
   }

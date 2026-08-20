@@ -7,6 +7,8 @@ import { createPortal } from 'react-dom'
 import { History, Loader2, RotateCcw, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface HistoryEntry {
   id: number
@@ -23,8 +25,8 @@ interface HistoryResponse {
 function fmtWhen(iso: string): string {
   const d = new Date(iso)
   const diff = Date.now() - d.getTime()
-  if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))} min ago`
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`
+  if (diff < 3600_000) { const m = Math.max(1, Math.floor(diff / 60_000)); return t`${m} min ago` }
+  if (diff < 86400_000) { const h = Math.floor(diff / 3600_000); return t`${h}h ago` }
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) +
     ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
@@ -61,10 +63,10 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
         <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-xl">
           <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
             <History className="h-4 w-4 text-primary" />
-            <h2 className="font-display text-base text-foreground">Position history</h2>
+            <h2 className="font-display text-base text-foreground"><Trans>Position history</Trans></h2>
             <button
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t`Close`}
               className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="h-4 w-4" />
@@ -73,11 +75,11 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
           <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-3">
             {!data ? (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                <Loader2 className="h-4 w-4 animate-spin" /> <Trans>Loading…</Trans>
               </div>
             ) : data.history.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No position changes recorded yet — history starts with the next sync.
+                <Trans>No position changes recorded yet — history starts with the next sync.</Trans>
               </p>
             ) : (
               <ul className="flex flex-col">
@@ -96,10 +98,10 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
                         {Math.round(h.percentage * 1000) / 10}%
                       </span>
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                        {h.device || 'unknown device'} · {fmtWhen(h.created_at)}
+                        {h.device || t`unknown device`} · {fmtWhen(h.created_at)}
                         {isCurrent && (
                           <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] text-foreground">
-                            current
+                            <Trans>current</Trans>
                           </span>
                         )}
                       </span>
@@ -112,7 +114,7 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
                           {restoring === h.id
                             ? <Loader2 className="h-3 w-3 animate-spin" />
                             : <RotateCcw className="h-3 w-3" />}
-                          Restore
+                          <Trans>Restore</Trans>
                         </button>
                       )}
                     </li>
@@ -121,9 +123,9 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
               </ul>
             )}
             <p className="pb-1 pt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Restoring sets the live position (and read status) back to that
+              <Trans>Restoring sets the live position (and read status) back to that
               point; devices pick it up on their next sync. Restoring below
-              100% un-finishes a falsely completed book.
+              100% un-finishes a falsely completed book.</Trans>
             </p>
           </div>
         </div>
