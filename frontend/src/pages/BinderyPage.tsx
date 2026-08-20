@@ -10,6 +10,9 @@ import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useToast } from '@/contexts/ToastContext'
+import { Trans, useLingui, Plural } from '@lingui/react/macro'
+import { plural, msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 import type { MetadataCandidate, BookType } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { cn } from '@/lib/utils'
@@ -156,6 +159,7 @@ function formToAcceptFile(path: string, form: ItemForm): BinderyAcceptFile {
 
 function FormatBadge({ format }: { format: string }) {
   const f = format.toLowerCase()
+  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
   const colorMap: Record<string, string> = {
     epub: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
     pdf: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
@@ -164,6 +168,7 @@ function FormatBadge({ format }: { format: string }) {
     mobi: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
   }
   const cls = colorMap[f] ?? 'bg-muted text-muted-foreground border-border'
+  /* eslint-enable lingui/no-unlocalized-strings */
   return (
     <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border uppercase tracking-wide', cls)}>
       {format}
@@ -171,7 +176,10 @@ function FormatBadge({ format }: { format: string }) {
   )
 }
 
+const CONTENT_TYPE_LABELS: Record<string, MessageDescriptor> = { volume: msg`volume`, chapter: msg`chapter` }
+
 function ContentTypeBadge({ type }: { type: string }) {
+  const { i18n } = useLingui()
   const isChapter = type === 'chapter'
   return (
     <span className={cn(
@@ -180,16 +188,18 @@ function ContentTypeBadge({ type }: { type: string }) {
         ? 'bg-warning/10 text-warning border-warning/20'
         : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
     )}>
-      {type}
+      {CONTENT_TYPE_LABELS[type] ? i18n._(CONTENT_TYPE_LABELS[type]) : type}
     </span>
   )
 }
 
 function SourceBadge({ source }: { source: string }) {
+  /* eslint-disable lingui/no-unlocalized-strings -- provider names */
   const label =
     source === 'hardcover' ? 'Hardcover'
     : source === 'google_books' ? 'Google'
     : 'OpenLib'
+  /* eslint-enable lingui/no-unlocalized-strings */
   return (
     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground bg-muted">
       {label}
@@ -214,13 +224,15 @@ interface LibraryOption {
   can_edit: boolean
 }
 
-function LibrariesSelect({ value, onChange, libraries, className, placeholder = 'No libraries' }: {
+function LibrariesSelect({ value, onChange, libraries, className, placeholder }: {
   value: number[]
   onChange: (ids: number[]) => void
   libraries: LibraryOption[]
   className?: string
   placeholder?: string
 }) {
+  const { t } = useLingui()
+  const resolvedPlaceholder = placeholder ?? t`No libraries`
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -252,7 +264,7 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder = 
         <span className="flex-1 truncate">
           {value.length > 0
             ? editable.filter(l => value.includes(l.id)).map(l => l.name).join(', ')
-            : placeholder}
+            : resolvedPlaceholder}
         </span>
         <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
       </button>
@@ -344,108 +356,109 @@ interface MetadataFormProps {
 }
 
 function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProps) {
+  const { t } = useLingui()
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-3">
         <div>
-          <label className={LABEL_CLS}>Title *</label>
+          <label className={LABEL_CLS}><Trans>Title *</Trans></label>
           <input
             className={INPUT_CLS}
             value={form.title}
             onChange={e => onChange('title', e.target.value)}
-            placeholder="Book title"
+            placeholder={t`Book title`}
           />
         </div>
         <div>
-          <label className={LABEL_CLS}>Author</label>
+          <label className={LABEL_CLS}><Trans>Author</Trans></label>
           <input
             className={INPUT_CLS}
             value={form.author}
             onChange={e => onChange('author', e.target.value)}
-            placeholder="Author name"
+            placeholder={t`Author name`}
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={LABEL_CLS}>Series</label>
+          <label className={LABEL_CLS}><Trans>Series</Trans></label>
           <input
             className={INPUT_CLS}
             value={form.series}
             onChange={e => onChange('series', e.target.value)}
-            placeholder="Series name"
+            placeholder={t`Series name`}
           />
         </div>
         <div>
-          <label className={LABEL_CLS}>Series #</label>
+          <label className={LABEL_CLS}><Trans>Series #</Trans></label>
           <input
             className={INPUT_CLS}
             type="number"
             step="0.1"
             value={form.series_index}
             onChange={e => onChange('series_index', e.target.value)}
-            placeholder="e.g. 1"
+            placeholder={t`e.g. 1`}
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={LABEL_CLS}>Content Type</label>
+          <label className={LABEL_CLS}><Trans>Content Type</Trans></label>
           <SelectMenu
             value={form.content_type}
             onChange={v => onChange('content_type', v)}
-            options={[{ value: 'volume', label: 'Volume' }, { value: 'chapter', label: 'Chapter' }]}
+            options={[{ value: 'volume', label: t`Volume` }, { value: 'chapter', label: t`Chapter` }]}
           />
         </div>
         <div>
-          <label className={LABEL_CLS}>Book Type</label>
+          <label className={LABEL_CLS}><Trans>Book Type</Trans></label>
           <SelectMenu
             value={form.book_type_id}
             onChange={v => onChange('book_type_id', v)}
-            options={[{ value: '', label: 'No type' },
+            options={[{ value: '', label: t`No type` },
                       ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
           />
         </div>
       </div>
       <div>
-        <label className={LABEL_CLS}>Libraries</label>
+        <label className={LABEL_CLS}><Trans>Libraries</Trans></label>
         <LibrariesSelect
           value={form.library_ids}
           onChange={ids => onChange('library_ids', ids)}
           libraries={libraries}
         />
         <p className="mt-1 text-[11px] text-muted-foreground">
-          The book type's own library is always added automatically.
+          <Trans>The book type's own library is always added automatically.</Trans>
         </p>
       </div>
       <div>
-        <label className={LABEL_CLS}>Description</label>
+        <label className={LABEL_CLS}><Trans>Description</Trans></label>
         <textarea
           className={TEXTAREA_CLS}
           rows={3}
           value={form.description}
           onChange={e => onChange('description', e.target.value)}
-          placeholder="Synopsis or description"
+          placeholder={t`Synopsis or description`}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={LABEL_CLS}>Publisher</label>
+          <label className={LABEL_CLS}><Trans>Publisher</Trans></label>
           <input
             className={INPUT_CLS}
             value={form.publisher}
             onChange={e => onChange('publisher', e.target.value)}
-            placeholder="Publisher"
+            placeholder={t`Publisher`}
           />
         </div>
         <div>
-          <label className={LABEL_CLS}>Year</label>
+          <label className={LABEL_CLS}><Trans>Year</Trans></label>
           <input
             className={INPUT_CLS}
             type="number"
             value={form.year}
             onChange={e => onChange('year', e.target.value)}
-            placeholder="e.g. 2023"
+            placeholder={t`e.g. 2023`}
           />
         </div>
       </div>
@@ -460,26 +473,26 @@ function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProp
           />
         </div>
         <div>
-          <label className={LABEL_CLS}>Language</label>
+          <label className={LABEL_CLS}><Trans>Language</Trans></label>
           <input
             className={INPUT_CLS}
             value={form.language}
             onChange={e => onChange('language', e.target.value)}
-            placeholder="e.g. en"
+            placeholder={t`e.g. en`}
           />
         </div>
       </div>
       <div>
-        <label className={LABEL_CLS}>Tags (comma-separated)</label>
+        <label className={LABEL_CLS}><Trans>Tags (comma-separated)</Trans></label>
         <input
           className={INPUT_CLS}
           value={form.tags}
           onChange={e => onChange('tags', e.target.value)}
-          placeholder="fantasy, action, romance"
+          placeholder={t`fantasy, action, romance`}
         />
       </div>
       <div>
-        <label className={LABEL_CLS}>Cover URL</label>
+        <label className={LABEL_CLS}><Trans>Cover URL</Trans></label>
         <input
           className={INPUT_CLS}
           value={form.cover_url}
@@ -489,7 +502,7 @@ function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProp
         {form.cover_url && (
           <img
             src={form.cover_url}
-            alt="Cover preview"
+            alt={t`Cover preview`}
             className="mt-2 h-24 w-16 object-cover rounded border border-border"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
@@ -515,13 +528,14 @@ interface CandidatePanelProps {
 }
 
 function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange, onSearch, onSelect, appliedId, targetLabel }: CandidatePanelProps) {
+  const { t } = useLingui()
   return (
     <div className="flex flex-col h-full">
       <div className="mb-3">
-        <span className="text-sm font-medium">Metadata Suggestions</span>
+        <span className="text-sm font-medium"><Trans>Metadata Suggestions</Trans></span>
         {targetLabel && (
           <span className="block text-xs text-muted-foreground truncate">
-            for {targetLabel} — click a file to switch
+            <Trans>for {targetLabel} — click a file to switch</Trans>
           </span>
         )}
       </div>
@@ -533,7 +547,7 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
           className="flex-1 h-8 rounded-md border border-border bg-transparent px-2.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           value={searchQuery}
           onChange={e => onSearchQueryChange(e.target.value)}
-          placeholder="Search query..."
+          placeholder={t`Search query...`}
         />
         <button
           type="submit"
@@ -551,14 +565,14 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
       {!loading && candidates.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
           <BookOpen className="h-8 w-8 text-muted-foreground/40 mb-2" />
-          <p className="text-sm text-muted-foreground">No metadata found</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Try editing the title or series fields</p>
+          <p className="text-sm text-muted-foreground"><Trans>No metadata found</Trans></p>
+          <p className="text-xs text-muted-foreground/60 mt-1"><Trans>Try editing the title or series fields</Trans></p>
         </div>
       )}
       {!loading && candidates.length > 0 && (
         <div className="space-y-2 overflow-y-auto flex-1">
           <p className="text-xs text-muted-foreground mb-1">
-            {candidates.length} result{candidates.length !== 1 ? 's' : ''} — click to fill form
+            <Plural value={candidates.length} one="# result — click to fill form" other="# results — click to fill form" />
           </p>
           {candidates.map(c => (
             <button
@@ -626,6 +640,7 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
   busy: boolean
   onAccept: (form: { series: string; author: string; book_type_id: string; library_ids: number[] }) => void
 }) {
+  const { t } = useLingui()
   const [series, setSeries] = useState(group.series ?? '')
   const [author, setAuthor] = useState(group.author ?? '')
   const [typeId, setTypeId] = useState(group.book_type_id != null ? String(group.book_type_id) : '')
@@ -639,21 +654,21 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
           <div className="flex items-center gap-2 flex-wrap">
             <Layers className="w-4 h-4 text-primary/70 shrink-0" />
             <span className="text-sm font-semibold text-foreground truncate">
-              {series || 'Ungrouped files'}
+              {series || t`Ungrouped files`}
             </span>
             {group.library_match && (
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-medium"
-                title={`Matches "${group.library_match.series}" already in your library — name, author, type and libraries adopted from it`}
+                title={(() => { const name = group.library_match.series; return t`Matches "${name}" already in your library — name, author, type and libraries adopted from it` })()}
               >
                 <Check className="w-3 h-3" />
-                In library · {group.library_match.volume_count} vol{group.library_match.volume_count === 1 ? '' : 's'}
-                {group.library_match.from_reviewed ? ' · reviewed' : ''}
+                {plural(group.library_match.volume_count, { one: 'In library · # vol', other: 'In library · # vols' })}
+                {group.library_match.from_reviewed ? t` · reviewed` : ''}
               </span>
             )}
             {!group.library_match && group.series && (
               <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium">
-                New series
+                <Trans>New series</Trans>
               </span>
             )}
           </div>
@@ -669,7 +684,7 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all shrink-0"
         >
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-          Accept {group.files.length} volume{group.files.length === 1 ? '' : 's'}
+          <Plural value={group.files.length} one="Accept # volume" other="Accept # volumes" />
         </button>
       </div>
 
@@ -678,19 +693,19 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
         <input
           value={series}
           onChange={e => setSeries(e.target.value)}
-          placeholder="Series"
+          placeholder={t`Series`}
           className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <input
           value={author}
           onChange={e => setAuthor(e.target.value)}
-          placeholder="Author"
+          placeholder={t`Author`}
           className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <SelectMenu
           value={typeId}
           onChange={setTypeId}
-          options={[{ value: '', label: 'No type' }, ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
+          options={[{ value: '', label: t`No type` }, ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
           className="[&>button]:py-1.5 [&>button]:text-xs"
         />
         <LibrariesSelect
@@ -709,7 +724,7 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
             title={`${f.filename} → ${f.dest_preview}`}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted/60 text-[11px] text-foreground"
           >
-            {f.series_index != null ? `Vol ${f.series_index}` : (f.title || f.filename)}
+            {(() => { const idx = f.series_index; return idx != null ? t`Vol ${idx}` : (f.title || f.filename) })()}
             <span className="text-muted-foreground uppercase text-[9px]">{f.format}</span>
           </span>
         ))}
@@ -718,8 +733,10 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
   )
 }
 
-function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destructive, onConfirm, onCancel }: ConfirmDialogProps) {
+function ConfirmDialog({ open, title, message, confirmLabel, destructive, onConfirm, onCancel }: ConfirmDialogProps) {
+  const { t } = useLingui()
   if (!open) return null
+  const resolvedConfirmLabel = confirmLabel ?? t`Confirm`
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
@@ -731,7 +748,7 @@ function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destruc
             onClick={onCancel}
             className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             onClick={onConfirm}
@@ -742,7 +759,7 @@ function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destruc
                 : 'bg-primary text-primary-foreground hover:opacity-90'
             )}
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </button>
         </div>
       </div>
@@ -755,6 +772,7 @@ function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', destruc
 // ---------------------------------------------------------------------------
 
 export function BinderyPage() {
+  const { t } = useLingui()
   const { toast } = useToast()
   const bookTypes = useBookTypes()
   const navigate = useNavigate()
@@ -862,7 +880,7 @@ export function BinderyPage() {
       setItems(data)
       setGroups(grouped)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load bindery')
+      toast.error(err instanceof Error ? err.message : t`Failed to load bindery`)
     } finally {
       setLoading(false)
     }
@@ -902,13 +920,18 @@ export function BinderyPage() {
       const res = await api.post<{ accepted: unknown[]; errors: { path: string; error: string }[] }>(
         '/bindery/accept', { files })
       if (res.errors?.length) {
-        toast.error(`${res.errors.length} of ${files.length} failed — ${res.errors[0].error}`)
+        { const failedN = res.errors.length, totalN = files.length, firstErr = res.errors[0].error; toast.error(t`${failedN} of ${totalN} failed — ${firstErr}`) }
       } else {
-        toast.success(`Accepted ${files.length} volume${files.length === 1 ? '' : 's'}${form.series ? ` of ${form.series}` : ''}`)
+        {
+          const n = files.length, seriesName = form.series
+          toast.success(seriesName
+            ? plural(n, { one: `Accepted # volume of ${seriesName}`, other: `Accepted # volumes of ${seriesName}` })
+            : plural(n, { one: 'Accepted # volume', other: 'Accepted # volumes' }))
+        }
       }
       await fetchAll()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Accept failed')
+      toast.error(err instanceof Error ? err.message : t`Accept failed`)
     } finally {
       setAcceptingGroup(null)
     }
@@ -1052,9 +1075,9 @@ export function BinderyPage() {
       setMatchingAll(null)
     }
     if (matched === reviewItems.length) {
-      toast.success(`Best match applied to all ${matched} files`)
+      toast.success(t`Best match applied to all ${matched} files`)
     } else {
-      toast.success(`Best match applied to ${matched} of ${reviewItems.length} files — no match for the rest`)
+      { const totalN = reviewItems.length; toast.success(t`Best match applied to ${matched} of ${totalN} files — no match for the rest`) }
     }
   }
 
@@ -1168,7 +1191,7 @@ export function BinderyPage() {
       }
       return next
     })
-    toast.success(`Series applied to ${reviewItems.length} files`)
+    { const n = reviewItems.length; toast.success(t`Series applied to ${n} files`) }
   }
 
   function applyBatchAuthor() {
@@ -1179,7 +1202,7 @@ export function BinderyPage() {
       }
       return next
     })
-    toast.success(`Author applied to ${reviewItems.length} files`)
+    { const n = reviewItems.length; toast.success(t`Author applied to ${n} files`) }
   }
 
   function applyBatchBookType() {
@@ -1190,7 +1213,7 @@ export function BinderyPage() {
       }
       return next
     })
-    toast.success(`Book type applied to ${reviewItems.length} files`)
+    { const n = reviewItems.length; toast.success(t`Book type applied to ${n} files`) }
   }
 
   function applyBatchLibraries() {
@@ -1201,7 +1224,7 @@ export function BinderyPage() {
       }
       return next
     })
-    toast.success(`Libraries applied to ${reviewItems.length} files`)
+    { const n = reviewItems.length; toast.success(t`Libraries applied to ${n} files`) }
   }
 
   // ---------------------------------------------------------------------------
@@ -1212,7 +1235,7 @@ export function BinderyPage() {
     const form = formData[path]
     if (!form) return
     if (!form.title.trim()) {
-      toast.error('Title is required')
+      toast.error(t`Title is required`)
       return
     }
     setAccepting(true)
@@ -1224,7 +1247,7 @@ export function BinderyPage() {
       if (result.errors.length > 0) {
         toast.error(result.errors[0].error)
       } else {
-        toast.success(`Accepted: ${result.accepted[0]?.title ?? 'book'}`)
+        { const title = result.accepted[0]?.title ?? t`book`; toast.success(t`Accepted: ${title}`) }
         setAcceptFlash(true)
         setTimeout(() => {
           setAcceptFlash(false)
@@ -1234,7 +1257,7 @@ export function BinderyPage() {
         }, 400)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Accept failed')
+      toast.error(err instanceof Error ? err.message : t`Accept failed`)
     } finally {
       setAccepting(false)
     }
@@ -1247,7 +1270,7 @@ export function BinderyPage() {
     })
     const invalid = files.find(f => !f.title?.trim())
     if (invalid) {
-      toast.error('All items must have a title')
+      toast.error(t`All items must have a title`)
       return
     }
     setAccepting(true)
@@ -1261,14 +1284,14 @@ export function BinderyPage() {
         toast.error(`${result.errors.length} error(s): ${msgs}`)
       }
       if (result.accepted.length > 0) {
-        toast.success(`Accepted ${result.accepted.length} book${result.accepted.length !== 1 ? 's' : ''}`)
+        toast.success(plural(result.accepted.length, { one: 'Accepted # book', other: 'Accepted # books' }))
         const acceptedPaths = new Set(result.accepted.map((_, i) => files[i]?.path).filter(Boolean))
         setItems(prev => prev.filter(i => !acceptedPaths.has(i.path)))
         transitionTo('list')
         setSelected(new Set())
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Accept failed')
+      toast.error(err instanceof Error ? err.message : t`Accept failed`)
     } finally {
       setAccepting(false)
     }
@@ -1346,14 +1369,14 @@ export function BinderyPage() {
           updateStatus(path, 'error', result.errors[0].error)
         }
       } catch (err) {
-        updateStatus(path, 'error', err instanceof Error ? err.message : 'Failed')
+        updateStatus(path, 'error', err instanceof Error ? err.message : t`Failed`)
       }
     }
 
     // Clean up
     setListLibraryIds([])
     if (acceptedPaths.length > 0) {
-      toast.success(`Accepted ${acceptedPaths.length} book${acceptedPaths.length !== 1 ? 's' : ''}`)
+      toast.success(plural(acceptedPaths.length, { one: 'Accepted # book', other: 'Accepted # books' }))
       setItems(prev => prev.filter(i => !acceptedPaths.includes(i.path)))
       setSelected(new Set())
     }
@@ -1372,7 +1395,7 @@ export function BinderyPage() {
         { paths }
       )
       if (result.rejected > 0) {
-        toast.success(`Rejected ${result.rejected} file${result.rejected !== 1 ? 's' : ''}`)
+        toast.success(plural(result.rejected, { one: 'Rejected # file', other: 'Rejected # files' }))
         setItems(prev => prev.filter(i => !paths.includes(i.path)))
         setSelected(prev => {
           const next = new Set(prev)
@@ -1384,7 +1407,7 @@ export function BinderyPage() {
         toast.error(`${result.errors.length} error(s)`)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reject failed')
+      toast.error(err instanceof Error ? err.message : t`Reject failed`)
     } finally {
       setRejecting(false)
       setConfirmReject(null)
@@ -1399,9 +1422,9 @@ export function BinderyPage() {
     try {
       await api.put(`/bindery/review/${bookId}`)
       setUnreviewed(prev => prev.filter(b => b.id !== bookId))
-      toast.success('Book accepted')
+      toast.success(t`Book accepted`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Accept failed')
+      toast.error(err instanceof Error ? err.message : t`Accept failed`)
     }
   }
 
@@ -1410,9 +1433,9 @@ export function BinderyPage() {
     try {
       await api.delete(`/bindery/reject/${bookId}`)
       setUnreviewed(prev => prev.filter(b => b.id !== bookId))
-      toast.success('Book rejected and removed')
+      toast.success(t`Book rejected and removed`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reject failed')
+      toast.error(err instanceof Error ? err.message : t`Reject failed`)
     } finally {
       setRejectingUnreviewed(false)
       setConfirmRejectUnreviewed(null)
@@ -1424,9 +1447,9 @@ export function BinderyPage() {
     try {
       await api.put('/bindery/review-all')
       setUnreviewed([])
-      toast.success('All imported books accepted')
+      toast.success(t`All imported books accepted`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Review all failed')
+      toast.error(err instanceof Error ? err.message : t`Review all failed`)
     } finally {
       setReviewingAll(false)
     }
@@ -1533,18 +1556,19 @@ export function BinderyPage() {
           <button
             onClick={fetchAll}
             disabled={loading || unreviewedLoading}
-            title="Rescan the bindery folder"
+            title={t`Rescan the bindery folder`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', (loading || unreviewedLoading) && 'animate-spin')} />
             {/* Label stays at every size — collapsed to a bare icon it sat next
                 to the global sync indicator as two identical circular-arrow
                 glyphs (UX sweep finding). */}
-            <span>Refresh</span>
+            <span><Trans>Refresh</Trans></span>
           </button>
         }
       >
       <div className={cn('flex flex-col h-full transition-opacity duration-150', viewTransition ? 'opacity-0' : 'opacity-100')}>
+        {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
         <style>{`
           @keyframes fade-in-up {
             from { opacity: 0; transform: translateY(8px); }
@@ -1559,19 +1583,20 @@ export function BinderyPage() {
         {/* Header */}
         <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border px-4 pt-4 pb-4">
           <div className="flex items-center gap-3">
-            <h1 className="font-display text-xl text-foreground">Bindery</h1>
+            <h1 className="font-display text-xl text-foreground"><Trans>Bindery</Trans></h1>
             <p className="text-xs text-muted-foreground hidden md:block">
-              {loading || unreviewedLoading
-                ? 'Loading...'
-                : unreviewed.length > 0
-                  ? `${unreviewed.length} imported + ${items.length} incoming`
-                  : `${items.length} file${items.length !== 1 ? 's' : ''} waiting for review`}
+              {(() => {
+                if (loading || unreviewedLoading) return t`Loading...`
+                const inc = items.length, imp = unreviewed.length
+                if (imp > 0) return t`${imp} imported + ${inc} incoming`
+                return plural(inc, { one: '# file waiting for review', other: '# files waiting for review' })
+              })()}
             </p>
             <a
               href={docsLink(DOCS.bindery)}
               target="_blank"
               rel="noopener noreferrer"
-              title="Bindery flow explained — open docs"
+              title={t`Bindery flow explained — open docs`}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <HelpCircle className="w-3.5 h-3.5" />
@@ -1585,7 +1610,7 @@ export function BinderyPage() {
                 onClick={hasSelection ? clearSelection : selectAll}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
               >
-                {hasSelection ? `${selectedArr.length} selected — Clear` : 'Select All'}
+                {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected — Clear` : t`Select All` })()}
               </button>
 
               {hasSelection && (
@@ -1595,7 +1620,7 @@ export function BinderyPage() {
                     onClick={() => enterReview(selectedArr)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
-                    <Eye className="h-3 w-3" /> Review
+                    <Eye className="h-3 w-3" /> <Trans>Review</Trans>
                   </button>
                   <button
                     onClick={() => quickAccept(selectedArr)}
@@ -1603,13 +1628,13 @@ export function BinderyPage() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-muted disabled:opacity-50 transition-all"
                   >
                     {accepting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                    Quick Accept
+                    <Trans>Quick Accept</Trans>
                   </button>
                   <button
                     onClick={() => setConfirmReject(selectedArr)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/30 transition-all"
                   >
-                    <Trash2 className="h-3 w-3" /> Reject
+                    <Trash2 className="h-3 w-3" /> <Trans>Reject</Trans>
                   </button>
                   {libraries.some(l => l.can_edit) && (
                     <>
@@ -1619,7 +1644,7 @@ export function BinderyPage() {
                         onChange={setListLibraryIds}
                         libraries={libraries}
                         className="w-56 [&>button]:py-1.5 [&>button]:text-xs"
-                        placeholder="Add to libraries…"
+                        placeholder={t`Add to libraries…`}
                       />
                     </>
                   )}
@@ -1635,7 +1660,7 @@ export function BinderyPage() {
         {!loading && groups.some(g => g.files.length > 1 || g.library_match) && (
           <div className="px-4 py-3 border-b border-border bg-muted/20 flex flex-col gap-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Series review
+              <Trans>Series review</Trans>
             </p>
             {groups
               .filter(g => g.files.length > 1 || g.library_match)
@@ -1656,12 +1681,12 @@ export function BinderyPage() {
         {items.length > 0 && (
           <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
             <span className="w-4 shrink-0" />
-            <span className="flex-1">Title</span>
+            <span className="flex-1"><Trans>Title</Trans></span>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="w-10">Format</span>
-              <span className="w-14">Type</span>
-              <span className="w-24 text-right hidden sm:block">Series</span>
-              <span className="w-16 text-right hidden md:block">Size</span>
+              <span className="w-10"><Trans>Format</Trans></span>
+              <span className="w-14"><Trans>Type</Trans></span>
+              <span className="w-24 text-right hidden sm:block"><Trans>Series</Trans></span>
+              <span className="w-16 text-right hidden md:block"><Trans>Size</Trans></span>
               <span className="w-3.5" />
             </div>
           </div>
@@ -1681,9 +1706,9 @@ export function BinderyPage() {
                 className="h-12 w-12 text-muted-foreground/30 mb-3"
                 style={{ animation: 'gentle-pulse 3s ease-in-out infinite' }}
               />
-              <p className="text-base font-medium text-muted-foreground">No files in the bindery</p>
+              <p className="text-base font-medium text-muted-foreground"><Trans>No files in the bindery</Trans></p>
               <p className="text-sm text-muted-foreground/60 mt-1">
-                Drop files in the incoming folder to get started
+                <Trans>Drop files in the incoming folder to get started</Trans>
               </p>
             </div>
           )}
@@ -1694,7 +1719,7 @@ export function BinderyPage() {
               {/* Section header */}
               <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <span className="font-display text-sm text-foreground">Recently Imported</span>
+                  <span className="font-display text-sm text-foreground"><Trans>Recently Imported</Trans></span>
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
                     {unreviewed.length}
                   </span>
@@ -1705,7 +1730,7 @@ export function BinderyPage() {
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
                 >
                   {reviewingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                  Accept All
+                  <Trans>Accept All</Trans>
                 </button>
               </div>
               {/* Cards grid */}
@@ -1716,13 +1741,14 @@ export function BinderyPage() {
                   const diffMs = Date.now() - addedAt.getTime()
                   const diffHrs = Math.floor(diffMs / 1000 / 60 / 60)
                   const diffMins = Math.floor(diffMs / 1000 / 60)
+                  const diffDays = Math.floor(diffHrs / 24)
                   const timeAgo = diffHrs >= 24
-                    ? `${Math.floor(diffHrs / 24)}d ago`
+                    ? t`${diffDays}d ago`
                     : diffHrs >= 1
-                      ? `${diffHrs}h ago`
+                      ? t`${diffHrs}h ago`
                       : diffMins >= 1
-                        ? `${diffMins}m ago`
-                        : 'just now'
+                        ? t`${diffMins}m ago`
+                        : t`just now`
 
                   return (
                     <div
@@ -1744,7 +1770,7 @@ export function BinderyPage() {
                         {book.author && (
                           <p className="text-xs text-muted-foreground truncate">{book.author}</p>
                         )}
-                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">Added {timeAgo}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5"><Trans>Added {timeAgo}</Trans></p>
                       </div>
                       {/* Badges + Actions */}
                       <div className="shrink-0 flex flex-col items-end gap-1.5">
@@ -1822,7 +1848,7 @@ export function BinderyPage() {
                   {folders.length > 0 && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border">
                       <span className="w-4 shrink-0" />
-                      <span className="text-sm font-medium text-muted-foreground">Other files</span>
+                      <span className="text-sm font-medium text-muted-foreground"><Trans>Other files</Trans></span>
                       <span className="text-xs text-muted-foreground">({ungrouped.length})</span>
                     </div>
                   )}
@@ -1851,17 +1877,17 @@ export function BinderyPage() {
                 <>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-medium">
-                      Quick Accept: {done}/{total} done{errors > 0 ? `, ${errors} failed` : ''}
+                      {t`Quick Accept: ${done}/${total} done` + (errors > 0 ? t`, ${errors} failed` : '')}
                     </span>
                     {qaProgress.items.every(i => i.status === 'done' || i.status === 'error') ? (
                       <button
                         onClick={e => { e.stopPropagation(); setQaProgress(null); setQaModalOpen(false) }}
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        Dismiss
+                        <Trans>Dismiss</Trans>
                       </button>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">Click for details</span>
+                      <span className="text-[10px] text-muted-foreground"><Trans>Click for details</Trans></span>
                     )}
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden flex">
@@ -1890,7 +1916,7 @@ export function BinderyPage() {
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQaModalOpen(false)} />
             <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                <span className="text-sm font-semibold">Quick Accept Progress</span>
+                <span className="text-sm font-semibold"><Trans>Quick Accept Progress</Trans></span>
                 <button onClick={() => setQaModalOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
                   <X className="h-4 w-4" />
                 </button>
@@ -1916,7 +1942,7 @@ export function BinderyPage() {
                       )}
                     </div>
                     <span className="text-[10px] text-muted-foreground shrink-0 capitalize">
-                      {item.status === 'fetching' ? 'Fetching metadata...' : item.status === 'accepting' ? 'Importing...' : ''}
+                      {item.status === 'fetching' ? t`Fetching metadata...` : item.status === 'accepting' ? t`Importing...` : ''}
                     </span>
                   </div>
                 ))}
@@ -1928,9 +1954,9 @@ export function BinderyPage() {
         {/* Confirm reject dialog for raw files */}
         <ConfirmDialog
           open={confirmReject !== null}
-          title="Reject files"
-          message={`Permanently delete ${confirmReject?.length ?? 0} file${(confirmReject?.length ?? 0) !== 1 ? 's' : ''} from the bindery? This cannot be undone.`}
-          confirmLabel={rejecting ? 'Deleting...' : 'Delete'}
+          title={t`Reject files`}
+          message={plural(confirmReject?.length ?? 0, { one: 'Permanently delete # file from the bindery? This cannot be undone.', other: 'Permanently delete # files from the bindery? This cannot be undone.' })}
+          confirmLabel={rejecting ? t`Deleting...` : t`Delete`}
           destructive
           onConfirm={() => confirmReject && doReject(confirmReject)}
           onCancel={() => setConfirmReject(null)}
@@ -1939,9 +1965,9 @@ export function BinderyPage() {
         {/* Confirm reject dialog for unreviewed (imported) books */}
         <ConfirmDialog
           open={confirmRejectUnreviewed !== null}
-          title="Reject imported book"
-          message="Delete this book from the library? The file will be removed and this cannot be undone."
-          confirmLabel={rejectingUnreviewed ? 'Deleting...' : 'Delete'}
+          title={t`Reject imported book`}
+          message={t`Delete this book from the library? The file will be removed and this cannot be undone.`}
+          confirmLabel={rejectingUnreviewed ? t`Deleting...` : t`Delete`}
           destructive
           onConfirm={() => confirmRejectUnreviewed !== null && doRejectUnreviewed(confirmRejectUnreviewed)}
           onCancel={() => setConfirmRejectUnreviewed(null)}
@@ -1969,12 +1995,12 @@ export function BinderyPage() {
             onClick={() => transitionTo('list')}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to list
+            <ArrowLeft className="h-4 w-4" /> <Trans>Back to list</Trans>
           </button>
           <span className="text-muted-foreground/40">/</span>
           <span className="text-sm font-medium">
             {isBatch
-              ? `Reviewing ${reviewItems.length} files`
+              ? (() => { const n = reviewItems.length; return t`Reviewing ${n} files` })()
               : currentItem?.filename ?? ''}
           </span>
         </div>
@@ -2015,19 +2041,19 @@ export function BinderyPage() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
               >
                 {accepting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Accept
+                <Trans>Accept</Trans>
               </button>
               <button
                 onClick={skipItem}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
               >
-                Skip
+                <Trans>Skip</Trans>
               </button>
               <button
                 onClick={rejectCurrentAndAdvance}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-destructive/30 text-destructive hover:bg-destructive/5 transition-all ml-auto"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Reject
+                <Trash2 className="h-3.5 w-3.5" /> <Trans>Reject</Trans>
               </button>
             </div>
           </div>
@@ -2054,63 +2080,63 @@ export function BinderyPage() {
           <div className="lg:w-3/5 overflow-y-auto p-6 border-r border-border space-y-5">
             {/* Shared fields */}
             <div className="rounded-lg border border-border p-4 space-y-3">
-              <h3 className="text-sm font-semibold">Shared fields — applies to all {reviewItems.length} items</h3>
+              {(() => { const n = reviewItems.length; return <h3 className="text-sm font-semibold"><Trans>Shared fields — applies to all {n} items</Trans></h3> })()}
               <div className="space-y-3">
                 <div>
-                  <label className={LABEL_CLS}>Series</label>
+                  <label className={LABEL_CLS}><Trans>Series</Trans></label>
                   <div className="flex gap-2">
                     <input
                       className={cn(INPUT_CLS, 'flex-1')}
                       value={batchSeries}
                       onChange={e => setBatchSeries(e.target.value)}
-                      placeholder="Series name"
+                      placeholder={t`Series name`}
                     />
                     <button
                       onClick={applyBatchSeries}
                       className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
                     >
-                      Apply to all
+                      <Trans>Apply to all</Trans>
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className={LABEL_CLS}>Author</label>
+                  <label className={LABEL_CLS}><Trans>Author</Trans></label>
                   <div className="flex gap-2">
                     <input
                       className={cn(INPUT_CLS, 'flex-1')}
                       value={batchAuthor}
                       onChange={e => setBatchAuthor(e.target.value)}
-                      placeholder="Author name"
+                      placeholder={t`Author name`}
                     />
                     <button
                       onClick={applyBatchAuthor}
                       className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
                     >
-                      Apply to all
+                      <Trans>Apply to all</Trans>
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className={LABEL_CLS}>Book Type</label>
+                  <label className={LABEL_CLS}><Trans>Book Type</Trans></label>
                   <div className="flex gap-2">
                     <SelectMenu
                       className="flex-1"
                       value={batchBookTypeId}
                       onChange={setBatchBookTypeId}
-                      options={[{ value: '', label: 'No type' },
+                      options={[{ value: '', label: t`No type` },
                                 ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
                     />
                     <button
                       onClick={applyBatchBookType}
                       className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
                     >
-                      Apply to all
+                      <Trans>Apply to all</Trans>
                     </button>
                   </div>
                 </div>
                 {libraries.some(l => l.can_edit) && (
                   <div>
-                    <label className={LABEL_CLS}>Libraries</label>
+                    <label className={LABEL_CLS}><Trans>Libraries</Trans></label>
                     <div className="flex gap-2">
                       <LibrariesSelect
                         value={batchLibraryIds}
@@ -2122,7 +2148,7 @@ export function BinderyPage() {
                         onClick={applyBatchLibraries}
                         className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
                       >
-                        Apply to all
+                        <Trans>Apply to all</Trans>
                       </button>
                     </div>
                   </div>
@@ -2133,7 +2159,7 @@ export function BinderyPage() {
             {/* Per-item rows */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Per-file details</h3>
+                <h3 className="text-sm font-semibold"><Trans>Per-file details</Trans></h3>
                 <button
                   onClick={matchAll}
                   disabled={matchingAll !== null || fetchingMeta}
@@ -2142,9 +2168,9 @@ export function BinderyPage() {
                   {matchingAll !== null
                     ? <Loader2 className="h-3 w-3 animate-spin" />
                     : <Zap className="h-3 w-3" />}
-                  {matchingAll !== null
-                    ? `Matching ${matchingAll}/${reviewItems.length}…`
-                    : 'Match all'}
+                  {(() => { const total = reviewItems.length; return matchingAll !== null
+                    ? t`Matching ${matchingAll}/${total}…`
+                    : t`Match all` })()}
                 </button>
               </div>
               {reviewItems.map(item => {
@@ -2191,7 +2217,7 @@ export function BinderyPage() {
                         className="flex-1 h-7 rounded border border-border bg-transparent px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         value={form.title}
                         onChange={e => updateForm(item.path, 'title', e.target.value)}
-                        placeholder="Title"
+                        placeholder={t`Title`}
                       />
                       <input
                         className="w-16 h-7 rounded border border-border bg-transparent px-2 text-xs text-center placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -2200,15 +2226,15 @@ export function BinderyPage() {
                         value={form.series_index}
                         onChange={e => updateForm(item.path, 'series_index', e.target.value)}
                         placeholder="#"
-                        title="Series index"
+                        title={t`Series index`}
                       />
                       <select
                         className="h-7 rounded border border-border bg-transparent px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
                         value={form.content_type}
                         onChange={e => updateForm(item.path, 'content_type', e.target.value)}
                       >
-                        <option value="volume">Volume</option>
-                        <option value="chapter">Chapter</option>
+                        <option value="volume">{t`Volume`}</option>
+                        <option value="chapter">{t`Chapter`}</option>
                       </select>
                     </div>
                     {/* Expanded full form */}
@@ -2235,19 +2261,19 @@ export function BinderyPage() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
               >
                 {accepting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Accept All
+                <Trans>Accept All</Trans>
               </button>
               <button
                 onClick={() => transitionTo('list')}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
               >
-                Back to list
+                <Trans>Back to list</Trans>
               </button>
               <button
                 onClick={() => setConfirmReject(reviewItems.map(i => i.path))}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-destructive/30 text-destructive hover:bg-destructive/5 transition-all ml-auto"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Reject All
+                <Trash2 className="h-3.5 w-3.5" /> <Trans>Reject All</Trans>
               </button>
             </div>
           </div>
@@ -2271,9 +2297,9 @@ export function BinderyPage() {
       {/* Confirm reject dialog */}
       <ConfirmDialog
         open={confirmReject !== null}
-        title="Reject files"
-        message={`Permanently delete ${confirmReject?.length ?? 0} file${(confirmReject?.length ?? 0) !== 1 ? 's' : ''} from the bindery? This cannot be undone.`}
-        confirmLabel={rejecting ? 'Deleting...' : 'Delete'}
+        title={t`Reject files`}
+        message={plural(confirmReject?.length ?? 0, { one: 'Permanently delete # file from the bindery? This cannot be undone.', other: 'Permanently delete # files from the bindery? This cannot be undone.' })}
+        confirmLabel={rejecting ? t`Deleting...` : t`Delete`}
         destructive
         onConfirm={() => {
           if (confirmReject) {

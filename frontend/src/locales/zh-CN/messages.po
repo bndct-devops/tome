@@ -33,8 +33,16 @@ msgstr ""
 msgid " · {prog}% in"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid " · reviewed"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "— keep existing —"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid ", {errors} failed"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -103,6 +111,11 @@ msgstr ""
 msgid "{0, plural, one {# record} other {# records}}"
 msgstr ""
 
+#. placeholder {0}: candidates.length
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {# result — click to fill form} other {# results — click to fill form}}"
+msgstr ""
+
 #. placeholder {0}: data.reread_bins
 #: src/pages/BookDetailPage.tsx
 msgid "{0, plural, one {# stretch re-read} other {# stretches re-read}}"
@@ -116,6 +129,17 @@ msgstr ""
 #. placeholder {0}: users.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# user} other {# users}}"
+msgstr ""
+
+#. placeholder {0}: group.files.length
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Accept # volume} other {Accept # volumes}}"
+msgstr ""
+
+#. placeholder {0}: acceptedPaths.length
+#. placeholder {0}: result.accepted.length
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Accepted # book} other {Accepted # books}}"
 msgstr ""
 
 #. placeholder {0}: selected.size
@@ -141,6 +165,21 @@ msgstr ""
 #. placeholder {0}: selected.size
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Edit Metadata for # Book} other {Edit Metadata for # Books}}"
+msgstr ""
+
+#. placeholder {0}: group.library_match.volume_count
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {In library · # vol} other {In library · # vols}}"
+msgstr ""
+
+#. placeholder {0}: confirmReject?.length ?? 0
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Permanently delete # file from the bindery? This cannot be undone.} other {Permanently delete # files from the bindery? This cannot be undone.}}"
+msgstr ""
+
+#. placeholder {0}: result.rejected
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Rejected # file} other {Rejected # files}}"
 msgstr ""
 
 #. placeholder {0}: suggestedBooks.length
@@ -191,6 +230,18 @@ msgstr ""
 msgid "{deltaStr}% vs last week"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "{diffDays}d ago"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{diffHrs}h ago"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{diffMins}m ago"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
 msgstr ""
@@ -205,6 +256,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{failedN} of {totalN} failed — {firstErr}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -222,6 +277,14 @@ msgstr ""
 #: src/components/NotificationBell.tsx
 #: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{imp} imported + {inc} incoming"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -249,6 +312,14 @@ msgstr ""
 msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "{n, plural, one {Accepted # volume of {seriesName}} other {Accepted # volumes of {seriesName}}}"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{n, plural, one {Accepted # volume} other {Accepted # volumes}}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
 msgstr ""
@@ -260,6 +331,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{n} selected"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "{n} selected — Clear"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -350,6 +425,22 @@ msgstr ""
 msgid "About"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Accept"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Accept All"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Accept failed"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Accepted: {title}"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Account & Security"
 msgstr ""
@@ -392,6 +483,10 @@ msgstr ""
 msgid "Add Theme"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Add to libraries…"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Add to library"
 msgstr ""
@@ -414,6 +509,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Added"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Added {timeAgo}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -453,6 +552,14 @@ msgstr ""
 msgid "All Devices"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "All imported books accepted"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "All items must have a title"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "All readers: {dur} · {days} · {readers}"
 msgstr ""
@@ -490,6 +597,10 @@ msgstr ""
 msgid "Apply All ({n})"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Apply to all"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Applying {done}/{total}…"
 msgstr ""
@@ -514,9 +625,18 @@ msgstr ""
 msgid "Auth"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Author"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Author applied to {n} files"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Author name"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -535,20 +655,45 @@ msgstr ""
 msgid "avg session"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Back to list"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Backup"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Best match applied to {matched} of {totalN} files — no match for the rest"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Best match applied to all {matched} files"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Bindery"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Bindery flow explained — open docs"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Black"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "book"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Book"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Book accepted"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -561,6 +706,22 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Book not found"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Book rejected and removed"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Book title"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Book Type"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Book type applied to {n} files"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -590,6 +751,7 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -608,6 +770,11 @@ msgstr ""
 msgid "Change Password"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "chapter"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Chapter"
 msgstr ""
@@ -657,6 +824,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Click \"Download plugin ZIP\" above. An API key is automatically created and baked into the plugin — no manual configuration needed."
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Click for details"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -720,6 +891,7 @@ msgid "Configured"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Confirm"
 msgstr ""
@@ -730,6 +902,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Content Type"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -760,8 +936,16 @@ msgstr ""
 msgid "Cover"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Cover preview"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Cover size"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Cover URL"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -820,6 +1004,7 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Delete"
@@ -843,14 +1028,23 @@ msgstr ""
 msgid "Delete Others"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Delete this book from the library? The file will be removed and this cannot be undone."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Delete this highlight"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Deleting..."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Deleting…"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Description"
@@ -889,6 +1083,7 @@ msgid "Directories"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Dismiss"
 msgstr ""
@@ -947,6 +1142,10 @@ msgstr ""
 msgid "Download ZIP"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Drop files in the incoming folder to get started"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Duplicate Detection"
 msgstr ""
@@ -957,6 +1156,18 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "E-Reader Devices"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "e.g. 1"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "e.g. 2023"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "e.g. en"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -1051,6 +1262,7 @@ msgid "Exporting..."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Failed"
 msgstr ""
@@ -1085,6 +1297,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to link sync document"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Failed to load bindery"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1165,8 +1381,16 @@ msgstr ""
 msgid "Failed to update sharing"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "fantasy, action, romance"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Fetch Metadata"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Fetching metadata..."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -1201,6 +1425,11 @@ msgstr ""
 msgid "Focus search"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "for {targetLabel} — click a file to switch"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Format"
@@ -1338,6 +1567,10 @@ msgstr ""
 msgid "Import reading history"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Importing..."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Importing…"
 msgstr ""
@@ -1376,6 +1609,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 msgid "just now"
 msgstr ""
 
@@ -1415,6 +1649,7 @@ msgstr ""
 msgid "Label (e.g. KOReader)"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -1448,8 +1683,13 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Libraries"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Libraries applied to {n} files"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -1499,6 +1739,7 @@ msgstr ""
 msgid "List view"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Loading..."
 msgstr ""
@@ -1556,6 +1797,18 @@ msgstr ""
 msgid "Marked unread — reading progress cleared"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Match all"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Matches \"{name}\" already in your library — name, author, type and libraries adopted from it"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Matching {matchingAll}/{total}…"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Member"
 msgstr ""
@@ -1570,6 +1823,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Metadata saved"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Metadata Suggestions"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1640,6 +1897,10 @@ msgstr ""
 msgid "New password"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "New series"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "new this week"
 msgstr ""
@@ -1708,8 +1969,16 @@ msgstr ""
 msgid "No duplicates found. Your library looks clean."
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "No files in the bindery"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "No fulfilled wishes."
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "No libraries"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1718,6 +1987,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No matching volumes in the library yet."
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "No metadata found"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
@@ -1764,6 +2037,7 @@ msgstr ""
 msgid "No suggested match yet — search for the book to link, or upload it first."
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "No type"
 msgstr ""
@@ -1858,6 +2132,10 @@ msgstr ""
 msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Other files"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Other providers"
 msgstr ""
@@ -1897,6 +2175,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Passwords do not match"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Per-file details"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1984,6 +2266,7 @@ msgstr ""
 msgid "Public library"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
 msgstr ""
@@ -1994,6 +2277,18 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Queue: not a duplicate — never show this group again"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Quick Accept"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Quick Accept Progress"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Quick Accept: {done}/{total} done"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -2100,12 +2395,37 @@ msgstr ""
 msgid "Recently Finished"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Recently Imported"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Refresh"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Register"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Reject"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Reject All"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Reject failed"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Reject files"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Reject imported book"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2120,6 +2440,10 @@ msgstr ""
 msgid "Remove from library"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Rescan the bindery folder"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Resource:"
 msgstr ""
@@ -2130,6 +2454,18 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Resume {volLabel}"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Review"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Review all failed"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Reviewing {n} files"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -2242,6 +2578,10 @@ msgstr ""
 msgid "Search icons…"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Search query..."
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Search to find more icons"
 msgstr ""
@@ -2260,6 +2600,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Select all"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Select All"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -2287,10 +2631,24 @@ msgid "Sent"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Series"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Series #"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Series applied to {n} files"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Series index"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Series name"
@@ -2298,6 +2656,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Series Progress"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Series review"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -2360,6 +2722,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Share with users"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Shared fields — applies to all {n} items"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -2429,6 +2795,14 @@ msgstr ""
 msgid "Single Sign-On"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Size"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Skip"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "SMTP Status"
 msgstr ""
@@ -2486,12 +2860,20 @@ msgstr ""
 msgid "Synced document"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Synopsis or description"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Tag"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Tag: {filterTag}"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Tags (comma-separated)"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -2504,6 +2886,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "That SSO identity is already linked to another account."
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "The book type's own library is always added automatically."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -2546,9 +2932,18 @@ msgstr ""
 msgid "Time per chapter, line view"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Title"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Title *"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Title is required"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -2584,6 +2979,11 @@ msgstr "翻译由社区维护。尚未翻译的内容将以英文显示。"
 msgid "Try adjusting your filters"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Try editing the title or series fields"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Type"
@@ -2599,6 +2999,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Undo"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Ungrouped files"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2699,6 +3103,10 @@ msgstr ""
 msgid "Viewing as <0>{impersonatedUsername}</0>"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Vol {idx}"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Vol. {idx}"
@@ -2708,6 +3116,11 @@ msgstr ""
 msgid "Vol. {volIdx}"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "volume"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Volume"
 msgstr ""
@@ -2778,6 +3191,7 @@ msgstr ""
 msgid "Words"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Year"
