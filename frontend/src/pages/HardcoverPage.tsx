@@ -10,6 +10,10 @@ import type { Book } from '@/lib/books'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
+import { Trans, useLingui } from '@lingui/react/macro'
+import { t, plural, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 
 interface HardcoverStatus {
   linked: boolean
@@ -51,12 +55,12 @@ interface Candidate {
 
 type Filter = 'all' | 'matched' | 'unmatched' | 'excluded' | 'errors'
 
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'matched', label: 'Synced' },
-  { key: 'unmatched', label: 'Not matched' },
-  { key: 'excluded', label: 'Excluded' },
-  { key: 'errors', label: 'Errors' },
+const FILTERS: { key: Filter; label: MessageDescriptor }[] = [
+  { key: 'all', label: msg`All` },
+  { key: 'matched', label: msg`Synced` },
+  { key: 'unmatched', label: msg`Not matched` },
+  { key: 'excluded', label: msg`Excluded` },
+  { key: 'errors', label: msg`Errors` },
 ]
 
 function displayTitle(b: HcBook): string {
@@ -67,16 +71,17 @@ function displayTitle(b: HcBook): string {
     const idx = String(b.series_index)
     const alreadyThere = new RegExp(`vol(?:ume)?\\.?\\s*0*${idx.replace('.', '\\.')}\\b`, 'i').test(b.title)
     if (alreadyThere) return b.title
-    return `${b.title === b.series ? b.series : b.title} · Vol. ${idx}`
+    const base = b.title === b.series ? b.series : b.title
+    return t`${base} · Vol. ${idx}`
   }
   return b.title
 }
 
-const STATE_LABEL: Record<HcBook['state'], string> = {
-  matched: 'Synced',
-  unmatched: 'Not matched',
-  excluded: 'Excluded',
-  pending: 'Not synced yet',
+const STATE_LABEL: Record<HcBook['state'], MessageDescriptor> = {
+  matched: msg`Synced`,
+  unmatched: msg`Not matched`,
+  excluded: msg`Excluded`,
+  pending: msg`Not synced yet`,
 }
 
 const GROUP_KEY = 'tome_hardcover_group'
@@ -110,6 +115,7 @@ type Cell =
   | { kind: 'stack'; volumes: HcBook[] }
 
 export function HardcoverPage() {
+  const { t } = useLingui()
   const { toast } = useToast()
   const [status, setStatus] = useState<HardcoverStatus | null>(null)
   const [unavailable, setUnavailable] = useState(false)
@@ -218,10 +224,10 @@ export function HardcoverPage() {
   async function syncNow() {
     try {
       const r = await api.post<{ started: boolean }>('/hardcover/sync-now', {})
-      toast.info(r.started ? 'Sync started' : 'A sync is already running')
+      toast.info(r.started ? t`Sync started` : t`A sync is already running`)
       setStatus(s => s ? { ...s, sync_running: true } : s)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not start sync')
+      toast.error(err instanceof Error ? err.message : t`Could not start sync`)
     }
   }
 
@@ -229,17 +235,18 @@ export function HardcoverPage() {
     try {
       await api.post(`/hardcover/books/${b.book_id}/rematch`, { mode })
       toast.info(mode === 'retry'
-        ? 'Match cleared — re-matching on the next sync'
-        : 'Excluded from Hardcover sync')
+        ? t`Match cleared — re-matching on the next sync`
+        : t`Excluded from Hardcover sync`)
       await load()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Action failed')
+      toast.error(err instanceof Error ? err.message : t`Action failed`)
     }
   }
 
   async function openPicker(b: HcBook) {
     setPickFor(b)
     const base = b.series && b.series_index != null
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- search query, not copy
       ? `${b.series} Vol. ${b.series_index}` : b.title
     const q = b.author ? `${base} ${b.author}` : base
     setPickQuery(q)
@@ -252,7 +259,7 @@ export function HardcoverPage() {
     try {
       setPickResults(await api.get<Candidate[]>(`/hardcover/search?q=${encodeURIComponent(q)}`))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Search failed')
+      toast.error(err instanceof Error ? err.message : t`Search failed`)
       setPickResults([])
     } finally {
       setPickBusy(false)
@@ -264,11 +271,11 @@ export function HardcoverPage() {
     setPickBusy(true)
     try {
       await api.post(`/hardcover/books/${pickFor.book_id}/match`, { hardcover_book_id: c.hardcover_book_id })
-      toast.success(`Matched to “${c.title}”`)
+      { const title = c.title; toast.success(t`Matched to “${title}”`) }
       setPickFor(null)
       await load()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not set match')
+      toast.error(err instanceof Error ? err.message : t`Could not set match`)
     } finally {
       setPickBusy(false)
     }
@@ -277,7 +284,7 @@ export function HardcoverPage() {
   if (unavailable) {
     return (
       <AppShell>
-        <div className="p-8 text-sm text-muted-foreground">Hardcover sync is disabled on this server.</div>
+        <div className="p-8 text-sm text-muted-foreground"><Trans>Hardcover sync is disabled on this server.</Trans></div>
       </AppShell>
     )
   }
@@ -287,23 +294,24 @@ export function HardcoverPage() {
       <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
         <div className="flex items-center gap-3 mb-1">
           <BookMarked className="w-5 h-5 text-primary" />
+          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
           <h1 className="font-display text-2xl text-foreground">Hardcover</h1>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
-          What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books.
+          <Trans>What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books.</Trans>
         </p>
 
         {!status ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+            <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading…</Trans>
           </div>
         ) : !status.linked ? (
           <div className="rounded-xl border border-border bg-card p-6 text-sm text-foreground/90 max-w-xl">
-            <p className="mb-2">No Hardcover account linked yet.</p>
+            <p className="mb-2"><Trans>No Hardcover account linked yet.</Trans></p>
             <p className="text-muted-foreground">
-              Link your personal API token in{' '}
+              <Trans>Link your personal API token in{' '}
               <Link to="/settings" className="text-primary hover:underline">Settings → Hardcover</Link>{' '}
-              — syncing starts right after.
+              — syncing starts right after.</Trans>
             </p>
           </div>
         ) : (
@@ -315,16 +323,16 @@ export function HardcoverPage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={cn('w-4 h-4', status.sync_running && 'animate-spin')} />
-                {status.sync_running ? 'Syncing…' : 'Sync now'}
+                {status.sync_running ? t`Syncing…` : t`Sync now`}
               </button>
               <span className="text-xs text-muted-foreground mr-2">
                 @{status.username}
-                {status.last_synced_at && ` · last synced ${new Date(status.last_synced_at + 'Z').toLocaleString()}`}
+                {status.last_synced_at && (() => { const when = new Date(status.last_synced_at + 'Z').toLocaleString(i18n.locale); return t` · last synced ${when}` })()}
               </span>
               <div className="flex items-center gap-1 ml-auto">
                 <button
                   onClick={() => persistGroup(!grouped)}
-                  title={grouped ? 'Show individual volumes' : 'Group volumes by series'}
+                  title={grouped ? t`Show individual volumes` : t`Group volumes by series`}
                   aria-pressed={grouped}
                   className={cn(
                     'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all mr-1',
@@ -334,7 +342,7 @@ export function HardcoverPage() {
                   )}
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Group series</span>
+                  <span className="hidden sm:inline"><Trans>Group series</Trans></span>
                 </button>
                 {FILTERS.map(f => {
                   const n = counts[f.key]
@@ -350,7 +358,7 @@ export function HardcoverPage() {
                           : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       )}
                     >
-                      {f.label} <span className="opacity-60">{n}</span>
+                      {i18n._(f.label)} <span className="opacity-60">{n}</span>
                     </button>
                   )
                 })}
@@ -360,7 +368,7 @@ export function HardcoverPage() {
                 <input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Filter…"
+                  placeholder={t`Filter…`}
                   className="pl-7 pr-2 py-1.5 w-40 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
                 />
               </div>
@@ -372,7 +380,7 @@ export function HardcoverPage() {
                   onClick={() => setExpandedSeries(null)}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" /> All books
+                  <ChevronLeft className="w-3.5 h-3.5" /> <Trans>All books</Trans>
                 </button>
                 <span className="text-sm font-medium text-foreground">{expandedSeries}</span>
               </div>
@@ -380,10 +388,10 @@ export function HardcoverPage() {
 
             {books == null ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading books…
+                <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading books…</Trans>
               </div>
             ) : cells.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No books in this view.</p>
+              <p className="text-sm text-muted-foreground"><Trans>No books in this view.</Trans></p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {cells.map(cell => cell.kind === 'stack' ? (
@@ -410,7 +418,7 @@ export function HardcoverPage() {
                           : b.state === 'excluded' ? 'bg-muted-foreground/80 text-black'
                           : 'bg-black/60 text-white'
                       )}>
-                        {b.error ? 'Error' : STATE_LABEL[b.state]}
+                        {b.error ? t`Error` : i18n._(STATE_LABEL[b.state])}
                       </span>
                     </Link>
                     <div className="p-2.5 flex flex-col gap-1 grow">
@@ -426,7 +434,7 @@ export function HardcoverPage() {
                         </a>
                       ) : (
                         <p className="text-[11px] text-muted-foreground truncate">
-                          {b.state === 'excluded' ? 'not syncing' : b.isbn ?? 'no ISBN'}
+                          {b.state === 'excluded' ? t`not syncing` : b.isbn ?? t`no ISBN`}
                         </p>
                       )}
                       {b.error && (
@@ -439,34 +447,34 @@ export function HardcoverPage() {
                         <button
                           onClick={() => void openPicker(b)}
                           className="text-primary hover:underline"
-                          title="Search Hardcover and pick the record yourself"
+                          title={t`Search Hardcover and pick the record yourself`}
                         >
-                          Pick
+                          <Trans>Pick</Trans>
                         </button>
                         {b.state === 'matched' && (
                           <button
                             onClick={() => void rematch(b, 'retry')}
                             className="text-muted-foreground hover:text-foreground"
-                            title="Remove our entry from Hardcover and re-match automatically"
+                            title={t`Remove our entry from Hardcover and re-match automatically`}
                           >
-                            Re-match
+                            <Trans>Re-match</Trans>
                           </button>
                         )}
                         {b.state === 'excluded' ? (
                           <button
                             onClick={() => void rematch(b, 'retry')}
                             className="text-muted-foreground hover:text-foreground"
-                            title="Start matching this book again"
+                            title={t`Start matching this book again`}
                           >
-                            Include
+                            <Trans>Include</Trans>
                           </button>
                         ) : (
                           <button
                             onClick={() => void rematch(b, 'exclude')}
                             className="text-muted-foreground hover:text-destructive"
-                            title="Never sync this book"
+                            title={t`Never sync this book`}
                           >
-                            Exclude
+                            <Trans>Exclude</Trans>
                           </button>
                         )}
                       </div>
@@ -492,9 +500,9 @@ export function HardcoverPage() {
             <div className="p-4 border-b border-border">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <p className="text-sm font-medium text-foreground truncate">
-                  Match “{displayTitle(pickFor)}” to…
+                  {(() => { const title = displayTitle(pickFor); return <Trans>Match “{title}” to…</Trans> })()}
                 </p>
-                <button onClick={() => setPickFor(null)} aria-label="Close"
+                <button onClick={() => setPickFor(null)} aria-label={t`Close`}
                         className="text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
@@ -505,7 +513,7 @@ export function HardcoverPage() {
                   onChange={e => setPickQuery(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') void runPickSearch(pickQuery) }}
                   autoFocus
-                  placeholder="Search Hardcover…"
+                  placeholder={t`Search Hardcover…`}
                   className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                 />
                 <button
@@ -513,17 +521,17 @@ export function HardcoverPage() {
                   disabled={pickBusy}
                   className="px-3 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
                 >
-                  Search
+                  <Trans>Search</Trans>
                 </button>
               </div>
             </div>
             <div className="max-h-[50vh] overflow-y-auto">
               {pickResults == null ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Searching…
+                  <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Searching…</Trans>
                 </div>
               ) : pickResults.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-4">No results — try a different query.</p>
+                <p className="text-sm text-muted-foreground p-4"><Trans>No results — try a different query.</Trans></p>
               ) : (
                 <ul className="divide-y divide-border">
                   {pickResults.map(c => (
@@ -541,8 +549,8 @@ export function HardcoverPage() {
                         <span className="min-w-0">
                           <span className="block text-sm text-foreground truncate">{c.title}</span>
                           <span className="block text-xs text-muted-foreground truncate">
-                            {c.authors.join(', ') || 'unknown author'}
-                            {c.users_count > 0 && ` · ${c.users_count} reader${c.users_count === 1 ? '' : 's'}`}
+                            {c.authors.join(', ') || t`unknown author`}
+                            {c.users_count > 0 && ' · ' + plural(c.users_count, { one: '# reader', other: '# readers' })}
                           </span>
                         </span>
                       </button>

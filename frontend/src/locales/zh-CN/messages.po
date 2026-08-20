@@ -49,6 +49,10 @@ msgstr ""
 msgid " · finished {d}"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid " · last synced {when}"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid " · reviewed"
 msgstr ""
@@ -136,7 +140,9 @@ msgid "{0, plural, one {# duplicate group found.} other {# duplicate groups foun
 msgstr ""
 
 #. placeholder {0}: aggregate.distinct_readers
+#. placeholder {0}: c.users_count
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "{0, plural, one {# reader} other {# readers}}"
 msgstr ""
 
@@ -248,6 +254,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{added} added · {skipped} skipped"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "{base} · Vol. {idx}"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
@@ -489,6 +499,10 @@ msgstr ""
 msgid "A newer release is available — the link opens the release notes. Update by pulling the new image and restarting the container."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "A sync is already running"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "A while ago"
 msgstr ""
@@ -515,6 +529,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Account & Security"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Action failed"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -610,6 +628,7 @@ msgid "Admin access required."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "All"
 msgstr ""
 
@@ -623,6 +642,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "All actions"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "All books"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -918,6 +941,7 @@ msgid "Click for details"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Close"
 msgstr ""
 
@@ -1047,8 +1071,16 @@ msgstr ""
 msgid "Could not link SSO. Please try again."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Could not set match"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Could not start SSO linking."
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Could not start sync"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1365,6 +1397,14 @@ msgstr ""
 msgid "Ember"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Error"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Errors"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
 msgstr ""
@@ -1375,6 +1415,18 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Exact Match"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Exclude"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Excluded"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Excluded from Hardcover sync"
 msgstr ""
 
 #: src/components/ImpersonationBanner.tsx
@@ -1572,6 +1624,10 @@ msgstr ""
 msgid "File is missing from disk"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Filter…"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Filters"
 msgstr ""
@@ -1679,10 +1735,12 @@ msgid "Group by series"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Group series"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Group volumes by series"
 msgstr ""
 
@@ -1692,6 +1750,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Hardcover"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Hardcover sync is disabled on this server."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1802,6 +1864,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Inactive"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Include"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -1953,6 +2019,10 @@ msgstr ""
 msgid "Link your identity provider to this account so you can sign in with SSO. Your existing login keeps working."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Link your personal API token in <0>Settings → Hardcover</0> — syncing starts right after."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Linked"
 msgstr ""
@@ -1969,11 +2039,16 @@ msgstr ""
 msgid "Load more ({left} left)"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Loading books…"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Loading..."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
 #: src/pages/SharePage.tsx
 msgid "Loading…"
 msgstr ""
@@ -2035,8 +2110,20 @@ msgstr ""
 msgid "Marked unread — reading progress cleared"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Match “{title}” to…"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Match all"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Match cleared — re-matching on the next sync"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Matched to “{title}”"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -2123,6 +2210,10 @@ msgstr ""
 msgid "Never"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Never sync this book"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "never used"
 msgstr ""
@@ -2199,6 +2290,10 @@ msgstr ""
 msgid "No books have been sent yet."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "No books in this view."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
 msgstr ""
@@ -2223,12 +2318,20 @@ msgstr ""
 msgid "No fulfilled wishes."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "No Hardcover account linked yet."
+msgstr ""
+
 #: src/pages/HighlightsPage.tsx
 msgid "No highlights match your search."
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "No highlights yet"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "no ISBN"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -2269,6 +2372,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "No reading logged yet. Track time by hand — handy for a paper copy or a device that isn't synced."
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "No results — try a different query."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -2321,8 +2428,20 @@ msgstr ""
 msgid "Not found"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Not matched"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "not read"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Not synced yet"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "not syncing"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -2480,6 +2599,10 @@ msgstr ""
 msgid "Per-file details"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Pick"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Pick up where you left off"
 msgstr ""
@@ -2619,6 +2742,10 @@ msgstr ""
 msgid "Rating"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Re-match"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "read"
@@ -2741,6 +2868,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Remove from library"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Remove our entry from Hardcover and re-match automatically"
 msgstr ""
 
 #: src/pages/WishlistPage.tsx
@@ -2867,6 +2998,10 @@ msgstr ""
 msgid "Scope"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Search"
+msgstr ""
+
 #: src/components/AppHeader.tsx
 msgid "Search books"
 msgstr ""
@@ -2875,12 +3010,24 @@ msgstr ""
 msgid "Search books… (/)"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Search failed"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Search for a book in the library…"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Search for a different book…"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Search Hardcover and pick the record yourself"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Search Hardcover…"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -2897,6 +3044,10 @@ msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "Search your highlights…"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Searching…"
 msgstr ""
 
 #: src/components/AppShell.tsx
@@ -3087,6 +3238,7 @@ msgid "Show details"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Show individual volumes"
 msgstr ""
 
@@ -3184,6 +3336,10 @@ msgstr ""
 msgid "Start {volLabel}"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Start matching this book again"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Start reading and your progress will show up here"
 msgstr ""
@@ -3209,12 +3365,24 @@ msgstr ""
 msgid "Subtitle (optional)"
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Sync now"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Sync reading position between KOReader and Tome."
 msgstr ""
 
+#: src/pages/HardcoverPage.tsx
+msgid "Sync started"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Sync Status"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Synced"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3223,6 +3391,10 @@ msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "Synced to Tome {when}"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Syncing…"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -3386,6 +3558,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Ungrouped files"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "unknown author"
 msgstr ""
 
 #: src/pages/WishlistPage.tsx
@@ -3569,6 +3745,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "What did you think? (optional, saved automatically)"
+msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
