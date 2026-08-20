@@ -25,13 +25,25 @@ msgstr " — MISSING"
 msgid " · {dups} duplicates"
 msgstr " · {dups} duplicates"
 
+#: src/pages/SharePage.tsx
+msgid " · {dur} read time"
+msgstr " · {dur} read time"
+
 #: src/pages/AdminPage.tsx
 msgid " · {errs} error(s)"
 msgstr " · {errs} error(s)"
 
+#: src/pages/SharePage.tsx
+msgid " · {n} read"
+msgstr " · {n} read"
+
 #: src/pages/BookDetailPage.tsx
 msgid " · {prog}% in"
 msgstr " · {prog}% in"
+
+#: src/pages/SharePage.tsx
+msgid " · finished {d}"
+msgstr " · finished {d}"
 
 #: src/pages/BinderyPage.tsx
 msgid " · reviewed"
@@ -61,6 +73,18 @@ msgstr "…and {more} more not shown"
 msgid "· {n} docs"
 msgstr "· {n} docs"
 
+#: src/pages/SharePage.tsx
+msgid "· a shared book"
+msgstr "· a shared book"
+
+#: src/pages/SharePage.tsx
+msgid "· a shared series"
+msgstr "· a shared series"
+
+#: src/pages/SharePage.tsx
+msgid "· a shared shelf"
+msgstr "· a shared shelf"
+
 #: src/pages/BookDetailPage.tsx
 msgid "· p. {page} of {totalPages}"
 msgstr "· p. {page} of {totalPages}"
@@ -81,13 +105,20 @@ msgstr "(leave blank to keep)"
 msgid "(not set)"
 msgstr "(not set)"
 
+#. placeholder {0}: b.stats.reading_days
+#: src/pages/SharePage.tsx
+msgid "{0, plural, one {{dur} over # day} other {{dur} over # days}}"
+msgstr "{0, plural, one {{dur} over # day} other {{dur} over # days}}"
+
 #. placeholder {0}: res.errors.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 
+#. placeholder {0}: data.totals.books
 #. placeholder {0}: s.book_count
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
 msgstr "{0, plural, one {# book} other {# books}}"
 
@@ -131,6 +162,11 @@ msgstr "{0, plural, one {# suggested match} other {# suggested matches}}"
 msgid "{0, plural, one {# user} other {# users}}"
 msgstr "{0, plural, one {# user} other {# users}}"
 
+#. placeholder {0}: data.totals.books
+#: src/pages/SharePage.tsx
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, one {# volume} other {# volumes}}"
+
 #. placeholder {0}: group.files.length
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Accept # volume} other {Accept # volumes}}"
@@ -161,6 +197,11 @@ msgstr "{0, plural, one {Delete # book} other {Delete # books}}"
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Deleting # book...} other {Deleting # books...}}"
 msgstr "{0, plural, one {Deleting # book...} other {Deleting # books...}}"
+
+#. placeholder {0}: b.highlights.length
+#: src/pages/SharePage.tsx
+msgid "{0, plural, one {Description & # highlight} other {Description & # highlights}}"
+msgstr "{0, plural, one {Description & # highlight} other {Description & # highlights}}"
 
 #. placeholder {0}: selected.size
 #: src/pages/DashboardPage.tsx
@@ -263,10 +304,12 @@ msgid "{failedN} of {totalN} failed — {firstErr}"
 msgstr "{failedN} of {totalN} failed — {firstErr}"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "{h}h"
 msgstr "{h}h"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "{h}h {m}m"
 msgstr "{h}h {m}m"
 
@@ -288,6 +331,7 @@ msgid "{inc, plural, one {# file waiting for review} other {# files waiting for 
 msgstr "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "{m}m"
 msgstr "{m}m"
 
@@ -352,6 +396,10 @@ msgstr "{pacePerMin} pg/min"
 #: src/pages/DashboardPage.tsx
 msgid "{readCount} read · {readingCount} reading · {unreadCount} unread"
 msgstr "{readCount} read · {readingCount} reading · {unreadCount} unread"
+
+#: src/pages/SharePage.tsx
+msgid "{readN} read · {unreadN} unread"
+msgstr "{readN} read · {unreadN} unread"
 
 #: src/pages/BookDetailPage.tsx
 msgid "{recent} in the last 7 days vs {prior} the week before"
@@ -647,6 +695,10 @@ msgstr "Author: {filterAuthor}"
 msgid "Authorize"
 msgstr "Authorize"
 
+#: src/pages/LoginPage.tsx
+msgid "Authorize this code from another device"
+msgstr "Authorize this code from another device"
+
 #: src/pages/SettingsPage.tsx
 msgid "Authorizing..."
 msgstr "Authorizing..."
@@ -754,6 +806,7 @@ msgstr "Browse your library"
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/LoginPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Cancel"
 msgstr "Cancel"
@@ -838,6 +891,10 @@ msgstr "Close"
 msgid "Close navigation"
 msgstr "Close navigation"
 
+#: src/pages/LoginPage.tsx
+msgid "Code expired. Try again."
+msgstr "Code expired. Try again."
+
 #: src/pages/SettingsPage.tsx
 msgid "Code from new device"
 msgstr "Code from new device"
@@ -900,6 +957,10 @@ msgstr "Confirm"
 msgid "Confirm new password"
 msgstr "Confirm new password"
 
+#: src/pages/SetupPage.tsx
+msgid "Confirm password"
+msgstr "Confirm password"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
 msgstr "Content"
@@ -956,6 +1017,14 @@ msgstr "Covers"
 #: src/pages/SettingsPage.tsx
 msgid "Create"
 msgstr "Create"
+
+#: src/pages/SetupPage.tsx
+msgid "Create admin account"
+msgstr "Create admin account"
+
+#: src/pages/SetupPage.tsx
+msgid "Create your admin account to get started"
+msgstr "Create your admin account to get started"
 
 #: src/pages/SettingsPage.tsx
 msgid "Created"
@@ -1047,6 +1116,7 @@ msgstr "Deleting…"
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "Description"
 msgstr "Description"
 
@@ -1210,6 +1280,7 @@ msgstr "Edit User"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Email"
 msgstr "Email"
 
@@ -1248,6 +1319,10 @@ msgstr "Exit selection mode"
 #: src/components/Sidebar.tsx
 msgid "Expand sidebar"
 msgstr "Expand sidebar"
+
+#: src/pages/LoginPage.tsx
+msgid "Expires in {timeLeft}"
+msgstr "Expires in {timeLeft}"
 
 #: src/pages/SettingsPage.tsx
 msgid "Export"
@@ -1294,6 +1369,10 @@ msgstr "Failed to create token"
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to delete highlight"
 msgstr "Failed to delete highlight"
+
+#: src/pages/LoginPage.tsx
+msgid "Failed to generate code. Try again."
+msgstr "Failed to generate code. Try again."
 
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to link sync document"
@@ -1402,6 +1481,7 @@ msgid "Filters"
 msgstr "Filters"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "finished"
 msgstr "finished"
 
@@ -1505,6 +1585,7 @@ msgid "Hardcover"
 msgstr "Hardcover"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "hiatus"
 msgstr "hiatus"
 
@@ -1537,6 +1618,10 @@ msgstr "Host"
 #: src/pages/BookDetailPage.tsx
 msgid "How far through the book you'd read by each date."
 msgstr "How far through the book you'd read by each date."
+
+#: src/pages/LoginPage.tsx
+msgid "How to authorize"
+msgstr "How to authorize"
 
 #: src/pages/SettingsPage.tsx
 msgid "How to set it up"
@@ -1633,6 +1718,10 @@ msgstr "Keyboard Shortcuts"
 msgid "Kindle users"
 msgstr "Kindle users"
 
+#: src/pages/SetupPage.tsx
+msgid "KOReader Sync"
+msgstr "KOReader Sync"
+
 #: src/pages/BookDetailPage.tsx
 msgid "KOReader sync linked"
 msgstr "KOReader sync linked"
@@ -1680,6 +1769,14 @@ msgstr "Last used"
 #: src/pages/SettingsPage.tsx
 msgid "Learn more"
 msgstr "Learn more"
+
+#: src/pages/SharePage.tsx
+msgid "Less"
+msgstr "Less"
+
+#: src/pages/SetupPage.tsx
+msgid "librarian"
+msgstr "librarian"
 
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
@@ -1744,6 +1841,10 @@ msgstr "List view"
 msgid "Loading..."
 msgstr "Loading..."
 
+#: src/pages/SharePage.tsx
+msgid "Loading…"
+msgstr "Loading…"
+
 #: src/pages/AdminPage.tsx
 msgid "Log in as this user"
 msgstr "Log in as this user"
@@ -1755,6 +1856,10 @@ msgstr "Log out"
 #: src/pages/BookDetailPage.tsx
 msgid "Log session"
 msgstr "Log session"
+
+#: src/pages/LoginPage.tsx
+msgid "Login failed"
+msgstr "Login failed"
 
 #: src/pages/SettingsPage.tsx
 msgid "Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation."
@@ -1828,6 +1933,10 @@ msgstr "Metadata saved"
 #: src/pages/BinderyPage.tsx
 msgid "Metadata Suggestions"
 msgstr "Metadata Suggestions"
+
+#: src/pages/SetupPage.tsx
+msgid "Minimum 8 characters"
+msgstr "Minimum 8 characters"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Minutes"
@@ -2037,6 +2146,10 @@ msgstr "No series found — add series metadata to your books."
 msgid "No suggested match yet — search for the book to link, or upload it first."
 msgstr "No suggested match yet — search for the book to link, or upload it first."
 
+#: src/pages/LoginPage.tsx
+msgid "No Tome account is linked to this identity, and self-signup is disabled."
+msgstr "No Tome account is linked to this identity, and self-signup is disabled."
+
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "No type"
@@ -2059,6 +2172,10 @@ msgstr "None"
 msgid "Not configured"
 msgstr "Not configured"
 
+#: src/pages/SharePage.tsx
+msgid "Not found"
+msgstr "Not found"
+
 #: src/pages/BookDetailPage.tsx
 msgid "not read"
 msgstr "not read"
@@ -2074,6 +2191,10 @@ msgstr "Note removed"
 #: src/pages/BookDetailPage.tsx
 msgid "Note saved — syncs to your devices"
 msgstr "Note saved — syncs to your devices"
+
+#: src/pages/SharePage.tsx
+msgid "Nothing here yet."
+msgstr "Nothing here yet."
 
 #: src/pages/DashboardPage.tsx
 msgid "Nothing in progress"
@@ -2092,11 +2213,16 @@ msgstr "Notifications"
 msgid "of {totalPages} pages"
 msgstr "of {totalPages} pages"
 
+#: src/pages/LoginPage.tsx
+msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+msgstr "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+
 #: src/pages/DashboardPage.tsx
 msgid "On this day"
 msgstr "On this day"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "ongoing"
 msgstr "ongoing"
 
@@ -2140,6 +2266,10 @@ msgstr "Other files"
 msgid "Other providers"
 msgstr "Other providers"
 
+#: src/pages/SharePage.tsx
+msgid "Other volumes"
+msgstr "Other volumes"
+
 #: src/pages/SettingsPage.tsx
 msgid "Owner"
 msgstr "Owner"
@@ -2161,11 +2291,14 @@ msgid "password"
 msgstr "password"
 
 #: src/pages/AdminPage.tsx
+#: src/pages/LoginPage.tsx
 #: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Password"
 msgstr "Password"
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Password must be at least 8 characters"
 msgstr "Password must be at least 8 characters"
 
@@ -2174,6 +2307,7 @@ msgid "Password updated successfully"
 msgstr "Password updated successfully"
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Passwords do not match"
 msgstr "Passwords do not match"
 
@@ -2291,6 +2425,7 @@ msgstr "Quick Accept Progress"
 msgid "Quick Accept: {done}/{total} done"
 msgstr "Quick Accept: {done}/{total} done"
 
+#: src/pages/LoginPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Quick Connect"
 msgstr "Quick Connect"
@@ -2327,6 +2462,7 @@ msgstr "read"
 #: src/components/BookCard.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "Read"
 msgstr "Read"
 
@@ -2368,6 +2504,7 @@ msgid "reading"
 msgstr "reading"
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "Reading"
 msgstr "Reading"
 
@@ -2384,6 +2521,7 @@ msgid "Reading Log"
 msgstr "Reading Log"
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Reading Stats"
 msgstr "Reading Stats"
 
@@ -2699,6 +2837,10 @@ msgstr "Set the following environment variables to enable Send to Device:"
 msgid "Settings"
 msgstr "Settings"
 
+#: src/pages/SetupPage.tsx
+msgid "Setup failed"
+msgstr "Setup failed"
+
 #: src/pages/SettingsPage.tsx
 msgid "Setup instructions"
 msgstr "Setup instructions"
@@ -2727,6 +2869,10 @@ msgstr "Share with users"
 #: src/pages/BinderyPage.tsx
 msgid "Shared fields — applies to all {n} items"
 msgstr "Shared fields — applies to all {n} items"
+
+#: src/pages/SharePage.tsx
+msgid "Shared from a self-hosted Tome library"
+msgstr "Shared from a self-hosted Tome library"
 
 #: src/pages/DashboardPage.tsx
 msgid "Shared Library"
@@ -2783,9 +2929,21 @@ msgstr "Show more"
 msgid "Show this help"
 msgstr "Show this help"
 
+#: src/pages/LoginPage.tsx
+msgid "Sign in"
+msgstr "Sign in"
+
 #: src/pages/SettingsPage.tsx
 msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
 msgstr "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+
+#: src/pages/LoginPage.tsx
+msgid "Sign in to your library"
+msgstr "Sign in to your library"
+
+#: src/pages/OidcCallbackPage.tsx
+msgid "Signing you in…"
+msgstr "Signing you in…"
 
 #: src/pages/AdminPage.tsx
 msgid "Similar Title"
@@ -2815,6 +2973,30 @@ msgstr "Sort Order"
 msgid "Source"
 msgstr "Source"
 
+#: src/pages/LoginPage.tsx
+msgid "SSO is misconfigured on the server (redirect URL). Contact your admin."
+msgstr "SSO is misconfigured on the server (redirect URL). Contact your admin."
+
+#: src/pages/LoginPage.tsx
+msgid "SSO is not enabled."
+msgstr "SSO is not enabled."
+
+#: src/pages/LoginPage.tsx
+msgid "SSO sign-in could not be completed. Please try again."
+msgstr "SSO sign-in could not be completed. Please try again."
+
+#: src/pages/LoginPage.tsx
+msgid "SSO sign-in did not complete. Please try again."
+msgstr "SSO sign-in did not complete. Please try again."
+
+#: src/pages/LoginPage.tsx
+msgid "SSO sign-in failed: no identity information was returned."
+msgstr "SSO sign-in failed: no identity information was returned."
+
+#: src/pages/LoginPage.tsx
+msgid "SSO sign-in failed. Please try again."
+msgstr "SSO sign-in failed. Please try again."
+
 #: src/pages/SettingsPage.tsx
 msgid "SSO sign-in linked to your account."
 msgstr "SSO sign-in linked to your account."
@@ -2843,6 +3025,10 @@ msgstr "Status"
 #: src/pages/DashboardPage.tsx
 msgid "Status: {filterStatusLabel}"
 msgstr "Status: {filterStatusLabel}"
+
+#: src/pages/SetupPage.tsx
+msgid "Strong enough"
+msgstr "Strong enough"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Subtitle (optional)"
@@ -2963,6 +3149,11 @@ msgstr "Toggle only-notes filter"
 msgid "Token name"
 msgstr "Token name"
 
+#: src/pages/LoginPage.tsx
+#: src/pages/SetupPage.tsx
+msgid "Tome · Your personal library"
+msgstr "Tome · Your personal library"
+
 #: src/pages/SettingsPage.tsx
 msgid "TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position."
 msgstr "TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position."
@@ -2978,6 +3169,10 @@ msgstr "Translations are community-maintained. Anything not yet translated is sh
 #: src/pages/DashboardPage.tsx
 msgid "Try adjusting your filters"
 msgstr "Try adjusting your filters"
+
+#: src/pages/LoginPage.tsx
+msgid "Try again"
+msgstr "Try again"
 
 #: src/pages/BinderyPage.tsx
 msgid "Try editing the title or series fields"
@@ -3084,8 +3279,13 @@ msgstr "User menu"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Username"
 msgstr "Username"
+
+#: src/pages/LoginPage.tsx
+msgid "Username or email"
+msgstr "Username or email"
 
 #: src/pages/AdminPage.tsx
 msgid "Users"
@@ -3106,6 +3306,10 @@ msgstr "Viewing as <0>{impersonatedUsername}</0>"
 #: src/pages/BinderyPage.tsx
 msgid "Vol {idx}"
 msgstr "Vol {idx}"
+
+#: src/pages/SharePage.tsx
+msgid "Vol. {a}–{b}"
+msgstr "Vol. {a}–{b}"
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -3128,6 +3332,10 @@ msgstr "Volume"
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Volumes"
+
+#: src/pages/LoginPage.tsx
+msgid "Waiting for authorization…"
+msgstr "Waiting for authorization…"
 
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."
@@ -3157,6 +3365,14 @@ msgstr "Web"
 #: src/pages/BookDetailPage.tsx
 msgid "Web reader"
 msgstr "Web reader"
+
+#: src/pages/LoginPage.tsx
+msgid "Welcome back"
+msgstr "Welcome back"
+
+#: src/pages/SetupPage.tsx
+msgid "Welcome to Tome"
+msgstr "Welcome to Tome"
 
 #: src/pages/BookDetailPage.tsx
 msgid "What did you think? (optional, saved automatically)"
@@ -3218,6 +3434,18 @@ msgstr "You're signed in via SSO. Manage your credentials at your identity provi
 msgid "Your account is linked to SSO — you can sign in with your identity provider."
 msgstr "Your account is linked to SSO — you can sign in with your identity provider."
 
+#: src/pages/LoginPage.tsx
+msgid "Your account is not permitted to sign in to Tome."
+msgstr "Your account is not permitted to sign in to Tome."
+
+#: src/pages/SetupPage.tsx
+msgid "Your library"
+msgstr "Your library"
+
+#: src/pages/SetupPage.tsx
+msgid "Your Library"
+msgstr "Your Library"
+
 #: src/pages/DashboardPage.tsx
 msgid "Your library is empty"
 msgstr "Your library is empty"
@@ -3229,6 +3457,10 @@ msgstr "Your note — syncs back to KOReader on the next sync"
 #: src/pages/SettingsPage.tsx
 msgid "Your server admin needs to set SMTP environment variables:"
 msgstr "Your server admin needs to set SMTP environment variables:"
+
+#: src/pages/LoginPage.tsx
+msgid "Your Tome account is disabled."
+msgstr "Your Tome account is disabled."
 
 #: src/pages/SettingsPage.tsx
 msgid "your Tome password"

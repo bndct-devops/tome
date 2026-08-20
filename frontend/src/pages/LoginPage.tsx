@@ -5,20 +5,24 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ThemePill } from '@/components/ThemeToggle'
 import { BookAnimation } from '@/components/BookAnimation'
 import { cn } from '@/lib/utils'
+import { Trans, useLingui } from '@lingui/react/macro'
+import { msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 
 const API_BASE = '/api'
 
 // Human-readable messages for the ?sso_error= codes the OIDC callback bounces back.
-const SSO_ERRORS: Record<string, string> = {
-  misconfigured: 'SSO is misconfigured on the server (redirect URL). Contact your admin.',
-  disabled: 'SSO is not enabled.',
-  exchange: 'SSO sign-in could not be completed. Please try again.',
-  claims: 'SSO sign-in failed: no identity information was returned.',
-  not_allowed: 'Your account is not permitted to sign in to Tome.',
-  no_account: 'No Tome account is linked to this identity, and self-signup is disabled.',
-  inactive: 'Your Tome account is disabled.',
-  oidc_error: 'SSO sign-in failed. Please try again.',
-  callback: 'SSO sign-in did not complete. Please try again.',
+const SSO_ERRORS: Record<string, MessageDescriptor> = {
+  misconfigured: msg`SSO is misconfigured on the server (redirect URL). Contact your admin.`,
+  disabled: msg`SSO is not enabled.`,
+  exchange: msg`SSO sign-in could not be completed. Please try again.`,
+  claims: msg`SSO sign-in failed: no identity information was returned.`,
+  not_allowed: msg`Your account is not permitted to sign in to Tome.`,
+  no_account: msg`No Tome account is linked to this identity, and self-signup is disabled.`,
+  inactive: msg`Your Tome account is disabled.`,
+  oidc_error: msg`SSO sign-in failed. Please try again.`,
+  callback: msg`SSO sign-in did not complete. Please try again.`,
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -31,6 +35,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function LoginPage() {
+  const { t } = useLingui()
   const { user, login, refreshUser } = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
@@ -49,7 +54,7 @@ export function LoginPage() {
     // Surface an error bounced back from the OIDC callback (?sso_error=…)
     const reason = new URLSearchParams(window.location.search).get('sso_error')
     if (reason) {
-      setError(SSO_ERRORS[reason] ?? 'SSO sign-in failed. Please try again.')
+      setError(SSO_ERRORS[reason] ? i18n._(SSO_ERRORS[reason]) : t`SSO sign-in failed. Please try again.`)
       // Clean the query string so a refresh doesn't re-show it
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -72,7 +77,7 @@ export function LoginPage() {
       await login(username, password)
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : t`Login failed`)
     } finally {
       setLoading(false)
     }
@@ -106,7 +111,7 @@ export function LoginPage() {
         if (secs <= 0) {
           if (timerRef.current) clearInterval(timerRef.current)
           if (pollRef.current) clearInterval(pollRef.current)
-          setQcError('Code expired. Try again.')
+          setQcError(t`Code expired. Try again.`)
         }
       }
       updateTimer()
@@ -135,12 +140,12 @@ export function LoginPage() {
           if (e.status === 410) {
             if (pollRef.current) clearInterval(pollRef.current)
             if (timerRef.current) clearInterval(timerRef.current)
-            setQcError('Code expired. Try again.')
+            setQcError(t`Code expired. Try again.`)
           }
         }
       }, 2000)
     } catch {
-      setQcError('Failed to generate code. Try again.')
+      setQcError(t`Failed to generate code. Try again.`)
       setQcLoading(false)
       setQcMode(false)
     } finally {
@@ -165,6 +170,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-top">
+      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
       <style>{`
         @keyframes fade-in-up {
           from { opacity: 0; transform: translateY(12px); }
@@ -190,15 +196,15 @@ export function LoginPage() {
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-medium text-foreground">Quick Connect</h2>
+                  <h2 className="text-lg font-medium text-foreground"><Trans>Quick Connect</Trans></h2>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Authorize this code from another device
+                    <Trans>Authorize this code from another device</Trans>
                   </p>
                 </div>
                 <button
                   onClick={stopQc}
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  title="Cancel"
+                  title={t`Cancel`}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -214,7 +220,7 @@ export function LoginPage() {
                     onClick={() => { setQcError(null); setQcMode(false) }}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-all"
                   >
-                    Try again
+                    <Trans>Try again</Trans>
                   </button>
                 </div>
               ) : qcLoading ? (
@@ -229,18 +235,18 @@ export function LoginPage() {
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
                       <Clock className="w-3 h-3" />
-                      <span>Expires in {fmtTime(qcSecondsLeft)}</span>
+                      {(() => { const timeLeft = fmtTime(qcSecondsLeft); return <span><Trans>Expires in {timeLeft}</Trans></span> })()}
                     </div>
                   </div>
 
                   <div className="rounded-lg bg-muted/60 border border-border px-4 py-3 text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground text-sm">How to authorize</p>
-                    <p>On a device where you're already signed in, go to <span className="font-medium text-foreground">Settings &rarr; Security &rarr; Quick Connect</span> and enter this code.</p>
+                    <p className="font-medium text-foreground text-sm"><Trans>How to authorize</Trans></p>
+                    <p><Trans>On a device where you're already signed in, go to <span className="font-medium text-foreground">Settings &rarr; Security &rarr; Quick Connect</span> and enter this code.</Trans></p>
                   </div>
 
                   <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <div className="w-3.5 h-3.5 border-2 border-primary/50 border-t-primary rounded-full animate-spin" />
-                    Waiting for authorization…
+                    <Trans>Waiting for authorization…</Trans>
                   </div>
                 </div>
               ) : null}
@@ -248,13 +254,13 @@ export function LoginPage() {
           ) : (
             /* Normal login view */
             <>
-              <h2 className="text-lg font-medium text-foreground mb-1">Welcome back</h2>
-              <p className="text-sm text-muted-foreground mb-6">Sign in to your library</p>
+              <h2 className="text-lg font-medium text-foreground mb-1"><Trans>Welcome back</Trans></h2>
+              <p className="text-sm text-muted-foreground mb-6"><Trans>Sign in to your library</Trans></p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Username or email
+                    <Trans>Username or email</Trans>
                   </label>
                   <input
                     type="text"
@@ -275,7 +281,7 @@ export function LoginPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Password
+                    <Trans>Password</Trans>
                   </label>
                   <div className="relative">
                     <input
@@ -327,7 +333,7 @@ export function LoginPage() {
                   ) : (
                     <>
                       <LogIn className="w-4 h-4" />
-                      Sign in
+                      <Trans>Sign in</Trans>
                     </>
                   )}
                 </button>
@@ -359,7 +365,7 @@ export function LoginPage() {
                   )}
                 >
                   <Smartphone className="w-4 h-4" />
-                  Quick Connect
+                  <Trans>Quick Connect</Trans>
                 </button>
               </div>
             </>
@@ -367,7 +373,7 @@ export function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Tome · Your personal library
+          <Trans>Tome · Your personal library</Trans>
         </p>
       </div>
     </div>

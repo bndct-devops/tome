@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { Trans } from '@lingui/react/macro'
 
 /**
  * Lands the OIDC redirect. The backend appends the freshly minted Tome JWT to
@@ -35,7 +36,7 @@ export function OidcCallbackPage() {
     <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
       <div className="flex items-center gap-3 text-sm">
         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        Signing you in…
+        <Trans>Signing you in…</Trans>
       </div>
     </div>
   )

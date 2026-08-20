@@ -7,6 +7,10 @@ import { useParams } from 'react-router-dom'
 import { BookOpen, ChevronDown, Quote, Star, StickyNote } from 'lucide-react'
 import { TomeMark } from '@/components/TomeMark'
 import { cn } from '@/lib/utils'
+import { Trans, Plural } from '@lingui/react/macro'
+import { t, plural, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 import { applyTheme, getStoredTheme } from '@/lib/theme'
 
 interface SharedHighlight {
@@ -81,8 +85,8 @@ function groupByArc(books: SharedBook[], arcs: SharedArc[]): { arc: SharedArc | 
 function fmtDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.round((seconds % 3600) / 60)
-  if (h === 0) return `${m}m`
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
+  if (h === 0) return t`${m}m`
+  return m === 0 ? t`${h}h` : t`${h}h ${m}m`
 }
 
 function fmtDay(iso: string): string {
@@ -91,7 +95,12 @@ function fmtDay(iso: string): string {
   })
 }
 
+const SERIES_STATUS_WORDS: Record<string, MessageDescriptor> = {
+  ongoing: msg`ongoing`, finished: msg`finished`, hiatus: msg`hiatus`,
+}
+
 const DAY_MS = 86400000
+// eslint-disable-next-line lingui/no-unlocalized-strings -- ISO suffix
 const dayNum = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY_MS)
 
 /** The owner's reading of this book as a day-intensity strip — the same
@@ -167,15 +176,14 @@ function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen
           {b.rating != null && <div className="mt-1.5"><Rating value={b.rating} /></div>}
           {b.stats && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {b.stats.status === 'read' ? 'Read' : b.stats.status === 'reading' ? 'Reading' : null}
+              {b.stats.status === 'read' ? t`Read` : b.stats.status === 'reading' ? t`Reading` : null}
               {b.stats.total_seconds > 0 && (
                 <>
                   {b.stats.status ? ' · ' : ''}
-                  {fmtDuration(b.stats.total_seconds)} over {b.stats.reading_days}{' '}
-                  {b.stats.reading_days === 1 ? 'day' : 'days'}
+                  {(() => { const dur = fmtDuration(b.stats.total_seconds); return plural(b.stats.reading_days, { one: `${dur} over # day`, other: `${dur} over # days` }) })()}
                 </>
               )}
-              {b.stats.finished_on ? ` · finished ${fmtDay(b.stats.finished_on)}` : ''}
+              {(() => { const d = b.stats.finished_on ? fmtDay(b.stats.finished_on) : ''; return b.stats.finished_on ? t` · finished ${d}` : '' })()}
             </p>
           )}
           {b.tags.length > 0 && (
@@ -193,7 +201,7 @@ function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen
               className="mt-2 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
-              {open ? 'Less' : b.highlights.length > 0 ? `Description & ${b.highlights.length} highlight${b.highlights.length !== 1 ? 's' : ''}` : 'Description'}
+              {open ? t`Less` : b.highlights.length > 0 ? plural(b.highlights.length, { one: 'Description & # highlight', other: 'Description & # highlights' }) : t`Description`}
             </button>
           )}
         </div>
@@ -240,6 +248,7 @@ export function SharePage() {
     // Belt-and-braces with the server's X-Robots-Tag.
     const meta = document.createElement('meta')
     meta.name = 'robots'
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- robots directive
     meta.content = 'noindex, nofollow'
     document.head.appendChild(meta)
     return () => { document.head.removeChild(meta) }
@@ -249,11 +258,11 @@ export function SharePage() {
     // Plain fetch on purpose: no auth token attached, no 401 redirect logic.
     fetch(`/api/share/${token}`)
       .then(async r => {
-        if (!r.ok) throw new Error((await r.json()).detail || 'Not found')
+        if (!r.ok) throw new Error((await r.json()).detail || t`Not found`)
         return r.json()
       })
       .then(setData)
-      .catch(e => setError(e instanceof Error ? e.message : 'Not found'))
+      .catch(e => setError(e instanceof Error ? e.message : t`Not found`))
   }, [token])
 
   if (error) {
@@ -267,7 +276,7 @@ export function SharePage() {
   if (!data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="animate-pulse text-sm text-muted-foreground">Loading…</p>
+        <p className="animate-pulse text-sm text-muted-foreground"><Trans>Loading…</Trans></p>
       </div>
     )
   }
@@ -279,10 +288,10 @@ export function SharePage() {
           <Quote className="h-4 w-4 text-primary" />
           <h1 className="font-display text-lg text-foreground">{data.title}</h1>
           <span className="text-xs text-muted-foreground">
-            · a shared {data.kind}
-            {data.kind !== 'book' ? ` · ${data.totals.books} book${data.totals.books !== 1 ? 's' : ''}` : ''}
-            {data.totals.read > 0 && data.kind !== 'book' ? ` · ${data.totals.read} read` : ''}
-            {data.totals.total_seconds > 0 ? ` · ${fmtDuration(data.totals.total_seconds)} read time` : ''}
+            {data.kind === 'book' ? t`· a shared book` : data.kind === 'series' ? t`· a shared series` : t`· a shared shelf`}
+            {data.kind !== 'book' ? ' · ' + plural(data.totals.books, { one: '# book', other: '# books' }) : ''}
+            {(() => { const n = data.totals.read; return n > 0 && data.kind !== 'book' ? t` · ${n} read` : '' })()}
+            {(() => { const dur = fmtDuration(data.totals.total_seconds); return data.totals.total_seconds > 0 ? t` · ${dur} read time` : '' })()}
           </span>
         </div>
       </header>
@@ -293,7 +302,7 @@ export function SharePage() {
               <h2 className="font-display text-xl text-foreground">{data.title}</h2>
               {data.series.status && (
                 <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
-                  {data.series.status}
+                  {SERIES_STATUS_WORDS[data.series.status] ? i18n._(SERIES_STATUS_WORDS[data.series.status]) : data.series.status}
                 </span>
               )}
             </div>
@@ -304,11 +313,13 @@ export function SharePage() {
               <div className="mt-1.5"><Rating value={data.series.rating} /></div>
             )}
             <p className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+              {(() => { const readN = data.totals.read; const unreadN = data.totals.books - data.totals.read; return (
               <span>
-                {data.totals.read} read · {data.totals.books - data.totals.read} unread
-                {data.totals.total_seconds > 0 ? ` · ${fmtDuration(data.totals.total_seconds)}` : ''}
+                <Trans>{readN} read · {unreadN} unread</Trans>
+                {(() => { const dur = fmtDuration(data.totals.total_seconds); return data.totals.total_seconds > 0 ? ` · ${dur}` : '' })()}
               </span>
-              <span>{data.totals.books} volumes</span>
+              ) })()}
+              <span><Plural value={data.totals.books} one="# volume" other="# volumes" /></span>
             </p>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
               <div
@@ -322,19 +333,22 @@ export function SharePage() {
           </section>
         )}
         {data.books.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">Nothing here yet.</p>
+          <p className="py-12 text-center text-sm text-muted-foreground"><Trans>Nothing here yet.</Trans></p>
         ) : data.kind === 'series' && data.series && data.series.arcs.length > 0 ? (
           groupByArc(data.books, data.series.arcs).map((g, gi) => (
             <section key={gi} className="mb-6">
               <div className="mb-2 flex items-baseline gap-2 border-b border-border/60 pb-1.5">
                 <h3 className="font-display text-sm text-foreground">
-                  {g.arc ? g.arc.name : 'Other volumes'}
+                  {g.arc ? g.arc.name : t`Other volumes`}
                 </h3>
-                {g.arc && (
-                  <span className="text-[11px] text-muted-foreground">
-                    Vol. {g.arc.start_index}–{g.arc.end_index}
-                  </span>
-                )}
+                {g.arc && (() => {
+                  const a = g.arc.start_index, b = g.arc.end_index
+                  return (
+                    <span className="text-[11px] text-muted-foreground">
+                      <Trans>Vol. {a}–{b}</Trans>
+                    </span>
+                  )
+                })()}
               </div>
               {g.arc?.description && (
                 <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{g.arc.description}</p>
@@ -353,7 +367,7 @@ export function SharePage() {
         )}
         <footer className="flex items-center justify-center gap-1.5 pb-4 pt-10 text-xs text-muted-foreground/60">
           <TomeMark className="h-3.5 w-3.5" strokeWidth={7} />
-          Shared from a self-hosted Tome library
+          <Trans>Shared from a self-hosted Tome library</Trans>
         </footer>
       </main>
     </div>
