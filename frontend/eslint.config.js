@@ -34,7 +34,7 @@ export default defineConfig([
           '^[A-Z0-9_-]+$',            // CONSTANTS
           '^/',                       // API and router paths
           '^tome_',                   // localStorage keys
-          '^Tome$', '^GitHub$',       // product names, never translated
+          '^Tome$', '^GitHub$', '^TomeSync$', // product names, never translated
           '^[^a-zA-Z]*$',             // punctuation / symbols only
         ],
         ignoreNames: [

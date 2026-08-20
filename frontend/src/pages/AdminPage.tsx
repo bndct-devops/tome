@@ -17,6 +17,9 @@ import { InstanceBackup } from '@/components/InstanceBackup'
 import { WordCountTab } from '@/components/WordCount'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
+import { Trans, useLingui, Plural } from '@lingui/react/macro'
+import { t, plural, msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { IconPicker } from '@/components/Sidebar'
@@ -68,6 +71,7 @@ function UserModal({ user, onClose, onSaved }: {
   onClose: () => void
   onSaved: (u: UserData) => void
 }) {
+  const { t } = useLingui()
   const { user: me } = useAuth()
   const [username, setUsername] = useState(user?.username ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
@@ -89,50 +93,50 @@ function UserModal({ user, onClose, onSaved }: {
         : await api.post<UserData>('/users', { username, email, password, role, is_admin: role === 'admin' })
       onSaved(saved)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      setError(err instanceof Error ? err.message : t`Failed to save`)
     } finally {
       setSaving(false)
     }
   }
 
   const roles: { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[] = [
-    { value: 'guest', label: 'Guest', Icon: Eye },
-    { value: 'member', label: 'Member', Icon: User },
-    { value: 'admin', label: 'Admin', Icon: Shield },
+    { value: 'guest', label: t`Guest`, Icon: Eye },
+    { value: 'member', label: t`Member`, Icon: User },
+    { value: 'admin', label: t`Admin`, Icon: Shield },
   ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-sm font-semibold">{user ? 'Edit User' : 'New User'}</h2>
+          <h2 className="text-sm font-semibold">{user ? t`Edit User` : t`New User`}</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-accent transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Username</label>
+            <label className="text-xs font-medium text-muted-foreground"><Trans>Username</Trans></label>
             <input value={username} onChange={e => setUsername(e.target.value)} required
               className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               placeholder="username" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <label className="text-xs font-medium text-muted-foreground"><Trans>Email</Trans></label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
               className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               placeholder="user@example.com" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">
-              Password {user && <span className="text-muted-foreground/60">(leave blank to keep)</span>}
+              <Trans>Password</Trans> {user && <span className="text-muted-foreground/60"><Trans>(leave blank to keep)</Trans></span>}
             </label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required={!user}
               className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder={user ? '••••••••' : 'password'} />
+              placeholder={user ? '••••••••' : t`password`} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Role</label>
+            <label className="text-xs font-medium text-muted-foreground"><Trans>Role</Trans></label>
             <div className="flex rounded-lg border border-border overflow-hidden">
               {roles.map(({ value, label, Icon }) => (
                 <button
@@ -159,17 +163,17 @@ function UserModal({ user, onClose, onSaved }: {
                   isActive ? 'bg-primary border-primary' : 'border-border')}>
                 {isActive && <Check className="w-3 h-3 text-primary-foreground" />}
               </div>
-              <span className="text-sm">Active</span>
+              <span className="text-sm"><Trans>Active</Trans></span>
             </label>
           )}
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex justify-end gap-2 mt-1">
             <button type="button" onClick={onClose}
-              className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors">Cancel</button>
+              className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"><Trans>Cancel</Trans></button>
             <button type="submit" disabled={saving}
               className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
               {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {user ? 'Save' : 'Create'}
+              {user ? t`Save` : t`Create`}
             </button>
           </div>
         </form>
@@ -181,6 +185,7 @@ function UserModal({ user, onClose, onSaved }: {
 // ── UsersTab ──────────────────────────────────────────────────────────────
 
 function UsersTab() {
+  const { t, i18n } = useLingui()
   const { user: me, impersonate } = useAuth()
   const navigate = useNavigate()
   const [users, setUsers] = useState<UserData[]>([])
@@ -195,7 +200,7 @@ function UsersTab() {
   const [impersonating, setImpersonating] = useState<number | null>(null)
 
   useEffect(() => {
-    api.get<UserData[]>('/users').then(setUsers).catch(() => setError('Failed to load users')).finally(() => setLoading(false))
+    api.get<UserData[]>('/users').then(setUsers).catch(() => setError(t`Failed to load users`)).finally(() => setLoading(false))
   }, [])
 
   function handleSaved(saved: UserData) {
@@ -213,7 +218,7 @@ function UsersTab() {
       await impersonate(userId)
       navigate('/')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Impersonation failed')
+      setError(e instanceof Error ? e.message : t`Impersonation failed`)
     } finally { setImpersonating(null) }
   }
 
@@ -224,7 +229,7 @@ function UsersTab() {
       setUsers(prev => prev.filter(u => u.id !== userId))
       setDeleteConfirm(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed')
+      setError(e instanceof Error ? e.message : t`Delete failed`)
     } finally { setDeleting(null) }
   }
 
@@ -234,7 +239,7 @@ function UsersTab() {
       const saved = await api.put<UserData>(`/users/${userId}`, { role, is_admin: role === 'admin' })
       setUsers(prev => prev.map(x => x.id === userId ? saved : x))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save role')
+      setError(e instanceof Error ? e.message : t`Failed to save role`)
     } finally { setPermSaving(null) }
   }
 
@@ -248,19 +253,19 @@ function UsersTab() {
       )}
       <div className="flex items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <p className="text-sm text-muted-foreground">{users.length} user{users.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-muted-foreground"><Plural value={users.length} one="# user" other="# users" /></p>
           <a
             href={docsLink(DOCS.usersAndRoles)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
           >
-            Roles guide <ExternalLink className="w-3 h-3" />
+            <Trans>Roles guide</Trans> <ExternalLink className="w-3 h-3" />
           </a>
         </div>
         <button onClick={() => { setModalUser(null); setModalOpen(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-          <Plus className="w-3.5 h-3.5" /> New User
+          <Plus className="w-3.5 h-3.5" /> <Trans>New User</Trans>
         </button>
       </div>
 
@@ -283,34 +288,34 @@ function UsersTab() {
                       <span className="text-sm font-medium truncate">{u.username}</span>
                       {u.role === 'admin' && (
                         <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                          <Shield className="w-2.5 h-2.5" /> Admin
+                          <Shield className="w-2.5 h-2.5" /> <Trans>Admin</Trans>
                         </span>
                       )}
                       {!u.is_active && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">Inactive</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20"><Trans>Inactive</Trans></span>
                       )}
                       {u.id === me?.id && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">You</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"><Trans>You</Trans></span>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                   </div>
                 </div>
                 <div className="hidden sm:block text-xs text-muted-foreground shrink-0">
-                  {new Date(u.created_at).toLocaleDateString()}
+                  {new Date(u.created_at).toLocaleDateString(i18n.locale)}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
-                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title="Role">
+                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title={t`Role`}>
                     {expandedId === u.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                   <button onClick={() => { setModalUser(u); setModalOpen(true) }}
-                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title="Edit">
+                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title={t`Edit`}>
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
                   {u.id !== me?.id && (
                     <button onClick={() => handleImpersonate(u.id)} disabled={impersonating === u.id}
-                      className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-warning" title="Log in as this user">
+                      className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-warning" title={t`Log in as this user`}>
                       {impersonating === u.id
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         : <LogIn className="w-3.5 h-3.5" />}
@@ -321,7 +326,7 @@ function UsersTab() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => handleDelete(u.id)} disabled={deleting === u.id}
                           className="px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-1">
-                          {deleting === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Confirm
+                          {deleting === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} <Trans>Confirm</Trans>
                         </button>
                         <button onClick={() => setDeleteConfirm(null)}
                           className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground">
@@ -330,7 +335,7 @@ function UsersTab() {
                       </div>
                     ) : (
                       <button onClick={() => setDeleteConfirm(u.id)}
-                        className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-destructive" title="Delete">
+                        className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-destructive" title={t`Delete`}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )
@@ -340,12 +345,12 @@ function UsersTab() {
               {expandedId === u.id && (
                 <div className="border-t border-border px-4 py-3 bg-muted/30">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">Role</span>
+                    <span className="text-xs text-muted-foreground shrink-0"><Trans>Role</Trans></span>
                     <div className="flex rounded-lg border border-border overflow-hidden">
                       {([
-                        { value: 'guest', label: 'Guest', Icon: Eye },
-                        { value: 'member', label: 'Member', Icon: User },
-                        { value: 'admin', label: 'Admin', Icon: Shield },
+                        { value: 'guest', label: t`Guest`, Icon: Eye },
+                        { value: 'member', label: t`Member`, Icon: User },
+                        { value: 'admin', label: t`Admin`, Icon: Shield },
                       ] as { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[]).map(({ value, label, Icon }) => (
                         <button
                           key={value}
@@ -379,6 +384,7 @@ function UsersTab() {
 // ── ScannerTab ────────────────────────────────────────────────────────────
 
 function ScannerTab() {
+  const { t } = useLingui()
   const [scanning, setScanning] = useState(false)
   const [importing, setImporting] = useState(false)
   const [defaultTypeId, setDefaultTypeId] = useState<number | ''>('')
@@ -409,20 +415,20 @@ function ScannerTab() {
 
   const typeSelector = (
     <div className="mt-3">
-      <label className="block text-xs text-muted-foreground mb-1">Assign type to new books</label>
+      <label className="block text-xs text-muted-foreground mb-1"><Trans>Assign type to new books</Trans></label>
       <select
         value={defaultTypeId}
         onChange={e => setDefaultTypeId(e.target.value ? Number(e.target.value) : '')}
         className="tome-select w-full text-sm bg-background border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
       >
-        <option value="">No type (staging / admin only)</option>
+        <option value="">{t`No type (staging / admin only)`}</option>
         {bookTypes.map(t => (
           <option key={t.id} value={t.id}>{t.label}</option>
         ))}
       </select>
       {!defaultTypeId && (
         <p className="text-xs text-warning mt-1">
-          Without a type, new books are only visible to admins until assigned.
+          <Trans>Without a type, new books are only visible to admins until assigned.</Trans>
         </p>
       )}
     </div>
@@ -432,16 +438,16 @@ function ScannerTab() {
     <div className="flex flex-col gap-4 max-w-xl mx-auto w-full">
       <div className="border border-border rounded-xl bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold">Scan Library</h3>
+          <h3 className="text-sm font-semibold"><Trans>Scan Library</Trans></h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Walk the library directory and add any new book files found.
+            <Trans>Walk the library directory and add any new book files found.</Trans>
           </p>
         </div>
         <div className="px-4 py-3">
           {scanning ? (
             <div className="flex flex-col items-center justify-center py-4 gap-2">
               <BookAnimation variant="refresh" className="block w-12 h-12 text-primary" />
-              <p className="text-sm text-muted-foreground">Scanning…</p>
+              <p className="text-sm text-muted-foreground"><Trans>Scanning…</Trans></p>
             </div>
           ) : (
             <>
@@ -449,7 +455,7 @@ function ScannerTab() {
               <button onClick={handleScan} disabled={scanning || importing}
                 className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
                 <RefreshCw className="w-4 h-4" />
-                Scan Now
+                <Trans>Scan Now</Trans>
               </button>
             </>
           )}
@@ -458,9 +464,9 @@ function ScannerTab() {
 
       <div className="border border-border rounded-xl bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold">Import from Incoming</h3>
+          <h3 className="text-sm font-semibold"><Trans>Import from Incoming</Trans></h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Process files dropped into the <code className="text-[11px] bg-muted px-1 rounded">incoming/</code> directory and move them into the library.
+            <Trans>Process files dropped into the <code className="text-[11px] bg-muted px-1 rounded">incoming/</code> directory and move them into the library.</Trans>
           </p>
         </div>
         <div className="px-4 py-3">
@@ -468,7 +474,7 @@ function ScannerTab() {
           <button onClick={handleImport} disabled={importing || scanning}
             className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
             {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-            {importing ? 'Importing…' : 'Import Now'}
+            {importing ? t`Importing…` : t`Import Now`}
           </button>
         </div>
       </div>
@@ -476,12 +482,16 @@ function ScannerTab() {
       {lastResult && (
         <div className="border border-success/30 bg-success/5 rounded-xl px-4 py-3 text-sm">
           <p className="font-medium text-foreground mb-1">
-            {lastResult.type === 'scan' ? 'Scan' : 'Import'} complete
+            {lastResult.type === 'scan' ? t`Scan complete` : t`Import complete`}
           </p>
           <p className="text-muted-foreground text-xs">
-            {lastResult.result.added} added · {lastResult.result.skipped} skipped
-            {lastResult.result.duplicates ? ` · ${lastResult.result.duplicates} duplicates` : ''}
-            {lastResult.result.errors ? ` · ${lastResult.result.errors} error(s)` : ''}
+            {(() => {
+              const r = lastResult.result
+              const added = r.added, skipped = r.skipped, dups = r.duplicates, errs = r.errors
+              return t`${added} added · ${skipped} skipped` +
+                (dups ? t` · ${dups} duplicates` : '') +
+                (errs ? t` · ${errs} error(s)` : '')
+            })()}
           </p>
         </div>
       )}
@@ -492,6 +502,7 @@ function ScannerTab() {
 // ── ServerTab ─────────────────────────────────────────────────────────────
 
 function ServerTab() {
+  const { t } = useLingui()
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -500,7 +511,7 @@ function ServerTab() {
   const [confirmClear, setConfirmClear] = useState(false)
 
   useEffect(() => {
-    api.get<AdminStats>('/admin/stats').then(setStats).catch(() => setError('Failed to load server stats')).finally(() => setLoading(false))
+    api.get<AdminStats>('/admin/stats').then(setStats).catch(() => setError(t`Failed to load server stats`)).finally(() => setLoading(false))
   }, [])
 
   async function handleClearCovers() {
@@ -512,7 +523,7 @@ function ServerTab() {
       setStats(prev => prev ? { ...prev, covers_count: 0, covers_size_mb: 0 } : prev)
       setConfirmClear(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to clear covers')
+      setError(e instanceof Error ? e.message : t`Failed to clear covers`)
     } finally { setClearing(false) }
   }
 
@@ -529,10 +540,10 @@ function ServerTab() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: BookOpen, label: 'Books', value: stats?.book_count ?? 0 },
-          { icon: Users, label: 'Users', value: stats?.user_count ?? 0 },
-          { icon: Database, label: 'Database', value: `${stats?.db_size_mb ?? 0} MB` },
-          { icon: HardDrive, label: 'Covers', value: `${stats?.covers_size_mb ?? 0} MB` },
+          { icon: BookOpen, label: t`Books`, value: stats?.book_count ?? 0 },
+          { icon: Users, label: t`Users`, value: stats?.user_count ?? 0 },
+          { icon: Database, label: t`Database`, value: `${stats?.db_size_mb ?? 0} MB` },
+          { icon: HardDrive, label: t`Covers`, value: `${stats?.covers_size_mb ?? 0} MB` },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="border border-border rounded-xl bg-card px-4 py-3">
             <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
@@ -547,13 +558,13 @@ function ServerTab() {
       {/* Paths */}
       <div className="border border-border rounded-xl bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold">Directories</h3>
+          <h3 className="text-sm font-semibold"><Trans>Directories</Trans></h3>
         </div>
         <div className="divide-y divide-border">
           {[
-            { label: 'Library', path: stats?.library_dir },
-            { label: 'Data', path: stats?.data_dir },
-            { label: 'Incoming', path: stats?.incoming_dir },
+            { label: t`Library`, path: stats?.library_dir },
+            { label: t`Data`, path: stats?.data_dir },
+            { label: t`Incoming`, path: stats?.incoming_dir },
           ].map(({ label, path }) => (
             <div key={label} className="flex items-start gap-3 px-4 py-2.5">
               <Folder className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
@@ -569,18 +580,20 @@ function ServerTab() {
       {/* Danger zone */}
       <div className="border border-destructive/30 rounded-xl bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-destructive/20">
-          <h3 className="text-sm font-semibold text-destructive">Danger Zone</h3>
+          <h3 className="text-sm font-semibold text-destructive"><Trans>Danger Zone</Trans></h3>
         </div>
         <div className="px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">Clear cover cache</p>
+              <p className="text-sm font-medium"><Trans>Clear cover cache</Trans></p>
+              {(() => { const count = stats?.covers_count ?? 0; const mb = stats?.covers_size_mb ?? 0; return (
               <p className="text-xs text-muted-foreground mt-0.5">
-                Delete all {stats?.covers_count ?? 0} cached cover files ({stats?.covers_size_mb ?? 0} MB).
-                Covers will be re-extracted on next access.
+                <Trans>Delete all {count} cached cover files ({mb} MB).
+                Covers will be re-extracted on next access.</Trans>
               </p>
+              ) })()}
               {clearResult != null && (
-                <p className="text-xs text-success mt-1">{clearResult} covers deleted.</p>
+                <p className="text-xs text-success mt-1"><Trans>{clearResult} covers deleted.</Trans></p>
               )}
               {error && (
                 <p className="text-xs text-destructive mt-1">{error}</p>
@@ -591,7 +604,7 @@ function ServerTab() {
                 <button onClick={handleClearCovers} disabled={clearing}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50">
                   {clearing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
-                  Confirm
+                  <Trans>Confirm</Trans>
                 </button>
                 <button onClick={() => setConfirmClear(false)}
                   className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-colors">
@@ -601,7 +614,7 @@ function ServerTab() {
             ) : (
               <button onClick={() => setConfirmClear(true)}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors">
-                <Trash className="w-3.5 h-3.5" /> Clear
+                <Trash className="w-3.5 h-3.5" /> <Trans>Clear</Trans>
               </button>
             )}
           </div>
@@ -610,7 +623,8 @@ function ServerTab() {
 
       {stats && (
         <p className="text-xs text-muted-foreground text-center pt-1">
-          Tome v{stats.tome_version} · Python {stats.python_version}
+          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- version line */}
+          {`Tome v${stats.tome_version} · Python ${stats.python_version}`}
         </p>
       )}
     </div>
@@ -645,6 +659,7 @@ function defaultForm(): TypeFormState {
 }
 
 function TypesTab() {
+  const { t } = useLingui()
   const [types, setTypes] = useState<BookType[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -679,7 +694,7 @@ function TypesTab() {
       setAddForm(defaultForm())
       setShowAdd(false)
     } catch (e) {
-      setAddError(e instanceof Error ? e.message : 'Failed')
+      setAddError(e instanceof Error ? e.message : t`Failed`)
     } finally {
       setAddSaving(false)
     }
@@ -701,7 +716,7 @@ function TypesTab() {
       load()
       setEditId(null)
     } catch (e) {
-      setEditError(e instanceof Error ? e.message : 'Failed')
+      setEditError(e instanceof Error ? e.message : t`Failed`)
     } finally {
       setEditSaving(false)
     }
@@ -715,7 +730,7 @@ function TypesTab() {
       load()
       setDeleteConfirmId(null)
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Failed')
+      setDeleteError(e instanceof Error ? e.message : t`Failed`)
     }
   }
 
@@ -723,32 +738,32 @@ function TypesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Tag className="w-4 h-4 text-muted-foreground" /> Book Types
+          <Tag className="w-4 h-4 text-muted-foreground" /> <Trans>Book Types</Trans>
         </h2>
         <button
           onClick={() => { setShowAdd(a => !a); setAddError(null) }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all"
         >
-          <Plus className="w-3.5 h-3.5" /> Add Type
+          <Plus className="w-3.5 h-3.5" /> <Trans>Add Type</Trans>
         </button>
       </div>
 
       {/* Add form */}
       {showAdd && (
         <div className="border border-border rounded-xl bg-card p-4 space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">New Type</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"><Trans>New Type</Trans></h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Label</label>
+              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Label</Trans></label>
               <input
                 value={addForm.label}
                 onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
-                placeholder="e.g. Novel"
+                placeholder={t`e.g. Novel`}
                 className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Color</label>
+              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Color</Trans></label>
               <select
                 value={addForm.color}
                 onChange={e => setAddForm(f => ({ ...f, color: e.target.value as ColorOption }))}
@@ -758,11 +773,11 @@ function TypesTab() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Icon</label>
+              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Icon</Trans></label>
               <IconPicker value={addForm.icon} onChange={v => setAddForm(f => ({ ...f, icon: v }))} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Sort Order</label>
+              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Sort Order</Trans></label>
               <input
                 type="number"
                 value={addForm.sort_order}
@@ -773,14 +788,14 @@ function TypesTab() {
           </div>
           {addError && <p className="text-xs text-destructive">{addError}</p>}
           <div className="flex items-center gap-2 justify-end">
-            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Trans>Cancel</Trans></button>
             <button
               onClick={handleAdd}
               disabled={addSaving || !addForm.label.trim()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
             >
               {addSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              Save
+              <Trans>Save</Trans>
             </button>
           </div>
         </div>
@@ -790,7 +805,7 @@ function TypesTab() {
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
       ) : types.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">No book types yet.</p>
+        <p className="text-sm text-muted-foreground text-center py-8"><Trans>No book types yet.</Trans></p>
       ) : (
         <div className="border border-border rounded-xl bg-card overflow-hidden divide-y divide-border">
           {types.map(bt => (
@@ -799,7 +814,7 @@ function TypesTab() {
                 <div className="p-4 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Label</label>
+                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Label</Trans></label>
                       <input
                         value={editForm.label}
                         onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
@@ -807,7 +822,7 @@ function TypesTab() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Color</label>
+                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Color</Trans></label>
                       <select
                         value={editForm.color}
                         onChange={e => setEditForm(f => ({ ...f, color: e.target.value as ColorOption }))}
@@ -817,11 +832,11 @@ function TypesTab() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Icon</label>
+                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Icon</Trans></label>
                       <IconPicker value={editForm.icon} onChange={v => setEditForm(f => ({ ...f, icon: v }))} />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Sort Order</label>
+                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Sort Order</Trans></label>
                       <input
                         type="number"
                         value={editForm.sort_order}
@@ -832,14 +847,14 @@ function TypesTab() {
                   </div>
                   {editError && <p className="text-xs text-destructive">{editError}</p>}
                   <div className="flex items-center gap-2 justify-end">
-                    <button onClick={() => setEditId(null)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancel</button>
+                    <button onClick={() => setEditId(null)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Trans>Cancel</Trans></button>
                     <button
                       onClick={handleEdit}
                       disabled={editSaving || !editForm.label.trim()}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                     >
                       {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      Save
+                      <Trans>Save</Trans>
                     </button>
                   </div>
                 </div>
@@ -856,7 +871,7 @@ function TypesTab() {
                         onClick={() => handleDelete(bt.id)}
                         className="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-destructive text-destructive-foreground hover:opacity-90 transition-colors"
                       >
-                        <Trash2 className="w-3 h-3" /> Confirm
+                        <Trash2 className="w-3 h-3" /> <Trans>Confirm</Trans>
                       </button>
                       <button
                         onClick={() => { setDeleteConfirmId(null); setDeleteError(null) }}
@@ -870,14 +885,14 @@ function TypesTab() {
                       <button
                         onClick={() => startEdit(bt)}
                         className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="Edit"
+                        title={t`Edit`}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => { setDeleteConfirmId(bt.id); setDeleteError(null) }}
                         className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
-                        title="Delete"
+                        title={t`Delete`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -895,14 +910,15 @@ function TypesTab() {
 
 // ── AuditTab ──────────────────────────────────────────────────────────────
 
-const ACTION_CATEGORIES = [
-  { value: '', label: 'All actions' },
-  { value: 'auth', label: 'Auth' },
-  { value: 'books', label: 'Books' },
-  { value: 'users', label: 'Users' },
-  { value: 'libraries', label: 'Libraries' },
+const ACTION_CATEGORIES: { value: string; label: MessageDescriptor }[] = [
+  { value: '', label: msg`All actions` },
+  { value: 'auth', label: msg`Auth` },
+  { value: 'books', label: msg`Books` },
+  { value: 'users', label: msg`Users` },
+  { value: 'libraries', label: msg`Libraries` },
 ]
 
+/* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
 const ACTION_COLORS: Record<string, string> = {
   'auth.login': 'bg-success/10 text-success border-success/20',
   'auth.login_failed': 'bg-destructive/10 text-destructive border-destructive/20',
@@ -921,6 +937,7 @@ const ACTION_COLORS: Record<string, string> = {
   'libraries.updated': 'bg-info/10 text-info border-info/20',
   'libraries.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 interface AuditEntry {
   id: number
@@ -936,6 +953,7 @@ interface AuditEntry {
 }
 
 function AuditTab() {
+  const { i18n } = useLingui()
   const [items, setItems] = useState<AuditEntry[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -968,11 +986,11 @@ function AuditTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Audit Log</h2>
+        <h2 className="text-sm font-semibold"><Trans>Audit Log</Trans></h2>
         <div className="flex items-center gap-2 flex-wrap">
           <select value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1) }}
             className="tome-select text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            {ACTION_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            {ACTION_CATEGORIES.map(c => <option key={c.value} value={c.value}>{i18n._(c.label)}</option>)}
           </select>
           <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }}
             className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -986,10 +1004,11 @@ function AuditTab() {
           <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">No audit entries yet.</div>
+        <div className="text-center py-16 text-muted-foreground text-sm"><Trans>No audit entries yet.</Trans></div>
       ) : (
         <div className="flex flex-col gap-1">
           {items.map(entry => {
+            // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
             const colorClass = ACTION_COLORS[entry.action] ?? 'bg-muted text-muted-foreground border-border'
             const isExpanded = expandedId === entry.id
             const parsed = entry.details ? (() => { try { return JSON.parse(entry.details) } catch { return null } })() : null
@@ -1019,13 +1038,13 @@ function AuditTab() {
                 </button>
                 {isExpanded && (
                   <div className="px-4 pb-3 pt-0 border-t border-border bg-muted/30 text-xs text-muted-foreground flex flex-col gap-1.5">
-                    {entry.ip_address && <div><span className="font-medium text-foreground">IP:</span> {entry.ip_address}</div>}
+                    {entry.ip_address && <div><span className="font-medium text-foreground"><Trans>IP:</Trans></span> {entry.ip_address}</div>}
                     {entry.resource_type && entry.resource_id && (
-                      <div><span className="font-medium text-foreground">Resource:</span> {entry.resource_type} #{entry.resource_id}</div>
+                      <div><span className="font-medium text-foreground"><Trans>Resource:</Trans></span> {entry.resource_type} #{entry.resource_id}</div>
                     )}
                     {parsed && (
                       <div>
-                        <span className="font-medium text-foreground">Details:</span>
+                        <span className="font-medium text-foreground"><Trans>Details:</Trans></span>
                         <pre className="mt-1 p-2 rounded bg-background text-[10px] overflow-x-auto border border-border">
                           {JSON.stringify(parsed, null, 2)}
                         </pre>
@@ -1044,12 +1063,12 @@ function AuditTab() {
         <div className="flex items-center justify-center gap-2 pt-2">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
             className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent disabled:opacity-40 transition-colors">
-            Previous
+            <Trans>Previous</Trans>
           </button>
           <span className="text-xs text-muted-foreground">{page} / {totalPages}</span>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
             className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent disabled:opacity-40 transition-colors">
-            Next
+            <Trans>Next</Trans>
           </button>
         </div>
       )}
@@ -1080,42 +1099,54 @@ function relativeTime(iso: string | null): string {
   if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t`just now`
+  if (mins < 60) return t`${mins}m ago`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return t`${hrs}h ago`
   const days = Math.floor(hrs / 24)
-  if (days < 30) return `${days}d ago`
+  if (days < 30) return t`${days}d ago`
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
+const SYNC_STATUS_LABELS: Record<string, MessageDescriptor> = {
+  unread: msg`unread`, reading: msg`reading`, read: msg`read`,
+  shelved: msg`shelved`, want_to_read: msg`want to read`,
+}
+
 function StatusBadge({ status }: { status: SyncRecord['status'] }) {
+  const { i18n } = useLingui()
+  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cls =
     status === 'read'
       ? 'bg-success/10 text-success border-success/20'
       : status === 'reading'
         ? 'bg-info/10 text-info border-info/20'
         : 'bg-muted text-muted-foreground border-border'
+  /* eslint-enable lingui/no-unlocalized-strings */
   return (
     <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap', cls)}>
-      {status}
+      {SYNC_STATUS_LABELS[status] ? i18n._(SYNC_STATUS_LABELS[status]) : status}
     </span>
   )
 }
 
 function SourceBadge({ source }: { source: SyncRecord['source'] }) {
+  const { t } = useLingui()
+  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cls =
     source === 'tomesync'
       ? 'bg-primary/10 text-primary border-primary/20'
       : 'bg-muted text-muted-foreground border-border'
+  /* eslint-enable lingui/no-unlocalized-strings */
   return (
     <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap', cls)}>
-      {source === 'tomesync' ? 'TomeSync' : 'Web'}
+      {source === 'tomesync' ? 'TomeSync' : t`Web`}
     </span>
   )
 }
 
 function SyncStatusTab() {
+  const { t } = useLingui()
   const [records, setRecords] = useState<SyncRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1126,7 +1157,7 @@ function SyncStatusTab() {
   useEffect(() => {
     api.get<SyncRecord[]>('/admin/sync-status')
       .then(setRecords)
-      .catch(() => setError('Failed to load sync status'))
+      .catch(() => setError(t`Failed to load sync status`))
       .finally(() => setLoading(false))
   }, [])
 
@@ -1209,16 +1240,16 @@ function SyncStatusTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Sync Status</h2>
+        <h2 className="text-sm font-semibold"><Trans>Sync Status</Trans></h2>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Activity className="w-3.5 h-3.5" />
-          <span>{records.length} record{records.length !== 1 ? 's' : ''}</span>
+          <span><Plural value={records.length} one="# record" other="# records" /></span>
         </div>
       </div>
 
       {sorted.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
-          No reading activity yet. Records appear when users start reading books.
+          <Trans>No reading activity yet. Records appear when users start reading books.</Trans>
         </div>
       ) : (
         <div className="border border-border rounded-xl overflow-hidden">
@@ -1226,13 +1257,13 @@ function SyncStatusTab() {
             <table className="w-full text-xs">
               <thead className="border-b border-border bg-muted/40">
                 <tr>
-                  <ColHeader label="Book" col="book_title" />
-                  <ColHeader label="User" col="username" />
-                  <ColHeader label="Status" col="status" />
-                  <ColHeader label="Progress" col="progress_pct" />
-                  <ColHeader label="Last Synced" col="last_synced" />
-                  <ColHeader label="Device" col="device" />
-                  <ColHeader label="Source" col="source" />
+                  <ColHeader label={t`Book`} col="book_title" />
+                  <ColHeader label={t`User`} col="username" />
+                  <ColHeader label={t`Status`} col="status" />
+                  <ColHeader label={t`Progress`} col="progress_pct" />
+                  <ColHeader label={t`Last Synced`} col="last_synced" />
+                  <ColHeader label={t`Device`} col="device" />
+                  <ColHeader label={t`Source`} col="source" />
                   <th className="px-3 py-2.5 w-8" />
                 </tr>
               </thead>
@@ -1317,19 +1348,21 @@ interface DuplicatesResponse {
   groups: DuplicateGroup[]
 }
 
-const MATCH_REASON_LABEL: Record<DuplicateGroup['match_reason'], string> = {
-  content_hash: 'Exact Match',
-  isbn: 'Same ISBN',
-  same_series_volume: 'Same Series Volume',
-  similar_title: 'Similar Title',
+const MATCH_REASON_LABEL: Record<DuplicateGroup['match_reason'], MessageDescriptor> = {
+  content_hash: msg`Exact Match`,
+  isbn: msg`Same ISBN`,
+  same_series_volume: msg`Same Series Volume`,
+  similar_title: msg`Similar Title`,
 }
 
+/* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
 const MATCH_REASON_STYLE: Record<DuplicateGroup['match_reason'], string> = {
   content_hash: 'bg-destructive/10 text-destructive border-destructive/20',
   isbn: 'bg-warning/10 text-warning border-warning/20',
   same_series_volume: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
   similar_title: 'bg-info/10 text-info border-info/20',
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 function formatBytes(bytes: number | null): string {
   if (bytes == null) return '—'
@@ -1341,6 +1374,7 @@ function formatBytes(bytes: number | null): string {
 type GroupDecision = 'merge' | 'delete' | 'dismiss'
 
 function DuplicatesTab() {
+  const { t, i18n } = useLingui()
   const [groups, setGroups] = useState<DuplicateGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1368,7 +1402,7 @@ function DuplicatesTab() {
         }
         setKeepIds(defaults)
       })
-      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load duplicates'))
+      .catch(e => setError(e instanceof Error ? e.message : t`Failed to load duplicates`))
       .finally(() => setLoading(false))
   }
 
@@ -1413,14 +1447,14 @@ function DuplicatesTab() {
             { book_ids: removeIds },
           )
           if (res.errors.length) {
-            throw new Error(`${res.errors.length} book${res.errors.length !== 1 ? 's' : ''} could not be deleted`)
+            throw new Error(plural(res.errors.length, { one: '# book could not be deleted', other: '# books could not be deleted' }))
           }
         } else {
           await api.post('/admin/duplicates/dismiss', { book_ids: group.books.map(b => b.id) })
         }
         applied++
       } catch (e) {
-        failed.push({ label, error: e instanceof Error ? e.message : 'Failed' })
+        failed.push({ label, error: e instanceof Error ? e.message : t`Failed` })
       }
       setApplyProgress({ done: i + 1, total: decidedGroups.length })
     }
@@ -1451,14 +1485,14 @@ function DuplicatesTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Copy className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Duplicate Detection</h2>
+          <h2 className="text-sm font-semibold"><Trans>Duplicate Detection</Trans></h2>
         </div>
         <button
           onClick={fetchGroups}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
+          <Trans>Refresh</Trans>
         </button>
       </div>
 
@@ -1470,8 +1504,8 @@ function DuplicatesTab() {
             : 'border-success/20 bg-success/5',
         )}>
           <p className={cn('font-medium', applyResult.failed.length ? 'text-warning' : 'text-success')}>
-            Applied {applyResult.applied} group{applyResult.applied !== 1 ? 's' : ''}
-            {applyResult.failed.length > 0 && `, ${applyResult.failed.length} failed`}
+            <Plural value={applyResult.applied} one="Applied # group" other="Applied # groups" />
+            {applyResult.failed.length > 0 && (() => { const n = applyResult.failed.length; return t`, ${n} failed` })()}
           </p>
           {applyResult.failed.length > 0 && (
             <ul className="space-y-0.5 text-muted-foreground">
@@ -1483,12 +1517,13 @@ function DuplicatesTab() {
 
       {groups.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
-          No duplicates found. Your library looks clean.
+          <Trans>No duplicates found. Your library looks clean.</Trans>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-xs text-muted-foreground">
-            {groups.length} duplicate group{groups.length !== 1 ? 's' : ''} found. Pick which book to keep and an action per group — Merge, Delete Others, or Dismiss — then apply everything at once.
+            {plural(groups.length, { one: '# duplicate group found.', other: '# duplicate groups found.' })}{' '}
+            <Trans>Pick which book to keep and an action per group — Merge, Delete Others, or Dismiss — then apply everything at once.</Trans>
           </p>
           {groups.map(group => {
             const decision = decisions[group.group_id]
@@ -1504,7 +1539,7 @@ function DuplicatesTab() {
                     'text-[10px] font-medium px-2 py-0.5 rounded border',
                     MATCH_REASON_STYLE[group.match_reason],
                   )}>
-                    {MATCH_REASON_LABEL[group.match_reason]}
+                    {i18n._(MATCH_REASON_LABEL[group.match_reason])}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
@@ -1516,10 +1551,10 @@ function DuplicatesTab() {
                           ? 'bg-accent text-foreground border-primary/40'
                           : 'border-border hover:bg-accent text-muted-foreground',
                       )}
-                      title="Queue: not a duplicate — never show this group again"
+                      title={t`Queue: not a duplicate — never show this group again`}
                     >
                       <X className="w-3.5 h-3.5" />
-                      Dismiss
+                      <Trans>Dismiss</Trans>
                     </button>
                     <button
                       onClick={() => toggleDecision(group.group_id, 'merge')}
@@ -1530,10 +1565,10 @@ function DuplicatesTab() {
                           ? 'bg-primary text-primary-foreground border-primary'
                           : 'border-border hover:bg-accent text-muted-foreground',
                       )}
-                      title="Queue: fold the other copies into the kept book"
+                      title={t`Queue: fold the other copies into the kept book`}
                     >
                       <GitMerge className="w-3.5 h-3.5" />
-                      Merge
+                      <Trans>Merge</Trans>
                     </button>
                     <button
                       onClick={() => toggleDecision(group.group_id, 'delete')}
@@ -1547,7 +1582,7 @@ function DuplicatesTab() {
                       title="Queue: keep the selected book and delete the others — their files are removed from disk"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {decision === 'delete' ? `Delete ${othersCount} other${othersCount !== 1 ? 's' : ''}` : 'Delete Others'}
+                      {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete Others`}
                     </button>
                   </div>
                 </div>
@@ -1610,16 +1645,16 @@ function DuplicatesTab() {
                                     ? 'bg-muted text-muted-foreground border-border'
                                     : 'bg-destructive/10 text-destructive border-destructive/20',
                                 )}
-                                title={f.path_exists ? undefined : 'File is missing from disk'}
+                                title={f.path_exists ? undefined : t`File is missing from disk`}
                               >
                                 {f.format.toUpperCase()} {formatBytes(f.file_size)}
-                                {!f.path_exists && ' — MISSING'}
+                                {!f.path_exists && t` — MISSING`}
                               </span>
                             ))}
                           </div>
                         )}
                         {isKeep && (
-                          <span className="text-[10px] font-medium text-primary">Keep this one</span>
+                          <span className="text-[10px] font-medium text-primary"><Trans>Keep this one</Trans></span>
                         )}
                       </label>
                     )
@@ -1634,9 +1669,9 @@ function DuplicatesTab() {
               {/* bottom-16 below sm clears the fixed keyboard-shortcuts FAB */}
               <span className="text-xs text-muted-foreground min-w-0">
                 {[
-                  mergeCount > 0 ? `merge ${mergeCount} group${mergeCount !== 1 ? 's' : ''}` : null,
-                  deleteBookCount > 0 ? `delete ${deleteBookCount} book${deleteBookCount !== 1 ? 's' : ''} (removes files)` : null,
-                  dismissCount > 0 ? `dismiss ${dismissCount} group${dismissCount !== 1 ? 's' : ''}` : null,
+                  mergeCount > 0 ? plural(mergeCount, { one: 'merge # group', other: 'merge # groups' }) : null,
+                  deleteBookCount > 0 ? plural(deleteBookCount, { one: 'delete # book (removes files)', other: 'delete # books (removes files)' }) : null,
+                  dismissCount > 0 ? plural(dismissCount, { one: 'dismiss # group', other: 'dismiss # groups' }) : null,
                 ].filter(Boolean).join(' · ')}
               </span>
               <div className="flex items-center gap-2 shrink-0 ml-auto">
@@ -1645,7 +1680,7 @@ function DuplicatesTab() {
                     onClick={() => setConfirmApply(false)}
                     className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
                   >
-                    Cancel
+                    <Trans>Cancel</Trans>
                   </button>
                 )}
                 <button
@@ -1653,7 +1688,7 @@ function DuplicatesTab() {
                   disabled={applying}
                   className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground disabled:opacity-50"
                 >
-                  Clear
+                  <Trans>Clear</Trans>
                 </button>
                 <button
                   onClick={() => confirmApply ? applyAll() : setConfirmApply(true)}
@@ -1666,11 +1701,16 @@ function DuplicatesTab() {
                   )}
                 >
                   {applying && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {applying
-                    ? `Applying ${applyProgress?.done ?? 0}/${applyProgress?.total ?? decidedGroups.length}…`
-                    : confirmApply
-                    ? `Confirm — apply ${decidedGroups.length} decision${decidedGroups.length !== 1 ? 's' : ''}`
-                    : `Apply All (${decidedGroups.length})`}
+                  {(() => {
+                    const done = applyProgress?.done ?? 0
+                    const total = applyProgress?.total ?? decidedGroups.length
+                    const n = decidedGroups.length
+                    return applying
+                      ? t`Applying ${done}/${total}…`
+                      : confirmApply
+                      ? plural(n, { one: 'Confirm — apply # decision', other: 'Confirm — apply # decisions' })
+                      : t`Apply All (${n})`
+                  })()}
                 </button>
               </div>
             </div>
@@ -1697,12 +1737,13 @@ interface BookSearchResult {
 function wishAgeLabel(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const days = Math.floor(diff / 86_400_000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 30) return `${days}d ago`
+  if (days === 0) return t`Today`
+  if (days === 1) return t`Yesterday`
+  if (days < 30) return t`${days}d ago`
   const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
+  if (months < 12) return t`${months}mo ago`
+  const years = Math.floor(months / 12)
+  return t`${years}y ago`
 }
 
 function FulfillPicker({
@@ -1714,6 +1755,7 @@ function FulfillPicker({
   onFulfill: (bookId: number | null) => Promise<void>
   onCancel: () => void
 }) {
+  const { t } = useLingui()
   const isWholeSeries = !!wish.series && wish.series_index == null
   const [suggestedBooks, setSuggestedBooks] = useState<BookSearchResult[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -1758,13 +1800,13 @@ function FulfillPicker({
   }
 
   async function handleSubmit() {
-    if (!selectedId) { setError('Select a book first.'); return }
+    if (!selectedId) { setError(t`Select a book first.`); return }
     setFulfilling(true)
     setError(null)
     try {
       await onFulfill(selectedId)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fulfill failed')
+      setError(e instanceof Error ? e.message : t`Fulfill failed`)
       setFulfilling(false)
     }
   }
@@ -1775,7 +1817,7 @@ function FulfillPicker({
     try {
       await onFulfill(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to complete series')
+      setError(e instanceof Error ? e.message : t`Failed to complete series`)
       setFulfilling(false)
     }
   }
@@ -1789,22 +1831,22 @@ function FulfillPicker({
     return (
       <div className="border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-foreground">Complete series: {wish.title}</p>
+          {(() => { const title = wish.title; return <p className="text-xs font-semibold text-foreground"><Trans>Complete series: {title}</Trans></p> })()}
           <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          This is a whole-series wish — it stays open as volumes arrive.{' '}
+          <Trans>This is a whole-series wish — it stays open as volumes arrive.</Trans>{' '}
           {n > 0
-            ? `${n} matching volume${n > 1 ? 's' : ''} currently in the library.`
-            : 'No matching volumes in the library yet.'}{' '}
-          Mark it complete when you consider the series fully available; the requester will be notified.
+            ? plural(n, { one: '# matching volume currently in the library.', other: '# matching volumes currently in the library.' })
+            : t`No matching volumes in the library yet.`}{' '}
+          <Trans>Mark it complete when you consider the series fully available; the requester will be notified.</Trans>
         </p>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex items-center justify-end gap-2 pt-1">
           <button onClick={onCancel} className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground">
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             onClick={handleComplete}
@@ -1812,7 +1854,7 @@ function FulfillPicker({
             className="flex items-center gap-1 px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
           >
             {fulfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-            Mark complete
+            <Trans>Mark complete</Trans>
           </button>
         </div>
       </div>
@@ -1822,7 +1864,7 @@ function FulfillPicker({
   return (
     <div className="border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-foreground">Fulfill: {wish.title}</p>
+        {(() => { const title = wish.title; return <p className="text-xs font-semibold text-foreground"><Trans>Fulfill: {title}</Trans></p> })()}
         <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors">
           <X className="w-3.5 h-3.5" />
         </button>
@@ -1834,7 +1876,7 @@ function FulfillPicker({
         <input
           value={searchQuery}
           onChange={e => handleSearchChange(e.target.value)}
-          placeholder={suggestedBooks.length > 0 ? 'Search for a different book…' : 'Search for a book in the library…'}
+          placeholder={suggestedBooks.length > 0 ? t`Search for a different book…` : t`Search for a book in the library…`}
           className="w-full h-8 pl-7 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {searching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground animate-spin" />}
@@ -1842,7 +1884,7 @@ function FulfillPicker({
 
       {/* Suggested / search results */}
       {!searchQuery && suggestedBooks.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">Suggested match{suggestedBooks.length > 1 ? 'es' : ''}:</p>
+        <p className="text-[10px] text-muted-foreground"><Plural value={suggestedBooks.length} one="Suggested match:" other="Suggested matches:" /></p>
       )}
       {displayBooks.length > 0 && (
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -1874,17 +1916,17 @@ function FulfillPicker({
       )}
 
       {!searchQuery && suggestedBooks.length === 0 && !searching && (
-        <p className="text-xs text-muted-foreground">No suggested match yet — search for the book to link, or upload it first.</p>
+        <p className="text-xs text-muted-foreground"><Trans>No suggested match yet — search for the book to link, or upload it first.</Trans></p>
       )}
       {searchQuery && !searching && searchResults.length === 0 && (
-        <p className="text-xs text-muted-foreground">No books found. Upload the book first, then fulfill.</p>
+        <p className="text-xs text-muted-foreground"><Trans>No books found. Upload the book first, then fulfill.</Trans></p>
       )}
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-1">
         <button onClick={onCancel} className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground">
-          Cancel
+          <Trans>Cancel</Trans>
         </button>
         <button
           onClick={handleSubmit}
@@ -1892,7 +1934,7 @@ function FulfillPicker({
           className="flex items-center gap-1 px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
         >
           {fulfilling && <Loader2 className="w-3 h-3 animate-spin" />}
-          Fulfill
+          <Trans>Fulfill</Trans>
         </button>
       </div>
     </div>
@@ -1900,6 +1942,7 @@ function FulfillPicker({
 }
 
 function WishlistTab() {
+  const { t } = useLingui()
   const [statusFilter, setStatusFilter] = useState<WishStatus>('open')
   const [wishes, setWishes] = useState<WishAdminOut[]>([])
   const [loading, setLoading] = useState(true)
@@ -1914,7 +1957,7 @@ function WishlistTab() {
     setError(null)
     adminListWishes({ status: statusFilter })
       .then(setWishes)
-      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load wishlist'))
+      .catch(e => setError(e instanceof Error ? e.message : t`Failed to load wishlist`))
       .finally(() => setLoading(false))
   }
 
@@ -1926,7 +1969,7 @@ function WishlistTab() {
       setFulfillingId(null)
       load()
     } catch (e) {
-      setActionError(prev => ({ ...prev, [wishId]: e instanceof Error ? e.message : 'Fulfill failed' }))
+      setActionError(prev => ({ ...prev, [wishId]: e instanceof Error ? e.message : t`Fulfill failed` }))
       throw e
     }
   }
@@ -1939,16 +1982,16 @@ function WishlistTab() {
       setDismissConfirmId(null)
       load()
     } catch (e) {
-      setActionError(prev => ({ ...prev, [wishId]: e instanceof Error ? e.message : 'Dismiss failed' }))
+      setActionError(prev => ({ ...prev, [wishId]: e instanceof Error ? e.message : t`Dismiss failed` }))
     } finally {
       setDismissing(null)
     }
   }
 
   const STATUS_TABS: { id: WishStatus; label: string }[] = [
-    { id: 'open', label: 'Open' },
-    { id: 'fulfilled', label: 'Fulfilled' },
-    { id: 'dismissed', label: 'Dismissed' },
+    { id: 'open', label: t`Open` },
+    { id: 'fulfilled', label: t`Fulfilled` },
+    { id: 'dismissed', label: t`Dismissed` },
   ]
 
   return (
@@ -1956,14 +1999,14 @@ function WishlistTab() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Wishlist</h2>
+          <h2 className="text-sm font-semibold"><Trans>Wishlist</Trans></h2>
           <a
             href={docsLink(DOCS.wishlist)}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
           >
-            Learn more <ExternalLink className="w-3 h-3" />
+            <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
           </a>
         </div>
         <div className="flex items-center gap-1">
@@ -1999,7 +2042,9 @@ function WishlistTab() {
         </div>
       ) : wishes.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
-          No {statusFilter} wishes.
+          {statusFilter === 'open' ? <Trans>No open wishes.</Trans>
+            : statusFilter === 'fulfilled' ? <Trans>No fulfilled wishes.</Trans>
+            : <Trans>No dismissed wishes.</Trans>}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -2034,7 +2079,7 @@ function WishlistTab() {
                       {wish.series && wish.series_index == null && (
                         <span className="mt-0.5 self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
                           <Layers className="w-2.5 h-2.5" />
-                          Whole series
+                          <Trans>Whole series</Trans>
                         </span>
                       )}
                       {wish.note && (
@@ -2058,7 +2103,7 @@ function WishlistTab() {
                                 className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:opacity-90 transition-colors disabled:opacity-50"
                               >
                                 {dismissing === wish.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                                Confirm
+                                <Trans>Confirm</Trans>
                               </button>
                               <button
                                 onClick={() => setDismissConfirmId(null)}
@@ -2071,10 +2116,10 @@ function WishlistTab() {
                             <button
                               onClick={() => { setDismissConfirmId(wish.id); setFulfillingId(null) }}
                               className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
-                              title="Dismiss wish"
+                              title={t`Dismiss wish`}
                             >
                               <X className="w-3 h-3" />
-                              Dismiss
+                              <Trans>Dismiss</Trans>
                             </button>
                           )}
                           <button
@@ -2086,7 +2131,7 @@ function WishlistTab() {
                             className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all"
                           >
                             <Check className="w-3 h-3" />
-                            {wish.series && wish.series_index == null ? 'Complete' : 'Fulfill'}
+                            {wish.series && wish.series_index == null ? t`Complete` : t`Fulfill`}
                           </button>
                         </>
                       )}
@@ -2095,7 +2140,7 @@ function WishlistTab() {
                           to={`/books/${wish.fulfilled_book_id}`}
                           className="text-xs text-primary hover:underline"
                         >
-                          View book
+                          <Trans>View book</Trans>
                         </Link>
                       )}
                     </div>
@@ -2109,7 +2154,7 @@ function WishlistTab() {
                   {wish.suggested_book_ids && wish.suggested_book_ids.length > 0 && wish.status === 'open' && fulfillingId !== wish.id && !(wish.series && wish.series_index == null) && (
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning border border-warning/20 font-medium">
-                        {wish.suggested_book_ids.length} suggested match{wish.suggested_book_ids.length > 1 ? 'es' : ''}
+                        <Plural value={wish.suggested_book_ids.length} one="# suggested match" other="# suggested matches" />
                       </span>
                     </div>
                   )}
@@ -2143,6 +2188,7 @@ function WishlistTab() {
 type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'wordcount' | 'sync' | 'duplicates' | 'covers' | 'email' | 'wishlist'
 
 export function AdminPage() {
+  const { t } = useLingui()
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('users')
   // Keep the active tab visible in the scrollable bar (no-op when it all fits)
@@ -2154,26 +2200,26 @@ export function AdminPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3">
         <Shield className="w-10 h-10 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Admin access required.</p>
-        <Link to="/" className="text-sm text-primary hover:underline">Go back</Link>
+        <p className="text-sm text-muted-foreground"><Trans>Admin access required.</Trans></p>
+        <Link to="/" className="text-sm text-primary hover:underline"><Trans>Go back</Trans></Link>
       </div>
     )
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'users', label: 'Users' },
-    { id: 'scanner', label: 'Scanner' },
-    { id: 'server', label: 'Server' },
-    { id: 'types', label: 'Types' },
-    { id: 'audit', label: 'Audit Log' },
-    { id: 'metadata', label: 'Metadata' },
-    { id: 'library', label: 'Library' },
-    { id: 'wordcount', label: 'Word Counts' },
-    { id: 'sync', label: 'Sync Status' },
-    { id: 'duplicates', label: 'Duplicates' },
-    { id: 'covers', label: 'Covers' },
-    { id: 'email', label: 'Email' },
-    { id: 'wishlist', label: 'Wishlist' },
+    { id: 'users', label: t`Users` },
+    { id: 'scanner', label: t`Scanner` },
+    { id: 'server', label: t`Server` },
+    { id: 'types', label: t`Types` },
+    { id: 'audit', label: t`Audit Log` },
+    { id: 'metadata', label: t`Metadata` },
+    { id: 'library', label: t`Library` },
+    { id: 'wordcount', label: t`Word Counts` },
+    { id: 'sync', label: t`Sync Status` },
+    { id: 'duplicates', label: t`Duplicates` },
+    { id: 'covers', label: t`Covers` },
+    { id: 'email', label: t`Email` },
+    { id: 'wishlist', label: t`Wishlist` },
   ]
 
   return (
@@ -2186,7 +2232,7 @@ export function AdminPage() {
             </Link>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">Admin</span>
+              <span className="text-sm font-semibold"><Trans>Admin</Trans></span>
             </div>
           </div>
         </div>
@@ -2258,6 +2304,7 @@ interface SendHistoryEntry {
 }
 
 function EmailTab() {
+  const { t, i18n } = useLingui()
   const [smtpStatus, setSmtpStatus] = useState<SmtpStatusDetail | null>(null)
   const [allDevices, setAllDevices] = useState<AdminDevice[]>([])
   const [history, setHistory] = useState<SendHistoryEntry[]>([])
@@ -2288,7 +2335,7 @@ function EmailTab() {
       await api.post('/admin/smtp-test', { email: testEmail.trim() })
       setTestResult({ ok: true })
     } catch (err) {
-      setTestResult({ ok: false, error: err instanceof Error ? err.message : 'Send failed' })
+      setTestResult({ ok: false, error: err instanceof Error ? err.message : t`Send failed` })
     } finally {
       setTestSending(false)
     }
@@ -2309,10 +2356,10 @@ function EmailTab() {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Mail className="w-4 h-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">SMTP Status</h3>
+            <h3 className="text-sm font-semibold text-foreground"><Trans>SMTP Status</Trans></h3>
           </div>
           <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
-            Learn more <ExternalLink className="w-3 h-3" />
+            <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
           </a>
         </div>
 
@@ -2320,27 +2367,27 @@ function EmailTab() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-xs font-medium text-success">Configured</span>
+              <span className="text-xs font-medium text-success"><Trans>Configured</Trans></span>
             </div>
             <div className="rounded-lg bg-muted/60 border border-border text-xs divide-y divide-border/50">
               <div className="flex items-center gap-3 px-3 py-2">
-                <span className="text-muted-foreground w-20 shrink-0">Host</span>
+                <span className="text-muted-foreground w-20 shrink-0"><Trans>Host</Trans></span>
                 <span className="font-mono text-foreground">{smtpStatus.host}</span>
               </div>
               <div className="flex items-center gap-3 px-3 py-2">
-                <span className="text-muted-foreground w-20 shrink-0">Port</span>
+                <span className="text-muted-foreground w-20 shrink-0"><Trans>Port</Trans></span>
                 <span className="font-mono text-foreground">{smtpStatus.port}</span>
               </div>
               <div className="flex items-center gap-3 px-3 py-2">
-                <span className="text-muted-foreground w-20 shrink-0">From</span>
-                <span className="font-mono text-foreground">{smtpStatus.from_address || '(not set)'}</span>
+                <span className="text-muted-foreground w-20 shrink-0"><Trans>From</Trans></span>
+                <span className="font-mono text-foreground">{smtpStatus.from_address || t`(not set)`}</span>
               </div>
             </div>
 
             {/* Test email */}
             <form onSubmit={handleTestEmail} className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Send test email</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Send test email</Trans></label>
                 <input
                   type="email"
                   value={testEmail}
@@ -2355,20 +2402,20 @@ function EmailTab() {
                 className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
               >
                 {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                {testSending ? 'Sending...' : 'Test'}
+                {testSending ? t`Sending...` : t`Test`}
               </button>
             </form>
-            {testResult?.ok && <p className="text-xs text-success">Test email sent successfully.</p>}
+            {testResult?.ok && <p className="text-xs text-success"><Trans>Test email sent successfully.</Trans></p>}
             {testResult && !testResult.ok && <p className="text-xs text-destructive">{testResult.error}</p>}
           </div>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-warning" />
-              <span className="text-xs font-medium text-warning dark:text-warning">Not configured</span>
+              <span className="text-xs font-medium text-warning dark:text-warning"><Trans>Not configured</Trans></span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Set the following environment variables to enable Send to Device:
+              <Trans>Set the following environment variables to enable Send to Device:</Trans>
             </p>
             <code className="block text-xs font-mono bg-muted rounded-lg px-3 py-2 text-muted-foreground whitespace-pre-wrap">TOME_SMTP_HOST{'\n'}TOME_SMTP_USER{'\n'}TOME_SMTP_PASSWORD</code>
           </div>
@@ -2379,29 +2426,29 @@ function EmailTab() {
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Send className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">All Devices</h3>
+          <h3 className="text-sm font-semibold text-foreground"><Trans>All Devices</Trans></h3>
           <span className="text-xs text-muted-foreground">({allDevices.length})</span>
         </div>
 
         {allDevices.length > 0 ? (
           <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
             <div className="hidden sm:grid grid-cols-[8rem_1fr_1fr_7rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
-              <span>User</span>
-              <span>Device</span>
-              <span>Email</span>
-              <span>Added</span>
+              <span><Trans>User</Trans></span>
+              <span><Trans>Device</Trans></span>
+              <span><Trans>Email</Trans></span>
+              <span><Trans>Added</Trans></span>
             </div>
             {allDevices.map(d => (
               <div key={d.id} className="flex sm:grid sm:grid-cols-[8rem_1fr_1fr_7rem] items-center gap-2 sm:gap-0 px-3 py-2.5 hover:bg-muted/30 transition-colors">
                 <span className="text-foreground font-medium truncate">{d.username}</span>
                 <span className="text-foreground truncate">{d.device_name}</span>
                 <span className="text-muted-foreground font-mono truncate">{d.device_email}</span>
-                <span className="text-muted-foreground hidden sm:block">{new Date(d.created_at).toLocaleDateString()}</span>
+                <span className="text-muted-foreground hidden sm:block">{new Date(d.created_at).toLocaleDateString(i18n.locale)}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No users have added devices yet.</p>
+          <p className="text-xs text-muted-foreground"><Trans>No users have added devices yet.</Trans></p>
         )}
       </div>
 
@@ -2409,23 +2456,23 @@ function EmailTab() {
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">Send History</h3>
-          <span className="text-xs text-muted-foreground">(last 100)</span>
+          <h3 className="text-sm font-semibold text-foreground"><Trans>Send History</Trans></h3>
+          <span className="text-xs text-muted-foreground"><Trans>(last 100)</Trans></span>
         </div>
 
         {history.length > 0 ? (
           <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
             <div className="hidden sm:grid grid-cols-[10rem_6rem_1fr_1fr_5rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
-              <span>Time</span>
-              <span>User</span>
-              <span>Book</span>
-              <span>Device</span>
-              <span>Status</span>
+              <span><Trans>Time</Trans></span>
+              <span><Trans>User</Trans></span>
+              <span><Trans>Book</Trans></span>
+              <span><Trans>Device</Trans></span>
+              <span><Trans>Status</Trans></span>
             </div>
             {history.map(h => (
               <div key={h.id} className="flex sm:grid sm:grid-cols-[10rem_6rem_1fr_1fr_5rem] items-center gap-2 sm:gap-0 px-3 py-2 hover:bg-muted/30 transition-colors">
                 <span className="text-muted-foreground shrink-0">
-                  {new Date(h.created_at).toLocaleString(undefined, {
+                  {new Date(h.created_at).toLocaleString(i18n.locale, {
                     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
                   })}
                 </span>
@@ -2436,13 +2483,13 @@ function EmailTab() {
                   'text-xs font-medium',
                   h.status === 'ok' ? 'text-success' : 'text-destructive'
                 )}>
-                  {h.status === 'ok' ? 'Sent' : 'Failed'}
+                  {h.status === 'ok' ? t`Sent` : t`Failed`}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No books have been sent yet.</p>
+          <p className="text-xs text-muted-foreground"><Trans>No books have been sent yet.</Trans></p>
         )}
       </div>
     </div>

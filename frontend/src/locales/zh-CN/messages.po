@@ -17,12 +17,28 @@ msgstr ""
 msgid " — click for sessions"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid " — MISSING"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid " · {dups} duplicates"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid " · {errs} error(s)"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid " · {prog}% in"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "— keep existing —"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid ", {n} failed"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -45,9 +61,31 @@ msgstr ""
 msgid "(enables dark: variants)"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "(last 100)"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "(leave blank to keep)"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "(not set)"
+msgstr ""
+
+#. placeholder {0}: res.errors.length
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
+msgstr ""
+
 #. placeholder {0}: s.book_count
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
+msgstr ""
+
+#. placeholder {0}: groups.length
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {# duplicate group found.} other {# duplicate groups found.}}"
 msgstr ""
 
 #. placeholder {0}: aggregate.distinct_readers
@@ -60,14 +98,34 @@ msgstr ""
 msgid "{0, plural, one {# reading day} other {# reading days}}"
 msgstr ""
 
+#. placeholder {0}: records.length
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {# record} other {# records}}"
+msgstr ""
+
 #. placeholder {0}: data.reread_bins
 #: src/pages/BookDetailPage.tsx
 msgid "{0, plural, one {# stretch re-read} other {# stretches re-read}}"
 msgstr ""
 
+#. placeholder {0}: wish.suggested_book_ids.length
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {# suggested match} other {# suggested matches}}"
+msgstr ""
+
+#. placeholder {0}: users.length
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {# user} other {# users}}"
+msgstr ""
+
 #. placeholder {0}: selected.size
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Added # book to library} other {Added # books to library}}"
+msgstr ""
+
+#. placeholder {0}: applyResult.applied
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {Applied # group} other {Applied # groups}}"
 msgstr ""
 
 #. placeholder {0}: selectedIds.size
@@ -85,9 +143,22 @@ msgstr ""
 msgid "{0, plural, one {Edit Metadata for # Book} other {Edit Metadata for # Books}}"
 msgstr ""
 
+#. placeholder {0}: suggestedBooks.length
+#: src/pages/AdminPage.tsx
+msgid "{0, plural, one {Suggested match:} other {Suggested matches:}}"
+msgstr ""
+
 #. placeholder {0}: selected.size
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{added} added · {skipped} skipped"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{clearResult} covers deleted."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -99,6 +170,7 @@ msgid "{d}d ago"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "{days}d ago"
 msgstr ""
@@ -107,12 +179,20 @@ msgstr ""
 msgid "{dayStr}: {mins}m"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "{deleteBookCount, plural, one {delete # book (removes files)} other {delete # books (removes files)}}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{deleted, plural, one {Deleted # book} other {Deleted # books}}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "{deltaStr}% vs last week"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -140,6 +220,7 @@ msgid "{hours}h ago"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
+#: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr ""
 
@@ -147,12 +228,29 @@ msgstr ""
 msgid "{m}m"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "{mergeCount, plural, one {merge # group} other {merge # groups}}"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
+#: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "{minutes}m ago"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{months}mo ago"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
 msgstr ""
 
 #: src/components/AppShell.tsx
@@ -166,6 +264,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{name} · Vol. {start_index}–{end_index}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{othersCount, plural, one {Delete # other} other {Delete # others}}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -220,6 +322,10 @@ msgstr ""
 msgid "{words} words"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "{years}y ago"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "← Back to library"
 msgstr ""
@@ -246,6 +352,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Account & Security"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Active"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -290,6 +400,10 @@ msgstr ""
 msgid "Add to Library"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Add Type"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address."
 msgstr ""
@@ -298,12 +412,21 @@ msgstr ""
 msgid "Add your SMTP sender address to Amazon's <0>Approved Personal Document E-mail List</0>, or emails will be silently dropped."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Added"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Added to Want to Read"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 msgid "Admin"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Admin access required."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -318,8 +441,16 @@ msgstr ""
 msgid "All →"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "All actions"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "All Books"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "All Devices"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -355,12 +486,32 @@ msgstr ""
 msgid "Appearance"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Apply All ({n})"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Applying {done}/{total}…"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Ask your server admin if you don't manage the Tome installation yourself."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Assign type to new books"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Audit Log"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Auth"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -396,6 +547,10 @@ msgstr ""
 msgid "Black"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Book"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Book deleted"
 msgstr ""
@@ -408,6 +563,11 @@ msgstr ""
 msgid "Book not found"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Book Types"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Books"
 msgstr ""
@@ -429,6 +589,7 @@ msgid "Browse your library"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -459,6 +620,7 @@ msgstr ""
 msgid "Choose icon"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Clear"
 msgstr ""
@@ -469,6 +631,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Clear all filters"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Clear cover cache"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -529,6 +695,10 @@ msgstr ""
 msgid "Collapse sidebar"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Color"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Colors <0>(10 hex values, comma-separated)</0>"
 msgstr ""
@@ -537,6 +707,19 @@ msgstr ""
 msgid "Command palette — jump to a book, series, author, or page"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Complete"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Complete series: {title}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Configured"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Confirm"
 msgstr ""
@@ -581,6 +764,11 @@ msgstr ""
 msgid "Cover size"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Covers"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Create"
 msgstr ""
@@ -597,6 +785,10 @@ msgstr ""
 msgid "Current password"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Danger Zone"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Dark"
 msgstr ""
@@ -610,6 +802,14 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Data"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Database"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Date Added"
 msgstr ""
@@ -619,6 +819,7 @@ msgid "Day streak"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Delete"
@@ -628,9 +829,18 @@ msgstr ""
 msgid "Delete \"{title}\"?"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Delete all {count} cached cover files ({mb} MB). Covers will be re-extracted on next access."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Delete failed"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Delete Others"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -654,6 +864,14 @@ msgstr ""
 msgid "Details"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Details:"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Device"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Device authorized — the new device is now signed in."
 msgstr ""
@@ -666,8 +884,25 @@ msgstr ""
 msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Directories"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Dismiss"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Dismiss failed"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Dismiss wish"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Dismissed"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -712,8 +947,20 @@ msgstr ""
 msgid "Download ZIP"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Duplicate Detection"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Duplicates"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "E-Reader Devices"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "e.g. Novel"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -721,6 +968,7 @@ msgid "e.g. scribe-laptop"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Edit"
 msgstr ""
@@ -745,6 +993,11 @@ msgstr ""
 msgid "Edit Shelf"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Edit User"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Email"
 msgstr ""
@@ -767,6 +1020,10 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Everywhere"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Exact Match"
 msgstr ""
 
 #: src/components/ImpersonationBanner.tsx
@@ -793,6 +1050,7 @@ msgstr ""
 msgid "Exporting..."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Failed"
 msgstr ""
@@ -807,6 +1065,14 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Failed to change password"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to clear covers"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to complete series"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -825,12 +1091,32 @@ msgstr ""
 msgid "Failed to load books"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Failed to load duplicates"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to load facets"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to load libraries"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to load server stats"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to load sync status"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to load users"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to load wishlist"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -842,6 +1128,7 @@ msgid "Failed to register"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Failed to save"
 msgstr ""
@@ -856,6 +1143,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to save review"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Failed to save role"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -876,6 +1167,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Fetch Metadata"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "File is missing from disk"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -915,8 +1210,28 @@ msgstr ""
 msgid "Format: {filterFormatUpper}"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "From"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "From your highlights"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Fulfill"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Fulfill failed"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Fulfill: {title}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Fulfilled"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -932,6 +1247,7 @@ msgid "Genres"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
+#: src/pages/AdminPage.tsx
 msgid "Go back"
 msgstr ""
 
@@ -949,6 +1265,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Group volumes by series"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Guest"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -981,6 +1301,10 @@ msgstr ""
 msgid "Home"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Host"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "How far through the book you'd read by each date."
 msgstr ""
@@ -990,11 +1314,32 @@ msgid "How to set it up"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 msgid "Icon"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Impersonation failed"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Import complete"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Import from Incoming"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Import Now"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Import reading history"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Importing…"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1013,16 +1358,33 @@ msgstr ""
 msgid "In KOReader: Tools → Progress sync → Custom sync server."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Inactive"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Incoming"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "IP:"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "ISBN"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
+#: src/pages/AdminPage.tsx
 msgid "just now"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Just now"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Keep this one"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1043,6 +1405,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "KOSync registered successfully"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Label"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1067,19 +1433,26 @@ msgstr ""
 msgid "Last sync: {d}"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Last Synced"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Last used"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Learn more"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Libraries"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -1130,6 +1503,10 @@ msgstr ""
 msgid "Loading..."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Log in as this user"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Log out"
 msgstr ""
@@ -1159,6 +1536,14 @@ msgstr ""
 msgid "Mark all read"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Mark complete"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Mark it complete when you consider the series fully available; the requester will be notified."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Marked as read"
 msgstr ""
@@ -1169,6 +1554,18 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Marked unread — reading progress cleared"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Member"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Merge"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Metadata"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1251,6 +1648,18 @@ msgstr ""
 msgid "New Token"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "New Type"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "New User"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Next"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Next book"
 msgstr ""
@@ -1267,6 +1676,22 @@ msgstr ""
 msgid "No API tokens yet. Create one to use Scribe or scripts against Tome."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "No audit entries yet."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No book types yet."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No books found. Upload the book first, then fulfill."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No books have been sent yet."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
 msgstr ""
@@ -1275,12 +1700,32 @@ msgstr ""
 msgid "No devices yet. Add one to start sending books."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "No dismissed wishes."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No duplicates found. Your library looks clean."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No fulfilled wishes."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "No matches"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "No matching volumes in the library yet."
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 msgid "No notifications yet"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No open wishes."
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1289,6 +1734,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "No PINs yet. Generate one to use with OPDS clients."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No reading activity yet. Records appear when users start reading books."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1311,13 +1760,29 @@ msgstr ""
 msgid "No series found — add series metadata to your books."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "No suggested match yet — search for the book to link, or upload it first."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "No type"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No type (staging / admin only)"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No users have added devices yet."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "None"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Not configured"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1369,6 +1834,10 @@ msgstr ""
 msgid "OPDS Catalog"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Open"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Open a book downloaded via OPDS"
 msgstr ""
@@ -1409,6 +1878,11 @@ msgstr ""
 msgid "Pages · 30d"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "password"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Password"
 msgstr ""
@@ -1429,8 +1903,16 @@ msgstr ""
 msgid "Pick up where you left off"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Pick which book to keep and an action per group — Merge, Delete Others, or Dismiss — then apply everything at once."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "PIN created — copy it now, it won't be shown again."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Port"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1457,6 +1939,10 @@ msgstr ""
 msgid "Preview:"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Previous"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Previous book"
 msgstr ""
@@ -1473,10 +1959,15 @@ msgstr ""
 msgid "Private library"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Process files dropped into the <0>incoming/</0> directory and move them into the library."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Profile updated"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Progress"
 msgstr ""
@@ -1495,6 +1986,14 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Queue: fold the other copies into the kept book"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Queue: not a duplicate — never show this group again"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1525,6 +2024,7 @@ msgstr ""
 msgid "Rating"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "read"
 msgstr ""
@@ -1567,6 +2067,7 @@ msgstr ""
 msgid "Reader"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "reading"
 msgstr ""
@@ -1599,6 +2100,10 @@ msgstr ""
 msgid "Recently Finished"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Refresh"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Register"
 msgstr ""
@@ -1613,6 +2118,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Remove from library"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Resource:"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1639,7 +2148,24 @@ msgstr ""
 msgid "Revoked"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Role"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Roles guide"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Same ISBN"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Same Series Volume"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Save"
 msgstr ""
@@ -1672,6 +2198,26 @@ msgstr ""
 msgid "Saving…"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Scan complete"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Scan Library"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Scan Now"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Scanner"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Scanning…"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Scope"
 msgstr ""
@@ -1682,6 +2228,14 @@ msgstr ""
 
 #: src/components/AppHeader.tsx
 msgid "Search books… (/)"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Search for a book in the library…"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Search for a different book…"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1700,12 +2254,36 @@ msgstr ""
 msgid "Select"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Select a book first."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Select all"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Send failed"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Send History"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Send test email"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Send to Device"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Sending..."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Sent"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1726,6 +2304,10 @@ msgstr ""
 msgid "Series: {filterSeries}"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Server"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "sessions"
 msgstr ""
@@ -1744,6 +2326,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Set sync password"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Set the following environment variables to enable Send to Device:"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1778,6 +2364,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Shared Library"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "shelved"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1831,8 +2421,24 @@ msgstr ""
 msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Similar Title"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Single Sign-On"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "SMTP Status"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Sort Order"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Source"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1855,6 +2461,7 @@ msgstr ""
 msgid "Stats"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Status"
 msgstr ""
@@ -1871,6 +2478,10 @@ msgstr ""
 msgid "Sync reading position between KOReader and Tome."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Sync Status"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Synced document"
 msgstr ""
@@ -1881,6 +2492,14 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Tag: {filterTag}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Test"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Test email sent successfully."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1903,12 +2522,20 @@ msgstr ""
 msgid "Theme name is required"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "This is a whole-series wish — it stays open as volumes arrive."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "This is the only time you will see this token. Store it somewhere safe — it cannot be recovered."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "This permanently removes the selected books and their files from disk. This cannot be undone."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Time"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1924,6 +2551,7 @@ msgstr ""
 msgid "Title"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Today"
 msgstr ""
@@ -1961,6 +2589,10 @@ msgstr ""
 msgid "Type"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Types"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Unassigned"
 msgstr ""
@@ -1973,6 +2605,7 @@ msgstr ""
 msgid "unknown device"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "unread"
 msgstr ""
@@ -2037,16 +2670,29 @@ msgstr ""
 msgid "used {d}"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "User"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "User menu"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Username"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Users"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Verify it's working"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "View book"
 msgstr ""
 
 #: src/components/ImpersonationBanner.tsx
@@ -2070,6 +2716,14 @@ msgstr ""
 msgid "Volumes"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Walk the library directory and add any new book files found."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "want to read"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Want to Read"
@@ -2081,6 +2735,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Warm"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Web"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2099,8 +2757,21 @@ msgstr ""
 msgid "Where you read"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Whole series"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
 msgid "Wishlist"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Without a type, new books are only visible to admins until assigned."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Word Counts"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2112,8 +2783,13 @@ msgstr ""
 msgid "Year"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Yesterday"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "You"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
