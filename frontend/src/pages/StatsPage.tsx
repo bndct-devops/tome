@@ -12,6 +12,10 @@ import { toPng } from 'html-to-image'
 import { Plus, RotateCcw, X, BarChart3, HelpCircle, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, ImageDown, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { Trans } from '@lingui/react/macro'
+import { t, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
@@ -103,11 +107,11 @@ type WidgetCtx = {
 
 type WidgetDef = {
   id: string
-  title: string
+  title: MessageDescriptor
   icon?: LucideIcon
   size: { w: number; h: number; minW: number; minH: number }
   chartTypes?: ChartKind[]
-  metrics?: { id: string; label: string }[]
+  metrics?: { id: string; label: MessageDescriptor }[]
   /** Config picks a series (options come from the user's series_completion). */
   seriesPicker?: boolean
   /** Config picks a backlog scope (status / library / shelf). */
@@ -117,7 +121,7 @@ type WidgetDef = {
   titleFor?: (config: TileConfig) => string
   /** Set when the widget ignores the page range picker (e.g. "12 mo") — rendered
       as a small chip so the fixed window is visible, not a surprise. */
-  fixedWindow?: string
+  fixedWindow?: MessageDescriptor
   /** Optional info popover rendered beside the tile title (an InfoHint-style
       component) — for tiles whose rows carry labels that need explaining. */
   infoHint?: React.ComponentType
@@ -134,14 +138,14 @@ const newId = (prefix: string) => `${prefix}--${Date.now().toString(36)}${(_uid+
 
 // Metrics the Custom Stat tile can show — all derived from the /stats payload.
 const METRICS = [
-  { id: 'avg-session', label: 'Avg Session' },
-  { id: 'time-per-day', label: 'Time / Day' },
-  { id: 'pages-per-day', label: 'Pages / Day' },
-  { id: 'pages-per-hour', label: 'Pages / Hour' },
-  { id: 'best-day', label: 'Best Day' },
-  { id: 'longest-session', label: 'Longest Session' },
-  { id: 'books-started', label: 'Books Started' },
-  { id: 'longest-streak', label: 'Longest Streak' },
+  { id: 'avg-session', label: msg`Avg Session` },
+  { id: 'time-per-day', label: msg`Time / Day` },
+  { id: 'pages-per-day', label: msg`Pages / Day` },
+  { id: 'pages-per-hour', label: msg`Pages / Hour` },
+  { id: 'best-day', label: msg`Best Day` },
+  { id: 'longest-session', label: msg`Longest Session` },
+  { id: 'books-started', label: msg`Books Started` },
+  { id: 'longest-streak', label: msg`Longest Streak` },
 ]
 
 function metricValue(stats: StatsResponse, id: string): { value: string; sub?: string } {
@@ -149,19 +153,19 @@ function metricValue(stats: StatsResponse, id: string): { value: string; sub?: s
   const secs = stats.headline.total_reading_seconds
   switch (id) {
     case 'time-per-day':
-      return { value: formatDuration(Math.round(secs / days)), sub: `over ${days} days` }
+      return { value: formatDuration(Math.round(secs / days)), sub: t`over ${days} days` }
     case 'pages-per-day':
-      return { value: String(Math.round(stats.headline.pages_turned / days)), sub: `over ${days} days` }
+      return { value: String(Math.round(stats.headline.pages_turned / days)), sub: t`over ${days} days` }
     case 'pages-per-hour':
-      return { value: secs > 0 ? String(Math.round(stats.headline.pages_turned / (secs / 3600))) : '0', sub: 'average pace' }
+      return { value: secs > 0 ? String(Math.round(stats.headline.pages_turned / (secs / 3600))) : '0', sub: t`average pace` }
     case 'best-day': {
       const best = stats.daily.reduce((a, b) => (b.seconds > a.seconds ? b : a), { date: '', seconds: 0, sessions: 0, pages: 0 })
-      return best.seconds > 0 ? { value: formatDuration(best.seconds), sub: formatDate(best.date) } : { value: '0m', sub: 'no reading yet' }
+      return best.seconds > 0 ? { value: formatDuration(best.seconds), sub: formatDate(best.date) } : { value: '0m', sub: t`no reading yet` }
     }
     case 'longest-session': {
       let top: StatsResponse['session_timeline'][number] | null = null
       for (const s of stats.session_timeline) if (!top || s.duration_seconds > top.duration_seconds) top = s
-      return top ? { value: formatDuration(top.duration_seconds), sub: top.title } : { value: '0m', sub: 'no sessions yet' }
+      return top ? { value: formatDuration(top.duration_seconds), sub: top.title } : { value: '0m', sub: t`no sessions yet` }
     }
     case 'books-started':
       return { value: String(stats.completion_rate.started), sub: `${stats.completion_rate.finished} finished` }
@@ -188,56 +192,56 @@ const WIDGETS: WidgetDef[] = [
   // Headline figures — one tile each (separately movable / removable).
   {
     id: 'stat-time',
-    title: 'Reading Time',
+    title: msg`Reading Time`,
     icon: Clock,
     size: STAT_SIZE,
     render: ({ stats }) => (
-      <HeadlineStatBody value={formatDuration(stats.headline.total_reading_seconds)} sub={`avg ${formatDuration(stats.headline.avg_session_seconds)}`} />
+      <HeadlineStatBody value={formatDuration(stats.headline.total_reading_seconds)} sub={(() => { const avg = formatDuration(stats.headline.avg_session_seconds); return t`avg ${avg}` })()} />
     ),
   },
   {
     id: 'stat-sessions',
-    title: 'Sessions',
+    title: msg`Sessions`,
     icon: Activity,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.total_sessions)} />,
   },
   {
     id: 'stat-finished',
-    title: 'Finished',
+    title: msg`Finished`,
     icon: BookCheck,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.books_finished)} />,
   },
   {
     id: 'stat-streak',
-    title: 'Streak',
+    title: msg`Streak`,
     icon: Flame,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={`${stats.headline.current_streak_days}d`} sub={`Longest: ${stats.headline.longest_streak_days}d`} />,
+    render: ({ stats }) => <HeadlineStatBody value={`${stats.headline.current_streak_days}d`} sub={(() => { const d = stats.headline.longest_streak_days; return t`Longest: ${d}d` })()} />,
   },
   {
     id: 'stat-pages',
-    title: 'Pages Turned',
+    title: msg`Pages Turned`,
     icon: FileText,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={stats.headline.pages_turned.toLocaleString()} />,
   },
   {
     id: 'stat-completion',
-    title: 'Completion',
+    title: msg`Completion`,
     icon: Target,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={`${stats.completion_rate.pct}%`} sub={`${stats.completion_rate.finished} of ${stats.completion_rate.started} started`} />,
+    render: ({ stats }) => <HeadlineStatBody value={`${stats.completion_rate.pct}%`} sub={(() => { const fin = stats.completion_rate.finished, st = stats.completion_rate.started; return t`${fin} of ${st} started` })()} />,
   },
   {
     id: 'stat-metric',
-    title: 'Custom Stat',
+    title: msg`Custom Stat`,
     icon: Gauge,
     size: STAT_SIZE,
     metrics: METRICS,
     defaultConfig: { chartType: 'bar', days: 0, metric: 'avg-session' },
-    titleFor: (cfg) => METRICS.find((m) => m.id === cfg.metric)?.label ?? 'Custom Stat',
+    titleFor: (cfg) => { const hit = METRICS.find((m) => m.id === cfg.metric); return hit ? i18n._(hit.label) : t`Custom Stat` },
     render: ({ stats }, cfg) => {
       const v = metricValue(stats, cfg.metric ?? 'avg-session')
       return <HeadlineStatBody value={v.value} sub={v.sub} />
@@ -245,7 +249,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'goal',
-    title: 'Reading Goals',
+    title: msg`Reading Goals`,
     icon: Target,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     autoH: true,
@@ -253,7 +257,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'currently-reading',
-    title: 'Currently Reading',
+    title: msg`Currently Reading`,
     size: { w: 6, h: 2, minW: 3, minH: 1 },
     autoH: true,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
@@ -261,7 +265,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'daily',
-    title: 'Reading Time per Day',
+    title: msg`Reading Time per Day`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     chartTypes: ['bar', 'line', 'area'],
     defaultConfig: { chartType: 'bar', days: 0 },
@@ -269,13 +273,13 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'top-books',
-    title: 'Top Books by Reading Time',
+    title: msg`Top Books by Reading Time`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <TopBooksByTime topBooks={stats.top_books} />,
   },
   {
     id: 'books-finished',
-    title: 'Books Finished',
+    title: msg`Books Finished`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     chartTypes: ['area', 'line', 'bar'],
     defaultConfig: { chartType: 'area', days: 0 },
@@ -283,14 +287,14 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'activity-365',
-    title: 'Reading Activity — Last 365 Days',
+    title: msg`Reading Activity — Last 365 Days`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    fixedWindow: '365 d',
+    fixedWindow: msg`365 d`,
     render: ({ stats }) => <ReadingActivity365 heatmap={stats.heatmap_daily} />,
   },
   {
     id: 'session-log',
-    title: 'Recent Sessions',
+    title: msg`Recent Sessions`,
     size: { w: 12, h: 6, minW: 5, minH: 2 },
     autoH: true,
     infoHint: SessionLogHint,
@@ -298,77 +302,77 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'recently-finished',
-    title: 'Recently Finished',
+    title: msg`Recently Finished`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     autoH: true,
     render: ({ stats }) => <RecentlyFinished booksFinished={stats.books_finished} />,
   },
   {
     id: 'streak-calendar',
-    title: 'This Month',
+    title: msg`This Month`,
     size: { w: 3, h: 2, minW: 2, minH: 2 },
-    fixedWindow: 'current',
+    fixedWindow: msg`current`,
     render: ({ stats }) => <StreakCalendar heatmap={stats.heatmap_daily} />,
   },
   {
     id: 'dow-bar',
-    title: 'Reading by Weekday',
+    title: msg`Reading by Weekday`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <DayOfWeekBar data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'time-of-day',
-    title: 'Time of Day Split',
+    title: msg`Time of Day Split`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <TimeOfDaySplit data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'time-by-format',
-    title: 'Time by Format',
+    title: msg`Time by Format`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <TimeByFormat data={stats.pace_by_format} />,
   },
   // Habits tab
   {
     id: 'hour-dow',
-    title: 'Reading Intensity by Hour and Day',
+    title: msg`Reading Intensity by Hour and Day`,
     size: { w: 12, h: 2, minW: 5, minH: 2 },
     render: ({ stats }) => <HourDowCard data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'session-timeline',
-    title: 'Session Timeline',
+    title: msg`Session Timeline`,
     size: { w: 6, h: 3, minW: 4, minH: 2 },
     render: ({ stats }) => <SessionTimeline sessions={stats.session_timeline} />,
   },
   {
     id: 'reading-timeline',
-    title: 'Reading Timeline',
+    title: msg`Reading Timeline`,
     size: { w: 12, h: 7, minW: 6, minH: 3 },
-    fixedWindow: 'lifetime',
+    fixedWindow: msg`lifetime`,
     render: () => <TimelineRibbon />,
   },
   {
     id: 'reading-pace',
-    title: 'Reading Pace',
+    title: msg`Reading Pace`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <ReadingPaceChart pace={stats.reading_pace} />,
   },
   {
     id: 'pace-by-format',
-    title: 'Pace by Format',
+    title: msg`Pace by Format`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <PaceByFormat data={stats.pace_by_format} />,
   },
   {
     id: 'speed-trend',
-    title: 'Reading Speed Trend',
+    title: msg`Reading Speed Trend`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <ReadingSpeedTrend pace={stats.reading_pace} />,
   },
   {
     id: 'estimates',
-    title: 'Completion Estimates',
+    title: msg`Completion Estimates`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     autoH: true,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
@@ -376,25 +380,25 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'reading-dna',
-    title: 'Reading DNA',
+    title: msg`Reading DNA`,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     render: ({ stats }) =>
       stats.reading_dna?.ready
         ? <ReadingDNABody dna={stats.reading_dna} />
-        : <p className="text-sm text-muted-foreground">Not enough reading history yet.</p>,
+        : <p className="text-sm text-muted-foreground"><Trans>Not enough reading history yet.</Trans></p>,
   },
   {
     id: 'period-comparison',
-    title: 'Period Comparison',
+    title: msg`Period Comparison`,
     size: { w: 6, h: 1, minW: 3, minH: 1 },
     render: ({ stats }) =>
-      stats.period_comparison ? <PeriodComparison comparison={stats.period_comparison} /> : <p className="text-sm text-muted-foreground">No comparison data.</p>,
+      stats.period_comparison ? <PeriodComparison comparison={stats.period_comparison} /> : <p className="text-sm text-muted-foreground"><Trans>No comparison data.</Trans></p>,
   },
   {
     id: 'monthly-comparison',
-    title: 'Reading Hours & Books Finished — Last 12 Months',
+    title: msg`Reading Hours & Books Finished — Last 12 Months`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    fixedWindow: '12 mo',
+    fixedWindow: msg`12 mo`,
     chartTypes: ['bar', 'line', 'area'],
     defaultConfig: { chartType: 'bar', days: 0 },
     render: ({ stats }, cfg) => <MonthlyComparison monthly={stats.monthly_comparison} chartType={cfg.chartType} />,
@@ -402,13 +406,13 @@ const WIDGETS: WidgetDef[] = [
   // Library tab
   {
     id: 'year-in-review',
-    title: 'Year in Review',
+    title: msg`Year in Review`,
     size: { w: 6, h: 2, minW: 4, minH: 1 },
     render: ({ stats }) => <YearInReview summary={stats.year_summary} />,
   },
   {
     id: 'series-completion',
-    title: 'Series Completion',
+    title: msg`Series Completion`,
     size: { w: 6, h: 3, minW: 3, minH: 2 },
     autoH: true,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
@@ -426,184 +430,184 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'author-affinity',
-    title: 'Top Authors by Reading Time',
+    title: msg`Top Authors by Reading Time`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <AuthorAffinity data={stats.author_affinity} />,
   },
   {
     id: 'completion-by-type',
-    title: 'Finish Rate per Book Category',
+    title: msg`Finish Rate per Book Category`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <CompletionByType data={stats.completion_by_type} />,
   },
   {
     id: 'category-breakdown',
-    title: 'Category Breakdown',
+    title: msg`Category Breakdown`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <CategoryBreakdown data={stats.by_category} />,
   },
   {
     id: 'genre-over-time',
-    title: 'Reading by Category — Last 12 Months',
+    title: msg`Reading by Category — Last 12 Months`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
-    fixedWindow: '12 mo',
+    fixedWindow: msg`12 mo`,
     chartTypes: ['area', 'bar'],
     defaultConfig: { chartType: 'area', days: 0 },
     render: ({ stats }, cfg) => <GenreOverTime data={stats.genre_over_time} chartType={cfg.chartType === 'bar' ? 'bar' : 'area'} />,
   },
   {
     id: 'library-growth',
-    title: 'Cumulative Books Added — Last 24 Months',
+    title: msg`Cumulative Books Added — Last 24 Months`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    fixedWindow: '24 mo',
+    fixedWindow: msg`24 mo`,
     chartTypes: ['area', 'bar'],
     defaultConfig: { chartType: 'area', days: 0 },
     render: ({ stats }, cfg) => <LibraryGrowthChart data={stats.library_growth} height="100%" chartType={cfg.chartType === 'bar' ? 'bar' : 'area'} />,
   },
   {
     id: 'per-book-table',
-    title: 'All Books by Reading Time',
+    title: msg`All Books by Reading Time`,
     size: { w: 12, h: 3, minW: 5, minH: 2 },
     autoH: true,
     render: ({ stats }) => <PerBookTimeTable data={stats.per_book_time} />,
   },
   {
     id: 'series-spotlight',
-    title: 'Series Spotlight',
+    title: msg`Series Spotlight`,
     size: { w: 3, h: 2, minW: 2, minH: 2 },
     seriesPicker: true,
-    titleFor: (cfg) => cfg.series ?? 'Series Spotlight',
+    titleFor: (cfg) => cfg.series ?? t`Series Spotlight`,
     render: ({ stats }, cfg) => <SeriesSpotlight data={stats.series_completion} series={cfg.series} />,
   },
   // Taste tab — ratings (all-time, ignore the date range)
   {
     id: 'rating-distribution',
-    title: 'Rating Distribution',
+    title: msg`Rating Distribution`,
     icon: Star,
     size: { w: 4, h: 2, minW: 3, minH: 2 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <RatingDistribution data={stats.ratings.distribution} />,
   },
   {
     id: 'taste-by-genre',
-    title: 'Taste by Genre',
+    title: msg`Taste by Genre`,
     icon: Sparkles,
     size: { w: 4, h: 2, minW: 3, minH: 2 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <TasteByGenre data={stats.ratings.by_category} />,
   },
   {
     id: 'top-rated',
-    title: 'Highest & Lowest Rated',
+    title: msg`Highest & Lowest Rated`,
     icon: Star,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <TopRatedBooks books={stats.ratings.books} />,
   },
   {
     id: 'rating-vs-time',
-    title: 'Rating vs Time Spent',
+    title: msg`Rating vs Time Spent`,
     icon: ScatterIcon,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <RatingVsTime books={stats.ratings.books} />,
   },
   {
     id: 'best-rated-series',
-    title: 'Best-Rated Series',
+    title: msg`Best-Rated Series`,
     icon: Star,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <BestRatedSeries series={stats.ratings.series} />,
   },
   {
     id: 'rating-trend',
-    title: 'Rating Trend',
+    title: msg`Rating Trend`,
     icon: TrendingUp,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <RatingTrend trend={stats.ratings.trend} />,
   },
   // Batch-2 insights
   {
     id: 'lifetime-totals',
-    title: 'Lifetime Totals',
+    title: msg`Lifetime Totals`,
     icon: InfinityIcon,
     size: { w: 6, h: 2, minW: 4, minH: 1 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <LifetimeTotals data={stats.lifetime} />,
   },
   {
     id: 'personal-records',
-    title: 'Personal Records',
+    title: msg`Personal Records`,
     icon: Trophy,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <PersonalRecords data={stats.records} />,
   },
   {
     id: 'library-completion',
-    title: 'Library Completion',
+    title: msg`Library Completion`,
     icon: LibraryIcon,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <LibraryCompletion data={stats.tbr} />,
   },
   {
     id: 'reading-clock',
-    title: 'Reading Clock',
+    title: msg`Reading Clock`,
     icon: Clock3,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     render: ({ stats }) => <ReadingClock data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'reading-by-language',
-    title: 'Reading by Language',
+    title: msg`Reading by Language`,
     icon: Globe,
     size: { w: 4, h: 2, minW: 3, minH: 2 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <ReadingByLanguage data={stats.language} />,
   },
   // Phase 4 — word-count powered (all-time)
   {
     id: 'words-read',
-    title: 'Words Read',
+    title: msg`Words Read`,
     icon: Type,
     size: { w: 6, h: 2, minW: 3, minH: 1 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <WordsRead data={stats.words} />,
   },
   {
     id: 'true-wpm',
-    title: 'Reading Speed',
+    title: msg`Reading Speed`,
     icon: Gauge,
     size: { w: 6, h: 3, minW: 3, minH: 2 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <TrueWpm data={stats.wpm} />,
   },
   {
     id: 'book-length',
-    title: 'Book Length',
+    title: msg`Book Length`,
     icon: Ruler,
     size: { w: 6, h: 3, minW: 3, minH: 2 },
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     render: ({ stats }) => <BookLength data={stats.book_lengths} />,
   },
   {
     id: 'rereads',
-    title: 'Re-reads',
+    title: msg`Re-reads`,
     icon: Repeat,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     autoH: true,
-    fixedWindow: 'all',
+    fixedWindow: msg`all`,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <ReReads data={stats.rereads} />,
   },
@@ -611,60 +615,60 @@ const WIDGETS: WidgetDef[] = [
 
 const defById = (id: string) => WIDGETS.find((w) => w.id === id.replace(/--[a-z0-9]+$/, ''))!
 
-const WIDGET_DESC: Record<string, string> = {
-  'stat-time': 'Total time read + avg session',
-  'stat-sessions': 'Number of reading sessions',
-  'stat-finished': 'Books completed',
-  'stat-streak': 'Current & longest daily streak',
-  'stat-pages': 'Total pages turned',
-  'stat-completion': 'Started vs finished ratio',
-  'currently-reading': 'Books in progress, with covers',
-  daily: 'Minutes read per day',
-  'top-books': 'Most-read books by time',
-  'books-finished': 'Cumulative finishes over time',
-  'activity-365': 'A year of reading, heatmap',
-  'session-log': 'Every session — paginated, deletable',
-  'stat-metric': 'Pick your own metric — avg session, pages/day, best day…',
-  goal: 'All your reading goals — rings fill as you read, managed in place',
-  'recently-finished': 'Latest finishes, newest first',
-  'streak-calendar': 'This month, read days filled',
-  'dow-bar': 'Which weekday you read most',
-  'time-of-day': 'Morning vs evening reader?',
-  'time-by-format': 'EPUB vs CBZ time split',
-  'series-spotlight': 'One series front and center — you pick which',
-  'hour-dow': 'When you read — hour × weekday',
-  'session-timeline': 'Daily sessions on a 24h track',
-  'reading-timeline': 'Your reading life — every book a bar in time',
-  'reading-pace': 'Pages per minute over time',
-  'pace-by-format': 'Speed by book format',
-  'speed-trend': 'Are you getting faster?',
-  estimates: 'Time left on books in progress',
-  'period-comparison': 'This period vs the last',
-  'monthly-comparison': 'Hours & finishes, last 12 months',
-  'year-in-review': 'Your year, at a glance (1y/All)',
-  'series-completion': 'How far through each series',
-  'backlog-estimate': 'How long your unread pile would take',
-  'author-affinity': 'Most-read authors',
-  'completion-by-type': 'Finish rate by book type',
-  'category-breakdown': 'Time split across categories',
-  'genre-over-time': 'Category mix over the year',
-  'library-growth': 'Library size over time',
-  'per-book-table': 'Sortable table of every book',
-  'rating-distribution': 'How you spread your 1–5 stars',
-  'taste-by-genre': 'Average rating per book type',
-  'rating-vs-time': 'Do you rate books you spend longer on higher?',
-  'rating-trend': 'Your ratings over time',
-  'top-rated': 'Your highest & lowest rated books',
-  'best-rated-series': 'Series ranked by your rating',
-  'lifetime-totals': 'All-time hours, pages, books, streak',
-  'personal-records': 'Longest session, biggest day, most pages',
-  'library-completion': 'How much of what you own you’ve read',
-  'reading-clock': 'A 24-hour radial of when you read',
-  'reading-by-language': 'Reading time split by language',
-  'words-read': 'Lifetime words read, by year',
-  'true-wpm': 'Your real reading speed — words ÷ time',
-  'book-length': 'How long the books you finish are',
-  'rereads': 'Books whose pages you revisit',
+const WIDGET_DESC: Record<string, MessageDescriptor> = {
+  'stat-time': msg`Total time read + avg session`,
+  'stat-sessions': msg`Number of reading sessions`,
+  'stat-finished': msg`Books completed`,
+  'stat-streak': msg`Current & longest daily streak`,
+  'stat-pages': msg`Total pages turned`,
+  'stat-completion': msg`Started vs finished ratio`,
+  'currently-reading': msg`Books in progress, with covers`,
+  daily: msg`Minutes read per day`,
+  'top-books': msg`Most-read books by time`,
+  'books-finished': msg`Cumulative finishes over time`,
+  'activity-365': msg`A year of reading, heatmap`,
+  'session-log': msg`Every session — paginated, deletable`,
+  'stat-metric': msg`Pick your own metric — avg session, pages/day, best day…`,
+  goal: msg`All your reading goals — rings fill as you read, managed in place`,
+  'recently-finished': msg`Latest finishes, newest first`,
+  'streak-calendar': msg`This month, read days filled`,
+  'dow-bar': msg`Which weekday you read most`,
+  'time-of-day': msg`Morning vs evening reader?`,
+  'time-by-format': msg`EPUB vs CBZ time split`,
+  'series-spotlight': msg`One series front and center — you pick which`,
+  'hour-dow': msg`When you read — hour × weekday`,
+  'session-timeline': msg`Daily sessions on a 24h track`,
+  'reading-timeline': msg`Your reading life — every book a bar in time`,
+  'reading-pace': msg`Pages per minute over time`,
+  'pace-by-format': msg`Speed by book format`,
+  'speed-trend': msg`Are you getting faster?`,
+  estimates: msg`Time left on books in progress`,
+  'period-comparison': msg`This period vs the last`,
+  'monthly-comparison': msg`Hours & finishes, last 12 months`,
+  'year-in-review': msg`Your year, at a glance (1y/All)`,
+  'series-completion': msg`How far through each series`,
+  'backlog-estimate': msg`How long your unread pile would take`,
+  'author-affinity': msg`Most-read authors`,
+  'completion-by-type': msg`Finish rate by book type`,
+  'category-breakdown': msg`Time split across categories`,
+  'genre-over-time': msg`Category mix over the year`,
+  'library-growth': msg`Library size over time`,
+  'per-book-table': msg`Sortable table of every book`,
+  'rating-distribution': msg`How you spread your 1–5 stars`,
+  'taste-by-genre': msg`Average rating per book type`,
+  'rating-vs-time': msg`Do you rate books you spend longer on higher?`,
+  'rating-trend': msg`Your ratings over time`,
+  'top-rated': msg`Your highest & lowest rated books`,
+  'best-rated-series': msg`Series ranked by your rating`,
+  'lifetime-totals': msg`All-time hours, pages, books, streak`,
+  'personal-records': msg`Longest session, biggest day, most pages`,
+  'library-completion': msg`How much of what you own you’ve read`,
+  'reading-clock': msg`A 24-hour radial of when you read`,
+  'reading-by-language': msg`Reading time split by language`,
+  'words-read': msg`Lifetime words read, by year`,
+  'true-wpm': msg`Your real reading speed — words ÷ time`,
+  'book-length': msg`How long the books you finish are`,
+  'rereads': msg`Books whose pages you revisit`,
 }
 
 // Widgets that are a number/short text — render their preview at natural size (no scale).
@@ -678,21 +682,21 @@ const SCROLL_IDS = new Set([
   'goal',
 ])
 
-const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
+const GALLERY_GROUPS: { label: MessageDescriptor; ids: string[] }[] = [
   {
-    label: 'Overview',
+    label: msg`Overview`,
     ids: ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'goal', 'currently-reading', 'recently-finished', 'streak-calendar', 'daily', 'top-books', 'books-finished', 'activity-365', 'lifetime-totals', 'words-read', 'session-log'],
   },
   {
-    label: 'Habits',
+    label: msg`Habits`,
     ids: ['hour-dow', 'reading-clock', 'reading-dna', 'reading-timeline', 'session-timeline', 'reading-pace', 'pace-by-format', 'true-wpm', 'dow-bar', 'time-of-day', 'time-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'],
   },
   {
-    label: 'Library',
+    label: msg`Library`,
     ids: ['year-in-review', 'library-completion', 'series-completion', 'series-spotlight', 'backlog-estimate', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'reading-by-language', 'library-growth', 'personal-records', 'book-length', 'rereads', 'per-book-table'],
   },
   {
-    label: 'Taste',
+    label: msg`Taste`,
     ids: ['rating-distribution', 'taste-by-genre', 'rating-vs-time', 'rating-trend', 'top-rated', 'best-rated-series'],
   },
 ]
@@ -756,23 +760,25 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
 // Each tab is its own board (own tiles + layout), independently customizable.
 type TabState = { id: string; label: string; tiles: Tile[]; layout: Layout }
 
-const TAB_DEFS: { id: string; label: string; ids: string[] }[] = [
-  { id: 'overview', label: 'Overview', ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'] },
-  { id: 'habits', label: 'Habits', ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'] },
-  { id: 'library', label: 'Library', ids: ['year-in-review', 'series-completion', 'backlog-estimate', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
-  { id: 'taste', label: 'Taste', ids: ['rating-distribution', 'taste-by-genre', 'rating-vs-time', 'rating-trend', 'top-rated', 'best-rated-series'] },
-  { id: 'timeline', label: 'Timeline', ids: ['reading-timeline'] },
+const TAB_DEFS: { id: string; label: MessageDescriptor; ids: string[] }[] = [
+  { id: 'overview', label: msg`Overview`, ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'] },
+  { id: 'habits', label: msg`Habits`, ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'] },
+  { id: 'library', label: msg`Library`, ids: ['year-in-review', 'series-completion', 'backlog-estimate', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
+  { id: 'taste', label: msg`Taste`, ids: ['rating-distribution', 'taste-by-genre', 'rating-vs-time', 'rating-trend', 'top-rated', 'best-rated-series'] },
+  { id: 'timeline', label: msg`Timeline`, ids: ['reading-timeline'] },
   // Phase 4 word-count tiles (words-read / true-wpm / book-length) are gallery-only
   // — addable from "Add tile" but on no default board, matching the batch-2 convention.
 ]
 
-function buildTab(def: { id: string; label: string; ids: string[] }): TabState {
-  if (def.ids.length === 0) return { id: def.id, label: def.label, tiles: [], layout: [] }
+function buildTab(def: { id: string; label: MessageDescriptor; ids: string[] }): TabState {
+  // Board names are plain persisted strings — resolve the default label with the
+  // locale active at creation time.
+  if (def.ids.length === 0) return { id: def.id, label: i18n._(def.label), tiles: [], layout: [] }
   // re-base y so each tab's board starts at the top
   const minY = Math.min(...def.ids.map((id) => INITIAL_POS[id].y))
   return {
     id: def.id,
-    label: def.label,
+    label: i18n._(def.label),
     tiles: def.ids.map((id) => ({ id, defId: id, config: defById(id).defaultConfig ?? DEFAULT_CFG })),
     layout: def.ids.map((id) => {
       const p = INITIAL_POS[id]
@@ -803,18 +809,18 @@ const withMissingDefaultTabs = (tabs: TabState[]): TabState[] => {
 }
 
 const RANGES = [
-  { days: 7, label: '7d' },
-  { days: 30, label: '30d' },
-  { days: 90, label: '90d' },
-  { days: 365, label: '1y' },
-  { days: 0, label: 'All' },
+  { days: 7, label: msg`7d` },
+  { days: 30, label: msg`30d` },
+  { days: 90, label: msg`90d` },
+  { days: 365, label: msg`1y` },
+  { days: 0, label: msg`All` },
 ]
 // Per-tile timeframe options. 0 = follow the page's range picker.
 const TIMEFRAMES = [
-  { days: 0, label: 'Range' },
-  { days: 7, label: '7d' },
-  { days: 14, label: '14d' },
-  { days: 30, label: '30d' },
+  { days: 0, label: msg`Range` },
+  { days: 7, label: msg`7d` },
+  { days: 14, label: msg`14d` },
+  { days: 30, label: msg`30d` },
 ]
 
 // ── Config popover ────────────────────────────────────────────────────────────
@@ -890,7 +896,7 @@ function ConfigPopover({
         )}
         {def.seriesPicker && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground">Series</p>
+            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Series</Trans></p>
             {seriesOptions && seriesOptions.length > 0 ? (
               <select
                 value={config.series ?? seriesOptions[0]}
@@ -904,13 +910,13 @@ function ConfigPopover({
                 ))}
               </select>
             ) : (
-              <p className="text-muted-foreground/70">No series with reading progress yet.</p>
+              <p className="text-muted-foreground/70"><Trans>No series with reading progress yet.</Trans></p>
             )}
           </>
         )}
         {def.metrics && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground">Metric</p>
+            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Metric</Trans></p>
             <div className="grid grid-cols-2 gap-1">
               {def.metrics.map((m) => (
                 <button
@@ -922,7 +928,7 @@ function ConfigPopover({
                     config.metric === m.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  {m.label}
+                  {i18n._(m.label)}
                 </button>
               ))}
             </div>
@@ -930,7 +936,7 @@ function ConfigPopover({
         )}
         {def.chartTypes && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground">Chart type</p>
+            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Chart type</Trans></p>
             <div className="mb-3 flex rounded-md border border-border p-0.5">
               {def.chartTypes.map((ct) => (
                 <button
@@ -946,7 +952,7 @@ function ConfigPopover({
                 </button>
               ))}
             </div>
-            <p className="mb-1.5 font-medium text-muted-foreground">Timeframe</p>
+            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Timeframe</Trans></p>
             <div className="flex gap-1">
               {TIMEFRAMES.map((t) => (
                 <button
@@ -958,22 +964,22 @@ function ConfigPopover({
                     config.days === t.days ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  {t.label}
+                  {i18n._(t.label)}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70">Range follows the page's range picker; days show the newest slice of it.</p>
+            <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70"><Trans>Range follows the page's range picker; days show the newest slice of it.</Trans></p>
           </>
         )}
         {def.autoH && (
           <div className={cn((def.chartTypes || def.metrics || def.seriesPicker || def.scopePicker) && 'mt-3 border-t border-border pt-3')}>
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-muted-foreground">Auto-fit height</span>
+              <span className="font-medium text-muted-foreground"><Trans>Auto-fit height</Trans></span>
               <button
                 type="button"
                 role="switch"
                 aria-checked={!!config.autoFit}
-                aria-label="Auto-fit height"
+                aria-label={t`Auto-fit height`}
                 onClick={() => onChange({ autoFit: !config.autoFit })}
                 className={cn(
                   'relative h-4 w-7 shrink-0 rounded-full transition-colors',
@@ -989,7 +995,7 @@ function ConfigPopover({
               </button>
             </div>
             <p className="mt-1 text-[10px] leading-snug text-muted-foreground/70">
-              Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls).
+              <Trans>Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls).</Trans>
             </p>
           </div>
         )}
@@ -1018,7 +1024,7 @@ function AddWidgetModal({
     if (boardFilter === 'off' && present.has(id)) return false
     if (!needle) return true
     const w = defById(id)
-    return w.title.toLowerCase().includes(needle) || (WIDGET_DESC[id] ?? '').toLowerCase().includes(needle)
+    return i18n._(w.title).toLowerCase().includes(needle) || (WIDGET_DESC[id] ? i18n._(WIDGET_DESC[id]) : '').toLowerCase().includes(needle)
   }
   const groups = GALLERY_GROUPS.map((g) => ({ ...g, ids: g.ids.filter(matches) })).filter((g) => g.ids.length > 0)
 
@@ -1028,10 +1034,10 @@ function AddWidgetModal({
       <div className="relative z-10 w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl shadow-accent-soft">
         <div className="mb-3 flex items-start justify-between">
           <div>
-            <h2 className="text-base font-semibold">Add a widget</h2>
-            <p className="text-xs text-muted-foreground">Removed a tile? Add it back — or add another copy.</p>
+            <h2 className="text-base font-semibold"><Trans>Add a widget</Trans></h2>
+            <p className="text-xs text-muted-foreground"><Trans>Removed a tile? Add it back — or add another copy.</Trans></p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
+          <button type="button" onClick={onClose} aria-label={t`Close`} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1043,13 +1049,13 @@ function AddWidgetModal({
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search widgets…"
+              placeholder={t`Search widgets…`}
               className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
           </div>
           {/* quick filter: every widget vs only those already on / not yet on this board */}
           <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
-            {([['all', 'All'], ['on', 'On board'], ['off', 'Not on board']] as const).map(([id, label]) => (
+            {([['all', t`All`], ['on', t`On board`], ['off', t`Not on board`]] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
@@ -1066,13 +1072,13 @@ function AddWidgetModal({
         </div>
 
         {groups.length === 0 && (
-          <p className="py-10 text-center text-sm text-muted-foreground">{needle ? `No widgets match “${q}”.` : boardFilter === 'on' ? 'No widgets on this board yet.' : 'Every widget is already on this board.'}</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">{needle ? t`No widgets match “${q}”.` : boardFilter === 'on' ? t`No widgets on this board yet.` : t`Every widget is already on this board.`}</p>
         )}
 
         <div className="flex flex-col gap-5">
           {groups.map((group) => (
-            <div key={group.label}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</h3>
+            <div key={group.ids[0]}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{i18n._(group.label)}</h3>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {group.ids.map((id) => {
                   const w = defById(id)
@@ -1081,7 +1087,7 @@ function AddWidgetModal({
                       key={id}
                       type="button"
                       onClick={() => onAdd(id)}
-                      title={WIDGET_DESC[id]}
+                      title={WIDGET_DESC[id] ? i18n._(WIDGET_DESC[id]) : undefined}
                       className="group/card flex flex-col gap-1.5 rounded-lg border border-border bg-background p-2 text-left transition hover:border-primary/50 hover:bg-muted"
                     >
                       {/* live mini-preview. Number/text widgets render at natural size so
@@ -1097,9 +1103,9 @@ function AddWidgetModal({
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 px-0.5">
-                        <span className="truncate text-xs font-medium text-foreground">{w.title}</span>
+                        <span className="truncate text-xs font-medium text-foreground">{i18n._(w.title)}</span>
                         {present.has(id) && (
-                          <span className="ml-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">on board</span>
+                          <span className="ml-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"><Trans>on board</Trans></span>
                         )}
                       </div>
                     </button>
@@ -1199,6 +1205,7 @@ function TileShell({
     const x = (e.clientX - r.left) / r.width
     const y = (e.clientY - r.top) / r.height
     setGlare({ x: x * 100, y: y * 100 })
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS transform
     tiltRef.current.style.transform = `rotateY(${(x * 2 - 1) * 5}deg) rotateX(${(y * 2 - 1) * -5}deg) translateY(-5px)`
   }
   function onLeave() {
@@ -1246,16 +1253,16 @@ function TileShell({
         {/* truncate, don't wrap — a wrapped title pushes the body out of 1-row tiles.
             12px + a 12px icon keeps long labels ("Reading Time") on one line in a
             narrow ~126px stat tile instead of clipping to "Reading Ti…". */}
-        <h3 className="min-w-0 truncate font-display text-xs font-medium text-muted-foreground">{def.titleFor?.(config) ?? def.title}</h3>
+        <h3 className="min-w-0 truncate font-display text-xs font-medium text-muted-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
         {def.infoHint && <def.infoHint />}
         {def.fixedWindow && (
           <span title="This tile uses a fixed window and ignores the range picker" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
-            {def.fixedWindow}
+            {i18n._(def.fixedWindow)}
           </span>
         )}
         {editMode && def.autoH && config.autoFit && (
-          <span title="Height auto-fits the content — only width is resizable" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
-            Auto
+          <span title={t`Height auto-fits the content — only width is resizable`} className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+            <Trans>Auto</Trans>
           </span>
         )}
         {editMode && (
@@ -1269,7 +1276,7 @@ function TileShell({
                   'no-drag -my-1 rounded-md p-1 transition hover:bg-muted hover:text-foreground',
                   cfgOpen ? 'bg-muted text-foreground' : 'text-muted-foreground',
                 )}
-                aria-label="Configure"
+                aria-label={t`Configure`}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
               </button>
@@ -1280,8 +1287,8 @@ function TileShell({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={onDuplicate}
                 className="no-drag -my-1 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                aria-label={`Duplicate ${def.title}`}
-                title="Duplicate tile"
+                aria-label={(() => { const title = i18n._(def.title); return t`Duplicate ${title}` })()}
+                title={t`Duplicate tile`}
               >
                 <Copy className="h-3.5 w-3.5" />
               </button>
@@ -1291,7 +1298,7 @@ function TileShell({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onRemove}
               className="no-drag -my-1 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              aria-label={`Remove ${def.title}`}
+              aria-label={(() => { const title = i18n._(def.title); return t`Remove ${title}` })()}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -1537,10 +1544,12 @@ type CustomRange = { start: string; end: string }
 type PadWidth = 'none' | 'bit' | 'lot'
 const PAD_X: Record<PadWidth, string> = {
   none: 'px-4',
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
   bit: 'px-4 sm:px-[7%]',
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
   lot: 'px-4 sm:px-[16%]',
 }
-const PAD_LABEL: Record<PadWidth, string> = { none: 'None', bit: 'A bit', lot: 'A lot' }
+const PAD_LABEL: Record<PadWidth, MessageDescriptor> = { none: msg`None`, bit: msg`A bit`, lot: msg`A lot` }
 
 // A tab whose only tile is the Reading Timeline renders full-bleed in view mode:
 // no card, no grid, edge-to-edge and viewport-tall. Edit mode falls back to the
@@ -1580,6 +1589,7 @@ function sanitizePersisted(p: Persisted): Persisted | null {
     const ids = new Set(tiles.map((x) => x.id))
     return {
       id: String(t.id),
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- fallback board name kept stable in storage
       label: String(t.label ?? 'Board'),
       tiles: tiles.map((x) => ({ ...x, config: { ...DEFAULT_CFG, ...(x.config ?? {}) } })),
       layout: (t.layout ?? []).filter((l) => ids.has(l.i)),
@@ -1622,16 +1632,16 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <button type="button" onClick={() => setView(new Date(y, m - 1, 1))} className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label="Previous month">
+        <button type="button" onClick={() => setView(new Date(y, m - 1, 1))} className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label={t`Previous month`}>
           <ChevronLeft className="h-4 w-4" />
         </button>
         <span className="text-xs font-semibold text-foreground">{monthLabel}</span>
-        <button type="button" onClick={() => setView(new Date(y, m + 1, 1))} className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label="Next month">
+        <button type="button" onClick={() => setView(new Date(y, m + 1, 1))} className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label={t`Next month`}>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
       <div className="grid grid-cols-7 gap-0.5">
-        {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((w) => (
+        {[t`Mo`, t`Tu`, t`We`, t`Th`, t`Fr`, t`Sa`, t`Su`].map((w) => (
           <div key={w} className="py-1 text-center text-[10px] font-medium text-muted-foreground">{w}</div>
         ))}
         {cells.map((d, i) => {
@@ -1702,7 +1712,7 @@ function RangeControl({
             !custom && days === r.days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          {r.label}
+          {i18n._(r.label)}
         </button>
       ))}
       <button
@@ -1714,7 +1724,7 @@ function RangeControl({
         )}
       >
         <Calendar className="h-3.5 w-3.5" />
-        {custom ? `${fmtDay(custom.start)} – ${fmtDay(custom.end)}` : 'Custom'}
+        {custom ? `${fmtDay(custom.start)} – ${fmtDay(custom.end)}` : t`Custom`}
       </button>
 
       {open && (
@@ -1724,7 +1734,7 @@ function RangeControl({
             <RangeCalendar from={from} to={to} onPick={pick} />
             <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-xs">
               <span className="text-muted-foreground">
-                {from ? (to ? `${fmtDay(from)} – ${fmtDay(to)}` : `${fmtDay(from)} – …`) : 'Pick a start & end'}
+                {from ? (to ? `${fmtDay(from)} – ${fmtDay(to)}` : `${fmtDay(from)} – …`) : t`Pick a start & end`}
               </span>
               <div className="flex items-center gap-1.5">
                 {custom && (
@@ -1736,7 +1746,7 @@ function RangeControl({
                     }}
                     className="rounded-md px-2 py-1 text-muted-foreground transition hover:text-foreground"
                   >
-                    Clear
+                    <Trans>Clear</Trans>
                   </button>
                 )}
                 <button
@@ -1748,7 +1758,7 @@ function RangeControl({
                   }}
                   className="rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40"
                 >
-                  Apply
+                  <Trans>Apply</Trans>
                 </button>
               </div>
             </div>
@@ -1807,6 +1817,11 @@ export function StatsPage() {
   const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
   // View-mode-only: a board holding nothing but the timeline escapes the grid.
   const soloTimeline = !editMode && active.tiles.length === 1 && active.tiles[0].defId === 'reading-timeline'
+  // Hoisted: inside tabs.map the param `t` shadows Lingui's t.
+  const renameBoardLabel = (name: string) => t`Rename ${name}`
+  const deleteBoardLabel = (name: string) => t`Delete ${name}`
+  const renameBoardTitle = t`Rename board`
+  const deleteBoardTitle = t`Delete board`
   // genuinely no reading history (not just a quiet range): full onboarding state
   const neverRead = !!stats && stats.headline.total_sessions === 0 && stats.heatmap_daily.every((d) => d.seconds === 0)
 
@@ -1936,7 +1951,7 @@ export function StatsPage() {
       updateActive((t) => ({ ...t, tiles: t.tiles.filter((x) => x.id !== id), layout: t.layout.filter((it) => it.i !== id) }))
       if (tile && lay) {
         const def = defById(tile.defId)
-        pushUndo(`Removed “${def.titleFor?.(tile.config) ?? def.title}”`, () => {
+        pushUndo((() => { const title = def.titleFor?.(tile.config) ?? i18n._(def.title); return t`Removed “${title}”` })(), () => {
           setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, tiles: [...t.tiles, tile], layout: [...t.layout, lay] } : t)))
         })
       }
@@ -2014,9 +2029,9 @@ export function StatsPage() {
           const tiles = (p.tiles as Tile[]).filter((x) => WIDGETS.some((w) => w.id === x.defId)).map((x) => ({ ...x, config: { ...DEFAULT_CFG, ...(x.config ?? {}) } }))
           const ids = new Set(tiles.map((x) => x.id))
           const layout = (p.layout as Layout).filter((l) => ids.has(l.i))
-          addTabWith(String(p.label ?? 'Imported board'), tiles, layout)
+          addTabWith(String(p.label ?? t`Imported board`), tiles, layout)
         } catch {
-          pushUndo('That file is not a Tome board export.', () => {})
+          pushUndo(t`That file is not a Tome board export.`, () => {})
         }
       })
     },
@@ -2046,7 +2061,7 @@ export function StatsPage() {
       const remaining = tabs.filter((t) => t.id !== id)
       setTabs(remaining)
       setActiveTabId((cur) => (cur === id ? (remaining[Math.max(0, idx - 1)] ?? remaining[0]).id : cur))
-      pushUndo(`Deleted board “${removed.label}”`, () => {
+      pushUndo((() => { const name = removed.label; return t`Deleted board “${name}”` })(), () => {
         setTabs((prev) => {
           const next = [...prev]
           next.splice(Math.min(idx, next.length), 0, removed)
@@ -2075,6 +2090,7 @@ export function StatsPage() {
 
   return (
     <AppShell>
+      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
       <style>{`
         .react-grid-item.react-grid-placeholder {
           background: var(--primary, #6366f1) !important;
@@ -2105,12 +2121,12 @@ export function StatsPage() {
         {/* min-h + wrap: on phones the range pills don't fit beside the title row,
             so they wrap to a second line instead of overflowing the viewport */}
         <div className={cn('flex min-h-14 flex-wrap items-center gap-x-3 py-1.5 px-4')}>
-          <h1 className="font-display text-xl text-foreground">Reading Stats</h1>
+          <h1 className="font-display text-xl text-foreground"><Trans>Reading Stats</Trans></h1>
           <a
             href={docsLink(DOCS.stats)}
             target="_blank"
             rel="noopener noreferrer"
-            title="What do these mean? — read the stats docs"
+            title={t`What do these mean? — read the stats docs`}
             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <HelpCircle className="h-3.5 w-3.5" />
@@ -2181,8 +2197,8 @@ export function StatsPage() {
                     <button
                       type="button"
                       onClick={() => setRenamingId(t.id)}
-                      aria-label={`Rename ${t.label}`}
-                      title="Rename board"
+                      aria-label={renameBoardLabel(t.label)}
+                      title={renameBoardTitle}
                       className={cn('rounded p-0.5 text-muted-foreground transition hover:text-foreground', tabs.length > 1 ? '' : 'mr-1.5')}
                     >
                       <Pencil className="h-3 w-3" />
@@ -2191,8 +2207,8 @@ export function StatsPage() {
                       <button
                         type="button"
                         onClick={() => deleteTab(t.id)}
-                        aria-label={`Delete ${t.label}`}
-                        title="Delete board"
+                        aria-label={deleteBoardLabel(t.label)}
+                        title={deleteBoardTitle}
                         className="mr-1.5 rounded p-0.5 text-muted-foreground transition hover:text-foreground"
                       >
                         <X className="h-3 w-3" />
@@ -2208,8 +2224,8 @@ export function StatsPage() {
                 <button
                   type="button"
                   onClick={() => setTabMenuOpen((o) => !o)}
-                  aria-label="Add board"
-                  title="Add board"
+                  aria-label={t`Add board`}
+                  title={t`Add board`}
                   className={cn(
                     'flex items-center rounded-md px-2 py-1.5 transition hover:bg-muted/50 hover:text-foreground',
                     tabMenuOpen ? 'bg-muted/50 text-foreground' : 'text-muted-foreground',
@@ -2223,38 +2239,38 @@ export function StatsPage() {
                     <div className="absolute left-0 top-full z-50 mt-1.5 w-48 rounded-lg border border-border bg-card p-1 text-xs shadow-xl">
                       <button
                         type="button"
-                        onClick={() => addTabWith('New board', [], [], true)}
+                        onClick={() => addTabWith(t`New board`, [], [], true)}
                         className="w-full rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
                       >
-                        Empty board
+                        <Trans>Empty board</Trans>
                       </button>
                       <button
                         type="button"
-                        onClick={() => addTabWith(`${active.label} copy`, active.tiles.map((x) => ({ ...x, config: { ...x.config } })), active.layout.map((l) => ({ ...l })))}
+                        onClick={() => { const name = active.label; addTabWith(t`${name} copy`, active.tiles.map((x) => ({ ...x, config: { ...x.config } })), active.layout.map((l) => ({ ...l }))) }}
                         className="w-full truncate rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
                       >
-                        Duplicate “{active.label}”
+                        {(() => { const name = active.label; return <Trans>Duplicate “{name}”</Trans> })()}
                       </button>
                       <button
                         type="button"
                         onClick={() => importInputRef.current?.click()}
                         className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
                       >
-                        <Upload className="h-3 w-3 text-muted-foreground" /> Import board…
+                        <Upload className="h-3 w-3 text-muted-foreground" /> <Trans>Import board…</Trans>
                       </button>
                       <div className="my-1 border-t border-border" />
-                      <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start from default</p>
+                      <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Start from default</Trans></p>
                       {TAB_DEFS.map((d) => (
                         <button
                           key={d.id}
                           type="button"
                           onClick={() => {
                             const b = buildTab(d)
-                            addTabWith(d.label, b.tiles, b.layout)
+                            addTabWith(i18n._(d.label), b.tiles, b.layout)
                           }}
                           className="w-full rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
                         >
-                          {d.label}
+                          {i18n._(d.label)}
                         </button>
                       ))}
                     </div>
@@ -2282,13 +2298,13 @@ export function StatsPage() {
                   className={cn('flex items-center gap-1 text-[10px]', saveState === 'error' ? 'text-red-500' : 'text-muted-foreground')}
                 >
                   {saveState === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" /> : saveState === 'saved' ? <Check className="h-3 w-3" /> : <CloudOff className="h-3 w-3" />}
-                  {saveState === 'saving' ? 'Saving' : saveState === 'saved' ? 'Saved' : 'Save failed'}
+                  {saveState === 'saving' ? t`Saving` : saveState === 'saved' ? t`Saved` : t`Save failed`}
                 </span>
               )}
               {editMode && (
                 <>
                   <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
-                    <span className="px-1.5 text-muted-foreground">Padding</span>
+                    <span className="px-1.5 text-muted-foreground"><Trans>Padding</Trans></span>
                     {(['none', 'bit', 'lot'] as const).map((w) => (
                       <button
                         key={w}
@@ -2299,18 +2315,18 @@ export function StatsPage() {
                           pad === w ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        {PAD_LABEL[w]}
+                        {i18n._(PAD_LABEL[w])}
                       </button>
                     ))}
                   </div>
                   <button type="button" onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted">
-                    <Plus className="h-3.5 w-3.5" /> Add tile
+                    <Plus className="h-3.5 w-3.5" /> <Trans>Add tile</Trans>
                   </button>
                   <button type="button" onClick={reset} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-                    <RotateCcw className="h-3.5 w-3.5" /> Reset
+                    <RotateCcw className="h-3.5 w-3.5" /> <Trans>Reset</Trans>
                   </button>
-                  <button type="button" onClick={exportBoard} title="Export this board as a JSON file (share or back up)" className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-                    <Download className="h-3.5 w-3.5" /> Export
+                  <button type="button" onClick={exportBoard} title={t`Export this board as a JSON file (share or back up)`} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+                    <Download className="h-3.5 w-3.5" /> <Trans>Export</Trans>
                   </button>
                 </>
               )}
@@ -2318,8 +2334,8 @@ export function StatsPage() {
                 type="button"
                 onClick={exportImage}
                 disabled={shotBusy}
-                title="Save this board as an image"
-                aria-label="Save board as image"
+                title={t`Save this board as an image`}
+                aria-label={t`Save board as image`}
                 className="flex items-center rounded-md border border-border bg-card p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               >
                 {shotBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageDown className="h-3.5 w-3.5" />}
@@ -2338,7 +2354,7 @@ export function StatsPage() {
                 )}
               >
                 {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                {editMode ? 'Done' : 'Edit'}
+                {editMode ? t`Done` : t`Edit`}
               </button>
             </div>
           </div>
@@ -2353,7 +2369,7 @@ export function StatsPage() {
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span className="text-foreground">
-            This page is yours — every tile can be moved, resized, swapped or removed, per board. Hit{' '}
+            <Trans>This page is yours — every tile can be moved, resized, swapped or removed, per board. Hit{' '}
             <button
               type="button"
               onClick={() => {
@@ -2364,9 +2380,9 @@ export function StatsPage() {
             >
               Edit
             </button>{' '}
-            to start. Reset always brings the defaults back.
+            to start. Reset always brings the defaults back.</Trans>
           </span>
-          <button type="button" onClick={dismissHint} aria-label="Dismiss" className="ml-auto rounded p-0.5 text-muted-foreground transition hover:text-foreground">
+          <button type="button" onClick={dismissHint} aria-label={t`Dismiss`} className="ml-auto rounded p-0.5 text-muted-foreground transition hover:text-foreground">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -2377,7 +2393,7 @@ export function StatsPage() {
       {stats && !neverRead && stats.headline.total_sessions === 0 && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <BarChart3 className="h-3.5 w-3.5 shrink-0 opacity-60" />
-          No reading sessions in this range — session-based tiles will be empty.
+          <Trans>No reading sessions in this range — session-based tiles will be empty.</Trans>
         </div>
       )}
 
@@ -2388,22 +2404,22 @@ export function StatsPage() {
       ) : neverRead ? (
         <div className="flex flex-col items-center justify-center gap-4 py-32 text-muted-foreground">
           <BarChart3 className="h-16 w-16 opacity-20" />
-          <p className="text-sm font-medium text-foreground">No reading data yet</p>
+          <p className="text-sm font-medium text-foreground"><Trans>No reading data yet</Trans></p>
           <p className="max-w-xs text-center text-xs">
-            Reading stats appear once sessions arrive — synced from the TomeSync
+            <Trans>Reading stats appear once sessions arrive — synced from the TomeSync
             KOReader plugin, logged by hand on a book page, or imported from a
-            KOReader statistics file.
+            KOReader statistics file.</Trans>
           </p>
           <Link to="/settings" className="text-xs text-primary hover:underline">
-            Download the plugin from Settings
+            <Trans>Download the plugin from Settings</Trans>
           </Link>
         </div>
       ) : stats ? (
         active.tiles.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-24 text-muted-foreground">
             <Plus className="h-10 w-10 opacity-20" />
-            <p className="text-sm">This board is empty.</p>
-            <p className="text-xs">{editMode ? 'Use “Add tile” to build your ' + active.label + ' board.' : 'Hit Edit, then Add tile.'}</p>
+            <p className="text-sm"><Trans>This board is empty.</Trans></p>
+            <p className="text-xs">{editMode ? (() => { const name = active.label; return t`Use “Add tile” to build your ${name} board.` })() : t`Hit Edit, then Add tile.`}</p>
           </div>
         ) : soloTimeline ? (
           <FullBleedTimeline />
@@ -2413,7 +2429,7 @@ export function StatsPage() {
           </div>
         )
       ) : (
-        <p className="py-32 text-center text-sm text-muted-foreground">Couldn’t load stats.</p>
+        <p className="py-32 text-center text-sm text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
       )}
       </div>
 
@@ -2433,9 +2449,9 @@ export function StatsPage() {
             }}
             className="font-medium text-primary transition hover:underline"
           >
-            Undo
+            <Trans>Undo</Trans>
           </button>
-          <button type="button" onClick={() => setUndo(null)} aria-label="Dismiss" className="rounded p-0.5 text-muted-foreground transition hover:text-foreground">
+          <button type="button" onClick={() => setUndo(null)} aria-label={t`Dismiss`} className="rounded p-0.5 text-muted-foreground transition hover:text-foreground">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
