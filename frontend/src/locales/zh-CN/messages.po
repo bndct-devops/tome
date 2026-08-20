@@ -13,17 +13,48 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#: src/pages/BookDetailPage.tsx
+msgid " — click for sessions"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid " · {prog}% in"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "— keep existing —"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid ", {pages} pages"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "…and {more} more not shown"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "· p. {page} of {totalPages}"
+msgstr ""
+
 #. placeholder {0}: s.book_count
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
+msgstr ""
+
+#. placeholder {0}: aggregate.distinct_readers
+#: src/pages/BookDetailPage.tsx
+msgid "{0, plural, one {# reader} other {# readers}}"
+msgstr ""
+
+#. placeholder {0}: aggregate.total_sessions
+#: src/pages/BookDetailPage.tsx
+msgid "{0, plural, one {# reading day} other {# reading days}}"
+msgstr ""
+
+#. placeholder {0}: data.reread_bins
+#: src/pages/BookDetailPage.tsx
+msgid "{0, plural, one {# stretch re-read} other {# stretches re-read}}"
 msgstr ""
 
 #. placeholder {0}: selected.size
@@ -51,6 +82,10 @@ msgstr ""
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "{count} sittings · {from} – {to}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{d}d ago"
 msgstr ""
@@ -59,8 +94,24 @@ msgstr ""
 msgid "{days}d ago"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "{dayStr}: {mins}m"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{deleted, plural, one {Deleted # book} other {Deleted # books}}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "{deltaStr}% vs last week"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "{dur} across {n} chapters"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "{dur} on device"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -100,8 +151,16 @@ msgstr ""
 msgid "{name} · Vol. {start_index}–{end_index}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "{pacePerMin} pg/min"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{readCount} read · {readingCount} reading · {unreadCount} unread"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "{recent} in the last 7 days vs {prior} the week before"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -140,10 +199,43 @@ msgstr ""
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "{words} words"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "← Back to library"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "~{at}% in · {dur}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "~{at}% in · not read"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "A while ago"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Activity"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Add"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Add a note"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Add a review"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Add tag…"
 msgstr ""
@@ -152,8 +244,16 @@ msgstr ""
 msgid "Add Tags"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Add to library"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Add to Library"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Added to Want to Read"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -176,6 +276,10 @@ msgstr ""
 msgid "All Books"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "All readers: {dur} · {days} · {readers}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "All users"
 msgstr ""
@@ -188,12 +292,21 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Attach progress synced from a KOReader-compatible app to this book"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Author"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Author: {filterAuthor}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "avg session"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -204,8 +317,16 @@ msgstr ""
 msgid "Black"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Book deleted"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Book Detail"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Book not found"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -221,8 +342,21 @@ msgid "Browse your library"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Cancel"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "ch. {n}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "ch. 1"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Chapter"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -233,12 +367,20 @@ msgstr ""
 msgid "Choose icon"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Clear"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Clear all"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Clear all filters"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Clear imported history — remove this book's KOReader page data"
 msgstr ""
 
 #: src/components/AppHeader.tsx
@@ -249,6 +391,14 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Clear selection / blur search"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Clearing…"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Close"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -265,6 +415,14 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Command palette — jump to a book, series, author, or page"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Confirm"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Content"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -297,20 +455,43 @@ msgid "Day streak"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Delete"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Delete \"{title}\"?"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Delete failed"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Delete this highlight"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Deleting…"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Description"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Deselect all"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Details"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -325,6 +506,7 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Download failed"
 msgstr ""
@@ -338,6 +520,7 @@ msgid "Download ZIP"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Edit"
 msgstr ""
 
@@ -349,12 +532,24 @@ msgstr ""
 msgid "Edit Metadata"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Edit note"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Edit review"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Edit Shelf"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Ember"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Est. remaining"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -377,20 +572,64 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to delete highlight"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to link sync document"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Failed to load books"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to load facets"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to load libraries"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to log session"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Failed to save"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to save note"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to save rating"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to save review"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to undo"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Failed to update metadata"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Failed to update reading status"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Failed to update sharing"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Fetch Metadata"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -401,8 +640,16 @@ msgstr ""
 msgid "finished"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Finished"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Finished · 30d"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "First read"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -413,6 +660,7 @@ msgstr ""
 msgid "Focus search"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Format"
 msgstr ""
@@ -423,6 +671,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "From your highlights"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Genres"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -453,17 +705,38 @@ msgstr ""
 msgid "hiatus"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Hide details"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Highlight deleted"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 msgid "Highlights"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Highlights & Notes"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Home"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "How far through the book you'd read by each date."
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Icon"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "ISBN"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
@@ -474,6 +747,11 @@ msgstr ""
 msgid "Keyboard Shortcuts"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "KOReader sync linked"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Language"
@@ -483,10 +761,16 @@ msgstr "语言"
 msgid "Language: {filterLanguageLabel}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Last read"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Libraries"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Library"
 msgstr ""
@@ -499,12 +783,28 @@ msgstr ""
 msgid "Light"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Link"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Link KOReader sync…"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Linking…"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "List view"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Log out"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Log session"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -515,9 +815,33 @@ msgstr ""
 msgid "Manage series"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Manual"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Mark all read"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Marked as read"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Marked as reading"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Marked unread — reading progress cleared"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Metadata saved"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Minutes"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -548,12 +872,20 @@ msgstr ""
 msgid "New Library"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "new this week"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Next book"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Next page"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "No description"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -566,6 +898,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "No other users to share with."
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "No reading logged yet. Track time by hand — handy for a paper copy or a device that isn't synced."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -584,8 +920,25 @@ msgstr ""
 msgid "No series found — add series metadata to your books."
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "No type"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "None"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "not read"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Note removed"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Note saved — syncs to your devices"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -598,6 +951,10 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 msgid "Notifications"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "of {totalPages} pages"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -624,12 +981,24 @@ msgstr ""
 msgid "Open selected book"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "pace"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "pages"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Pages · 30d"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Pick up where you left off"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Position history — restore a bad sync"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -648,8 +1017,24 @@ msgstr ""
 msgid "Private library"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Progress"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Progress % <0>(optional)</0>"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Public library"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Publisher"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Rate this book"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -672,13 +1057,34 @@ msgstr ""
 msgid "Rating"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "read"
+msgstr ""
+
 #: src/components/BookCard.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Read"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Read · 30d"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "read {a}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "read {a} – {b}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "read {d}, {from} – {to}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "read {span}"
 msgstr ""
 
 #: src/components/BookCard.tsx
@@ -689,12 +1095,28 @@ msgstr ""
 msgid "Reader"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "reading"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Reading"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Reading days"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Reading intensity"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Reading Log"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Reading Stats"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -705,11 +1127,20 @@ msgstr ""
 msgid "Recently Finished"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Remove all of this book's imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on."
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Remove from library"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Resume {volLabel}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Save"
 msgstr ""
 
@@ -717,8 +1148,20 @@ msgstr ""
 msgid "Save Changes"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Save failed"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Save note"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Save the library first, then reopen it to share with users."
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Saving…"
 msgstr ""
 
 #: src/components/AppHeader.tsx
@@ -754,6 +1197,7 @@ msgstr ""
 msgid "Series"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Series name"
 msgstr ""
@@ -766,12 +1210,29 @@ msgstr ""
 msgid "Series: {filterSeries}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "sessions"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Sessions · {d}"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Sessions ({n})"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Settings"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Share"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Share this book — a public metadata-only page"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -786,8 +1247,17 @@ msgstr ""
 msgid "Shared Library"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Shelved"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Shelved — kept your progress"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Shelved — set aside, keeps your progress"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -798,20 +1268,30 @@ msgstr ""
 msgid "Show another highlight"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Show details"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Show individual volumes"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Show less"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Show more"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "start"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -834,6 +1314,14 @@ msgstr ""
 msgid "Status: {filterStatusLabel}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Subtitle (optional)"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Synced document"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Tag"
 msgstr ""
@@ -850,6 +1338,15 @@ msgstr ""
 msgid "This permanently removes the selected books and their files from disk. This cannot be undone."
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Time per chapter"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Time per chapter, line view"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Title"
 msgstr ""
@@ -874,12 +1371,25 @@ msgstr "翻译由社区维护。尚未翻译的内容将以英文显示。"
 msgid "Try adjusting your filters"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Type"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Unassigned"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Undo"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "unknown device"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "unread"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -914,6 +1424,7 @@ msgstr ""
 msgid "Viewing as <0>{impersonatedUsername}</0>"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Vol. {idx}"
 msgstr ""
@@ -922,18 +1433,48 @@ msgstr ""
 msgid "Vol. {volIdx}"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Volume"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Want to Read"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Want to Read — queue this book up next"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Web reader"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "What did you think? (optional, saved automatically)"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Where in the book your time went — taller means more time spent on those pages."
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Where you read"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Wishlist"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Words"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Year"
 msgstr ""
@@ -942,6 +1483,14 @@ msgstr ""
 msgid "Yesterday"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "You rated this {rating}/5"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Your library is empty"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Your note — syncs back to KOReader on the next sync"
 msgstr ""
