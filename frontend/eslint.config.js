@@ -34,15 +34,17 @@ export default defineConfig([
           '^[A-Z0-9_-]+$',            // CONSTANTS
           '^/',                       // API and router paths
           '^tome_',                   // localStorage keys
+          '^Tome$',                   // product name, never translated
           '^[^a-zA-Z]*$',             // punctuation / symbols only
         ],
         ignoreNames: [
           { regex: { pattern: 'className', flags: 'i' } },
           { regex: { pattern: '^[A-Z0-9_-]+$' } },
-          'style', 'src', 'srcSet', 'href', 'type', 'id', 'key', 'name', 'role',
+          'style', 'src', 'srcSet', 'href', 'type', 'id', 'key', 'name', 'role', 'iconName',
           'width', 'height', 'fill', 'stroke', 'viewBox', 'd',
-          'value', 'to', 'method', 'accept', 'autoComplete', 'inputMode',
+          'value', 'to', 'method', 'accept', 'autoComplete', 'inputMode', 'keys',
           'displayName', 'Authorization', 'family', 'format', 'icon', 'defaultIcon',
+          'menuItem', 'destructive',
         ],
         ignoreFunctions: [
           'cn', 'cva', 'clsx', 'Error', 'console.*', 'require',
@@ -54,6 +56,7 @@ export default defineConfig([
           '*.setItem', '*.getItem', '*.removeItem', 'new Date', '*.toLocaleDateString',
           '*.toLocaleString', '*.toLocaleTimeString', '*.localeCompare',
           'useState', 'useRef', 'navigate', 'open',
+          'getIcon', 'setLibModalInitialIcon', 'setModalInitialIcon', 'setModalDefaultIcon',
         ],
       }],
       'lingui/t-call-in-function': 'error',

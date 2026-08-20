@@ -13,10 +13,344 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#: src/components/NotificationBell.tsx
+msgid "{days}d ago"
+msgstr ""
+
+#: src/components/NotificationBell.tsx
+msgid "{hrs}h ago"
+msgstr ""
+
+#: src/components/NotificationBell.tsx
+msgid "{mins}m ago"
+msgstr ""
+
+#: src/components/AppShell.tsx
+msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "{themeName} theme"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Admin"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "All Books"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Amber"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Bindery"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Black"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Book Detail"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Cancel"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Choose icon"
+msgstr ""
+
+#: src/components/AppHeader.tsx
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Clear search"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Clear selection / blur search"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Close navigation"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Collapse / expand all books"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Collapse sidebar"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Command palette — jump to a book, series, author, or page"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Dark"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Dashboard"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Delete"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Docs"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Download Markdown export"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Edit"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Edit Library"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Edit Shelf"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Ember"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Everywhere"
+msgstr ""
+
+#: src/components/ImpersonationBanner.tsx
+msgid "Exit impersonation"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Expand sidebar"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Failed to save"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Failed to update sharing"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Focus search"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Go back"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Hardcover"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/components/Sidebar.tsx
+msgid "Highlights"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Home"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Icon"
+msgstr ""
+
+#: src/components/NotificationBell.tsx
+msgid "just now"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Keyboard Shortcuts"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Language"
 msgstr "语言"
 
+#: src/components/Sidebar.tsx
+msgid "Libraries"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Light"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Log out"
+msgstr ""
+
+#: src/components/NotificationBell.tsx
+msgid "Mark all read"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Name…"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "New library"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "New Library"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Next book"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Next page"
+msgstr ""
+
+#: src/components/NotificationBell.tsx
+msgid "No notifications yet"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "No other users to share with."
+msgstr ""
+
+#: src/components/NotificationBell.tsx
+msgid "Notifications"
+msgstr ""
+
+#: src/components/AppHeader.tsx
+msgid "Open navigation"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Open reader"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Open selected book"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Previous book"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Previous page"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Private — only assigned users can access"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Private library"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Public library"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Reader"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Save"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Save the library first, then reopen it to share with users."
+msgstr ""
+
+#: src/components/AppHeader.tsx
+msgid "Search books"
+msgstr ""
+
+#: src/components/AppHeader.tsx
+msgid "Search books… (/)"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Search icons…"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Search to find more icons"
+msgstr ""
+
+#: src/components/AppShell.tsx
+msgid "See all results for \"{searchQuery}\""
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Series"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Settings"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Share"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Share with users"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Shelves"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Show this help"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Stats"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Theme"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Toggle metadata edit"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Toggle only-notes filter"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Translations are community-maintained. Anything not yet translated is shown in English."
 msgstr "翻译由社区维护。尚未翻译的内容将以英文显示。"
+
+#: src/components/AppHeader.tsx
+msgid "Upload"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "User menu"
+msgstr ""
+
+#: src/components/ImpersonationBanner.tsx
+msgid "Viewing as <0>{impersonatedUsername}</0>"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Wishlist"
+msgstr ""
