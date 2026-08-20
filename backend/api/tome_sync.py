@@ -1780,11 +1780,23 @@ do
     insert_after(fm_order, "tools", "calibre", "tomesync")
 end
 
--- ── Config (baked in at download time) ───────────────────────────────────────
+-- ── Config (defaults baked in at download time) ─────────────────────────────
 
-local SERVER_URL = "{server_url}"
-local API_KEY    = "{api_key}"
-local USERNAME   = "{username}"
+-- Defaults baked in at download time; overridable in Settings > Server.
+local DEFAULT_SERVER_URL = "{server_url}"
+local DEFAULT_API_KEY    = "{api_key}"
+local DEFAULT_USERNAME   = "{username}"
+
+local function liveSetting(key, default)
+    local v = G_reader_settings:readSetting(key)
+    if v == nil or v == "" then return default end
+    return v
+end
+-- Connection credentials. Defaults can be overridden in Settings so the user
+-- can point at their own Tome server without editing the plugin source.
+local function serverURL()     return liveSetting("tomesync_server_url", DEFAULT_SERVER_URL) end
+local function apiKey()        return liveSetting("tomesync_api_key",    DEFAULT_API_KEY) end
+local function username()      return liveSetting("tomesync_username",   DEFAULT_USERNAME) end
 
 -- Short timeout so unreachable server doesn't freeze the UI
 
@@ -1874,12 +1886,12 @@ local function apiRequest(method, path, body)
         return nil, "backoff"
     end
 
-    local url = SERVER_URL .. "/api" .. path
+    local url = serverURL() .. "/api" .. path
     local req_body = body and rapidjson.encode(body) or nil
     local resp_chunks = {{}}
 
     local headers = {{
-        ["Authorization"] = "Bearer " .. API_KEY,
+        ["Authorization"] = "Bearer " .. apiKey(),
         ["Content-Type"]  = "application/json",
         ["Accept"]        = "application/json",
     }}
@@ -1944,7 +1956,7 @@ local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb
         return false, "offline"
     end
 
-    local url = SERVER_URL .. "/api/tome-sync/download/" .. book_id .. "/" .. file_id
+    local url = serverURL() .. "/api/tome-sync/download/" .. book_id .. "/" .. file_id
     local fh = io.open(dest_path, "wb")
     if not fh then
         return false, "cannot open file for writing"
@@ -1982,7 +1994,7 @@ local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb
         url     = url,
         method  = "GET",
         headers = {{
-            ["Authorization"] = "Bearer " .. API_KEY,
+            ["Authorization"] = "Bearer " .. apiKey(),
         }},
         sink = sink,
     }})
@@ -2130,9 +2142,9 @@ local function fetchText(path)
     local chunks = {{}}
     socketutil:set_timeout(10, 60)
     local ok, code = http.request({{
-        url     = SERVER_URL .. "/api" .. path,
+        url     = serverURL() .. "/api" .. path,
         method  = "GET",
-        headers = {{ ["Authorization"] = "Bearer " .. API_KEY }},
+        headers = {{ ["Authorization"] = "Bearer " .. apiKey() }},
         sink    = ltn12.sink.table(chunks),
     }})
     socketutil:reset_timeout()
@@ -2662,7 +2674,7 @@ function TomeSync:_editDeviceName()
     dialog = InputDialog:new{{
         title       = "Device name",
         input       = current,
-        hint        = autoDeviceName(),
+        input_hint  = autoDeviceName(),
         description = "How this device is labelled in Tome's reading log and "
                       .. "stats. Leave empty to use the automatic name "
                       .. "(\\"" .. autoDeviceName() .. "\\"). Give each "
@@ -2690,6 +2702,41 @@ function TomeSync:_editDeviceName()
                     end
                     UIManager:show(InfoMessage:new{{
                         text = "Device name: " .. deviceName(), timeout = 2 }})
+                end,
+            }},
+        }}}},
+    }}
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function TomeSync:_editStringSetting(key, title, hint, description)
+    local current = G_reader_settings:readSetting(key) or ""
+    local dialog
+    dialog = InputDialog:new{{
+        title       = title,
+        input       = current,
+        input_hint  = hint,
+        description = description,
+        buttons     = {{{{
+            {{
+                text     = "Cancel",
+                id       = "close",
+                callback = function() UIManager:close(dialog) end,
+            }},
+            {{
+                text             = "Save",
+                is_enter_default = true,
+                callback         = function()
+                    local v = dialog:getInputText():gsub("^%s+", ""):gsub("%s+$", "")
+                    if v == "" then
+                        G_reader_settings:delSetting(key)
+                    else
+                        G_reader_settings:saveSetting(key, v)
+                    end
+                    UIManager:close(dialog)
+                    UIManager:show(InfoMessage:new{{
+                        text = title .. ": " .. (v ~= "" and v or hint), timeout = 2 }})
                 end,
             }},
         }}}},
@@ -4927,14 +4974,14 @@ function TomeSync:_menuItems()
                 local ok, result, code = pcall(apiRequest, "GET", "/health")
                 if ok and type(code) == "number" and code >= 200 and code < 300 then
                     UIManager:show(InfoMessage:new{{
-                        text = "Connected to " .. SERVER_URL
-                               .. "\\nUser: " .. USERNAME,
+                        text = "Connected to " .. serverURL()
+                               .. "\\nUser: " .. username(),
                         timeout = 4,
                     }})
                 else
                     local err = tostring(result or "unknown error")
                     UIManager:show(InfoMessage:new{{
-                        text = "Connection failed!\\n" .. SERVER_URL
+                        text = "Connection failed!\\n" .. serverURL()
                                .. "\\nError: " .. err,
                         timeout = 6,
                     }})
@@ -4984,15 +5031,6 @@ function TomeSync:_menuItems()
             G_reader_settings:saveSetting("tomesync_auto_check",
                 not G_reader_settings:isTrue("tomesync_auto_check"))
         end,
-    }})
-    table.insert(settings_items, {{
-        text_func      = function() return "Device name: " .. deviceName() end,
-        help_text      = "The label Tome shows for this device (reading log, "
-                       .. "\\"Where you read\\"). Defaults to the device model; "
-                       .. "set a name if you use several devices of the same "
-                       .. "kind.",
-        keep_menu_open = true,
-        callback       = function() self:_editDeviceName() end,
     }})
     table.insert(settings_items, {{
         text         = "Auto-sync reading history on launch",
@@ -5068,12 +5106,60 @@ function TomeSync:_menuItems()
     end
     table.insert(settings_items, {{
         text           = "Idle time cap",
+        separator      = true,
         help_text      = "Longest gap between page turns that still counts as "
                        .. "reading. If the device is left awake without turning "
                        .. "pages - you fell asleep, or the cover did not put it "
                        .. "to sleep - time beyond the cap is not booked to the "
                        .. "reading session.",
         sub_item_table = idleCapItems(),
+    }})
+    table.insert(settings_items, {{
+        text_func      = function() return "Device name: " .. deviceName() end,
+        separator      = true,
+        help_text      = "The label Tome shows for this device (reading log, "
+                       .. "\\"Where you read\\"). Defaults to the device model; "
+                       .. "set a name if you use several devices of the same "
+                       .. "kind.",
+        keep_menu_open = true,
+        callback       = function() self:_editDeviceName() end,
+    }})
+    table.insert(settings_items, {{
+        text_func      = function() return "Server URL: " .. serverURL() end,
+        help_text      = "The address of your Tome server, i.e. "
+                       .. "http://192.168.1.10:8080 or "
+                       .. "https://tome.example.com. Tome already bakes in this "
+                       .. "config for you when downloading TomeSync from the "
+                       .. "Tome UI. Clear it to restore the baked in default.",
+        keep_menu_open = true,
+        callback       = function()
+            self:_editStringSetting("tomesync_server_url", "Server URL",
+                DEFAULT_SERVER_URL, "Your Tome instance address.")
+        end,
+    }})
+    table.insert(settings_items, {{
+        text_func      = function() return "Username: " .. username() end,
+        help_text      = "The account name Tome associates with this device's "
+                       .. "sessions and history. Tome already bakes in this "
+                       .. "config for you when downloading TomeSync from the "
+                       .. "Tome UI. Clear to restore the baked in default.",
+        keep_menu_open = true,
+        callback       = function()
+            self:_editStringSetting("tomesync_username", "Username",
+                DEFAULT_USERNAME, "Your Tome account username.")
+        end,
+    }})
+    table.insert(settings_items, {{
+        text_func      = function() return "API key: " .. (G_reader_settings:readSetting("tomesync_api_key") and "\\u{{2022}}\\u{{2022}}\\u{{2022}}\\u{{2022}}" or "(default)") end,
+        help_text      = "The auth key for your Tome account. Tome already "
+                       .. "bakes in this config for you when downloading "
+                       .. "TomeSync from the Tome's UI. Clear to restore the "
+                       .. "baked in default.",
+        keep_menu_open = true,
+        callback       = function()
+            self:_editStringSetting("tomesync_api_key", "API key",
+                DEFAULT_API_KEY:sub(1, 6) .. "\\u{{2026}}", "Your Tome account API key.")
+        end,
     }})
 
     -- In-book items

@@ -54,8 +54,8 @@ def app_client(db: Session):
 
 
 def _baked_url(impl_text: str) -> str:
-    m = re.search(r'local SERVER_URL\s*=\s*"([^"]+)"', impl_text)
-    assert m, "SERVER_URL not found in baked impl"
+    m = re.search(r'local DEFAULT_SERVER_URL\s*=\s*"([^"]+)"', impl_text)
+    assert m, "DEFAULT_SERVER_URL not found in baked impl"
     return m.group(1)
 
 
