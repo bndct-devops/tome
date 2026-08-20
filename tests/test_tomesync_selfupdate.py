@@ -81,8 +81,8 @@ def test_plugin_zip_has_shim_and_impl(app_client):
     shim = zf.read("tomesync.koplugin/main.lua").decode()
     impl = zf.read("tomesync.koplugin/main_impl.lua").decode()
     # Config is baked into the impl, never the frozen shim.
-    assert "local API_KEY" in impl and "local SERVER_URL" in impl
-    assert "API_KEY" not in shim or "local API_KEY" not in shim
+    assert "local DEFAULT_API_KEY" in impl and "local DEFAULT_SERVER_URL" in impl
+    assert "DEFAULT_API_KEY" not in shim or "local DEFAULT_API_KEY" not in shim
     assert "main_impl.lua" in shim  # shim loads the impl
 
 
