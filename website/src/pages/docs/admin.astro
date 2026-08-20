@@ -3,7 +3,6 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
-import UnreleasedNote from '../../components/UnreleasedNote.astro'
 import { ThemedShot } from '../../components/ThemedShot'
 import { withBase } from '../../lib/path'
 ---
@@ -53,7 +52,6 @@ import { withBase } from '../../lib/path'
   </table>
 
   <h3>Resolving duplicates</h3>
-  <UnreleasedNote />
   <p>
     Resolution works in one pass: for each group, pick the book to keep and queue an action, then
     apply everything with a single <strong>Apply All</strong>. Nothing happens until you confirm,
@@ -88,7 +86,6 @@ import { withBase } from '../../lib/path'
   </p>
 
   <h3>Orphaned entries</h3>
-  <UnreleasedNote />
   <p>
     If files were deleted or moved outside of Tome (from a shell, another tool, or a cleanup gone
     wrong), their database entries stay behind: the books error on open, and re-importing the same

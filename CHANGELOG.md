@@ -6,6 +6,10 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-20
+
+![Series-first Bindery review: two pending series cards, one adopting the exact identity of a series already in the library](https://raw.githubusercontent.com/bndct-devops/tome/main/docs/screenshots/bindery-series-review.png)
+
 ### Added
 - Experimental KOSync position bridge (`TOME_KOSYNC_POSITION_BRIDGE`, off by
   default) — with it enabled, a device running the TomeSync plugin picks up
