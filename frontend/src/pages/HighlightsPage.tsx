@@ -8,6 +8,8 @@ import {
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 import { AppShell } from '@/components/AppShell'
 
 interface Highlight {
@@ -69,7 +71,7 @@ function groupToMarkdown(g: BookGroup): string {
   for (const h of g.items) {
     if (h.chapter) lines.push(`*${h.chapter}*`)
     if (h.highlighted_text) lines.push(`> ${h.highlighted_text}`)
-    if (h.note) lines.push('', `Note: ${h.note}`)
+    if (h.note) { const note = h.note; lines.push('', t`Note: ${note}`) }
     lines.push('')
   }
   return lines.join('\n').trimEnd()
@@ -101,12 +103,12 @@ function shortDate(dt: string | null): string | null {
 function fullInfo(h: Highlight): string {
   const parts: string[] = []
   const d = parseKo(h.datetime)
-  if (d) parts.push(`Highlighted ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`)
+  if (d) { const when = d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); parts.push(t`Highlighted ${when}`) }
   if (h.chapter) parts.push(h.chapter)
-  if (h.color) parts.push(`${h.color} highlight`)
+  if (h.color) { const color = h.color; parts.push(t`${color} highlight`) }
   if (h.synced_at) {
     const s = new Date(h.synced_at)
-    if (!isNaN(s.getTime())) parts.push(`Synced to Tome ${s.toLocaleDateString(undefined, { dateStyle: 'medium' })}`)
+    if (!isNaN(s.getTime())) { const when = s.toLocaleDateString(undefined, { dateStyle: 'medium' }); parts.push(t`Synced to Tome ${when}`) }
   }
   return parts.join('  ·  ')
 }
@@ -157,29 +159,29 @@ function HighlightCard({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q:
                 onClick={() => onDelete(h)}
                 className="font-medium text-destructive hover:underline"
               >
-                Delete
+                <Trans>Delete</Trans>
               </button>
               <button
                 onClick={() => setConfirming(false)}
                 className="text-muted-foreground hover:text-foreground"
               >
-                Cancel
+                <Trans>Cancel</Trans>
               </button>
             </span>
           ) : (
             <>
               <button
                 onClick={() => { setDraft(h.note ?? ''); setEditing(e => !e) }}
-                title={h.note ? 'Edit note' : 'Add a note'}
-                aria-label={h.note ? 'Edit note' : 'Add a note'}
+                title={h.note ? t`Edit note` : t`Add a note`}
+                aria-label={h.note ? t`Edit note` : t`Add a note`}
                 className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-foreground transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setConfirming(true)}
-                title="Delete this highlight"
-                aria-label="Delete this highlight"
+                title={t`Delete this highlight`}
+                aria-label={t`Delete this highlight`}
                 className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -200,14 +202,14 @@ function HighlightCard({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q:
             onChange={e => setDraft(e.target.value)}
             autoFocus
             rows={2}
-            placeholder="Your note — syncs back to KOReader on the next sync"
+            placeholder={t`Your note — syncs back to KOReader on the next sync`}
             className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <span className="flex items-center gap-2 text-xs">
             <button onClick={saveNote} disabled={saving} className="font-medium text-primary hover:underline disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save note'}
+              {saving ? t`Saving…` : t`Save note`}
             </button>
-            <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">Cancel</button>
+            <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground"><Trans>Cancel</Trans></button>
           </span>
         </div>
       ) : h.note ? (
@@ -257,7 +259,7 @@ export function HighlightsPage() {
     setError(null)
     api.get<HighlightsResponse>(`/annotations?${buildParams(0).toString()}`, ctrl.signal)
       .then(d => { setItems(d.items); setTotal(d.total); setBooks(d.books) })
-      .catch(e => { if (e.name !== 'AbortError') setError(e.message ?? 'Failed to load') })
+      .catch(e => { if (e.name !== 'AbortError') setError(e.message ?? t`Failed to load`) })
       .finally(() => setLoading(false))
     return () => ctrl.abort()
   }, [buildParams])
@@ -269,7 +271,7 @@ export function HighlightsPage() {
       setItems(prev => [...prev, ...d.items])
       setTotal(d.total)
     } catch (e) {
-      toast.error((e as Error).message ?? 'Failed to load more')
+      toast.error((e as Error).message ?? t`Failed to load more`)
     } finally {
       setLoadingMore(false)
     }
@@ -316,9 +318,9 @@ export function HighlightsPage() {
       const d = await fetchAllMatching()
       const md = groupByBook(d.items).map(groupToMarkdown).join('\n\n')
       await navigator.clipboard.writeText(md)
-      toast.success(`Copied ${d.items.length} highlights as Markdown`)
+      { const n = d.items.length; toast.success(t`Copied ${n} highlights as Markdown`) }
     } catch (e) {
-      toast.error((e as Error).message ?? 'Export failed')
+      toast.error((e as Error).message ?? t`Export failed`)
     }
   }
 
@@ -335,20 +337,20 @@ export function HighlightsPage() {
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
-      toast.success(`Downloaded ${d.items.length} highlights`)
+      { const n = d.items.length; toast.success(t`Downloaded ${n} highlights`) }
     } catch (e) {
-      toast.error((e as Error).message ?? 'Export failed')
+      toast.error((e as Error).message ?? t`Export failed`)
     }
   }
 
   async function copyGroup(g: BookGroup) {
     await navigator.clipboard.writeText(groupToMarkdown(g))
-    toast.success(`Copied ${g.items.length} from “${g.title}”`)
+    { const n = g.items.length; const title = g.title; toast.success(t`Copied ${n} from “${title}”`) }
   }
 
   function noteEdited(h: Highlight, note: string | null) {
     setItems(prev => prev.map(x => (x.id === h.id ? { ...x, note } : x)))
-    toast.success(note ? 'Note saved — syncs to your devices' : 'Note removed')
+    toast.success(note ? t`Note saved — syncs to your devices` : t`Note removed`)
   }
 
   async function deleteHighlight(h: Highlight) {
@@ -372,9 +374,9 @@ export function HighlightsPage() {
             .catch(() => {})
         }
       }
-      toast.success('Highlight deleted')
+      toast.success(t`Highlight deleted`)
     } catch (e) {
-      toast.error((e as Error).message ?? 'Failed to delete highlight')
+      toast.error((e as Error).message ?? t`Failed to delete highlight`)
     }
   }
 
@@ -415,29 +417,29 @@ export function HighlightsPage() {
         <div className="flex items-center gap-1.5">
           <button
             onClick={copyAll}
-            title="Copy all as Markdown"
+            title={t`Copy all as Markdown`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all"
           >
             <Copy className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Copy</span>
+            <span className="hidden sm:inline"><Trans>Copy</Trans></span>
           </button>
           <button
             onClick={downloadAll}
-            title="Download as Markdown file"
+            title={t`Download as Markdown file`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export</span>
+            <span className="hidden sm:inline"><Trans>Export</Trans></span>
           </button>
         </div>
       ) : undefined}
     >
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         <div className="flex items-baseline justify-between gap-3">
-          <h1 className="font-display text-xl text-foreground">Highlights</h1>
+          <h1 className="font-display text-xl text-foreground"><Trans>Highlights</Trans></h1>
           {total > 0 && (
             <span className="text-xs text-muted-foreground/60">
-              {total} from {books} book{books === 1 ? '' : 's'}
+              {plural(books, { one: `${total} from # book`, other: `${total} from # books` })}
             </span>
           )}
         </div>
@@ -451,7 +453,7 @@ export function HighlightsPage() {
               ref={searchRef}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search your highlights…"
+              placeholder={t`Search your highlights…`}
               className="w-full pl-9 pr-9 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             {search && (
@@ -465,7 +467,7 @@ export function HighlightsPage() {
           </div>
           <button
             onClick={() => setOnThisDay(v => !v)}
-            title="Highlights you made on this day in past years"
+            title={t`Highlights you made on this day in past years`}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap',
               onThisDay
@@ -474,11 +476,11 @@ export function HighlightsPage() {
             )}
           >
             <CalendarHeart className="w-3.5 h-3.5" />
-            On this day
+            <Trans>On this day</Trans>
           </button>
           <button
             onClick={() => setOnlyNotes(v => !v)}
-            title="Only highlights that carry one of your notes"
+            title={t`Only highlights that carry one of your notes`}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap',
               onlyNotes
@@ -487,16 +489,16 @@ export function HighlightsPage() {
             )}
           >
             <StickyNote className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Only notes</span>
+            <span className="hidden sm:inline"><Trans>Only notes</Trans></span>
           </button>
           {groups.length > 0 && !searching && (
             <button
               onClick={toggleAll}
-              title={allCollapsed ? 'Expand all' : 'Collapse all'}
+              title={allCollapsed ? t`Expand all` : t`Collapse all`}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-all whitespace-nowrap"
             >
               {allCollapsed ? <ChevronsUpDown className="w-3.5 h-3.5" /> : <ChevronsDownUp className="w-3.5 h-3.5" />}
-              {allCollapsed ? 'Expand' : 'Collapse'}
+              {allCollapsed ? t`Expand` : t`Collapse`}
             </button>
           )}
         </div>
@@ -514,16 +516,16 @@ export function HighlightsPage() {
             <Quote className="w-8 h-8 opacity-40" />
             {neverSynced ? (
               <>
-                <p className="text-sm font-medium text-foreground">No highlights yet</p>
+                <p className="text-sm font-medium text-foreground"><Trans>No highlights yet</Trans></p>
                 <p className="text-xs max-w-xs leading-relaxed">
-                  Highlights and notes you make in KOReader sync here automatically.
+                  <Trans>Highlights and notes you make in KOReader sync here automatically.
                   Highlight a passage on your device, then sync — it’ll show up in this
-                  commonplace book.
+                  commonplace book.</Trans>
                 </p>
               </>
             ) : (
               <p className="text-sm">
-                {onThisDay ? 'Nothing highlighted on this day — yet.' : 'No highlights match your search.'}
+                {onThisDay ? t`Nothing highlighted on this day — yet.` : t`No highlights match your search.`}
               </p>
             )}
           </div>
@@ -593,7 +595,7 @@ export function HighlightsPage() {
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-all disabled:opacity-60"
                 >
                   {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Load more ({total - items.length} left)
+                  {(() => { const left = total - items.length; return t`Load more (${left} left)` })()}
                 </button>
               </div>
             )}

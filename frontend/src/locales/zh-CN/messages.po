@@ -37,6 +37,10 @@ msgstr ""
 msgid " · {n} read"
 msgstr ""
 
+#: src/pages/WishlistPage.tsx
+msgid " · {n} volumes"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid " · {prog}% in"
 msgstr ""
@@ -47,6 +51,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid " · reviewed"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid " · you have vol {v}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -147,6 +155,11 @@ msgstr ""
 msgid "{0, plural, one {# result — click to fill form} other {# results — click to fill form}}"
 msgstr ""
 
+#. placeholder {0}: follows.length
+#: src/pages/WishlistPage.tsx
+msgid "{0, plural, one {# series} other {# series}}"
+msgstr ""
+
 #. placeholder {0}: data.reread_bins
 #: src/pages/BookDetailPage.tsx
 msgid "{0, plural, one {# stretch re-read} other {# stretches re-read}}"
@@ -237,8 +250,16 @@ msgstr ""
 msgid "{added} added · {skipped} skipped"
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "{books, plural, one {{total} from # book} other {{total} from # books}}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{clearResult} covers deleted."
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "{color} highlight"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -252,6 +273,7 @@ msgstr ""
 #: src/components/NotificationBell.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "{days}d ago"
 msgstr ""
 
@@ -349,6 +371,7 @@ msgid "{minutes}m ago"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "{months}mo ago"
 msgstr ""
 
@@ -446,6 +469,7 @@ msgid "{words} words"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "{years}y ago"
 msgstr ""
 
@@ -507,11 +531,20 @@ msgid "Add"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Add a note"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Add a review"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Add a wish"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Add books you'd like to see in the library."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -806,6 +839,7 @@ msgstr ""
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/HighlightsPage.tsx
 #: src/pages/LoginPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Cancel"
@@ -915,8 +949,16 @@ msgstr ""
 msgid "Code was already authorized."
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "Collapse"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Collapse / expand all books"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Collapse all"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -971,6 +1013,22 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Continue Reading"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Copied {n} from “{title}”"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Copied {n} highlights as Markdown"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Copy"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Copy all as Markdown"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1076,6 +1134,7 @@ msgstr ""
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Delete"
 msgstr ""
 
@@ -1102,6 +1161,7 @@ msgid "Delete this book from the library? The file will be removed and this cann
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Delete this highlight"
 msgstr ""
 
@@ -1183,6 +1243,10 @@ msgstr ""
 msgid "Download a JSON snapshot of <0>your personal data</0>: reading status, every reading session, sync positions, shelves, and your local preferences. Book files themselves are not included — Tome only references them on disk. API tokens and KOReader keys are also excluded so the file isn't a credential."
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "Download as Markdown file"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Download failed"
@@ -1210,6 +1274,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Download ZIP"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Downloaded {n} highlights"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -1263,6 +1331,7 @@ msgid "Edit Metadata"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Edit note"
 msgstr ""
 
@@ -1316,6 +1385,14 @@ msgstr ""
 msgid "Exit selection mode"
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "Expand"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Expand all"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Expand sidebar"
 msgstr ""
@@ -1324,12 +1401,17 @@ msgstr ""
 msgid "Expires in {timeLeft}"
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Export"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Export {label}"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Export failed"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1367,6 +1449,7 @@ msgid "Failed to create token"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Failed to delete highlight"
 msgstr ""
 
@@ -1376,6 +1459,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to link sync document"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Failed to load"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -1398,6 +1485,10 @@ msgstr ""
 msgid "Failed to load libraries"
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "Failed to load more"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Failed to load server stats"
 msgstr ""
@@ -1411,6 +1502,7 @@ msgid "Failed to load users"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Failed to load wishlist"
 msgstr ""
 
@@ -1420,6 +1512,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Failed to register"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Failed to remove wish"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1505,6 +1601,14 @@ msgstr ""
 msgid "Focus search"
 msgstr ""
 
+#: src/pages/WishlistPage.tsx
+msgid "Follow a series — search Hardcover…"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Following"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "for {targetLabel} — click a file to switch"
 msgstr ""
@@ -1540,6 +1644,7 @@ msgid "Fulfill: {title}"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Fulfilled"
 msgstr ""
 
@@ -1555,8 +1660,13 @@ msgstr ""
 msgid "Genres"
 msgstr ""
 
+#: src/pages/WishlistPage.tsx
+msgid "Get notified when a new volume of a followed series is released."
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Go back"
 msgstr ""
 
@@ -1594,16 +1704,30 @@ msgid "Hide details"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Highlight deleted"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Highlighted {when}"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Highlights"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Highlights & Notes"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Highlights and notes you make in KOReader sync here automatically. Highlight a passage on your device, then sync — it’ll show up in this commonplace book."
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Highlights you made on this day in past years"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1765,8 +1889,13 @@ msgstr ""
 msgid "Last used"
 msgstr ""
 
+#: src/pages/WishlistPage.tsx
+msgid "Latest: vol {v}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Learn more"
 msgstr ""
 
@@ -1834,6 +1963,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "List view"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Load more ({left} left)"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -1916,6 +2049,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Member"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Members can add books to their wishlist."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -2086,6 +2223,14 @@ msgstr ""
 msgid "No fulfilled wishes."
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "No highlights match your search."
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "No highlights yet"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "No libraries"
 msgstr ""
@@ -2185,15 +2330,25 @@ msgid "Note on KOSync coexistence"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Note removed"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Note saved — syncs to your devices"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Note: {note}"
 msgstr ""
 
 #: src/pages/SharePage.tsx
 msgid "Nothing here yet."
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Nothing highlighted on this day — yet."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -2218,6 +2373,7 @@ msgid "On a device where you're already signed in, go to <0>Settings → Securit
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "On this day"
 msgstr ""
 
@@ -2230,11 +2386,20 @@ msgstr ""
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "Only highlights that carry one of your notes"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Only notes"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "OPDS Catalog"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Open"
 msgstr ""
 
@@ -2578,6 +2743,10 @@ msgstr ""
 msgid "Remove from library"
 msgstr ""
 
+#: src/pages/WishlistPage.tsx
+msgid "Remove wish"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Rescan the bindery folder"
 msgstr ""
@@ -2657,6 +2826,7 @@ msgid "Save failed"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Save note"
 msgstr ""
 
@@ -2669,6 +2839,7 @@ msgid "Saving..."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Saving…"
 msgstr ""
 
@@ -2722,6 +2893,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Search to find more icons"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Search your highlights…"
 msgstr ""
 
 #: src/components/AppShell.tsx
@@ -3046,6 +3221,10 @@ msgstr ""
 msgid "Synced document"
 msgstr ""
 
+#: src/pages/HighlightsPage.tsx
+msgid "Synced to Tome {when}"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Synopsis or description"
 msgstr ""
@@ -3134,6 +3313,7 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Today"
 msgstr ""
 
@@ -3196,8 +3376,20 @@ msgstr ""
 msgid "Undo"
 msgstr ""
 
+#: src/pages/WishlistPage.tsx
+msgid "Unfollow"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Unfollow {name}"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Ungrouped files"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Unknown author"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3296,6 +3488,7 @@ msgid "Verify it's working"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "View book"
 msgstr ""
 
@@ -3387,11 +3580,25 @@ msgid "Where you read"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Whole series"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Wish"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Wish added"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Wish removed"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Wishlist"
 msgstr ""
 
@@ -3415,6 +3622,7 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Yesterday"
 msgstr ""
 
@@ -3451,6 +3659,7 @@ msgid "Your library is empty"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Your note — syncs back to KOReader on the next sync"
 msgstr ""
 
@@ -3464,4 +3673,8 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "your Tome password"
+msgstr ""
+
+#: src/pages/WishlistPage.tsx
+msgid "Your wishlist is empty"
 msgstr ""
