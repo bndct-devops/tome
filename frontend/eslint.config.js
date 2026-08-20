@@ -42,6 +42,7 @@ export default defineConfig([
           { regex: { pattern: '^[A-Z0-9_-]+$' } },
           'style', 'src', 'srcSet', 'href', 'type', 'id', 'key', 'name', 'role', 'iconName',
           'width', 'height', 'fill', 'stroke', 'viewBox', 'd',
+          'transform', 'transformOrigin', 'transition', 'download', 'flipId',
           'value', 'to', 'method', 'accept', 'autoComplete', 'inputMode', 'keys',
           'displayName', 'Authorization', 'family', 'format', 'icon', 'defaultIcon',
           'menuItem', 'destructive',

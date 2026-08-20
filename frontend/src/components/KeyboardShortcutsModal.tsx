@@ -65,7 +65,6 @@ const SECTIONS: ShortcutSection[] = [
 ]
 
 function KeyBadge({ label }: { label: string }) {
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- key-cap glyphs, not copy
   const display =
     label === 'ArrowLeft' ? '\u2190'
     : label === 'ArrowRight' ? '\u2192'

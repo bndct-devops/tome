@@ -13,12 +13,74 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#: src/pages/DashboardPage.tsx
+msgid "— keep existing —"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "…and {more} more not shown"
+msgstr ""
+
+#. placeholder {0}: s.book_count
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {# book} other {# books}}"
+msgstr ""
+
+#. placeholder {0}: selected.size
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {Added # book to library} other {Added # books to library}}"
+msgstr ""
+
+#. placeholder {0}: selectedIds.size
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {Delete # book} other {Delete # books}}"
+msgstr ""
+
+#. placeholder {0}: selectedIds.size
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {Deleting # book...} other {Deleting # books...}}"
+msgstr ""
+
+#. placeholder {0}: selected.size
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {Edit Metadata for # Book} other {Edit Metadata for # Books}}"
+msgstr ""
+
+#. placeholder {0}: selected.size
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{d}d ago"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 msgid "{days}d ago"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "{deleted, plural, one {Deleted # book} other {Deleted # books}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{h}h"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{h}h {m}m"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 msgid "{hrs}h ago"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{m}m"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
@@ -26,23 +88,112 @@ msgid "{mins}m ago"
 msgstr ""
 
 #: src/components/AppShell.tsx
+#: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{n} selected"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{name} · Vol. {start_index}–{end_index}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{readCount} read · {readingCount} reading · {unreadCount} unread"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{seconds}s"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{sessions} sessions · {time}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{shown, plural, one {# book} other {# books}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{shown, plural, one {# title} other {# titles}}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "{themeName} theme"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "{total, plural, one {# volume} other {# volumes}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "A while ago"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Add tag…"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Add Tags"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Add to Library"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Admin"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "All"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "All {loadedCount} books loaded"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "All →"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "All Books"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "All users"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Amber"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Any"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Author"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Author: {filterAuthor}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -57,16 +208,42 @@ msgstr ""
 msgid "Book Detail"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Books"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a series"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Browse your library"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Cancel"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Chapters"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Choose icon"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Clear all"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Clear all filters"
+msgstr ""
+
 #: src/components/AppHeader.tsx
 #: src/components/KeyboardShortcutsModal.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Clear search"
 msgstr ""
 
@@ -90,24 +267,74 @@ msgstr ""
 msgid "Command palette — jump to a book, series, author, or page"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Continue Reading"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Cover"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Cover size"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Dark"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Dashboard"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Date Added"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Day streak"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Delete"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Delete failed"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Description"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Deselect all"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Dismiss"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Docs"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Done"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Download failed"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Download Markdown export"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Download ZIP"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -116,6 +343,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Edit Library"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Edit Metadata"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -134,28 +365,92 @@ msgstr ""
 msgid "Exit impersonation"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Exit selection mode"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Expand sidebar"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Failed"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Failed to load books"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Failed to save"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Failed to update metadata"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Failed to update sharing"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Filters"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "finished"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Finished · 30d"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Focus"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Focus search"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Format"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Format: {filterFormatUpper}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "From your highlights"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Go back"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Grid view"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Group by series"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Group series"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Group volumes by series"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Hardcover"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "hiatus"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -179,24 +474,66 @@ msgstr ""
 msgid "Keyboard Shortcuts"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Language"
 msgstr "语言"
 
+#: src/pages/DashboardPage.tsx
+msgid "Language: {filterLanguageLabel}"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Libraries"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Library"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Library: {filterLibraryChipName}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Light"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "List view"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Log out"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Manage"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Manage series"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Mark all read"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Missing"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Missing: {filterMissingLabel}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "My Books"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "My Rating"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -219,6 +556,10 @@ msgstr ""
 msgid "Next page"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "No matches"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 msgid "No notifications yet"
 msgstr ""
@@ -227,8 +568,48 @@ msgstr ""
 msgid "No other users to share with."
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "No results for \"{search}\""
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "No results found"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "No Series"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "No series found — add series metadata to your books."
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "None"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Nothing in progress"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Nothing matched “{search}”"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 msgid "Notifications"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "On this day"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "ongoing"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Only filled fields will be updated. Leave blank to keep existing values."
 msgstr ""
 
 #: src/components/AppHeader.tsx
@@ -241,6 +622,14 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Pages · 30d"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Pick up where you left off"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -263,12 +652,69 @@ msgstr ""
 msgid "Public library"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Rated"
+msgstr ""
+
+#: src/components/BookCard.tsx
+msgid "Rated {rating} of 5"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Rated: {filterMinRating}+ stars"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Rated: 5 stars"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Rating"
+msgstr ""
+
+#: src/components/BookCard.tsx
+#: src/pages/DashboardPage.tsx
+msgid "Read"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Read · 30d"
+msgstr ""
+
+#: src/components/BookCard.tsx
+msgid "Read book"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Reader"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Reading"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Reading Log"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Recently Added"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Recently Finished"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Resume {volLabel}"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Save"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Save Changes"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -295,8 +741,29 @@ msgstr ""
 msgid "See all results for \"{searchQuery}\""
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Select"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Select all"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Series"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Series name"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Series Progress"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Series: {filterSeries}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -307,24 +774,88 @@ msgstr ""
 msgid "Share"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Share this series — a public metadata-only page"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Share with users"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Shared Library"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Shelved"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Shelves"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Show another highlight"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Show individual volumes"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Show less"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Show more"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Start {volLabel}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Start reading and your progress will show up here"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Stats"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Status"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Status: {filterStatusLabel}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Tag"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Tag: {filterTag}"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Theme"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "This permanently removes the selected books and their files from disk. This cannot be undone."
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Title"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Today"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -339,8 +870,40 @@ msgstr ""
 msgid "Translations are community-maintained. Anything not yet translated is shown in English."
 msgstr "翻译由社区维护。尚未翻译的内容将以英文显示。"
 
+#: src/pages/DashboardPage.tsx
+msgid "Try adjusting your filters"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Type"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Unassigned"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Unread"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Unserialized"
+msgstr ""
+
 #: src/components/AppHeader.tsx
 msgid "Upload"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Upload or scan a folder to get started"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Uploader"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Uploader: {filterUploaderName}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -351,6 +914,34 @@ msgstr ""
 msgid "Viewing as <0>{impersonatedUsername}</0>"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Vol. {idx}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Vol. {volIdx}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Volumes"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Want to Read"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Wishlist"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Year"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Yesterday"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Your library is empty"
 msgstr ""
