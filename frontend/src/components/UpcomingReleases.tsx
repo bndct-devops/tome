@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BookOpen, CalendarClock } from 'lucide-react'
 import { getFollows, type FollowOut } from '@/lib/follows'
 import { formatDate } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
 
 /**
  * Home rail card: upcoming volumes of the series you follow (release
@@ -32,7 +33,7 @@ export function UpcomingReleases() {
     <section className="p-4">
       <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground mb-2.5">
         <CalendarClock className="w-4 h-4 text-primary/60" />
-        Upcoming releases
+        <Trans>Upcoming releases</Trans>
       </h2>
       <div className="flex flex-col gap-2">
         {rows.map(f => (
@@ -49,7 +50,7 @@ export function UpcomingReleases() {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
               <p className="text-[11px] text-muted-foreground truncate">
-                {f.latest_known_index != null && <>Vol {Number.isInteger(f.latest_known_index) ? f.latest_known_index : f.latest_known_index.toFixed(1)} · </>}
+                {f.latest_known_index != null && (() => { const v = Number.isInteger(f.latest_known_index) ? f.latest_known_index : f.latest_known_index.toFixed(1); return <Trans>Vol {v} · </Trans> })()}
                 {formatDate(f.latest_release_date!)}
               </p>
             </div>

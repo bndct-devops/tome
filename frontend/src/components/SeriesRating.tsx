@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { StarRating } from '@/components/StarRating'
+import { t } from '@lingui/core/macro'
 
 interface SeriesRatingData {
   series_name: string
@@ -41,15 +42,15 @@ export function SeriesRating({ seriesName, isUnserialized }: { seriesName: strin
       setData(updated)
     } catch {
       setData(prev)
-      toast.error('Failed to save series rating')
+      toast.error(t`Failed to save series rating`)
     }
   }
 
   const hint = rating != null
-    ? 'Applied to volumes you haven’t rated'
+    ? t`Applied to volumes you haven’t rated`
     : data.volume_average != null
-      ? `Your volumes average ${data.volume_average} (${data.rated_volumes} rated)`
-      : 'Rate the whole series'
+      ? (() => { const avg = data.volume_average, rated = data.rated_volumes; return t`Your volumes average ${avg} (${rated} rated)` })()
+      : t`Rate the whole series`
 
   return (
     <div className="mt-2 flex items-center gap-2.5">

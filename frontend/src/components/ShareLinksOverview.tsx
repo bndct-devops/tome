@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Book, Bookmark, Check, Copy, Layers, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, copyToClipboard } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface ShareLinkRow {
   id: number
@@ -34,23 +36,23 @@ export function ShareLinksOverview() {
   }
 
   function fmtExpiry(row: ShareLinkRow): string {
-    if (row.expired) return 'expired'
-    if (!row.expires_at) return 'never expires'
-    return `expires ${new Date(row.expires_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+    if (row.expired) return t`expired`
+    if (!row.expires_at) return t`never expires`
+    { const d = new Date(row.expires_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); return t`expires ${d}` }
   }
 
   return (
     <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
       <p className="mb-4 text-xs text-muted-foreground">
-        Every public link you&apos;ve shared — shelves, series, and books. Links show
+        <Trans>Every public link you&apos;ve shared — shelves, series, and books. Links show
         metadata, your ratings, highlights, and reading stats; never files. Revoking
-        kills a link instantly.
+        kills a link instantly.</Trans>
       </p>
       {rows === null ? (
-        <p className="animate-pulse text-xs text-muted-foreground">Loading…</p>
+        <p className="animate-pulse text-xs text-muted-foreground"><Trans>Loading…</Trans></p>
       ) : rows.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Nothing shared yet. Use the share icon on a shelf, a series page, or a book page.
+          <Trans>Nothing shared yet. Use the share icon on a shelf, a series page, or a book page.</Trans>
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -78,7 +80,7 @@ export function ShareLinksOverview() {
                     rel="noopener noreferrer"
                     className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                   >
-                    Open
+                    <Trans>Open</Trans>
                   </a>
                 )}
                 <button

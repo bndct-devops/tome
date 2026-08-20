@@ -65,6 +65,7 @@ const SECTIONS: ShortcutSection[] = [
 ]
 
 function KeyBadge({ label }: { label: string }) {
+  /* eslint-disable lingui/no-unlocalized-strings -- key-cap glyphs */
   const display =
     label === 'ArrowLeft' ? '\u2190'
     : label === 'ArrowRight' ? '\u2192'
@@ -73,6 +74,7 @@ function KeyBadge({ label }: { label: string }) {
     : label === 'Escape' ? 'Esc'
     : label === 'Enter' ? 'Enter'
     : label
+  /* eslint-enable lingui/no-unlocalized-strings */
   return (
     <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-1.5 rounded-md border border-border bg-muted text-xs font-mono font-semibold text-foreground shadow-sm">
       {display}

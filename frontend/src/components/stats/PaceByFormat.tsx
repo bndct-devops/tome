@@ -1,5 +1,7 @@
 import { ProgressRow } from './ProgressRow'
 import { useChartAccent } from '@/lib/useChartAccent'
+import { Trans } from '@lingui/react/macro'
+import { plural } from '@lingui/core/macro'
 
 interface FormatPace {
   format: string
@@ -13,7 +15,7 @@ export function PaceByFormat({ data }: { data: FormatPace[] }) {
   const accent = useChartAccent()
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">No pace data by format.</p>
+      <p className="text-sm text-muted-foreground text-center py-4"><Trans>No pace data by format.</Trans></p>
     )
   }
 
@@ -27,7 +29,7 @@ export function PaceByFormat({ data }: { data: FormatPace[] }) {
           label={f.format.toUpperCase()}
           value={`${f.pages_per_min} p/min`}
           pct={(f.pages_per_min / maxPpm) * 100}
-          sub={`${f.sessions} session${f.sessions !== 1 ? 's' : ''} · ${f.pages} pages`}
+          sub={(() => { const pages = f.pages; return plural(f.sessions, { one: `# session · ${pages} pages`, other: `# sessions · ${pages} pages` }) })()}
           color={accent}
         />
       ))}

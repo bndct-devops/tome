@@ -1,3 +1,4 @@
+import { Trans } from '@lingui/react/macro'
 import {
   ComposedChart,
   Area,
@@ -38,7 +39,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
   const { tick, cursor } = useChartColors()
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">No library growth data.</p>
+      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No library growth data.</Trans></p>
     )
   }
 
@@ -48,7 +49,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
 
   if (categories.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">No library growth data.</p>
+      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No library growth data.</Trans></p>
     )
   }
 
@@ -81,7 +82,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
             return (
               <ChartTooltip>
                 <div className="font-medium mb-1">{formatMonth(month)}</div>
-                <div className="text-muted-foreground mb-1">Total: {total}</div>
+                <div className="text-muted-foreground mb-1"><Trans>Total: {total}</Trans></div>
                 {payload
                   .filter(p => (p.value as number) > 0)
                   .map(p => (

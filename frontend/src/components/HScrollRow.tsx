@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { t } from '@lingui/core/macro'
 
 /**
  * Horizontal scroll row with visible affordances: edge fades whenever content
@@ -71,7 +72,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
       {canLeft && (
         <button
           type="button"
-          aria-label="Scroll left"
+          aria-label={t`Scroll left`}
           onClick={() => nudge(-1)}
           className={cn(
             'flex absolute left-1 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border border-border bg-card/95 shadow-sm text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 group-hover/hscroll:opacity-100 focus-visible:opacity-100 transition-opacity',
@@ -84,7 +85,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
       {canRight && (
         <button
           type="button"
-          aria-label="Scroll right"
+          aria-label={t`Scroll right`}
           onClick={() => nudge(1)}
           className={cn(
             'flex absolute right-1 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border border-border bg-card/95 shadow-sm text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 group-hover/hscroll:opacity-100 focus-visible:opacity-100 transition-opacity',

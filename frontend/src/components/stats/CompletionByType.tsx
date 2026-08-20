@@ -1,4 +1,6 @@
 import { ProgressRow } from './ProgressRow'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface CompletionByTypeEntry {
   category: string
@@ -10,7 +12,7 @@ interface CompletionByTypeEntry {
 export function CompletionByType({ data }: { data: CompletionByTypeEntry[] }) {
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">No completion data by type.</p>
+      <p className="text-sm text-muted-foreground text-center py-4"><Trans>No completion data by type.</Trans></p>
     )
   }
 
@@ -22,7 +24,7 @@ export function CompletionByType({ data }: { data: CompletionByTypeEntry[] }) {
           label={c.category}
           value={`${c.pct}%`}
           pct={c.pct}
-          sub={`${c.finished} of ${c.started} finished`}
+          sub={(() => { const fin = c.finished, st = c.started; return t`${fin} of ${st} finished` })()}
         />
       ))}
     </div>

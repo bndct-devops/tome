@@ -33,6 +33,10 @@ msgstr " · {dur} read time"
 msgid " · {errs} error(s)"
 msgstr " · {errs} error(s)"
 
+#: src/components/stats/SeriesCompletionGrid.tsx
+msgid " · {n} in progress"
+msgstr " · {n} in progress"
+
 #: src/pages/SharePage.tsx
 msgid " · {n} read"
 msgstr " · {n} read"
@@ -122,6 +126,11 @@ msgstr "(not set)"
 msgid "{0, plural, one {{dur} over # day} other {{dur} over # days}}"
 msgstr "{0, plural, one {{dur} over # day} other {{dur} over # days}}"
 
+#. placeholder {0}: a.book_count
+#: src/components/stats/AuthorAffinity.tsx
+msgid "{0, plural, one {{fin} finished · # book read} other {{fin} finished · # books read}}"
+msgstr "{0, plural, one {{fin} finished · # book read} other {{fin} finished · # books read}}"
+
 #. placeholder {0}: res.errors.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
@@ -165,6 +174,11 @@ msgstr "{0, plural, one {# result — click to fill form} other {# results — c
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# series} other {# series}}"
 msgstr "{0, plural, one {# series} other {# series}}"
+
+#. placeholder {0}: f.sessions
+#: src/components/stats/PaceByFormat.tsx
+msgid "{0, plural, one {# session · {pages} pages} other {# sessions · {pages} pages}}"
+msgstr "{0, plural, one {# session · {pages} pages} other {# sessions · {pages} pages}}"
 
 #. placeholder {0}: data.reread_bins
 #: src/pages/BookDetailPage.tsx
@@ -335,15 +349,24 @@ msgstr "{failed, plural, one {# book could not be deleted} other {# books could 
 msgid "{failedN} of {totalN} failed — {firstErr}"
 msgstr "{failedN} of {totalN} failed — {firstErr}"
 
+#: src/components/stats/CompletionByType.tsx
+msgid "{fin} of {st} finished"
+msgstr "{fin} of {st} finished"
+
 #: src/pages/StatsPage.tsx
 msgid "{fin} of {st} started"
 msgstr "{fin} of {st} started"
+
+#: src/components/stats/CompletionRateCard.tsx
+msgid "{fin} of {st} started · all time"
+msgstr "{fin} of {st} started · all time"
 
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h"
 msgstr "{h}h"
 
+#: src/components/stats/AuthorAffinity.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h {m}m"
@@ -633,6 +656,14 @@ msgstr "Add books you'd like to see in the library."
 msgid "Add custom theme"
 msgstr "Add custom theme"
 
+#: src/components/SaveFilterButton.tsx
+msgid "Add shelf"
+msgstr "Add shelf"
+
+#: src/components/SaveFilterButton.tsx
+msgid "Add Shelf"
+msgstr "Add Shelf"
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Add tag…"
@@ -781,6 +812,10 @@ msgstr "App-specific PINs"
 #: src/pages/SettingsPage.tsx
 msgid "Appearance"
 msgstr "Appearance"
+
+#: src/components/SeriesRating.tsx
+msgid "Applied to volumes you haven’t rated"
+msgstr "Applied to volumes you haven’t rated"
 
 #: src/pages/StatsPage.tsx
 msgid "Apply"
@@ -1006,6 +1041,7 @@ msgstr "Browse and download your library from KOReader or any OPDS client."
 msgid "Browse your library"
 msgstr "Browse your library"
 
+#: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -1179,6 +1215,10 @@ msgstr "Completion"
 #: src/pages/StatsPage.tsx
 msgid "Completion Estimates"
 msgstr "Completion Estimates"
+
+#: src/components/stats/CompletionRateCard.tsx
+msgid "Completion Rate"
+msgstr "Completion Rate"
 
 #: src/pages/StatsPage.tsx
 msgid "Configure"
@@ -1663,6 +1703,10 @@ msgstr "Errors"
 msgid "Est. remaining"
 msgstr "Est. remaining"
 
+#: src/components/ShareLinksOverview.tsx
+msgid "Every public link you've shared — shelves, series, and books. Links show metadata, your ratings, highlights, and reading stats; never files. Revoking kills a link instantly."
+msgstr "Every public link you've shared — shelves, series, and books. Links show metadata, your ratings, highlights, and reading stats; never files. Revoking kills a link instantly."
+
 #: src/pages/StatsPage.tsx
 msgid "Every session — paginated, deletable"
 msgstr "Every session — paginated, deletable"
@@ -1710,6 +1754,14 @@ msgstr "Expand all"
 #: src/components/Sidebar.tsx
 msgid "Expand sidebar"
 msgstr "Expand sidebar"
+
+#: src/components/ShareLinksOverview.tsx
+msgid "expired"
+msgstr "expired"
+
+#: src/components/ShareLinksOverview.tsx
+msgid "expires {d}"
+msgstr "expires {d}"
 
 #: src/pages/LoginPage.tsx
 msgid "Expires in {timeLeft}"
@@ -1837,6 +1889,7 @@ msgstr "Failed to register"
 msgid "Failed to remove wish"
 msgstr "Failed to remove wish"
 
+#: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -1858,6 +1911,10 @@ msgstr "Failed to save review"
 #: src/pages/AdminPage.tsx
 msgid "Failed to save role"
 msgstr "Failed to save role"
+
+#: src/components/SeriesRating.tsx
+msgid "Failed to save series rating"
+msgstr "Failed to save series rating"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to undo"
@@ -1987,6 +2044,10 @@ msgstr "Fulfilled"
 #: src/pages/SettingsPage.tsx
 msgid "Full access"
 msgstr "Full access"
+
+#: src/components/stats/ReadingDNACard.tsx
+msgid "Full breakdown →"
+msgstr "Full breakdown →"
 
 #: src/pages/SettingsPage.tsx
 msgid "Generate PIN"
@@ -2129,6 +2190,7 @@ msgstr "How to set it up"
 msgid "How you spread your 1–5 stars"
 msgstr "How you spread your 1–5 stars"
 
+#: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 msgid "Icon"
@@ -2397,6 +2459,7 @@ msgstr "Loading books…"
 msgid "Loading..."
 msgstr "Loading..."
 
+#: src/components/ShareLinksOverview.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/SharePage.tsx
 msgid "Loading…"
@@ -2587,6 +2650,7 @@ msgstr "My Theme"
 msgid "Name"
 msgstr "Name"
 
+#: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
 msgid "Name…"
 msgstr "Name…"
@@ -2598,6 +2662,10 @@ msgstr "Native KOReader plugin — tracks reading sessions and syncs by book ID.
 #: src/pages/SettingsPage.tsx
 msgid "Never"
 msgstr "Never"
+
+#: src/components/ShareLinksOverview.tsx
+msgid "never expires"
+msgstr "never expires"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Never sync this book"
@@ -2675,6 +2743,10 @@ msgstr "No API tokens yet. Create one to use Scribe or scripts against Tome."
 msgid "No audit entries yet."
 msgstr "No audit entries yet."
 
+#: src/components/stats/AuthorAffinity.tsx
+msgid "No author data."
+msgstr "No author data."
+
 #: src/pages/AdminPage.tsx
 msgid "No book types yet."
 msgstr "No book types yet."
@@ -2694,6 +2766,10 @@ msgstr "No books in this view."
 #: src/pages/StatsPage.tsx
 msgid "No comparison data."
 msgstr "No comparison data."
+
+#: src/components/stats/CompletionByType.tsx
+msgid "No completion data by type."
+msgstr "No completion data by type."
 
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
@@ -2739,6 +2815,10 @@ msgstr "no ISBN"
 msgid "No libraries"
 msgstr "No libraries"
 
+#: src/components/stats/LibraryGrowthChart.tsx
+msgid "No library growth data."
+msgstr "No library growth data."
+
 #: src/pages/DashboardPage.tsx
 msgid "No matches"
 msgstr "No matches"
@@ -2762,6 +2842,10 @@ msgstr "No open wishes."
 #: src/components/Sidebar.tsx
 msgid "No other users to share with."
 msgstr "No other users to share with."
+
+#: src/components/stats/PaceByFormat.tsx
+msgid "No pace data by format."
+msgstr "No pace data by format."
 
 #: src/pages/SettingsPage.tsx
 msgid "No PINs yet. Generate one to use with OPDS clients."
@@ -2806,6 +2890,10 @@ msgstr "No Series"
 #: src/pages/DashboardPage.tsx
 msgid "No series found — add series metadata to your books."
 msgstr "No series found — add series metadata to your books."
+
+#: src/components/stats/SeriesCompletionGrid.tsx
+msgid "No series with reading history yet."
+msgstr "No series with reading history yet."
 
 #: src/pages/StatsPage.tsx
 msgid "No series with reading progress yet."
@@ -2916,6 +3004,10 @@ msgstr "Nothing in progress"
 msgid "Nothing matched “{search}”"
 msgstr "Nothing matched “{search}”"
 
+#: src/components/ShareLinksOverview.tsx
+msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
+msgstr "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
+
 #: src/components/NotificationBell.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Notifications"
@@ -2971,6 +3063,7 @@ msgstr "Only notes"
 msgid "OPDS Catalog"
 msgstr "OPDS Catalog"
 
+#: src/components/ShareLinksOverview.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Open"
@@ -3232,6 +3325,10 @@ msgstr "Range"
 msgid "Range follows the page's range picker; days show the newest slice of it."
 msgstr "Range follows the page's range picker; days show the newest slice of it."
 
+#: src/components/SeriesRating.tsx
+msgid "Rate the whole series"
+msgstr "Rate the whole series"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Rate this book"
 msgstr "Rate this book"
@@ -3243,6 +3340,10 @@ msgstr "Rated"
 #: src/components/BookCard.tsx
 msgid "Rated {rating} of 5"
 msgstr "Rated {rating} of 5"
+
+#: src/components/StarRating.tsx
+msgid "Rated {value} of 5"
+msgstr "Rated {value} of 5"
 
 #: src/pages/DashboardPage.tsx
 msgid "Rated: {filterMinRating}+ stars"
@@ -3354,6 +3455,7 @@ msgstr "Reading Clock"
 msgid "Reading days"
 msgstr "Reading days"
 
+#: src/components/stats/ReadingDNACard.tsx
 #: src/pages/StatsPage.tsx
 msgid "Reading DNA"
 msgstr "Reading DNA"
@@ -3570,6 +3672,7 @@ msgstr "Same ISBN"
 msgid "Same Series Volume"
 msgstr "Same Series Volume"
 
+#: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -3646,6 +3749,14 @@ msgstr "Scanning…"
 #: src/pages/SettingsPage.tsx
 msgid "Scope"
 msgstr "Scope"
+
+#: src/components/HScrollRow.tsx
+msgid "Scroll left"
+msgstr "Scroll left"
+
+#: src/components/HScrollRow.tsx
+msgid "Scroll right"
+msgstr "Scroll right"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Search"
@@ -4296,6 +4407,10 @@ msgstr "Total pages turned"
 msgid "Total time read + avg session"
 msgstr "Total time read + avg session"
 
+#: src/components/stats/LibraryGrowthChart.tsx
+msgid "Total: {total}"
+msgstr "Total: {total}"
+
 #: src/pages/SettingsPage.tsx
 msgid "Translations are community-maintained. Anything not yet translated is shown in English."
 msgstr "Translations are community-maintained. Anything not yet translated is shown in English."
@@ -4375,6 +4490,10 @@ msgstr "Unserialized"
 #: src/pages/SettingsPage.tsx
 msgid "Unzip the file and copy via SSH (or USB). Remove the old plugin first to ensure a clean install."
 msgstr "Unzip the file and copy via SSH (or USB). Remove the old plugin first to ensure a clean install."
+
+#: src/components/UpcomingReleases.tsx
+msgid "Upcoming releases"
+msgstr "Upcoming releases"
 
 #: src/pages/SettingsPage.tsx
 msgid "Update"
@@ -4467,6 +4586,10 @@ msgstr "Viewing as <0>{impersonatedUsername}</0>"
 msgid "Vol {idx}"
 msgstr "Vol {idx}"
 
+#: src/components/UpcomingReleases.tsx
+msgid "Vol {v} · "
+msgstr "Vol {v} · "
+
 #: src/pages/SharePage.tsx
 msgid "Vol. {a}–{b}"
 msgstr "Vol. {a}–{b}"
@@ -4545,6 +4668,10 @@ msgstr "What did you think? (optional, saved automatically)"
 #: src/pages/StatsPage.tsx
 msgid "What do these mean? — read the stats docs"
 msgstr "What do these mean? — read the stats docs"
+
+#: src/components/InfoHint.tsx
+msgid "What is this?"
+msgstr "What is this?"
 
 #: src/pages/HardcoverPage.tsx
 msgid "What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books."
@@ -4685,6 +4812,10 @@ msgstr "Your Tome account is disabled."
 #: src/pages/SettingsPage.tsx
 msgid "your Tome password"
 msgstr "your Tome password"
+
+#: src/components/SeriesRating.tsx
+msgid "Your volumes average {avg} ({rated} rated)"
+msgstr "Your volumes average {avg} ({rated} rated)"
 
 #: src/pages/WishlistPage.tsx
 msgid "Your wishlist is empty"
