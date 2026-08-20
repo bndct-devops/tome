@@ -33,8 +33,16 @@ msgstr ""
 msgid "…and {more} more not shown"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "· {n} docs"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "· p. {page} of {totalPages}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "(enables dark: variants)"
 msgstr ""
 
 #. placeholder {0}: s.book_count
@@ -91,6 +99,7 @@ msgid "{d}d ago"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
+#: src/pages/SettingsPage.tsx
 msgid "{days}d ago"
 msgstr ""
 
@@ -126,6 +135,10 @@ msgstr ""
 msgid "{h}h {m}m"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "{hours}h ago"
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 msgid "{hrs}h ago"
 msgstr ""
@@ -136,6 +149,10 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 msgid "{mins}m ago"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "{minutes}m ago"
 msgstr ""
 
 #: src/components/AppShell.tsx
@@ -215,8 +232,20 @@ msgstr ""
 msgid "~{at}% in · not read"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "A newer release is available — the link opens the release notes. Update by pulling the new image and restarting the container."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "A while ago"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "About"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Account & Security"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -224,6 +253,7 @@ msgid "Activity"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Add"
 msgstr ""
 
@@ -235,6 +265,10 @@ msgstr ""
 msgid "Add a review"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Add custom theme"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Add tag…"
@@ -244,12 +278,24 @@ msgstr ""
 msgid "Add Tags"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Add Theme"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Add to library"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Add to Library"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Add your SMTP sender address to Amazon's <0>Approved Personal Document E-mail List</0>, or emails will be silently dropped."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -281,6 +327,7 @@ msgid "All readers: {dur} · {days} · {readers}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "All users"
 msgstr ""
 
@@ -290,6 +337,26 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Any"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "API Keys"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "API Tokens"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "App-specific PINs"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Appearance"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Ask your server admin if you don't manage the Tome installation yourself."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -305,8 +372,20 @@ msgstr ""
 msgid "Author: {filterAuthor}"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Authorize"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Authorizing..."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "avg session"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Backup"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -333,8 +412,16 @@ msgstr ""
 msgid "Books"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Books without a series"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Browse and download your library from KOReader or any OPDS client."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -344,6 +431,7 @@ msgstr ""
 #: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Cancel"
 msgstr ""
 
@@ -353,6 +441,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "ch. 1"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Change Password"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -397,12 +489,36 @@ msgstr ""
 msgid "Clearing…"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Click \"Download plugin ZIP\" above. An API key is automatically created and baked into the plugin — no manual configuration needed."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Close"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Close navigation"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Code from new device"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Code has expired. Ask the other device to generate a new one."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Code must be 6 characters"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Code not found. Check the code and try again."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Code was already authorized."
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -413,12 +529,20 @@ msgstr ""
 msgid "Collapse sidebar"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Colors <0>(10 hex values, comma-separated)</0>"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Command palette — jump to a book, series, author, or page"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Confirm"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Confirm new password"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -429,6 +553,26 @@ msgstr ""
 msgid "Continue Reading"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Copy to KOReader"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Copy token"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Core"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Could not link SSO. Please try again."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Could not start SSO linking."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Cover"
 msgstr ""
@@ -437,8 +581,28 @@ msgstr ""
 msgid "Cover size"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Create"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Created"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Creating..."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Current password"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Dark"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Dark theme"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -490,6 +654,14 @@ msgstr ""
 msgid "Details"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Device authorized — the new device is now signed in."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Device name"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr ""
@@ -503,7 +675,12 @@ msgid "Docs"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Done"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Download a JSON snapshot of <0>your personal data</0>: reading status, every reading session, sync positions, shelves, and your local preferences. Book files themselves are not included — Tome only references them on disk. API tokens and KOReader keys are also excluded so the file isn't a credential."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -515,8 +692,32 @@ msgstr ""
 msgid "Download Markdown export"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Download my data"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Download plugin ZIP"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Download the plugin"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Download your entire library catalog — all titles, authors, series, tags and formats."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Download ZIP"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "E-Reader Devices"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "e.g. scribe-laptop"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -544,6 +745,18 @@ msgstr ""
 msgid "Edit Shelf"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Email"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Email address"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Email delivery is not set up yet."
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Ember"
 msgstr ""
@@ -568,8 +781,36 @@ msgstr ""
 msgid "Expand sidebar"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Export"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Export {label}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Exporting..."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Failed"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Failed to add device"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Failed to authorize"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Failed to change password"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Failed to create token"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -596,7 +837,12 @@ msgstr ""
 msgid "Failed to log session"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Failed to register"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Failed to save"
 msgstr ""
 
@@ -673,6 +919,14 @@ msgstr ""
 msgid "From your highlights"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Full access"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Generate PIN"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Genres"
 msgstr ""
@@ -731,8 +985,32 @@ msgstr ""
 msgid "How far through the book you'd read by each date."
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "How to set it up"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Icon"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Import reading history"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "In KOReader: Search → OPDS catalog → add catalog with the URL above."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "In KOReader: Settings > Device > Restart KOReader. The plugin loads automatically."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "In KOReader: Tools → Progress sync → Custom sync server."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -743,12 +1021,32 @@ msgstr ""
 msgid "just now"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Just now"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Key created — copy it now, it won't be shown again."
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Keyboard Shortcuts"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Kindle users"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "KOReader sync linked"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "KOSync registered successfully"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Label (e.g. KOReader)"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -765,6 +1063,18 @@ msgstr ""
 msgid "Last read"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Last sync: {d}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Last used"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Learn more"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Libraries"
@@ -772,6 +1082,7 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Library"
 msgstr ""
 
@@ -791,6 +1102,22 @@ msgstr ""
 msgid "Link KOReader sync…"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Link SSO"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Link your identity provider to this account so you can sign in with SSO. Your existing login and password keep working."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Link your identity provider to this account so you can sign in with SSO. Your existing login keeps working."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Linked"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Linking…"
 msgstr ""
@@ -799,12 +1126,20 @@ msgstr ""
 msgid "List view"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Loading..."
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Log out"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Log session"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -852,16 +1187,48 @@ msgstr ""
 msgid "Missing: {filterMissingLabel}"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "My Books"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "My Kindle"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "My Rating"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "My Theme"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Name"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Name…"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Never"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "never used"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "New key"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -872,8 +1239,16 @@ msgstr ""
 msgid "New Library"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "New password"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "new this week"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "New Token"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -884,8 +1259,20 @@ msgstr ""
 msgid "Next page"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "No API keys. Download the plugin to auto-create one."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "No API tokens yet. Create one to use Scribe or scripts against Tome."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "No devices yet. Add one to start sending books."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -898,6 +1285,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "No other users to share with."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "No PINs yet. Generate one to use with OPDS clients."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -933,6 +1324,10 @@ msgstr ""
 msgid "not read"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Note on KOSync coexistence"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Note removed"
 msgstr ""
@@ -950,6 +1345,7 @@ msgid "Nothing matched “{search}”"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Notifications"
 msgstr ""
 
@@ -969,6 +1365,14 @@ msgstr ""
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "OPDS Catalog"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Open a book downloaded via OPDS"
+msgstr ""
+
 #: src/components/AppHeader.tsx
 msgid "Open navigation"
 msgstr ""
@@ -979,6 +1383,18 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Other providers"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Owner"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -993,12 +1409,52 @@ msgstr ""
 msgid "Pages · 30d"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Password"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Password must be at least 8 characters"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Password updated successfully"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Passwords do not match"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Pick up where you left off"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "PIN created — copy it now, it won't be shown again."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Position history — restore a bad sync"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Prefix"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Preparing..."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Preparing…"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Preview"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Preview:"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -1017,6 +1473,10 @@ msgstr ""
 msgid "Private library"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Profile updated"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Progress"
 msgstr ""
@@ -1025,12 +1485,20 @@ msgstr ""
 msgid "Progress % <0>(optional)</0>"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Progress Sync"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Public library"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Quick Connect"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1091,6 +1559,10 @@ msgstr ""
 msgid "Read book"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Read-only"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Reader"
 msgstr ""
@@ -1127,21 +1599,53 @@ msgstr ""
 msgid "Recently Finished"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Register"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Remove all of this book's imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Remove device"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Remove from library"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Restart KOReader"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Resume {volLabel}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke this token? Any scripts or tools using it will stop working immediately."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke token"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoked"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Save"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Save changes"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1160,8 +1664,16 @@ msgstr ""
 msgid "Save the library first, then reopen it to share with users."
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Saving..."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Saving…"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Scope"
 msgstr ""
 
 #: src/components/AppHeader.tsx
@@ -1190,6 +1702,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Select all"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Send to Device"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1222,13 +1738,30 @@ msgstr ""
 msgid "Sessions ({n})"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Set sync password"
+msgstr ""
+
 #: src/components/Sidebar.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Settings"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Setup instructions"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Share"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Share links"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1264,6 +1797,10 @@ msgstr ""
 msgid "Shelves"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Short app-specific passwords for OPDS — easier to type on an e-reader than your full password."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Show another highlight"
 msgstr ""
@@ -1288,6 +1825,18 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Single Sign-On"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "SSO sign-in linked to your account."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1318,6 +1867,10 @@ msgstr ""
 msgid "Subtitle (optional)"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Sync reading position between KOReader and Tome."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Synced document"
 msgstr ""
@@ -1330,8 +1883,28 @@ msgstr ""
 msgid "Tag: {filterTag}"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "That SSO identity is already linked to another account."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "the sync password set above"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Theme"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Theme name"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Theme name is required"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "This is the only time you will see this token. Store it somewhere safe — it cannot be recovered."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1361,6 +1934,18 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Toggle only-notes filter"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Token name"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "TomeSync Plugin"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1400,6 +1985,26 @@ msgstr ""
 msgid "Unserialized"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Unzip the file and copy via SSH (or USB). Remove the old plugin first to ensure a clean install."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Update"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Update password"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Update sync password"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Update to v{v}"
+msgstr ""
+
 #: src/components/AppHeader.tsx
 msgid "Upload"
 msgstr ""
@@ -1416,8 +2021,32 @@ msgstr ""
 msgid "Uploader: {filterUploaderName}"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "URL"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Use a <0>Google App Password</0>, not your regular password."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Use this as the OPDS password in KOReader (username stays the same)."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "used {d}"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "User menu"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Username"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Verify it's working"
 msgstr ""
 
 #: src/components/ImpersonationBanner.tsx
@@ -1448,6 +2077,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Want to Read — queue this book up next"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Warm"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1487,10 +2120,26 @@ msgstr ""
 msgid "You rated this {rating}/5"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "You're signed in via SSO. Manage your credentials at your identity provider — there's no Tome password to change."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Your account is linked to SSO — you can sign in with your identity provider."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Your library is empty"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Your note — syncs back to KOReader on the next sync"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Your server admin needs to set SMTP environment variables:"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "your Tome password"
 msgstr ""

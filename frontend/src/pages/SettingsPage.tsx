@@ -23,6 +23,8 @@ import {
 } from '@/lib/theme'
 import { useAuth } from '@/contexts/AuthContext'
 import { Trans, useLingui } from '@lingui/react/macro'
+import { t, msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
 
 interface ApiKey {
@@ -71,15 +73,15 @@ export function SettingsPage() {
     api.get<{ enabled: boolean }>('/auth/oidc/config').then(r => setSsoEnabled(r.enabled)).catch(() => {})
     const p = new URLSearchParams(window.location.search)
     if (p.get('sso_linked')) {
-      setSsoMsg({ ok: true, text: 'SSO sign-in linked to your account.' })
+      setSsoMsg({ ok: true, text: t`SSO sign-in linked to your account.` })
       refreshUser()
       window.history.replaceState({}, '', window.location.pathname)
     }
     const err = p.get('sso_link_error')
     if (err) {
       setSsoMsg({ ok: false, text: err === 'already_linked'
-        ? 'That SSO identity is already linked to another account.'
-        : 'Could not link SSO. Please try again.' })
+        ? t`That SSO identity is already linked to another account.`
+        : t`Could not link SSO. Please try again.` })
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
@@ -90,7 +92,7 @@ export function SettingsPage() {
       const r = await api.post<{ login_url: string }>('/auth/oidc/link/start', {})
       window.location.href = r.login_url
     } catch {
-      setSsoMsg({ ok: false, text: 'Could not start SSO linking.' })
+      setSsoMsg({ ok: false, text: t`Could not start SSO linking.` })
       setLinkingSso(false)
     }
   }
@@ -120,7 +122,7 @@ export function SettingsPage() {
       setProfileSuccess(true)
       setTimeout(() => setProfileSuccess(false), 3000)
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : 'Failed to save')
+      setProfileError(err instanceof Error ? err.message : t`Failed to save`)
     } finally {
       setProfileSaving(false)
     }
@@ -139,8 +141,8 @@ export function SettingsPage() {
     e.preventDefault()
     setPwError(null)
     setPwSuccess(false)
-    if (newPassword !== confirmPassword) { setPwError('Passwords do not match'); return }
-    if (newPassword.length < 8) { setPwError('Password must be at least 8 characters'); return }
+    if (newPassword !== confirmPassword) { setPwError(t`Passwords do not match`); return }
+    if (newPassword.length < 8) { setPwError(t`Password must be at least 8 characters`); return }
     setPwSaving(true)
     try {
       await api.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword })
@@ -148,7 +150,7 @@ export function SettingsPage() {
       setTimeout(() => setPwSuccess(false), 4000)
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
     } catch (err: unknown) {
-      setPwError(err instanceof Error ? err.message : 'Failed to change password')
+      setPwError(err instanceof Error ? err.message : t`Failed to change password`)
     } finally {
       setPwSaving(false)
     }
@@ -165,7 +167,7 @@ export function SettingsPage() {
     setQcError(null)
     setQcSuccess(false)
     const code = qcCode.trim().toUpperCase()
-    if (code.length !== 6) { setQcError('Code must be 6 characters'); return }
+    if (code.length !== 6) { setQcError(t`Code must be 6 characters`); return }
     setQcAuthorizing(true)
     try {
       await api.post('/auth/quick-connect/authorize', { code })
@@ -173,10 +175,10 @@ export function SettingsPage() {
       setQcCode('')
       setTimeout(() => setQcSuccess(false), 5000)
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to authorize'
-      if (msg.includes('not found') || msg.includes('Not Found')) setQcError('Code not found. Check the code and try again.')
-      else if (msg.includes('expired')) setQcError('Code has expired. Ask the other device to generate a new one.')
-      else if (msg.includes('already authorized')) setQcError('Code was already authorized.')
+      const msg = err instanceof Error ? err.message : t`Failed to authorize`
+      if (msg.includes('not found') || msg.includes('Not Found')) setQcError(t`Code not found. Check the code and try again.`)
+      else if (msg.includes('expired')) setQcError(t`Code has expired. Ask the other device to generate a new one.`)
+      else if (msg.includes('already authorized')) setQcError(t`Code was already authorized.`)
       else setQcError(msg)
     } finally {
       setQcAuthorizing(false)
@@ -184,7 +186,7 @@ export function SettingsPage() {
   }
 
   // ── Language ──────────────────────────────────────────────────────────────
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const [activeLocale, setActiveLocale] = useState<string>(getActiveLocale)
 
   async function handleLocaleSelect(code: string) {
@@ -221,9 +223,9 @@ export function SettingsPage() {
 
   function handleAddCustomTheme() {
     setCustomError(null)
-    if (!customName.trim()) { setCustomError('Theme name is required'); return }
+    if (!customName.trim()) { setCustomError(t`Theme name is required`); return }
     const vars = parseThemeColors(customColors)
-    if (!vars) { setCustomError('Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)'); return }
+    if (!vars) { setCustomError(t`Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)`); return }
     const id = `custom-${Date.now()}`
     const theme: CustomTheme = { id, label: customName.trim(), dark: customDark, colors: customColors }
     saveCustomTheme(theme)
@@ -265,7 +267,7 @@ export function SettingsPage() {
       const updated = await api.get<KOSyncStatus>('/auth/me/kosync')
       setKosyncStatus(updated)
     } catch (err) {
-      setKosyncError(err instanceof Error ? err.message : 'Failed to register')
+      setKosyncError(err instanceof Error ? err.message : t`Failed to register`)
     } finally {
       setKosyncSaving(false)
     }
@@ -415,7 +417,7 @@ export function SettingsPage() {
       setNewDeviceName('')
       setNewDeviceEmail('')
     } catch (err) {
-      setDeviceError(err instanceof Error ? err.message : 'Failed to add device')
+      setDeviceError(err instanceof Error ? err.message : t`Failed to add device`)
     } finally {
       setDeviceAdding(false)
     }
@@ -466,14 +468,14 @@ export function SettingsPage() {
       const updated = await listTokens(apiTokensAllUsers)
       setApiTokens(updated)
     } catch (err) {
-      setTokenCreateError(err instanceof Error ? err.message : 'Failed to create token')
+      setTokenCreateError(err instanceof Error ? err.message : t`Failed to create token`)
     } finally {
       setTokenCreating(false)
     }
   }
 
   async function handleRevokeApiToken(id: number) {
-    if (!confirm('Revoke this token? Any scripts or tools using it will stop working immediately.')) return
+    if (!confirm(t`Revoke this token? Any scripts or tools using it will stop working immediately.`)) return
     setTokenRevoking(id)
     try {
       await revokeToken(id)
@@ -573,10 +575,10 @@ export function SettingsPage() {
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Library
+              <Trans>Library</Trans>
             </Link>
             <span className="text-border select-none">/</span>
-            <span className="text-sm font-medium text-foreground">Settings</span>
+            <span className="text-sm font-medium text-foreground"><Trans>Settings</Trans></span>
           </div>
           <ThemeToggle />
         </div>
@@ -586,7 +588,7 @@ export function SettingsPage() {
 
         {/* ── Account & Security ────────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Account & Security" />
+          <SectionHeader title={t`Account & Security`} />
           <div className="mt-4 rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
 
             {/* Profile */}
@@ -594,7 +596,7 @@ export function SettingsPage() {
               <form onSubmit={handleProfileSubmit} className="flex flex-col sm:flex-row gap-3 items-start">
                 <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Username</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Username</Trans></label>
                     <input
                       type="text"
                       value={profileUsername}
@@ -604,7 +606,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Email</Trans></label>
                     <input
                       type="email"
                       value={profileEmail}
@@ -620,41 +622,41 @@ export function SettingsPage() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 sm:mt-5 shrink-0"
                 >
                   {profileSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  {profileSaving ? 'Saving...' : 'Save changes'}
+                  {profileSaving ? t`Saving...` : t`Save changes`}
                 </button>
               </form>
               {profileError && <p className="text-xs text-destructive mt-2">{profileError}</p>}
-              {profileSuccess && <p className="text-xs text-success mt-2">Profile updated</p>}
+              {profileSuccess && <p className="text-xs text-success mt-2"><Trans>Profile updated</Trans></p>}
             </div>
 
             {/* Password */}
             <div className="p-5">
-              <p className="text-sm font-medium text-foreground mb-3">Change Password</p>
+              <p className="text-sm font-medium text-foreground mb-3"><Trans>Change Password</Trans></p>
               {user?.auth_source === 'oidc' ? (
                 <p className="text-sm text-muted-foreground max-w-sm">
-                  You're signed in via SSO. Manage your credentials at your identity
-                  provider — there's no Tome password to change.
+                  <Trans>You're signed in via SSO. Manage your credentials at your identity
+                  provider — there's no Tome password to change.</Trans>
                 </p>
               ) : (
               <form onSubmit={handlePasswordSubmit} className="space-y-3 max-w-sm">
                 <PasswordField
-                  label="Current password"
+                  label={t`Current password`}
                   value={currentPassword}
                   onChange={setCurrentPassword}
                   show={showPasswords}
                   onToggleShow={() => setShowPasswords(v => !v)}
                   showToggle
                 />
-                <PasswordField label="New password" value={newPassword} onChange={setNewPassword} show={showPasswords} />
+                <PasswordField label={t`New password`} value={newPassword} onChange={setNewPassword} show={showPasswords} />
                 <PasswordField
-                  label="Confirm new password"
+                  label={t`Confirm new password`}
                   value={confirmPassword}
                   onChange={setConfirmPassword}
                   show={showPasswords}
                   error={!!(pwError && confirmPassword && newPassword !== confirmPassword)}
                 />
                 {pwError && <p className="text-xs text-destructive pt-0.5">{pwError}</p>}
-                {pwSuccess && <p className="text-xs text-success pt-0.5">Password updated successfully</p>}
+                {pwSuccess && <p className="text-xs text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
                 <div className="pt-1">
                   <button
                     type="submit"
@@ -662,7 +664,7 @@ export function SettingsPage() {
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40"
                   >
                     {pwSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    {pwSaving ? 'Saving...' : 'Update password'}
+                    {pwSaving ? t`Saving...` : t`Update password`}
                   </button>
                 </div>
               </form>
@@ -672,7 +674,7 @@ export function SettingsPage() {
             {/* SSO linking */}
             {ssoEnabled && (
               <div className="p-5">
-                <p className="text-sm font-medium text-foreground mb-3">Single Sign-On</p>
+                <p className="text-sm font-medium text-foreground mb-3"><Trans>Single Sign-On</Trans></p>
                 {ssoMsg && (
                   <div className={cn(
                     'flex items-center gap-2 text-sm p-3 rounded-lg mb-3 border',
@@ -687,13 +689,14 @@ export function SettingsPage() {
                 {user?.oidc_linked ? (
                   <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Check className="w-4 h-4 text-success" />
-                    Your account is linked to SSO — you can sign in with your identity provider.
+                    <Trans>Your account is linked to SSO — you can sign in with your identity provider.</Trans>
                   </p>
                 ) : (
                   <div className="space-y-3 max-w-sm">
                     <p className="text-sm text-muted-foreground">
-                      Link your identity provider to this account so you can sign in with SSO.
-                      Your existing login{user?.auth_source === 'oidc' ? '' : ' and password'} keep working.
+                      {user?.auth_source === 'oidc'
+                        ? <Trans>Link your identity provider to this account so you can sign in with SSO. Your existing login keeps working.</Trans>
+                        : <Trans>Link your identity provider to this account so you can sign in with SSO. Your existing login and password keep working.</Trans>}
                     </p>
                     <button
                       onClick={handleLinkSso}
@@ -701,7 +704,7 @@ export function SettingsPage() {
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-muted transition-all disabled:opacity-40"
                     >
                       {linkingSso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
-                      Link SSO
+                      <Trans>Link SSO</Trans>
                     </button>
                   </div>
                 )}
@@ -715,15 +718,15 @@ export function SettingsPage() {
                   <Smartphone className="w-3.5 h-3.5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">Quick Connect</p>
+                  <p className="text-sm font-medium text-foreground"><Trans>Quick Connect</Trans></p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Sign in on a new device without entering your password. On the new device, tap "Quick Connect" on the login screen to get a 6-character code, then enter it here.
+                    <Trans>Sign in on a new device without entering your password. On the new device, tap "Quick Connect" on the login screen to get a 6-character code, then enter it here.</Trans>
                   </p>
                 </div>
               </div>
               <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-xs">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Code from new device</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Code from new device</Trans></label>
                   <input
                     type="text"
                     value={qcCode}
@@ -740,14 +743,14 @@ export function SettingsPage() {
                   className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
                 >
                   {qcAuthorizing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {qcAuthorizing ? 'Authorizing...' : 'Authorize'}
+                  {qcAuthorizing ? t`Authorizing...` : t`Authorize`}
                 </button>
               </form>
               {qcError && <p className="text-xs text-destructive mt-2">{qcError}</p>}
               {qcSuccess && (
                 <div className="flex items-center gap-1.5 text-xs text-success mt-2">
                   <CheckCircle className="w-3.5 h-3.5" />
-                  Device authorized — the new device is now signed in.
+                  <Trans>Device authorized — the new device is now signed in.</Trans>
                 </div>
               )}
             </div>
@@ -757,10 +760,10 @@ export function SettingsPage() {
 
         {/* ── Appearance ───────────────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Appearance" />
+          <SectionHeader title={t`Appearance`} />
 
           {/* Built-in themes — neutral core + warm pair */}
-          {([['Core', 'core'], ['Warm', 'warm']] as const).map(([groupLabel, group]) => (
+          {([[t`Core`, 'core'], [t`Warm`, 'warm']] as const).map(([groupLabel, group]) => (
             <div key={group} className="mt-4">
               <p className="text-xs text-muted-foreground mb-1.5">{groupLabel}</p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -849,7 +852,7 @@ export function SettingsPage() {
             >
               <span className="flex items-center gap-2 font-medium">
                 <Plus className="w-3.5 h-3.5" />
-                Add custom theme
+                <Trans>Add custom theme</Trans>
               </span>
               {customFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
@@ -858,12 +861,12 @@ export function SettingsPage() {
               <div className="border-t border-border p-4 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Theme name</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Theme name</Trans></label>
                     <input
                       type="text"
                       value={customName}
                       onChange={e => setCustomName(e.target.value)}
-                      placeholder="My Theme"
+                      placeholder={t`My Theme`}
                       className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
@@ -875,15 +878,15 @@ export function SettingsPage() {
                         onChange={e => setCustomDark(e.target.checked)}
                         className="w-4 h-4 rounded accent-primary"
                       />
-                      Dark theme
-                      <span className="text-xs text-muted-foreground">(enables dark: variants)</span>
+                      <Trans>Dark theme</Trans>
+                      <span className="text-xs text-muted-foreground"><Trans>(enables dark: variants)</Trans></span>
                     </label>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    Colors <span className="font-normal">(10 hex values, comma-separated)</span>
+                    <Trans>Colors <span className="font-normal">(10 hex values, comma-separated)</span></Trans>
                   </label>
                   <input
                     type="text"
@@ -894,14 +897,14 @@ export function SettingsPage() {
                     spellCheck={false}
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive
+                    <Trans>Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive</Trans>
                   </p>
                 </div>
 
                 {/* Live preview */}
                 {parsedPreview && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">Preview:</span>
+                    <span className="text-xs text-muted-foreground shrink-0"><Trans>Preview:</Trans></span>
                     <div
                       className="flex items-center gap-1.5 rounded-lg px-3 py-2 border"
                       style={{
@@ -912,7 +915,7 @@ export function SettingsPage() {
                       <div className="w-6 h-6 rounded" style={{ background: parsedPreview['--card'] }} />
                       <div className="w-4 h-4 rounded-full" style={{ background: parsedPreview['--primary'] }} />
                       <span className="text-xs font-medium" style={{ color: parsedPreview['--foreground'] }}>
-                        {customName || 'Preview'}
+                        {customName || t`Preview`}
                       </span>
                     </div>
                   </div>
@@ -925,7 +928,7 @@ export function SettingsPage() {
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Add Theme
+                  <Trans>Add Theme</Trans>
                 </button>
               </div>
             )}
@@ -967,6 +970,7 @@ export function SettingsPage() {
 
         {/* ── KOReader ─────────────────────────────────────────────────── */}
         <section>
+          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
           <SectionHeader title="KOReader" />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
 
@@ -974,36 +978,36 @@ export function SettingsPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">OPDS Catalog</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>OPDS Catalog</Trans></p>
                   <p className="text-xs text-muted-foreground">
-                    Browse and download your library from KOReader or any OPDS client.
+                    <Trans>Browse and download your library from KOReader or any OPDS client.</Trans>
                   </p>
                 </div>
                 <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
-                  Learn more <ExternalLink className="w-3 h-3" />
+                  <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
               <ConnectBlock rows={[
-                { label: 'URL', value: opdsUrl, copy: true },
-                { label: 'Username', value: user?.username ?? '—', copy: true },
-                { label: 'Password', value: 'your Tome password' },
+                { label: t`URL`, value: opdsUrl, copy: true },
+                { label: t`Username`, value: user?.username ?? '—', copy: true },
+                { label: t`Password`, value: t`your Tome password` },
               ]} />
               <p className="text-xs text-muted-foreground">
-                In KOReader: Search &rarr; OPDS catalog &rarr; add catalog with the URL above.
+                <Trans>In KOReader: Search &rarr; OPDS catalog &rarr; add catalog with the URL above.</Trans>
               </p>
 
               {/* OPDS PINs — nested under OPDS */}
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3 h-3" /> App-specific PINs
+                    <Key className="w-3 h-3" /> <Trans>App-specific PINs</Trans>
                   </p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={pinLabel}
                       onChange={e => setPinLabel(e.target.value)}
-                      placeholder="Label (e.g. KOReader)"
+                      placeholder={t`Label (e.g. KOReader)`}
                       className="h-7 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring w-36"
                     />
                     <button
@@ -1012,17 +1016,17 @@ export function SettingsPage() {
                       className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
                     >
                       {pinCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                      Generate PIN
+                      <Trans>Generate PIN</Trans>
                     </button>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Short app-specific passwords for OPDS — easier to type on an e-reader than your full password.
+                  <Trans>Short app-specific passwords for OPDS — easier to type on an e-reader than your full password.</Trans>
                 </p>
 
                 {newPinResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-xs text-success font-medium">PIN created — copy it now, it won't be shown again.</p>
+                    <p className="text-xs text-success font-medium"><Trans>PIN created — copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
                       <code className="text-xs font-mono text-foreground break-all flex-1">{newPinResult}</code>
                       <button
@@ -1032,7 +1036,7 @@ export function SettingsPage() {
                         <Copy className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">Use this as the OPDS password in KOReader (username stays the same).</p>
+                    <p className="text-xs text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
                   </div>
                 )}
 
@@ -1043,13 +1047,13 @@ export function SettingsPage() {
                         <span className="font-mono text-muted-foreground w-14 shrink-0">{p.pin_preview}</span>
                         <span className="text-foreground flex-1 truncate">{p.label}</span>
                         <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {p.last_used_at ? `used ${new Date(p.last_used_at).toLocaleDateString()}` : 'never used'}
+                          {(() => { const d = new Date(p.last_used_at ?? 0).toLocaleDateString(i18n.locale); return p.last_used_at ? t`used ${d}` : t`never used` })()}
                         </span>
                         <button
                           onClick={() => handleRevokePin(p.id)}
                           disabled={pinRevoking === p.id}
                           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          title="Revoke"
+                          title={t`Revoke`}
                         >
                           {pinRevoking === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                         </button>
@@ -1057,7 +1061,7 @@ export function SettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No PINs yet. Generate one to use with OPDS clients.</p>
+                  <p className="text-xs text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
                 )}
               </div>
             </div>
@@ -1066,16 +1070,16 @@ export function SettingsPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Progress Sync</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>Progress Sync</Trans></p>
                   <p className="text-xs text-muted-foreground">
-                    Sync reading position between KOReader and Tome.
+                    <Trans>Sync reading position between KOReader and Tome.</Trans>
                   </p>
                 </div>
                 {kosyncStatus?.linked && (
                   <span className="flex items-center gap-1 text-xs text-success shrink-0 mt-0.5">
-                    <Check className="w-3 h-3" /> Linked
+                    <Check className="w-3 h-3" /> <Trans>Linked</Trans>
                     {kosyncStatus.synced_documents != null && (
-                      <span className="text-muted-foreground ml-1">· {kosyncStatus.synced_documents} docs</span>
+                      <span className="text-muted-foreground ml-1">{(() => { const n = kosyncStatus.synced_documents; return t`· ${n} docs` })()}</span>
                     )}
                   </span>
                 )}
@@ -1083,7 +1087,7 @@ export function SettingsPage() {
 
               {kosyncStatus?.last_sync && (
                 <p className="text-xs text-muted-foreground">
-                  Last sync: {new Date(kosyncStatus.last_sync * 1000).toLocaleString()}
+                  {(() => { const d = new Date(kosyncStatus.last_sync * 1000).toLocaleString(i18n.locale); return t`Last sync: ${d}` })()}
                   {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
                 </p>
               )}
@@ -1091,7 +1095,7 @@ export function SettingsPage() {
               <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-xs">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    {kosyncStatus?.linked ? 'Update sync password' : 'Set sync password'}
+                    {kosyncStatus?.linked ? t`Update sync password` : t`Set sync password`}
                   </label>
                   <input
                     type="password"
@@ -1107,19 +1111,19 @@ export function SettingsPage() {
                   className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
                 >
                   {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {kosyncSaving ? 'Saving...' : kosyncStatus?.linked ? 'Update' : 'Register'}
+                  {kosyncSaving ? t`Saving...` : kosyncStatus?.linked ? t`Update` : t`Register`}
                 </button>
               </form>
               {kosyncError && <p className="text-xs text-destructive">{kosyncError}</p>}
-              {kosyncSuccess && <p className="text-xs text-success">KOSync registered successfully</p>}
+              {kosyncSuccess && <p className="text-xs text-success"><Trans>KOSync registered successfully</Trans></p>}
 
               <ConnectBlock rows={[
-                { label: 'URL', value: kosyncUrl, copy: true },
-                { label: 'Username', value: user?.username ?? '—', copy: true },
-                { label: 'Password', value: 'the sync password set above' },
+                { label: t`URL`, value: kosyncUrl, copy: true },
+                { label: t`Username`, value: user?.username ?? '—', copy: true },
+                { label: t`Password`, value: t`the sync password set above` },
               ]} />
               <p className="text-xs text-muted-foreground">
-                In KOReader: Tools &rarr; Progress sync &rarr; Custom sync server.
+                <Trans>In KOReader: Tools &rarr; Progress sync &rarr; Custom sync server.</Trans>
               </p>
             </div>
 
@@ -1127,14 +1131,14 @@ export function SettingsPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">TomeSync Plugin</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>TomeSync Plugin</Trans></p>
                   <p className="text-xs text-muted-foreground">
-                    Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync.
+                    <Trans>Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync.</Trans>
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
-                    Learn more <ExternalLink className="w-3 h-3" />
+                    <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                   </a>
                   <PluginVersion />
                 </div>
@@ -1149,7 +1153,7 @@ export function SettingsPage() {
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Download className="w-3.5 h-3.5" />
                 }
-                {pluginDownloading ? 'Preparing...' : 'Download plugin ZIP'}
+                {pluginDownloading ? t`Preparing...` : t`Download plugin ZIP`}
               </button>
 
               <SetupGuide />
@@ -1158,7 +1162,7 @@ export function SettingsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3 h-3" /> API Keys
+                    <Key className="w-3 h-3" /> <Trans>API Keys</Trans>
                   </p>
                   <button
                     onClick={handleCreateKey}
@@ -1166,13 +1170,13 @@ export function SettingsPage() {
                     className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
                   >
                     {keyCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                    New key
+                    <Trans>New key</Trans>
                   </button>
                 </div>
 
                 {newKeyResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-xs text-success font-medium">Key created — copy it now, it won't be shown again.</p>
+                    <p className="text-xs text-success font-medium"><Trans>Key created — copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
                       <code className="text-xs font-mono text-foreground break-all flex-1">{newKeyResult}</code>
                       <button onClick={() => navigator.clipboard.writeText(newKeyResult)}
@@ -1189,13 +1193,13 @@ export function SettingsPage() {
                       <div key={k.id} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground flex-1">{k.key_preview}</span>
                         <span className="text-muted-foreground hidden sm:block">
-                          {k.last_used_at ? `used ${new Date(k.last_used_at).toLocaleDateString()}` : 'never used'}
+                          {(() => { const d = new Date(k.last_used_at ?? 0).toLocaleDateString(i18n.locale); return k.last_used_at ? t`used ${d}` : t`never used` })()}
                         </span>
                         <button
                           onClick={() => handleRevokeKey(k.id)}
                           disabled={keyRevoking === k.id}
                           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          title="Revoke"
+                          title={t`Revoke`}
                         >
                           {keyRevoking === k.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                         </button>
@@ -1203,7 +1207,7 @@ export function SettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No API keys. Download the plugin to auto-create one.</p>
+                  <p className="text-xs text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
                 )}
               </div>
             </div>
@@ -1213,7 +1217,7 @@ export function SettingsPage() {
 
         {/* ── Send to Device ──────────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Send to Device" />
+          <SectionHeader title={t`Send to Device`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
             <div className="p-5 space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -1222,14 +1226,14 @@ export function SettingsPage() {
                     <Send className="w-3.5 h-3.5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">E-Reader Devices</p>
+                    <p className="text-sm font-medium text-foreground"><Trans>E-Reader Devices</Trans></p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.
+                      <Trans>Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.</Trans>
                     </p>
                   </div>
                 </div>
                 <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
-                  Learn more <ExternalLink className="w-3 h-3" />
+                  <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
 
@@ -1237,37 +1241,41 @@ export function SettingsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
                     <AlertTriangle className="w-3.5 h-3.5 text-warning dark:text-warning shrink-0" />
-                    <p className="text-xs text-warning font-medium">Email delivery is not set up yet.</p>
+                    <p className="text-xs text-warning font-medium"><Trans>Email delivery is not set up yet.</Trans></p>
                   </div>
                   <div className="rounded-lg border border-border overflow-hidden text-xs">
                     <button
                       onClick={() => setSetupGuideOpen(v => !v)}
                       className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
                     >
-                      <span className="font-medium text-foreground">How to set it up</span>
+                      <span className="font-medium text-foreground"><Trans>How to set it up</Trans></span>
                       {setupGuideOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
                     </button>
                     {setupGuideOpen && (
                       <div className="border-t border-border px-3 py-3 space-y-3 text-xs text-muted-foreground">
-                        <p>Your server admin needs to set SMTP environment variables:</p>
+                        <p><Trans>Your server admin needs to set SMTP environment variables:</Trans></p>
                         <div className="space-y-2">
+                          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
                           <p className="font-medium text-foreground">Gmail</p>
+                          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- env config example */}
                           <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.gmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@gmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
-                          <p>Use a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google App Password</a>, not your regular password.</p>
+                          <p><Trans>Use a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google App Password</a>, not your regular password.</Trans></p>
                         </div>
                         <div className="space-y-2">
+                          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
                           <p className="font-medium text-foreground">Fastmail</p>
+                          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- env config example */}
                           <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.fastmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@fastmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
                         </div>
                         <div className="space-y-2">
-                          <p className="font-medium text-foreground">Other providers</p>
-                          <p>Set <code className="text-foreground">TOME_SMTP_HOST</code>, <code className="text-foreground">TOME_SMTP_PORT</code>, <code className="text-foreground">TOME_SMTP_USER</code>, and <code className="text-foreground">TOME_SMTP_PASSWORD</code>.</p>
+                          <p className="font-medium text-foreground"><Trans>Other providers</Trans></p>
+                          <p><Trans>Set <code className="text-foreground">TOME_SMTP_HOST</code>, <code className="text-foreground">TOME_SMTP_PORT</code>, <code className="text-foreground">TOME_SMTP_USER</code>, and <code className="text-foreground">TOME_SMTP_PASSWORD</code>.</Trans></p>
                         </div>
                         <div className="rounded-lg bg-muted/60 border border-border p-2.5">
-                          <p className="font-medium text-foreground mb-1">Kindle users</p>
-                          <p>Add your SMTP sender address to Amazon's <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Approved Personal Document E-mail List</a>, or emails will be silently dropped.</p>
+                          <p className="font-medium text-foreground mb-1"><Trans>Kindle users</Trans></p>
+                          <p><Trans>Add your SMTP sender address to Amazon's <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Approved Personal Document E-mail List</a>, or emails will be silently dropped.</Trans></p>
                         </div>
-                        <p className="text-muted-foreground/70">Ask your server admin if you don't manage the Tome installation yourself.</p>
+                        <p className="text-muted-foreground/70"><Trans>Ask your server admin if you don't manage the Tome installation yourself.</Trans></p>
                       </div>
                     )}
                   </div>
@@ -1277,17 +1285,17 @@ export function SettingsPage() {
                   {/* Add device form */}
                   <form onSubmit={handleAddDevice} className="flex items-end gap-2">
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">Device name</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Device name</Trans></label>
                       <input
                         type="text"
                         value={newDeviceName}
                         onChange={e => setNewDeviceName(e.target.value)}
-                        placeholder="My Kindle"
+                        placeholder={t`My Kindle`}
                         className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">Email address</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Email address</Trans></label>
                       <input
                         type="email"
                         value={newDeviceEmail}
@@ -1302,7 +1310,7 @@ export function SettingsPage() {
                       className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
                     >
                       {deviceAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                      Add
+                      <Trans>Add</Trans>
                     </button>
                   </form>
                   {deviceError && <p className="text-xs text-destructive">{deviceError}</p>}
@@ -1319,7 +1327,7 @@ export function SettingsPage() {
                             onClick={() => handleDeleteDevice(d.id)}
                             disabled={deviceDeleting === d.id}
                             className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Remove device"
+                            title={t`Remove device`}
                           >
                             {deviceDeleting === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                           </button>
@@ -1327,7 +1335,7 @@ export function SettingsPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">No devices yet. Add one to start sending books.</p>
+                    <p className="text-xs text-muted-foreground"><Trans>No devices yet. Add one to start sending books.</Trans></p>
                   )}
                 </div>
               ) : null}
@@ -1338,6 +1346,7 @@ export function SettingsPage() {
         {/* ── Hardcover ────────────────────────────────────────────────── */}
         {hardcoverAvailable && (
           <section>
+            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
             <SectionHeader title="Hardcover" />
             <HardcoverSync onAvailable={setHardcoverAvailable} />
           </section>
@@ -1345,15 +1354,15 @@ export function SettingsPage() {
 
         {/* ── API Tokens ───────────────────────────────────────────────── */}
         <section>
-          <SectionHeader title="API Tokens" />
+          <SectionHeader title={t`API Tokens`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
             <div className="p-5 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.{' '}
+                    <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
                     <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
-                      Learn more <ExternalLink className="w-3 h-3" />
+                      <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                     </a>
                   </p>
                 </div>
@@ -1366,7 +1375,7 @@ export function SettingsPage() {
                         onChange={e => setApiTokensAllUsers(e.target.checked)}
                         className="w-3.5 h-3.5 rounded accent-primary"
                       />
-                      All users
+                      <Trans>All users</Trans>
                     </label>
                   )}
                   <button
@@ -1374,7 +1383,7 @@ export function SettingsPage() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
                     <Plus className="w-3 h-3" />
-                    New Token
+                    <Trans>New Token</Trans>
                   </button>
                 </div>
               </div>
@@ -1383,25 +1392,25 @@ export function SettingsPage() {
               {tokenFormOpen && (
                 <form onSubmit={handleCreateToken} className="flex items-end gap-2 rounded-lg bg-muted/50 border border-border p-3">
                   <div className="flex-1">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Token name</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Token name</Trans></label>
                     <input
                       type="text"
                       value={tokenNewName}
                       onChange={e => { setTokenNewName(e.target.value); setTokenCreateError(null) }}
-                      placeholder="e.g. scribe-laptop"
+                      placeholder={t`e.g. scribe-laptop`}
                       autoFocus
                       className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div className="shrink-0">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Scope</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Scope</Trans></label>
                     <select
                       value={tokenNewScope}
                       onChange={e => setTokenNewScope(e.target.value as 'full' | 'readonly')}
                       className="h-9 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     >
-                      <option value="full">Full access</option>
-                      <option value="readonly">Read-only</option>
+                      <option value="full">{t`Full access`}</option>
+                      <option value="readonly">{t`Read-only`}</option>
                     </select>
                   </div>
                   <button
@@ -1410,14 +1419,14 @@ export function SettingsPage() {
                     className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
                   >
                     {tokenCreating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    {tokenCreating ? 'Creating...' : 'Create'}
+                    {tokenCreating ? t`Creating...` : t`Create`}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setTokenFormOpen(false); setTokenNewName(''); setTokenCreateError(null) }}
                     className="flex items-center h-9 px-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
                   >
-                    Cancel
+                    <Trans>Cancel</Trans>
                   </button>
                 </form>
               )}
@@ -1429,7 +1438,7 @@ export function SettingsPage() {
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-warning dark:text-warning shrink-0 mt-0.5" />
                     <p className="text-xs font-medium text-warning">
-                      This is the only time you will see this token. Store it somewhere safe — it cannot be recovered.
+                      <Trans>This is the only time you will see this token. Store it somewhere safe — it cannot be recovered.</Trans>
                     </p>
                   </div>
                   <div className="flex items-center gap-2 rounded-md bg-background border border-border px-3 py-2">
@@ -1439,7 +1448,7 @@ export function SettingsPage() {
                     <button
                       onClick={handleCopyToken}
                       className="p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0"
-                      title="Copy token"
+                      title={t`Copy token`}
                     >
                       {tokenCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -1448,7 +1457,7 @@ export function SettingsPage() {
                     onClick={() => { setTokenRevealPlaintext(null); setTokenCopied(false) }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
-                    Done
+                    <Trans>Done</Trans>
                   </button>
                 </div>
               )}
@@ -1457,11 +1466,11 @@ export function SettingsPage() {
               {apiTokensLoading ? (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Loading...
+                  <Trans>Loading...</Trans>
                 </div>
               ) : apiTokens.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">
-                  No API tokens yet. Create one to use Scribe or scripts against Tome.
+                  <Trans>No API tokens yet. Create one to use Scribe or scripts against Tome.</Trans>
                 </p>
               ) : (
                 <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
@@ -1470,11 +1479,11 @@ export function SettingsPage() {
                     'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
                     apiTokensAllUsers && user?.is_admin ? 'grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'grid-cols-[1fr_7rem_7rem_6rem_2rem]'
                   )}>
-                    <span>Name</span>
-                    <span>Prefix</span>
-                    <span>Last used</span>
-                    <span>Created</span>
-                    {apiTokensAllUsers && user?.is_admin && <span>Owner</span>}
+                    <span><Trans>Name</Trans></span>
+                    <span><Trans>Prefix</Trans></span>
+                    <span><Trans>Last used</Trans></span>
+                    <span><Trans>Created</Trans></span>
+                    {apiTokensAllUsers && user?.is_admin && <span><Trans>Owner</Trans></span>}
                     <span />
                   </div>
                   {apiTokens.map(tok => {
@@ -1492,12 +1501,12 @@ export function SettingsPage() {
                           {tok.name}
                           {(tok.scope ?? 'full') === 'readonly' && (
                             <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-info/10 text-info border border-info/20">
-                              Read-only
+                              <Trans>Read-only</Trans>
                             </span>
                           )}
                           {isRevoked && (
                             <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
-                              Revoked
+                              <Trans>Revoked</Trans>
                             </span>
                           )}
                         </span>
@@ -1505,10 +1514,10 @@ export function SettingsPage() {
                           tome_{tok.prefix}…
                         </span>
                         <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {tok.last_used_at ? relativeTime(tok.last_used_at) : 'Never'}
+                          {tok.last_used_at ? relativeTime(tok.last_used_at) : t`Never`}
                         </span>
                         <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {new Date(tok.created_at).toLocaleDateString()}
+                          {new Date(tok.created_at).toLocaleDateString(i18n.locale)}
                         </span>
                         {apiTokensAllUsers && user?.is_admin && (
                           <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
@@ -1521,7 +1530,7 @@ export function SettingsPage() {
                               onClick={() => handleRevokeApiToken(tok.id)}
                               disabled={tokenRevoking === tok.id}
                               className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                              title="Revoke token"
+                              title={t`Revoke token`}
                             >
                               {tokenRevoking === tok.id
                                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1542,27 +1551,27 @@ export function SettingsPage() {
         {/* ── Export ───────────────────────────────────────────────────── */}
         {/* ── Outbound notifications ────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Notifications" subtle />
+          <SectionHeader title={t`Notifications`} subtle />
           <NotificationChannels />
         </section>
 
         {/* ── Share links overview ──────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Share links" subtle />
+          <SectionHeader title={t`Share links`} subtle />
           <ShareLinksOverview />
         </section>
 
         {/* ── Reading-history import ────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Import reading history" subtle />
+          <SectionHeader title={t`Import reading history`} subtle />
           <ReadingImport />
         </section>
 
         <section>
-          <SectionHeader title="Export" subtle />
+          <SectionHeader title={t`Export`} subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
             <p className="text-xs text-muted-foreground mb-4">
-              Download your entire library catalog — all titles, authors, series, tags and formats.
+              <Trans>Download your entire library catalog — all titles, authors, series, tags and formats.</Trans>
             </p>
             <div className="flex flex-wrap gap-2">
               <ExportButton format="json" label="JSON" exporting={exporting} onExport={handleExport} />
@@ -1573,13 +1582,13 @@ export function SettingsPage() {
 
         {/* ── Personal backup ─────────────────────────────────────────── */}
         <section>
-          <SectionHeader title="Backup" subtle />
+          <SectionHeader title={t`Backup`} subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
             <p className="text-xs text-muted-foreground mb-4">
-              Download a JSON snapshot of <strong>your personal data</strong>: reading status,
+              <Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
               every reading session, sync positions, shelves, and your local preferences.
               Book files themselves are not included — Tome only references them on disk.
-              API tokens and KOReader keys are also excluded so the file isn't a credential.
+              API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>
             </p>
             <button
               onClick={handleBackup}
@@ -1587,14 +1596,14 @@ export function SettingsPage() {
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed transition-all touch-feedback"
             >
               {backingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {backingUp ? 'Preparing…' : 'Download my data'}
+              {backingUp ? t`Preparing…` : t`Download my data`}
             </button>
           </div>
         </section>
 
         {/* ── About ────────────────────────────────────────────────────── */}
         <section>
-          <SectionHeader title="About" subtle />
+          <SectionHeader title={t`About`} subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2.5">
@@ -1613,7 +1622,7 @@ export function SettingsPage() {
                     className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90"
                   >
                     <ArrowUpCircle className="w-3.5 h-3.5" />
-                    Update to v{updateInfo.latest}
+                    {(() => { const v = updateInfo.latest; return t`Update to v${v}` })()}
                   </a>
                 )}
                 <a
@@ -1629,8 +1638,8 @@ export function SettingsPage() {
             </div>
             {updateInfo && (
               <p className="mt-3 text-xs text-muted-foreground">
-                A newer release is available — the link opens the release notes.
-                Update by pulling the new image and restarting the container.
+                <Trans>A newer release is available — the link opens the release notes.
+                Update by pulling the new image and restarting the container.</Trans>
               </p>
             )}
           </div>
@@ -1646,13 +1655,13 @@ export function SettingsPage() {
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return 'Just now'
+  if (seconds < 60) return t`Just now`
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return t`${minutes}m ago`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t`${hours}h ago`
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
+  if (days < 30) return t`${days}d ago`
   return new Date(iso).toLocaleDateString()
 }
 
@@ -1745,6 +1754,7 @@ function PluginVersion() {
   const [label, setLabel] = useState<string | null>(null)
   useEffect(() => {
     api.get<{ version: string; build?: number; semver?: string }>('/plugin/version')
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- version identifier
       .then(r => setLabel(r.semver ? `v${r.semver} (build ${r.build ?? r.version})` : `v${r.version}`))
       .catch(() => {})
   }, [])
@@ -1756,35 +1766,37 @@ function PluginVersion() {
   )
 }
 
-const SETUP_STEPS: { title: string; body: string; mono?: string }[] = [
+const SETUP_STEPS: { title: MessageDescriptor; body: MessageDescriptor; mono?: string }[] = [
   {
-    title: 'Download the plugin',
-    body: 'Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin — no manual configuration needed.',
+    title: msg`Download the plugin`,
+    body: msg`Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin — no manual configuration needed.`,
   },
   {
-    title: 'Copy to KOReader',
-    body: "Unzip the file and copy via SSH (or USB). Remove the old plugin first to ensure a clean install.",
+    title: msg`Copy to KOReader`,
+    body: msg`Unzip the file and copy via SSH (or USB). Remove the old plugin first to ensure a clean install.`,
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- shell command
     mono: 'ssh root@<kindle-ip> "rm -rf /mnt/us/koreader/plugins/tomesync.koplugin" && scp -r tomesync.koplugin root@<kindle-ip>:/mnt/us/koreader/plugins/',
   },
   {
-    title: 'Restart KOReader',
-    body: 'In KOReader: Settings > Device > Restart KOReader. The plugin loads automatically.',
+    title: msg`Restart KOReader`,
+    body: msg`In KOReader: Settings > Device > Restart KOReader. The plugin loads automatically.`,
   },
   {
-    title: 'Open a book downloaded via OPDS',
-    body: 'Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately.',
+    title: msg`Open a book downloaded via OPDS`,
+    body: msg`Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately.`,
   },
   {
-    title: "Verify it's working",
-    body: 'In KOReader: main menu -> TomeSync -> "Test connection" to confirm the plugin can reach your Tome server.',
+    title: msg`Verify it's working`,
+    body: msg`In KOReader: main menu -> TomeSync -> "Test connection" to confirm the plugin can reach your Tome server.`,
   },
   {
-    title: 'Note on KOSync coexistence',
-    body: 'TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position.',
+    title: msg`Note on KOSync coexistence`,
+    body: msg`TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position.`,
   },
 ]
 
 function SetupGuide() {
+  const { i18n } = useLingui()
   const [open, setOpen] = useState(false)
 
   return (
@@ -1793,7 +1805,7 @@ function SetupGuide() {
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
       >
-        <span className="font-medium text-foreground">Setup instructions</span>
+        <span className="font-medium text-foreground"><Trans>Setup instructions</Trans></span>
         <span className="text-muted-foreground text-[10px]">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -1804,8 +1816,8 @@ function SetupGuide() {
                 {i + 1}
               </span>
               <div className="space-y-1">
-                <p className="font-medium text-foreground">{step.title}</p>
-                <p className="text-muted-foreground leading-relaxed">{step.body}</p>
+                <p className="font-medium text-foreground">{i18n._(step.title)}</p>
+                <p className="text-muted-foreground leading-relaxed">{i18n._(step.body)}</p>
                 {step.mono && (
                   <p className="font-mono text-muted-foreground/70">{step.mono}</p>
                 )}
@@ -1824,6 +1836,7 @@ function ExportButton({ format, label, exporting, onExport }: {
   exporting: 'json' | 'csv' | null
   onExport: (f: 'json' | 'csv') => void
 }) {
+  const { t } = useLingui()
   const busy = exporting === format
   return (
     <button
@@ -1835,7 +1848,7 @@ function ExportButton({ format, label, exporting, onExport }: {
         ? <RefreshCw className="w-3 h-3 animate-spin" />
         : <Download className="w-3 h-3 text-muted-foreground" />
       }
-      {busy ? 'Exporting...' : `Export ${label}`}
+      {busy ? t`Exporting...` : t`Export ${label}`}
     </button>
   )
 }
