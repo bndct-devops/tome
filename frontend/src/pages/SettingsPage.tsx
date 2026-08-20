@@ -931,23 +931,38 @@ export function SettingsPage() {
             )}
           </div>
 
-          {/* Language — catalogs are community-maintained, see docs/translating.md */}
-          <div className="mt-6">
-            <p className="text-xs text-muted-foreground mb-1.5"><Trans>Language</Trans></p>
-            <select
-              value={activeLocale}
-              onChange={e => handleLocaleSelect(e.target.value)}
-              aria-label={t`Language`}
-              className="h-9 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {LOCALES.map(l => (
-                <option key={l.code} value={l.code}>{l.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
-            </p>
+        </section>
+
+        {/* ── Language ─────────────────────────────────────────────────── */}
+        {/* Pills work up to roughly a dozen locales; if the list outgrows a
+            row or two, swap back to a (styled) select. Labels are the
+            language's own name and stay untranslated on purpose. */}
+        <section>
+          <SectionHeader title={t`Language`} />
+          <div className="mt-4 flex flex-wrap gap-2">
+            {LOCALES.map(l => {
+              const active = activeLocale === l.code
+              return (
+                <button
+                  key={l.code}
+                  onClick={() => handleLocaleSelect(l.code)}
+                  lang={l.code}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-all',
+                    active
+                      ? 'border-primary bg-primary/10 text-primary font-medium'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/50'
+                  )}
+                >
+                  {l.label}
+                  {active && <Check className="w-3.5 h-3.5" />}
+                </button>
+              )
+            })}
           </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
+          </p>
         </section>
 
         {/* ── KOReader ─────────────────────────────────────────────────── */}
