@@ -121,6 +121,11 @@ msgstr "(leave blank to keep)"
 msgid "(not set)"
 msgstr "(not set)"
 
+#. placeholder {0}: tooltip.sessions
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "{0, plural, one {{dur} · # session} other {{dur} · # sessions}}"
+msgstr "{0, plural, one {{dur} · # session} other {{dur} · # sessions}}"
+
 #. placeholder {0}: b.stats.reading_days
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {{dur} over # day} other {{dur} over # days}}"
@@ -155,6 +160,7 @@ msgstr "{0, plural, one {# duplicate group found.} other {# duplicate groups fou
 
 #. placeholder {0}: aggregate.distinct_readers
 #. placeholder {0}: c.users_count
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "{0, plural, one {# reader} other {# readers}}"
@@ -184,6 +190,11 @@ msgstr "{0, plural, one {# series} other {# series}}"
 #: src/components/stats/PaceByFormat.tsx
 msgid "{0, plural, one {# session · {pages} pages} other {# sessions · {pages} pages}}"
 msgstr "{0, plural, one {# session · {pages} pages} other {# sessions · {pages} pages}}"
+
+#. placeholder {0}: aggregate.total_sessions
+#: src/components/SeriesReadingStats.tsx
+msgid "{0, plural, one {# session} other {# sessions}}"
+msgstr "{0, plural, one {# session} other {# sessions}}"
 
 #. placeholder {0}: data.reread_bins
 #: src/pages/BookDetailPage.tsx
@@ -378,6 +389,7 @@ msgid "{h}h"
 msgstr "{h}h"
 
 #: src/components/stats/AuthorAffinity.tsx
+#: src/components/stats/HourDowHeatmap.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h {m}m"
@@ -801,6 +813,10 @@ msgstr "All items must have a title"
 msgid "All readers: {dur} · {days} · {readers}"
 msgstr "All readers: {dur} · {days} · {readers}"
 
+#: src/components/SeriesReadingStats.tsx
+msgid "All readers: {dur} · {sess} · {readers}"
+msgstr "All readers: {dur} · {sess} · {readers}"
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "All users"
@@ -936,6 +952,10 @@ msgstr "Average rating per book type"
 #: src/pages/StatsPage.tsx
 msgid "avg {avg}"
 msgstr "avg {avg}"
+
+#: src/components/SeriesReadingStats.tsx
+msgid "avg / volume"
+msgstr "avg / volume"
 
 #: src/pages/BookDetailPage.tsx
 msgid "avg session"
@@ -1270,6 +1290,7 @@ msgstr "Configured"
 msgid "Confirm"
 msgstr "Confirm"
 
+#: src/components/ForcePasswordChange.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Confirm new password"
 msgstr "Confirm new password"
@@ -1742,6 +1763,7 @@ msgstr "Error"
 msgid "Errors"
 msgstr "Errors"
 
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
 msgstr "Est. remaining"
@@ -1971,6 +1993,10 @@ msgstr "Failed to undo"
 msgid "Failed to update metadata"
 msgstr "Failed to update metadata"
 
+#: src/components/ForcePasswordChange.tsx
+msgid "Failed to update password."
+msgstr "Failed to update password."
+
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to update reading status"
 msgstr "Failed to update reading status"
@@ -2025,6 +2051,7 @@ msgstr "Finished"
 msgid "Finished · 30d"
 msgstr "Finished · 30d"
 
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "First read"
 msgstr "First read"
@@ -2071,6 +2098,10 @@ msgstr "Format: {filterFormatUpper}"
 #: src/pages/StatsPage.tsx
 msgid "Fr"
 msgstr "Fr"
+
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Fri"
+msgstr "Fri"
 
 #: src/pages/AdminPage.tsx
 msgid "From"
@@ -2164,6 +2195,15 @@ msgstr "Hardcover sync is disabled on this server."
 #: src/pages/StatsPage.tsx
 msgid "Height auto-fits the content — only width is resizable"
 msgstr "Height auto-fits the content — only width is resizable"
+
+#. placeholder {0}: user?.username
+#: src/components/ForcePasswordChange.tsx
+#~ msgid "Hi <0>{0}</0> — your account was created by an admin. Please set a personal password before continuing."
+#~ msgstr "Hi <0>{0}</0> — your account was created by an admin. Please set a personal password before continuing."
+
+#: src/components/ForcePasswordChange.tsx
+msgid "Hi <0>{username}</0> — your account was created by an admin. Please set a personal password before continuing."
+msgstr "Hi <0>{username}</0> — your account was created by an admin. Please set a personal password before continuing."
 
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
@@ -2397,6 +2437,7 @@ msgstr "Language"
 msgid "Language: {filterLanguageLabel}"
 msgstr "Language: {filterLanguageLabel}"
 
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Last read"
 msgstr "Last read"
@@ -2575,6 +2616,10 @@ msgstr "Longest session, biggest day, most pages"
 msgid "Longest Streak"
 msgstr "Longest Streak"
 
+#: src/components/SeriesReadingStats.tsx
+msgid "Longest volume"
+msgstr "Longest volume"
+
 #: src/pages/StatsPage.tsx
 msgid "Longest: {d}d"
 msgstr "Longest: {d}d"
@@ -2696,6 +2741,10 @@ msgstr "Missing: {filterMissingLabel}"
 msgid "Mo"
 msgstr "Mo"
 
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Mon"
+msgstr "Mon"
+
 #: src/components/SendButton.tsx
 msgid "More send options"
 msgstr "More send options"
@@ -2778,6 +2827,7 @@ msgstr "New library"
 msgid "New Library"
 msgstr "New Library"
 
+#: src/components/ForcePasswordChange.tsx
 #: src/pages/SettingsPage.tsx
 msgid "New password"
 msgstr "New password"
@@ -2821,6 +2871,10 @@ msgstr "Next page"
 #: src/components/SeriesFollowButton.tsx
 msgid "Next: Vol {v} · {d}"
 msgstr "Next: Vol {v} · {d}"
+
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "No activity"
+msgstr "No activity"
 
 #: src/pages/SettingsPage.tsx
 msgid "No API keys. Download the plugin to auto-create one."
@@ -3009,6 +3063,10 @@ msgstr "No series with reading history yet."
 #: src/pages/StatsPage.tsx
 msgid "No series with reading progress yet."
 msgstr "No series with reading progress yet."
+
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "No session data."
+msgstr "No session data."
 
 #: src/pages/StatsPage.tsx
 msgid "no sessions yet"
@@ -3236,6 +3294,7 @@ msgstr "Pace by Format"
 msgid "Padding"
 msgstr "Padding"
 
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "pages"
 msgstr "pages"
@@ -3276,6 +3335,10 @@ msgstr "Password"
 msgid "Password must be at least 8 characters"
 msgstr "Password must be at least 8 characters"
 
+#: src/components/ForcePasswordChange.tsx
+msgid "Password must be at least 8 characters."
+msgstr "Password must be at least 8 characters."
+
 #: src/pages/SettingsPage.tsx
 msgid "Password updated successfully"
 msgstr "Password updated successfully"
@@ -3284,6 +3347,10 @@ msgstr "Password updated successfully"
 #: src/pages/SetupPage.tsx
 msgid "Passwords do not match"
 msgstr "Passwords do not match"
+
+#: src/components/ForcePasswordChange.tsx
+msgid "Passwords do not match."
+msgstr "Passwords do not match."
 
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
@@ -3615,6 +3682,7 @@ msgstr "Reading Speed"
 msgid "Reading Speed Trend"
 msgstr "Reading Speed Trend"
 
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/SetupPage.tsx
 #: src/pages/StatsPage.tsx
@@ -3803,6 +3871,10 @@ msgstr "Same ISBN"
 msgid "Same Series Volume"
 msgstr "Same Series Volume"
 
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Sat"
+msgstr "Sat"
+
 #: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
@@ -3852,6 +3924,7 @@ msgstr "Saving"
 msgid "Saving..."
 msgstr "Saving..."
 
+#: src/components/ForcePasswordChange.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "Saving…"
@@ -4055,6 +4128,7 @@ msgstr "Server"
 msgid "Session Timeline"
 msgstr "Session Timeline"
 
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "sessions"
 msgstr "sessions"
@@ -4075,6 +4149,10 @@ msgstr "Sessions ({n})"
 msgid "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
 msgstr "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
 
+#: src/components/ForcePasswordChange.tsx
+msgid "Set password & continue"
+msgstr "Set password & continue"
+
 #: src/pages/SettingsPage.tsx
 msgid "Set sync password"
 msgstr "Set sync password"
@@ -4082,6 +4160,10 @@ msgstr "Set sync password"
 #: src/pages/AdminPage.tsx
 msgid "Set the following environment variables to enable Send to Device:"
 msgstr "Set the following environment variables to enable Send to Device:"
+
+#: src/components/ForcePasswordChange.tsx
+msgid "Set your password"
+msgstr "Set your password"
 
 #: src/components/Sidebar.tsx
 #: src/pages/SettingsPage.tsx
@@ -4322,6 +4404,10 @@ msgstr "Su"
 msgid "Subtitle (optional)"
 msgstr "Subtitle (optional)"
 
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Sun"
+msgstr "Sun"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Sync now"
 msgstr "Sync now"
@@ -4377,6 +4463,10 @@ msgstr "Taste"
 #: src/pages/StatsPage.tsx
 msgid "Taste by Genre"
 msgstr "Taste by Genre"
+
+#: src/components/ForcePasswordChange.tsx
+msgid "Temporary password"
+msgstr "Temporary password"
 
 #: src/pages/AdminPage.tsx
 msgid "Test"
@@ -4451,6 +4541,10 @@ msgstr "This period vs the last"
 msgid "This permanently removes the selected books and their files from disk. This cannot be undone."
 msgstr "This permanently removes the selected books and their files from disk. This cannot be undone."
 
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Thu"
+msgstr "Thu"
+
 #: src/pages/AdminPage.tsx
 msgid "Time"
 msgstr "Time"
@@ -4478,6 +4572,10 @@ msgstr "Time per chapter"
 #: src/pages/BookDetailPage.tsx
 msgid "Time per chapter, line view"
 msgstr "Time per chapter, line view"
+
+#: src/components/SeriesReadingStats.tsx
+msgid "Time per volume"
+msgstr "Time per volume"
 
 #: src/pages/StatsPage.tsx
 msgid "Time split across categories"
@@ -4579,6 +4677,10 @@ msgstr "Try editing the title or series fields"
 #: src/pages/StatsPage.tsx
 msgid "Tu"
 msgstr "Tu"
+
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Tue"
+msgstr "Tue"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -4732,9 +4834,22 @@ msgstr "View book"
 msgid "Viewing as <0>{impersonatedUsername}</0>"
 msgstr "Viewing as <0>{impersonatedUsername}</0>"
 
+#: src/components/SeriesReadingStats.tsx
+msgid "Vol {firstIdx}"
+msgstr "Vol {firstIdx}"
+
+#: src/components/SeriesReadingStats.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Vol {idx}"
 msgstr "Vol {idx}"
+
+#: src/components/SeriesReadingStats.tsx
+msgid "Vol {idx} · {dur}"
+msgstr "Vol {idx} · {dur}"
+
+#: src/components/SeriesReadingStats.tsx
+msgid "Vol {lastIdx}"
+msgstr "Vol {lastIdx}"
 
 #: src/components/UpcomingReleases.tsx
 msgid "Vol {v} · "
@@ -4802,6 +4917,10 @@ msgstr "Web"
 #: src/pages/BookDetailPage.tsx
 msgid "Web reader"
 msgstr "Web reader"
+
+#: src/components/stats/HourDowHeatmap.tsx
+msgid "Wed"
+msgstr "Wed"
 
 #: src/pages/LoginPage.tsx
 msgid "Welcome back"
