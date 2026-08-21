@@ -217,5 +217,11 @@ def test_build_bumped_for_rebake():
     # literal "KOReader" every install used to send, so devices stop sharing
     # one reading-history watermark; imported history + watermark migrate to
     # the new name on first sync via /tome-sync/stats/rename-device.
-    assert TOMESYNC_PLUGIN_BUILD >= 40
-    assert TOMESYNC_PLUGIN_SEMVER == "1.13.0"
+    # 1.14.0 / build 41 makes the connection device-editable (#181, #185): the
+    # baked server URL / API key / username become overridable defaults; the
+    # URL is edited in Settings (a stranded device can't self-update its way
+    # out of a moved server), credentials arrive via "Sign in with code"
+    # (Quick Connect pairing mints a fresh plugin API key; username derived
+    # from /auth/me, never typed).
+    assert TOMESYNC_PLUGIN_BUILD >= 41
+    assert TOMESYNC_PLUGIN_SEMVER == "1.14.0"

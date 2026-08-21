@@ -82,8 +82,17 @@ logger = logging.getLogger(__name__)
 # from another device; the push happens after the pull settles. Pairs with the
 # server-side TOME_KOSYNC_POSITION_BRIDGE read bridge (experimental, off by
 # default), which lets that pull also see third-party KOSync client pushes.
-TOMESYNC_PLUGIN_BUILD = 40
-TOMESYNC_PLUGIN_SEMVER = "1.13.0"
+# BUILD 41: device-side connection settings (#181, #185) — baked server URL /
+# API key / username become DEFAULT_* fallbacks overridable in Settings. The
+# server URL is user-editable (a device whose baked URL went stale cannot
+# self-update its way out, so the fix must live on the device); the API key is
+# never typed — "Sign in with code" runs the existing Quick Connect flow
+# (initiate → code entered in web UI → poll → JWT → mint plugin API key); the
+# username is display-only, derived from /auth/me at pairing time. Plus an
+# input_hint fix (ghost text never showed; the field was misnamed "hint") and
+# a settings-menu reorder. Co-developed with @pabsan-0.
+TOMESYNC_PLUGIN_BUILD = 41
+TOMESYNC_PLUGIN_SEMVER = "1.14.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1792,11 +1801,20 @@ local function liveSetting(key, default)
     if v == nil or v == "" then return default end
     return v
 end
--- Connection credentials. Defaults can be overridden in Settings so the user
--- can point at their own Tome server without editing the plugin source.
+-- Connection settings. The server URL is user-editable in Settings so a device
+-- whose baked address went stale can be repointed without reinstalling (it
+-- cannot self-update its way out — updates come from the old, dead URL). The
+-- API key and username are never typed: "Sign in with code" (Quick Connect
+-- pairing) writes both, and the username is only ever the server's answer to
+-- "who does this key belong to" — the key alone decides the account.
 local function serverURL()     return liveSetting("tomesync_server_url", DEFAULT_SERVER_URL) end
 local function apiKey()        return liveSetting("tomesync_api_key",    DEFAULT_API_KEY) end
 local function username()      return liveSetting("tomesync_username",   DEFAULT_USERNAME) end
+local function hasOverrides()
+    return G_reader_settings:readSetting("tomesync_server_url") ~= nil
+        or G_reader_settings:readSetting("tomesync_api_key") ~= nil
+        or G_reader_settings:readSetting("tomesync_username") ~= nil
+end
 
 -- Short timeout so unreachable server doesn't freeze the UI
 
@@ -1872,7 +1890,9 @@ local function idleCapSeconds()
     return mins * 60
 end
 
-local function apiRequest(method, path, body)
+-- opts.token: bearer override for the few calls that authenticate with
+-- something other than the plugin API key (the Quick Connect pairing JWT).
+local function apiRequest(method, path, body, opts)
     -- Skip immediately if WiFi is not connected — zero blocking
     if not NetworkMgr:isConnected() then
         return nil, "offline"
@@ -1891,7 +1911,7 @@ local function apiRequest(method, path, body)
     local resp_chunks = {{}}
 
     local headers = {{
-        ["Authorization"] = "Bearer " .. apiKey(),
+        ["Authorization"] = "Bearer " .. ((opts and opts.token) or apiKey()),
         ["Content-Type"]  = "application/json",
         ["Accept"]        = "application/json",
     }}
@@ -2743,6 +2763,86 @@ function TomeSync:_editStringSetting(key, title, hint, description)
     }}
     UIManager:show(dialog)
     dialog:onShowKeyboard()
+end
+
+-- Settings > Sign in with code: Quick Connect pairing. The device asks the
+-- server for a short code, the user enters it in the Tome web UI on an
+-- already-signed-in browser, and the device exchanges the resulting JWT for a
+-- freshly minted plugin API key. No token typing on the device, ever.
+function TomeSync:_signInWithCode()
+    if not NetworkMgr:isConnected() then
+        UIManager:show(InfoMessage:new{{ text = "Connect to WiFi first.", timeout = 3 }})
+        return
+    end
+    local resp = apiRequest("POST", "/auth/quick-connect/initiate", {{}})
+    if type(resp) ~= "table" or not resp.code or not resp.poll_token then
+        UIManager:show(InfoMessage:new{{
+            text = "Could not reach " .. serverURL()
+                   .. "\\nCheck the server URL, then try again.",
+            timeout = 5,
+        }})
+        return
+    end
+    local qc_code, poll_token = resp.code, resp.poll_token
+    local deadline = os.time() + 5 * 60   -- codes expire server-side after 5 min
+    local cancelled = false
+    local waiting
+    waiting = InfoMessage:new{{
+        text = "Pairing code:  " .. qc_code .. "\\n\\n"
+               .. "In Tome (signed in, any browser) open\\n"
+               .. "Settings > Security > Quick Connect\\n"
+               .. "and enter this code.\\n\\n"
+               .. "Waiting\\u{{2026}}  Tap to cancel.",
+        dismiss_callback = function() cancelled = true end,
+    }}
+    UIManager:show(waiting)
+
+    local function finish(jwt)
+        local key_resp = apiRequest("POST", "/plugin/api-keys",
+            {{ label = "KOReader Plugin (" .. deviceName() .. ", paired)" }},
+            {{ token = jwt }})
+        if type(key_resp) ~= "table" or not key_resp.key then
+            UIManager:close(waiting)
+            UIManager:show(InfoMessage:new{{
+                text = "Pairing failed while creating the API key.", timeout = 5 }})
+            return
+        end
+        local me = apiRequest("GET", "/auth/me", nil, {{ token = jwt }})
+        G_reader_settings:saveSetting("tomesync_api_key", key_resp.key)
+        if type(me) == "table" and type(me.username) == "string" and me.username ~= "" then
+            G_reader_settings:saveSetting("tomesync_username", me.username)
+        else
+            G_reader_settings:delSetting("tomesync_username")
+        end
+        UIManager:close(waiting)
+        UIManager:show(InfoMessage:new{{
+            text = "Signed in as " .. username() .. "\\n" .. serverURL(),
+            timeout = 4,
+        }})
+    end
+
+    local function poll()
+        if cancelled then return end
+        if os.time() > deadline then
+            UIManager:close(waiting)
+            UIManager:show(InfoMessage:new{{
+                text = "Pairing code expired. Try again.", timeout = 4 }})
+            return
+        end
+        local r, c = apiRequest("POST", "/auth/quick-connect/poll",
+            {{ code = qc_code, poll_token = poll_token }})
+        if type(r) == "table" and r.status == "authorized" and r.access_token then
+            finish(r.access_token)
+        elseif c == 410 then   -- consumed or expired server-side
+            UIManager:close(waiting)
+            UIManager:show(InfoMessage:new{{
+                text = "Pairing code expired. Try again.", timeout = 4 }})
+        else
+            -- pending, or a transient network error: keep polling to the deadline
+            UIManager:scheduleIn(3, poll)
+        end
+    end
+    UIManager:scheduleIn(3, poll)
 end
 
 function TomeSync:_syncReadingStats(manual)
@@ -5125,12 +5225,15 @@ function TomeSync:_menuItems()
         callback       = function() self:_editDeviceName() end,
     }})
     table.insert(settings_items, {{
-        text_func      = function() return "Server URL: " .. serverURL() end,
-        help_text      = "The address of your Tome server, i.e. "
+        text_func      = function()
+            local custom = G_reader_settings:readSetting("tomesync_server_url")
+            return "Server URL: " .. serverURL() .. (custom and " (custom)" or "")
+        end,
+        help_text      = "The address of your Tome server, e.g. "
                        .. "http://192.168.1.10:8080 or "
-                       .. "https://tome.example.com. Tome already bakes in this "
-                       .. "config for you when downloading TomeSync from the "
-                       .. "Tome UI. Clear it to restore the baked in default.",
+                       .. "https://tome.example.com. The plugin download bakes "
+                       .. "this in for you; set it here if the server has "
+                       .. "moved. Clear it to restore the baked-in default.",
         keep_menu_open = true,
         callback       = function()
             self:_editStringSetting("tomesync_server_url", "Server URL",
@@ -5138,27 +5241,56 @@ function TomeSync:_menuItems()
         end,
     }})
     table.insert(settings_items, {{
-        text_func      = function() return "Username: " .. username() end,
-        help_text      = "The account name Tome associates with this device's "
-                       .. "sessions and history. Tome already bakes in this "
-                       .. "config for you when downloading TomeSync from the "
-                       .. "Tome UI. Clear to restore the baked in default.",
+        text_func      = function() return "Account: " .. username() end,
+        help_text      = "The Tome account this device syncs as. It is decided "
+                       .. "by the API key, not editable here - use \\"Sign in "
+                       .. "with code\\" below to switch accounts.",
         keep_menu_open = true,
         callback       = function()
-            self:_editStringSetting("tomesync_username", "Username",
-                DEFAULT_USERNAME, "Your Tome account username.")
+            local paired = G_reader_settings:readSetting("tomesync_api_key") ~= nil
+            UIManager:show(InfoMessage:new{{
+                text = "Account: " .. username()
+                       .. "\\nServer: " .. serverURL()
+                       .. "\\nAPI key: " .. (paired and "paired on this device"
+                                                    or "baked in at download"),
+                timeout = 5,
+            }})
         end,
     }})
     table.insert(settings_items, {{
-        text_func      = function() return "API key: " .. (G_reader_settings:readSetting("tomesync_api_key") and "\\u{{2022}}\\u{{2022}}\\u{{2022}}\\u{{2022}}" or "(default)") end,
-        help_text      = "The auth key for your Tome account. Tome already "
-                       .. "bakes in this config for you when downloading "
-                       .. "TomeSync from the Tome's UI. Clear to restore the "
-                       .. "baked in default.",
+        text           = "Sign in with code",
+        help_text      = "Connect this device to a Tome account without typing "
+                       .. "any credentials: the plugin shows a short code, you "
+                       .. "enter it in the Tome web UI (Settings > Security > "
+                       .. "Quick Connect), and the device receives its own API "
+                       .. "key. Use this after changing the server URL, or to "
+                       .. "switch accounts.",
+        keep_menu_open = true,
+        callback       = function() self:_signInWithCode() end,
+    }})
+    table.insert(settings_items, {{
+        text           = "Reset connection to baked-in defaults",
+        help_text      = "Forget the server URL, API key and account set on "
+                       .. "this device and go back to what was baked in when "
+                       .. "the plugin was downloaded.",
+        enabled_func   = function() return hasOverrides() end,
         keep_menu_open = true,
         callback       = function()
-            self:_editStringSetting("tomesync_api_key", "API key",
-                DEFAULT_API_KEY:sub(1, 6) .. "\\u{{2026}}", "Your Tome account API key.")
+            UIManager:show(ConfirmBox:new{{
+                text = "Reset server URL, API key and account to the baked-in "
+                       .. "defaults?",
+                ok_text = "Reset",
+                ok_callback = function()
+                    G_reader_settings:delSetting("tomesync_server_url")
+                    G_reader_settings:delSetting("tomesync_api_key")
+                    G_reader_settings:delSetting("tomesync_username")
+                    UIManager:show(InfoMessage:new{{
+                        text = "Connection reset.\\nServer: " .. serverURL()
+                               .. "\\nAccount: " .. username(),
+                        timeout = 4,
+                    }})
+                end,
+            }})
         end,
     }})
 

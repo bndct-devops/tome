@@ -6,6 +6,18 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- The TomeSync plugin's connection settings are now editable on the device
+  (plugin build 41). The server URL baked in at download time can be changed
+  under TomeSync → Settings — the fix for a device stranded by a server that
+  moved address, which could never self-update its way out. Credentials are
+  never typed on the device: "Sign in with code" runs the existing Quick
+  Connect flow (enter a short code in the web UI under Settings → Security →
+  Quick Connect) and the device receives its own API key; the account name
+  shown is derived from that key. A reset item restores the baked-in
+  defaults. Also fixes the device-name dialog's ghost text, which never
+  showed. Thanks @pabsan-0 for the initial implementation. (#181, #185)
+
 ## [2.3.0] - 2026-08-20
 
 ![Series-first Bindery review: two pending series cards, one adopting the exact identity of a series already in the library](https://raw.githubusercontent.com/bndct-devops/tome/main/docs/screenshots/bindery-series-review.png)
