@@ -12,7 +12,7 @@ Syncs reading progress and sessions between KOReader and your Tome library.
 4. Extract the ZIP to `koreader/plugins/` on your device so you have `koreader/plugins/tomesync.koplugin/main.lua`
 5. Restart KOReader
 
-The plugin is pre-configured with your server URL and API key. No manual configuration needed.
+The plugin is pre-configured with your server URL and API key. No manual configuration needed. If the server address ever changes later, it can be edited on the device — see [Moving servers & switching accounts](#moving-servers--switching-accounts).
 
 **Important:** Download the plugin from the same address your e-reader can reach. If your server is at `<your-server-ip>:8080`, open the settings page at that address before downloading.
 
@@ -251,6 +251,14 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Check for updates** | Fetches the latest plugin build from your server and installs it if newer (then prompts to restart). |
 | **Auto-check for updates on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
 | **Auto-sync reading history on launch** | Opt-in toggle, off by default. When on, TomeSync pushes new KOReader reading history to Tome shortly after startup (the first run backfills your whole history; chunked and resumable). Reading time and pages only — never your read/unread status. See [Reading-History Import](#reading-history-import). |
+| **Sync on suspend** | Opt-in toggle. When the device goes to sleep, catches up anything still pending (sessions, ratings, reading history if enabled) so your stats are current without waking the device. Only syncs when WiFi is already connected. |
+| **Aggressive sync (turn WiFi on at suspend)** | Opt-in, requires Sync on suspend. Turns WiFi on at suspend to sync, then lets the device power it back down. Uses more battery. |
+| **Idle time cap** | Longest gap between page turns that still counts as reading (default 10 minutes). Time beyond the cap — you fell asleep, the cover did not sleep the device — is not booked to the session. |
+| **Device name** | The label Tome shows for this device in the reading log and stats. Defaults to the device model; set a name if you use several devices of the same kind. |
+| **Server URL** | The Tome server this device talks to. Baked in at download time; edit it here if the server has moved (marked "(custom)" when overridden). Clear the field to restore the baked-in default. See [Moving servers & switching accounts](#moving-servers--switching-accounts). |
+| **Account** | The Tome account this device syncs as. Display-only — it is decided by the API key, so switching accounts goes through **Sign in with code**. |
+| **Sign in with code** | Connects the device to a Tome account without typing any credentials: the plugin shows a short code, you enter it in the Tome web UI (Settings → Security → Quick Connect), and the device receives its own API key. |
+| **Reset connection to baked-in defaults** | Forgets the server URL, API key and account set on the device and returns to what the plugin download baked in. Only enabled when something is overridden. |
 
 ### Gestures
 
@@ -313,8 +321,34 @@ sideloaded different copy won't sync its rating.
 The plugin authenticates with an API key (`Authorization: Bearer tk_...`), not your login password. Keys are managed in Tome's settings page:
 
 - A key is auto-created when you first download the plugin
+- Pairing a device via **Sign in with code** mints a key of its own (labelled with the device name)
 - You can create additional keys or revoke existing ones
 - Revoking a key immediately disables any plugin using it
+
+---
+
+## Moving servers & switching accounts
+
+The plugin download bakes in your server URL, API key and username, so a fresh
+install needs no configuration. Since plugin build 41 all three can also be
+changed on the device — no re-download or file editing needed.
+
+**The server moved** (new LAN IP, new domain, switched to HTTPS): open
+**TomeSync → Settings → Server URL** and enter the new address. This is the
+only recovery path that works after the fact — self-update can't help, because
+the device would be fetching updates from the old, dead address. If the new
+server does not accept the old API key (a different Tome instance, or the key
+was revoked), follow up with **Sign in with code**.
+
+**Switching accounts** (or signing in after a server change): use
+**Sign in with code**. The plugin shows a short pairing code; enter it in the
+Tome web UI on any signed-in browser under **Settings → Security → Quick
+Connect**. The device then receives its own API key and shows the account it
+now syncs as. Codes expire after 5 minutes; nothing on the device changes
+until pairing completes, so a failed attempt never breaks a working setup.
+
+**Back to square one**: **Reset connection to baked-in defaults** forgets all
+of the above and returns to what the download baked in.
 
 ---
 
@@ -370,7 +404,7 @@ The downloaded plugin has your server URL and API key baked in, so there is noth
 **"Connection failed" on test:**
 - Verify your server is running and reachable from the e-reader's network
 - If you are on a VPN (e.g. Tailscale), make sure it is connected on the e-reader
-- Re-download the plugin if your server address changed
+- If your server address changed, fix it under **Settings → Server URL** — see [Moving servers & switching accounts](#moving-servers--switching-accounts)
 
 **Wrong book matched:**
 - Use "Re-resolve all books" in the plugin menu, then re-open the book
@@ -397,5 +431,5 @@ The plugin consists of three files (plus a backup created on first update):
 |---|---|
 | `_meta.lua` | Plugin metadata (name, description) |
 | `main.lua` | Frozen stable shim — loads the implementation and runs the anti-brick rollback state machine. No config; never replaced by self-update. |
-| `main_impl.lua` | All plugin logic, HTTP client, and config (server URL, API key baked in at download time). The only file self-update replaces. |
+| `main_impl.lua` | All plugin logic, HTTP client, and config (server URL, API key baked in at download time; overridable on-device since build 41). The only file self-update replaces. |
 | `main_impl.lua.bak` | Last confirmed-good implementation, written automatically before each update so the shim can roll back. |
