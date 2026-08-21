@@ -3,6 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
+import UnreleasedNote from '../../components/UnreleasedNote.astro'
 import Steps from '../../components/Steps.astro'
 import Kbd from '../../components/Kbd.astro'
 import { Tabs } from '../../components/Tabs'
@@ -269,6 +270,29 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     shows a "failed to load — reinstall" note; KOReader itself is never affected.
   </Callout>
 
+  <h2 id="changing-servers">Changing servers &amp; switching accounts</h2>
+  <UnreleasedNote />
+  <p>
+    The downloaded plugin comes pre-configured, but the configuration isn't locked in. From
+    plugin build 41, the connection can be changed on the device under
+    <strong>TomeSync → Settings</strong>:
+  </p>
+  <ul>
+    <li><strong>Server URL</strong> — edit this if your server moved (new LAN IP, new domain,
+      switch to HTTPS). This is the one case self-update can't fix for you: a device pointing
+      at a dead address can't fetch anything from it, so the fix has to happen on the device.
+      Clear the field to return to the baked-in address.</li>
+    <li><strong>Sign in with code</strong> — connects the device to an account without typing
+      any credentials. The plugin shows a short pairing code; enter it in Tome on any
+      signed-in browser under <strong>Settings → Security → Quick Connect</strong>, and the
+      device receives its own API key. Codes expire after 5 minutes, and nothing changes on
+      the device until pairing completes — a failed attempt never breaks a working setup.</li>
+    <li><strong>Account</strong> — shows which account the device syncs as. It's decided by
+      the API key, so switching accounts goes through <em>Sign in with code</em>, not a text
+      field.</li>
+    <li><strong>Reset connection to baked-in defaults</strong> — forgets all of the above.</li>
+  </ul>
+
   <h2>Stable book IDs (vs KOSync hashes)</h2>
   <p>
     KOSync identifies books by the MD5 of the file. Edit metadata, re-save, redownload — the
@@ -293,7 +317,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
 
   <h2>Troubleshooting</h2>
   <ul>
-    <li><strong>"Test connection" fails</strong> — most often the server URL is wrong or the API key was revoked. Re-download the plugin from Settings.</li>
+    <li><strong>"Test connection" fails</strong> — most often the server URL is wrong or the API key was revoked. Fix the address and re-pair under <a href="#changing-servers">Changing servers &amp; switching accounts</a> (or re-download the plugin from Settings on older builds).</li>
     <li><strong>Reading sessions not showing in stats</strong> — sessions flush on next sync. Pull-to-refresh in KOReader's TomeSync menu.</li>
     <li>See <a href={withBase("/docs/troubleshooting")}>full troubleshooting</a>.</li>
   </ul>
