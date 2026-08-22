@@ -37,6 +37,7 @@ import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { cn } from '@/lib/utils'
+import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 
 type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating'
@@ -65,6 +66,7 @@ interface SeriesDetailBook {
 interface SeriesDetail {
   name: string
   author: string | null
+  backlog: BacklogSummary | null
   description: string | null
   books: SeriesDetailBook[]
 }
@@ -1645,6 +1647,13 @@ export function DashboardPage() {
                                     <span>{readCount} read &middot; {readingCount} reading &middot; {total - readCount - readingCount} unread</span>
                                     <span>{total} volumes</span>
                                   </div>
+                                  {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
+                                    <p className="text-[10px] text-muted-foreground mb-1.5" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
+                                      <span className="text-foreground font-medium tabular-nums">{formatEstimateHours(seriesDetail.backlog.seconds)}</span> left in this series
+                                      {seriesDetail.backlog.days != null && <> &middot; {formatEstimateDays(seriesDetail.backlog.days)} at your pace</>}
+                                      {seriesDetail.backlog.unestimated > 0 && <> &middot; {seriesDetail.backlog.unestimated} not estimated</>}
+                                    </p>
+                                  )}
                                   <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                                     <div className="h-full bg-primary transition-all" style={{ width: `${readPct}%` }} />
                                     <div className="h-full bg-primary/50 transition-all" style={{ width: `${readingPct}%` }} />

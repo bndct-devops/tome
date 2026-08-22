@@ -17,6 +17,18 @@ All notable changes to Tome are documented here. Format loosely follows
   shown is derived from that key. A reset item restores the baked-in
   defaults. Also fixes the device-name dialog's ghost text, which never
   showed. Thanks @pabsan-0 for the initial implementation. (#181, #185)
+- Backlog completion estimates: how long a book you haven't started would
+  take at your own pace, and how long a whole pile would. The book page gets
+  an "Est. read time" cell in Details (word count at your measured words per
+  minute, or your average time per finished book of that type when there is
+  no word count - CBZ and PDF), the series page shows "left in this series"
+  over the unstarted volumes, and Stats → Library has a new Backlog tile with
+  a per-type breakdown. The tile's scope - Want to Read, all unread, a
+  library or a shelf - is picked in the tile's edit-mode settings. Days are
+  derived from your minutes-per-day over the last 30 days (90 when the last
+  month was quiet); books Tome can't estimate yet are counted as "not
+  estimated" rather than guessed. The series Reading Stats block no longer
+  shows its own "Est. remaining", the header line replaces it. (#187)
 
 ## [2.3.0] - 2026-08-20
 

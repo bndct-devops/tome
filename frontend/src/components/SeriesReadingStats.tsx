@@ -128,10 +128,9 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
       ? [{ label: 'avg / volume', value: formatDuration(own.avg_volume_seconds) }] : []),
   ]
 
+  // "Est. remaining" used to live here (avg finished volume × unfinished). The
+  // series header now carries the backlog forecast (#187) — one number, not two.
   const bottomStats: { label: string; value: string }[] = []
-  if (own.estimated_remaining_seconds != null) {
-    bottomStats.push({ label: 'Est. remaining', value: formatDuration(own.estimated_remaining_seconds) })
-  }
   if (own.longest_volume != null) {
     bottomStats.push({
       label: 'Longest volume',
