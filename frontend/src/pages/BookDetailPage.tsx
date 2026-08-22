@@ -6,7 +6,7 @@ import {
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon, StickyNote, ChevronDown, Archive, AlignLeft,
-  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2
+  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Timer
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -27,6 +27,7 @@ import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingS
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
+import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate } from '@/lib/backlog'
 
 interface Facets {
   authors: string[]
@@ -206,6 +207,7 @@ export function BookDetailPage() {
   const [confirmingHighlight, setConfirmingHighlight] = useState<number | null>(null)
   const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(null)
+  const [estimate, setEstimate] = useState<BookEstimate | null>(null)
   // Collapsed state persists across books/visits — the stats tower (hero +
   // intensity + time-per-chapter) has grown tall enough that "keep it closed"
   // is a real preference, not a per-page whim.
@@ -300,6 +302,7 @@ export function BookDetailPage() {
       .catch(() => {})  // KOSync is optional — silent fail is fine
     api.get<Annotation[]>(`/books/${id}/annotations`).then(setAnnotations).catch(() => {})
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
+    api.get<BookEstimate>(`/books/${id}/estimate?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimate).catch(() => {})
   }, [id])
 
   // Animate progress bar from 0 after it loads
@@ -1014,6 +1017,22 @@ export function BookDetailPage() {
         <MetaField icon={<AlignLeft className="w-3.5 h-3.5" />} label="Words"
           value={book.word_count != null ? `${book.word_count.toLocaleString()} words` : ''}
           editing={false} onChange={() => {}} />
+        {/* How long the whole book would take at your pace (#187). In-progress
+            books additionally get "Est. remaining" in the Reading Stats block. */}
+        {!editing && estimate?.seconds != null && (
+          <div className="flex items-start gap-2">
+            <span className="text-muted-foreground mt-0.5 shrink-0"><Timer className="w-3.5 h-3.5" /></span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground/70 mb-0.5">Est. read time</p>
+              <p className="text-sm text-foreground" title={describePace(estimate.pace, estimate.method)}>
+                {formatEstimateHours(estimate.seconds)}
+                {estimate.days != null && (
+                  <span className="text-muted-foreground"> &middot; {formatEstimateDays(estimate.days)}</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
         {/* Hardcover match — only when the sync matcher has linked this book */}
         {!editing && book.hardcover_slug && (
           <div className="flex items-start gap-2">

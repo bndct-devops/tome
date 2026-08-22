@@ -55,6 +55,8 @@ import {
 import { SeriesCompletionGrid } from '@/components/stats/SeriesCompletionGrid'
 import { AuthorAffinity } from '@/components/stats/AuthorAffinity'
 import { CompletionByType } from '@/components/stats/CompletionByType'
+import { BacklogEstimate, DEFAULT_BACKLOG_SCOPE } from '@/components/stats/BacklogEstimate'
+import type { BacklogScope } from '@/lib/backlog'
 import { LibraryGrowthChart } from '@/components/stats/LibraryGrowthChart'
 import {
   RatingDistribution,
@@ -88,7 +90,7 @@ import {
 // metric. days = 0 follows the page range; days = N shows the last N days of the
 // fetched window (sliced client-side, no extra fetches) — so two copies of one
 // widget can show different timeframes.
-type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?: string; autoFit?: boolean }
+type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?: string; autoFit?: boolean; scope?: string; scopeLabel?: string }
 
 // ── Widget catalog (renders shared Stats components from live data) ─────────────
 
@@ -108,6 +110,8 @@ type WidgetDef = {
   metrics?: { id: string; label: string }[]
   /** Config picks a series (options come from the user's series_completion). */
   seriesPicker?: boolean
+  /** Config picks a backlog scope (status / library / shelf). */
+  scopePicker?: boolean
   defaultConfig?: TileConfig
   /** Dynamic tile-header title, e.g. the picked metric's name. */
   titleFor?: (config: TileConfig) => string
@@ -411,6 +415,16 @@ const WIDGETS: WidgetDef[] = [
     render: ({ stats }) => <SeriesCompletionGrid data={stats.series_completion} />,
   },
   {
+    id: 'backlog-estimate',
+    title: 'Backlog',
+    size: { w: 12, h: 2, minW: 4, minH: 2 },
+    autoH: true,
+    scopePicker: true,
+    defaultConfig: { chartType: 'bar', days: 0, scope: DEFAULT_BACKLOG_SCOPE, scopeLabel: 'Want to Read', autoFit: true },
+    titleFor: (cfg) => `Backlog · ${cfg.scopeLabel ?? 'Want to Read'}`,
+    render: (_ctx, cfg) => <BacklogEstimate scope={cfg.scope} />,
+  },
+  {
     id: 'author-affinity',
     title: 'Top Authors by Reading Time',
     size: { w: 6, h: 2, minW: 3, minH: 2 },
@@ -629,6 +643,7 @@ const WIDGET_DESC: Record<string, string> = {
   'monthly-comparison': 'Hours & finishes, last 12 months',
   'year-in-review': 'Your year, at a glance (1y/All)',
   'series-completion': 'How far through each series',
+  'backlog-estimate': 'How long your unread pile would take',
   'author-affinity': 'Most-read authors',
   'completion-by-type': 'Finish rate by book type',
   'category-breakdown': 'Time split across categories',
@@ -659,7 +674,7 @@ const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 
 // internally. Everything else (charts) clips (overflow-hidden) so nothing spills out.
 const SCROLL_IDS = new Set([
   'currently-reading', 'estimates', 'session-timeline', 'series-completion', 'per-book-table',
-  'author-affinity', 'completion-by-type', 'pace-by-format', 'session-log', 'recently-finished',
+  'author-affinity', 'completion-by-type', 'pace-by-format', 'session-log', 'recently-finished', 'backlog-estimate',
   'goal',
 ])
 
@@ -674,7 +689,7 @@ const GALLERY_GROUPS: { label: string; ids: string[] }[] = [
   },
   {
     label: 'Library',
-    ids: ['year-in-review', 'library-completion', 'series-completion', 'series-spotlight', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'reading-by-language', 'library-growth', 'personal-records', 'book-length', 'rereads', 'per-book-table'],
+    ids: ['year-in-review', 'library-completion', 'series-completion', 'series-spotlight', 'backlog-estimate', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'reading-by-language', 'library-growth', 'personal-records', 'book-length', 'rereads', 'per-book-table'],
   },
   {
     label: 'Taste',
@@ -714,6 +729,7 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
   // Library — all full width, stacked in page order
   'year-in-review': { x: 0, y: 0, w: 12, h: 2 },
   'series-completion': { x: 0, y: 2, w: 12, h: 4 },
+  'backlog-estimate': { x: 0, y: 6, w: 12, h: 2 },
   'author-affinity': { x: 0, y: 6, w: 12, h: 3 },
   'completion-by-type': { x: 0, y: 9, w: 12, h: 2 },
   'category-breakdown': { x: 0, y: 11, w: 12, h: 2 },
@@ -743,7 +759,7 @@ type TabState = { id: string; label: string; tiles: Tile[]; layout: Layout }
 const TAB_DEFS: { id: string; label: string; ids: string[] }[] = [
   { id: 'overview', label: 'Overview', ids: [...STAT_IDS, 'currently-reading', 'daily', 'top-books', 'books-finished', 'activity-365', 'session-log'] },
   { id: 'habits', label: 'Habits', ids: ['hour-dow', 'session-timeline', 'reading-pace', 'pace-by-format', 'speed-trend', 'estimates', 'period-comparison', 'monthly-comparison'] },
-  { id: 'library', label: 'Library', ids: ['year-in-review', 'series-completion', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
+  { id: 'library', label: 'Library', ids: ['year-in-review', 'series-completion', 'backlog-estimate', 'author-affinity', 'completion-by-type', 'category-breakdown', 'genre-over-time', 'library-growth', 'per-book-table'] },
   { id: 'taste', label: 'Taste', ids: ['rating-distribution', 'taste-by-genre', 'rating-vs-time', 'rating-trend', 'top-rated', 'best-rated-series'] },
   { id: 'timeline', label: 'Timeline', ids: ['reading-timeline'] },
   // Phase 4 word-count tiles (words-read / true-wpm / book-length) are gallery-only
@@ -816,6 +832,12 @@ function ConfigPopover({
   onChange: (partial: Partial<TileConfig>) => void
   onClose: () => void
 }) {
+  // Backlog scopes (libraries + shelves) are the user's own — fetched on open.
+  const [scopes, setScopes] = useState<BacklogScope[] | null>(null)
+  useEffect(() => {
+    if (!def.scopePicker) return
+    api.get<BacklogScope[]>('/stats/backlog-scopes').then(setScopes).catch(() => setScopes([]))
+  }, [def.scopePicker])
   // Close on outside click / Escape via a document listener rather than a fixed
   // overlay: the tile's RGL transform traps `position: fixed` inside the tile, so
   // an overlay can't cover the rest of the page. The opening click is stopped at
@@ -839,6 +861,33 @@ function ConfigPopover({
       className="no-drag absolute right-2 top-9 z-50 w-48 rounded-lg border border-border bg-card p-3 text-xs shadow-xl"
       onPointerDown={(e) => e.stopPropagation()}
       >
+        {def.scopePicker && (
+          <>
+            <p className="mb-1.5 font-medium text-muted-foreground">Scope</p>
+            {scopes ? (
+              <select
+                value={config.scope ?? DEFAULT_BACKLOG_SCOPE}
+                onChange={(e) => {
+                  const picked = scopes.find((s) => s.id === e.target.value)
+                  onChange({ scope: e.target.value, scopeLabel: picked?.label })
+                }}
+                className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+              >
+                {scopes.filter((s) => !s.group).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {(['Libraries', 'Shelves'] as const).map((g) => {
+                  const items = scopes.filter((s) => s.group === g)
+                  return items.length > 0 ? (
+                    <optgroup key={g} label={g}>
+                      {items.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    </optgroup>
+                  ) : null
+                })}
+              </select>
+            ) : (
+              <p className="text-muted-foreground/70">Loading…</p>
+            )}
+          </>
+        )}
         {def.seriesPicker && (
           <>
             <p className="mb-1.5 font-medium text-muted-foreground">Series</p>
@@ -917,7 +966,7 @@ function ConfigPopover({
           </>
         )}
         {def.autoH && (
-          <div className={cn((def.chartTypes || def.metrics || def.seriesPicker) && 'mt-3 border-t border-border pt-3')}>
+          <div className={cn((def.chartTypes || def.metrics || def.seriesPicker || def.scopePicker) && 'mt-3 border-t border-border pt-3')}>
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-muted-foreground">Auto-fit height</span>
               <button
@@ -1141,7 +1190,7 @@ function TileShell({
     // re-renders. RGL's calcGridItemWHPx rounds the resulting px, so this is exact.
     onMeasure(Math.max(1, Math.round(((desired + 2 + 16) / 120) * 100) / 100))
   })
-  const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker || !!def.autoH
+  const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker || !!def.scopePicker || !!def.autoH
   const tiltOn = editMode && !dragging && !cfgOpen
 
   function onMove(e: MouseEvent<HTMLDivElement>) {

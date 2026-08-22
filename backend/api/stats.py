@@ -1057,6 +1057,105 @@ def get_stats(
     }
 
 
+# Shelf params that the backlog scope honours — the list-endpoint filters a
+# saved shelf can carry. Anything else in a shelf's params (sort, view) is ignored.
+_SHELF_FILTER_KEYS = {
+    "q", "series", "author", "tag", "format", "language", "library_id",
+    "reading_status", "min_rating", "missing", "content_type", "added_by", "ownership",
+}
+
+
+def _backlog_books(db: Session, current_user: User, scope: str) -> list[Book]:
+    """Resolve a backlog scope to its unstarted books (visibility-gated).
+
+    Scopes: ``want`` (Want to Read), ``unread`` (no status / unread / want),
+    ``library:<id>``, ``shelf:<id>``. Finished and in-progress books are never
+    part of a backlog, whatever the scope says.
+    """
+    from backend.api.books import _filtered_books_query
+    from backend.models.library import Library, SavedFilter
+
+    kind, _, arg = scope.partition(":")
+    kwargs: dict = {}
+    if kind == "want":
+        kwargs["reading_status"] = "want_to_read"
+    elif kind == "unread":
+        pass
+    elif kind == "library":
+        if not arg.isdigit():
+            raise HTTPException(status_code=422, detail="Bad library scope")
+        lib = db.get(Library, int(arg))
+        if not lib:
+            raise HTTPException(status_code=404, detail="Library not found")
+        kwargs["library_id"] = lib.id
+    elif kind == "shelf":
+        if not arg.isdigit():
+            raise HTTPException(status_code=422, detail="Bad shelf scope")
+        shelf = db.get(SavedFilter, int(arg))
+        if not shelf or (shelf.owner_id not in (None, current_user.id)):
+            raise HTTPException(status_code=404, detail="Shelf not found")
+        try:
+            params = json.loads(shelf.params or "{}")
+        except ValueError:
+            params = {}
+        for k, v in params.items():
+            if k not in _SHELF_FILTER_KEYS or v in (None, ""):
+                continue
+            if k in ("library_id", "min_rating", "added_by"):
+                try:
+                    v = int(v)
+                except (TypeError, ValueError):
+                    continue
+            kwargs[k] = v
+    else:
+        raise HTTPException(status_code=422, detail="Unknown scope")
+
+    query, _jr, _er = _filtered_books_query(db, current_user, **kwargs)
+    books = query.distinct().all()
+    if not books:
+        return []
+    started = {
+        r[0] for r in db.query(UserBookStatus.book_id).filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.book_id.in_([b.id for b in books]),
+            UserBookStatus.status.in_(("read", "reading")),
+        )
+    }
+    return [b for b in books if b.id not in started]
+
+
+@router.get("/stats/backlog")
+def get_backlog_estimate(
+    scope: str = Query("want", description="want | unread | library:<id> | shelf:<id>"),
+    tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """How long a backlog would take at the user's pace, by book type (#187)."""
+    from backend.services import backlog_estimate as be
+
+    books = _backlog_books(db, current_user, scope)
+    return {"scope": scope, **be.summarise(db, books, be.compute_pace(db, current_user.id, tz_offset))}
+
+
+@router.get("/stats/backlog-scopes")
+def get_backlog_scopes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Scope options for the Backlog tile: the fixed pair plus the user's
+    visible libraries and shelves."""
+    from backend.api.libraries import list_libraries, list_saved_filters
+
+    out = [
+        {"id": "want", "label": "Want to Read", "group": None},
+        {"id": "unread", "label": "All unread", "group": None},
+    ]
+    out += [{"id": f"library:{l.id}", "label": l.name, "group": "Libraries"} for l in list_libraries(db=db, current_user=current_user)]
+    out += [{"id": f"shelf:{f.id}", "label": f.name, "group": "Shelves"} for f in list_saved_filters(db=db, current_user=current_user)]
+    return out
+
+
 @router.get("/stats/completion-estimates")
 def get_completion_estimates(
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),

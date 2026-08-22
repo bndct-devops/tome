@@ -669,11 +669,17 @@ def get_series_detail(
             "progress_pct": st.progress_pct if st else None,
         })
 
+    # Backlog estimate over the volumes not started yet (#187).
+    from backend.services import backlog_estimate as be
+    unstarted = [b for b in books if (statuses.get(b.id).status if statuses.get(b.id) else "unread") not in ("read", "reading")]
+    backlog = be.summarise(db, unstarted, be.compute_pace(db, current_user.id)) if unstarted else None
+
     return {
         "name": name,
         "author": author,
         "description": description,
         "books": book_list,
+        "backlog": backlog,
     }
 
 
@@ -1325,6 +1331,23 @@ def get_reader_pacing(
             for c in chapters
         ],
     }
+
+
+@router.get("/{book_id}/estimate")
+def get_book_estimate(
+    book_id: int,
+    tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """How long this whole book would take at the user's pace (#187) — for
+    books not started yet. In-progress books get "remaining" from the
+    reading-stats block instead; this is the full-length figure."""
+    from backend.services import backlog_estimate as be
+
+    book = _visible_book_or_404(db, current_user, book_id)
+    pace = be.compute_pace(db, current_user.id, tz_offset)
+    return be.estimate_book(book, pace)
 
 
 # ── Position history (restore a bad sync) ─────────────────────────────────────
