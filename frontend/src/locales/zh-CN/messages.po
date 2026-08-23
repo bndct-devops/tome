@@ -370,6 +370,11 @@ msgstr ""
 msgid "{0, plural, one {# result — click to fill form} other {# results — click to fill form}}"
 msgstr ""
 
+#. placeholder {0}: candidates.length
+#: src/components/MetadataFetchModal.tsx
+msgid "{0, plural, one {# result — pick one to review} other {# results — pick one to review}}"
+msgstr ""
+
 #. placeholder {0}: follows.length
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# series} other {# series}}"
@@ -786,8 +791,20 @@ msgstr ""
 msgid "{name} copy"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "{name} errored"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "{name} is rate-limited — try again in a minute"
+msgstr ""
+
 #: src/components/ThemeToggle.tsx
 msgid "{name} theme"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "{name} timed out"
 msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
@@ -929,6 +946,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "← Back to library"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "← Back to results"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1396,6 +1417,14 @@ msgstr ""
 msgid "Apply Approved"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "Apply failed"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "Apply Selected"
+msgstr ""
+
 #: src/components/CoverAudit.tsx
 msgid "Apply the first cover-search candidate"
 msgstr ""
@@ -1445,6 +1474,7 @@ msgstr ""
 msgid "Auth"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
@@ -1731,6 +1761,7 @@ msgstr ""
 #: src/components/InstanceBackup.tsx
 #: src/components/LibraryHealth.tsx
 #: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
 #: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
@@ -2092,6 +2123,7 @@ msgstr ""
 msgid "Counts"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Cover"
 msgstr ""
@@ -2148,6 +2180,10 @@ msgstr ""
 #: src/components/PositionHistoryModal.tsx
 #: src/pages/StatsPage.tsx
 msgid "current"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "Current"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -2301,6 +2337,7 @@ msgid "Deleting…"
 msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2885,12 +2922,17 @@ msgid "Fetch failed"
 msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Fetch Metadata"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Fetching metadata..."
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "Field"
 msgstr ""
 
 #: src/components/LibraryHealth.tsx
@@ -3127,6 +3169,10 @@ msgstr ""
 msgid "Hardcover sync is disabled on this server."
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "Has cover"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Height auto-fits the content — only width is resizable"
 msgstr ""
@@ -3305,6 +3351,7 @@ msgstr ""
 msgid "Include"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Incoming"
 msgstr ""
@@ -3317,6 +3364,7 @@ msgstr ""
 msgid "IP:"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/components/ReadingImport.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "ISBN"
@@ -3394,6 +3442,7 @@ msgstr ""
 msgid "Label (e.g. KOReader)"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -3874,6 +3923,10 @@ msgstr ""
 msgid "New board"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "New cover"
+msgstr ""
+
 #: src/components/stats/widgets/overview.tsx
 msgid "New duration"
 msgstr ""
@@ -4008,7 +4061,12 @@ msgid "No completion data by type."
 msgstr ""
 
 #: src/components/CoverAudit.tsx
+#: src/components/MetadataFetchModal.tsx
 msgid "No cover"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "No cover available"
 msgstr ""
 
 #: src/components/CoverPickerModal.tsx
@@ -4204,6 +4262,10 @@ msgstr ""
 msgid "no recent reading, so no day estimate"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "No results — but some sources were unavailable (see below); retrying may help."
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "No results — try a different query."
 msgstr ""
@@ -4218,6 +4280,10 @@ msgstr ""
 
 #: src/components/WishlistModal.tsx
 msgid "No results found."
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "No results found. Try a different search query."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -4541,6 +4607,10 @@ msgstr ""
 msgid "over {days} days"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "Override search query (optional)…"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Overview"
 msgstr ""
@@ -4718,6 +4788,7 @@ msgstr ""
 msgid "Preparing…"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Preview"
 msgstr ""
@@ -4784,6 +4855,7 @@ msgstr ""
 msgid "Publication status"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
@@ -5425,6 +5497,7 @@ msgstr ""
 msgid "Scroll right"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Search"
 msgstr ""
@@ -5437,6 +5510,7 @@ msgstr ""
 msgid "Search books… (/)"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Search failed"
 msgstr ""
@@ -5493,6 +5567,11 @@ msgstr ""
 msgid "Searching {n} books…"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "Searching for: <0>{title}</0>"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Searching…"
 msgstr ""
@@ -5517,6 +5596,7 @@ msgstr ""
 msgid "Select a book first."
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Select all"
 msgstr ""
@@ -5582,6 +5662,7 @@ msgstr ""
 
 #: src/components/CommandPalette.tsx
 #: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
 #: src/components/Sidebar.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
@@ -5590,6 +5671,7 @@ msgstr ""
 msgid "Series"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Series #"
 msgstr ""
@@ -6079,6 +6161,10 @@ msgstr ""
 msgid "Tag: {filterTag}"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
+msgid "Tags"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Tags (comma-separated)"
 msgstr ""
@@ -6258,6 +6344,7 @@ msgstr ""
 msgid "title"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -6805,6 +6892,7 @@ msgstr ""
 msgid "Words Read"
 msgstr ""
 
+#: src/components/MetadataFetchModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
