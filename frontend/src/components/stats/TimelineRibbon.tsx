@@ -11,6 +11,8 @@ import { api } from '@/lib/api'
 import { formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { useAuth } from '@/contexts/AuthContext'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 
 interface TimelineBook {
   book_id: number
@@ -32,6 +34,7 @@ interface TimelineResponse {
 }
 
 const DAY_MS = 86400000
+// eslint-disable-next-line lingui/no-unlocalized-strings -- ISO suffix
 const dayNum = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY_MS)
 const dayStr = (n: number) => new Date(n * DAY_MS).toISOString().slice(0, 10)
 
@@ -143,6 +146,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
   const navigate = useNavigate()
   // Touch: first tap on a bar shows the tooltip, second tap navigates —
   // tap-navigating instantly made "inspect" impossible on phones.
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
   const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const lastTapRef = useRef<number | null>(null)
 
@@ -214,9 +218,9 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     if (el && model) el.scrollLeft = el.scrollWidth
   }, [model === null]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (failed) return <Empty text="Couldn't load the timeline." />
-  if (!data) return <Empty text="Loading your reading life…" pulse />
-  if (!model || !lanes) return <Empty text="No reading history yet — sessions and imported KOReader history land here." />
+  if (failed) return <Empty text={t`Couldn't load the timeline.`} />
+  if (!data) return <Empty text={t`Loading your reading life…`} pulse />
+  if (!model || !lanes) return <Empty text={t`No reading history yet — sessions and imported KOReader history land here.`} />
 
   const ppd = model.ppd
   const atFitFloor = ppd > ZOOMS[zoom] + 0.001 // preset already below fit — zooming out changes nothing
@@ -242,14 +246,14 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
       <div className="flex items-center justify-end gap-1">
         {standalone && (
           <div className="mr-auto flex items-baseline gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reading Timeline</h3>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">lifetime</span>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Reading Timeline</Trans></h3>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"><Trans>lifetime</Trans></span>
           </div>
         )}
         <button
           onClick={() => setZoom((z) => Math.max(0, z - 1))}
           disabled={zoom === 0 || atFitFloor}
-          aria-label="Zoom out"
+          aria-label={t`Zoom out`}
           className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
         >
           <Minus className="h-3.5 w-3.5" />
@@ -257,7 +261,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
         <button
           onClick={() => setZoom((z) => Math.min(ZOOMS.length - 1, z + 1))}
           disabled={zoom === ZOOMS.length - 1}
-          aria-label="Zoom in"
+          aria-label={t`Zoom in`}
           className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -304,7 +308,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                 >
                   <span className="truncate text-[11px] font-medium leading-tight">{lane.label}</span>
                   <span className="truncate text-[10px] leading-tight text-muted-foreground">
-                    {lane.placed.length > 1 ? `${lane.placed.length} vols · ` : ''}
+                    {lane.placed.length > 1 ? (() => { const n = lane.placed.length; return t`${n} vols · ` })() : ''}
                     {formatDuration(lane.totalSeconds)}
                   </span>
                 </div>
@@ -338,7 +342,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                         onMouseLeave={() => {
                           if (!coarse) setHover(null)
                         }}
-                        aria-label={`${b.title} — ${formatDuration(b.total_seconds)} between ${b.first_day} and ${b.last_day}`}
+                        aria-label={(() => { const title = b.title; const dur = formatDuration(b.total_seconds); const from = b.first_day; const to = b.last_day; return t`${title} — ${dur} between ${from} and ${to}` })()}
                         className="group absolute block cursor-pointer overflow-hidden rounded-[4px] border transition-transform hover:-translate-y-px"
                         style={{
                           left: x,
@@ -392,17 +396,16 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
               <div className="truncate font-semibold">{hover.b.title}</div>
               {hover.b.author && <div className="truncate text-muted-foreground">{hover.b.author}</div>}
               <div className="mt-1 text-muted-foreground">
-                {formatDate(hover.b.first_day)} – {formatDate(hover.b.last_day)} · {hover.b.days.length}{' '}
-                {hover.b.days.length === 1 ? 'day' : 'days'}
+                {formatDate(hover.b.first_day)} – {formatDate(hover.b.last_day)} · {plural(hover.b.days.length, { one: '# day', other: '# days' })}
               </div>
               <div className="text-muted-foreground">
                 {formatDuration(hover.b.total_seconds)}
-                {hover.b.finished_on ? ` · finished ${formatDate(hover.b.finished_on)}` : ''}
+                {hover.b.finished_on ? (() => { const d = formatDate(hover.b.finished_on); return t` · finished ${d}` })() : ''}
               </div>
               {hover.day && (
                 <div className="mt-1 border-t border-border/60 pt-1" style={{ color: colors.accent }}>
                   {formatDate(hover.day.date)} ·{' '}
-                  {hover.day.seconds > 0 ? formatDuration(hover.day.seconds) : 'no reading'}
+                  {hover.day.seconds > 0 ? formatDuration(hover.day.seconds) : t`no reading`}
                 </div>
               )}
             </div>

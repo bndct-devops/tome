@@ -65,12 +65,17 @@ msgstr ""
 msgid " · books without a word count use your average for that type"
 msgstr ""
 
+#: src/components/stats/TimelineRibbon.tsx
 #: src/pages/SharePage.tsx
 msgid " · finished {d}"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid " · last synced {when}"
+msgstr ""
+
+#: src/components/stats/widgets/wordstats.tsx
+msgid " · longest <0>{title}</0> ({words})"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -174,6 +179,11 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
+msgstr ""
+
+#. placeholder {0}: hover.b.days.length
+#: src/components/stats/TimelineRibbon.tsx
+msgid "{0, plural, one {# day} other {# days}}"
 msgstr ""
 
 #. placeholder {0}: groups.length
@@ -313,6 +323,16 @@ msgstr ""
 #. placeholder {0}: selected.size
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
+msgstr ""
+
+#. placeholder {0}: data.books_counted
+#: src/components/stats/widgets/wordstats.tsx
+msgid "{0, plural, one {words read · # book} other {words read · # books}}"
+msgstr ""
+
+#. placeholder {0}: data.books_counted
+#: src/components/stats/widgets/wordstats.tsx
+msgid "{0, plural, one {words/min · across # book} other {words/min · across # books}}"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -502,6 +522,10 @@ msgstr ""
 msgid "{n} selected — Clear"
 msgstr ""
 
+#: src/components/stats/TimelineRibbon.tsx
+msgid "{n} vols · "
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{name} · Vol. {start_index}–{end_index}"
 msgstr ""
@@ -552,6 +576,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "{themeName} theme"
+msgstr ""
+
+#: src/components/stats/TimelineRibbon.tsx
+msgid "{title} — {dur} between {from} and {to}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -703,6 +731,10 @@ msgstr ""
 msgid "Accepted: {title}"
 msgstr ""
 
+#: src/components/NotificationChannels.tsx
+msgid "Access token (only for protected topics)"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Account & Security"
 msgstr ""
@@ -747,6 +779,10 @@ msgstr ""
 
 #: src/pages/WishlistPage.tsx
 msgid "Add books you'd like to see in the library."
+msgstr ""
+
+#: src/components/NotificationChannels.tsx
+msgid "Add channel"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -919,6 +955,10 @@ msgstr ""
 msgid "Appearance"
 msgstr ""
 
+#: src/components/NotificationChannels.tsx
+msgid "Application token (required)"
+msgstr ""
+
 #: src/components/SeriesRating.tsx
 msgid "Applied to volumes you haven’t rated"
 msgstr ""
@@ -1015,6 +1055,14 @@ msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
 msgid "avg / volume"
+msgstr ""
+
+#: src/components/stats/widgets/wordstats.tsx
+msgid "avg <0>{avg}</0> · median {median}"
+msgstr ""
+
+#: src/components/stats/widgets/wordstats.tsx
+msgid "avg <0>{avg}</0> words per book"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -1435,6 +1483,10 @@ msgstr ""
 msgid "Couldn’t load stats."
 msgstr ""
 
+#: src/components/stats/TimelineRibbon.tsx
+msgid "Couldn't load the timeline."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Cover"
 msgstr ""
@@ -1646,6 +1698,7 @@ msgstr ""
 msgid "Directories"
 msgstr ""
 
+#: src/components/WhatsNewPanel.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -1933,6 +1986,10 @@ msgstr ""
 msgid "Exporting..."
 msgstr ""
 
+#: src/components/NotificationChannels.tsx
+msgid "failed"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2088,6 +2145,10 @@ msgstr ""
 msgid "fantasy, action, romance"
 msgstr ""
 
+#: src/components/stats/widgets/wordstats.tsx
+msgid "Fastest"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Fetch Metadata"
 msgstr ""
@@ -2239,6 +2300,10 @@ msgstr ""
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Go back"
+msgstr ""
+
+#: src/components/WhatsNewPanel.tsx
+msgid "Got it"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -2473,6 +2538,10 @@ msgstr ""
 msgid "Just synced"
 msgstr ""
 
+#: src/components/WhatsNewPanel.tsx
+msgid "Just updated"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Keep this one"
 msgstr ""
@@ -2599,6 +2668,7 @@ msgstr ""
 msgid "Library: {filterLibraryChipName}"
 msgstr ""
 
+#: src/components/stats/TimelineRibbon.tsx
 #: src/pages/StatsPage.tsx
 msgid "lifetime"
 msgstr ""
@@ -2658,6 +2728,10 @@ msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "Loading books…"
+msgstr ""
+
+#: src/components/stats/TimelineRibbon.tsx
+msgid "Loading your reading life…"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -3106,12 +3180,24 @@ msgstr ""
 msgid "No ratings yet."
 msgstr ""
 
+#: src/components/stats/widgets/wordstats.tsx
+msgid "No re-reads yet — pages you revisit on a later day show up here."
+msgstr ""
+
+#: src/components/stats/TimelineRibbon.tsx
+msgid "no reading"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "No reading activity yet. Records appear when users start reading books."
 msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "No reading data yet"
+msgstr ""
+
+#: src/components/stats/TimelineRibbon.tsx
+msgid "No reading history yet — sessions and imported KOReader history land here."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3171,6 +3257,10 @@ msgstr ""
 msgid "No suggested match yet — search for the book to link, or upload it first."
 msgstr ""
 
+#: src/components/stats/widgets/wordstats.tsx
+msgid "No timed reading with word counts yet."
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "No Tome account is linked to this identity, and self-signup is disabled."
 msgstr ""
@@ -3198,6 +3288,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "No widgets on this board yet."
+msgstr ""
+
+#: src/components/stats/widgets/wordstats.tsx
+msgid "No word counts yet."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3240,6 +3334,10 @@ msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "not syncing"
+msgstr ""
+
+#: src/components/NotificationChannels.tsx
+msgid "Not used"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -3455,6 +3553,10 @@ msgstr ""
 msgid "Passwords do not match."
 msgstr ""
 
+#: src/components/NotificationChannels.tsx
+msgid "Pause"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
 msgstr ""
@@ -3575,6 +3677,10 @@ msgstr ""
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
+msgstr ""
+
+#: src/components/NotificationChannels.tsx
+msgid "Push Tome's notifications (wish fulfilled, new volume detected, reading goals) to ntfy, Gotify, or any webhook the moment they happen — the bell above only rings when you visit. Each channel can be tested, paused, or removed; tokens are stored server-side and never shown again."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -3808,6 +3914,7 @@ msgstr ""
 msgid "Reading time split by language"
 msgstr ""
 
+#: src/components/stats/TimelineRibbon.tsx
 #: src/pages/StatsPage.tsx
 msgid "Reading Timeline"
 msgstr ""
@@ -3866,6 +3973,10 @@ msgstr ""
 msgid "Remove all of this book's imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on."
 msgstr ""
 
+#: src/components/NotificationChannels.tsx
+msgid "Remove channel"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Remove device"
 msgstr ""
@@ -3898,6 +4009,10 @@ msgstr ""
 msgid "Rename board"
 msgstr ""
 
+#: src/components/NotificationChannels.tsx
+msgid "request failed"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Rescan the bindery folder"
 msgstr ""
@@ -3920,6 +4035,10 @@ msgstr ""
 
 #: src/components/PositionHistoryModal.tsx
 msgid "Restoring sets the live position (and read status) back to that point; devices pick it up on their next sync. Restoring below 100% un-finishes a falsely completed book."
+msgstr ""
+
+#: src/components/NotificationChannels.tsx
+msgid "Resume"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -4140,6 +4259,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Select All"
+msgstr ""
+
+#: src/components/NotificationChannels.tsx
+msgid "Send a test notification"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -4402,6 +4525,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Skip"
+msgstr ""
+
+#: src/components/stats/widgets/wordstats.tsx
+msgid "Slowest"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5056,6 +5183,10 @@ msgstr ""
 msgid "What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books."
 msgstr ""
 
+#: src/components/WhatsNewPanel.tsx
+msgid "What's new in Tome {version}"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "When you read — hour × weekday"
 msgstr ""
@@ -5219,4 +5350,12 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Your year, at a glance (1y/All)"
+msgstr ""
+
+#: src/components/stats/TimelineRibbon.tsx
+msgid "Zoom in"
+msgstr ""
+
+#: src/components/stats/TimelineRibbon.tsx
+msgid "Zoom out"
 msgstr ""
