@@ -1258,7 +1258,7 @@ function TileShell({
         <h3 className="min-w-0 truncate font-display text-xs font-medium text-muted-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
         {def.infoHint && <def.infoHint />}
         {def.fixedWindow && (
-          <span title="This tile uses a fixed window and ignores the range picker" className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+          <span title={t`This tile uses a fixed window and ignores the range picker`} className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
             {i18n._(def.fixedWindow)}
           </span>
         )}

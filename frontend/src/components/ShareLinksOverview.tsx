@@ -85,14 +85,14 @@ export function ShareLinksOverview() {
                 )}
                 <button
                   onClick={() => copy(row)}
-                  title="Copy link"
+                  title={t`Copy link`}
                   className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {copiedId === row.id ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                 </button>
                 <button
                   onClick={() => api.delete(`/share-links/${row.id}`).then(load)}
-                  title="Revoke link"
+                  title={t`Revoke link`}
                   className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-destructive"
                 >
                   <Trash2 className="h-3 w-3" />

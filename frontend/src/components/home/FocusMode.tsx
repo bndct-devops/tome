@@ -507,7 +507,7 @@ export function FocusMode() {
                 type="button"
                 onClick={() => navigate('/?tab=books&reading_status=reading')}
                 className="shrink-0 w-[64px] self-stretch"
-                title="See all in-progress books"
+                title={t`See all in-progress books`}
               >
                 <div className="w-[64px] aspect-[2/3] rounded-lg ring-1 ring-border bg-muted/60 grid place-items-center text-xs font-semibold text-muted-foreground hover:text-foreground hover:ring-primary/60 transition">
                   +{(data.reading_total ?? 0) - data.reading.length}

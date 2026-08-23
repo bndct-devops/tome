@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { t } from '@lingui/core/macro'
 import type { WishCoverageVolume } from '@/lib/wishlist'
 
 const PILL_BASE = 'inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border transition-all'
@@ -42,7 +43,7 @@ export function SeriesCoverageStrip({ coverage, total }: { coverage: WishCoverag
               #{n}
             </Link>
           ) : (
-            <span key={n} title={`Volume ${n} — not in the library`} className={`${PILL_BASE} ${PILL_MISSING}`}>
+            <span key={n} title={t`Volume ${n} — not in the library`} className={`${PILL_BASE} ${PILL_MISSING}`}>
               #{n}
             </span>
           )

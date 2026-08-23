@@ -244,7 +244,7 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
                   <button
                     onClick={() => setOpenBook(openBook === b.book_id ? null : b.book_id)}
                     className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                    title={openBook === b.book_id ? 'Hide sessions' : 'Show sessions'}
+                    title={openBook === b.book_id ? t`Hide sessions` : t`Show sessions`}
                   >
                     <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', openBook === b.book_id && 'rotate-180')} />
                   </button>

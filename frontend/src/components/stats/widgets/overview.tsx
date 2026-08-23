@@ -426,7 +426,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                 <button
                   onClick={() => (trimId === s.id ? setTrimId(null) : openTrim(s))}
                   className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                  title="Trim session"
+                  title={t`Trim session`}
                 >
                   <Scissors className="w-3.5 h-3.5" />
                 </button>
@@ -435,7 +435,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                 onClick={() => deleteSession(s)}
                 disabled={deleting.has(s.id)}
                 className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                title={s.kind === 'imported' ? 'Delete this imported sitting' : 'Delete session'}
+                title={s.kind === 'imported' ? t`Delete this imported sitting` : t`Delete session`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

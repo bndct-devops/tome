@@ -338,7 +338,7 @@ export function WishlistPage() {
                         onClick={() => handleDelete(w)}
                         disabled={deleting === w.id}
                         className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 disabled:opacity-40"
-                        title="Remove wish"
+                        title={t`Remove wish`}
                         aria-label={t`Remove wish`}
                       >
                         {deleting === w.id

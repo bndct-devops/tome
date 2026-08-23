@@ -370,7 +370,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                           <button
                             onClick={() => toggleExpanded(result.book_id)}
                             className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                            title="Pick different candidate"
+                            title={t`Pick different candidate`}
                           >
                             {state.expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                           </button>

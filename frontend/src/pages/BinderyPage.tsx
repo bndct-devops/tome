@@ -1779,14 +1779,14 @@ export function BinderyPage() {
                           <button
                             onClick={e => { e.stopPropagation(); acceptUnreviewed(book.id) }}
                             className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors"
-                            title="Accept"
+                            title={t`Accept`}
                           >
                             <Check className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); setConfirmRejectUnreviewed(book.id) }}
                             className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
-                            title="Reject"
+                            title={t`Reject`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

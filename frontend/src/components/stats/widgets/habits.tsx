@@ -76,7 +76,13 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
                     key={s.id}
                     className="absolute top-0.5 bottom-0.5 rounded-sm transition-colors"
                     style={{ left: `${left}%`, width: `${width}%`, backgroundColor: accent, opacity: 0.7 }}
-                    title={`${s.title} — ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${formatDuration(s.duration_seconds)})`}
+                    title={(() => {
+                      const st = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      const en = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      const dur = formatDuration(s.duration_seconds)
+                      const bt = s.title
+                      return t`${bt} — ${st} to ${en} (${dur})`
+                    })()}
                   />
                 )
               })}

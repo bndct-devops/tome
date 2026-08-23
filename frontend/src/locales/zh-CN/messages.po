@@ -543,6 +543,10 @@ msgstr ""
 msgid "{books, plural, one {{total} from # book} other {{total} from # books}}"
 msgstr ""
 
+#: src/components/stats/widgets/habits.tsx
+msgid "{bt} — {st} to {en} ({dur})"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{clearResult} covers deleted."
 msgstr ""
@@ -2154,6 +2158,7 @@ msgid "Copied {n} highlights as Markdown"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Copy"
 msgstr ""
 
@@ -2161,8 +2166,13 @@ msgstr ""
 msgid "Copy all as Markdown"
 msgstr ""
 
+#: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 msgid "Copy link"
+msgstr ""
+
+#: src/pages/HighlightsPage.tsx
+msgid "Copy this book’s highlights as Markdown"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -2450,13 +2460,33 @@ msgstr ""
 msgid "Delete Others"
 msgstr ""
 
+#: src/components/stats/widgets/overview.tsx
+msgid "Delete session"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Delete sync record"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Delete theme"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Delete this book from the library? The file will be removed and this cannot be undone."
+msgstr ""
+
+#: src/components/stats/GoalWidget.tsx
+msgid "Delete this goal"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "Delete this highlight"
+msgstr ""
+
+#: src/components/stats/widgets/overview.tsx
+msgid "Delete this imported sitting"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -3174,6 +3204,14 @@ msgstr ""
 msgid "First read"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Fit page height (W)"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Fit page width (W)"
+msgstr ""
+
 #: src/components/CoverAudit.tsx
 msgid "Fixed"
 msgstr ""
@@ -3382,6 +3420,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Hide details"
+msgstr ""
+
+#: src/components/stats/widgets/library.tsx
+msgid "Hide sessions"
 msgstr ""
 
 #: src/components/stats/widgets/taste.tsx
@@ -4878,6 +4920,10 @@ msgstr ""
 msgid "Page {n}"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Page thumbnails (T)"
+msgstr ""
+
 #: src/components/SeriesReadingStats.tsx
 #: src/lib/goals.ts
 #: src/pages/BookDetailPage.tsx
@@ -4988,6 +5034,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Pick a start & end"
+msgstr ""
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Pick different candidate"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -5135,6 +5185,10 @@ msgid "Queue: fold the other copies into the kept book"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+msgid "Queue: keep the selected book and delete the others — their files are removed from disk"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 msgid "Queue: not a duplicate — never show this group again"
 msgstr ""
 
@@ -5277,6 +5331,10 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Reader"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Reader settings"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5439,6 +5497,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Reject imported book"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "Remove"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -5613,6 +5675,7 @@ msgstr ""
 msgid "Revoke"
 msgstr ""
 
+#: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 msgid "Revoke link"
 msgstr ""
@@ -5682,6 +5745,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Save Changes"
+msgstr ""
+
+#: src/components/SaveFilterButton.tsx
+msgid "Save current filters as a shelf"
 msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
@@ -5854,6 +5921,10 @@ msgstr ""
 #: src/components/MetadataFetchModal.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Searching…"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "See all in-progress books"
 msgstr ""
 
 #: src/components/AppShell.tsx
@@ -6203,6 +6274,10 @@ msgstr ""
 msgid "Show more ({left} remaining)"
 msgstr ""
 
+#: src/components/stats/widgets/library.tsx
+msgid "Show sessions"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
 msgstr ""
@@ -6229,6 +6304,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Similar Title"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Single page (S)"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -6411,6 +6490,22 @@ msgstr ""
 msgid "Sun"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Switch to fit height"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Switch to fit width"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Switch to page mode"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Switch to webtoon (scroll) mode"
+msgstr ""
+
 #: src/components/HardcoverSync.tsx
 msgid "Sync automatically"
 msgstr ""
@@ -6473,6 +6568,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Synopsis or description"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Table of contents"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -6601,6 +6700,10 @@ msgstr ""
 msgid "This series has no volumes with a numeric index yet. Add volumes before defining arcs."
 msgstr ""
 
+#: src/pages/StatsPage.tsx
+msgid "This tile uses a fixed window and ignores the range picker"
+msgstr ""
+
 #: src/components/WishlistModal.tsx
 msgid "This volume"
 msgstr ""
@@ -6710,6 +6813,10 @@ msgstr ""
 msgid "Toggle only-notes filter"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Toggle RTL (manga) mode"
+msgstr ""
+
 #: src/components/stats/widgets/overview.tsx
 msgid "Toggle sort order"
 msgstr ""
@@ -6784,6 +6891,10 @@ msgid "Trim"
 msgstr ""
 
 #: src/components/stats/widgets/overview.tsx
+msgid "Trim session"
+msgstr ""
+
+#: src/components/stats/widgets/overview.tsx
 msgid "Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace."
 msgstr ""
 
@@ -6806,6 +6917,10 @@ msgstr ""
 #: src/components/stats/HourDowHeatmap.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Tue"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Two-page spread (S)"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -7047,6 +7162,10 @@ msgstr ""
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Volume"
+msgstr ""
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Volume {n} — not in the library"
 msgstr ""
 
 #: src/components/home/FocusMode.tsx
@@ -7345,6 +7464,14 @@ msgstr ""
 msgid "Zoom in"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Zoom in (+)"
+msgstr ""
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Zoom out"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Zoom out (-)"
 msgstr ""

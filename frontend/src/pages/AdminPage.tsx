@@ -1303,7 +1303,7 @@ function SyncStatusTab() {
                         onClick={() => handleDelete(r)}
                         disabled={isDeleting}
                         className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-                        title="Delete sync record"
+                        title={t`Delete sync record`}
                       >
                         {isDeleting
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1579,7 +1579,7 @@ function DuplicatesTab() {
                           ? 'bg-destructive text-destructive-foreground border-destructive'
                           : 'border-border hover:bg-accent text-muted-foreground',
                       )}
-                      title="Queue: keep the selected book and delete the others — their files are removed from disk"
+                      title={t`Queue: keep the selected book and delete the others — their files are removed from disk`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete Others`}
@@ -2024,7 +2024,7 @@ function WishlistTab() {
               {t.label}
             </button>
           ))}
-          <button onClick={load} className="ml-1 p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground" title="Refresh">
+          <button onClick={load} className="ml-1 p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground" title={t`Refresh`}>
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>

@@ -257,7 +257,7 @@ export function GoalWidgetBody({
               <button
                 type="button"
                 onClick={() => setEditing(goal)}
-                title="Edit goal"
+                title={t`Edit goal`}
                 className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Pencil className="h-3 w-3" />
@@ -265,7 +265,7 @@ export function GoalWidgetBody({
               <button
                 type="button"
                 onClick={() => deleteGoal(goal.id).then(onChanged).catch(() => {})}
-                title="Delete this goal"
+                title={t`Delete this goal`}
                 className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3 w-3" />

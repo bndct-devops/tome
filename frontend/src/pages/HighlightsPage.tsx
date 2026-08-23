@@ -569,7 +569,7 @@ export function HighlightsPage() {
                     </button>
                     <button
                       onClick={() => copyGroup(g)}
-                      title="Copy this book’s highlights as Markdown"
+                      title={t`Copy this book’s highlights as Markdown`}
                       className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
                     >
                       <Copy className="w-3.5 h-3.5" />

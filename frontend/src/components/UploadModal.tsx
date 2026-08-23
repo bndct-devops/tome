@@ -314,7 +314,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                       <button
                         onClick={() => removeItem(item.id)}
                         className="text-muted-foreground hover:text-destructive transition-colors"
-                        title="Remove"
+                        title={t`Remove`}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>

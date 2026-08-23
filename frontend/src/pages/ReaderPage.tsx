@@ -1375,7 +1375,7 @@ export default function ReaderPage() {
                 ? (isDarkTheme ? 'bg-white/20' : 'bg-black/15')
                 : (isDarkTheme ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/10 text-black/40')
             )}
-            title="Toggle RTL (manga) mode"
+            title={t`Toggle RTL (manga) mode`}
             style={{ color: themeColors.text }}
           >
             RTL
@@ -1385,7 +1385,7 @@ export default function ReaderPage() {
           <button
             onClick={() => setFitMode((m) => m === 'width' ? 'height' : 'width')}
             className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-            title={fitMode === 'width' ? 'Switch to fit height' : 'Switch to fit width'}
+            title={fitMode === 'width' ? t`Switch to fit height` : t`Switch to fit width`}
             style={{ color: themeColors.text }}
           >
             {fitMode === 'width' ? <RotateCcw className="w-4 h-4" /> : <AlignJustify className="w-4 h-4" />}
@@ -1398,7 +1398,7 @@ export default function ReaderPage() {
               className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60',
                 spread && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
               )}
-              title={spread ? 'Single page (S)' : 'Two-page spread (S)'}
+              title={spread ? t`Single page (S)` : t`Two-page spread (S)`}
               style={{ color: themeColors.text }}
             >
               {spread ? <Square className="w-4 h-4" /> : <Columns2 className="w-4 h-4" />}
@@ -1412,7 +1412,7 @@ export default function ReaderPage() {
               className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60',
                 showThumbnails && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
               )}
-              title="Page thumbnails (T)"
+              title={t`Page thumbnails (T)`}
               style={{ color: themeColors.text }}
             >
               <GalleryHorizontalEnd className="w-4 h-4" />
@@ -1423,7 +1423,7 @@ export default function ReaderPage() {
           <button
             onClick={() => setComicMode((m) => m === 'page' ? 'webtoon' : 'page')}
             className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-            title={comicMode === 'page' ? 'Switch to webtoon (scroll) mode' : 'Switch to page mode'}
+            title={comicMode === 'page' ? t`Switch to webtoon (scroll) mode` : t`Switch to page mode`}
             style={{ color: themeColors.text }}
           >
             {comicMode === 'page' ? <Rows4 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
@@ -1437,7 +1437,7 @@ export default function ReaderPage() {
               isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10',
               showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
             )}
-            title="Reader settings"
+            title={t`Reader settings`}
             style={{ color: themeColors.text }}
           >
             <Settings className="w-4 h-4" />
@@ -1615,7 +1615,7 @@ export default function ReaderPage() {
           <button
             onClick={() => setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))}
             className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-            title={pdfFitMode === 'width' ? 'Fit page height (W)' : 'Fit page width (W)'}
+            title={pdfFitMode === 'width' ? t`Fit page height (W)` : t`Fit page width (W)`}
             style={{ color: themeColors.text }}
           >
             {pdfFitMode === 'width' ? <StretchVertical className="w-4 h-4" /> : <StretchHorizontal className="w-4 h-4" />}
@@ -1626,7 +1626,7 @@ export default function ReaderPage() {
             <button
               onClick={zoomOut}
               className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-              title="Zoom out (-)"
+              title={t`Zoom out (-)`}
               style={{ color: themeColors.text }}
             >
               <Minus className="w-4 h-4" />
@@ -1637,7 +1637,7 @@ export default function ReaderPage() {
             <button
               onClick={zoomIn}
               className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-              title="Zoom in (+)"
+              title={t`Zoom in (+)`}
               style={{ color: themeColors.text }}
             >
               <Plus className="w-4 h-4" />
@@ -1652,7 +1652,7 @@ export default function ReaderPage() {
               isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10',
               showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
             )}
-            title="Reader settings"
+            title={t`Reader settings`}
             style={{ color: themeColors.text }}
           >
             <Settings className="w-4 h-4" />
@@ -1788,7 +1788,7 @@ export default function ReaderPage() {
         <button
           onClick={() => { setShowToc((o) => !o); setShowSettings(false) }}
           className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showToc && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
-          title="Table of contents"
+          title={t`Table of contents`}
           style={{ color: themeColors.text }}
         >
           <AlignJustify className="w-4 h-4" />
@@ -1796,7 +1796,7 @@ export default function ReaderPage() {
         <button
           onClick={() => { setShowSettings((o) => !o); setShowToc(false) }}
           className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
-          title="Reader settings"
+          title={t`Reader settings`}
           style={{ color: themeColors.text }}
         >
           <Settings className="w-4 h-4" />
