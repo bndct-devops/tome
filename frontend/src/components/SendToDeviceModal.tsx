@@ -6,6 +6,8 @@ import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { BookFile } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 
 interface Device {
   id: number
@@ -74,9 +76,9 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
           { book_ids: books.map(b => b.id), device_id: selectedDevice },
         )
         if (res.failed === 0) {
-          toast.success(`Sent ${res.sent} book${res.sent !== 1 ? 's' : ''} to device`)
+          toast.success(plural(res.sent, { one: 'Sent # book to device', other: 'Sent # books to device' }))
         } else {
-          toast.info(`Sent ${res.sent}/${res.sent + res.failed}. ${res.failed} failed.`)
+          { const sent = res.sent, total = res.sent + res.failed, failedN = res.failed; toast.info(t`Sent ${sent}/${total}. ${failedN} failed.`) }
         }
         onClose()
       } else if (singleBook && selectedFileId) {
@@ -84,11 +86,11 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
           device_id: selectedDevice,
           file_id: selectedFileId,
         })
-        toast.success(`Sent "${singleBook.title}" to device`)
+        { const title = singleBook.title; toast.success(t`Sent "${title}" to device`) }
         onClose()
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send')
+      toast.error(err instanceof Error ? err.message : t`Failed to send`)
     } finally {
       setSending(false)
     }
@@ -105,7 +107,7 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <Send className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">Send to Device</h2>
+              <h2 className="text-sm font-semibold text-foreground"><Trans>Send to Device</Trans></h2>
             </div>
             <button
               onClick={onClose}
@@ -125,35 +127,35 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
               <div className="flex flex-col items-center justify-center py-6 gap-3">
                 <BookAnimation variant="send" className="block w-16 h-16 text-primary" />
                 <p className="text-sm font-medium text-foreground">
-                  Sending<span className="dots-anim"><span>.</span><span>.</span><span>.</span></span>
+                  <Trans>Sending</Trans><span className="dots-anim"><span>.</span><span>.</span><span>.</span></span>
                 </p>
               </div>
             ) : smtpConfigured === false ? (
               <div className="text-center py-4 space-y-2">
                 <AlertTriangle className="w-8 h-8 text-warning mx-auto" />
-                <p className="text-sm font-medium text-foreground">Email delivery is not set up yet</p>
+                <p className="text-sm font-medium text-foreground"><Trans>Email delivery is not set up yet</Trans></p>
                 <p className="text-xs text-muted-foreground">
-                  See Settings for setup instructions.
+                  <Trans>See Settings for setup instructions.</Trans>
                 </p>
                 <button
                   onClick={() => { onClose(); navigate('/settings') }}
                   className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                 >
-                  Go to Settings
+                  <Trans>Go to Settings</Trans>
                 </button>
               </div>
             ) : devices.length === 0 ? (
               <div className="text-center py-4 space-y-2">
                 <Send className="w-8 h-8 text-muted-foreground mx-auto" />
-                <p className="text-sm font-medium text-foreground">No devices configured</p>
+                <p className="text-sm font-medium text-foreground"><Trans>No devices configured</Trans></p>
                 <p className="text-xs text-muted-foreground">
-                  Add a device in Settings to start sending books.
+                  <Trans>Add a device in Settings to start sending books.</Trans>
                 </p>
                 <button
                   onClick={() => { onClose(); navigate('/settings') }}
                   className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                 >
-                  Go to Settings
+                  <Trans>Go to Settings</Trans>
                 </button>
               </div>
             ) : (
@@ -161,20 +163,20 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
                 {/* Book info */}
                 {singleBook && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Book</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1"><Trans>Book</Trans></p>
                     <p className="text-sm text-foreground truncate">{singleBook.title}</p>
                   </div>
                 )}
                 {isBulk && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Books</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1"><Trans>Books</Trans></p>
                     <p className="text-sm text-foreground">{books.length} book{books.length !== 1 ? 's' : ''} selected</p>
                   </div>
                 )}
 
                 {/* Device selector */}
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Device</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Device</Trans></label>
                   <select
                     value={selectedDevice ?? ''}
                     onChange={e => setSelectedDevice(Number(e.target.value))}
@@ -189,7 +191,7 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
                 {/* Format selector (single book with multiple files) */}
                 {singleBook && singleBook.files.length > 1 && (
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Format</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Format</Trans></label>
                     <select
                       value={selectedFileId ?? ''}
                       onChange={e => setSelectedFileId(Number(e.target.value))}
@@ -207,9 +209,9 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
                 {/* File size info */}
                 {selectedFile?.file_size && (
                   <p className="text-xs text-muted-foreground">
-                    File size: {formatBytes(selectedFile.file_size)}
+                    {(() => { const size = formatBytes(selectedFile.file_size); return <Trans>File size: {size}</Trans> })()}
                     {selectedFile.file_size > 25 * 1024 * 1024 && (
-                      <span className="text-warning ml-1">(exceeds 25 MB email limit)</span>
+                      <span className="text-warning ml-1"><Trans>(exceeds 25 MB email limit)</Trans></span>
                     )}
                   </p>
                 )}
@@ -223,12 +225,12 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
                   {sending ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending...
+                      <Trans>Sending...</Trans>
                     </>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      {isBulk ? `Send ${books.length} books` : 'Send'}
+                      {isBulk ? plural(books.length, { one: 'Send # book', other: 'Send # books' }) : t`Send`}
                     </>
                   )}
                 </button>

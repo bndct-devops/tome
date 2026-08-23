@@ -82,6 +82,10 @@ msgstr ""
 msgid " · reviewed"
 msgstr ""
 
+#: src/components/ShareShelfModal.tsx
+msgid " · to change expiry, revoke and re-create"
+msgstr ""
+
 #: src/pages/WishlistPage.tsx
 msgid " · you have vol {v}"
 msgstr ""
@@ -94,12 +98,20 @@ msgstr ""
 msgid ", {errors} failed"
 msgstr ""
 
+#: src/components/UploadModal.tsx
+msgid ", {failedN} failed"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid ", {n} failed"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid ", {pages} pages"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid ", {skipped} already in library"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -128,6 +140,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "(enables dark: variants)"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "(exceeds 25 MB email limit)"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -189,6 +205,11 @@ msgstr ""
 #. placeholder {0}: groups.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# duplicate group found.} other {# duplicate groups found.}}"
+msgstr ""
+
+#. placeholder {0}: items.length
+#: src/components/UploadModal.tsx
+msgid "{0, plural, one {# file selected} other {# files selected}}"
 msgstr ""
 
 #. placeholder {0}: row.unestimated
@@ -315,6 +336,16 @@ msgstr ""
 msgid "{0, plural, one {Rejected # file} other {Rejected # files}}"
 msgstr ""
 
+#. placeholder {0}: books.length
+#: src/components/SendToDeviceModal.tsx
+msgid "{0, plural, one {Send # book} other {Send # books}}"
+msgstr ""
+
+#. placeholder {0}: res.sent
+#: src/components/SendToDeviceModal.tsx
+msgid "{0, plural, one {Sent # book to device} other {Sent # books to device}}"
+msgstr ""
+
 #. placeholder {0}: suggestedBooks.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {Suggested match:} other {Suggested matches:}}"
@@ -413,6 +444,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "{failed, plural, one {Upload failed for # file} other {Upload failed for # files}}"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -538,6 +573,10 @@ msgstr ""
 msgid "{name} theme"
 msgstr ""
 
+#: src/components/UploadModal.tsx
+msgid "{ok} uploaded"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{othersCount, plural, one {Delete # other} other {Delete # others}}"
 msgstr ""
@@ -572,6 +611,18 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{shown, plural, one {# title} other {# titles}}"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "{skipped, plural, one {Nothing to upload — # file is already in your library} other {Nothing to upload — # files are already in your library}}"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "{success, plural, one {# book uploaded} other {# books uploaded}}"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "{success} uploaded, {failed} failed"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -647,6 +698,10 @@ msgstr ""
 msgid "~1 day"
 msgstr ""
 
+#: src/components/ShareShelfModal.tsx
+msgid "1 day"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "12 mo"
 msgstr ""
@@ -663,12 +718,20 @@ msgstr ""
 msgid "24 mo"
 msgstr ""
 
+#: src/components/ShareShelfModal.tsx
+msgid "30 days"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "30d"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "365 d"
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "7 days"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -693,6 +756,18 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "A newer release is available — the link opens the release notes. Update by pulling the new image and restarting the container."
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "A share link is a read-only page anyone with the link can open — no account needed. It shows covers, titles, tags, descriptions, and your ratings and highlights for the books in this series. It never exposes files: no downloads, no reading, no way in. Revoke it any time and the link dies instantly."
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "A share link is a read-only page anyone with the link can open — no account needed. It shows covers, titles, tags, descriptions, and your ratings and highlights for the books on this shelf. It never exposes files: no downloads, no reading, no way in. Revoke it any time and the link dies instantly."
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "A share link is a read-only page anyone with the link can open — no account needed. It shows covers, titles, tags, descriptions, and your ratings and highlights for this book. It never exposes files: no downloads, no reading, no way in. Revoke it any time and the link dies instantly."
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
@@ -754,6 +829,10 @@ msgstr ""
 #: src/pages/BookDetailPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Add"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "Add a device in Settings to start sending books."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -928,6 +1007,10 @@ msgstr ""
 
 #: src/components/SendButton.tsx
 msgid "Already in your KOReader inbox"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "Already in your library — will be skipped."
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1127,6 +1210,7 @@ msgstr ""
 msgid "book"
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Book"
 msgstr ""
@@ -1171,6 +1255,7 @@ msgstr ""
 msgid "Book Types"
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Books"
@@ -1214,6 +1299,7 @@ msgstr ""
 
 #: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
+#: src/components/UploadModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -1310,6 +1396,8 @@ msgid "Click for details"
 msgstr ""
 
 #: src/components/PositionHistoryModal.tsx
+#: src/components/ShareShelfModal.tsx
+#: src/components/UploadModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/StatsPage.tsx
@@ -1443,6 +1531,10 @@ msgstr ""
 msgid "Copy all as Markdown"
 msgstr ""
 
+#: src/components/ShareShelfModal.tsx
+msgid "Copy link"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Copy to KOReader"
 msgstr ""
@@ -1514,6 +1606,10 @@ msgstr ""
 
 #: src/pages/SetupPage.tsx
 msgid "Create admin account"
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "Create share link"
 msgstr ""
 
 #: src/pages/SetupPage.tsx
@@ -1678,6 +1774,7 @@ msgstr ""
 msgid "Details:"
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Device"
 msgstr ""
@@ -1777,6 +1874,10 @@ msgstr ""
 msgid "Downloaded {n} highlights"
 msgstr ""
 
+#: src/components/UploadModal.tsx
+msgid "Drop books here or <0>click to browse</0>"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Drop files in the incoming folder to get started"
 msgstr ""
@@ -1865,6 +1966,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Email address"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "Email delivery is not set up yet"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1958,6 +2063,10 @@ msgstr ""
 
 #: src/components/ShareLinksOverview.tsx
 msgid "expires {d}"
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "Expires {d}"
 msgstr ""
 
 #: src/pages/LoginPage.tsx
@@ -2121,6 +2230,10 @@ msgstr ""
 msgid "Failed to save series rating"
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
+msgid "Failed to send"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to undo"
 msgstr ""
@@ -2159,6 +2272,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "File is missing from disk"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "File size: {size}"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
@@ -2229,6 +2346,7 @@ msgstr ""
 msgid "for {targetLabel} — click a file to switch"
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2300,6 +2418,10 @@ msgstr ""
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Go back"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "Go to Settings"
 msgstr ""
 
 #: src/components/WhatsNewPanel.tsx
@@ -2741,6 +2863,7 @@ msgstr ""
 
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareLinksOverview.tsx
+#: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/SharePage.tsx
@@ -2967,6 +3090,10 @@ msgstr ""
 msgid "never expires"
 msgstr ""
 
+#: src/components/ShareShelfModal.tsx
+msgid "Never expires"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Never sync this book"
 msgstr ""
@@ -3082,6 +3209,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "No devices configured"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -3265,6 +3396,7 @@ msgstr ""
 msgid "No Tome account is linked to this identity, and self-signup is disabled."
 msgstr ""
 
+#: src/components/UploadModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "No type"
@@ -4061,6 +4193,10 @@ msgstr ""
 msgid "Revoke"
 msgstr ""
 
+#: src/components/ShareShelfModal.tsx
+msgid "Revoke link"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Revoke this token? Any scripts or tools using it will stop working immediately."
 msgstr ""
@@ -4245,6 +4381,10 @@ msgstr ""
 msgid "See all results for \"{searchQuery}\""
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
+msgid "See Settings for setup instructions."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Select"
 msgstr ""
@@ -4259,6 +4399,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Select All"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "Send"
 msgstr ""
 
 #: src/components/NotificationChannels.tsx
@@ -4278,6 +4422,7 @@ msgid "Send test email"
 msgstr ""
 
 #: src/components/SendButton.tsx
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Send to Device"
 msgstr ""
@@ -4290,12 +4435,25 @@ msgstr ""
 msgid "Send via email…"
 msgstr ""
 
+#: src/components/SendToDeviceModal.tsx
+msgid "Sending"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Sending..."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Sent"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "Sent \"{title}\" to device"
+msgstr ""
+
+#: src/components/SendToDeviceModal.tsx
+msgid "Sent {sent}/{total}. {failedN} failed."
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -4376,6 +4534,10 @@ msgstr ""
 msgid "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
 msgstr ""
 
+#: src/components/UploadModal.tsx
+msgid "Set all to"
+msgstr ""
+
 #: src/components/ForcePasswordChange.tsx
 msgid "Set password & continue"
 msgstr ""
@@ -4408,6 +4570,10 @@ msgstr ""
 #: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Share"
+msgstr ""
+
+#: src/components/ShareShelfModal.tsx
+msgid "Share \"{title}\""
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -5003,6 +5169,18 @@ msgstr ""
 msgid "Upload"
 msgstr ""
 
+#: src/components/UploadModal.tsx
+msgid "Upload All"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "Upload Books"
+msgstr ""
+
+#: src/components/UploadModal.tsx
+msgid "Upload failed"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Upload or scan a folder to get started"
 msgstr ""
@@ -5061,6 +5239,7 @@ msgstr ""
 msgid "Verify it's working"
 msgstr ""
 
+#: src/components/UploadModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "View book"

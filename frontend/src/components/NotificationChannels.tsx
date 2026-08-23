@@ -125,7 +125,6 @@ export function NotificationChannels() {
           onChange={e => setKind(e.target.value as Channel['kind'])}
           className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product names */}
           <option value="ntfy">ntfy</option>
           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product names */}
           <option value="gotify">Gotify</option>
