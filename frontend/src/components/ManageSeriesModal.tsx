@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 import { X, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
@@ -23,11 +27,11 @@ interface ArcRow {
   description: string
 }
 
-const STATUS_OPTIONS: { value: SeriesStatus; label: string }[] = [
-  { value: 'ongoing', label: 'Ongoing' },
-  { value: 'finished', label: 'Finished' },
-  { value: 'hiatus', label: 'Hiatus' },
-  { value: 'unknown', label: 'Unknown' },
+const STATUS_OPTIONS: { value: SeriesStatus; label: MessageDescriptor }[] = [
+  { value: 'ongoing', label: msg`Ongoing` },
+  { value: 'finished', label: msg`Finished` },
+  { value: 'hiatus', label: msg`Hiatus` },
+  { value: 'unknown', label: msg`Unknown` },
 ]
 
 function hasOverlap(rows: ArcRow[], idx: number): boolean {
@@ -129,7 +133,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
       onSaved()
       onClose()
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : 'Save failed')
+      setSaveError(e instanceof Error ? e.message : t`Save failed`)
     } finally {
       setStatusSaving(false)
     }
@@ -151,7 +155,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
       onSaved()
       onClose()
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : 'Save failed')
+      setSaveError(e instanceof Error ? e.message : t`Save failed`)
     } finally {
       setArcsSaving(false)
     }
@@ -165,13 +169,13 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Manage Series</h2>
+            <h2 className="text-base font-semibold text-foreground"><Trans>Manage Series</Trans></h2>
             <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">{seriesName}</p>
           </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            aria-label="Close"
+            aria-label={t`Close`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -179,18 +183,18 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
 
         {/* Tabs */}
         <div className="flex gap-1 px-5 pt-3 shrink-0">
-          {(['series', 'arcs'] as TabId[]).map(t => (
+          {(['series', 'arcs'] as TabId[]).map(tb => (
             <button
-              key={t}
-              onClick={() => { setActiveTab(t); setSaveError(null) }}
+              key={tb}
+              onClick={() => { setActiveTab(tb); setSaveError(null) }}
               className={cn(
                 'px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize',
-                activeTab === t
+                activeTab === tb
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
-              {t === 'series' ? 'Series' : 'Arcs'}
+              {tb === 'series' ? t`Series` : t`Arcs`}
             </button>
           ))}
         </div>
@@ -206,7 +210,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground" htmlFor="series-status">
-                    Publication status
+                    <Trans>Publication status</Trans>
                   </label>
                   <select
                     id="series-status"
@@ -215,7 +219,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     {STATUS_OPTIONS.map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
+                      <option key={o.value} value={o.value}>{i18n._(o.label)}</option>
                     ))}
                   </select>
                 </div>
@@ -232,13 +236,13 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               <div className="flex flex-col gap-3">
                 {sortedRows.length === 0 && volumes.length > 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    No arcs defined yet. Click &ldquo;Add arc&rdquo; to create one.
+                    <Trans>No arcs defined yet. Click &ldquo;Add arc&rdquo; to create one.</Trans>
                   </p>
                 )}
                 {volumes.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    This series has no volumes with a numeric index yet. Add
-                    volumes before defining arcs.
+                    <Trans>This series has no volumes with a numeric index yet. Add
+                    volumes before defining arcs.</Trans>
                   </p>
                 )}
                 {sortedRows.length > 0 && (
@@ -246,10 +250,10 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                          <th className="pb-2 font-medium pr-3 min-w-[140px]">Name</th>
-                          <th className="pb-2 font-medium pr-3 w-20">Start</th>
-                          <th className="pb-2 font-medium pr-3 w-20">End</th>
-                          <th className="pb-2 font-medium pr-3">Description</th>
+                          <th className="pb-2 font-medium pr-3 min-w-[140px]"><Trans>Name</Trans></th>
+                          <th className="pb-2 font-medium pr-3 w-20"><Trans>Start</Trans></th>
+                          <th className="pb-2 font-medium pr-3 w-20"><Trans>End</Trans></th>
+                          <th className="pb-2 font-medium pr-3"><Trans>Description</Trans></th>
                           <th className="pb-2 w-8" />
                         </tr>
                       </thead>
@@ -266,7 +270,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                                   type="text"
                                   value={row.name}
                                   onChange={e => updateRow(originalIdx, { name: e.target.value })}
-                                  placeholder="Arc name"
+                                  placeholder={t`Arc name`}
                                   className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
                                 />
                               </td>
@@ -297,7 +301,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                                   type="text"
                                   value={row.description}
                                   onChange={e => updateRow(originalIdx, { description: e.target.value })}
-                                  placeholder="Optional"
+                                  placeholder={t`Optional`}
                                   className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
                                 />
                               </td>
@@ -305,7 +309,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                                 <button
                                   onClick={() => deleteRow(originalIdx)}
                                   className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                                  aria-label="Delete arc"
+                                  aria-label={t`Delete arc`}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -323,7 +327,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                   className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors self-start disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Add arc
+                  <Trans>Add arc</Trans>
                 </button>
               </div>
             )
@@ -343,7 +347,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               disabled={isBusy}
               className="px-4 py-2 rounded-lg border border-border bg-background text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
             >
-              Cancel
+              <Trans>Cancel</Trans>
             </button>
             <button
               onClick={activeTab === 'series' ? saveStatus : saveArcs}
@@ -351,7 +355,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Save
+              <Trans>Save</Trans>
             </button>
           </div>
         </div>

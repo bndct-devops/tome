@@ -662,6 +662,10 @@ msgstr ""
 msgid "{n} vols · "
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "{n} volumes"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{name} · Vol. {start_index}–{end_index}"
 msgstr ""
@@ -1009,6 +1013,10 @@ msgstr ""
 msgid "Add a wish"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Add arc"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Add board"
 msgstr ""
@@ -1060,6 +1068,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Add to Library"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Add to Wishlist"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -1243,6 +1255,14 @@ msgstr ""
 msgid "Applying failed — nothing was changed."
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Arc name"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Arcs"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Are you getting faster?"
 msgstr ""
@@ -1268,6 +1288,7 @@ msgid "Auth"
 msgstr ""
 
 #: src/components/stats/widgets/library.tsx
+#: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -1278,6 +1299,7 @@ msgstr ""
 msgid "Author applied to {n} files"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Author name"
 msgstr ""
@@ -1354,6 +1376,10 @@ msgstr ""
 msgid "Back to list"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "Back to search"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Backlog"
 msgstr ""
@@ -1415,6 +1441,7 @@ msgstr ""
 #: src/components/CoverAudit.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/components/stats/widgets/overview.tsx
+#: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Book"
 msgstr ""
@@ -1443,6 +1470,7 @@ msgstr ""
 msgid "Book rejected and removed"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Book title"
 msgstr ""
@@ -1520,13 +1548,19 @@ msgstr ""
 msgid "Browse your library"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "Can't find it? Add manually"
+msgstr ""
+
 #: src/components/EntityModal.tsx
 #: src/components/InstanceBackup.tsx
+#: src/components/ManageSeriesModal.tsx
 #: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/components/stats/widgets/overview.tsx
 #: src/components/UploadModal.tsx
+#: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -1580,6 +1614,14 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Chart type"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Choose a different book"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Choose a different series"
 msgstr ""
 
 #: src/components/ReadingImport.tsx
@@ -1638,6 +1680,7 @@ msgstr ""
 msgid "Click for details"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/GoalWidget.tsx
@@ -1996,6 +2039,10 @@ msgstr ""
 msgid "Delete all {count} cached cover files ({mb} MB). Covers will be re-extracted on next access."
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Delete arc"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Delete board"
 msgstr ""
@@ -2031,6 +2078,7 @@ msgstr ""
 msgid "Deleting…"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2278,6 +2326,10 @@ msgstr ""
 msgid "Empty board"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "End"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "EPUB vs CBZ time split"
 msgstr ""
@@ -2404,6 +2456,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Failed to add device"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Failed to add wish"
 msgstr ""
 
 #: src/components/CoverPickerModal.tsx
@@ -2612,6 +2668,7 @@ msgstr ""
 msgid "finished"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Finished"
@@ -2657,6 +2714,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "for {targetLabel} — click a file to switch"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "For precise series tracking, use the <0>Series</0> tab instead."
 msgstr ""
 
 #: src/components/SendToDeviceModal.tsx
@@ -2808,6 +2869,10 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "hiatus"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Hiatus"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3289,6 +3354,10 @@ msgstr ""
 msgid "Manage series"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Manage Series"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Manual"
 msgstr ""
@@ -3465,6 +3534,7 @@ msgstr ""
 msgid "My Theme"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Name"
 msgstr ""
@@ -3582,6 +3652,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "No API tokens yet. Create one to use Scribe or scripts against Tome."
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "No arcs defined yet. Click “Add arc” to create one."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -3821,6 +3895,10 @@ msgstr ""
 msgid "No results found"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "No results found."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "No Series"
 msgstr ""
@@ -3958,6 +4036,10 @@ msgstr ""
 msgid "Not used"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "Note"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Note on KOSync coexistence"
 msgstr ""
@@ -4043,6 +4125,10 @@ msgstr ""
 msgid "ongoing"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Ongoing"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
 msgstr ""
@@ -4083,6 +4169,14 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Optional"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Optional note (e.g. 'the new one')"
 msgstr ""
 
 #: src/components/CoverPickerModal.tsx
@@ -4249,6 +4343,10 @@ msgstr ""
 msgid "PIN created — copy it now, it won't be shown again."
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "Please pick a result or use the manual form."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Port"
 msgstr ""
@@ -4333,6 +4431,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Public library"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Publication status"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -4797,6 +4899,7 @@ msgid "Sat"
 msgstr ""
 
 #: src/components/EntityModal.tsx
+#: src/components/ManageSeriesModal.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/pages/AdminPage.tsx
@@ -4816,6 +4919,7 @@ msgstr ""
 msgid "Save Changes"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Save failed"
@@ -4909,8 +5013,16 @@ msgstr ""
 msgid "Search for a book in the library…"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "Search for a book…"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Search for a different book…"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Search for a series…"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
@@ -5029,7 +5141,9 @@ msgid "Sent {sent}/{total}. {failedN} failed."
 msgstr ""
 
 #: src/components/CommandPalette.tsx
+#: src/components/ManageSeriesModal.tsx
 #: src/components/Sidebar.tsx
+#: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
@@ -5052,10 +5166,19 @@ msgstr ""
 msgid "Series index"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Series name"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Series name — fill this alone to wish for the whole series"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Series name is required."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -5359,6 +5482,10 @@ msgstr ""
 msgid "start"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Start"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Start {volLabel}"
 msgstr ""
@@ -5578,8 +5705,20 @@ msgstr ""
 msgid "This replaces <0>the entire database</0> at the next restart. Type <1>RESTORE</1> to arm it."
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "This series has no volumes with a numeric index yet. Add volumes before defining arcs."
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "This volume"
+msgstr ""
+
 #: src/lib/goals.ts
 msgid "this week"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "This wish covers the whole series and stays open as new volumes arrive."
 msgstr ""
 
 #: src/components/stats/HourDowHeatmap.tsx
@@ -5647,8 +5786,16 @@ msgstr ""
 msgid "Title *"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
+msgid "Title <0>*</0>"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Title is required"
+msgstr ""
+
+#: src/components/WishlistModal.tsx
+msgid "Title is required."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5792,6 +5939,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Ungrouped files"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Unknown"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
@@ -6082,6 +6233,7 @@ msgstr ""
 msgid "Which weekday you read most"
 msgstr ""
 
+#: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Whole series"
