@@ -1688,9 +1688,11 @@ export function DashboardPage() {
                                   </div>
                                   {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
                                     <p className="text-[10px] text-muted-foreground mb-1.5" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
-                                      <span className="text-foreground font-medium tabular-nums">{formatEstimateHours(seriesDetail.backlog.seconds)}</span> left in this series
-                                      {seriesDetail.backlog.days != null && <> &middot; {formatEstimateDays(seriesDetail.backlog.days)} at your pace</>}
-                                      {seriesDetail.backlog.unestimated > 0 && <> &middot; {seriesDetail.backlog.unestimated} not estimated</>}
+                                      {(() => { const dur = formatEstimateHours(seriesDetail.backlog.seconds); return (
+                                        <Trans><span className="text-foreground font-medium tabular-nums">{dur}</span> left in this series</Trans>
+                                      ) })()}
+                                      {seriesDetail.backlog.days != null && (() => { const d = formatEstimateDays(seriesDetail.backlog.days); return <Trans> &middot; {d} at your pace</Trans> })()}
+                                      {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
                                     </p>
                                   )}
                                   <div className="h-2 rounded-full bg-muted overflow-hidden flex">

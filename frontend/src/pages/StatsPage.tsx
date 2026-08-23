@@ -420,12 +420,13 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'backlog-estimate',
-    title: 'Backlog',
+    title: msg`Backlog`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
     autoH: true,
     scopePicker: true,
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- persisted default; UI shows the live scope label
     defaultConfig: { chartType: 'bar', days: 0, scope: DEFAULT_BACKLOG_SCOPE, scopeLabel: 'Want to Read', autoFit: true },
-    titleFor: (cfg) => `Backlog · ${cfg.scopeLabel ?? 'Want to Read'}`,
+    titleFor: (cfg) => { const scope = cfg.scopeLabel ?? t`Want to Read`; return t`Backlog · ${scope}` },
     render: (_ctx, cfg) => <BacklogEstimate scope={cfg.scope} />,
   },
   {
@@ -869,7 +870,7 @@ function ConfigPopover({
       >
         {def.scopePicker && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground">Scope</p>
+            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Scope</Trans></p>
             {scopes ? (
               <select
                 value={config.scope ?? DEFAULT_BACKLOG_SCOPE}
@@ -880,17 +881,18 @@ function ConfigPopover({
                 className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
               >
                 {scopes.filter((s) => !s.group).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {/* eslint-disable-next-line lingui/no-unlocalized-strings -- API group keys */}
                 {(['Libraries', 'Shelves'] as const).map((g) => {
                   const items = scopes.filter((s) => s.group === g)
                   return items.length > 0 ? (
-                    <optgroup key={g} label={g}>
+                    <optgroup key={g} label={g === 'Libraries' ? t`Libraries` : t`Shelves`}>
                       {items.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                     </optgroup>
                   ) : null
                 })}
               </select>
             ) : (
-              <p className="text-muted-foreground/70">Loading…</p>
+              <p className="text-muted-foreground/70"><Trans>Loading…</Trans></p>
             )}
           </>
         )}

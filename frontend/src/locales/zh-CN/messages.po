@@ -21,6 +21,10 @@ msgstr ""
 msgid " — MISSING"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid " · {d} at your pace"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid " · {dups} duplicates"
 msgstr ""
@@ -37,6 +41,14 @@ msgstr ""
 msgid " · {n} in progress"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid " · {n} not estimated"
+msgstr ""
+
+#: src/components/stats/BacklogEstimate.tsx
+msgid " · {n} not estimated yet"
+msgstr ""
+
 #: src/pages/SharePage.tsx
 msgid " · {n} read"
 msgstr ""
@@ -47,6 +59,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid " · {prog}% in"
+msgstr ""
+
+#: src/components/stats/BacklogEstimate.tsx
+msgid " · books without a word count use your average for that type"
 msgstr ""
 
 #: src/pages/SharePage.tsx
@@ -146,8 +162,15 @@ msgstr ""
 msgid "{0, plural, one {# book tracked} other {# books tracked}}"
 msgstr ""
 
+#. placeholder {0}: data.books
+#: src/components/stats/BacklogEstimate.tsx
+msgid "{0, plural, one {# book, none estimated yet.} other {# books, none estimated yet.}}"
+msgstr ""
+
+#. placeholder {0}: data.books
 #. placeholder {0}: data.totals.books
-#. placeholder {0}: s.book_count
+#. placeholder {0}: row.books
+#: src/components/stats/BacklogEstimate.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
@@ -156,6 +179,11 @@ msgstr ""
 #. placeholder {0}: groups.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# duplicate group found.} other {# duplicate groups found.}}"
+msgstr ""
+
+#. placeholder {0}: row.unestimated
+#: src/components/stats/BacklogEstimate.tsx
+msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr ""
 
 #. placeholder {0}: aggregate.distinct_readers
@@ -555,12 +583,40 @@ msgstr ""
 msgid "← Back to library"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "<0>{dur}</0> left in this series"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "~{at}% in · {dur}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "~{at}% in · not read"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~{d} days"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~{h} h"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~{m} min"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~{mo} months"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~{w} weeks"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~1 day"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -625,6 +681,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "About"
+msgstr ""
+
+#: src/components/stats/BacklogEstimate.tsx
+msgid "about <0>{d}</0> at your pace"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -967,6 +1027,14 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Back to list"
+msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "Backlog"
+msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "Backlog · {scope}"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1343,6 +1411,10 @@ msgstr ""
 msgid "Could not link SSO. Please try again."
 msgstr ""
 
+#: src/components/stats/BacklogEstimate.tsx
+msgid "Could not load this scope."
+msgstr ""
+
 #: src/components/SeriesFollowButton.tsx
 msgid "Could not resolve this series on Hardcover"
 msgstr ""
@@ -1473,6 +1545,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Day streak"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "days at ~{mpd} min a day (last {win} days)"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -1763,7 +1839,10 @@ msgstr ""
 msgid "Errors"
 msgstr ""
 
-#: src/components/SeriesReadingStats.tsx
+#: src/pages/BookDetailPage.tsx
+msgid "Est. read time"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
 msgstr ""
@@ -2029,6 +2108,10 @@ msgstr ""
 msgid "Filters"
 msgstr ""
 
+#: src/components/stats/BacklogEstimate.tsx
+msgid "Finish a couple of books of each type so Tome can measure your pace."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Finish rate by book type"
 msgstr ""
@@ -2279,6 +2362,10 @@ msgid "How long the books you finish are"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
+msgid "How long your unread pile would take"
+msgstr ""
+
+#: src/pages/StatsPage.tsx
 msgid "How much of what you own you’ve read"
 msgstr ""
 
@@ -2484,6 +2571,7 @@ msgstr ""
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Libraries"
 msgstr ""
 
@@ -2579,8 +2667,10 @@ msgstr ""
 
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareLinksOverview.tsx
+#: src/components/stats/BacklogEstimate.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/SharePage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Loading…"
 msgstr ""
 
@@ -3036,6 +3126,11 @@ msgstr ""
 msgid "no reading yet"
 msgstr ""
 
+#: src/components/stats/BacklogEstimate.tsx
+#: src/lib/backlog.ts
+msgid "no recent reading, so no day estimate"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "No results — try a different query."
 msgstr ""
@@ -3089,6 +3184,10 @@ msgstr ""
 msgid "No type (staging / admin only)"
 msgstr ""
 
+#: src/components/stats/BacklogEstimate.tsx
+msgid "No unstarted books in this scope."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "No users have added devices yet."
 msgstr ""
@@ -3113,6 +3212,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Not enough reading history yet."
+msgstr ""
+
+#: src/components/stats/BacklogEstimate.tsx
+msgid "not estimated yet"
 msgstr ""
 
 #: src/pages/SharePage.tsx
@@ -3951,6 +4054,7 @@ msgid "Scanning…"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Scope"
 msgstr ""
 
@@ -4229,6 +4333,7 @@ msgid "Shelved — set aside, keeps your progress"
 msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/StatsPage.tsx
 msgid "Shelves"
 msgstr ""
 
@@ -4696,6 +4801,10 @@ msgstr ""
 msgid "Unassigned"
 msgstr ""
 
+#: src/lib/backlog.ts
+msgid "under a day"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Undo"
@@ -4895,6 +5004,7 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Want to Read"
 msgstr ""
 
@@ -4989,6 +5099,14 @@ msgstr ""
 msgid "Without a type, new books are only visible to admins until assigned."
 msgstr ""
 
+#: src/lib/backlog.ts
+msgid "Word count at a default {wpm} wpm (no finished books to measure your pace yet)"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "Word count at your measured {wpm} wpm"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Word Counts"
 msgstr ""
@@ -5026,6 +5144,10 @@ msgstr ""
 msgid "You rated this {rating}/5"
 msgstr ""
 
+#: src/components/stats/BacklogEstimate.tsx
+msgid "you read ~{mpd} min a day (last {win} days)"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "You're signed in via SSO. Manage your credentials at your identity provider — there's no Tome password to change."
 msgstr ""
@@ -5036,6 +5158,10 @@ msgstr ""
 
 #: src/pages/LoginPage.tsx
 msgid "Your account is not permitted to sign in to Tome."
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "Your average time per finished book of this type (no word count)"
 msgstr ""
 
 #: src/pages/StatsPage.tsx

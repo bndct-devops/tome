@@ -1040,7 +1040,7 @@ export function BookDetailPage() {
           <div className="flex items-start gap-2">
             <span className="text-muted-foreground mt-0.5 shrink-0"><Timer className="w-3.5 h-3.5" /></span>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground/70 mb-0.5">Est. read time</p>
+              <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Est. read time</Trans></p>
               <p className="text-sm text-foreground" title={describePace(estimate.pace, estimate.method)}>
                 {formatEstimateHours(estimate.seconds)}
                 {estimate.days != null && (
