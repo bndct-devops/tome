@@ -82,6 +82,14 @@ msgstr " · {n} volumes"
 msgid " · {n} want to read"
 msgstr " · {n} want to read"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid " · {needsReview} needs review"
+msgstr " · {needsReview} needs review"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid " · {noMatch} no match"
+msgstr " · {noMatch} no match"
+
 #: src/components/stats/widgets/overview.tsx
 msgid " · {pages} pages"
 msgstr " · {pages} pages"
@@ -136,9 +144,21 @@ msgstr " · to change expiry, revoke and re-create"
 msgid " · you have vol {v}"
 msgstr " · you have vol {v}"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid " {n} had no confident match."
+msgstr " {n} had no confident match."
+
+#: src/components/LibraryHealth.tsx
+msgid " in {n} folders"
+msgstr " in {n} folders"
+
 #: src/components/stats/widgets/habits.tsx
 msgid " vs previous: <0>{prev}</0>"
 msgstr " vs previous: <0>{prev}</0>"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "— {n} books"
+msgstr "— {n} books"
 
 #: src/pages/DashboardPage.tsx
 msgid "— keep existing —"
@@ -156,6 +176,10 @@ msgstr ", {errors} failed"
 msgid ", {failedN} failed"
 msgstr ", {failedN} failed"
 
+#: src/components/LibraryHealth.tsx
+msgid ", {n} errors"
+msgstr ", {n} errors"
+
 #: src/pages/AdminPage.tsx
 msgid ", {n} failed"
 msgstr ", {n} failed"
@@ -167,6 +191,10 @@ msgstr ", {pages} pages"
 #: src/components/UploadModal.tsx
 msgid ", {skipped} already in library"
 msgstr ", {skipped} already in library"
+
+#: src/components/LibraryHealth.tsx
+msgid ", removed {n} empty folders"
+msgstr ", removed {n} empty folders"
 
 #: src/pages/DashboardPage.tsx
 msgid "…and {more} more not shown"
@@ -245,6 +273,11 @@ msgstr "{0, plural, one {# active day in this window} other {# active days in th
 msgid "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 
+#. placeholder {0}: missingResult.removed_books.length
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {# book entry removed} other {# book entries removed}}"
+msgstr "{0, plural, one {# book entry removed} other {# book entries removed}}"
+
 #. placeholder {0}: d.books_finished
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# book finished} other {# books finished}}"
@@ -284,10 +317,30 @@ msgstr "{0, plural, one {# day} other {# days}}"
 msgid "{0, plural, one {# duplicate group found.} other {# duplicate groups found.}}"
 msgstr "{0, plural, one {# duplicate group found.} other {# duplicate groups found.}}"
 
+#. placeholder {0}: healthData.missing_count
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {# entry is missing from disk} other {# entries are missing from disk}}"
+msgstr "{0, plural, one {# entry is missing from disk} other {# entries are missing from disk}}"
+
+#. placeholder {0}: missingResult.removed_file_rows
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {# file entry removed} other {# file entries removed}}"
+msgstr "{0, plural, one {# file entry removed} other {# file entries removed}}"
+
+#. placeholder {0}: healthData.missing.length
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {# file in the database but missing from disk} other {# files in the database but missing from disk}}"
+msgstr "{0, plural, one {# file in the database but missing from disk} other {# files in the database but missing from disk}}"
+
 #. placeholder {0}: items.length
 #: src/components/UploadModal.tsx
 msgid "{0, plural, one {# file selected} other {# files selected}}"
 msgstr "{0, plural, one {# file selected} other {# files selected}}"
+
+#. placeholder {0}: group.issues.length
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {# file} other {# files}}"
+msgstr "{0, plural, one {# file} other {# files}}"
 
 #. placeholder {0}: row.unestimated
 #: src/components/stats/BacklogEstimate.tsx
@@ -380,6 +433,11 @@ msgstr "{0, plural, one {Added # book to library} other {Added # books to librar
 msgid "{0, plural, one {Applied # group} other {Applied # groups}}"
 msgstr "{0, plural, one {Applied # group} other {Applied # groups}}"
 
+#. placeholder {0}: healthData.missing.length
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {Confirm — remove # entry} other {Confirm — remove # entries}}"
+msgstr "{0, plural, one {Confirm — remove # entry} other {Confirm — remove # entries}}"
+
 #. placeholder {0}: selectedIds.size
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Delete # book} other {Delete # books}}"
@@ -419,6 +477,11 @@ msgstr "{0, plural, one {Permanently delete # file from the bindery? This cannot
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Rejected # file} other {Rejected # files}}"
 msgstr "{0, plural, one {Rejected # file} other {Rejected # files}}"
+
+#. placeholder {0}: purgeResult.length
+#: src/components/LibraryHealth.tsx
+msgid "{0, plural, one {Removed # empty folder.} other {Removed # empty folders.}}"
+msgstr "{0, plural, one {Removed # empty folder.} other {Removed # empty folders.}}"
 
 #. placeholder {0}: books.length
 #: src/components/SendToDeviceModal.tsx
@@ -643,6 +706,10 @@ msgstr "{m}m"
 msgid "{m}m {rem}s"
 msgstr "{m}m {rem}s"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "{matched} matched"
+msgstr "{matched} matched"
+
 #: src/pages/AdminPage.tsx
 msgid "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 msgstr "{mergeCount, plural, one {merge # group} other {merge # groups}}"
@@ -656,6 +723,10 @@ msgstr "{mins}m ago"
 #: src/pages/SettingsPage.tsx
 msgid "{minutes}m ago"
 msgstr "{minutes}m ago"
+
+#: src/components/LibraryHealth.tsx
+msgid "{misplaced} of {total} files need reorganization"
+msgstr "{misplaced} of {total} files need reorganization"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -691,6 +762,10 @@ msgstr "{n} selected"
 msgid "{n} selected — Clear"
 msgstr "{n} selected — Clear"
 
+#: src/components/LibraryHealth.tsx
+msgid "{n} skipped (file exists on disk)"
+msgstr "{n} skipped (file exists on disk)"
+
 #: src/components/HardcoverSync.tsx
 msgid "{n} synced"
 msgstr "{n} synced"
@@ -714,6 +789,10 @@ msgstr "{name} copy"
 #: src/components/ThemeToggle.tsx
 msgid "{name} theme"
 msgstr "{name} theme"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "{ok} of {total} approved"
+msgstr "{ok} of {total} approved"
 
 #: src/components/UploadModal.tsx
 msgid "{ok} uploaded"
@@ -1180,6 +1259,10 @@ msgstr "All {loadedCount} books loaded"
 msgid "All {scanned} covers look healthy."
 msgstr "All {scanned} covers look healthy."
 
+#: src/components/LibraryHealth.tsx
+msgid "All {total} files are correctly placed."
+msgstr "All {total} files are correctly placed."
+
 #: src/pages/DashboardPage.tsx
 msgid "All →"
 msgstr "All →"
@@ -1205,6 +1288,10 @@ msgstr "All Books by Reading Time"
 #: src/pages/AdminPage.tsx
 msgid "All Devices"
 msgstr "All Devices"
+
+#: src/components/LibraryHealth.tsx
+msgid "All files are correctly placed."
+msgstr "All files are correctly placed."
 
 #: src/pages/BinderyPage.tsx
 msgid "All imported books accepted"
@@ -1276,6 +1363,10 @@ msgstr "Appearance"
 msgid "Application token (required)"
 msgstr "Application token (required)"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Applied metadata to {n} books."
+msgstr "Applied metadata to {n} books."
+
 #: src/components/SeriesRating.tsx
 msgid "Applied to volumes you haven’t rated"
 msgstr "Applied to volumes you haven’t rated"
@@ -1289,6 +1380,10 @@ msgstr "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates
 msgid "Apply"
 msgstr "Apply"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Apply {n} Approved"
+msgstr "Apply {n} Approved"
+
 #: src/components/ReadingImport.tsx
 msgid "Apply {n} selected"
 msgstr "Apply {n} selected"
@@ -1296,6 +1391,10 @@ msgstr "Apply {n} selected"
 #: src/pages/AdminPage.tsx
 msgid "Apply All ({n})"
 msgstr "Apply All ({n})"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Apply Approved"
+msgstr "Apply Approved"
 
 #: src/components/CoverAudit.tsx
 msgid "Apply the first cover-search candidate"
@@ -1305,6 +1404,7 @@ msgstr "Apply the first cover-search candidate"
 msgid "Apply to all"
 msgstr "Apply to all"
 
+#: src/components/BulkMetadataReviewModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Applying {done}/{total}…"
 msgstr "Applying {done}/{total}…"
@@ -1365,6 +1465,10 @@ msgstr "Author name"
 #: src/pages/DashboardPage.tsx
 msgid "Author: {filterAuthor}"
 msgstr "Author: {filterAuthor}"
+
+#: src/components/LibraryHealth.tsx
+msgid "Author: {name}"
+msgstr "Author: {name}"
 
 #: src/pages/SettingsPage.tsx
 msgid "Authorize"
@@ -1454,6 +1558,10 @@ msgstr "Backup"
 msgid "Backup failed"
 msgstr "Backup failed"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Batch complete"
+msgstr "Batch complete"
+
 #: src/pages/StatsPage.tsx
 msgid "Best Day"
 msgstr "Best Day"
@@ -1515,6 +1623,10 @@ msgstr "Book deleted"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Book Detail"
 msgstr "Book Detail"
+
+#: src/components/LibraryHealth.tsx
+msgid "book entry will be removed"
+msgstr "book entry will be removed"
 
 #: src/pages/StatsPage.tsx
 msgid "Book Length"
@@ -1614,8 +1726,10 @@ msgstr "Browse your library"
 msgid "Can't find it? Add manually"
 msgstr "Can't find it? Add manually"
 
+#: src/components/BulkMetadataReviewModal.tsx
 #: src/components/EntityModal.tsx
 #: src/components/InstanceBackup.tsx
+#: src/components/LibraryHealth.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
@@ -1742,6 +1856,7 @@ msgstr "Click \"Download plugin ZIP\" above. An API key is automatically created
 msgid "Click for details"
 msgstr "Click for details"
 
+#: src/components/BulkMetadataReviewModal.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareShelfModal.tsx
@@ -1842,6 +1957,10 @@ msgstr "Configured"
 #: src/pages/BookDetailPage.tsx
 msgid "Confirm"
 msgstr "Confirm"
+
+#: src/components/LibraryHealth.tsx
+msgid "Confirm & Reorganize"
+msgstr "Confirm & Reorganize"
 
 #: src/components/ForcePasswordChange.tsx
 #: src/pages/SettingsPage.tsx
@@ -1964,6 +2083,10 @@ msgstr "Couldn't load the timeline."
 #: src/components/WordCount.tsx
 msgid "Counted"
 msgstr "Counted"
+
+#: src/components/WordCount.tsx
+msgid "Counting… {done} / {total}"
+msgstr "Counting… {done} / {total}"
 
 #: src/components/stats/GoalWidget.tsx
 msgid "Counts"
@@ -2113,6 +2236,10 @@ msgstr "Day streak"
 msgid "days at ~{mpd} min a day (last {win} days)"
 msgstr "days at ~{mpd} min a day (last {win} days)"
 
+#: src/components/LibraryHealth.tsx
+msgid "Dead entries removed"
+msgstr "Dead entries removed"
+
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -2215,6 +2342,7 @@ msgstr "Device reading time mapped into the book's chapters. Hover the line for 
 msgid "Directories"
 msgstr "Directories"
 
+#: src/components/LibraryHealth.tsx
 #: src/components/WhatsNewPanel.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -2306,6 +2434,14 @@ msgstr "Drop books here or <0>click to browse</0>"
 #: src/pages/BinderyPage.tsx
 msgid "Drop files in the incoming folder to get started"
 msgstr "Drop files in the incoming folder to get started"
+
+#: src/components/LibraryHealth.tsx
+msgid "Dry Run All"
+msgstr "Dry Run All"
+
+#: src/components/LibraryHealth.tsx
+msgid "Dry Run Preview — {n} files would be moved"
+msgstr "Dry Run Preview — {n} files would be moved"
 
 #: src/pages/StatsPage.tsx
 msgid "Duplicate “{name}”"
@@ -2744,6 +2880,11 @@ msgstr "fantasy, action, romance"
 msgid "Fastest"
 msgstr "Fastest"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Fetch failed"
+msgstr "Fetch failed"
+
+#: src/components/BulkMetadataReviewModal.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Fetch Metadata"
 msgstr "Fetch Metadata"
@@ -2752,6 +2893,14 @@ msgstr "Fetch Metadata"
 msgid "Fetching metadata..."
 msgstr "Fetching metadata..."
 
+#: src/components/LibraryHealth.tsx
+msgid "File {id}: {err}"
+msgstr "File {id}: {err}"
+
+#: src/components/LibraryHealth.tsx
+msgid "file entry only"
+msgstr "file entry only"
+
 #: src/pages/AdminPage.tsx
 msgid "File is missing from disk"
 msgstr "File is missing from disk"
@@ -2759,6 +2908,10 @@ msgstr "File is missing from disk"
 #: src/components/SendToDeviceModal.tsx
 msgid "File size: {size}"
 msgstr "File size: {size}"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Fill missing fields only"
+msgstr "Fill missing fields only"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Filter…"
@@ -3325,6 +3478,10 @@ msgstr "Library"
 msgid "Library Completion"
 msgstr "Library Completion"
 
+#: src/components/LibraryHealth.tsx
+msgid "Library Health"
+msgstr "Library Health"
+
 #: src/pages/StatsPage.tsx
 msgid "Library size over time"
 msgstr "Library size over time"
@@ -3654,6 +3811,10 @@ msgstr "Most-read authors"
 msgid "Most-read books by time"
 msgstr "Most-read books by time"
 
+#: src/components/LibraryHealth.tsx
+msgid "Moved {n} files"
+msgstr "Moved {n} files"
+
 #: src/pages/SettingsPage.tsx
 msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
 msgstr "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
@@ -3886,6 +4047,10 @@ msgstr "No dismissed wishes."
 msgid "No duplicates found. Your library looks clean."
 msgstr "No duplicates found. Your library looks clean."
 
+#: src/components/LibraryHealth.tsx
+msgid "No empty folders found."
+msgstr "No empty folders found."
+
 #: src/pages/BinderyPage.tsx
 msgid "No files in the bindery"
 msgstr "No files in the bindery"
@@ -3918,6 +4083,10 @@ msgstr "No libraries"
 msgid "No library growth data."
 msgstr "No library growth data."
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "No match found"
+msgstr "No match found"
+
 #: src/pages/DashboardPage.tsx
 msgid "No matches"
 msgstr "No matches"
@@ -3933,6 +4102,10 @@ msgstr "No matching volumes in the library yet."
 #: src/pages/BinderyPage.tsx
 msgid "No metadata found"
 msgstr "No metadata found"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "no new fields"
+msgstr "no new fields"
 
 #: src/components/NotificationBell.tsx
 msgid "No notifications yet"
@@ -4235,6 +4408,10 @@ msgstr "Nothing matched “{search}”"
 msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 msgstr "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 
+#: src/components/LibraryHealth.tsx
+msgid "Nothing to remove."
+msgstr "Nothing to remove."
+
 #: src/components/NotificationBell.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Notifications"
@@ -4339,6 +4516,14 @@ msgstr "or use a custom source"
 #: src/pages/SettingsPage.tsx
 msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
 msgstr "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
+
+#: src/components/LibraryHealth.tsx
+msgid "Orphaned entries"
+msgstr "Orphaned entries"
+
+#: src/components/LibraryHealth.tsx
+msgid "Other"
+msgstr "Other"
 
 #: src/pages/BinderyPage.tsx
 msgid "Other files"
@@ -4603,6 +4788,18 @@ msgstr "Publication status"
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
 msgstr "Publisher"
+
+#: src/components/LibraryHealth.tsx
+msgid "Purge Empty Folders"
+msgstr "Purge Empty Folders"
+
+#: src/components/LibraryHealth.tsx
+msgid "Purge failed"
+msgstr "Purge failed"
+
+#: src/components/LibraryHealth.tsx
+msgid "Purging..."
+msgstr "Purging..."
 
 #: src/components/NotificationChannels.tsx
 msgid "Push Tome's notifications (wish fulfilled, new volume detected, reading goals) to ntfy, Gotify, or any webhook the moment they happen — the bell above only rings when you visit. Each channel can be tested, paused, or removed; tokens are stored server-side and never shown again."
@@ -4935,9 +5132,17 @@ msgstr "Remove all of this book's imported KOReader history? Web and manual sess
 msgid "Remove channel"
 msgstr "Remove channel"
 
+#: src/components/LibraryHealth.tsx
+msgid "Remove Dead Entries"
+msgstr "Remove Dead Entries"
+
 #: src/pages/SettingsPage.tsx
 msgid "Remove device"
 msgstr "Remove device"
+
+#: src/components/LibraryHealth.tsx
+msgid "Remove folders that contain only hidden files (.DS_Store, etc.)"
+msgstr "Remove folders that contain only hidden files (.DS_Store, etc.)"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Remove from library"
@@ -4959,6 +5164,18 @@ msgstr "Removed “{title}”"
 msgid "Removed a tile? Add it back — or add another copy."
 msgstr "Removed a tile? Add it back — or add another copy."
 
+#: src/components/LibraryHealth.tsx
+msgid "Removes the database entries only — no files are touched"
+msgstr "Removes the database entries only — no files are touched"
+
+#: src/components/LibraryHealth.tsx
+msgid "Removing dead entries failed"
+msgstr "Removing dead entries failed"
+
+#: src/components/LibraryHealth.tsx
+msgid "Removing..."
+msgstr "Removing..."
+
 #: src/pages/StatsPage.tsx
 msgid "Rename {name}"
 msgstr "Rename {name}"
@@ -4966,6 +5183,22 @@ msgstr "Rename {name}"
 #: src/pages/StatsPage.tsx
 msgid "Rename board"
 msgstr "Rename board"
+
+#: src/components/LibraryHealth.tsx
+msgid "Reorganization complete"
+msgstr "Reorganization complete"
+
+#: src/components/LibraryHealth.tsx
+msgid "Reorganize All"
+msgstr "Reorganize All"
+
+#: src/components/LibraryHealth.tsx
+msgid "Reorganize failed"
+msgstr "Reorganize failed"
+
+#: src/components/LibraryHealth.tsx
+msgid "Reorganize Selected ({n})"
+msgstr "Reorganize Selected ({n})"
 
 #: src/components/NotificationChannels.tsx
 msgid "request failed"
@@ -5026,6 +5259,10 @@ msgstr "Retry {n} failed"
 #: src/pages/BinderyPage.tsx
 msgid "Review"
 msgstr "Review"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Review {n} Uncertain"
+msgstr "Review {n} Uncertain"
 
 #: src/pages/BinderyPage.tsx
 msgid "Review all failed"
@@ -5146,6 +5383,11 @@ msgstr "Saving…"
 msgid "Scan complete"
 msgstr "Scan complete"
 
+#: src/components/LibraryHealth.tsx
+msgid "Scan failed"
+msgstr "Scan failed"
+
+#: src/components/LibraryHealth.tsx
 #: src/pages/AdminPage.tsx
 msgid "Scan Library"
 msgstr "Scan Library"
@@ -5161,6 +5403,10 @@ msgstr "Scanner"
 #: src/components/CoverAudit.tsx
 msgid "Scanning covers…"
 msgstr "Scanning covers…"
+
+#: src/components/LibraryHealth.tsx
+msgid "Scanning..."
+msgstr "Scanning..."
 
 #: src/pages/AdminPage.tsx
 msgid "Scanning…"
@@ -5223,6 +5469,10 @@ msgstr "Search Hardcover…"
 msgid "Search icons…"
 msgstr "Search icons…"
 
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Search manually"
+msgstr "Search manually"
+
 #: src/pages/BinderyPage.tsx
 msgid "Search query..."
 msgstr "Search query..."
@@ -5238,6 +5488,10 @@ msgstr "Search widgets…"
 #: src/pages/HighlightsPage.tsx
 msgid "Search your highlights…"
 msgstr "Search your highlights…"
+
+#: src/components/BulkMetadataReviewModal.tsx
+msgid "Searching {n} books…"
+msgstr "Searching {n} books…"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Searching…"
@@ -5386,6 +5640,10 @@ msgstr "Series Spotlight"
 #: src/pages/DashboardPage.tsx
 msgid "Series: {filterSeries}"
 msgstr "Series: {filterSeries}"
+
+#: src/components/LibraryHealth.tsx
+msgid "Series: {name}"
+msgstr "Series: {name}"
 
 #: src/pages/AdminPage.tsx
 msgid "Server"

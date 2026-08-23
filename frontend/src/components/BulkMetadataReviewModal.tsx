@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import { AlertCircle, Check, ChevronDown, ChevronUp, Loader2, Search, Sparkles, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -78,7 +80,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
       }
       setRowState(initial)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fetch failed')
+      setError(e instanceof Error ? e.message : t`Fetch failed`)
     } finally {
       setLoading(false)
     }
@@ -201,8 +203,8 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Sparkles className="h-4 w-4 text-primary" />
-            Fetch Metadata
-            <span className="text-muted-foreground font-normal">— {bookIds.length} books</span>
+            <Trans>Fetch Metadata</Trans>
+            {(() => { const n = bookIds.length; return <span className="text-muted-foreground font-normal"><Trans>— {n} books</Trans></span> })()}
           </div>
           <button onClick={handleClose} disabled={applying} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
             <X className="h-4 w-4" />
@@ -219,10 +221,10 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                 onChange={e => setFillMissingOnly(e.target.checked)}
                 className="rounded border-border"
               />
-              <span className="text-muted-foreground">Fill missing fields only</span>
+              <span className="text-muted-foreground"><Trans>Fill missing fields only</Trans></span>
             </label>
             <span className="text-xs text-muted-foreground ml-auto">
-              {matched} matched{needsReview > 0 ? ` · ${needsReview} needs review` : ''}{noMatch > 0 ? ` · ${noMatch} no match` : ''}
+              {t`${matched} matched`}{needsReview > 0 ? t` · ${needsReview} needs review` : ''}{noMatch > 0 ? t` · ${noMatch} no match` : ''}
             </span>
           </div>
         )}
@@ -232,10 +234,10 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           {doneState && (
             <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
               <Check className="w-12 h-12 text-success" />
-              <h2 className="text-lg font-semibold">Batch complete</h2>
+              <h2 className="text-lg font-semibold"><Trans>Batch complete</Trans></h2>
               <p className="text-sm text-muted-foreground">
-                Applied metadata to {doneState.applied} books.
-                {doneState.uncertain.length > 0 && ` ${doneState.uncertain.length} had no confident match.`}
+                {(() => { const n = doneState.applied; return <Trans>Applied metadata to {n} books.</Trans> })()}
+                {doneState.uncertain.length > 0 && (() => { const n = doneState.uncertain.length; return t` ${n} had no confident match.` })()}
               </p>
               <div className="flex items-center gap-2">
                 {doneState.uncertain.length > 0 && onReviewUncertain && (
@@ -243,14 +245,14 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                     onClick={() => { onReviewUncertain(doneState.uncertain); handleClose() }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
-                    Review {doneState.uncertain.length} Uncertain
+                    {(() => { const n = doneState.uncertain.length; return <Trans>Review {n} Uncertain</Trans> })()}
                   </button>
                 )}
                 <button
                   onClick={handleClose}
                   className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
-                  Close
+                  <Trans>Close</Trans>
                 </button>
               </div>
             </div>
@@ -259,7 +261,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           {!doneState && loading && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Searching {bookIds.length} books…</p>
+              {(() => { const n = bookIds.length; return <p className="text-sm text-muted-foreground"><Trans>Searching {n} books…</Trans></p> })()}
             </div>
           )}
 
@@ -324,6 +326,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-sm font-medium line-clamp-1">{match.title}</p>
                               <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
                                 {match.source === 'hardcover' ? 'Hardcover' : match.source === 'google_books' ? 'Google' : 'OpenLib'}
                               </span>
                             </div>
@@ -344,19 +347,19 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">+series</span>
                               )}
                               {!match.description && !match.cover_url && !match.publisher && !match.year && !match.series && (
-                                <span className="text-[10px] text-muted-foreground">no new fields</span>
+                                <span className="text-[10px] text-muted-foreground"><Trans>no new fields</Trans></span>
                               )}
                             </div>
                           </div>
                         </div>
                       ) : (
                         <div className="flex-1 flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground italic">No match found</span>
+                          <span className="text-xs text-muted-foreground italic"><Trans>No match found</Trans></span>
                           <button
                             onClick={() => { onManualSearch(result.book_id); handleClose() }}
                             className="text-xs text-primary hover:underline flex items-center gap-1"
                           >
-                            <Search className="h-3 w-3" /> Search manually
+                            <Search className="h-3 w-3" /> <Trans>Search manually</Trans>
                           </button>
                         </div>
                       )}
@@ -397,7 +400,8 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                               <span className="font-medium line-clamp-1">{c.title}</span>
                               {c.author && <span className="text-muted-foreground ml-1">· {c.author}</span>}
                               <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                                {c.source === 'hardcover' ? 'Hardcover' : c.source === 'google_books' ? 'Google' : 'OpenLib'}
+                                {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
+                              {c.source === 'hardcover' ? 'Hardcover' : c.source === 'google_books' ? 'Google' : 'OpenLib'}
                               </span>
                               {c.year && <span className="text-muted-foreground ml-1">· {c.year}</span>}
                               {c.description && <p className="text-muted-foreground line-clamp-1 mt-0.5">{c.description}</p>}
@@ -420,11 +424,11 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 shrink-0">
             {applying && progress ? (
               <span className="text-xs text-muted-foreground">
-                Applying {progress.done}/{progress.total}…
+                {(() => { const done = progress.done; const total = progress.total; return <Trans>Applying {done}/{total}…</Trans> })()}
               </span>
             ) : (
               <span className="text-xs text-muted-foreground">
-                {!loading && results.length > 0 ? `${approvedCount()} of ${results.length} approved` : ''}
+                {!loading && results.length > 0 ? (() => { const ok = approvedCount(); const total = results.length; return t`${ok} of ${total} approved` })() : ''}
               </span>
             )}
             <div className="flex items-center gap-2">
@@ -433,7 +437,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                 disabled={applying}
                 className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
-                Cancel
+                <Trans>Cancel</Trans>
               </button>
               <button
                 onClick={applyAll}
@@ -443,7 +447,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                 {applying
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <Check className="h-3.5 w-3.5" />}
-                Apply {approvedCount() > 0 ? approvedCount() : ''} Approved
+                {(() => { const n = approvedCount(); return n > 0 ? <Trans>Apply {n} Approved</Trans> : <Trans>Apply Approved</Trans> })()}
               </button>
             </div>
           </div>

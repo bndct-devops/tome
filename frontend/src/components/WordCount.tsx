@@ -13,6 +13,7 @@ import {
 const POLL_MS = 1000
 
 function formatBytes(n: number): string {
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- unit
   if (!n) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let i = 0
@@ -170,7 +171,7 @@ export function WordCountTab() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                Counting… {formatCount(state.done_files)} / {formatCount(state.total_files)}
+                {(() => { const done = formatCount(state.done_files); const total = formatCount(state.total_files); return <Trans>Counting… {done} / {total}</Trans> })()}
               </span>
               <span className="text-xs text-muted-foreground tabular-nums">{pct.toFixed(1)}%</span>
             </div>
