@@ -41,6 +41,14 @@ msgstr ""
 msgid " · {errs} error(s)"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid " · {n} ahead in this series"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid " · {n} errors"
+msgstr ""
+
 #: src/components/stats/SeriesCompletionGrid.tsx
 msgid " · {n} in progress"
 msgstr ""
@@ -51,6 +59,10 @@ msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
 msgid " · {n} not estimated yet"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid " · {n} not matched"
 msgstr ""
 
 #: src/pages/SharePage.tsx
@@ -130,6 +142,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "— keep existing —"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "— manage →"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -462,6 +478,10 @@ msgstr ""
 msgid "{count} sittings · {from} – {to}"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "{d} days ago"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{d}d ago"
 msgstr ""
@@ -554,6 +574,10 @@ msgstr ""
 msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "{h} hours ago"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h"
@@ -565,6 +589,10 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h {m}m"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "{h}h {mm}m"
 msgstr ""
 
 #: src/components/PositionHistoryModal.tsx
@@ -601,6 +629,7 @@ msgstr ""
 msgid "{label} only"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
 #: src/components/PositionHistoryModal.tsx
 msgid "{m} min ago"
 msgstr ""
@@ -608,6 +637,10 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{m}m"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "{m}m {rem}s"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -658,6 +691,10 @@ msgstr ""
 msgid "{n} selected — Clear"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "{n} synced"
+msgstr ""
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "{n} vols · "
 msgstr ""
@@ -702,6 +739,10 @@ msgstr ""
 msgid "{pct}% more reading this period"
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
+msgstr ""
+
 #: src/components/stats/widgets/habits.tsx
 msgid "{ppm} pages/min"
 msgstr ""
@@ -724,6 +765,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "{recent} in the last 7 days vs {prior} the week before"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "{s}s"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -799,6 +844,10 @@ msgstr ""
 msgid "{years}y ago"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "← Back to current"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "← Back to library"
 msgstr ""
@@ -853,6 +902,10 @@ msgstr ""
 
 #: src/components/ShareShelfModal.tsx
 msgid "1 day"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "1 hour ago"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -923,6 +976,7 @@ msgstr ""
 msgid "A share link is a read-only page anyone with the link can open — no account needed. It shows covers, titles, tags, descriptions, and your ratings and highlights for this book. It never exposes files: no downloads, no reading, no way in. Revoke it any time and the link dies instantly."
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "A sync is already running"
 msgstr ""
@@ -1179,6 +1233,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "All-time hours, pages, books, streak"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Already counted"
 msgstr ""
 
 #: src/components/SendButton.tsx
@@ -1544,6 +1602,10 @@ msgstr ""
 msgid "Browse and download your library from KOReader or any OPDS client."
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Browse library"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Browse your library"
 msgstr ""
@@ -1798,6 +1860,10 @@ msgstr ""
 msgid "Content Type"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Continue reading"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Continue Reading"
 msgstr ""
@@ -1838,12 +1904,20 @@ msgstr ""
 msgid "Could not create the goal — it may already exist."
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "Could not link Hardcover account"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Could not link SSO. Please try again."
 msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
 msgid "Could not load this scope."
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Could not parse ({n})"
 msgstr ""
 
 #: src/components/ReadingImport.tsx
@@ -1862,8 +1936,17 @@ msgstr ""
 msgid "Could not start SSO linking."
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Could not start sync"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Could not unlink"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Could not update sync setting"
 msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
@@ -1876,6 +1959,10 @@ msgstr ""
 
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Couldn't load the timeline."
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Counted"
 msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
@@ -1946,6 +2033,14 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Current password"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Current:"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Currently reading"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -2148,6 +2243,7 @@ msgstr ""
 msgid "Docs"
 msgstr ""
 
+#: src/components/WordCount.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
@@ -2299,6 +2395,10 @@ msgstr ""
 msgid "Edit User"
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "Elapsed {el} · ~{eta} left"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SetupPage.tsx
@@ -2334,6 +2434,10 @@ msgstr ""
 msgid "EPUB vs CBZ time split"
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "EPUBs"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Error"
 msgstr ""
@@ -2348,6 +2452,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Every EPUB is counted"
 msgstr ""
 
 #: src/components/ShareLinksOverview.tsx
@@ -2448,6 +2556,7 @@ msgstr ""
 msgid "failed"
 msgstr ""
 
+#: src/components/WordCount.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2548,6 +2657,10 @@ msgstr ""
 msgid "Failed to load wishlist"
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "Failed to load word-count status"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to log session"
 msgstr ""
@@ -2593,6 +2706,10 @@ msgstr ""
 
 #: src/components/SendToDeviceModal.tsx
 msgid "Failed to send"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Failed to start"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2791,6 +2908,10 @@ msgstr ""
 
 #: src/pages/WishlistPage.tsx
 msgid "Get notified when a new volume of a followed series is released."
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Get token"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -3056,6 +3177,7 @@ msgstr ""
 msgid "Jump to a book, series, author, or page…"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
 #: src/components/NotificationBell.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -3066,6 +3188,7 @@ msgstr ""
 msgid "Just now"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Just started"
 msgstr ""
@@ -3140,6 +3263,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Last Synced"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "last synced {when}"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -3228,6 +3355,10 @@ msgstr ""
 msgid "Link"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "Link account"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Link KOReader sync…"
 msgstr ""
@@ -3250,6 +3381,14 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Linked"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Linked as @{username} — initial sync started"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Linked as <0>@{username}</0>"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3277,6 +3416,7 @@ msgstr ""
 msgid "Loading..."
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
@@ -3642,6 +3782,10 @@ msgstr ""
 msgid "Next: Vol {v} · {d}"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Next: Vol {v} →"
+msgstr ""
+
 #: src/components/stats/HourDowHeatmap.tsx
 msgid "No activity"
 msgstr ""
@@ -3720,6 +3864,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "No description yet for this volume."
 msgstr ""
 
 #: src/components/SendToDeviceModal.tsx
@@ -4024,6 +4172,10 @@ msgstr ""
 msgid "not read"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Not started yet"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Not synced yet"
 msgstr ""
@@ -4070,6 +4222,7 @@ msgstr ""
 msgid "Nothing highlighted on this day — yet."
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Nothing in progress"
 msgstr ""
@@ -4262,6 +4415,10 @@ msgstr ""
 msgid "Pages Turned"
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "Parse each EPUB to store its word count. New uploads get this automatically — this backfills books added before the feature. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats. PDF and CBZ are skipped."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "password"
 msgstr ""
@@ -4293,6 +4450,10 @@ msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Passwords do not match."
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Paste your Hardcover API token"
 msgstr ""
 
 #: src/components/NotificationChannels.tsx
@@ -4416,6 +4577,7 @@ msgstr ""
 msgid "Profile updated"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Progress"
@@ -4444,6 +4606,10 @@ msgstr ""
 
 #: src/components/NotificationChannels.tsx
 msgid "Push Tome's notifications (wish fulfilled, new volume detected, reading goals) to ntfy, Gotify, or any webhook the moment they happen — the bell above only rings when you visit. Each channel can be tested, paused, or removed; tokens are stored server-side and never shown again."
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Push your ratings and reading progress to your Hardcover profile — nothing is ever deleted there. Your Hardcover Want to Read shelf syncs both ways. Needs your personal API token (separate from the server's metadata token)."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -4531,6 +4697,14 @@ msgstr ""
 msgid "Rating vs Time Spent"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "Ratings push shortly after you change them; progress goes out in batches."
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Re-link"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Re-match"
 msgstr ""
@@ -4573,6 +4747,10 @@ msgstr ""
 
 #: src/components/BookCard.tsx
 msgid "Read book"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Read on the web"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -4835,6 +5013,14 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Resume {volLabel}"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Resume reading"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Retry {n} failed"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -5490,12 +5676,20 @@ msgstr ""
 msgid "Start {volLabel}"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Start a book and Focus mode will pick up where you left off"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Start from default"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "Start matching this book again"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Start reading"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -5521,6 +5715,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Status: {filterStatusLabel}"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Stop"
 msgstr ""
 
 #: src/components/SeriesFollowButton.tsx
@@ -5552,6 +5750,11 @@ msgstr ""
 msgid "Sun"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "Sync automatically"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Sync now"
 msgstr ""
@@ -5564,10 +5767,15 @@ msgstr ""
 msgid "Sync started"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "Sync started — pushing ratings and progress, syncing Want to Read both ways"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Sync Status"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Synced"
 msgstr ""
@@ -5576,10 +5784,27 @@ msgstr ""
 msgid "Synced document"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Synced from {device}"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Synced from Kindle"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Synced from Kobo"
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Synced from KOReader"
+msgstr ""
+
 #: src/pages/HighlightsPage.tsx
 msgid "Synced to Tome {when}"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Syncing…"
 msgstr ""
@@ -5798,6 +6023,10 @@ msgstr ""
 msgid "Title is required."
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "To count"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -5835,6 +6064,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "TomeSync Plugin"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Took {dur}"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -5958,6 +6191,10 @@ msgstr ""
 msgid "unknown device"
 msgstr ""
 
+#: src/components/HardcoverSync.tsx
+msgid "Unlink"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "unread"
@@ -5981,6 +6218,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Unzip the file and copy via SSH (or USB). Remove the old plugin first to ensure a clean install."
+msgstr ""
+
+#: src/components/home/FocusMode.tsx
+msgid "Up next"
 msgstr ""
 
 #: src/components/UpcomingReleases.tsx
@@ -6134,6 +6375,10 @@ msgstr ""
 msgid "Volume"
 msgstr ""
 
+#: src/components/home/FocusMode.tsx
+msgid "Volume <0>{v}</0>"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr ""
@@ -6270,12 +6515,32 @@ msgstr ""
 msgid "Word count at your measured {wpm} wpm"
 msgstr ""
 
+#: src/components/WordCount.tsx
+msgid "Word count complete"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Word count failed"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Word count stopped"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Word counts"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Word Counts"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Words"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Words found"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -6333,6 +6598,10 @@ msgstr ""
 
 #: src/lib/backlog.ts
 msgid "Your average time per finished book of this type (no word count)"
+msgstr ""
+
+#: src/components/HardcoverSync.tsx
+msgid "Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing."
 msgstr ""
 
 #: src/pages/StatsPage.tsx

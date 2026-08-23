@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import { useNavigate } from 'react-router-dom'
 import { Play, RefreshCw, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -50,26 +52,26 @@ function relativeTime(iso: string | null): string {
   if (!iso) return ''
   const then = new Date(iso)
   const diff = Math.floor((Date.now() - then.getTime()) / 1000)
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
-  if (diff < 7200) return '1 hour ago'
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`
+  if (diff < 60) return t`just now`
+  if (diff < 3600) { const m = Math.floor(diff / 60); return t`${m} min ago` }
+  if (diff < 7200) return t`1 hour ago`
+  if (diff < 86400) { const h = Math.floor(diff / 3600); return t`${h} hours ago` }
   if (diff < 172800) return 'yesterday'
   // Past a month, "412 days ago" reads worse than the date itself.
   if (diff >= 30 * 86400) {
     return `on ${then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
   }
-  return `${Math.floor(diff / 86400)} days ago`
+  { const d = Math.floor(diff / 86400); return t`${d} days ago` }
 }
 
 function deviceLabel(device: string | null): string {
-  if (!device) return 'Synced'
+  if (!device) return t`Synced`
   const d = device.toLowerCase()
-  if (d === 'web') return 'Read on the web'
-  if (d.includes('kindle')) return 'Synced from Kindle'
-  if (d.includes('kobo')) return 'Synced from Kobo'
-  if (d.includes('koreader')) return 'Synced from KOReader'
-  return `Synced from ${device}`
+  if (d === 'web') return t`Read on the web`
+  if (d.includes('kindle')) return t`Synced from Kindle`
+  if (d.includes('kobo')) return t`Synced from Kobo`
+  if (d.includes('koreader')) return t`Synced from KOReader`
+  return t`Synced from ${device}`
 }
 
 const cover = (id: number) => `/api/books/${id}/cover`
@@ -322,15 +324,15 @@ export function FocusMode() {
           <BookOpen className="w-8 h-8 text-primary/40" />
         </div>
         <div>
-          <p className="text-base font-medium text-foreground">Nothing in progress</p>
-          <p className="text-sm text-muted-foreground mt-1">Start a book and Focus mode will pick up where you left off</p>
+          <p className="text-base font-medium text-foreground"><Trans>Nothing in progress</Trans></p>
+          <p className="text-sm text-muted-foreground mt-1"><Trans>Start a book and Focus mode will pick up where you left off</Trans></p>
         </div>
         <button
           type="button"
           onClick={() => navigate('/?tab=books')}
           className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
         >
-          Browse library
+          <Trans>Browse library</Trans>
         </button>
       </div>
     )
@@ -367,7 +369,7 @@ export function FocusMode() {
         {/* No series name here — the h1 right below IS the series (same link);
             repeating it 40px apart just duplicated the title. */}
         <div className="flex items-center gap-2 text-[12px] font-bold tracking-[0.12em] uppercase text-muted-foreground">
-          {onCurrent ? 'Continue reading' : 'Up next'}
+          {onCurrent ? t`Continue reading` : t`Up next`}
         </div>
 
         <h1 className="font-display text-3xl sm:text-4xl font-bold leading-[1.05] tracking-tight mt-3 text-foreground">
@@ -378,17 +380,18 @@ export function FocusMode() {
 
         {b.series && sel.series_index != null && (
           <div className="mt-2.5 text-[15px] font-semibold text-foreground">
-            Volume <span className="text-primary">{fmtVol(sel.series_index)}</span>
-            {onCurrent && data.ahead_count > 0 && (
-              <span className="text-muted-foreground font-medium"> · {data.ahead_count} ahead in this series</span>
-            )}
+            {(() => { const v = fmtVol(sel.series_index); return <Trans>Volume <span className="text-primary">{v}</span></Trans> })()}
+            {onCurrent && data.ahead_count > 0 && (() => {
+              const n = data.ahead_count
+              return <span className="text-muted-foreground font-medium"><Trans> · {n} ahead in this series</Trans></span>
+            })()}
           </div>
         )}
         {b.author && <div className="mt-1 text-[15px] text-muted-foreground">{b.author}</div>}
 
         {/* Description swaps with the selected volume. */}
         <p key={sel.book_id} className="mt-5 text-[15px] leading-relaxed text-muted-foreground line-clamp-4 min-h-[6rem] animate-[fadeIn_350ms_ease]">
-          {sel.description || 'No description yet for this volume.'}
+          {sel.description || t`No description yet for this volume.`}
         </p>
 
         {/* Progress — only the in-progress current book has it. A book that's
@@ -397,7 +400,7 @@ export function FocusMode() {
           b.progress > 0 ? (
             <div className="mt-6">
               <div className="flex items-baseline justify-between mb-2">
-                <span className="text-[13px] text-muted-foreground">Progress</span>
+                <span className="text-[13px] text-muted-foreground"><Trans>Progress</Trans></span>
                 <span className="text-base font-bold tabular-nums text-foreground">{Math.round(b.progress)}%</span>
               </div>
               <div className="h-[7px] rounded-full bg-muted overflow-hidden">
@@ -405,10 +408,10 @@ export function FocusMode() {
               </div>
             </div>
           ) : (
-            <div className="mt-6 text-[13px] font-medium text-muted-foreground">Just started</div>
+            <div className="mt-6 text-[13px] font-medium text-muted-foreground"><Trans>Just started</Trans></div>
           )
         ) : (
-          <div className="mt-6 text-[13px] text-muted-foreground">Not started yet</div>
+          <div className="mt-6 text-[13px] text-muted-foreground"><Trans>Not started yet</Trans></div>
         )}
 
         {/* Sync chip — the standout beat, current book only. */}
@@ -428,7 +431,7 @@ export function FocusMode() {
             className="inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-3.5 text-[16px] font-bold hover:bg-primary/90 transition-colors"
           >
             <Play className="w-[17px] h-[17px] fill-current" />
-            {onCurrent ? 'Resume reading' : 'Start reading'}
+            {onCurrent ? t`Resume reading` : t`Start reading`}
           </button>
           {onCurrent && items.length > 1 ? (
             <button
@@ -436,7 +439,7 @@ export function FocusMode() {
               onClick={() => setSelected(1)}
               className="text-[14px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
-              Next: Vol {fmtVol(items[1].series_index)} →
+              {(() => { const v = fmtVol(items[1].series_index); return <Trans>Next: Vol {v} →</Trans> })()}
             </button>
           ) : !onCurrent ? (
             <button
@@ -444,7 +447,7 @@ export function FocusMode() {
               onClick={() => setSelected(0)}
               className="text-[14px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
-              ← Back to current
+              <Trans>← Back to current</Trans>
             </button>
           ) : null}
         </div>
@@ -457,7 +460,7 @@ export function FocusMode() {
       {data.reading.length > 1 && (
         <div className="w-full max-w-[1080px] mx-auto pt-8 mt-2 border-t border-border/60">
           <div className="text-[12px] font-bold tracking-[0.12em] uppercase text-muted-foreground mb-3">
-            Currently reading
+            <Trans>Currently reading</Trans>
           </div>
           {/* px/py padding gives the active ring room — overflow-x-auto would
               otherwise clip the ring at the container's edges. */}

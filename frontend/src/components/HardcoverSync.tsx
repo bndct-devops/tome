@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import { Link } from 'react-router-dom'
 import { BookMarked, ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -65,11 +67,11 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
     setBusy(true)
     try {
       const r = await api.post<{ username: string }>('/hardcover/link', { token: token.trim() })
-      toast.success(`Linked as @${r.username} — initial sync started`)
+      { const username = r.username; toast.success(t`Linked as @${username} — initial sync started`) }
       setToken('')
       await refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not link Hardcover account')
+      toast.error(err instanceof Error ? err.message : t`Could not link Hardcover account`)
     } finally {
       setBusy(false)
     }
@@ -81,7 +83,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
       await api.delete('/hardcover/link')
       await refresh()
     } catch {
-      toast.error('Could not unlink')
+      toast.error(t`Could not unlink`)
     } finally {
       setBusy(false)
     }
@@ -94,7 +96,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
       await api.put('/hardcover/settings', { sync_enabled: next })
     } catch {
       setStatus(prev)
-      toast.error('Could not update sync setting')
+      toast.error(t`Could not update sync setting`)
     }
   }
 
@@ -102,13 +104,13 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
     try {
       const r = await api.post<{ started: boolean }>('/hardcover/sync-now', {})
       if (r.started) {
-        toast.info('Sync started — pushing ratings and progress, syncing Want to Read both ways')
+        toast.info(t`Sync started — pushing ratings and progress, syncing Want to Read both ways`)
         setStatus(s => s ? { ...s, sync_running: true } : s)
       } else {
-        toast.info('A sync is already running')
+        toast.info(t`A sync is already running`)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not start sync')
+      toast.error(err instanceof Error ? err.message : t`Could not start sync`)
     }
   }
 
@@ -123,11 +125,12 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
               <BookMarked className="w-3.5 h-3.5 text-primary" />
             </div>
             <div>
+              {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
               <p className="text-sm font-medium text-foreground">Hardcover Sync</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Push your ratings and reading progress to your Hardcover profile — nothing
+                <Trans>Push your ratings and reading progress to your Hardcover profile — nothing
                 is ever deleted there. Your Hardcover Want to Read shelf syncs both ways.
-                Needs your personal API token (separate from the server's metadata token).
+                Needs your personal API token (separate from the server's metadata token).</Trans>
               </p>
             </div>
           </div>
@@ -137,13 +140,13 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
           >
-            Get token <ExternalLink className="w-3 h-3" />
+            <Trans>Get token</Trans> <ExternalLink className="w-3 h-3" />
           </a>
         </div>
 
         {!status ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> <Trans>Loading…</Trans>
           </div>
         ) : !status.linked || expired ? (
           <div className="space-y-3">
@@ -151,7 +154,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
               <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
                 <p className="text-xs text-warning font-medium">
-                  Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing.
+                  <Trans>Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing.</Trans>
                 </p>
               </div>
             )}
@@ -161,7 +164,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 value={token}
                 onChange={e => setToken(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void link() }}
-                placeholder="Paste your Hardcover API token"
+                placeholder={t`Paste your Hardcover API token`}
                 className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
               />
               <button
@@ -170,7 +173,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity inline-flex items-center gap-2"
               >
                 {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {expired ? 'Re-link' : 'Link account'}
+                {expired ? t`Re-link` : t`Link account`}
               </button>
             </div>
           </div>
@@ -178,27 +181,27 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-foreground">
-                Linked as <span className="font-medium">@{status.username}</span>
-                {status.last_synced_at && (
+                {(() => { const username = status.username; return <Trans>Linked as <span className="font-medium">@{username}</span></Trans> })()}
+                {status.last_synced_at && (() => { const when = new Date(status.last_synced_at + 'Z').toLocaleString(); return (
                   <span className="ml-2 text-xs text-muted-foreground">
-                    last synced {new Date(status.last_synced_at + 'Z').toLocaleString()}
+                    <Trans>last synced {when}</Trans>
                   </span>
-                )}
+                ) })()}
               </p>
               <button
                 onClick={() => void unlink()}
                 disabled={busy}
                 className="text-xs text-muted-foreground hover:text-destructive transition-colors"
               >
-                Unlink
+                <Trans>Unlink</Trans>
               </button>
             </div>
 
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-foreground">Sync automatically</p>
+                <p className="text-sm text-foreground"><Trans>Sync automatically</Trans></p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Ratings push shortly after you change them; progress goes out in batches.
+                  <Trans>Ratings push shortly after you change them; progress goes out in batches.</Trans>
                 </p>
               </div>
               <button
@@ -224,14 +227,14 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={cn('w-3.5 h-3.5', status.sync_running && 'animate-spin')} />
-                {status.sync_running ? 'Syncing…' : 'Sync now'}
+                {status.sync_running ? t`Syncing…` : t`Sync now`}
               </button>
               {/* Match auditing/fixing lives on the dedicated page */}
               <Link to="/hardcover" className="text-xs text-primary hover:underline">
-                {status.matched_count ?? 0} synced
-                {(status.unmatched_count ?? 0) > 0 && ` · ${status.unmatched_count} not matched`}
-                {(status.error_count ?? 0) > 0 && ` · ${status.error_count} errors`}
-                {' '}— manage →
+                {(() => { const n = status.matched_count ?? 0; return t`${n} synced` })()}
+                {(status.unmatched_count ?? 0) > 0 && (() => { const n = status.unmatched_count ?? 0; return t` · ${n} not matched` })()}
+                {(status.error_count ?? 0) > 0 && (() => { const n = status.error_count ?? 0; return t` · ${n} errors` })()}
+                {' '}<Trans>— manage →</Trans>
               </Link>
             </div>
           </div>
