@@ -28,7 +28,7 @@ export default defineConfig([
     files: ['src/pages/**/*.tsx', 'src/components/**/*.tsx'],
     plugins: { lingui },
     rules: {
-      'lingui/no-unlocalized-strings': ['warn', {
+      'lingui/no-unlocalized-strings': ['error', {
         ignore: [
           '^(?![A-Z])\\S+$',        // single lowercase tokens: keys, classes, slugs
           '^[A-Z0-9_-]+$',            // CONSTANTS
