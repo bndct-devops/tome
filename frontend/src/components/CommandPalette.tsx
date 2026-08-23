@@ -13,6 +13,9 @@ import {
 import { api } from '@/lib/api'
 import { useAuth, isAdmin } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
+import { t, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 
 interface BookHit {
   id: number
@@ -37,15 +40,19 @@ interface Item {
   bookId?: number
 }
 
+const GROUP_LABEL: Record<string, MessageDescriptor> = {
+  Books: msg`Books`, Series: msg`Series`, Authors: msg`Authors`, Actions: msg`Actions`,
+}
+
 const NAV_ACTIONS = (admin: boolean): { label: string; to: string; icon: React.ReactNode }[] => [
-  { label: 'Home', to: '/', icon: <Compass className="h-4 w-4" /> },
-  { label: 'All Books', to: '/?tab=books', icon: <LibraryIcon className="h-4 w-4" /> },
-  { label: 'Series', to: '/?tab=series', icon: <Layers className="h-4 w-4" /> },
-  { label: 'Reading Stats', to: '/stats', icon: <ChartColumn className="h-4 w-4" /> },
-  { label: 'Highlights', to: '/highlights', icon: <Quote className="h-4 w-4" /> },
-  { label: 'Wishlist', to: '/wishlist', icon: <Sparkles className="h-4 w-4" /> },
-  { label: 'Settings', to: '/settings', icon: <Settings className="h-4 w-4" /> },
-  ...(admin ? [{ label: 'Admin', to: '/admin', icon: <Shield className="h-4 w-4" /> }] : []),
+  { label: i18n._(msg`Home`), to: '/', icon: <Compass className="h-4 w-4" /> },
+  { label: i18n._(msg`All Books`), to: '/?tab=books', icon: <LibraryIcon className="h-4 w-4" /> },
+  { label: i18n._(msg`Series`), to: '/?tab=series', icon: <Layers className="h-4 w-4" /> },
+  { label: i18n._(msg`Reading Stats`), to: '/stats', icon: <ChartColumn className="h-4 w-4" /> },
+  { label: i18n._(msg`Highlights`), to: '/highlights', icon: <Quote className="h-4 w-4" /> },
+  { label: i18n._(msg`Wishlist`), to: '/wishlist', icon: <Sparkles className="h-4 w-4" /> },
+  { label: i18n._(msg`Settings`), to: '/settings', icon: <Settings className="h-4 w-4" /> },
+  ...(admin ? [{ label: i18n._(msg`Admin`), to: '/admin', icon: <Shield className="h-4 w-4" /> }] : []),
 ]
 
 /** startsWith beats includes; shorter names beat longer at equal rank. */
@@ -176,6 +183,7 @@ export function CommandPalette() {
 
   if (!open) return null
 
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- group keys, labels via GROUP_LABEL
   const groups: Item['group'][] = ['Books', 'Series', 'Authors', 'Actions']
 
   return createPortal(
@@ -201,7 +209,7 @@ export function CommandPalette() {
                   go(items[selected])
                 }
               }}
-              placeholder="Jump to a book, series, author, or page…"
+              placeholder={t`Jump to a book, series, author, or page…`}
               className="h-12 w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
             <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
@@ -210,7 +218,7 @@ export function CommandPalette() {
           </div>
           <div className="max-h-[50vh] overflow-y-auto overscroll-contain py-1.5">
             {items.length === 0 && (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">No matches.</p>
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t`No matches.`}</p>
             )}
             {groups.map((g) => {
               const groupItems = items.filter((i) => i.group === g)
@@ -218,7 +226,7 @@ export function CommandPalette() {
               return (
                 <div key={g}>
                   <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {g}
+                    {i18n._(GROUP_LABEL[g])}
                   </p>
                   {groupItems.map((item) => {
                     const idx = items.indexOf(item)

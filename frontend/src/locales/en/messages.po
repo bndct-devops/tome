@@ -13,6 +13,10 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#: src/components/InstanceBackup.tsx
+msgid " — backup from {when} (v{v}, {users} users, {books} books)."
+msgstr " — backup from {when} (v{v}, {users} users, {books} books)."
+
 #: src/pages/BookDetailPage.tsx
 msgid " — click for sessions"
 msgstr " — click for sessions"
@@ -61,10 +65,15 @@ msgstr " · {n} volumes"
 msgid " · {prog}% in"
 msgstr " · {prog}% in"
 
+#: src/components/ReadingImport.tsx
+msgid " · {r} stars"
+msgstr " · {r} stars"
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid " · books without a word count use your average for that type"
 msgstr " · books without a word count use your average for that type"
 
+#: src/components/ReadingImport.tsx
 #: src/components/stats/TimelineRibbon.tsx
 #: src/pages/SharePage.tsx
 msgid " · finished {d}"
@@ -77,6 +86,14 @@ msgstr " · last synced {when}"
 #: src/components/stats/widgets/wordstats.tsx
 msgid " · longest <0>{title}</0> ({words})"
 msgstr " · longest <0>{title}</0> ({words})"
+
+#: src/components/ReadingImport.tsx
+msgid " · matched by {via}"
+msgstr " · matched by {via}"
+
+#: src/components/ReadingImport.tsx
+msgid " · nothing to fill (already tracked)"
+msgstr " · nothing to fill (already tracked)"
 
 #: src/pages/BinderyPage.tsx
 msgid " · reviewed"
@@ -196,6 +213,11 @@ msgstr "{0, plural, one {# book, none estimated yet.} other {# books, none estim
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
 msgstr "{0, plural, one {# book} other {# books}}"
+
+#. placeholder {0}: candidates.length
+#: src/components/CoverPickerModal.tsx
+msgid "{0, plural, one {# cover found — click to apply} other {# covers found — click to apply}}"
+msgstr "{0, plural, one {# cover found — click to apply} other {# covers found — click to apply}}"
 
 #. placeholder {0}: hover.b.days.length
 #: src/components/stats/TimelineRibbon.tsx
@@ -374,6 +396,10 @@ msgstr "{added} added · {skipped} skipped"
 msgid "{base} · Vol. {idx}"
 msgstr "{base} · Vol. {idx}"
 
+#: src/lib/goals.ts
+msgid "{behind} behind pace"
+msgstr "{behind} behind pace"
+
 #: src/pages/HighlightsPage.tsx
 msgid "{books, plural, one {{total} from # book} other {{total} from # books}}"
 msgstr "{books, plural, one {{total} from # book} other {{total} from # books}}"
@@ -417,6 +443,10 @@ msgstr "{deleted, plural, one {Deleted # book} other {Deleted # books}}"
 #: src/pages/BookDetailPage.tsx
 msgid "{deltaStr}% vs last week"
 msgstr "{deltaStr}% vs last week"
+
+#: src/lib/goals.ts
+msgid "{diff} ahead of pace"
+msgstr "{diff} ahead of pace"
 
 #: src/pages/BinderyPage.tsx
 msgid "{diffDays}d ago"
@@ -466,6 +496,10 @@ msgstr "{fin} of {st} started"
 msgid "{fin} of {st} started · all time"
 msgstr "{fin} of {st} started · all time"
 
+#: src/components/CoverAudit.tsx
+msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
+msgstr "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h"
@@ -481,6 +515,10 @@ msgstr "{h}h {m}m"
 #: src/components/PositionHistoryModal.tsx
 msgid "{h}h ago"
 msgstr "{h}h ago"
+
+#: src/lib/goals.ts
+msgid "{hit}/7 days this week"
+msgstr "{hit}/7 days this week"
 
 #: src/pages/SettingsPage.tsx
 msgid "{hours}h ago"
@@ -499,6 +537,10 @@ msgstr "{imp} imported + {inc} incoming"
 #: src/pages/BinderyPage.tsx
 msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "{label} only"
+msgstr "{label} only"
 
 #: src/components/PositionHistoryModal.tsx
 msgid "{m} min ago"
@@ -633,6 +675,10 @@ msgstr "{themeName} theme"
 msgid "{title} — {dur} between {from} and {to}"
 msgstr "{title} — {dur} between {from} and {to}"
 
+#: src/lib/goals.ts
+msgid "{toGo} to go"
+msgstr "{toGo} to go"
+
 #: src/pages/DashboardPage.tsx
 msgid "{total, plural, one {# volume} other {# volumes}}"
 msgstr "{total, plural, one {# volume} other {# volumes}}"
@@ -652,6 +698,10 @@ msgstr "{totalCount, plural, one {# result for \"{search}\"} other {# results fo
 #: src/pages/BookDetailPage.tsx
 msgid "{words} words"
 msgstr "{words} words"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "{y} Challenge"
+msgstr "{y} Challenge"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -818,6 +868,10 @@ msgstr "Account & Security"
 msgid "Action failed"
 msgstr "Action failed"
 
+#: src/components/CommandPalette.tsx
+msgid "Actions"
+msgstr "Actions"
+
 #: src/pages/AdminPage.tsx
 msgid "Active"
 msgstr "Active"
@@ -929,6 +983,7 @@ msgstr "Added {timeAgo}"
 msgid "Added to Want to Read"
 msgstr "Added to Want to Read"
 
+#: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 msgid "Admin"
@@ -952,6 +1007,10 @@ msgstr "All"
 msgid "All {loadedCount} books loaded"
 msgstr "All {loadedCount} books loaded"
 
+#: src/components/CoverAudit.tsx
+msgid "All {scanned} covers look healthy."
+msgstr "All {scanned} covers look healthy."
+
 #: src/pages/DashboardPage.tsx
 msgid "All →"
 msgstr "All →"
@@ -960,10 +1019,12 @@ msgstr "All →"
 msgid "All actions"
 msgstr "All actions"
 
+#: src/components/stats/GoalWidget.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "All books"
 msgstr "All books"
 
+#: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
 msgid "All Books"
 msgstr "All Books"
@@ -1046,13 +1107,26 @@ msgstr "Application token (required)"
 msgid "Applied to volumes you haven’t rated"
 msgstr "Applied to volumes you haven’t rated"
 
+#: src/components/ReadingImport.tsx
+msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
+msgstr "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
+
+#: src/components/CoverPickerModal.tsx
 #: src/pages/StatsPage.tsx
 msgid "Apply"
 msgstr "Apply"
 
+#: src/components/ReadingImport.tsx
+msgid "Apply {n} selected"
+msgstr "Apply {n} selected"
+
 #: src/pages/AdminPage.tsx
 msgid "Apply All ({n})"
 msgstr "Apply All ({n})"
+
+#: src/components/CoverAudit.tsx
+msgid "Apply the first cover-search candidate"
+msgstr "Apply the first cover-search candidate"
 
 #: src/pages/BinderyPage.tsx
 msgid "Apply to all"
@@ -1061,6 +1135,10 @@ msgstr "Apply to all"
 #: src/pages/AdminPage.tsx
 msgid "Applying {done}/{total}…"
 msgstr "Applying {done}/{total}…"
+
+#: src/components/ReadingImport.tsx
+msgid "Applying failed — nothing was changed."
+msgstr "Applying failed — nothing was changed."
 
 #: src/pages/StatsPage.tsx
 msgid "Are you getting faster?"
@@ -1116,6 +1194,10 @@ msgstr "Authorize this code from another device"
 msgid "Authorizing..."
 msgstr "Authorizing..."
 
+#: src/components/CommandPalette.tsx
+msgid "Authors"
+msgstr "Authors"
+
 #: src/pages/StatsPage.tsx
 msgid "Auto"
 msgstr "Auto"
@@ -1123,6 +1205,10 @@ msgstr "Auto"
 #: src/pages/StatsPage.tsx
 msgid "Auto-fit height"
 msgstr "Auto-fit height"
+
+#: src/components/CoverAudit.tsx
+msgid "Auto-fix {missingCount} missing"
+msgstr "Auto-fix {missingCount} missing"
 
 #: src/pages/StatsPage.tsx
 msgid "average pace"
@@ -1172,6 +1258,10 @@ msgstr "Backlog · {scope}"
 msgid "Backup"
 msgstr "Backup"
 
+#: src/components/InstanceBackup.tsx
+msgid "Backup failed"
+msgstr "Backup failed"
+
 #: src/pages/StatsPage.tsx
 msgid "Best Day"
 msgstr "Best Day"
@@ -1210,6 +1300,7 @@ msgstr "Black"
 msgid "book"
 msgstr "book"
 
+#: src/components/CoverAudit.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Book"
@@ -1255,6 +1346,11 @@ msgstr "Book type applied to {n} files"
 msgid "Book Types"
 msgstr "Book Types"
 
+#: src/lib/goals.ts
+msgid "books"
+msgstr "books"
+
+#: src/components/CommandPalette.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -1281,6 +1377,14 @@ msgstr "Books in progress, with covers"
 msgid "Books Started"
 msgstr "Books Started"
 
+#: src/lib/goals.ts
+msgid "Books this month"
+msgstr "Books this month"
+
+#: src/lib/goals.ts
+msgid "Books this year"
+msgstr "Books this year"
+
 #: src/pages/StatsPage.tsx
 msgid "Books whose pages you revisit"
 msgstr "Books whose pages you revisit"
@@ -1288,6 +1392,10 @@ msgstr "Books whose pages you revisit"
 #: src/pages/DashboardPage.tsx
 msgid "Books without a series"
 msgstr "Books without a series"
+
+#: src/components/ReadingImport.tsx
+msgid "Bring your reading history from Goodreads or StoryGraph: upload their CSV export, review what matches your library, apply. Importing only fills gaps — it never overwrites a status, rating, review, or finish date you already have. \"To read\" shelves are skipped (that's what the wishlist is for)."
+msgstr "Bring your reading history from Goodreads or StoryGraph: upload their CSV export, review what matches your library, apply. Importing only fills gaps — it never overwrites a status, rating, review, or finish date you already have. \"To read\" shelves are skipped (that's what the wishlist is for)."
 
 #: src/pages/SettingsPage.tsx
 msgid "Browse and download your library from KOReader or any OPDS client."
@@ -1298,7 +1406,10 @@ msgid "Browse your library"
 msgstr "Browse your library"
 
 #: src/components/EntityModal.tsx
+#: src/components/InstanceBackup.tsx
+#: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
+#: src/components/stats/GoalWidget.tsx
 #: src/components/UploadModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -1309,6 +1420,10 @@ msgstr "Browse your library"
 #: src/pages/SettingsPage.tsx
 msgid "Cancel"
 msgstr "Cancel"
+
+#: src/components/InstanceBackup.tsx
+msgid "Cancel restore"
+msgstr "Cancel restore"
 
 #: src/pages/StatsPage.tsx
 msgid "Category Breakdown"
@@ -1325,6 +1440,10 @@ msgstr "ch. {n}"
 #: src/pages/BookDetailPage.tsx
 msgid "ch. 1"
 msgstr "ch. 1"
+
+#: src/components/CoverPickerModal.tsx
+msgid "Change Cover"
+msgstr "Change Cover"
 
 #: src/pages/SettingsPage.tsx
 msgid "Change Password"
@@ -1346,6 +1465,14 @@ msgstr "Chapters"
 #: src/pages/StatsPage.tsx
 msgid "Chart type"
 msgstr "Chart type"
+
+#: src/components/ReadingImport.tsx
+msgid "Choose CSV export"
+msgstr "Choose CSV export"
+
+#: src/components/CoverPickerModal.tsx
+msgid "Choose file…"
+msgstr "Choose file…"
 
 #: src/components/Sidebar.tsx
 msgid "Choose icon"
@@ -1397,6 +1524,7 @@ msgstr "Click for details"
 
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareShelfModal.tsx
+#: src/components/stats/GoalWidget.tsx
 #: src/components/UploadModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
@@ -1547,6 +1675,10 @@ msgstr "Copy token"
 msgid "Core"
 msgstr "Core"
 
+#: src/components/stats/GoalWidget.tsx
+msgid "Could not create the goal — it may already exist."
+msgstr "Could not create the goal — it may already exist."
+
 #: src/pages/SettingsPage.tsx
 msgid "Could not link SSO. Please try again."
 msgstr "Could not link SSO. Please try again."
@@ -1554,6 +1686,10 @@ msgstr "Could not link SSO. Please try again."
 #: src/components/stats/BacklogEstimate.tsx
 msgid "Could not load this scope."
 msgstr "Could not load this scope."
+
+#: src/components/ReadingImport.tsx
+msgid "Could not read that file"
+msgstr "Could not read that file"
 
 #: src/components/SeriesFollowButton.tsx
 msgid "Could not resolve this series on Hardcover"
@@ -1571,6 +1707,10 @@ msgstr "Could not start SSO linking."
 msgid "Could not start sync"
 msgstr "Could not start sync"
 
+#: src/components/stats/GoalWidget.tsx
+msgid "Could not update the goal."
+msgstr "Could not update the goal."
+
 #: src/pages/StatsPage.tsx
 msgid "Couldn’t load stats."
 msgstr "Couldn’t load stats."
@@ -1578,6 +1718,10 @@ msgstr "Couldn’t load stats."
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Couldn't load the timeline."
 msgstr "Couldn't load the timeline."
+
+#: src/components/stats/GoalWidget.tsx
+msgid "Counts"
+msgstr "Counts"
 
 #: src/pages/DashboardPage.tsx
 msgid "Cover"
@@ -1656,6 +1800,18 @@ msgstr "Custom"
 #: src/pages/StatsPage.tsx
 msgid "Custom Stat"
 msgstr "Custom Stat"
+
+#: src/components/CoverPickerModal.tsx
+msgid "Custom URL"
+msgstr "Custom URL"
+
+#: src/lib/goals.ts
+msgid "Daily minutes"
+msgstr "Daily minutes"
+
+#: src/lib/goals.ts
+msgid "Daily pages"
+msgstr "Daily pages"
 
 #: src/pages/StatsPage.tsx
 msgid "Daily sessions on a 24h track"
@@ -1837,6 +1993,10 @@ msgstr "Download a JSON snapshot of <0>your personal data</0>: reading status, e
 msgid "Download as Markdown file"
 msgstr "Download as Markdown file"
 
+#: src/components/InstanceBackup.tsx
+msgid "Download backup"
+msgstr "Download backup"
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Download failed"
@@ -1933,6 +2093,10 @@ msgstr "e.g. scribe-laptop"
 msgid "Edit"
 msgstr "Edit"
 
+#: src/components/stats/GoalWidget.tsx
+msgid "Edit goal"
+msgstr "Edit goal"
+
 #: src/components/Sidebar.tsx
 msgid "Edit Library"
 msgstr "Edit Library"
@@ -2016,6 +2180,10 @@ msgstr "Every session — paginated, deletable"
 #: src/pages/StatsPage.tsx
 msgid "Every widget is already on this board."
 msgstr "Every widget is already on this board."
+
+#: src/components/InstanceBackup.tsx
+msgid "Everything Tome knows in one archive: the database (all users, statuses, sessions, highlights, settings) plus the cover cache. Book files are not included — they live on disk and belong to your own backups. Restoring stages the archive and applies it at the next server restart; the current database is kept alongside as a safety copy."
+msgstr "Everything Tome knows in one archive: the database (all users, statuses, sessions, highlights, settings) plus the cover cache. Book files are not included — they live on disk and belong to your own backups. Restoring stages the archive and applies it at the next server restart; the current database is kept alongside as a safety copy."
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Everywhere"
@@ -2109,6 +2277,10 @@ msgstr "Failed"
 msgid "Failed to add device"
 msgstr "Failed to add device"
 
+#: src/components/CoverPickerModal.tsx
+msgid "Failed to apply cover"
+msgstr "Failed to apply cover"
+
 #: src/pages/SettingsPage.tsx
 msgid "Failed to authorize"
 msgstr "Failed to authorize"
@@ -2133,6 +2305,10 @@ msgstr "Failed to create token"
 #: src/pages/HighlightsPage.tsx
 msgid "Failed to delete highlight"
 msgstr "Failed to delete highlight"
+
+#: src/components/CoverPickerModal.tsx
+msgid "Failed to fetch candidates"
+msgstr "Failed to fetch candidates"
 
 #: src/pages/LoginPage.tsx
 msgid "Failed to generate code. Try again."
@@ -2254,6 +2430,10 @@ msgstr "Failed to update reading status"
 msgid "Failed to update sharing"
 msgstr "Failed to update sharing"
 
+#: src/components/CoverPickerModal.tsx
+msgid "Failed to upload cover"
+msgstr "Failed to upload cover"
+
 #: src/pages/BinderyPage.tsx
 msgid "fantasy, action, romance"
 msgstr "fantasy, action, romance"
@@ -2316,6 +2496,10 @@ msgstr "Finished · 30d"
 #: src/pages/BookDetailPage.tsx
 msgid "First read"
 msgstr "First read"
+
+#: src/components/CoverAudit.tsx
+msgid "Fixed"
+msgstr "Fixed"
 
 #: src/pages/DashboardPage.tsx
 msgid "Focus"
@@ -2398,6 +2582,10 @@ msgstr "Full access"
 msgid "Full breakdown →"
 msgstr "Full breakdown →"
 
+#: src/components/ReadingImport.tsx
+msgid "fuzzy"
+msgstr "fuzzy"
+
 #: src/pages/SettingsPage.tsx
 msgid "Generate PIN"
 msgstr "Generate PIN"
@@ -2423,6 +2611,18 @@ msgstr "Go back"
 #: src/components/SendToDeviceModal.tsx
 msgid "Go to Settings"
 msgstr "Go to Settings"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "Goal"
+msgstr "Goal"
+
+#: src/lib/goals.ts
+msgid "Goal reached"
+msgstr "Goal reached"
+
+#: src/lib/goals.ts
+msgid "Goal reached today"
+msgstr "Goal reached today"
 
 #: src/components/WhatsNewPanel.tsx
 msgid "Got it"
@@ -2501,6 +2701,7 @@ msgstr "Highlight deleted"
 msgid "Highlighted {when}"
 msgstr "Highlighted {when}"
 
+#: src/components/CommandPalette.tsx
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/HighlightsPage.tsx
@@ -2523,6 +2724,7 @@ msgstr "Highlights you made on this day in past years"
 msgid "Hit Edit, then Add tile."
 msgstr "Hit Edit, then Add tile."
 
+#: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Home"
@@ -2638,13 +2840,26 @@ msgstr "Include"
 msgid "Incoming"
 msgstr "Incoming"
 
+#: src/components/InstanceBackup.tsx
+msgid "Instance backup"
+msgstr "Instance backup"
+
 #: src/pages/AdminPage.tsx
 msgid "IP:"
 msgstr "IP:"
 
+#: src/components/ReadingImport.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "ISBN"
 msgstr "ISBN"
+
+#: src/components/InstanceBackup.tsx
+msgid "It applies at the next server restart."
+msgstr "It applies at the next server restart."
+
+#: src/components/CommandPalette.tsx
+msgid "Jump to a book, series, author, or page…"
+msgstr "Jump to a book, series, author, or page…"
 
 #: src/components/NotificationBell.tsx
 #: src/pages/AdminPage.tsx
@@ -2865,6 +3080,7 @@ msgstr "Loading..."
 #: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/GoalWidget.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/SharePage.tsx
 #: src/pages/StatsPage.tsx
@@ -2910,6 +3126,10 @@ msgstr "Longest volume"
 #: src/pages/StatsPage.tsx
 msgid "Longest: {d}d"
 msgstr "Longest: {d}d"
+
+#: src/components/CoverAudit.tsx
+msgid "Low resolution"
+msgstr "Low resolution"
 
 #: src/components/stats/widgets/taste.tsx
 msgid "Lowest"
@@ -3004,6 +3224,10 @@ msgstr "Metadata Suggestions"
 msgid "Metric"
 msgstr "Metric"
 
+#: src/lib/goals.ts
+msgid "min"
+msgstr "min"
+
 #: src/pages/SetupPage.tsx
 msgid "Minimum 8 characters"
 msgstr "Minimum 8 characters"
@@ -3011,6 +3235,14 @@ msgstr "Minimum 8 characters"
 #: src/pages/BookDetailPage.tsx
 msgid "Minutes"
 msgstr "Minutes"
+
+#: src/lib/goals.ts
+msgid "Minutes per day"
+msgstr "Minutes per day"
+
+#: src/lib/goals.ts
+msgid "Minutes per week"
+msgstr "Minutes per week"
 
 #: src/pages/StatsPage.tsx
 msgid "Minutes read per day"
@@ -3031,6 +3263,10 @@ msgstr "Mo"
 #: src/components/stats/HourDowHeatmap.tsx
 msgid "Mon"
 msgstr "Mon"
+
+#: src/lib/goals.ts
+msgid "Monthly goal"
+msgstr "Monthly goal"
 
 #: src/components/SendButton.tsx
 msgid "More send options"
@@ -3105,6 +3341,10 @@ msgstr "never used"
 #: src/pages/StatsPage.tsx
 msgid "New board"
 msgstr "New board"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "New goal"
+msgstr "New goal"
 
 #: src/pages/SettingsPage.tsx
 msgid "New key"
@@ -3207,6 +3447,18 @@ msgstr "No comparison data."
 msgid "No completion data by type."
 msgstr "No completion data by type."
 
+#: src/components/CoverAudit.tsx
+msgid "No cover"
+msgstr "No cover"
+
+#: src/components/CoverPickerModal.tsx
+msgid "No cover candidates found."
+msgstr "No cover candidates found."
+
+#: src/components/CoverPickerModal.tsx
+msgid "No covers found — try a different search or use a custom URL below."
+msgstr "No covers found — try a different search or use a custom URL below."
+
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
 msgstr "No description"
@@ -3262,6 +3514,10 @@ msgstr "No library growth data."
 #: src/pages/DashboardPage.tsx
 msgid "No matches"
 msgstr "No matches"
+
+#: src/components/CommandPalette.tsx
+msgid "No matches."
+msgstr "No matches."
 
 #: src/pages/AdminPage.tsx
 msgid "No matching volumes in the library yet."
@@ -3448,6 +3704,10 @@ msgstr "not estimated yet"
 msgid "Not found"
 msgstr "Not found"
 
+#: src/components/ReadingImport.tsx
+msgid "Not in your library ({n})"
+msgstr "Not in your library ({n})"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Not matched"
 msgstr "Not matched"
@@ -3535,6 +3795,10 @@ msgstr "on board"
 msgid "On board"
 msgstr "On board"
 
+#: src/lib/goals.ts
+msgid "on pace"
+msgstr "on pace"
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "On this day"
@@ -3575,6 +3839,10 @@ msgstr "Open"
 msgid "Open a book downloaded via OPDS"
 msgstr "Open a book downloaded via OPDS"
 
+#: src/components/CoverAudit.tsx
+msgid "Open book (pick a cover by eye)"
+msgstr "Open book (pick a cover by eye)"
+
 #: src/components/AppHeader.tsx
 msgid "Open navigation"
 msgstr "Open navigation"
@@ -3586,6 +3854,10 @@ msgstr "Open reader"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
 msgstr "Open selected book"
+
+#: src/components/CoverPickerModal.tsx
+msgid "or use a custom source"
+msgstr "or use a custom source"
 
 #: src/pages/SettingsPage.tsx
 msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
@@ -3628,6 +3900,7 @@ msgid "Padding"
 msgstr "Padding"
 
 #: src/components/SeriesReadingStats.tsx
+#: src/lib/goals.ts
 #: src/pages/BookDetailPage.tsx
 msgid "pages"
 msgstr "pages"
@@ -3644,9 +3917,17 @@ msgstr "Pages / Day"
 msgid "Pages / Hour"
 msgstr "Pages / Hour"
 
+#: src/lib/goals.ts
+msgid "Pages per day"
+msgstr "Pages per day"
+
 #: src/pages/StatsPage.tsx
 msgid "Pages per minute over time"
 msgstr "Pages per minute over time"
+
+#: src/lib/goals.ts
+msgid "Pages per week"
+msgstr "Pages per week"
 
 #: src/pages/StatsPage.tsx
 msgid "Pages Turned"
@@ -3705,6 +3986,10 @@ msgstr "Personal Records"
 msgid "Pick"
 msgstr "Pick"
 
+#: src/components/stats/GoalWidget.tsx
+msgid "Pick a rhythm — progress counts automatically."
+msgstr "Pick a rhythm — progress counts automatically."
+
 #: src/pages/StatsPage.tsx
 msgid "Pick a start & end"
 msgstr "Pick a start & end"
@@ -3745,6 +4030,7 @@ msgstr "Prefix"
 msgid "Preparing..."
 msgstr "Preparing..."
 
+#: src/components/InstanceBackup.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Preparing…"
 msgstr "Preparing…"
@@ -3780,6 +4066,10 @@ msgstr "Private — only assigned users can access"
 #: src/components/Sidebar.tsx
 msgid "Private library"
 msgstr "Private library"
+
+#: src/components/CoverAudit.tsx
+msgid "Problem"
+msgstr "Problem"
 
 #: src/pages/AdminPage.tsx
 msgid "Process files dropped into the <0>incoming/</0> directory and move them into the library."
@@ -4023,6 +4313,7 @@ msgstr "Reading Speed"
 msgid "Reading Speed Trend"
 msgstr "Reading Speed Trend"
 
+#: src/components/CommandPalette.tsx
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/SetupPage.tsx
@@ -4067,6 +4358,10 @@ msgstr "Recently Finished"
 #: src/pages/BinderyPage.tsx
 msgid "Recently Imported"
 msgstr "Recently Imported"
+
+#: src/components/ReadingImport.tsx
+msgid "Recognized a <0>{dialect}</0> export: {matched} matched, {unmatched} not in your library, {skipped} to-read rows skipped."
+msgstr "Recognized a <0>{dialect}</0> export: {matched} matched, {unmatched} not in your library, {skipped} to-read rows skipped."
 
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -4145,6 +4440,10 @@ msgstr "Rename board"
 msgid "request failed"
 msgstr "request failed"
 
+#: src/components/CoverAudit.tsx
+msgid "Rescan"
+msgstr "Rescan"
+
 #: src/pages/BinderyPage.tsx
 msgid "Rescan the bindery folder"
 msgstr "Rescan the bindery folder"
@@ -4164,6 +4463,14 @@ msgstr "Restart KOReader"
 #: src/components/PositionHistoryModal.tsx
 msgid "Restore"
 msgstr "Restore"
+
+#: src/components/InstanceBackup.tsx
+msgid "Restore from backup…"
+msgstr "Restore from backup…"
+
+#: src/components/InstanceBackup.tsx
+msgid "Restore staged"
+msgstr "Restore staged"
 
 #: src/components/PositionHistoryModal.tsx
 msgid "Restoring sets the live position (and read status) back to that point; devices pick it up on their next sync. Restoring below 100% un-finishes a falsely completed book."
@@ -4235,6 +4542,7 @@ msgstr "Sat"
 
 #: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
+#: src/components/stats/GoalWidget.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Save"
@@ -4303,6 +4611,10 @@ msgstr "Scan Now"
 #: src/pages/AdminPage.tsx
 msgid "Scanner"
 msgstr "Scanner"
+
+#: src/components/CoverAudit.tsx
+msgid "Scanning covers…"
+msgstr "Scanning covers…"
 
 #: src/pages/AdminPage.tsx
 msgid "Scanning…"
@@ -4456,6 +4768,7 @@ msgstr "Sent \"{title}\" to device"
 msgid "Sent {sent}/{total}. {failedN} failed."
 msgstr "Sent {sent}/{total}. {failedN} failed."
 
+#: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -4534,9 +4847,25 @@ msgstr "Sessions ({n})"
 msgid "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
 msgstr "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
 
+#: src/components/stats/GoalWidget.tsx
+msgid "Set a goal"
+msgstr "Set a goal"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "Set a reading goal"
+msgstr "Set a reading goal"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "Set a target and watch the ring fill as you read."
+msgstr "Set a target and watch the ring fill as you read."
+
 #: src/components/UploadModal.tsx
 msgid "Set all to"
 msgstr "Set all to"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "Set goal"
+msgstr "Set goal"
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Set password & continue"
@@ -4554,6 +4883,7 @@ msgstr "Set the following environment variables to enable Send to Device:"
 msgid "Set your password"
 msgstr "Set your password"
 
+#: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Settings"
@@ -4685,6 +5015,7 @@ msgstr "Similar Title"
 msgid "Single Sign-On"
 msgstr "Single Sign-On"
 
+#: src/components/CoverAudit.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Size"
 msgstr "Size"
@@ -4700,6 +5031,10 @@ msgstr "Slowest"
 #: src/pages/AdminPage.tsx
 msgid "SMTP Status"
 msgstr "SMTP Status"
+
+#: src/components/CoverAudit.tsx
+msgid "Some books had no usable candidate or failed to apply — open them and use the cover picker."
+msgstr "Some books had no usable candidate or failed to apply — open them and use the cover picker."
 
 #: src/pages/AdminPage.tsx
 msgid "Sort Order"
@@ -4744,6 +5079,10 @@ msgstr "SSO sign-in failed. Please try again."
 #: src/pages/SettingsPage.tsx
 msgid "SSO sign-in linked to your account."
 msgstr "SSO sign-in linked to your account."
+
+#: src/components/InstanceBackup.tsx
+msgid "Stage restore"
+msgstr "Stage restore"
 
 #: src/pages/BookDetailPage.tsx
 msgid "start"
@@ -4854,6 +5193,10 @@ msgstr "Tag: {filterTag}"
 msgid "Tags (comma-separated)"
 msgstr "Tags (comma-separated)"
 
+#: src/components/stats/GoalWidget.tsx
+msgid "Target"
+msgstr "Target"
+
 #: src/pages/StatsPage.tsx
 msgid "Taste"
 msgstr "Taste"
@@ -4881,6 +5224,10 @@ msgstr "Th"
 #: src/pages/StatsPage.tsx
 msgid "That file is not a Tome board export."
 msgstr "That file is not a Tome board export."
+
+#: src/components/InstanceBackup.tsx
+msgid "That file was rejected"
+msgstr "That file was rejected"
 
 #: src/pages/SettingsPage.tsx
 msgid "That SSO identity is already linked to another account."
@@ -4939,6 +5286,14 @@ msgstr "This period vs the last"
 msgid "This permanently removes the selected books and their files from disk. This cannot be undone."
 msgstr "This permanently removes the selected books and their files from disk. This cannot be undone."
 
+#: src/components/InstanceBackup.tsx
+msgid "This replaces <0>the entire database</0> at the next restart. Type <1>RESTORE</1> to arm it."
+msgstr "This replaces <0>the entire database</0> at the next restart. Type <1>RESTORE</1> to arm it."
+
+#: src/lib/goals.ts
+msgid "this week"
+msgstr "this week"
+
 #: src/components/stats/HourDowHeatmap.tsx
 msgid "Thu"
 msgstr "Thu"
@@ -4986,6 +5341,10 @@ msgstr "Timeframe"
 #: src/pages/StatsPage.tsx
 msgid "Timeline"
 msgstr "Timeline"
+
+#: src/components/ReadingImport.tsx
+msgid "title"
+msgstr "title"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -5137,6 +5496,10 @@ msgstr "unread"
 msgid "Unread"
 msgstr "Unread"
 
+#: src/components/CoverAudit.tsx
+msgid "Unreadable file"
+msgstr "Unreadable file"
+
 #: src/pages/DashboardPage.tsx
 msgid "Unserialized"
 msgstr "Unserialized"
@@ -5180,6 +5543,10 @@ msgstr "Upload Books"
 #: src/components/UploadModal.tsx
 msgid "Upload failed"
 msgstr "Upload failed"
+
+#: src/components/CoverPickerModal.tsx
+msgid "Upload from device"
+msgstr "Upload from device"
 
 #: src/pages/DashboardPage.tsx
 msgid "Upload or scan a folder to get started"
@@ -5338,6 +5705,14 @@ msgstr "Web reader"
 msgid "Wed"
 msgstr "Wed"
 
+#: src/lib/goals.ts
+msgid "Weekly minutes"
+msgstr "Weekly minutes"
+
+#: src/lib/goals.ts
+msgid "Weekly pages"
+msgstr "Weekly pages"
+
 #: src/pages/LoginPage.tsx
 msgid "Welcome back"
 msgstr "Welcome back"
@@ -5399,6 +5774,7 @@ msgstr "Wish added"
 msgid "Wish removed"
 msgstr "Wish removed"
 
+#: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -5435,6 +5811,10 @@ msgstr "Words Read"
 msgid "Year"
 msgstr "Year"
 
+#: src/lib/goals.ts
+msgid "Year Challenge"
+msgstr "Year Challenge"
+
 #: src/pages/StatsPage.tsx
 msgid "Year in Review"
 msgstr "Year in Review"
@@ -5449,6 +5829,10 @@ msgstr "Yesterday"
 #: src/pages/AdminPage.tsx
 msgid "You"
 msgstr "You"
+
+#: src/components/stats/GoalWidget.tsx
+msgid "You already have this goal — edit it from its tile instead."
+msgstr "You already have this goal — edit it from its tile instead."
 
 #: src/pages/BookDetailPage.tsx
 msgid "You rated this {rating}/5"

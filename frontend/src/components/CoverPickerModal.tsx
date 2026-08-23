@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, Check, ImageOff, Loader2, Search, Upload, X } from 'lucide-react'
 import type { BookDetail } from '@/lib/books'
+import { Trans, Plural } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -22,11 +24,13 @@ interface Props {
   onApplied: (updated: BookDetail) => void
 }
 
+/* eslint-disable lingui/no-unlocalized-strings -- provider names */
 const SOURCE_BADGE: Record<string, string> = {
   hardcover: 'HC',
   google_books: 'Google',
   open_library: 'OpenLib',
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
   const [candidates, setCandidates] = useState<CoverCandidate[]>([])
@@ -61,9 +65,9 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
       if (!r.ok) throw new Error(await r.text())
       const data: CoverCandidate[] = await r.json()
       setCandidates(data)
-      if (data.length === 0) setError('No cover candidates found.')
+      if (data.length === 0) setError(t`No cover candidates found.`)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch candidates')
+      setError(e instanceof Error ? e.message : t`Failed to fetch candidates`)
     } finally {
       setLoading(false)
     }
@@ -85,7 +89,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
       onApplied(updated)
       handleClose()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to apply cover')
+      setError(e instanceof Error ? e.message : t`Failed to apply cover`)
     } finally {
       setApplyingUrl(null)
     }
@@ -107,7 +111,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
       onApplied(updated)
       handleClose()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to upload cover')
+      setError(e instanceof Error ? e.message : t`Failed to upload cover`)
     } finally {
       setApplyingUrl(null)
     }
@@ -132,7 +136,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Camera className="h-4 w-4 text-primary" />
-            Change Cover
+            <Trans>Change Cover</Trans>
             <span className="text-muted-foreground font-normal">— {book.title}</span>
           </div>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -170,7 +174,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
           {!loading && candidates.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground mb-3">
-                {candidates.length} cover{candidates.length !== 1 ? 's' : ''} found — click to apply
+                <Plural value={candidates.length} one="# cover found — click to apply" other="# covers found — click to apply" />
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {candidates.map((c, i) => {
@@ -218,19 +222,19 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
           )}
 
           {!loading && candidates.length === 0 && !error && (
-            <p className="text-xs text-muted-foreground text-center py-4">No covers found — try a different search or use a custom URL below.</p>
+            <p className="text-xs text-muted-foreground text-center py-4"><Trans>No covers found — try a different search or use a custom URL below.</Trans></p>
           )}
 
           {/* Divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 border-t border-border" />
-            <span className="text-xs text-muted-foreground shrink-0">or use a custom source</span>
+            <span className="text-xs text-muted-foreground shrink-0"><Trans>or use a custom source</Trans></span>
             <div className="flex-1 border-t border-border" />
           </div>
 
           {/* Custom URL */}
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Custom URL</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2"><Trans>Custom URL</Trans></p>
             <div className="flex gap-2">
               <input
                 type="url"
@@ -246,14 +250,14 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
                 className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 transition-all"
               >
                 {applyingUrl !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Apply
+                <Trans>Apply</Trans>
               </button>
             </div>
           </div>
 
           {/* File upload */}
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Upload from device</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2"><Trans>Upload from device</Trans></p>
             <input
               ref={fileInputRef}
               type="file"
@@ -273,7 +277,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
               {applyingUrl !== null
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                 : <Upload className="h-3.5 w-3.5 text-muted-foreground" />}
-              Choose file…
+              <Trans>Choose file…</Trans>
             </button>
           </div>
 

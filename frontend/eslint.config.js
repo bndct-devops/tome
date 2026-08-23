@@ -43,7 +43,7 @@ export default defineConfig([
           'style', 'src', 'srcSet', 'href', 'type', 'id', 'key', 'name', 'role', 'iconName',
           'width', 'height', 'fill', 'stroke', 'viewBox', 'd',
           'transform', 'transformOrigin', 'transition', 'download', 'flipId',
-          'value', 'to', 'method', 'accept', 'autoComplete', 'inputMode', 'keys',
+          'value', 'to', 'method', 'accept', 'autoComplete', 'inputMode', 'keys', 'group',
           'displayName', 'Authorization', 'family', 'format', 'icon', 'defaultIcon',
           'menuItem', 'destructive',
         ],
