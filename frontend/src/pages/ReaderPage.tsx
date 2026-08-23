@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, BookOpen, Settings, Rows4,
@@ -52,19 +56,22 @@ const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'purple', 'red'] as const
 
 // ── Theme / font definitions ──────────────────────────────────────────────────
 
-const THEMES: Record<ReaderTheme, { bg: string; text: string; label: string }> = {
-  light: { bg: '#ffffff', text: '#1a1a1a', label: 'Light' },
-  sepia: { bg: '#f7f3e9', text: '#5c4a32', label: 'Sepia' },
-  dark:  { bg: '#1c1c1e', text: '#e5e5e7', label: 'Dark' },
+const THEMES: Record<ReaderTheme, { bg: string; text: string; label: MessageDescriptor }> = {
+  light: { bg: '#ffffff', text: '#1a1a1a', label: msg`Light` },
+  sepia: { bg: '#f7f3e9', text: '#5c4a32', label: msg`Sepia` },
+  dark:  { bg: '#1c1c1e', text: '#e5e5e7', label: msg`Dark` },
 }
 
-const FONT_FAMILIES: Record<FontFamily, { css: string; label: string }> = {
-  default: { css: 'inherit', label: 'Default' },
-  serif:   { css: '"Georgia", "Times New Roman", serif', label: 'Serif' },
-  sans:    { css: '"Inter", "Helvetica Neue", sans-serif', label: 'Sans' },
+/* eslint-disable lingui/no-unlocalized-strings -- CSS font stacks */
+const FONT_FAMILIES: Record<FontFamily, { css: string; label: MessageDescriptor }> = {
+  default: { css: 'inherit', label: msg`Default` },
+  serif:   { css: '"Georgia", "Times New Roman", serif', label: msg`Serif` },
+  sans:    { css: '"Inter", "Helvetica Neue", sans-serif', label: msg`Sans` },
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 // Build CSS string to inject into epub renderer
+/* eslint-disable lingui/no-unlocalized-strings -- CSS template, not user-facing text */
 function buildReaderCSS(theme: ReaderTheme, fontSize: number, fontFamily: FontFamily): string {
   const t = THEMES[theme]
   const ff = FONT_FAMILIES[fontFamily].css
@@ -82,6 +89,7 @@ function buildReaderCSS(theme: ReaderTheme, fontSize: number, fontFamily: FontFa
     a { color: ${theme === 'dark' ? '#60a5fa' : '#2563eb'} !important; }
   `
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 // ── Streaming Comic Reader ────────────────────────────────────────────────────
 
@@ -276,7 +284,7 @@ function StreamingComicReader({
         <img
           key={currentPage}
           src={pageUrl(currentPage)}
-          alt={`Page ${currentPage + 1}`}
+          alt={(() => { const n = currentPage + 1; return t`Page ${n}` })()}
           style={spread ? { maxHeight: '100%', maxWidth: hasSecondPage ? '50%' : '100%', objectFit: 'contain' } : imgStyle}
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageLoaded(true)}
@@ -286,7 +294,7 @@ function StreamingComicReader({
           <img
             key={currentPage + 1}
             src={pageUrl(currentPage + 1)}
-            alt={`Page ${currentPage + 2}`}
+            alt={(() => { const n = currentPage + 2; return t`Page ${n}` })()}
             style={{ maxHeight: '100%', maxWidth: '50%', objectFit: 'contain' }}
             draggable={false}
           />
@@ -351,7 +359,7 @@ function WebtoonReader({ bookId, totalPages, theme, onProgress, onReadComplete }
           <img
             key={i}
             src={`/api/books/${bookId}/pages/${i}?token=${encodeURIComponent(webtoonToken)}`}
-            alt={`Page ${i + 1}`}
+            alt={(() => { const n = i + 1; return t`Page ${n}` })()}
             className="w-full max-w-2xl"
             loading={i < 3 ? 'eager' : 'lazy'}
             draggable={false}
@@ -443,7 +451,7 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
       setNumPages(doc.numPages)
       onDocLoaded(doc.numPages)
     }).catch((e) => {
-      if (!cancelled) onError(`Failed to load PDF: ${(e as Error).message}`)
+      if (!cancelled) { const msg2 = (e as Error).message; onError(t`Failed to load PDF: ${msg2}`) }
     })
     return () => {
       cancelled = true
@@ -534,7 +542,7 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
           clearPage(i)
         }
       }
-    }, { root, rootMargin: '1200px 0px' })
+    }, { root, rootMargin: '1200px 0px' }) // eslint-disable-line lingui/no-unlocalized-strings -- CSS margin
     observerRef.current = obs
     pageWrapRefs.current.forEach((el) => { if (el) obs.observe(el) })
     return () => { obs.disconnect(); observerRef.current = null }
@@ -608,11 +616,13 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
 
   const isDark = theme === 'dark'
   // Make the white page legible against the chosen background.
+  /* eslint-disable lingui/no-unlocalized-strings -- CSS filters */
   const canvasFilter = theme === 'dark'
     ? 'invert(1) hue-rotate(180deg)'
     : theme === 'sepia'
       ? 'sepia(0.45) brightness(0.97)'
       : 'none'
+  /* eslint-enable lingui/no-unlocalized-strings */
 
   return (
     <div
@@ -878,7 +888,7 @@ export default function ReaderPage() {
         bookData = await api.get<Book>(`/books/${bookId}`)
         setBook(bookData)
       } catch {
-        setLoadError('Book not found.')
+        setLoadError(t`Book not found.`)
         setLoading(false)
         return
       }
@@ -919,7 +929,7 @@ export default function ReaderPage() {
           setComicCurrentPage(savedPage)
           setProgress(comicPctFor(savedPage, pagesData.total))
         } catch (e: unknown) {
-          setLoadError(`Failed to load comic pages: ${(e as Error).message}`)
+          { const msg2 = (e as Error).message; setLoadError(t`Failed to load comic pages: ${msg2}`) }
           setLoading(false)
           return
         }
@@ -946,7 +956,7 @@ export default function ReaderPage() {
       }
 
       if (!hasEpub) {
-        setLoadError('No readable file found for this book.')
+        setLoadError(t`No readable file found for this book.`)
         setLoading(false)
         return
       }
@@ -986,7 +996,7 @@ export default function ReaderPage() {
         const blob = await resp.blob()
         epubFile = new File([blob], 'book.epub', { type: 'application/epub+zip' })
       } catch (e: unknown) {
-        setLoadError(`Failed to load EPUB: ${(e as Error).message}`)
+        { const msg2 = (e as Error).message; setLoadError(t`Failed to load EPUB: ${msg2}`) }
         setLoading(false)
         return
       }
@@ -1075,7 +1085,7 @@ export default function ReaderPage() {
       try {
         await view.open(epubFile)
       } catch (e: unknown) {
-        setLoadError(`EPUB failed to open: ${(e as Error).message}`)
+        { const msg2 = (e as Error).message; setLoadError(t`EPUB failed to open: ${msg2}`) }
         setLoading(false)
         return
       }
@@ -1322,7 +1332,7 @@ export default function ReaderPage() {
       <div className="flex flex-col items-center justify-center h-screen gap-4 text-muted-foreground">
         <BookOpen className="w-12 h-12 opacity-30" />
         <p className="text-sm">{loadError}</p>
-        <button onClick={() => navigate(-1)} className="text-sm text-primary hover:underline">Go back</button>
+        <button onClick={() => navigate(-1)} className="text-sm text-primary hover:underline"><Trans>Go back</Trans></button>
       </div>
     )
   }
@@ -1473,7 +1483,7 @@ export default function ReaderPage() {
               style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}>Settings</span>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Settings</Trans></span>
                 <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
                   <X className="w-4 h-4" />
                 </button>
@@ -1496,7 +1506,7 @@ export default function ReaderPage() {
                           borderColor: THEMES[t].text + '33',
                         }}
                       >
-                        {THEMES[t].label}
+                        {i18n._(THEMES[t].label)}
                       </button>
                     ))}
                   </div>
@@ -1680,7 +1690,7 @@ export default function ReaderPage() {
               style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}>Settings</span>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Settings</Trans></span>
                 <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
                   <X className="w-4 h-4" />
                 </button>
@@ -1703,7 +1713,7 @@ export default function ReaderPage() {
                           borderColor: THEMES[t].text + '33',
                         }}
                       >
-                        {THEMES[t].label}
+                        {i18n._(THEMES[t].label)}
                       </button>
                     ))}
                   </div>
@@ -1803,13 +1813,13 @@ export default function ReaderPage() {
             style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}>Contents</span>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Contents</Trans></span>
               <button onClick={() => setShowToc(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
                 <X className="w-4 h-4" />
               </button>
             </div>
             {toc.length === 0 && (
-              <p className="px-4 py-6 text-xs" style={{ color: themeColors.text, opacity: 0.4 }}>No table of contents available.</p>
+              <p className="px-4 py-6 text-xs" style={{ color: themeColors.text, opacity: 0.4 }}><Trans>No table of contents available.</Trans></p>
             )}
             {toc.map((item, i) => (
               <button
@@ -1847,13 +1857,13 @@ export default function ReaderPage() {
                 borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
               }}
             >
-              <span className="text-xs font-medium mr-1" style={{ opacity: 0.55 }}>Highlight</span>
+              <span className="text-xs font-medium mr-1" style={{ opacity: 0.55 }}><Trans>Highlight</Trans></span>
               {HIGHLIGHT_COLORS.map(c => (
                 <button
                   key={c}
                   onClick={() => createHighlight(c)}
                   disabled={savingAnnotation}
-                  aria-label={`Highlight in ${c}`}
+                  aria-label={t`Highlight in ${c}`}
                   className="w-6 h-6 rounded-full transition-transform hover:scale-110 disabled:opacity-50"
                   style={{
                     background: fillForColor(c).replace(/[\d.]+\)$/, '0.9)'),
@@ -1887,7 +1897,7 @@ export default function ReaderPage() {
                       <span className="shrink-0">· {activeHighlight.datetime.slice(0, 10)}</span>
                     )}
                   </div>
-                  <button onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} style={{ opacity: 0.5 }} aria-label="Close">
+                  <button onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} style={{ opacity: 0.5 }} aria-label={t`Close`}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -1906,13 +1916,13 @@ export default function ReaderPage() {
                       onChange={e => setNoteDraft(e.target.value)}
                       rows={3}
                       autoFocus
-                      placeholder="Add a note…"
+                      placeholder={t`Add a note…`}
                       className="w-full rounded-lg border bg-transparent p-2 text-sm focus:outline-none"
                       style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)', color: themeColors.text }}
                     />
                     <div className="mt-1.5 flex gap-3 text-xs font-medium">
-                      <button onClick={saveNote} className="hover:underline">Save</button>
-                      <button onClick={() => setNoteDraft(null)} style={{ opacity: 0.6 }} className="hover:underline">Cancel</button>
+                      <button onClick={saveNote} className="hover:underline"><Trans>Save</Trans></button>
+                      <button onClick={() => setNoteDraft(null)} style={{ opacity: 0.6 }} className="hover:underline"><Trans>Cancel</Trans></button>
                     </div>
                   </div>
                 ) : activeHighlight.note ? (
@@ -1924,8 +1934,8 @@ export default function ReaderPage() {
                 <div className="mt-2.5 flex items-center justify-between">
                   <p className="text-[11px]" style={{ opacity: 0.4 }}>
                     {isWebAnnotation(activeHighlight)
-                      ? 'Made on the web — syncs to KOReader'
-                      : 'Synced from KOReader'}
+                      ? t`Made on the web — syncs to KOReader`
+                      : t`Synced from KOReader`}
                   </p>
                   {noteDraft == null && (
                     <div className="flex items-center gap-3 text-xs">
@@ -1935,7 +1945,7 @@ export default function ReaderPage() {
                         style={{ opacity: 0.7 }}
                       >
                         <StickyNote className="w-3.5 h-3.5" />
-                        {activeHighlight.note ? 'Edit note' : 'Add note'}
+                        {activeHighlight.note ? t`Edit note` : t`Add note`}
                       </button>
                       <button
                         onClick={deleteHighlight}
@@ -1943,7 +1953,7 @@ export default function ReaderPage() {
                         style={{ opacity: 0.7 }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Delete
+                        <Trans>Delete</Trans>
                       </button>
                     </div>
                   )}
@@ -1960,7 +1970,7 @@ export default function ReaderPage() {
             style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}>Settings</span>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Settings</Trans></span>
               <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
                 <X className="w-4 h-4" />
               </button>
@@ -1969,7 +1979,7 @@ export default function ReaderPage() {
             <div className="p-4 flex flex-col gap-6">
               {/* Font size */}
               <div>
-                <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>FONT SIZE</p>
+                <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>FONT SIZE</Trans></p>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => changeFontSize(-10)}
@@ -2008,7 +2018,7 @@ export default function ReaderPage() {
                         fontFamily: FONT_FAMILIES[f].css,
                       }}
                     >
-                      {FONT_FAMILIES[f].label}
+                      {i18n._(FONT_FAMILIES[f].label)}
                     </button>
                   ))}
                 </div>
@@ -2032,7 +2042,7 @@ export default function ReaderPage() {
                         borderColor: THEMES[t].text + '33',
                       }}
                     >
-                      {THEMES[t].label}
+                      {i18n._(THEMES[t].label)}
                     </button>
                   ))}
                 </div>
@@ -2054,8 +2064,8 @@ export default function ReaderPage() {
         <span className="flex-1 text-xs truncate text-center" style={{ color: themeColors.text, opacity: 0.5 }}>
           {chapterLabel}
           {chapterMinsLeft != null && chapterMinsLeft >= 0.5 && (
-            <span title={pacingRef.current?.wpm ? 'Based on your measured reading pace' : 'Based on a default pace (no reading history yet)'}>
-              {chapterLabel ? ' · ' : ''}~{Math.max(1, Math.round(chapterMinsLeft))} min left
+            <span title={pacingRef.current?.wpm ? t`Based on your measured reading pace` : t`Based on a default pace (no reading history yet)`}>
+              {chapterLabel ? ' · ' : ''}{(() => { const m = Math.max(1, Math.round(chapterMinsLeft)); return t`~${m} min left` })()}
             </span>
           )}
         </span>

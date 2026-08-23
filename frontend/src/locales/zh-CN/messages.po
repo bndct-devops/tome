@@ -1011,6 +1011,10 @@ msgstr ""
 msgid "~{m} min"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "~{m} min left"
+msgstr ""
+
 #: src/lib/backlog.ts
 msgid "~{mo} months"
 msgstr ""
@@ -1178,6 +1182,10 @@ msgstr ""
 msgid "Add a note"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Add a note…"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Add a review"
 msgstr ""
@@ -1208,6 +1216,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Add custom theme"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Add note"
 msgstr ""
 
 #: src/components/SaveFilterButton.tsx
@@ -1657,6 +1669,14 @@ msgstr ""
 msgid "Backup failed"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Based on a default pace (no reading history yet)"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Based on your measured reading pace"
+msgstr ""
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "Batch complete"
 msgstr ""
@@ -1749,6 +1769,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Book not found"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Book not found."
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -1861,6 +1885,7 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 #: src/pages/HighlightsPage.tsx
 #: src/pages/LoginPage.tsx
+#: src/pages/ReaderPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Cancel"
 msgstr ""
@@ -1991,6 +2016,7 @@ msgstr ""
 #: src/components/UploadModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
+#: src/pages/ReaderPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Close"
 msgstr ""
@@ -2104,6 +2130,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Content Type"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Contents"
 msgstr ""
 
 #: src/components/home/FocusMode.tsx
@@ -2334,6 +2364,7 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Dark"
 msgstr ""
 
@@ -2374,12 +2405,17 @@ msgstr ""
 msgid "Dead entries removed"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Default"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/HighlightsPage.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Delete"
 msgstr ""
 
@@ -2656,6 +2692,7 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Edit note"
 msgstr ""
 
@@ -2704,6 +2741,10 @@ msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "End"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "EPUB failed to open: {msg2}"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -2908,8 +2949,16 @@ msgstr ""
 msgid "Failed to load books"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Failed to load comic pages: {msg2}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Failed to load duplicates"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Failed to load EPUB: {msg2}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2926,6 +2975,10 @@ msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "Failed to load more"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Failed to load PDF: {msg2}"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -3148,6 +3201,10 @@ msgstr ""
 msgid "Following \"{seriesName}\" — you'll hear when a new volume is out"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "FONT SIZE"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "for {targetLabel} — click a file to switch"
 msgstr ""
@@ -3235,6 +3292,7 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/ReaderPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Go back"
 msgstr ""
@@ -3332,9 +3390,17 @@ msgstr ""
 msgid "Highest & Lowest Rated"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Highlight"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "Highlight deleted"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Highlight in {c}"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
@@ -3690,6 +3756,7 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Light"
 msgstr ""
 
@@ -3826,6 +3893,10 @@ msgstr ""
 
 #: src/components/stats/widgets/taste.tsx
 msgid "Lowest"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Made on the web — syncs to KOReader"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -4367,6 +4438,10 @@ msgstr ""
 msgid "No re-reads yet — pages you revisit on a later day show up here."
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "No readable file found for this book."
+msgstr ""
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "no reading"
 msgstr ""
@@ -4475,6 +4550,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No suggested match yet — search for the book to link, or upload it first."
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "No table of contents available."
 msgstr ""
 
 #: src/components/stats/widgets/wordstats.tsx
@@ -4788,6 +4867,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Padding"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Page {n}"
 msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
@@ -5565,6 +5648,10 @@ msgstr ""
 msgid "Same Series Volume"
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Sans"
+msgstr ""
+
 #: src/components/stats/HourDowHeatmap.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Sat"
@@ -5576,6 +5663,7 @@ msgstr ""
 #: src/components/stats/GoalWidget.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Save"
 msgstr ""
 
@@ -5849,6 +5937,10 @@ msgstr ""
 msgid "Sent {sent}/{total}. {failedN} failed."
 msgstr ""
 
+#: src/pages/ReaderPage.tsx
+msgid "Sepia"
+msgstr ""
+
 #: src/components/CommandPalette.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
@@ -5916,6 +6008,10 @@ msgstr ""
 
 #: src/components/LibraryHealth.tsx
 msgid "Series: {name}"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Serif"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5987,6 +6083,7 @@ msgstr ""
 
 #: src/components/CommandPalette.tsx
 #: src/components/Sidebar.tsx
+#: src/pages/ReaderPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Settings"
 msgstr ""
@@ -6349,6 +6446,7 @@ msgid "Synced from Kobo"
 msgstr ""
 
 #: src/components/home/FocusMode.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Synced from KOReader"
 msgstr ""
 
