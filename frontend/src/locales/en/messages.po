@@ -13,6 +13,10 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#: src/components/MetadataManager.tsx
+msgid " — {detected} chapter numbers detected"
+msgstr " — {detected} chapter numbers detected"
+
 #: src/components/InstanceBackup.tsx
 msgid " — backup from {when} (v{v}, {users} users, {books} books)."
 msgstr " — backup from {when} (v{v}, {users} users, {books} books)."
@@ -301,6 +305,11 @@ msgstr "{0, plural, one {# book, none estimated yet.} other {# books, none estim
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
 msgstr "{0, plural, one {# book} other {# books}}"
+
+#. placeholder {0}: candidates.length
+#: src/components/MetadataManager.tsx
+msgid "{0, plural, one {# candidate — click to select} other {# candidates — click to select}}"
+msgstr "{0, plural, one {# candidate — click to select} other {# candidates — click to select}}"
 
 #. placeholder {0}: candidates.length
 #: src/components/CoverPickerModal.tsx
@@ -755,10 +764,20 @@ msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply #
 msgstr "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
 
 #: src/components/AppShell.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
 msgstr "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
 
+#: src/components/MetadataManager.tsx
+msgid "{n} chapters uploaded"
+msgstr "{n} chapters uploaded"
+
+#: src/components/MetadataManager.tsx
+msgid "{n} of {total} books would change"
+msgstr "{n} of {total} books would change"
+
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "{n} selected"
 msgstr "{n} selected"
@@ -870,6 +889,10 @@ msgstr "{s}s"
 #: src/pages/DashboardPage.tsx
 msgid "{seconds}s"
 msgstr "{seconds}s"
+
+#: src/components/MetadataManager.tsx
+msgid "{seriesName} Chapter {num}"
+msgstr "{seriesName} Chapter {num}"
 
 #: src/pages/DashboardPage.tsx
 msgid "{sessions} sessions · {time}"
@@ -1266,6 +1289,7 @@ msgstr "Admin access required."
 msgid "all"
 msgstr "all"
 
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/StatsPage.tsx
@@ -1322,6 +1346,10 @@ msgstr "All imported books accepted"
 msgid "All items must have a title"
 msgstr "All items must have a title"
 
+#: src/components/MetadataManager.tsx
+msgid "All libraries"
+msgstr "All libraries"
+
 #: src/pages/BookDetailPage.tsx
 msgid "All readers: {dur} · {days} · {readers}"
 msgstr "All readers: {dur} · {days} · {readers}"
@@ -1329,6 +1357,14 @@ msgstr "All readers: {dur} · {days} · {readers}"
 #: src/components/SeriesReadingStats.tsx
 msgid "All readers: {dur} · {sess} · {readers}"
 msgstr "All readers: {dur} · {sess} · {readers}"
+
+#: src/components/MetadataManager.tsx
+msgid "All series"
+msgstr "All series"
+
+#: src/components/MetadataManager.tsx
+msgid "All types"
+msgstr "All types"
 
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -1405,9 +1441,17 @@ msgstr "Apply"
 msgid "Apply {n} Approved"
 msgstr "Apply {n} Approved"
 
+#: src/components/MetadataManager.tsx
+msgid "Apply {n} Changes"
+msgstr "Apply {n} Changes"
+
 #: src/components/ReadingImport.tsx
 msgid "Apply {n} selected"
 msgstr "Apply {n} selected"
+
+#: src/components/MetadataManager.tsx
+msgid "Apply & Next"
+msgstr "Apply & Next"
 
 #: src/pages/AdminPage.tsx
 msgid "Apply All ({n})"
@@ -1416,6 +1460,10 @@ msgstr "Apply All ({n})"
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "Apply Approved"
 msgstr "Apply Approved"
+
+#: src/components/MetadataManager.tsx
+msgid "Apply Changes"
+msgstr "Apply Changes"
 
 #: src/components/MetadataFetchModal.tsx
 msgid "Apply failed"
@@ -1429,9 +1477,17 @@ msgstr "Apply Selected"
 msgid "Apply the first cover-search candidate"
 msgstr "Apply the first cover-search candidate"
 
+#: src/components/MetadataManager.tsx
+msgid "Apply to {n} Chapters"
+msgstr "Apply to {n} Chapters"
+
 #: src/pages/BinderyPage.tsx
 msgid "Apply to all"
 msgstr "Apply to all"
+
+#: src/components/MetadataManager.tsx
+msgid "Applying {done}/{total}..."
+msgstr "Applying {done}/{total}..."
 
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/pages/AdminPage.tsx
@@ -1458,6 +1514,10 @@ msgstr "Are you getting faster?"
 msgid "Ask your server admin if you don't manage the Tome installation yourself."
 msgstr "Ask your server admin if you don't manage the Tome installation yourself."
 
+#: src/components/MetadataManager.tsx
+msgid "Assign Chapter Metadata"
+msgstr "Assign Chapter Metadata"
+
 #: src/pages/AdminPage.tsx
 msgid "Assign type to new books"
 msgstr "Assign type to new books"
@@ -1475,6 +1535,7 @@ msgid "Auth"
 msgstr "Auth"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
@@ -1519,6 +1580,10 @@ msgstr "Authors"
 #: src/pages/StatsPage.tsx
 msgid "Auto"
 msgstr "Auto"
+
+#: src/components/MetadataManager.tsx
+msgid "Auto-filled from series"
+msgstr "Auto-filled from series"
 
 #: src/pages/StatsPage.tsx
 msgid "Auto-fit height"
@@ -1572,6 +1637,10 @@ msgstr "Back to list"
 msgid "Back to search"
 msgstr "Back to search"
 
+#: src/components/MetadataManager.tsx
+msgid "Back to Table"
+msgstr "Back to Table"
+
 #: src/pages/StatsPage.tsx
 msgid "Backlog"
 msgstr "Backlog"
@@ -1592,9 +1661,21 @@ msgstr "Backup failed"
 msgid "Batch complete"
 msgstr "Batch complete"
 
+#: src/components/MetadataManager.tsx
+msgid "Batch Fetch"
+msgstr "Batch Fetch"
+
+#: src/components/MetadataManager.tsx
+msgid "Batch Fetch ({n})"
+msgstr "Batch Fetch ({n})"
+
 #: src/pages/StatsPage.tsx
 msgid "Best Day"
 msgstr "Best Day"
+
+#: src/components/MetadataFetchModal.tsx
+msgid "Best match"
+msgstr "Best match"
 
 #: src/pages/BinderyPage.tsx
 msgid "Best match applied to {matched} of {totalN} files — no match for the rest"
@@ -1642,6 +1723,10 @@ msgstr "book"
 msgid "Book"
 msgstr "Book"
 
+#: src/components/MetadataManager.tsx
+msgid "Book {at} of {total}"
+msgstr "Book {at} of {total}"
+
 #: src/pages/BinderyPage.tsx
 msgid "Book accepted"
 msgstr "Book accepted"
@@ -1675,6 +1760,7 @@ msgstr "Book rejected and removed"
 msgid "Book title"
 msgstr "Book title"
 
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Book Type"
 msgstr "Book Type"
@@ -1762,6 +1848,7 @@ msgstr "Can't find it? Add manually"
 #: src/components/LibraryHealth.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
@@ -1793,6 +1880,10 @@ msgstr "Category mix over the year"
 #: src/pages/BookDetailPage.tsx
 msgid "ch. {n}"
 msgstr "ch. {n}"
+
+#: src/components/MetadataManager.tsx
+msgid "Ch. {num}"
+msgstr "Ch. {num}"
 
 #: src/pages/BookDetailPage.tsx
 msgid "ch. 1"
@@ -1843,6 +1934,7 @@ msgstr "Choose file…"
 msgid "Choose icon"
 msgstr "Choose icon"
 
+#: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
@@ -1874,6 +1966,10 @@ msgstr "Clear search"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Clear selection / blur search"
 msgstr "Clear selection / blur search"
+
+#: src/components/MetadataManager.tsx
+msgid "cleared"
+msgstr "cleared"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Clearing…"
@@ -2124,6 +2220,7 @@ msgid "Counts"
 msgstr "Counts"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Cover"
 msgstr "Cover"
@@ -2183,6 +2280,7 @@ msgid "current"
 msgstr "current"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Current"
 msgstr "Current"
 
@@ -2336,8 +2434,13 @@ msgstr "Deleting..."
 msgid "Deleting…"
 msgstr "Deleting…"
 
+#: src/components/MetadataManager.tsx
+msgid "Desc"
+msgstr "Desc"
+
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2748,6 +2851,10 @@ msgstr "Failed to add wish"
 msgid "Failed to apply cover"
 msgstr "Failed to apply cover"
 
+#: src/components/MetadataManager.tsx
+msgid "Failed to apply metadata."
+msgstr "Failed to apply metadata."
+
 #: src/pages/SettingsPage.tsx
 msgid "Failed to authorize"
 msgstr "Failed to authorize"
@@ -2776,6 +2883,10 @@ msgstr "Failed to delete highlight"
 #: src/components/CoverPickerModal.tsx
 msgid "Failed to fetch candidates"
 msgstr "Failed to fetch candidates"
+
+#: src/components/MetadataManager.tsx
+msgid "Failed to fetch candidates."
+msgstr "Failed to fetch candidates."
 
 #: src/pages/LoginPage.tsx
 msgid "Failed to generate code. Try again."
@@ -2808,6 +2919,10 @@ msgstr "Failed to load facets"
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to load libraries"
 msgstr "Failed to load libraries"
+
+#: src/components/MetadataManager.tsx
+msgid "Failed to load metadata audit data."
+msgstr "Failed to load metadata audit data."
 
 #: src/pages/HighlightsPage.tsx
 msgid "Failed to load more"
@@ -2917,6 +3032,10 @@ msgstr "fantasy, action, romance"
 msgid "Fastest"
 msgstr "Fastest"
 
+#: src/components/MetadataManager.tsx
+msgid "Fetch"
+msgstr "Fetch"
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "Fetch failed"
 msgstr "Fetch failed"
@@ -2932,8 +3051,13 @@ msgid "Fetching metadata..."
 msgstr "Fetching metadata..."
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Field"
 msgstr "Field"
+
+#: src/components/MetadataManager.tsx
+msgid "Field diff"
+msgstr "Field diff"
 
 #: src/components/LibraryHealth.tsx
 msgid "File {id}: {err}"
@@ -3170,6 +3294,7 @@ msgid "Hardcover sync is disabled on this server."
 msgstr "Hardcover sync is disabled on this server."
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Has cover"
 msgstr "Has cover"
 
@@ -3352,9 +3477,14 @@ msgid "Include"
 msgstr "Include"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
 msgid "Incoming"
 msgstr "Incoming"
+
+#: src/components/MetadataManager.tsx
+msgid "Index"
+msgstr "Index"
 
 #: src/components/InstanceBackup.tsx
 msgid "Instance backup"
@@ -3365,6 +3495,7 @@ msgid "IP:"
 msgstr "IP:"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/components/ReadingImport.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "ISBN"
@@ -3442,7 +3573,12 @@ msgstr "Label"
 msgid "Label (e.g. KOReader)"
 msgstr "Label (e.g. KOReader)"
 
+#: src/components/MetadataManager.tsx
+msgid "Lang"
+msgstr "Lang"
+
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -3810,6 +3946,7 @@ msgstr "Minutes per week"
 msgid "Minutes read per day"
 msgstr "Minutes read per day"
 
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Missing"
 msgstr "Missing"
@@ -4020,6 +4157,10 @@ msgstr "No arcs defined yet. Click “Add arc” to create one."
 msgid "No audit entries yet."
 msgstr "No audit entries yet."
 
+#: src/components/MetadataManager.tsx
+msgid "No author"
+msgstr "No author"
+
 #: src/components/stats/AuthorAffinity.tsx
 msgid "No author data."
 msgstr "No author data."
@@ -4048,6 +4189,14 @@ msgstr "No books in progress"
 msgid "No books in this view."
 msgstr "No books in this view."
 
+#: src/components/MetadataManager.tsx
+msgid "No books match the current filters."
+msgstr "No books match the current filters."
+
+#: src/components/MetadataManager.tsx
+msgid "No candidates found."
+msgstr "No candidates found."
+
 #: src/components/stats/widgets/library.tsx
 msgid "No category data."
 msgstr "No category data."
@@ -4062,6 +4211,7 @@ msgstr "No completion data by type."
 
 #: src/components/CoverAudit.tsx
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "No cover"
 msgstr "No cover"
 
@@ -4331,6 +4481,10 @@ msgstr "No suggested match yet — search for the book to link, or upload it fir
 msgid "No timed reading with word counts yet."
 msgstr "No timed reading with word counts yet."
 
+#: src/components/MetadataManager.tsx
+msgid "No titles need standardizing."
+msgstr "No titles need standardizing."
+
 #: src/pages/LoginPage.tsx
 msgid "No Tome account is linked to this identity, and self-signup is disabled."
 msgstr "No Tome account is linked to this identity, and self-signup is disabled."
@@ -4365,6 +4519,7 @@ msgstr "No widgets on this board yet."
 msgid "No word counts yet."
 msgstr "No word counts yet."
 
+#: src/components/MetadataManager.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
@@ -4611,6 +4766,10 @@ msgstr "over {days} days"
 msgid "Override search query (optional)…"
 msgstr "Override search query (optional)…"
 
+#: src/components/MetadataManager.tsx
+msgid "Override search query…"
+msgstr "Override search query…"
+
 #: src/pages/StatsPage.tsx
 msgid "Overview"
 msgstr "Overview"
@@ -4797,6 +4956,7 @@ msgstr "Preview"
 msgid "Preview:"
 msgstr "Preview:"
 
+#: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
 msgid "Previous"
 msgstr "Previous"
@@ -4856,6 +5016,7 @@ msgid "Publication status"
 msgstr "Publication status"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Publisher"
@@ -5340,6 +5501,22 @@ msgstr "Review {n} Uncertain"
 msgid "Review all failed"
 msgstr "Review all failed"
 
+#: src/components/MetadataManager.tsx
+msgid "Review All Filtered ({n})"
+msgstr "Review All Filtered ({n})"
+
+#: src/components/MetadataManager.tsx
+msgid "Review complete"
+msgstr "Review complete"
+
+#: src/components/MetadataManager.tsx
+msgid "Review Selected"
+msgstr "Review Selected"
+
+#: src/components/MetadataManager.tsx
+msgid "Reviewed {total} books — applied changes to {applied}, skipped {skipped}."
+msgstr "Reviewed {total} books — applied changes to {applied}, skipped {skipped}."
+
 #: src/pages/BinderyPage.tsx
 msgid "Reviewing {n} files"
 msgstr "Reviewing {n} files"
@@ -5489,6 +5666,10 @@ msgstr "Scanning…"
 msgid "Scope"
 msgstr "Scope"
 
+#: src/components/MetadataManager.tsx
+msgid "Score"
+msgstr "Score"
+
 #: src/components/HScrollRow.tsx
 msgid "Scroll left"
 msgstr "Scroll left"
@@ -5551,6 +5732,10 @@ msgstr "Search manually"
 msgid "Search query..."
 msgstr "Search query..."
 
+#: src/components/MetadataManager.tsx
+msgid "Search title, author…"
+msgstr "Search title, author…"
+
 #: src/components/Sidebar.tsx
 msgid "Search to find more icons"
 msgstr "Search to find more icons"
@@ -5604,6 +5789,10 @@ msgstr "Select all"
 #: src/pages/BinderyPage.tsx
 msgid "Select All"
 msgstr "Select All"
+
+#: src/components/MetadataManager.tsx
+msgid "Select all ({n})"
+msgstr "Select all ({n})"
 
 #: src/components/SendToDeviceModal.tsx
 msgid "Send"
@@ -5663,6 +5852,7 @@ msgstr "Sent {sent}/{total}. {failedN} failed."
 #: src/components/CommandPalette.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/components/Sidebar.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
@@ -5672,6 +5862,7 @@ msgid "Series"
 msgstr "Series"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Series #"
 msgstr "Series #"
@@ -5940,6 +6131,7 @@ msgstr "Single Sign-On"
 msgid "Size"
 msgstr "Size"
 
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Skip"
 msgstr "Skip"
@@ -5955,6 +6147,10 @@ msgstr "SMTP Status"
 #: src/components/CoverAudit.tsx
 msgid "Some books had no usable candidate or failed to apply — open them and use the cover picker."
 msgstr "Some books had no usable candidate or failed to apply — open them and use the cover picker."
+
+#: src/components/MetadataManager.tsx
+msgid "Some changes failed to apply."
+msgstr "Some changes failed to apply."
 
 #: src/pages/AdminPage.tsx
 msgid "Sort Order"
@@ -6004,6 +6200,14 @@ msgstr "SSO sign-in linked to your account."
 msgid "Stage restore"
 msgstr "Stage restore"
 
+#: src/components/MetadataManager.tsx
+msgid "Standardize"
+msgstr "Standardize"
+
+#: src/components/MetadataManager.tsx
+msgid "Standardize Titles"
+msgstr "Standardize Titles"
+
 #: src/pages/BookDetailPage.tsx
 msgid "start"
 msgstr "start"
@@ -6039,6 +6243,10 @@ msgstr "Start reading and your progress will show up here"
 #: src/components/stats/widgets/overview.tsx
 msgid "Start reading one and it'll show up here"
 msgstr "Start reading one and it'll show up here"
+
+#: src/components/MetadataManager.tsx
+msgid "Start typing to search..."
+msgstr "Start typing to search..."
 
 #: src/pages/StatsPage.tsx
 msgid "Started vs finished ratio"
@@ -6076,6 +6284,10 @@ msgstr "Strong enough"
 #: src/pages/StatsPage.tsx
 msgid "Su"
 msgstr "Su"
+
+#: src/components/MetadataManager.tsx
+msgid "Subtitle"
+msgstr "Subtitle"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Subtitle (optional)"
@@ -6162,6 +6374,7 @@ msgid "Tag: {filterTag}"
 msgstr "Tag: {filterTag}"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Tags"
 msgstr "Tags"
 
@@ -6345,6 +6558,7 @@ msgid "title"
 msgstr "title"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -6590,6 +6804,7 @@ msgid "Update to v{v}"
 msgstr "Update to v{v}"
 
 #: src/components/AppHeader.tsx
+#: src/components/MetadataManager.tsx
 msgid "Upload"
 msgstr "Upload"
 
@@ -6600,6 +6815,10 @@ msgstr "Upload All"
 #: src/components/UploadModal.tsx
 msgid "Upload Books"
 msgstr "Upload Books"
+
+#: src/components/MetadataManager.tsx
+msgid "Upload Chapters"
+msgstr "Upload Chapters"
 
 #: src/components/UploadModal.tsx
 msgid "Upload failed"
@@ -6893,6 +7112,7 @@ msgid "Words Read"
 msgstr "Words Read"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx

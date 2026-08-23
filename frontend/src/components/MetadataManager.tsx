@@ -1,4 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t, msg, plural } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 import {
   Loader2, Search, X, ChevronUp, ChevronDown, BookOpen,
   Check, ArrowLeft, ArrowRight, SkipForward, RefreshCw,
@@ -49,21 +53,21 @@ type SortCol = 'title' | 'author' | 'series' | 'year' | 'completeness'
 type SortDir = 'asc' | 'desc'
 
 const MISSING_FIELD_OPTIONS = [
-  { key: 'description', label: 'Description' },
-  { key: 'cover', label: 'Cover' },
-  { key: 'isbn', label: 'ISBN' },
-  { key: 'year', label: 'Year' },
-  { key: 'author', label: 'Author' },
-  { key: 'series', label: 'Series' },
-  { key: 'language', label: 'Language' },
-  { key: 'publisher', label: 'Publisher' },
+  { key: 'description', label: msg`Description` },
+  { key: 'cover', label: msg`Cover` },
+  { key: 'isbn', label: msg`ISBN` },
+  { key: 'year', label: msg`Year` },
+  { key: 'author', label: msg`Author` },
+  { key: 'series', label: msg`Series` },
+  { key: 'language', label: msg`Language` },
+  { key: 'publisher', label: msg`Publisher` },
 ]
 
 // ── FieldRow (shared with review flow) ───────────────────────────────────────
 
 interface FieldRow {
   key: string
-  label: string
+  label: MessageDescriptor
   current: string | null
   incoming: string | null
   checked: boolean
@@ -71,17 +75,17 @@ interface FieldRow {
 
 function buildFieldRows(book: BookDetail, c: MetadataCandidate): FieldRow[] {
   return [
-    { key: 'title', label: 'Title', current: book.title, incoming: c.title, checked: true },
-    { key: 'author', label: 'Author', current: book.author, incoming: c.author, checked: true },
-    { key: 'description', label: 'Description', current: book.description, incoming: c.description, checked: true },
-    { key: 'publisher', label: 'Publisher', current: book.publisher, incoming: c.publisher, checked: true },
-    { key: 'year', label: 'Year', current: book.year?.toString() ?? null, incoming: c.year?.toString() ?? null, checked: true },
-    { key: 'language', label: 'Language', current: book.language, incoming: c.language, checked: true },
-    { key: 'isbn', label: 'ISBN', current: book.isbn, incoming: c.isbn, checked: true },
-    { key: 'series', label: 'Series', current: book.series, incoming: c.series, checked: true },
-    { key: 'series_index', label: 'Series #', current: book.series_index?.toString() ?? null, incoming: c.series_index?.toString() ?? null, checked: true },
-    { key: 'tags', label: 'Tags', current: book.tags.map(t => t.tag).join(', ') || null, incoming: c.tags.join(', ') || null, checked: true },
-    { key: 'cover', label: 'Cover', current: null, incoming: c.cover_url, checked: false },
+    { key: 'title', label: msg`Title`, current: book.title, incoming: c.title, checked: true },
+    { key: 'author', label: msg`Author`, current: book.author, incoming: c.author, checked: true },
+    { key: 'description', label: msg`Description`, current: book.description, incoming: c.description, checked: true },
+    { key: 'publisher', label: msg`Publisher`, current: book.publisher, incoming: c.publisher, checked: true },
+    { key: 'year', label: msg`Year`, current: book.year?.toString() ?? null, incoming: c.year?.toString() ?? null, checked: true },
+    { key: 'language', label: msg`Language`, current: book.language, incoming: c.language, checked: true },
+    { key: 'isbn', label: msg`ISBN`, current: book.isbn, incoming: c.isbn, checked: true },
+    { key: 'series', label: msg`Series`, current: book.series, incoming: c.series, checked: true },
+    { key: 'series_index', label: msg`Series #`, current: book.series_index?.toString() ?? null, incoming: c.series_index?.toString() ?? null, checked: true },
+    { key: 'tags', label: msg`Tags`, current: book.tags.map(t => t.tag).join(', ') || null, incoming: c.tags.join(', ') || null, checked: true },
+    { key: 'cover', label: msg`Cover`, current: null, incoming: c.cover_url, checked: false },
   ]
 }
 
@@ -229,10 +233,10 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
         setSelectedCandidate(data[0])
         setFields(buildFieldRows(book, data[0]))
       } else if (data.length === 0) {
-        setCandidateError('No candidates found.')
+        setCandidateError(t`No candidates found.`)
       }
     } catch {
-      setCandidateError('Failed to fetch candidates.')
+      setCandidateError(t`Failed to fetch candidates.`)
     } finally {
       setLoadingCandidates(false)
     }
@@ -312,7 +316,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
       }
       advance()
     } catch {
-      setApplyError('Failed to apply metadata.')
+      setApplyError(t`Failed to apply metadata.`)
     } finally {
       setApplying(false)
     }
@@ -331,15 +335,15 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <Check className="w-12 h-12 text-success" />
-        <h2 className="text-lg font-semibold">Review complete</h2>
+        <h2 className="text-lg font-semibold"><Trans>Review complete</Trans></h2>
         <p className="text-sm text-muted-foreground">
-          Reviewed {queue.length} books — applied changes to {summary.applied}, skipped {summary.skipped}.
+          {(() => { const total = queue.length; const applied = summary.applied; const skipped = summary.skipped; return <Trans>Reviewed {total} books — applied changes to {applied}, skipped {skipped}.</Trans> })()}
         </p>
         <button
           onClick={onBack}
           className="mt-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-all"
         >
-          Back to Table
+          <Trans>Back to Table</Trans>
         </button>
       </div>
     )
@@ -353,11 +357,11 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           onClick={onBack}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Table
+          <ArrowLeft className="w-4 h-4" /> <Trans>Back to Table</Trans>
         </button>
         <div className="flex items-center gap-3 flex-1 max-w-xs">
           <span className="text-xs text-muted-foreground whitespace-nowrap">
-            Book {idx + 1} of {queue.length}
+            {(() => { const at = idx + 1; const total = queue.length; return <Trans>Book {at} of {total}</Trans> })()}
           </span>
           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
@@ -389,24 +393,24 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-snug">{book.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{book.author || <span className="italic">No author</span>}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{book.author || <span className="italic"><Trans>No author</Trans></span>}</p>
               </div>
             </div>
 
             <div className="space-y-2">
               {[
-                { field: 'title', label: 'Title', value: book.title },
-                { field: 'subtitle', label: 'Subtitle', value: book.subtitle || '' },
-                { field: 'author', label: 'Author', value: book.author || '' },
-                { field: 'series', label: 'Series', value: book.series || '' },
-                { field: 'series_index', label: 'Series #', value: book.series_index?.toString() || '' },
-                { field: 'year', label: 'Year', value: book.year?.toString() || '' },
-                { field: 'isbn', label: 'ISBN', value: book.isbn || '' },
-                { field: 'language', label: 'Language', value: book.language || '' },
-                { field: 'publisher', label: 'Publisher', value: book.publisher || '' },
+                { field: 'title', label: msg`Title`, value: book.title },
+                { field: 'subtitle', label: msg`Subtitle`, value: book.subtitle || '' },
+                { field: 'author', label: msg`Author`, value: book.author || '' },
+                { field: 'series', label: msg`Series`, value: book.series || '' },
+                { field: 'series_index', label: msg`Series #`, value: book.series_index?.toString() || '' },
+                { field: 'year', label: msg`Year`, value: book.year?.toString() || '' },
+                { field: 'isbn', label: msg`ISBN`, value: book.isbn || '' },
+                { field: 'language', label: msg`Language`, value: book.language || '' },
+                { field: 'publisher', label: msg`Publisher`, value: book.publisher || '' },
               ].map(({ field, label, value }) => (
                 <div key={field} className="grid grid-cols-[80px_1fr] gap-2 items-center">
-                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span className="text-xs text-muted-foreground">{i18n._(label)}</span>
                   <input
                     value={draft[field as keyof BookDetail] as string ?? value}
                     onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
@@ -415,7 +419,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                 </div>
               ))}
               <div className="grid grid-cols-[80px_1fr] gap-2">
-                <span className="text-xs text-muted-foreground pt-1">Description</span>
+                <span className="text-xs text-muted-foreground pt-1"><Trans>Description</Trans></span>
                 <textarea
                   value={(draft.description as string | undefined) ?? book.description ?? ''}
                   onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
@@ -434,7 +438,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                 value={customQuery}
                 onChange={e => setCustomQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && fetchCandidates(book.id, customQuery)}
-                placeholder="Override search query…"
+                placeholder={t`Override search query…`}
                 className="flex-1 h-8 text-xs bg-background border border-border rounded px-2 focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <button
@@ -443,7 +447,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted hover:bg-accent border border-border transition-all disabled:opacity-50"
               >
                 {loadingCandidates ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                Fetch
+                <Trans>Fetch</Trans>
               </button>
             </div>
 
@@ -460,7 +464,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             {/* Candidate list */}
             {candidates.length > 0 && !loadingCandidates && (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">{candidates.length} candidate{candidates.length !== 1 ? 's' : ''} — click to select</p>
+                <p className="text-xs text-muted-foreground">{plural(candidates.length, { one: '# candidate — click to select', other: '# candidates — click to select' })}</p>
                 {candidates.map(c => (
                   <button
                     key={`${c.source}-${c.source_id}`}
@@ -498,7 +502,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             {selectedCandidate && fields.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Field diff</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide"><Trans>Field diff</Trans></p>
                   <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -506,15 +510,15 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                       onChange={toggleAll}
                       className="rounded border-border"
                     />
-                    All
+                    <Trans>All</Trans>
                   </label>
                 </div>
                 <div className="rounded-lg border border-border overflow-hidden">
                   <div className="grid grid-cols-[20px_60px_1fr_1fr] sm:grid-cols-[20px_80px_1fr_1fr] gap-2 items-center bg-muted px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                     <span />
-                    <span>Field</span>
-                    <span>Current</span>
-                    <span>Incoming</span>
+                    <span><Trans>Field</Trans></span>
+                    <span><Trans>Current</Trans></span>
+                    <span><Trans>Incoming</Trans></span>
                   </div>
                   {fields.map((f, i) => {
                     const hasChange = !!(f.incoming && f.incoming !== f.current)
@@ -534,10 +538,10 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                           disabled={!hasChange}
                           className="mt-0.5 rounded border-border"
                         />
-                        <span className="text-muted-foreground text-[11px] mt-0.5">{f.label}</span>
+                        <span className="text-muted-foreground text-[11px] mt-0.5">{i18n._(f.label)}</span>
                         {f.key === 'cover' ? (
                           <span className="text-muted-foreground italic text-[11px]">
-                            {book.cover_path ? 'Has cover' : 'No cover'}
+                            {book.cover_path ? t`Has cover` : t`No cover`}
                           </span>
                         ) : (
                           <span className={cn('break-words line-clamp-2 text-[11px]', hasChange ? 'line-through text-muted-foreground' : '')}>
@@ -578,7 +582,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             disabled={idx === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-all"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Previous
+            <ArrowLeft className="w-3.5 h-3.5" /> <Trans>Previous</Trans>
           </button>
           <div className="flex items-center gap-2">
             {applyError && <span className="text-xs text-destructive">{applyError}</span>}
@@ -586,7 +590,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
               onClick={skip}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
             >
-              <SkipForward className="w-3.5 h-3.5" /> Skip
+              <SkipForward className="w-3.5 h-3.5" /> <Trans>Skip</Trans>
             </button>
             <button
               onClick={applyAndNext}
@@ -594,7 +598,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
             >
               {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
-              Apply & Next
+              <Trans>Apply & Next</Trans>
             </button>
           </div>
         </div>
@@ -664,7 +668,7 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
       onApplied()
       onClose()
     } catch {
-      setError('Some changes failed to apply.')
+      setError(t`Some changes failed to apply.`)
     } finally {
       setApplying(false)
     }
@@ -679,10 +683,10 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
           <div>
             <div className="flex items-center gap-2 font-semibold text-sm">
               <Wand2 className="w-4 h-4 text-primary" />
-              Standardize Titles
+              <Trans>Standardize Titles</Trans>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {changed.length} of {proposals.length} books would change
+              {(() => { const n = changed.length; const total = proposals.length; return <Trans>{n} of {total} books would change</Trans> })()}
             </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -694,7 +698,7 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
         <div className="overflow-y-auto flex-1 divide-y divide-border/50">
           {changed.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-12">
-              No titles need standardizing.
+              <Trans>No titles need standardizing.</Trans>
             </p>
           )}
           {changed.length > 0 && (
@@ -705,7 +709,7 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
                 onChange={toggleAll}
                 className="rounded border-border"
               />
-              <span className="text-xs text-muted-foreground">Select all ({changed.length})</span>
+              {(() => { const n = changed.length; return <span className="text-xs text-muted-foreground"><Trans>Select all ({n})</Trans></span> })()}
             </div>
           )}
           {changed.map(p => (
@@ -720,16 +724,16 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
                 <p className="text-xs text-muted-foreground line-through truncate">{p.current_title}{p.current_subtitle ? ` — ${p.current_subtitle}` : ''}</p>
                 <div className="text-xs space-y-0.5">
                   {p.proposed_title !== p.current_title && (
-                    <p><span className="text-muted-foreground w-16 inline-block">Title</span><span className="font-medium">{p.proposed_title}</span></p>
+                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Title</Trans></span><span className="font-medium">{p.proposed_title}</span></p>
                   )}
                   {p.proposed_subtitle !== p.current_subtitle && (
-                    <p><span className="text-muted-foreground w-16 inline-block">Subtitle</span><span className="font-medium">{p.proposed_subtitle ?? <span className="italic text-muted-foreground/50">cleared</span>}</span></p>
+                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Subtitle</Trans></span><span className="font-medium">{p.proposed_subtitle ?? <span className="italic text-muted-foreground/50"><Trans>cleared</Trans></span>}</span></p>
                   )}
                   {p.proposed_series !== p.current_series && (
-                    <p><span className="text-muted-foreground w-16 inline-block">Series</span><span className="font-medium">{p.proposed_series ?? <span className="italic text-muted-foreground/50">cleared</span>}</span></p>
+                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Series</Trans></span><span className="font-medium">{p.proposed_series ?? <span className="italic text-muted-foreground/50"><Trans>cleared</Trans></span>}</span></p>
                   )}
                   {p.proposed_series_index !== p.current_series_index && (
-                    <p><span className="text-muted-foreground w-16 inline-block">Index</span><span className="font-medium">{p.proposed_series_index ?? <span className="italic text-muted-foreground/50">cleared</span>}</span></p>
+                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Index</Trans></span><span className="font-medium">{p.proposed_series_index ?? <span className="italic text-muted-foreground/50"><Trans>cleared</Trans></span>}</span></p>
                   )}
                 </div>
               </div>
@@ -751,7 +755,7 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
             disabled={applying}
             className="px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition-all"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             onClick={apply}
@@ -759,7 +763,7 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-            Apply {checked.size > 0 ? `${checked.size} ` : ''}Changes
+            {(() => { const n = checked.size; return n > 0 ? <Trans>Apply {n} Changes</Trans> : <Trans>Apply Changes</Trans> })()}
           </button>
         </div>
       </div>
@@ -817,7 +821,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
 
   function buildCleanTitle(title: string, seriesName: string): string {
     const num = extractChapterNum(title)
-    if (num !== null) return `${seriesName} Chapter ${num}`
+    if (num !== null) return t`${seriesName} Chapter ${num}`
     return title
   }
 
@@ -873,7 +877,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
       <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md mx-4 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Assign Chapter Metadata</h2>
+          <h2 className="text-sm font-semibold"><Trans>Assign Chapter Metadata</Trans></h2>
           <button onClick={handleClose} disabled={applying} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
             <X className="h-4 w-4" />
           </button>
@@ -882,17 +886,17 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
           <p className="text-xs text-muted-foreground">
-            {bookIds.length} chapters uploaded{detected > 0 ? ` — ${detected} chapter numbers detected` : ''}
+            {(() => { const n = bookIds.length; return t`${n} chapters uploaded` })()}{detected > 0 ? t` — ${detected} chapter numbers detected` : ''}
           </p>
 
           {/* Series picker */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Series</label>
+            <label className="text-xs font-medium text-muted-foreground"><Trans>Series</Trans></label>
             <input
               list="chapter-series-list"
               value={series}
               onChange={e => setSeries(e.target.value)}
-              placeholder="Start typing to search..."
+              placeholder={t`Start typing to search...`}
               className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
             />
             <datalist id="chapter-series-list">
@@ -902,12 +906,12 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
 
           {/* Author */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Author</label>
+            <label className="text-xs font-medium text-muted-foreground"><Trans>Author</Trans></label>
             <input
               list="chapter-author-list"
               value={author}
               onChange={e => setAuthor(e.target.value)}
-              placeholder="Auto-filled from series"
+              placeholder={t`Auto-filled from series`}
               className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
             />
             <datalist id="chapter-author-list">
@@ -917,13 +921,13 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
 
           {/* Book type */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Book Type</label>
+            <label className="text-xs font-medium text-muted-foreground"><Trans>Book Type</Trans></label>
             <select
               value={bookTypeId}
               onChange={e => setBookTypeId(e.target.value)}
               className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
             >
-              <option value="">None</option>
+              <option value="">{t`None`}</option>
               {bookTypes.map(bt => <option key={bt.id} value={String(bt.id)}>{bt.label}</option>)}
             </select>
           </div>
@@ -938,7 +942,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
                     <div key={b.id} className="flex items-center gap-2 px-3 py-1.5 text-xs">
                       <span className="text-muted-foreground truncate flex-1">{b.title}</span>
                       <span className="shrink-0 font-medium">
-                        {num !== null ? `Ch. ${num}` : <span className="text-warning">?</span>}
+                        {num !== null ? t`Ch. ${num}` : <span className="text-warning">?</span>}
                       </span>
                     </div>
                   )
@@ -950,9 +954,10 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex items-center justify-between">
-          {applying && progress ? (
-            <span className="text-xs text-muted-foreground">Applying {progress.done}/{progress.total}...</span>
-          ) : (
+          {applying && progress ? (() => {
+            const done = progress.done, total = progress.total
+            return <span className="text-xs text-muted-foreground"><Trans>Applying {done}/{total}...</Trans></span>
+          })() : (
             <span />
           )}
           <div className="flex items-center gap-2">
@@ -961,7 +966,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
               disabled={applying}
               className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
-              Cancel
+              <Trans>Cancel</Trans>
             </button>
             <button
               onClick={apply}
@@ -969,7 +974,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
             >
               {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              Apply to {bookIds.length} Chapters
+              {(() => { const n = bookIds.length; return <Trans>Apply to {n} Chapters</Trans> })()}
             </button>
           </div>
         </div>
@@ -1036,7 +1041,7 @@ export function MetadataManager() {
       setBookTypes(btData)
       setLibraries(libData)
     } catch {
-      setError('Failed to load metadata audit data.')
+      setError(t`Failed to load metadata audit data.`)
     } finally {
       setLoading(false)
     }
@@ -1216,7 +1221,10 @@ export function MetadataManager() {
         }}
         onWishMatches={(wishIds) => {
           const n = wishIds.length
-          toast.info(`This upload satisfies ${n} wish${n !== 1 ? 'es' : ''} — review in Admin > Wishlist`)
+          toast.info(plural(n, {
+            one: 'This upload satisfies # wish — review in Admin > Wishlist',
+            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+          }))
         }}
       />
 
@@ -1236,7 +1244,7 @@ export function MetadataManager() {
           <input
             value={search}
             onChange={e => handleSearchChange(e.target.value)}
-            placeholder="Search title, author…"
+            placeholder={t`Search title, author…`}
             className="pl-8 pr-3 h-8 w-52 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {search && (
@@ -1252,7 +1260,7 @@ export function MetadataManager() {
           onChange={e => setFilterSeries(e.target.value)}
           className="h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">All series</option>
+          <option value="">{t`All series`}</option>
           {allSeries.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
@@ -1262,7 +1270,7 @@ export function MetadataManager() {
           onChange={e => setFilterTypeId(e.target.value)}
           className="h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">All types</option>
+          <option value="">{t`All types`}</option>
           {bookTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
 
@@ -1272,7 +1280,7 @@ export function MetadataManager() {
           onChange={e => setFilterLibId(e.target.value)}
           className="h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">All libraries</option>
+          <option value="">{t`All libraries`}</option>
           {libraries.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
 
@@ -1286,7 +1294,7 @@ export function MetadataManager() {
             )}
           >
             <Filter className="w-3 h-3" />
-            Missing
+            <Trans>Missing</Trans>
             {missingFields.length > 0 && <span className="font-medium">({missingFields.length})</span>}
             <ChevronDown className="w-3 h-3" />
           </button>
@@ -1302,7 +1310,7 @@ export function MetadataManager() {
                       onChange={() => toggleMissingField(opt.key)}
                       className="rounded border-border"
                     />
-                    {opt.label}
+                    {i18n._(opt.label)}
                   </label>
                 ))}
               </div>
@@ -1312,7 +1320,7 @@ export function MetadataManager() {
 
         {hasFilters && (
           <button onClick={clearFilters} className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors">
-            Clear
+            <Trans>Clear</Trans>
           </button>
         )}
 
@@ -1328,14 +1336,14 @@ export function MetadataManager() {
           className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-all"
         >
           <Upload className="w-3.5 h-3.5" />
-          Upload
+          <Trans>Upload</Trans>
         </button>
         <button
           onClick={() => { setChapterMode(true); setUploadModalOpen(true) }}
           className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-all"
         >
           <BookMarked className="w-3.5 h-3.5" />
-          Upload Chapters
+          <Trans>Upload Chapters</Trans>
         </button>
 
         {/* Batch Fetch */}
@@ -1345,7 +1353,7 @@ export function MetadataManager() {
           className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 transition-all"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          Batch Fetch ({Math.min(sorted.length, 100)})
+          {(() => { const n = Math.min(sorted.length, 100); return <Trans>Batch Fetch ({n})</Trans> })()}
         </button>
 
         {/* Review all filtered */}
@@ -1355,7 +1363,7 @@ export function MetadataManager() {
           className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 transition-all"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          Review All Filtered ({sorted.length})
+          {(() => { const n = sorted.length; return <Trans>Review All Filtered ({n})</Trans> })()}
         </button>
         <button
           onClick={() => startStandardize(sorted.map(b => b.id))}
@@ -1363,28 +1371,28 @@ export function MetadataManager() {
           className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 transition-all"
         >
           {standardizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-          Standardize Titles
+          <Trans>Standardize Titles</Trans>
         </button>
       </div>
 
       {/* Bulk bar */}
       {selected.size > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
-          <span className="text-xs font-medium text-primary">{selected.size} selected</span>
+          {(() => { const n = selected.size; return <span className="text-xs font-medium text-primary">{t`${n} selected`}</span> })()}
           <div className="flex-1" />
           <button
             onClick={() => startBatchFetch([...selected])}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-all"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Batch Fetch
+            <Trans>Batch Fetch</Trans>
           </button>
           <button
             onClick={() => startReview([...selected])}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Review Selected
+            <Trans>Review Selected</Trans>
           </button>
           <button
             onClick={() => startStandardize([...selected])}
@@ -1392,7 +1400,7 @@ export function MetadataManager() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
           >
             {standardizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-            Standardize
+            <Trans>Standardize</Trans>
           </button>
           <button
             onClick={() => setSelected(new Set())}
@@ -1426,17 +1434,17 @@ export function MetadataManager() {
                   />
                 </th>
                 <th className="w-10 px-2 py-2" />
-                <th className="px-2 py-2 text-left"><SortHeader col="title" label="Title" /></th>
-                <th className="w-28 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Subtitle</th>
-                <th className="w-36 px-2 py-2 text-left"><SortHeader col="author" label="Author" /></th>
-                <th className="w-36 px-2 py-2 text-left"><SortHeader col="series" label="Series" /></th>
+                <th className="px-2 py-2 text-left"><SortHeader col="title" label={t`Title`} /></th>
+                <th className="w-28 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Subtitle</Trans></th>
+                <th className="w-36 px-2 py-2 text-left"><SortHeader col="author" label={t`Author`} /></th>
+                <th className="w-36 px-2 py-2 text-left"><SortHeader col="series" label={t`Series`} /></th>
                 <th className="w-10 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">#</th>
-                <th className="w-16 px-2 py-2 text-left"><SortHeader col="year" label="Year" /></th>
-                <th className="w-12 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Desc</th>
-                <th className="w-12 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Cover</th>
+                <th className="w-16 px-2 py-2 text-left"><SortHeader col="year" label={t`Year`} /></th>
+                <th className="w-12 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Desc</Trans></th>
+                <th className="w-12 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Cover</Trans></th>
                 <th className="w-24 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">ISBN</th>
-                <th className="w-12 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lang</th>
-                <th className="w-14 px-2 py-2 text-left"><SortHeader col="completeness" label="Score" /></th>
+                <th className="w-12 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Lang</Trans></th>
+                <th className="w-14 px-2 py-2 text-left"><SortHeader col="completeness" label={t`Score`} /></th>
               </tr>
             </thead>
             <tbody>
@@ -1504,7 +1512,7 @@ export function MetadataManager() {
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground text-sm">
-                    No books match the current filters.
+                    <Trans>No books match the current filters.</Trans>
                   </td>
                 </tr>
               )}
