@@ -57,9 +57,18 @@ msgstr " · {n} not estimated yet"
 msgid " · {n} read"
 msgstr " · {n} read"
 
+#: src/components/stats/widgets/insights.tsx
+#: src/components/stats/widgets/library.tsx
+msgid " · {n} reading"
+msgstr " · {n} reading"
+
 #: src/pages/WishlistPage.tsx
 msgid " · {n} volumes"
 msgstr " · {n} volumes"
+
+#: src/components/stats/widgets/insights.tsx
+msgid " · {n} want to read"
+msgstr " · {n} want to read"
 
 #: src/components/stats/widgets/overview.tsx
 msgid " · {pages} pages"
@@ -505,6 +514,10 @@ msgstr "{diffMins}m ago"
 msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
 msgstr "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
 
+#: src/components/stats/widgets/insights.tsx
+msgid "{dur} · {books} books — your only language"
+msgstr "{dur} · {books} books — your only language"
+
 #: src/pages/BookDetailPage.tsx
 msgid "{dur} across {n} chapters"
 msgstr "{dur} across {n} chapters"
@@ -548,6 +561,7 @@ msgstr "{h}h"
 
 #: src/components/stats/AuthorAffinity.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/widgets/library.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h {m}m"
@@ -688,6 +702,14 @@ msgstr "{pct}% more reading this period"
 msgid "{ppm} pages/min"
 msgstr "{ppm} pages/min"
 
+#: src/components/stats/widgets/insights.tsx
+msgid "{read} of {owned} owned read"
+msgstr "{read} of {owned} owned read"
+
+#: src/components/stats/widgets/library.tsx
+msgid "{read} of {total} read"
+msgstr "{read} of {total} read"
+
 #: src/pages/DashboardPage.tsx
 msgid "{readCount} read · {readingCount} reading · {unreadCount} unread"
 msgstr "{readCount} read · {readingCount} reading · {unreadCount} unread"
@@ -755,6 +777,10 @@ msgstr "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
 msgstr "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
+
+#: src/components/stats/widgets/library.tsx
+msgid "{v}m"
+msgstr "{v}m"
 
 #: src/pages/BookDetailPage.tsx
 msgid "{words} words"
@@ -948,6 +974,10 @@ msgstr "Actions"
 #: src/pages/AdminPage.tsx
 msgid "Active"
 msgstr "Active"
+
+#: src/components/stats/widgets/insights.tsx
+msgid "Active Days"
+msgstr "Active Days"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Activity"
@@ -1237,6 +1267,7 @@ msgstr "Audit Log"
 msgid "Auth"
 msgstr "Auth"
 
+#: src/components/stats/widgets/library.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -1359,6 +1390,10 @@ msgstr "Best-Rated Series"
 msgid "Beta"
 msgstr "Beta"
 
+#: src/components/stats/widgets/insights.tsx
+msgid "Biggest reading day"
+msgstr "Biggest reading day"
+
 #: src/components/Sidebar.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Bindery"
@@ -1443,6 +1478,8 @@ msgstr "Books completed"
 msgid "Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately."
 msgstr "Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately."
 
+#: src/components/stats/widgets/insights.tsx
+#: src/components/stats/widgets/library.tsx
 #: src/pages/StatsPage.tsx
 msgid "Books Finished"
 msgstr "Books Finished"
@@ -3210,6 +3247,10 @@ msgstr "Long-lived tokens for scripts and tools (e.g. Scribe). Each token is sho
 msgid "Longest first"
 msgstr "Longest first"
 
+#: src/components/stats/widgets/insights.tsx
+msgid "Longest session"
+msgstr "Longest session"
+
 #: src/pages/StatsPage.tsx
 msgid "Longest Session"
 msgstr "Longest Session"
@@ -3218,6 +3259,8 @@ msgstr "Longest Session"
 msgid "Longest session, biggest day, most pages"
 msgstr "Longest session, biggest day, most pages"
 
+#: src/components/stats/widgets/insights.tsx
+#: src/components/stats/widgets/library.tsx
 #: src/pages/StatsPage.tsx
 msgid "Longest Streak"
 msgstr "Longest Streak"
@@ -3385,6 +3428,14 @@ msgstr "More send options"
 #: src/pages/StatsPage.tsx
 msgid "Morning vs evening reader?"
 msgstr "Morning vs evening reader?"
+
+#: src/components/stats/widgets/library.tsx
+msgid "Most Active Month"
+msgstr "Most Active Month"
+
+#: src/components/stats/widgets/insights.tsx
+msgid "Most pages in a day"
+msgstr "Most pages in a day"
 
 #: src/pages/StatsPage.tsx
 msgid "Most-read authors"
@@ -3565,6 +3616,10 @@ msgstr "No books in progress"
 msgid "No books in this view."
 msgstr "No books in this view."
 
+#: src/components/stats/widgets/library.tsx
+msgid "No category data."
+msgstr "No category data."
+
 #: src/pages/StatsPage.tsx
 msgid "No comparison data."
 msgstr "No comparison data."
@@ -3584,6 +3639,10 @@ msgstr "No cover candidates found."
 #: src/components/CoverPickerModal.tsx
 msgid "No covers found — try a different search or use a custom URL below."
 msgstr "No covers found — try a different search or use a custom URL below."
+
+#: src/components/stats/widgets/insights.tsx
+msgid "No data yet."
+msgstr "No data yet."
 
 #: src/pages/BookDetailPage.tsx
 msgid "No description"
@@ -3741,6 +3800,10 @@ msgstr "No reading sessions recorded."
 msgid "no reading yet"
 msgstr "no reading yet"
 
+#: src/components/stats/widgets/insights.tsx
+msgid "No reading-time data yet."
+msgstr "No reading-time data yet."
+
 #: src/components/stats/BacklogEstimate.tsx
 #: src/lib/backlog.ts
 msgid "no recent reading, so no day estimate"
@@ -3766,6 +3829,10 @@ msgstr "No Series"
 msgid "No series found — add series metadata to your books."
 msgstr "No series found — add series metadata to your books."
 
+#: src/components/stats/widgets/library.tsx
+msgid "No series read yet."
+msgstr "No series read yet."
+
 #: src/components/stats/SeriesCompletionGrid.tsx
 msgid "No series with reading history yet."
 msgstr "No series with reading history yet."
@@ -3778,6 +3845,10 @@ msgstr "No series with reading progress yet."
 #: src/components/stats/widgets/habits.tsx
 msgid "No session data."
 msgstr "No session data."
+
+#: src/components/stats/widgets/insights.tsx
+msgid "No session-time data yet."
+msgstr "No session-time data yet."
 
 #: src/components/stats/widgets/overview.tsx
 msgid "No sessions recorded."
@@ -4064,6 +4135,11 @@ msgstr "Padding"
 msgid "pages"
 msgstr "pages"
 
+#: src/components/stats/widgets/insights.tsx
+#: src/components/stats/widgets/library.tsx
+msgid "Pages"
+msgstr "Pages"
+
 #: src/pages/DashboardPage.tsx
 msgid "Pages · 30d"
 msgstr "Pages · 30d"
@@ -4128,6 +4204,10 @@ msgstr "Passwords do not match."
 #: src/components/NotificationChannels.tsx
 msgid "Pause"
 msgstr "Pause"
+
+#: src/components/stats/widgets/insights.tsx
+msgid "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
+msgstr "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
 
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
@@ -4877,6 +4957,10 @@ msgstr "See Settings for setup instructions."
 msgid "Select"
 msgstr "Select"
 
+#: src/components/stats/widgets/library.tsx
+msgid "Select <0>1y</0> or <1>All</1> to see your year in review."
+msgstr "Select <0>1y</0> or <1>All</1> to see your year in review."
+
 #: src/pages/AdminPage.tsx
 msgid "Select a book first."
 msgstr "Select a book first."
@@ -5007,6 +5091,8 @@ msgstr "Session Timeline"
 msgid "sessions"
 msgstr "sessions"
 
+#: src/components/stats/widgets/insights.tsx
+#: src/components/stats/widgets/library.tsx
 #: src/pages/StatsPage.tsx
 msgid "Sessions"
 msgstr "Sessions"
@@ -5136,6 +5222,10 @@ msgstr "Shelves"
 msgid "Short app-specific passwords for OPDS — easier to type on an e-reader than your full password."
 msgstr "Short app-specific passwords for OPDS — easier to type on an e-reader than your full password."
 
+#: src/components/stats/widgets/library.tsx
+msgid "Show all ({n} books)"
+msgstr "Show all ({n} books)"
+
 #: src/pages/DashboardPage.tsx
 msgid "Show another highlight"
 msgstr "Show another highlight"
@@ -5149,6 +5239,7 @@ msgstr "Show details"
 msgid "Show individual volumes"
 msgstr "Show individual volumes"
 
+#: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Show less"
@@ -5496,6 +5587,7 @@ msgstr "this week"
 msgid "Thu"
 msgstr "Thu"
 
+#: src/components/stats/widgets/library.tsx
 #: src/pages/AdminPage.tsx
 msgid "Time"
 msgstr "Time"
@@ -5544,6 +5636,7 @@ msgstr "Timeline"
 msgid "title"
 msgstr "title"
 
+#: src/components/stats/widgets/library.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -5605,9 +5698,25 @@ msgstr "Top Authors by Reading Time"
 msgid "Top Books by Reading Time"
 msgstr "Top Books by Reading Time"
 
+#: src/components/stats/widgets/library.tsx
+msgid "Top Genre"
+msgstr "Top Genre"
+
+#: src/components/stats/widgets/library.tsx
+msgid "Total Hours"
+msgstr "Total Hours"
+
 #: src/pages/StatsPage.tsx
 msgid "Total pages turned"
 msgstr "Total pages turned"
+
+#: src/components/stats/widgets/library.tsx
+msgid "Total Sessions"
+msgstr "Total Sessions"
+
+#: src/components/stats/widgets/insights.tsx
+msgid "Total Time"
+msgstr "Total Time"
 
 #: src/pages/StatsPage.tsx
 msgid "Total time read + avg session"

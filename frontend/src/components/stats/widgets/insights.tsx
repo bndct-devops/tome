@@ -1,5 +1,7 @@
 // Batch-2 "insights" stats widgets — lifetime, records, TBR, reading clock, language.
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import { Clock, FileText, BookCheck, Activity, Calendar, Flame, Timer, Sun, type LucideIcon } from 'lucide-react'
 import { formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
@@ -9,18 +11,18 @@ import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 const fmtDay = (d: string | null) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '--'
 
-const Empty = () => <p className="py-10 text-center text-sm text-muted-foreground">No data yet.</p>
+const Empty = () => <p className="py-10 text-center text-sm text-muted-foreground"><Trans>No data yet.</Trans></p>
 
 // ── Lifetime totals (all-time, range-independent) ───────────────────────────────
 export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
   if (!data) return <Empty />
   const items: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: Clock, label: 'Total Time', value: formatDuration(data.seconds) },
-    { icon: FileText, label: 'Pages', value: data.pages.toLocaleString() },
-    { icon: BookCheck, label: 'Books Finished', value: String(data.books_finished) },
-    { icon: Activity, label: 'Sessions', value: String(data.sessions) },
-    { icon: Calendar, label: 'Active Days', value: String(data.active_days) },
-    { icon: Flame, label: 'Longest Streak', value: `${data.longest_streak_days}d` },
+    { icon: Clock, label: t`Total Time`, value: formatDuration(data.seconds) },
+    { icon: FileText, label: t`Pages`, value: data.pages.toLocaleString() },
+    { icon: BookCheck, label: t`Books Finished`, value: String(data.books_finished) },
+    { icon: Activity, label: t`Sessions`, value: String(data.sessions) },
+    { icon: Calendar, label: t`Active Days`, value: String(data.active_days) },
+    { icon: Flame, label: t`Longest Streak`, value: `${data.longest_streak_days}d` },
   ]
   return (
     <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
@@ -41,9 +43,9 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
 export function PersonalRecords({ data }: { data: StatsResponse['records'] }) {
   if (!data) return <Empty />
   const rows: { icon: LucideIcon; label: string; value: string; sub: string | null }[] = [
-    { icon: Timer, label: 'Longest session', value: formatDuration(data.longest_session_seconds), sub: data.longest_session_title },
-    { icon: Sun, label: 'Biggest reading day', value: formatDuration(data.biggest_day_seconds), sub: fmtDay(data.biggest_day_date) },
-    { icon: FileText, label: 'Most pages in a day', value: data.most_pages_day.toLocaleString(), sub: fmtDay(data.most_pages_date) },
+    { icon: Timer, label: t`Longest session`, value: formatDuration(data.longest_session_seconds), sub: data.longest_session_title },
+    { icon: Sun, label: t`Biggest reading day`, value: formatDuration(data.biggest_day_seconds), sub: fmtDay(data.biggest_day_date) },
+    { icon: FileText, label: t`Most pages in a day`, value: data.most_pages_day.toLocaleString(), sub: fmtDay(data.most_pages_date) },
   ]
   return (
     <div className="flex flex-col gap-2.5">
@@ -69,7 +71,7 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <span className="text-2xl font-bold text-foreground">{data.pct}%</span>
-        <span className="text-xs text-muted-foreground">{data.read} of {data.owned} owned read{data.reading ? ` · ${data.reading} reading` : ''}{data.want_to_read ? ` · ${data.want_to_read} want to read` : ''}</span>
+        <span className="text-xs text-muted-foreground">{(() => { const read = data.read; const owned = data.owned; return <Trans>{read} of {owned} owned read</Trans> })()}{data.reading ? (() => { const n = data.reading; return t` · ${n} reading` })() : ''}{data.want_to_read ? (() => { const n = data.want_to_read; return t` · ${n} want to read` })() : ''}</span>
       </div>
       <div className="flex flex-col gap-2">
         {data.by_type.map((t) => (
@@ -95,7 +97,7 @@ export function ReadingClock({ data }: { data: StatsResponse['hour_dow_heatmap']
   const byHour = Array(24).fill(0) as number[]
   for (const c of data) byHour[c.hour] += c.seconds
   const max = Math.max(...byHour, 1)
-  if (max <= 1) return <p className="py-10 text-center text-sm text-muted-foreground">No session-time data yet.</p>
+  if (max <= 1) return <p className="py-10 text-center text-sm text-muted-foreground"><Trans>No session-time data yet.</Trans></p>
 
   const SIZE = 200, cx = SIZE / 2, cy = SIZE / 2, r0 = 24, rmax = 74
   const total = byHour.reduce((s, v) => s + v, 0)
@@ -120,7 +122,7 @@ export function ReadingClock({ data }: { data: StatsResponse['hour_dow_heatmap']
           return <text key={h} x={cx + lr * Math.cos(a)} y={cy + lr * Math.sin(a) + 3} fontSize={9} fill={tick} textAnchor="middle">{h}h</text>
         })}
       </svg>
-      <p className="text-[11px] text-muted-foreground">Peak hour: <span className="font-medium text-foreground">{peak}:00–{(peak + 1) % 24}:00</span> · {formatDuration(total)} total</p>
+      {(() => { const peakEnd = (peak + 1) % 24; const dur = formatDuration(total); return <p className="text-[11px] text-muted-foreground"><Trans>Peak hour: <span className="font-medium text-foreground">{peak}:00–{peakEnd}:00</span> · {dur} total</Trans></p> })()}
     </div>
   )
 }
@@ -129,12 +131,12 @@ export function ReadingClock({ data }: { data: StatsResponse['hour_dow_heatmap']
 export function ReadingByLanguage({ data }: { data: StatsResponse['language'] }) {
   const palette = useChartPalette()
   const pts = (data ?? []).filter((l) => l.seconds > 0)
-  if (pts.length === 0) return <p className="py-12 text-center text-sm text-muted-foreground">No reading-time data yet.</p>
+  if (pts.length === 0) return <p className="py-12 text-center text-sm text-muted-foreground"><Trans>No reading-time data yet.</Trans></p>
   if (pts.length === 1) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1">
         <p className="text-xl font-bold text-foreground">{pts[0].language}</p>
-        <p className="text-xs text-muted-foreground">{formatDuration(pts[0].seconds)} · {pts[0].books} books — your only language</p>
+        {(() => { const dur = formatDuration(pts[0].seconds); const books = pts[0].books; return <p className="text-xs text-muted-foreground"><Trans>{dur} · {books} books — your only language</Trans></p> })()}
       </div>
     )
   }
