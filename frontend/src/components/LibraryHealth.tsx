@@ -278,7 +278,7 @@ export function LibraryHealthTab() {
               className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-              {loading ? t`Scanning...` : t`Scan Library`}
+              {loading ? t`Scanning…` : t`Scan Library`}
             </button>
           </div>
         </div>

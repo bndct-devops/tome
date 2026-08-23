@@ -1586,7 +1586,7 @@ export function BinderyPage() {
             <h1 className="font-display text-xl text-foreground"><Trans>Bindery</Trans></h1>
             <p className="text-xs text-muted-foreground hidden md:block">
               {(() => {
-                if (loading || unreviewedLoading) return t`Loading...`
+                if (loading || unreviewedLoading) return t`Loading…`
                 const inc = items.length, imp = unreviewed.length
                 if (imp > 0) return t`${imp} imported + ${inc} incoming`
                 return plural(inc, { one: '# file waiting for review', other: '# files waiting for review' })
@@ -1942,7 +1942,7 @@ export function BinderyPage() {
                       )}
                     </div>
                     <span className="text-[10px] text-muted-foreground shrink-0 capitalize">
-                      {item.status === 'fetching' ? t`Fetching metadata...` : item.status === 'accepting' ? t`Importing...` : ''}
+                      {item.status === 'fetching' ? t`Fetching metadata...` : item.status === 'accepting' ? t`Importing…` : ''}
                     </span>
                   </div>
                 ))}
@@ -1956,7 +1956,7 @@ export function BinderyPage() {
           open={confirmReject !== null}
           title={t`Reject files`}
           message={plural(confirmReject?.length ?? 0, { one: 'Permanently delete # file from the bindery? This cannot be undone.', other: 'Permanently delete # files from the bindery? This cannot be undone.' })}
-          confirmLabel={rejecting ? t`Deleting...` : t`Delete`}
+          confirmLabel={rejecting ? t`Deleting…` : t`Delete`}
           destructive
           onConfirm={() => confirmReject && doReject(confirmReject)}
           onCancel={() => setConfirmReject(null)}
@@ -1967,7 +1967,7 @@ export function BinderyPage() {
           open={confirmRejectUnreviewed !== null}
           title={t`Reject imported book`}
           message={t`Delete this book from the library? The file will be removed and this cannot be undone.`}
-          confirmLabel={rejectingUnreviewed ? t`Deleting...` : t`Delete`}
+          confirmLabel={rejectingUnreviewed ? t`Deleting…` : t`Delete`}
           destructive
           onConfirm={() => confirmRejectUnreviewed !== null && doRejectUnreviewed(confirmRejectUnreviewed)}
           onCancel={() => setConfirmRejectUnreviewed(null)}
@@ -2299,7 +2299,7 @@ export function BinderyPage() {
         open={confirmReject !== null}
         title={t`Reject files`}
         message={plural(confirmReject?.length ?? 0, { one: 'Permanently delete # file from the bindery? This cannot be undone.', other: 'Permanently delete # files from the bindery? This cannot be undone.' })}
-        confirmLabel={rejecting ? t`Deleting...` : t`Delete`}
+        confirmLabel={rejecting ? t`Deleting…` : t`Delete`}
         destructive
         onConfirm={() => {
           if (confirmReject) {

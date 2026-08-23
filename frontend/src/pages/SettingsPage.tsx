@@ -622,7 +622,7 @@ export function SettingsPage() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 sm:mt-5 shrink-0"
                 >
                   {profileSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  {profileSaving ? t`Saving...` : t`Save changes`}
+                  {profileSaving ? t`Saving…` : t`Save changes`}
                 </button>
               </form>
               {profileError && <p className="text-xs text-destructive mt-2">{profileError}</p>}
@@ -664,7 +664,7 @@ export function SettingsPage() {
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40"
                   >
                     {pwSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    {pwSaving ? t`Saving...` : t`Update password`}
+                    {pwSaving ? t`Saving…` : t`Update password`}
                   </button>
                 </div>
               </form>
@@ -1111,7 +1111,7 @@ export function SettingsPage() {
                   className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
                 >
                   {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {kosyncSaving ? t`Saving...` : kosyncStatus?.linked ? t`Update` : t`Register`}
+                  {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
                 </button>
               </form>
               {kosyncError && <p className="text-xs text-destructive">{kosyncError}</p>}
@@ -1153,7 +1153,7 @@ export function SettingsPage() {
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Download className="w-3.5 h-3.5" />
                 }
-                {pluginDownloading ? t`Preparing...` : t`Download plugin ZIP`}
+                {pluginDownloading ? t`Preparing…` : t`Download plugin ZIP`}
               </button>
 
               <SetupGuide />
@@ -1466,7 +1466,7 @@ export function SettingsPage() {
               {apiTokensLoading ? (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <Trans>Loading...</Trans>
+                  <Trans>Loading…</Trans>
                 </div>
               ) : apiTokens.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">

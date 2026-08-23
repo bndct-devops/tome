@@ -2402,7 +2402,7 @@ function EmailTab() {
                 className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
               >
                 {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                {testSending ? t`Sending...` : t`Test`}
+                {testSending ? t`Sending…` : t`Test`}
               </button>
             </form>
             {testResult?.ok && <p className="text-xs text-success"><Trans>Test email sent successfully.</Trans></p>}

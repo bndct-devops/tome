@@ -956,7 +956,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
         <div className="px-6 py-4 border-t border-border flex items-center justify-between">
           {applying && progress ? (() => {
             const done = progress.done, total = progress.total
-            return <span className="text-xs text-muted-foreground"><Trans>Applying {done}/{total}...</Trans></span>
+            return <span className="text-xs text-muted-foreground"><Trans>Applying {done}/{total}…</Trans></span>
           })() : (
             <span />
           )}

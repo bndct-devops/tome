@@ -1498,10 +1498,11 @@ msgid "Apply to all"
 msgstr "Apply to all"
 
 #: src/components/MetadataManager.tsx
-msgid "Applying {done}/{total}..."
-msgstr "Applying {done}/{total}..."
+#~ msgid "Applying {done}/{total}..."
+#~ msgstr "Applying {done}/{total}..."
 
 #: src/components/BulkMetadataReviewModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
 msgid "Applying {done}/{total}…"
 msgstr "Applying {done}/{total}…"
@@ -2463,9 +2464,10 @@ msgid "Deleted board “{name}”"
 msgstr "Deleted board “{name}”"
 
 #: src/pages/BinderyPage.tsx
-msgid "Deleting..."
-msgstr "Deleting..."
+#~ msgid "Deleting..."
+#~ msgstr "Deleting..."
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Deleting…"
 msgstr "Deleting…"
@@ -3511,10 +3513,11 @@ msgid "Imported board"
 msgstr "Imported board"
 
 #: src/pages/BinderyPage.tsx
-msgid "Importing..."
-msgstr "Importing..."
+#~ msgid "Importing..."
+#~ msgstr "Importing..."
 
 #: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Importing…"
 msgstr "Importing…"
 
@@ -3822,8 +3825,8 @@ msgstr "Loading your reading life…"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/SettingsPage.tsx
-msgid "Loading..."
-msgstr "Loading..."
+#~ msgid "Loading..."
+#~ msgstr "Loading..."
 
 #: src/components/HardcoverSync.tsx
 #: src/components/PositionHistoryModal.tsx
@@ -3831,7 +3834,9 @@ msgstr "Loading..."
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
 #: src/components/stats/GoalWidget.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/HardcoverPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/SharePage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Loading…"
@@ -5022,8 +5027,8 @@ msgid "Prefix"
 msgstr "Prefix"
 
 #: src/pages/SettingsPage.tsx
-msgid "Preparing..."
-msgstr "Preparing..."
+#~ msgid "Preparing..."
+#~ msgstr "Preparing..."
 
 #: src/components/InstanceBackup.tsx
 #: src/pages/SettingsPage.tsx
@@ -5707,12 +5712,13 @@ msgid "Saving"
 msgstr "Saving"
 
 #: src/pages/SettingsPage.tsx
-msgid "Saving..."
-msgstr "Saving..."
+#~ msgid "Saving..."
+#~ msgstr "Saving..."
 
 #: src/components/ForcePasswordChange.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Saving…"
 msgstr "Saving…"
 
@@ -5742,9 +5748,10 @@ msgid "Scanning covers…"
 msgstr "Scanning covers…"
 
 #: src/components/LibraryHealth.tsx
-msgid "Scanning..."
-msgstr "Scanning..."
+#~ msgid "Scanning..."
+#~ msgstr "Scanning..."
 
+#: src/components/LibraryHealth.tsx
 #: src/pages/AdminPage.tsx
 msgid "Scanning…"
 msgstr "Scanning…"
@@ -5922,8 +5929,13 @@ msgstr "Sending"
 
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
-msgid "Sending..."
-msgstr "Sending..."
+#~ msgid "Sending..."
+#~ msgstr "Sending..."
+
+#: src/components/SendToDeviceModal.tsx
+#: src/pages/AdminPage.tsx
+msgid "Sending…"
+msgstr "Sending…"
 
 #: src/pages/AdminPage.tsx
 msgid "Sent"

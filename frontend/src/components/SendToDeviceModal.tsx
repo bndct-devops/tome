@@ -225,7 +225,7 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
                   {sending ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <Trans>Sending...</Trans>
+                      <Trans>Sending…</Trans>
                     </>
                   ) : (
                     <>
