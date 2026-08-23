@@ -16,6 +16,9 @@ import {
   Legend,
 } from 'recharts'
 import { type ChartKind } from '@/components/stats/widgets/overview'
+import { Trans } from '@lingui/react/macro'
+import { t, msg, plural } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
 import { TrendingUp, TrendingDown, Zap, Minus, FileText, Loader2 } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
@@ -30,11 +33,11 @@ export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] 
     <>
       <HourDowHeatmap data={data} />
       <div className="flex items-center gap-2 justify-end mt-1">
-        <span className="text-[10px] text-muted-foreground">Less</span>
+        <span className="text-[10px] text-muted-foreground"><Trans>Less</Trans></span>
         {[0.15, 0.37, 0.58, 0.79, 1.0].map((o) => (
           <div key={o} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: accent, opacity: o }} />
         ))}
-        <span className="text-[10px] text-muted-foreground">More</span>
+        <span className="text-[10px] text-muted-foreground"><Trans>More</Trans></span>
       </div>
     </>
   )
@@ -88,7 +91,7 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
         ))}
       </div>
       <p className="shrink-0 pt-1 text-center text-[10px] text-muted-foreground">
-        {dayEntries.length} active {dayEntries.length === 1 ? 'day' : 'days'} in this window
+        {plural(dayEntries.length, { one: '# active day in this window', other: '# active days in this window' })}
       </p>
     </div>
   )
@@ -96,7 +99,7 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
 
 export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace'] }) {
   const { accent, tick, cursor } = useChartColors()
-  if (pace.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No paced sessions.</p>
+  if (pace.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No paced sessions.</Trans></p>
   const avg = pace.reduce((s, p) => s + p.pages_per_min, 0) / pace.length
   return (
     <div className="flex h-full flex-col">
@@ -114,8 +117,8 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
               return (
                 <ChartTooltip>
                   <div className="font-medium">{d.title}</div>
-                  <div>{d.pages_per_min} pages/min</div>
-                  <div className="text-muted-foreground">{d.pages_turned} pages in {formatDuration(d.duration_seconds)}</div>
+                  {(() => { const ppm = d.pages_per_min; return <div><Trans>{ppm} pages/min</Trans></div> })()}
+                  {(() => { const pages = d.pages_turned; const dur = formatDuration(d.duration_seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
                 </ChartTooltip>
               )
             }}
@@ -123,14 +126,14 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
           <Area dataKey="pages_per_min" fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
-      <p className="text-xs text-muted-foreground text-center shrink-0">avg {avg.toFixed(1)} pages/min</p>
+      {(() => { const a = avg.toFixed(1); return <p className="text-xs text-muted-foreground text-center shrink-0"><Trans>avg {a} pages/min</Trans></p> })()}
     </div>
   )
 }
 
 export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'] }) {
   const { accent, tick, cursor } = useChartColors()
-  if (pace.length < 4) return <p className="text-sm text-muted-foreground text-center py-12">Not enough sessions yet.</p>
+  if (pace.length < 4) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>Not enough sessions yet.</Trans></p>
   const paceData = [...pace].reverse()
   const half = Math.floor(paceData.length / 2)
   const avg = (arr: typeof paceData) => arr.reduce((s, p) => s + p.pages_per_min, 0) / arr.length
@@ -143,9 +146,9 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
       <div className="flex items-center gap-2 shrink-0">
         {trending === 'up' ? <TrendingUp className="w-4 h-4 text-success" /> : trending === 'down' ? <TrendingDown className="w-4 h-4 text-destructive" /> : <Zap className="w-4 h-4 text-muted-foreground" />}
         <span className={cn('text-sm font-semibold', trending === 'up' ? 'text-success' : trending === 'down' ? 'text-destructive' : 'text-muted-foreground')}>
-          {trending === 'up' ? `Reading speed up ${pctDiff}%` : trending === 'down' ? `Reading speed down ${Math.abs(pctDiff)}%` : 'Reading speed steady'}
+          {(() => { const up = pctDiff; const down = Math.abs(pctDiff); return trending === 'up' ? t`Reading speed up ${up}%` : trending === 'down' ? t`Reading speed down ${down}%` : t`Reading speed steady` })()}
         </span>
-        <span className="text-xs text-muted-foreground ml-1">({secondAvg.toFixed(1)} vs {firstAvg.toFixed(1)} pages/min)</span>
+        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-xs text-muted-foreground ml-1"><Trans>({a} vs {b} pages/min)</Trans></span> })()}
       </div>
       <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
         <AreaChart data={paceData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -161,7 +164,7 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
               return (
                 <ChartTooltip>
                   <div className="font-medium">{d.title}</div>
-                  <div>{d.pages_per_min} pages/min</div>
+                  {(() => { const ppm = d.pages_per_min; return <div><Trans>{ppm} pages/min</Trans></div> })()}
                 </ChartTooltip>
               )
             }}
@@ -183,7 +186,7 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
     )
   }
   if (estimates.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">No books currently in progress.</p>
+    return <p className="text-sm text-muted-foreground text-center py-8"><Trans>No books currently in progress.</Trans></p>
   }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -202,8 +205,8 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
               <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
             </div>
             <p className={cn('text-xs mt-1.5', est.confidence === 'high' ? 'text-foreground' : est.confidence === 'medium' ? 'text-muted-foreground' : 'text-muted-foreground/60')}>
-              {est.estimated_days != null ? `~${est.estimated_days} day${est.estimated_days !== 1 ? 's' : ''} remaining` : 'Just started'}
-              {est.confidence === 'low' && est.estimated_days != null && <span className="ml-1 text-muted-foreground/50">(low confidence)</span>}
+              {est.estimated_days != null ? plural(est.estimated_days, { one: '~# day remaining', other: '~# days remaining' }) : t`Just started`}
+              {est.confidence === 'low' && est.estimated_days != null && <span className="ml-1 text-muted-foreground/50"><Trans>(low confidence)</Trans></span>}
             </p>
           </div>
         </a>
@@ -222,21 +225,19 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
       </div>
       <div className="flex-1 min-w-0">
         <p className={cn('text-lg font-bold', up ? 'text-success' : down ? 'text-destructive' : 'text-muted-foreground')}>
-          {comparison.pct_change === null
-            ? 'No previous data to compare'
-            : comparison.pct_change === 0 && comparison.current_seconds === 0
-            ? 'No reading data'
-            : comparison.pct_change === 0
-            ? 'Same as previous period'
-            : up
-            ? `${comparison.pct_change}% more reading this period`
-            : `${Math.abs(comparison.pct_change!)}% less reading this period`}
+          {(() => {
+            if (comparison.pct_change === null) return t`No previous data to compare`
+            if (comparison.pct_change === 0 && comparison.current_seconds === 0) return t`No reading data`
+            if (comparison.pct_change === 0) return t`Same as previous period`
+            const pct = up ? comparison.pct_change : Math.abs(comparison.pct_change!)
+            return up ? t`${pct}% more reading this period` : t`${pct}% less reading this period`
+          })()}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          This period: <span className="text-foreground font-medium">{formatDuration(comparison.current_seconds)}</span>
-          {comparison.pct_change !== null && (
-            <> vs previous: <span className="text-foreground font-medium">{formatDuration(comparison.previous_seconds)}</span></>
-          )}
+          {(() => { const cur = formatDuration(comparison.current_seconds); return <Trans>This period: <span className="text-foreground font-medium">{cur}</span></Trans> })()}
+          {comparison.pct_change !== null && (() => { const prev = formatDuration(comparison.previous_seconds); return (
+            <Trans> vs previous: <span className="text-foreground font-medium">{prev}</span></Trans>
+          ) })()}
         </p>
       </div>
     </div>
@@ -261,9 +262,9 @@ export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: Sta
             return (
               <ChartTooltip>
                 <div className="font-medium">{d.month}</div>
-                <div>{d.reading_hours}h reading</div>
-                <div>{d.books_finished} book{d.books_finished !== 1 ? 's' : ''} finished</div>
-                <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
+                {(() => { const h = d.reading_hours; return <div><Trans>{h}h reading</Trans></div> })()}
+                <div>{plural(d.books_finished, { one: '# book finished', other: '# books finished' })}</div>
+                <div className="text-muted-foreground">{plural(d.sessions, { one: '# session', other: '# sessions' })}</div>
               </ChartTooltip>
             )
           }}
@@ -311,13 +312,13 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
     sessions[c.dow] += c.sessions
   }
   // dow 0 = Sunday — rotate to Mon-first
-  const LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const LABELS = [msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`, msg`Sun`]
   const rows = LABELS.map((label, i) => {
     const dow = (i + 1) % 7
-    return { label, seconds: byDow[dow], sessions: sessions[dow] }
+    return { label: i18n._(label), seconds: byDow[dow], sessions: sessions[dow] }
   })
   if (rows.every((r) => r.seconds === 0)) {
-    return <p className="text-sm text-muted-foreground text-center py-12">No session data.</p>
+    return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No session data.</Trans></p>
   }
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
@@ -335,7 +336,7 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
               <ChartTooltip>
                 <div className="font-medium">{d.label}</div>
                 <div>{formatDuration(d.seconds)}</div>
-                <div className="text-muted-foreground">{d.sessions} session{d.sessions !== 1 ? 's' : ''}</div>
+                <div className="text-muted-foreground">{plural(d.sessions, { one: '# session', other: '# sessions' })}</div>
               </ChartTooltip>
             )
           }}
@@ -350,7 +351,7 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
 function SplitDonut({ rows }: { rows: { name: string; seconds: number }[] }) {
   const palette = useChartPalette()
   const data = rows.filter((r) => r.seconds > 0)
-  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No session data.</p>
+  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No session data.</Trans></p>
   const total = data.reduce((s, r) => s + r.seconds, 0)
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
