@@ -1,6 +1,8 @@
 // Overview-tab stats widgets — chart-only (no card frame, no fixed height), so the
 // same component renders inside a StatsPage ChartCard and inside a resizable Lab tile.
 import { useEffect, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -43,8 +45,8 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
     return (
       <div className="flex h-full min-h-[3.5rem] flex-col items-center justify-center gap-1 py-3 text-center">
         <BookOpen className="h-5 w-5 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground">No books in progress</p>
-        <p className="text-xs text-muted-foreground/60">Start reading one and it'll show up here</p>
+        <p className="text-sm text-muted-foreground"><Trans>No books in progress</Trans></p>
+        <p className="text-xs text-muted-foreground/60"><Trans>Start reading one and it'll show up here</Trans></p>
       </div>
     )
   }
@@ -107,7 +109,7 @@ export function ReadingTimePerDay({ daily, chartType = 'bar' }: { daily: StatsRe
                 <div>{formatDuration(d.seconds)}</div>
                 <div className="text-muted-foreground">
                   {d.sessions} session{d.sessions !== 1 ? 's' : ''}
-                  {d.pages > 0 ? ` · ${d.pages.toLocaleString()} pages` : ''}
+                  {d.pages > 0 ? (() => { const pages = d.pages.toLocaleString(); return t` · ${pages} pages` })() : ''}
                 </div>
               </ChartTooltip>
             )
@@ -136,7 +138,7 @@ function TitleTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: 
 export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_books'] }) {
   const { accent, tick, cursor } = useChartColors()
   if (topBooks.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-12">No reading sessions recorded.</p>
+    return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No reading sessions recorded.</Trans></p>
   }
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
@@ -156,7 +158,7 @@ export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_book
                 <div>{formatDuration(d.seconds)}</div>
                 <div className="text-muted-foreground">
                   {d.sessions} session{d.sessions !== 1 ? 's' : ''}
-                  {d.sessions > 0 ? ` · avg ${formatDuration(Math.round(d.seconds / d.sessions))}` : ''}
+                  {d.sessions > 0 ? (() => { const avg = formatDuration(Math.round(d.seconds / d.sessions)); return t` · avg ${avg}` })() : ''}
                 </div>
               </ChartTooltip>
             )
@@ -174,7 +176,7 @@ export function ReadingActivity365({ heatmap }: { heatmap: StatsResponse['heatma
     <>
       <HeatmapChart data={heatmap} />
       <div className="flex items-center gap-2 justify-end mt-1">
-        <span className="text-[10px] text-muted-foreground">Less</span>
+        <span className="text-[10px] text-muted-foreground"><Trans>Less</Trans></span>
         {[0.12, 0.25, 0.45, 0.7, 1].map((op, i) => (
           <div
             key={i}
@@ -182,7 +184,7 @@ export function ReadingActivity365({ heatmap }: { heatmap: StatsResponse['heatma
             style={i === 0 ? { backgroundColor: tick, opacity: op } : { backgroundColor: accent, opacity: op }}
           />
         ))}
-        <span className="text-[10px] text-muted-foreground">More</span>
+        <span className="text-[10px] text-muted-foreground"><Trans>More</Trans></span>
       </div>
     </>
   )
@@ -225,7 +227,7 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
                 {d.titles.map((t: string) => (
                   <div key={t} className="font-medium">{t}</div>
                 ))}
-                <div className="text-muted-foreground mt-1">{d.daily} finished &middot; {d.count} total</div>
+                {(() => { const daily = d.daily; const count = d.count; return <div className="text-muted-foreground mt-1"><Trans>{daily} finished &middot; {count} total</Trans></div> })()}
               </ChartTooltip>
             )
           }}
@@ -246,25 +248,25 @@ export function SessionLogHint() {
   return (
     <InfoHint wide>
       <span className="flex flex-col gap-1.5 text-left font-normal normal-case">
-        <span>Each row is one reading session.</span>
+        <span><Trans>Each row is one reading session.</Trans></span>
         <span>
-          <span className="font-medium text-foreground">Device name</span> (e.g. Kindle) — recorded
+          <Trans><span className="font-medium text-foreground">Device name</span> (e.g. Kindle) — recorded
           live by the KOReader plugin. <span className="font-medium text-foreground">web</span> /{' '}
           <span className="font-medium text-foreground">manual</span> — the web reader, or logged by
-          hand.
+          hand.</Trans>
         </span>
         <span>
-          <span className="font-medium text-foreground">imported</span> — from KOReader&apos;s synced
-          reading history. Delete only: KOReader already caps idle time, so there is nothing to trim.
+          <Trans><span className="font-medium text-foreground">imported</span> — from KOReader&apos;s synced
+          reading history. Delete only: KOReader already caps idle time, so there is nothing to trim.</Trans>
         </span>
         <span>
-          <span className="font-medium text-foreground">not counted</span> — a live device session
+          <Trans><span className="font-medium text-foreground">not counted</span> — a live device session
           whose sitting is also described by imported history. Listed for completeness,
-          excluded from the totals so nothing is counted twice.
+          excluded from the totals so nothing is counted twice.</Trans>
         </span>
         <span>
-          The triangle marks an implausibly long session. Scissors shorten a session, the bin
-          deletes it.
+          <Trans>The triangle marks an implausibly long session. Scissors shorten a session, the bin
+          deletes it.</Trans>
         </span>
       </span>
     </InfoHint>
@@ -354,7 +356,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
   }
 
   if (sessions.length === 0 && !loading) {
-    return <p className="text-sm text-muted-foreground text-center py-8">No sessions recorded.</p>
+    return <p className="text-sm text-muted-foreground text-center py-8"><Trans>No sessions recorded.</Trans></p>
   }
   return (
     <div className="flex flex-col gap-0">
@@ -362,17 +364,17 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
         <button
           onClick={() => setSort(sort === 'recent' ? 'longest' : 'recent')}
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          title="Toggle sort order"
+          title={t`Toggle sort order`}
         >
           <ArrowUpDown className="w-3 h-3" />
-          {sort === 'recent' ? 'Newest first' : 'Longest first'}
+          {sort === 'recent' ? t`Newest first` : t`Longest first`}
         </button>
       </div>
       <div className="hidden sm:grid grid-cols-[1fr_120px_90px_80px_60px] gap-2 px-2 pb-2 text-[11px] font-medium text-muted-foreground border-b border-border">
-        <span>Book</span>
-        <span>Date</span>
-        <span>Duration</span>
-        <span>Device</span>
+        <span><Trans>Book</Trans></span>
+        <span><Trans>Date</Trans></span>
+        <span><Trans>Duration</Trans></span>
+        <span><Trans>Device</Trans></span>
         <span />
       </div>
       {sessions.map((s, idx) => (
@@ -398,7 +400,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
               {s.suspect && (
                 <TriangleAlert
                   className="w-3 h-3 text-warning shrink-0"
-                  aria-label="Unusually long session"
+                  aria-label={t`Unusually long session`}
                 />
               )}
             </div>
@@ -416,7 +418,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
               {s.kind === 'imported' ? (
                 <span className="block text-[10px] text-muted-foreground/70">imported</span>
               ) : !s.counted ? (
-                <span className="block text-[10px] text-muted-foreground/70">not counted</span>
+                <span className="block text-[10px] text-muted-foreground/70"><Trans>not counted</Trans></span>
               ) : null}
             </div>
             <div className="flex justify-end gap-0.5">
@@ -424,7 +426,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                 <button
                   onClick={() => (trimId === s.id ? setTrimId(null) : openTrim(s))}
                   className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                  title="Trim session"
+                  title={t`Trim session`}
                 >
                   <Scissors className="w-3.5 h-3.5" />
                 </button>
@@ -433,7 +435,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                 onClick={() => deleteSession(s)}
                 disabled={deleting.has(s.id)}
                 className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                title={s.kind === 'imported' ? 'Delete this imported sitting' : 'Delete session'}
+                title={s.kind === 'imported' ? t`Delete this imported sitting` : t`Delete session`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -441,8 +443,8 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
           </div>
           {trimId === s.id && (
             <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2 text-xs">
-              <span className="text-muted-foreground">New duration</span>
-              <InfoHint text="Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace." />
+              <span className="text-muted-foreground"><Trans>New duration</Trans></span>
+              <InfoHint text={t`Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace.`} />
               <input
                 type="number"
                 min={1}
@@ -450,14 +452,14 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                 onChange={(e) => setTrimMinutes(e.target.value)}
                 className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-right tabular-nums"
               />
-              <span className="text-muted-foreground">min</span>
+              <span className="text-muted-foreground"><Trans>min</Trans></span>
               {s.suggested_seconds != null && (
                 <button
                   onClick={() => setTrimMinutes(String(Math.max(1, Math.round(s.suggested_seconds! / 60))))}
                   className="text-primary hover:text-primary/80 transition-colors"
-                  title="Your page turns at your usual reading pace"
+                  title={t`Your page turns at your usual reading pace`}
                 >
-                  Suggested: {formatDuration(s.suggested_seconds)}
+                  {(() => { const dur = formatDuration(s.suggested_seconds); return t`Suggested: ${dur}` })()}
                 </button>
               )}
               <div className="ml-auto flex gap-1.5">
@@ -466,13 +468,13 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                   disabled={trimBusy}
                   className="rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  Trim
+                  <Trans>Trim</Trans>
                 </button>
                 <button
                   onClick={() => setTrimId(null)}
                   className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Cancel
+                  <Trans>Cancel</Trans>
                 </button>
               </div>
             </div>
@@ -490,7 +492,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
           ) : (
             <>
               <ChevronDown className="w-3.5 h-3.5" />
-              <span>Show more ({total - loaded} remaining)</span>
+              {(() => { const left = total - loaded; return <span><Trans>Show more ({left} remaining)</Trans></span> })()}
             </>
           )}
         </button>
@@ -503,7 +505,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
 export function RecentlyFinished({ booksFinished }: { booksFinished: StatsResponse['books_finished'] }) {
   const rows = [...booksFinished].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12)
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Nothing finished in this range.</p>
+    return <p className="text-sm text-muted-foreground text-center py-8"><Trans>Nothing finished in this range.</Trans></p>
   }
   return (
     <div className="flex flex-col gap-1">

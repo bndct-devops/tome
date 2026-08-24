@@ -1,5 +1,7 @@
 // Library-tab stats widgets — chart/content-only, shared by StatsPage and the Lab.
 import { Fragment, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -24,18 +26,18 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
   if (!summary) {
     return (
       <div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
-        Select <span className="mx-1 font-medium text-foreground">1y</span> or <span className="mx-1 font-medium text-foreground">All</span> to see your year in review.
+        <Trans>Select <span className="mx-1 font-medium text-foreground">1y</span> or <span className="mx-1 font-medium text-foreground">All</span> to see your year in review.</Trans>
       </div>
     )
   }
   // Compact (no nested StatCard frame) so all six fit a 2-row tile without clipping.
   const items: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: BookCheck, label: 'Books Finished', value: String(summary.books_finished) },
-    { icon: Clock, label: 'Total Hours', value: `${summary.total_hours}h` },
-    { icon: Trophy, label: 'Top Genre', value: summary.top_genre ?? '--' },
-    { icon: Flame, label: 'Longest Streak', value: `${summary.longest_streak_days}d` },
-    { icon: Activity, label: 'Total Sessions', value: String(summary.total_sessions) },
-    { icon: Calendar, label: 'Most Active Month', value: summary.most_active_month ?? '--' },
+    { icon: BookCheck, label: t`Books Finished`, value: String(summary.books_finished) },
+    { icon: Clock, label: t`Total Hours`, value: `${summary.total_hours}h` },
+    { icon: Trophy, label: t`Top Genre`, value: summary.top_genre ?? '--' },
+    { icon: Flame, label: t`Longest Streak`, value: `${summary.longest_streak_days}d` },
+    { icon: Activity, label: t`Total Sessions`, value: String(summary.total_sessions) },
+    { icon: Calendar, label: t`Most Active Month`, value: summary.most_active_month ?? '--' },
   ]
   return (
     <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
@@ -54,7 +56,7 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
 
 export function CategoryBreakdown({ data }: { data: StatsResponse['by_category'] }) {
   const palette = useChartPalette()
-  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No category data.</p>
+  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No category data.</Trans></p>
   const total = data.reduce((s, c) => s + c.seconds, 0)
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
@@ -90,7 +92,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
   const palette = useChartPalette()
   const { tick, cursor } = useChartColors()
   const categories = Array.from(new Set(data.flatMap((d) => Object.keys(d).filter((k) => k !== 'month')))).sort()
-  if (categories.length === 0) return <p className="text-sm text-muted-foreground text-center py-12">No category data.</p>
+  if (categories.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No category data.</Trans></p>
 
   const chartData = data.map((d) => {
     const entry: Record<string, number | string> = { month: d.month as string }
@@ -125,7 +127,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
                   .map((p) => (
                     <div key={p.dataKey as string} className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                      <span>{p.dataKey as string}: {(p.value as number) >= 60 ? `${Math.round((p.value as number) / 60)}h ${(p.value as number) % 60}m` : `${p.value}m`}</span>
+                      <span>{p.dataKey as string}: {(() => { const v = p.value as number; if (v >= 60) { const h = Math.round(v / 60); const m = v % 60; return t`${h}h ${m}m` } return t`${v}m` })()}</span>
                     </div>
                   ))}
               </ChartTooltip>
@@ -149,7 +151,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
 export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_completion']; series?: string }) {
   const { accent } = useChartColors()
   const entry = (series ? data.find((s) => s.series === series) : undefined) ?? data[0]
-  if (!entry) return <p className="text-sm text-muted-foreground text-center py-8">No series read yet.</p>
+  if (!entry) return <p className="text-sm text-muted-foreground text-center py-8"><Trans>No series read yet.</Trans></p>
   return (
     <div className="flex h-full items-center gap-3">
       <img
@@ -161,7 +163,7 @@ export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{entry.series}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {entry.read} of {entry.total} read{entry.reading > 0 ? ` · ${entry.reading} reading` : ''}
+          {(() => { const read = entry.read; const total = entry.total; return <Trans>{read} of {total} read</Trans> })()}{entry.reading > 0 ? (() => { const n = entry.reading; return t` · ${n} reading` })() : ''}
         </p>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full" style={{ width: `${Math.min(entry.pct, 100)}%`, backgroundColor: accent }} />
@@ -208,16 +210,16 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
         <thead>
           <tr className="border-b border-border text-[11px] font-medium text-muted-foreground">
             <th className="text-left py-2 px-2 w-10" />
-            <th className="text-left py-2 px-2">Title</th>
-            <th className="text-left py-2 px-2 hidden sm:table-cell">Author</th>
+            <th className="text-left py-2 px-2"><Trans>Title</Trans></th>
+            <th className="text-left py-2 px-2 hidden sm:table-cell"><Trans>Author</Trans></th>
             <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('seconds')}>
-              <span className="inline-flex items-center gap-1">Time <SortIcon col="seconds" /></span>
+              <span className="inline-flex items-center gap-1"><Trans>Time</Trans> <SortIcon col="seconds" /></span>
             </th>
             <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('sessions')}>
-              <span className="inline-flex items-center gap-1">Sessions <SortIcon col="sessions" /></span>
+              <span className="inline-flex items-center gap-1"><Trans>Sessions</Trans> <SortIcon col="sessions" /></span>
             </th>
             <th className="text-right py-2 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('pages_turned')}>
-              <span className="inline-flex items-center gap-1">Pages <SortIcon col="pages_turned" /></span>
+              <span className="inline-flex items-center gap-1"><Trans>Pages</Trans> <SortIcon col="pages_turned" /></span>
             </th>
             <th className="w-8 py-2 px-2" />
           </tr>
@@ -242,7 +244,7 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
                   <button
                     onClick={() => setOpenBook(openBook === b.book_id ? null : b.book_id)}
                     className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                    title={openBook === b.book_id ? 'Hide sessions' : 'Show sessions'}
+                    title={openBook === b.book_id ? t`Hide sessions` : t`Show sessions`}
                   >
                     <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', openBook === b.book_id && 'rotate-180')} />
                   </button>
@@ -262,7 +264,7 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
       {hasMore && (
         <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-center gap-1.5 py-2 text-xs text-primary hover:text-primary/80 transition-colors w-full">
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
-          <span>{expanded ? 'Show less' : `Show all (${sorted.length} books)`}</span>
+          <span>{expanded ? t`Show less` : (() => { const n = sorted.length; return t`Show all (${n} books)` })()}</span>
         </button>
       )}
     </div>

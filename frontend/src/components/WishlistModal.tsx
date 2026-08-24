@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import { X, Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -143,11 +145,11 @@ export function WishlistModal({ onClose, onCreated }: Props) {
   async function handleSubmit() {
     setError(null)
     if (!manualMode && !selected && !selectedSeries) {
-      setError('Please pick a result or use the manual form.')
+      setError(t`Please pick a result or use the manual form.`)
       return
     }
     if (manualMode && !manualTitle.trim()) {
-      setError('Title is required.')
+      setError(t`Title is required.`)
       return
     }
 
@@ -175,7 +177,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
         })
       } else if (wishWholeSeries) {
         if (!seriesNameDraft.trim()) {
-          setError('Series name is required.')
+          setError(t`Series name is required.`)
           setSubmitting(false)
           return
         }
@@ -204,18 +206,20 @@ export function WishlistModal({ onClose, onCreated }: Props) {
       onCreated()
       handleClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add wish')
+      setError(e instanceof Error ? e.message : t`Failed to add wish`)
     } finally {
       setSubmitting(false)
     }
   }
 
+  /* eslint-disable lingui/no-unlocalized-strings -- provider names */
   const SOURCE_LABEL: Record<string, string> = {
     hardcover: 'Hardcover',
     google_books: 'Google Books',
     open_library: 'OpenLibrary',
     manual: 'Manual',
   }
+  /* eslint-enable lingui/no-unlocalized-strings */
 
   const inSearchState = !manualMode && !selected && !selectedSeries
 
@@ -233,7 +237,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
       )}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <h2 className="text-base font-semibold">Add to Wishlist</h2>
+          <h2 className="text-base font-semibold"><Trans>Add to Wishlist</Trans></h2>
           <button
             onClick={handleClose}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -258,7 +262,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                   )}
                 >
                   <BookOpen className="w-3 h-3" />
-                  Book
+                  <Trans>Book</Trans>
                 </button>
                 <button
                   type="button"
@@ -269,7 +273,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                   )}
                 >
                   <Layers className="w-3 h-3" />
-                  Series
+                  <Trans>Series</Trans>
                 </button>
               </div>
               )}
@@ -281,7 +285,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                   ref={inputRef}
                   value={query}
                   onChange={e => handleQueryChange(e.target.value)}
-                  placeholder={searchMode === 'series' ? 'Search for a series…' : 'Search for a book…'}
+                  placeholder={searchMode === 'series' ? t`Search for a series…` : t`Search for a book…`}
                   className="w-full h-9 pl-9 pr-4 rounded-lg bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 {searching && (
@@ -351,7 +355,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
 
               {query && !searching && (
                 (searchMode === 'book' ? candidates.length === 0 : seriesResults.length === 0) && (
-                  <p className="text-sm text-muted-foreground text-center py-4">No results found.</p>
+                  <p className="text-sm text-muted-foreground text-center py-4"><Trans>No results found.</Trans></p>
                 )
               )}
 
@@ -362,7 +366,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                   onClick={() => { setManualMode(true); setSelected(null); setWishWholeSeries(false); setError(null) }}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
                 >
-                  Can't find it? Add manually
+                  <Trans>Can't find it? Add manually</Trans>
                 </button>
               )}
             </>
@@ -372,40 +376,40 @@ export function WishlistModal({ onClose, onCreated }: Props) {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Title <span className="text-destructive">*</span>
+                  <Trans>Title <span className="text-destructive">*</span></Trans>
                 </label>
                 <input
                   value={manualTitle}
                   onChange={e => { setManualTitle(e.target.value); setError(null) }}
-                  placeholder="Book title"
+                  placeholder={t`Book title`}
                   autoFocus
                   className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Author</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Author</Trans></label>
                 <input
                   value={manualAuthor}
                   onChange={e => setManualAuthor(e.target.value)}
-                  placeholder="Author name"
+                  placeholder={t`Author name`}
                   className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Series</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Series</Trans></label>
                 <input
                   value={manualSeries}
                   onChange={e => setManualSeries(e.target.value)}
-                  placeholder="Series name — fill this alone to wish for the whole series"
+                  placeholder={t`Series name — fill this alone to wish for the whole series`}
                   className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Note</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Note</Trans></label>
                 <textarea
                   value={manualNote}
                   onChange={e => setManualNote(e.target.value)}
-                  placeholder="Optional note (e.g. 'the new one')"
+                  placeholder={t`Optional note (e.g. 'the new one')`}
                   rows={2}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                 />
@@ -415,7 +419,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                 onClick={() => { setManualMode(false); setError(null) }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
               >
-                Back to search
+                <Trans>Back to search</Trans>
               </button>
             </div>
           )}
@@ -429,7 +433,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
-                Choose a different book
+                <Trans>Choose a different book</Trans>
               </button>
 
               <div className="border border-primary/30 bg-primary/5 rounded-xl p-3 flex items-start gap-3">
@@ -462,7 +466,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                       : 'bg-muted text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  This volume
+                  <Trans>This volume</Trans>
                 </button>
                 <button
                   type="button"
@@ -478,20 +482,20 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                   )}
                 >
                   <Layers className="w-3 h-3" />
-                  Whole series
+                  <Trans>Whole series</Trans>
                 </button>
               </div>
 
               {wishWholeSeries && (
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Series name</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Series name</Trans></label>
                   <input
                     value={seriesNameDraft}
                     onChange={e => { setSeriesNameDraft(e.target.value); setError(null) }}
-                    placeholder="Series name"
+                    placeholder={t`Series name`}
                     className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">For precise series tracking, use the <strong>Series</strong> tab instead.</p>
+                  <p className="mt-1 text-xs text-muted-foreground"><Trans>For precise series tracking, use the <strong>Series</strong> tab instead.</Trans></p>
                 </div>
               )}
             </>
@@ -506,7 +510,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
-                Choose a different series
+                <Trans>Choose a different series</Trans>
               </button>
 
               <div className="border border-primary/30 bg-primary/5 rounded-xl p-3 flex items-start gap-3">
@@ -515,12 +519,12 @@ export function WishlistModal({ onClose, onCreated }: Props) {
                   <p className="text-sm font-medium text-foreground leading-snug">{selectedSeries.name}</p>
                   {selectedSeries.author && <p className="text-xs text-muted-foreground mt-0.5">{selectedSeries.author}</p>}
                   {selectedSeries.total != null && (
-                    <p className="text-xs text-muted-foreground/70">{selectedSeries.total} volumes</p>
+                    <p className="text-xs text-muted-foreground/70">{(() => { const n = selectedSeries.total; return <Trans>{n} volumes</Trans> })()}</p>
                   )}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground px-1">
-                This wish covers the whole series and stays open as new volumes arrive.
+                <Trans>This wish covers the whole series and stays open as new volumes arrive.</Trans>
               </p>
             </>
           )}
@@ -536,7 +540,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
             onClick={handleClose}
             className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             onClick={handleSubmit}
@@ -549,7 +553,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Add to Wishlist
+            <Trans>Add to Wishlist</Trans>
           </button>
         </div>
       </div>

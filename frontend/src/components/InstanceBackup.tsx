@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Archive, Download, Loader2, RotateCcw, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface RestoreStatus {
   staged: boolean
@@ -37,12 +39,13 @@ export function InstanceBackup() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- filename
       a.download = resp.headers.get('Content-Disposition')?.match(/filename="?([^";]+)/)?.[1]
         ?? 'tome-backup.tar.gz'
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Backup failed')
+      setError(e instanceof Error ? e.message : t`Backup failed`)
     } finally {
       setDownloading(false)
     }
@@ -61,7 +64,7 @@ export function InstanceBackup() {
       setConfirmText('')
       loadStatus()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That file was rejected')
+      setError(e instanceof Error ? e.message : t`That file was rejected`)
     } finally {
       setStaging(false)
     }
@@ -71,14 +74,14 @@ export function InstanceBackup() {
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="mb-2 flex items-center gap-2">
         <Archive className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Instance backup</h3>
+        <h3 className="text-sm font-semibold text-foreground"><Trans>Instance backup</Trans></h3>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Everything Tome knows in one archive: the database (all users, statuses,
+        <Trans>Everything Tome knows in one archive: the database (all users, statuses,
         sessions, highlights, settings) plus the cover cache. Book files are not
         included — they live on disk and belong to your own backups. Restoring
         stages the archive and applies it at the next server restart; the
-        current database is kept alongside as a safety copy.
+        current database is kept alongside as a safety copy.</Trans>
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -88,7 +91,7 @@ export function InstanceBackup() {
           className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-all hover:bg-muted disabled:opacity-50"
         >
           {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-          {downloading ? 'Preparing…' : 'Download backup'}
+          {downloading ? t`Preparing…` : t`Download backup`}
         </button>
 
         {!status?.staged && (
@@ -105,7 +108,7 @@ export function InstanceBackup() {
               className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-all hover:bg-muted"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              {pendingFile ? pendingFile.name : 'Restore from backup…'}
+              {pendingFile ? pendingFile.name : t`Restore from backup…`}
             </button>
           </>
         )}
@@ -114,8 +117,8 @@ export function InstanceBackup() {
       {pendingFile && !status?.staged && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5">
           <p className="w-full text-xs text-muted-foreground">
-            This replaces <span className="font-semibold text-foreground">the entire database</span> at
-            the next restart. Type <span className="font-mono font-semibold text-destructive">RESTORE</span> to arm it.
+            <Trans>This replaces <span className="font-semibold text-foreground">the entire database</span> at
+            the next restart. Type <span className="font-mono font-semibold text-destructive">RESTORE</span> to arm it.</Trans>
           </p>
           <input
             value={confirmText}
@@ -129,13 +132,13 @@ export function InstanceBackup() {
             className="flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-destructive/90 disabled:opacity-50"
           >
             {staging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-            Stage restore
+            <Trans>Stage restore</Trans>
           </button>
           <button
             onClick={() => { setPendingFile(null); setConfirmText('') }}
             className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </div>
       )}
@@ -143,17 +146,17 @@ export function InstanceBackup() {
       {status?.staged && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning/50 bg-warning/5 px-3 py-2.5">
           <p className="min-w-0 flex-1 text-xs text-foreground">
-            Restore staged
+            <Trans>Restore staged</Trans>
             {status.summary
-              ? ` — backup from ${status.summary.created_at} (v${status.summary.version}, ${status.summary.users} users, ${status.summary.books} books).`
+              ? (() => { const when = status.summary.created_at; const v = status.summary.version; const users = status.summary.users; const books = status.summary.books; return t` — backup from ${when} (v${v}, ${users} users, ${books} books).` })()
               : '.'}{' '}
-            <span className="text-muted-foreground">It applies at the next server restart.</span>
+            <span className="text-muted-foreground"><Trans>It applies at the next server restart.</Trans></span>
           </p>
           <button
             onClick={() => api.delete('/admin/backup/restore').then(loadStatus)}
             className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            <X className="h-3 w-3" /> Cancel restore
+            <X className="h-3 w-3" /> <Trans>Cancel restore</Trans>
           </button>
         </div>
       )}

@@ -1,5 +1,7 @@
 import { FileText } from 'lucide-react'
 import { useChartColors } from '@/lib/useChartAccent'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface SeriesCompletion {
   series: string
@@ -15,7 +17,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
   if (!data || data.length === 0) {
     return (
       <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
-        No series with reading history yet.
+        <Trans>No series with reading history yet.</Trans>
       </div>
     )
   }
@@ -51,7 +53,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {s.read} of {s.total} read
-              {s.reading > 0 && ` · ${s.reading} in progress`}
+              {s.reading > 0 && (() => { const n = s.reading; return t` · ${n} in progress` })()}
             </p>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">

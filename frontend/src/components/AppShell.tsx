@@ -7,6 +7,8 @@ import { useSidebarLists } from '@/lib/sidebarLists'
 import { Sidebar } from '@/components/Sidebar'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { UploadModal } from '@/components/UploadModal'
+import { Trans } from '@lingui/react/macro'
+import { plural } from '@lingui/core/macro'
 
 /**
  * The shared application shell — the same top navbar (Tome wordmark) + persistent
@@ -36,6 +38,7 @@ export function AppShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [searchInput, setSearchInput] = useState('')
+  const searchQuery = searchInput.trim()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Global library search from any page: Enter jumps to the dashboard's book
@@ -128,7 +131,7 @@ export function AppShell({
                   onClick={() => navigate(`/?tab=books&q=${encodeURIComponent(searchInput.trim())}`)}
                   className="w-full border-t border-border px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  See all results for &quot;{searchInput.trim()}&quot;
+                  <Trans>See all results for &quot;{searchQuery}&quot;</Trans>
                 </button>
               </div>
             )}
@@ -144,7 +147,10 @@ export function AppShell({
         onDone={() => onUploaded?.()}
         onWishMatches={(wishIds) => {
           const n = wishIds.length
-          toast.info(`This upload satisfies ${n} wish${n !== 1 ? 'es' : ''} — review in Admin > Wishlist`)
+          toast.info(plural(n, {
+            one: 'This upload satisfies # wish — review in Admin > Wishlist',
+            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+          }))
         }}
       />
 

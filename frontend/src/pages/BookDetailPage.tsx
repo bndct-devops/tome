@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { Trans, useLingui } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
@@ -90,6 +92,13 @@ interface ChapterTime {
   sittings: ChapterSitting[]
 }
 
+import { msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
+
+const STATUS_CHIP_LABELS: Record<string, MessageDescriptor> = {
+  unread: msg`unread`, reading: msg`reading`, read: msg`read`,
+}
+
 // When a chapter was actually read, honest about sittings:
 //   one sitting  → "Jun 2, 17:40 – 18:54"
 //   two or three → "Jun 2 17:40–18:10 · Jun 3 21:00–21:34"
@@ -102,12 +111,15 @@ function chapterReadSpan(c: ChapterTime): string {
   const clock = (ts: number) =>
     new Date(ts * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   if (s.length === 1) {
-    return `read ${day(s[0].start_ts)}, ${clock(s[0].start_ts)} – ${clock(s[0].end_ts)}`
+    const d = day(s[0].start_ts), from = clock(s[0].start_ts), to = clock(s[0].end_ts)
+    return t`read ${d}, ${from} – ${to}`
   }
   if (s.length <= 3) {
-    return 'read ' + s.map(x => `${day(x.start_ts)} ${clock(x.start_ts)}–${clock(x.end_ts)}`).join(' · ')
+    const span = s.map(x => `${day(x.start_ts)} ${clock(x.start_ts)}–${clock(x.end_ts)}`).join(' · ')
+    return t`read ${span}`
   }
-  return `${s.length} sittings · ${day(s[0].start_ts)} – ${day(s[s.length - 1].end_ts)}`
+  const count = s.length, from = day(s[0].start_ts), to = day(s[s.length - 1].end_ts)
+  return t`${count} sittings · ${from} – ${to}`
 }
 
 // Short variant for the line-chart tooltip (dates only, no clock times).
@@ -118,7 +130,7 @@ function chapterReadSpanShort(c: ChapterTime): string {
     new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
   const a = day(s[0].start_ts)
   const b = day(s[s.length - 1].end_ts)
-  return a === b ? `read ${a}` : `read ${a} – ${b}`
+  return a === b ? t`read ${a}` : t`read ${a} – ${b}`
 }
 
 interface ReadingStatsResponse {
@@ -163,6 +175,7 @@ async function downloadFile(book: BookDetail, f: BookFile) {
 }
 
 export function BookDetailPage() {
+  const { t, i18n } = useLingui()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -289,9 +302,9 @@ export function BookDetailPage() {
     setAdjacent(null)
     api.get<BookDetail>(`/books/${id}`)
       .then(b => { setBook(b); setDraft(b); setLocalLibIds(b.library_ids ?? []) })
-      .catch(() => setError('Book not found'))
+      .catch(() => setError(t`Book not found`))
       .finally(() => setLoading(false))
-    api.get<LibraryType[]>('/libraries').then(setLibraries).catch(() => toast.error('Failed to load libraries'))
+    api.get<LibraryType[]>('/libraries').then(setLibraries).catch(() => toast.error(t`Failed to load libraries`))
     api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => {})
     api.get<typeof adjacent>(`/books/${id}/adjacent`).then(setAdjacent).catch(() => {})
     api.get<KosyncStatus>(`/books/${id}/kosync-progress`)
@@ -348,16 +361,16 @@ export function BookDetailPage() {
       const restored = await api.put<BookStatus>(`/books/${id}/status`, prev)
       applyStatus(restored)
     } catch {
-      toast.error('Failed to undo')
+      toast.error(t`Failed to undo`)
     }
   }
 
   const STATUS_LABEL: Record<ReadingStatus, string> = {
-    unread: 'Marked unread — reading progress cleared',
-    reading: 'Marked as reading',
-    read: 'Marked as read',
-    shelved: 'Shelved — kept your progress',
-    want_to_read: 'Added to Want to Read',
+    unread: t`Marked unread — reading progress cleared`,
+    reading: t`Marked as reading`,
+    read: t`Marked as read`,
+    shelved: t`Shelved — kept your progress`,
+    want_to_read: t`Added to Want to Read`,
   }
 
   async function handleStatusChange(s: ReadingStatus) {
@@ -367,9 +380,9 @@ export function BookDetailPage() {
     try {
       const updated = await api.put<BookStatus>(`/books/${id}/status`, { status: s })
       applyStatus(updated)
-      toast.info(STATUS_LABEL[s], { action: { label: 'Undo', onClick: () => restoreStatus(prev) } })
+      toast.info(STATUS_LABEL[s], { action: { label: t`Undo`, onClick: () => restoreStatus(prev) } })
     } catch {
-      toast.error('Failed to update reading status')
+      toast.error(t`Failed to update reading status`)
     } finally {
       setStatusSaving(false)
     }
@@ -389,9 +402,9 @@ export function BookDetailPage() {
       setKosyncUnlinked(!ks.linked && ks.unlinked_documents ? ks.unlinked_documents : [])
       applyStatus(s)
       setKosyncPickerOpen(false)
-      toast.info('KOReader sync linked')
+      toast.info(t`KOReader sync linked`)
     } catch {
-      toast.error('Failed to link sync document')
+      toast.error(t`Failed to link sync document`)
     } finally {
       setKosyncLinking(false)
     }
@@ -405,7 +418,7 @@ export function BookDetailPage() {
       await api.put<BookStatus>(`/books/${id}/rating`, { rating: next })
     } catch {
       setRating(prev)
-      toast.error('Failed to save rating')
+      toast.error(t`Failed to save rating`)
     }
   }
 
@@ -422,7 +435,7 @@ export function BookDetailPage() {
     try {
       await api.put<BookStatus>(`/books/${id}/rating`, { review: next || null })
     } catch {
-      toast.error('Failed to save review')
+      toast.error(t`Failed to save review`)
     }
   }
 
@@ -431,10 +444,10 @@ export function BookDetailPage() {
     setDeleting(true)
     try {
       await api.delete(`/books/${book.id}`)
-      toast.success('Book deleted')
+      toast.success(t`Book deleted`)
       navigate('/')
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Delete failed'
+      const msg = err instanceof Error ? err.message : t`Delete failed`
       setError(msg)
       toast.error(msg)
       setDeleting(false)
@@ -448,7 +461,7 @@ export function BookDetailPage() {
     setDraftTags(book.tags.map(t => t.tag))
     setDraftBookTypeId(book.book_type_id ?? null)
     setEditing(true)
-    api.get<Facets>('/books/facets').then(setFacets).catch(() => toast.error('Failed to load facets'))
+    api.get<Facets>('/books/facets').then(setFacets).catch(() => toast.error(t`Failed to load facets`))
   }
   function cancelEdit() {
     if (!book) return
@@ -482,10 +495,10 @@ export function BookDetailPage() {
       setDraftTags(updated.tags.map(t => t.tag))
       setDraftBookTypeId(updated.book_type_id ?? null)
       setEditing(false)
-      toast.success('Metadata saved')
+      toast.success(t`Metadata saved`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
-      toast.error(err instanceof Error ? err.message : 'Save failed')
+      setError(err instanceof Error ? err.message : t`Save failed`)
+      toast.error(err instanceof Error ? err.message : t`Save failed`)
     } finally {
       setSaving(false)
     }
@@ -507,8 +520,8 @@ export function BookDetailPage() {
   if (error || !book) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center gap-3 flex flex-col items-center">
-        <p className="text-muted-foreground">{error ?? 'Book not found'}</p>
-        <Link to="/" className="text-sm text-primary hover:underline">← Back to library</Link>
+        <p className="text-muted-foreground">{error ?? t`Book not found`}</p>
+        <Link to="/" className="text-sm text-primary hover:underline"><Trans>← Back to library</Trans></Link>
       </div>
     </div>
   )
@@ -543,7 +556,7 @@ export function BookDetailPage() {
       className="mt-4 flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
       <BookMarked className="w-4 h-4" />
-      Read
+      <Trans>Read</Trans>
     </button>
   ) : null
 
@@ -555,7 +568,7 @@ export function BookDetailPage() {
           onClick={async () => {
             setDownloadingId(f.id)
             try { await downloadFile(book, f) }
-            catch (e) { setError(e instanceof Error ? e.message : 'Download failed') }
+            catch (e) { setError(e instanceof Error ? e.message : t`Download failed`) }
             finally { setDownloadingId(null) }
           }}
           disabled={downloadingId === f.id}
@@ -606,13 +619,13 @@ export function BookDetailPage() {
             value={field('title') ?? ''}
             onChange={e => setField('title', e.target.value)}
             className="w-full text-2xl font-bold text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring mb-1"
-            placeholder="Title"
+            placeholder={t`Title`}
           />
           <input
             value={field('subtitle') ?? ''}
             onChange={e => setField('subtitle', e.target.value)}
             className="w-full text-base text-muted-foreground bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-1"
-            placeholder="Subtitle (optional)"
+            placeholder={t`Subtitle (optional)`}
           />
         </>
       ) : (
@@ -621,7 +634,7 @@ export function BookDetailPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{book.title}</h1>
             {book.content_type === 'chapter' && (
               <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-muted text-muted-foreground border border-border">
-                Chapter
+                <Trans>Chapter</Trans>
               </span>
             )}
           </div>
@@ -636,7 +649,7 @@ export function BookDetailPage() {
           value={field('author') ?? ''}
           onChange={v => setField('author', v)}
           suggestions={facets.authors}
-          placeholder="Author"
+          placeholder={t`Author`}
           className="w-full text-base bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-2"
         />
       ) : book.author ? (
@@ -656,7 +669,7 @@ export function BookDetailPage() {
                 value={field('series') ?? ''}
                 onChange={v => setField('series', v)}
                 suggestions={facets.series}
-                placeholder="Series name"
+                placeholder={t`Series name`}
                 className="flex-1 min-w-0 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <input
@@ -700,7 +713,7 @@ export function BookDetailPage() {
               : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
           )}
         >
-          {s}
+          {i18n._(STATUS_CHIP_LABELS[s])}
         </button>
       ))}
       {/* Want to Read + Shelved — set apart from the linear unread→reading→read
@@ -713,7 +726,7 @@ export function BookDetailPage() {
         key={bookStatus === 'want_to_read' ? `want_to_read-${statusPopKey}` : 'want_to_read'}
         disabled={statusSaving}
         onClick={() => handleStatusChange('want_to_read')}
-        title="Want to Read — queue this book up next"
+        title={t`Want to Read — queue this book up next`}
         className={cn(
           'px-2.5 py-1 rounded-md text-xs font-medium border transition-all inline-flex items-center gap-1.5',
           bookStatus === 'want_to_read'
@@ -722,13 +735,13 @@ export function BookDetailPage() {
         )}
       >
         <BookMarked className="w-3.5 h-3.5" />
-        Want to Read
+        <Trans>Want to Read</Trans>
       </button>
       <button
         key={bookStatus === 'shelved' ? `shelved-${statusPopKey}` : 'shelved'}
         disabled={statusSaving}
         onClick={() => handleStatusChange('shelved')}
-        title="Shelved — set aside, keeps your progress"
+        title={t`Shelved — set aside, keeps your progress`}
         className={cn(
           'px-2.5 py-1 rounded-md text-xs font-medium border transition-all inline-flex items-center gap-1.5',
           bookStatus === 'shelved'
@@ -737,7 +750,7 @@ export function BookDetailPage() {
         )}
       >
         <Archive className="w-3.5 h-3.5" />
-        Shelved
+        <Trans>Shelved</Trans>
       </button>
       {statusSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground self-center" />}
       {progressPct != null && progressPct > 0 && bookStatus !== 'unread' && (
@@ -750,13 +763,17 @@ export function BookDetailPage() {
           </div>
           <span className="text-xs text-muted-foreground tabular-nums shrink-0">
             {Math.round(progressPct * 100)}%
-            {book?.hardcover_pages != null && book.hardcover_pages > 0 && (
+            {book?.hardcover_pages != null && book.hardcover_pages > 0 && (() => {
               // Print-edition pagination (from the matched Hardcover edition) —
               // font-size agnostic, unlike the device's reflowed page count.
-              <span className="ml-1 opacity-60">
-                · p. {Math.max(1, Math.round(progressPct * book.hardcover_pages))} of {book.hardcover_pages}
-              </span>
-            )}
+              const page = Math.max(1, Math.round(progressPct * book.hardcover_pages))
+              const totalPages = book.hardcover_pages
+              return (
+                <span className="ml-1 opacity-60">
+                  <Trans>· p. {page} of {totalPages}</Trans>
+                </span>
+              )
+            })()}
             {kosyncDevice && (
               <span className="ml-1 opacity-60">· {kosyncDevice}</span>
             )}
@@ -770,13 +787,13 @@ export function BookDetailPage() {
               type="button"
               onClick={() => { setKosyncPickerOpen(true); setKosyncLinkDoc(kosyncUnlinked[0]?.document ?? '') }}
               className="text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2 transition-colors"
-              title="Attach progress synced from a KOReader-compatible app to this book"
+              title={t`Attach progress synced from a KOReader-compatible app to this book`}
             >
-              Link KOReader sync…
+              <Trans>Link KOReader sync…</Trans>
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2">
-              <span className="text-muted-foreground">Synced document</span>
+              <span className="text-muted-foreground"><Trans>Synced document</Trans></span>
               <select
                 value={kosyncLinkDoc}
                 onChange={e => setKosyncLinkDoc(e.target.value)}
@@ -784,7 +801,7 @@ export function BookDetailPage() {
               >
                 {kosyncUnlinked.map(d => (
                   <option key={d.document} value={d.document}>
-                    {d.device || 'unknown device'} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString()} · {d.document.slice(0, 8)}
+                    {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString(i18n.locale)} · {d.document.slice(0, 8)}
                   </option>
                 ))}
               </select>
@@ -794,14 +811,14 @@ export function BookDetailPage() {
                 onClick={linkKosyncDocument}
                 className="rounded border border-border px-2 py-0.5 text-foreground hover:bg-muted transition-colors disabled:opacity-40"
               >
-                {kosyncLinking ? 'Linking…' : 'Link'}
+                {kosyncLinking ? t`Linking…` : t`Link`}
               </button>
               <button
                 type="button"
                 onClick={() => setKosyncPickerOpen(false)}
                 className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted transition-colors"
               >
-                Cancel
+                <Trans>Cancel</Trans>
               </button>
             </div>
           )}
@@ -816,7 +833,7 @@ export function BookDetailPage() {
       <div className="flex items-center gap-2.5">
         <StarRating value={rating} onChange={saveRating} />
         <span className="text-xs text-muted-foreground">
-          {rating ? `You rated this ${rating}/5` : 'Rate this book'}
+          {rating ? t`You rated this ${rating}/5` : t`Rate this book`}
         </span>
         {!review && !editingReview && (
           <button
@@ -824,7 +841,7 @@ export function BookDetailPage() {
             onClick={startEditingReview}
             className="text-xs text-primary hover:underline"
           >
-            Add a review
+            <Trans>Add a review</Trans>
           </button>
         )}
       </div>
@@ -835,7 +852,7 @@ export function BookDetailPage() {
           onBlur={saveReview}
           autoFocus
           rows={3}
-          placeholder="What did you think? (optional, saved automatically)"
+          placeholder={t`What did you think? (optional, saved automatically)`}
           className="mt-2 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
         />
       ) : review ? (
@@ -844,8 +861,8 @@ export function BookDetailPage() {
           <button
             type="button"
             onClick={startEditingReview}
-            aria-label="Edit review"
-            title="Edit review"
+            aria-label={t`Edit review`}
+            title={t`Edit review`}
             className="absolute right-0 top-0 p-1 text-muted-foreground/50 transition-colors hover:text-foreground"
           >
             <Edit2 className="h-3.5 w-3.5" />
@@ -872,13 +889,13 @@ export function BookDetailPage() {
           aria-expanded={statsOpen}
           className="flex items-center gap-1.5 font-display text-base text-foreground hover:text-primary transition-colors"
         >
-          Reading Stats
+          <Trans>Reading Stats</Trans>
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !statsOpen && '-rotate-90')} />
         </button>
         <button
           type="button"
           onClick={() => setShowPositionHistory(true)}
-          title="Position history — restore a bad sync"
+          title={t`Position history — restore a bad sync`}
           className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <HistoryIcon className="w-3.5 h-3.5" />
@@ -910,7 +927,7 @@ export function BookDetailPage() {
                     aria-expanded={sessionsOpen}
                     className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
                   >
-                    Sessions ({readingStats.own.sessions})
+                    {(() => { const n = readingStats.own.sessions; return <Trans>Sessions ({n})</Trans> })()}
                     <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !sessionsOpen && '-rotate-90')} />
                   </button>
                   <SessionLogHint />
@@ -927,7 +944,7 @@ export function BookDetailPage() {
           // No history yet — the manual-tracking entry point (paper / un-synced device).
           <div className="rounded-xl border border-border bg-card px-5 py-4">
             <p className="text-sm text-muted-foreground">
-              No reading logged yet. Track time by hand — handy for a paper copy or a device that isn&apos;t synced.
+              <Trans>No reading logged yet. Track time by hand — handy for a paper copy or a device that isn&apos;t synced.</Trans>
             </p>
             <div className="mt-3">
               <ManualLogControls bookId={Number(id)} onChange={refreshStats} />
@@ -941,7 +958,7 @@ export function BookDetailPage() {
   // Genres block for the left sidebar (variant 1)
   const genresBlock = editing ? (
     <div>
-      <p className="font-display text-base text-foreground mb-2">Genres</p>
+      <p className="font-display text-base text-foreground mb-2"><Trans>Genres</Trans></p>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {draftTags.map(tag => (
           <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
@@ -960,7 +977,7 @@ export function BookDetailPage() {
         value={tagInput}
         onChange={setTagInput}
         suggestions={facets.tags.filter(t => !draftTags.includes(t))}
-        placeholder="Add tag…"
+        placeholder={t`Add tag…`}
         onSelect={tag => {
           if (tag && !draftTags.includes(tag)) {
             setDraftTags(prev => [...prev, tag])
@@ -979,7 +996,7 @@ export function BookDetailPage() {
     </div>
   ) : book.tags.length > 0 ? (
     <div>
-      <p className="font-display text-base text-foreground mb-2">Genres</p>
+      <p className="font-display text-base text-foreground mb-2"><Trans>Genres</Trans></p>
       <div className="flex flex-wrap gap-1.5">
         {book.tags.map(t => (
           <button
@@ -997,25 +1014,25 @@ export function BookDetailPage() {
   // Full-width Details grid for below the description (variant 1)
   const metadataGridFull = (
     <div className="mt-6">
-      <div className="font-display text-base text-foreground mb-3">Details</div>
+      <div className="font-display text-base text-foreground mb-3"><Trans>Details</Trans></div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
-        <MetaField icon={<Calendar className="w-3.5 h-3.5" />} label="Year"
+        <MetaField icon={<Calendar className="w-3.5 h-3.5" />} label={t`Year`}
           value={field('year') ?? ''} editing={editing}
           onChange={v => setField('year', v)} type="number" placeholder="2024" />
-        <MetaField icon={<Globe className="w-3.5 h-3.5" />} label="Language"
+        <MetaField icon={<Globe className="w-3.5 h-3.5" />} label={t`Language`}
           value={field('language') ?? ''} editing={editing}
           onChange={v => setField('language', v)} placeholder="en" />
-        <MetaField icon={<Hash className="w-3.5 h-3.5" />} label="ISBN"
+        <MetaField icon={<Hash className="w-3.5 h-3.5" />} label={t`ISBN`}
           value={field('isbn') ?? ''} editing={editing}
           onChange={v => setField('isbn', v)} placeholder="978-..." />
-        <MetaField icon={<Building2 className="w-3.5 h-3.5" />} label="Publisher"
+        <MetaField icon={<Building2 className="w-3.5 h-3.5" />} label={t`Publisher`}
           value={field('publisher') ?? ''} editing={editing}
-          onChange={v => setField('publisher', v)} placeholder="Publisher" />
-        <MetaField icon={<FileText className="w-3.5 h-3.5" />} label="Format"
+          onChange={v => setField('publisher', v)} placeholder={t`Publisher`} />
+        <MetaField icon={<FileText className="w-3.5 h-3.5" />} label={t`Format`}
           value={book.files.map(f => f.format.toUpperCase()).join(', ')} editing={false}
           onChange={() => {}} />
-        <MetaField icon={<AlignLeft className="w-3.5 h-3.5" />} label="Words"
-          value={book.word_count != null ? `${book.word_count.toLocaleString()} words` : ''}
+        <MetaField icon={<AlignLeft className="w-3.5 h-3.5" />} label={t`Words`}
+          value={(() => { if (book.word_count == null) return ''; const words = book.word_count.toLocaleString(i18n.locale); return t`${words} words` })()}
           editing={false} onChange={() => {}} />
         {/* How long the whole book would take at your pace (#187). In-progress
             books additionally get "Est. remaining" in the Reading Stats block. */}
@@ -1023,7 +1040,7 @@ export function BookDetailPage() {
           <div className="flex items-start gap-2">
             <span className="text-muted-foreground mt-0.5 shrink-0"><Timer className="w-3.5 h-3.5" /></span>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground/70 mb-0.5">Est. read time</p>
+              <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Est. read time</Trans></p>
               <p className="text-sm text-foreground" title={describePace(estimate.pace, estimate.method)}>
                 {formatEstimateHours(estimate.seconds)}
                 {estimate.days != null && (
@@ -1038,6 +1055,7 @@ export function BookDetailPage() {
           <div className="flex items-start gap-2">
             <span className="text-muted-foreground mt-0.5 shrink-0"><BookMarked className="w-3.5 h-3.5" /></span>
             <div className="flex-1 min-w-0">
+              {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
               <p className="text-xs text-muted-foreground/70 mb-0.5">Hardcover</p>
               <a
                 href={`https://hardcover.app/books/${book.hardcover_slug}`}
@@ -1053,21 +1071,21 @@ export function BookDetailPage() {
         <div className="flex items-start gap-2">
           <span className="text-muted-foreground mt-0.5 shrink-0"><TagIcon className="w-3.5 h-3.5" /></span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground/70 mb-0.5">Type</p>
+            <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Type</Trans></p>
             {editing ? (
               <select
                 value={draftBookTypeId ?? ''}
                 onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">No type</option>
+                <option value="">{t`No type`}</option>
                 {bookTypes.map(bt => (
                   <option key={bt.id} value={bt.id}>{bt.label}</option>
                 ))}
               </select>
             ) : (
               <p className="text-sm text-foreground">
-                {bookTypes.find(bt => bt.id === book.book_type_id)?.label ?? <span className="text-muted-foreground/50 italic">None</span>}
+                {bookTypes.find(bt => bt.id === book.book_type_id)?.label ?? <span className="text-muted-foreground/50 italic">{t`None`}</span>}
               </p>
             )}
           </div>
@@ -1076,18 +1094,18 @@ export function BookDetailPage() {
         <div className="flex items-start gap-2">
           <span className="text-muted-foreground mt-0.5 shrink-0"><FileText className="w-3.5 h-3.5" /></span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground/70 mb-0.5">Content</p>
+            <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Content</Trans></p>
             {editing ? (
               <select
                 value={draft.content_type ?? 'volume'}
                 onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))}
                 className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="volume">Volume</option>
-                <option value="chapter">Chapter</option>
+                <option value="volume">{t`Volume`}</option>
+                <option value="chapter">{t`Chapter`}</option>
               </select>
             ) : (
-              <p className="text-sm text-foreground capitalize">{book.content_type ?? 'volume'}</p>
+              <p className="text-sm text-foreground">{book.content_type === 'chapter' ? t`Chapter` : t`Volume`}</p>
             )}
           </div>
         </div>
@@ -1097,14 +1115,14 @@ export function BookDetailPage() {
 
   const descriptionBlock = (
     <div className="mt-6">
-      <div className="font-display text-base text-foreground mb-2">Description</div>
+      <div className="font-display text-base text-foreground mb-2"><Trans>Description</Trans></div>
       {editing ? (
         <textarea
           value={field('description') ?? ''}
           onChange={e => setField('description', e.target.value)}
           rows={6}
           className="w-full text-sm text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-          placeholder="No description"
+          placeholder={t`No description`}
         />
       ) : book.description ? (
         <div>
@@ -1117,12 +1135,12 @@ export function BookDetailPage() {
               onClick={() => setDescExpanded(e => !e)}
               className="mt-1 text-xs font-medium text-primary hover:underline"
             >
-              {descExpanded ? 'Show less' : 'Show more'}
+              {descExpanded ? t`Show less` : t`Show more`}
             </button>
           )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground/50 italic">No description</p>
+        <p className="text-sm text-muted-foreground/50 italic"><Trans>No description</Trans></p>
       )}
     </div>
   )
@@ -1132,9 +1150,9 @@ export function BookDetailPage() {
       await api.delete(`/annotations/${annotationId}`)
       setAnnotations(prev => prev.filter(a => a.id !== annotationId))
       setConfirmingHighlight(null)
-      toast.success('Highlight deleted')
+      toast.success(t`Highlight deleted`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete highlight')
+      toast.error(e instanceof Error ? e.message : t`Failed to delete highlight`)
     }
   }
 
@@ -1144,9 +1162,9 @@ export function BookDetailPage() {
       await api.put(`/annotations/${annotationId}`, { note })
       setAnnotations(prev => prev.map(a => (a.id === annotationId ? { ...a, note } : a)))
       setEditingNoteId(null)
-      toast.success(note ? 'Note saved — syncs to your devices' : 'Note removed')
+      toast.success(note ? t`Note saved — syncs to your devices` : t`Note removed`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save note')
+      toast.error(e instanceof Error ? e.message : t`Failed to save note`)
     }
   }
 
@@ -1158,7 +1176,7 @@ export function BookDetailPage() {
         aria-expanded={highlightsOpen}
         className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
       >
-        Highlights &amp; Notes
+        <Trans>Highlights &amp; Notes</Trans>
         <span className="text-muted-foreground/50 font-normal text-sm">({annotations.length})</span>
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !highlightsOpen && '-rotate-90')} />
       </button>
@@ -1173,10 +1191,10 @@ export function BookDetailPage() {
                 {confirmingHighlight === a.id ? (
                   <span className="flex items-center gap-1.5 text-[11px] shrink-0">
                     <button onClick={() => deleteHighlight(a.id)} className="font-medium text-destructive hover:underline">
-                      Delete
+                      <Trans>Delete</Trans>
                     </button>
                     <button onClick={() => setConfirmingHighlight(null)} className="text-muted-foreground hover:text-foreground">
-                      Cancel
+                      <Trans>Cancel</Trans>
                     </button>
                   </span>
                 ) : (
@@ -1186,16 +1204,16 @@ export function BookDetailPage() {
                         setEditingNoteDraft(a.note ?? '')
                         setEditingNoteId(prev => (prev === a.id ? null : a.id))
                       }}
-                      title={a.note ? 'Edit note' : 'Add a note'}
-                      aria-label={a.note ? 'Edit note' : 'Add a note'}
+                      title={a.note ? t`Edit note` : t`Add a note`}
+                      aria-label={a.note ? t`Edit note` : t`Add a note`}
                       className="p-1 -mt-1 rounded text-muted-foreground/50 hover:text-foreground transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => setConfirmingHighlight(a.id)}
-                      title="Delete this highlight"
-                      aria-label="Delete this highlight"
+                      title={t`Delete this highlight`}
+                      aria-label={t`Delete this highlight`}
                       className="p-1 -mt-1 -mr-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1215,15 +1233,15 @@ export function BookDetailPage() {
                     onChange={e => setEditingNoteDraft(e.target.value)}
                     autoFocus
                     rows={2}
-                    placeholder="Your note — syncs back to KOReader on the next sync"
+                    placeholder={t`Your note — syncs back to KOReader on the next sync`}
                     className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                   <span className="flex items-center gap-2 text-xs">
                     <button onClick={() => saveHighlightNote(a.id)} className="font-medium text-primary hover:underline">
-                      Save note
+                      <Trans>Save note</Trans>
                     </button>
                     <button onClick={() => setEditingNoteId(null)} className="text-muted-foreground hover:text-foreground">
-                      Cancel
+                      <Trans>Cancel</Trans>
                     </button>
                   </span>
                 </div>
@@ -1248,13 +1266,13 @@ export function BookDetailPage() {
           <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 shrink">
             {/* p-2.5/-m-1.5: the bare 14px icons were the whole tap target on
                 phones (UX sweep finding) — pad the hit area, not the visuals. */}
-            <Link to="/" title="Home" aria-label="Home" className="flex items-center hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
+            <Link to="/" title={t`Home`} aria-label={t`Home`} className="flex items-center hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
               <Home className="w-3.5 h-3.5" />
             </Link>
             <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-            <Link to="/?tab=books" title="Library" className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
+            <Link to="/?tab=books" title={t`Library`} className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
               <Library className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Library</span>
+              <span className="hidden sm:inline"><Trans>Library</Trans></span>
             </Link>
             {adjacent && (adjacent.prev || adjacent.next) && book && (
               <>
@@ -1271,7 +1289,7 @@ export function BookDetailPage() {
                 )}
                 <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
                 <span className="text-foreground font-medium truncate max-w-[100px] sm:max-w-[180px]">
-                  {book.series_index != null ? `Vol. ${book.series_index}` : book.title}
+                  {(() => { const idx = book.series_index; return idx != null ? t`Vol. ${idx}` : book.title })()}
                 </span>
                 <div className="flex items-center gap-0 shrink-0 ml-1">
                   {adjacent.prev ? (
@@ -1304,21 +1322,21 @@ export function BookDetailPage() {
             {canDelete && !editing && (
               confirmDelete ? (
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[120px]">Delete "{book.title}"?</span>
+                  {(() => { const title = book.title; return <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[120px]"><Trans>Delete "{title}"?</Trans></span> })()}
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
                     className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-transparent bg-destructive text-white hover:opacity-90 transition-all disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    {deleting ? 'Deleting…' : 'Confirm'}
+                    {deleting ? t`Deleting…` : t`Confirm`}
                   </button>
                   <button
                     onClick={() => setConfirmDelete(false)}
                     className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                   >
                     <X className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Cancel</span>
+                    <span className="hidden sm:inline"><Trans>Cancel</Trans></span>
                   </button>
                 </div>
               ) : (
@@ -1327,7 +1345,7 @@ export function BookDetailPage() {
                   className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all duration-200"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Delete</span>
+                  <span className="hidden sm:inline"><Trans>Delete</Trans></span>
                 </button>
               )
             )}
@@ -1346,7 +1364,7 @@ export function BookDetailPage() {
                       )}
                     >
                       <Library className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Libraries</span>
+                      <span className="hidden sm:inline"><Trans>Libraries</Trans></span>
                       {localLibIds.length > 0 && (
                         <span className="ml-0.5 bg-primary text-primary-foreground rounded-full px-1.5 py-px text-[10px] font-bold leading-none">
                           {localLibIds.length}
@@ -1356,7 +1374,7 @@ export function BookDetailPage() {
                     {libMenuOpen && (
                       <div className="absolute right-0 top-full mt-1 z-40 bg-card border border-border rounded-xl shadow-xl shadow-accent-soft py-1 min-w-48 max-w-[calc(100vw-2rem)]">
                         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border mb-1">
-                          Add to library
+                          <Trans>Add to library</Trans>
                         </p>
                         {libraries.filter(l => l.can_edit).map(lib => {
                           const inLib = localLibIds.includes(lib.id)
@@ -1381,7 +1399,7 @@ export function BookDetailPage() {
                                 onClick={() => toggleLibrary(lib.id)}
                                 disabled={pending}
                                 className="shrink-0 p-0.5 rounded hover:bg-accent transition-colors disabled:opacity-60"
-                                title={inLib ? 'Remove from library' : 'Add to library'}
+                                title={inLib ? t`Remove from library` : t`Add to library`}
                               >
                                 {inLib
                                   ? <Check className="w-3.5 h-3.5 text-primary" />
@@ -1397,11 +1415,11 @@ export function BookDetailPage() {
                 )}
                 <button
                   onClick={() => setShowShare(true)}
-                  title="Share this book — a public metadata-only page"
+                  title={t`Share this book — a public metadata-only page`}
                   className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                 >
                   <Share2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Share</span>
+                  <span className="hidden sm:inline"><Trans>Share</Trans></span>
                 </button>
                 {book.content_type !== 'chapter' && (
                   <button
@@ -1409,7 +1427,7 @@ export function BookDetailPage() {
                     className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Fetch Metadata</span>
+                    <span className="hidden sm:inline"><Trans>Fetch Metadata</Trans></span>
                   </button>
                 )}
                 <button
@@ -1417,7 +1435,7 @@ export function BookDetailPage() {
                   className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Edit</span>
+                  <span className="hidden sm:inline"><Trans>Edit</Trans></span>
                 </button>
               </>
             )}
@@ -1429,14 +1447,14 @@ export function BookDetailPage() {
                   className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  {saving ? 'Saving…' : 'Save'}
+                  {saving ? t`Saving…` : t`Save`}
                 </button>
                 <button
                   onClick={cancelEdit}
                   className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Cancel</span>
+                  <span className="hidden sm:inline"><Trans>Cancel</Trans></span>
                 </button>
               </>
             )}
@@ -1530,6 +1548,7 @@ function ActivityChart({ timeline, bookId, onChange }: {
   bookId?: number
   onChange?: () => void
 }) {
+  const { t, i18n } = useLingui()
   // Click-through: a bar opens that day's sessions for quick trim/delete —
   // e.g. an accidentally imported sitting, without scrolling to the full log.
   const [dayOpen, setDayOpen] = useState<string | null>(null)
@@ -1540,7 +1559,9 @@ function ActivityChart({ timeline, bookId, onChange }: {
   // reading days they rendered as giant full-width slabs. Capped at the last
   // 365 days so a years-long log can't produce more bars than pixels.
   const byDate = new Map(timeline.map(d => [d.date, d]))
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
   const startD = new Date(timeline[0].date + 'T00:00:00')
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
   const endD = new Date(timeline[timeline.length - 1].date + 'T00:00:00')
   let days: typeof timeline = []
   for (const d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
@@ -1567,7 +1588,7 @@ function ActivityChart({ timeline, bookId, onChange }: {
     // looked half-finished against the full-width card chrome. Big bars for a
     // short history are fine; the gap-filled axis keeps the spacing honest.
     <div className="flex flex-col">
-      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0">Activity</p>
+      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0"><Trans>Activity</Trans></p>
       {/* Fixed-height strip: flex-1 fill only works inside a sized flex parent,
           and the hero wraps this in a plain div — flex-1 collapsed to 0px there
           (bars rendered into no vertical space at all) */}
@@ -1579,7 +1600,12 @@ function ActivityChart({ timeline, bookId, onChange }: {
             const pct = d.seconds > 0 ? Math.max(d.seconds / max, 0.06) : 0
             const mins = Math.round(d.seconds / 60)
             const clickable = d.seconds > 0 && bookId != null
-            const tip = `${fmtDay(d.date)}: ${mins}m${d.pages > 0 ? `, ${d.pages} pages` : ''}${d.progress_pct != null ? ` · ${d.progress_pct}% in` : ''}${clickable ? ' — click for sessions' : ''}`
+            const dayStr = fmtDay(d.date)
+            const pages = d.pages, prog = d.progress_pct
+            const tip = t`${dayStr}: ${mins}m` +
+              (pages > 0 ? t`, ${pages} pages` : '') +
+              (prog != null ? t` · ${prog}% in` : '') +
+              (clickable ? t` — click for sessions` : '')
             return (
               <div
                 key={d.date}
@@ -1607,13 +1633,13 @@ function ActivityChart({ timeline, bookId, onChange }: {
               <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
                 <span className="flex items-center gap-1.5">
                   <h2 className="font-display text-sm text-foreground">
-                    Sessions · {new Date(dayOpen + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    {(() => { const d = new Date(dayOpen + 'T00:00:00').toLocaleDateString(i18n.locale, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); return t`Sessions · ${d}` })()}
                   </h2>
                   <SessionLogHint />
                 </span>
                 <button
                   type="button"
-                  aria-label="Close"
+                  aria-label={t`Close`}
                   onClick={() => setDayOpen(null)}
                   className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
@@ -1632,8 +1658,8 @@ function ActivityChart({ timeline, bookId, onChange }: {
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1">
             <span className="flex items-center gap-1">
-              <p className="text-xs text-muted-foreground/70">Progress</p>
-              <InfoHint text="How far through the book you'd read by each date." />
+              <p className="text-xs text-muted-foreground/70"><Trans>Progress</Trans></p>
+              <InfoHint text={t`How far through the book you'd read by each date.`} />
             </span>
             {lastProgress != null && (
               <p className="text-xs tabular-nums text-muted-foreground/60">{Math.round(lastProgress)}%</p>
@@ -1654,8 +1680,9 @@ function ActivityChart({ timeline, bookId, onChange }: {
 
 // Friendly label for a ReadingSession.device value.
 function sourceLabel(device: string): string {
-  if (!device || device === 'web-reader' || device === 'web') return 'Web reader'
-  if (device === 'manual') return 'Manual'
+  if (!device || device === 'web-reader' || device === 'web') return t`Web reader`
+  if (device === 'manual') return t`Manual`
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
   if (device === 'koreader') return 'KOReader'
   return device
 }
@@ -1669,7 +1696,7 @@ function SourceSplit({ sources }: { sources: { device: string; seconds: number; 
   if (total <= 0 || sources.length < 2) return null
   return (
     <div className="mt-4">
-      <p className="text-xs text-muted-foreground/70 mb-1.5">Where you read</p>
+      <p className="text-xs text-muted-foreground/70 mb-1.5"><Trans>Where you read</Trans></p>
       {/* gap-px: adjacent primary shades are close — a hairline seam marks the split */}
       <div className="flex gap-px h-2 rounded-full overflow-hidden bg-muted">
         {sources.map((s, i) => (
@@ -1697,6 +1724,7 @@ function SourceSplit({ sources }: { sources: { device: string; seconds: number; 
 // ── Reading intensity: per-page dwell across the book, from imported KOReader page-stats ─────
 
 function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookId: number; onChange?: () => void }) {
+  const { t } = useLingui()
   const max = Math.max(...data.curve, 1)
   const finished = data.pct_read >= 99
   const [confirmClear, setConfirmClear] = useState(false)
@@ -1712,21 +1740,21 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
     <div className="rounded-xl border border-border bg-card px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="flex items-center gap-1.5">
-          <p className="font-display text-sm text-foreground">Reading intensity</p>
-          <InfoHint text="Where in the book your time went — taller means more time spent on those pages." />
+          <p className="font-display text-sm text-foreground"><Trans>Reading intensity</Trans></p>
+          <InfoHint text={t`Where in the book your time went — taller means more time spent on those pages.`} />
         </span>
         <span className="flex items-center gap-2">
           <p className="text-xs text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">{data.pages_read.toLocaleString()}</span>
-            {' '}of {data.total_pages.toLocaleString()} pages
+            {' '}{(() => { const totalPages = data.total_pages.toLocaleString(); return <Trans>of {totalPages} pages</Trans> })()}
             {!finished && <span className="tabular-nums"> · {data.pct_read}%</span>}
-            {' · '}{formatDuration(data.total_seconds)} on device
+            {' · '}{(() => { const dur = formatDuration(data.total_seconds); return <Trans>{dur} on device</Trans> })()}
           </p>
           <button
             type="button"
             onClick={() => setConfirmClear(o => !o)}
             className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-            title="Clear imported history — remove this book's KOReader page data"
+            title={t`Clear imported history — remove this book's KOReader page data`}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -1735,7 +1763,7 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
       {confirmClear && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded bg-muted/40 px-3 py-2 text-xs">
           <span className="text-muted-foreground">
-            Remove all of this book&apos;s imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on.
+            <Trans>Remove all of this book&apos;s imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on.</Trans>
           </span>
           <button
             type="button"
@@ -1743,14 +1771,14 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
             disabled={clearing}
             className="rounded border border-destructive/40 px-2 py-0.5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
           >
-            {clearing ? 'Clearing…' : 'Clear'}
+            {clearing ? t`Clearing…` : t`Clear`}
           </button>
           <button
             type="button"
             onClick={() => setConfirmClear(false)}
             className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </div>
       )}
@@ -1761,7 +1789,8 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
           {data.curve.map((secs, i) => {
             const pct = secs > 0 ? Math.max(secs / max, 0.04) : 0
             const at = Math.round((i / data.curve.length) * 100)
-            const tip = secs > 0 ? `~${at}% in · ${formatDuration(secs)}` : `~${at}% in · not read`
+            const dur = formatDuration(secs)
+            const tip = secs > 0 ? t`~${at}% in · ${dur}` : t`~${at}% in · not read`
             return (
               <div
                 key={i}
@@ -1774,9 +1803,9 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
         </div>
       </div>
       <div className="flex justify-between text-xs text-muted-foreground/50 mt-1">
-        <span>start</span>
+        <span>{t`start`}</span>
         {data.reread_bins > 0 && (
-          <span className="text-muted-foreground/70">{data.reread_bins} stretch{data.reread_bins !== 1 ? 'es' : ''} re-read</span>
+          <span className="text-muted-foreground/70">{plural(data.reread_bins, { one: '# stretch re-read', other: '# stretches re-read' })}</span>
         )}
         <span>end</span>
       </div>
@@ -1787,6 +1816,7 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
 // ── Time per chapter: page-stat dwell bucketed into the book's TOC boundaries ─────
 
 function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
+  const { t } = useLingui()
   const [showDetails, setShowDetails] = useState(false)
   const max = Math.max(...chapters.map(c => c.seconds), 1)
   const total = chapters.reduce((s, c) => s + c.seconds, 0)
@@ -1794,10 +1824,10 @@ function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
     <div className="rounded-xl border border-border bg-card px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="flex items-center gap-1.5">
-          <p className="font-display text-sm text-foreground">Time per chapter</p>
-          <InfoHint text="Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device." />
+          <p className="font-display text-sm text-foreground"><Trans>Time per chapter</Trans></p>
+          <InfoHint text={t`Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device.`} />
         </span>
-        <p className="text-xs text-muted-foreground tabular-nums">{formatDuration(total)} across {chapters.length} chapters</p>
+        {(() => { const dur = formatDuration(total); const n = chapters.length; return <p className="text-xs text-muted-foreground tabular-nums">{t`${dur} across ${n} chapters`}</p> })()}
       </div>
       <ChapterLineChart chapters={chapters} />
       {showDetails && (
@@ -1828,7 +1858,7 @@ function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
         onClick={() => setShowDetails(v => !v)}
         className="mt-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
-        {showDetails ? 'Hide details' : 'Show details'}
+        {showDetails ? t`Hide details` : t`Show details`}
       </button>
     </div>
   )
@@ -1840,6 +1870,7 @@ function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
 // in percent, because the SVG stretches (preserveAspectRatio="none") and
 // would distort anything drawn inside it.
 function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
+  const { t } = useLingui()
   const W = 600, H = 80, PAD = 2
   const n = chapters.length
   const max = Math.max(...chapters.map(c => c.seconds), 1)
@@ -1861,7 +1892,7 @@ function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
   return (
     <div className="mt-3">
       <div className="relative" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20 block" preserveAspectRatio="none" role="img" aria-label="Time per chapter, line view">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20 block" preserveAspectRatio="none" role="img" aria-label={t`Time per chapter, line view`}>
           <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} className="stroke-border/60" strokeWidth="1" />
           <polygon points={area} className="fill-primary/15" />
           <polyline points={pts} className="stroke-primary/70 fill-none" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
@@ -1882,7 +1913,7 @@ function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
             >
               <span className="text-foreground">{h.title}</span>
               <span className="text-muted-foreground tabular-nums">
-                {' · '}{h.seconds <= 0 ? 'not read' : h.seconds < 60 ? '<1m' : formatDuration(h.seconds)}
+                {' · '}{h.seconds <= 0 ? t`not read` : h.seconds < 60 ? '<1m' : formatDuration(h.seconds)}
                 {chapterReadSpanShort(h) && ` · ${chapterReadSpanShort(h)}`}
               </span>
             </div>
@@ -1890,8 +1921,8 @@ function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
         )}
       </div>
       <div className="flex justify-between text-xs text-muted-foreground/50 mt-1">
-        <span>ch. 1</span>
-        <span>ch. {n}</span>
+        <span><Trans>ch. 1</Trans></span>
+        <span><Trans>ch. {n}</Trans></span>
       </div>
     </div>
   )
@@ -1907,6 +1938,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
   onChange: () => void
   exportRows?: { date: string; seconds: number; pages: number; progress_pct: number | null }[]
 }) {
+  const { t } = useLingui()
   const { toast } = useToast()
   const [logging, setLogging] = useState(false)
   const [minutes, setMinutes] = useState('')
@@ -1928,7 +1960,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
       setMinutes(''); setPct(''); setLogging(false)
       onChange()
     } catch (e) {
-      toast.error((e as Error).message ?? 'Failed to log session')
+      toast.error((e as Error).message ?? t`Failed to log session`)
     } finally {
       setSaving(false)
     }
@@ -1955,6 +1987,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
   }
 
   const canExport = exportRows != null && exportRows.length > 0
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
   const chip = 'rounded-md border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors'
 
   return (
@@ -1965,7 +1998,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
           onClick={() => setLogging(o => !o)}
           className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
         >
-          <Plus className="w-4 h-4" /> Log session
+          <Plus className="w-4 h-4" /> <Trans>Log session</Trans>
         </button>
         {canExport && (
           <div className="flex items-center gap-1.5">
@@ -1978,7 +2011,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
       {logging && (
         <form onSubmit={submitLog} className="mt-3 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground/70">Minutes</span>
+            <span className="text-xs text-muted-foreground/70"><Trans>Minutes</Trans></span>
             <input
               type="number" min="1" step="1" required autoFocus
               value={minutes} onChange={e => setMinutes(e.target.value)}
@@ -1986,7 +2019,7 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground/70">Progress % <span className="text-muted-foreground/40">(optional)</span></span>
+            <span className="text-xs text-muted-foreground/70"><Trans>Progress % <span className="text-muted-foreground/40">(optional)</span></Trans></span>
             <input
               type="number" min="0" max="100" step="1"
               value={pct} onChange={e => setPct(e.target.value)}
@@ -1997,13 +2030,13 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
             type="submit" disabled={saving || !minutes}
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Add'}
+            {saving ? t`Saving…` : t`Add`}
           </button>
           <button
             type="button" onClick={() => { setLogging(false); setMinutes(''); setPct('') }}
             className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </form>
       )}
@@ -2012,18 +2045,21 @@ function ManualLogControls({ bookId, onChange, exportRows }: {
 }
 
 function MomentumChip({ momentum }: { momentum: NonNullable<BookReadingStats['momentum']> }) {
+  const { t } = useLingui()
   const Icon = momentum.direction === 'up' ? TrendingUp : momentum.direction === 'down' ? TrendingDown : Minus
   const tone =
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
     momentum.direction === 'up' ? 'text-emerald-600 dark:text-emerald-400'
       : momentum.direction === 'down' ? 'text-muted-foreground'
         : 'text-muted-foreground'
+  const deltaStr = momentum.delta_pct != null ? `${momentum.delta_pct > 0 ? '+' : ''}${momentum.delta_pct}` : ''
   const label = momentum.delta_pct != null
-    ? `${momentum.delta_pct > 0 ? '+' : ''}${momentum.delta_pct}% vs last week`
-    : 'new this week'
+    ? t`${deltaStr}% vs last week`
+    : t`new this week`
   return (
     <span
       className={cn('flex items-center gap-1 text-xs font-medium', tone)}
-      title={`${formatDuration(momentum.recent_seconds)} in the last 7 days vs ${formatDuration(momentum.prior_seconds)} the week before`}
+      title={(() => { const recent = formatDuration(momentum.recent_seconds); const prior = formatDuration(momentum.prior_seconds); return t`${recent} in the last 7 days vs ${prior} the week before` })()}
     >
       <Icon className="w-3.5 h-3.5" />
       {label}
@@ -2032,30 +2068,32 @@ function MomentumChip({ momentum }: { momentum: NonNullable<BookReadingStats['mo
 }
 
 function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
+  const { t } = useLingui()
+  const pacePerMin = own.pace_pages_per_min
   const supporting: { label: string; value: string }[] = [
-    { label: 'sessions', value: String(own.sessions) },
-    { label: 'pages', value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
-    { label: 'avg session', value: formatDuration(own.avg_session_seconds) },
-    ...(own.pace_pages_per_min != null
-      ? [{ label: 'pace', value: `${own.pace_pages_per_min} pg/min` }] : []),
+    { label: t`sessions`, value: String(own.sessions) },
+    { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
+    { label: t`avg session`, value: formatDuration(own.avg_session_seconds) },
+    ...(pacePerMin != null
+      ? [{ label: t`pace`, value: t`${pacePerMin} pg/min` }] : []),
   ]
 
   const bottomStats: { label: string; value: string }[] = []
   if (own.first_read) {
-    bottomStats.push({ label: 'First read', value: formatDate(own.first_read.slice(0, 10)) })
+    bottomStats.push({ label: t`First read`, value: formatDate(own.first_read.slice(0, 10)) })
   }
   if (own.last_read) {
-    bottomStats.push({ label: 'Last read', value: formatDate(own.last_read.slice(0, 10)) })
+    bottomStats.push({ label: t`Last read`, value: formatDate(own.last_read.slice(0, 10)) })
   }
   if (own.finished_at) {
-    bottomStats.push({ label: 'Finished', value: formatDate(own.finished_at.slice(0, 10)) })
+    bottomStats.push({ label: t`Finished`, value: formatDate(own.finished_at.slice(0, 10)) })
   }
   // Reading days from distinct session days
   if (own.session_timeline.length > 0) {
-    bottomStats.push({ label: 'Reading days', value: String(own.session_timeline.length) })
+    bottomStats.push({ label: t`Reading days`, value: String(own.session_timeline.length) })
   }
   if (own.status === 'reading' && own.estimated_finish_seconds != null) {
-    bottomStats.push({ label: 'Est. remaining', value: formatDuration(own.estimated_finish_seconds) })
+    bottomStats.push({ label: t`Est. remaining`, value: formatDuration(own.estimated_finish_seconds) })
   }
 
   return (
@@ -2066,7 +2104,7 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
           <p className="text-3xl font-semibold tabular-nums text-foreground leading-none">
             {formatDuration(own.total_seconds)}
           </p>
-          <p className="text-sm text-muted-foreground">read</p>
+          <p className="text-sm text-muted-foreground"><Trans>read</Trans></p>
         </div>
         {own.momentum && <MomentumChip momentum={own.momentum} />}
         {/* 2×2 on phones — free wrapping left "pace" orphaned on its own line */}
@@ -2093,7 +2131,7 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
           own.session_timeline.filter(d => d.progress_pct != null).length > 1) && (
         <div className="mt-4">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground/70">Progress</span>
+            <span className="text-xs text-muted-foreground/70"><Trans>Progress</Trans></span>
             <span className="text-xs font-medium tabular-nums text-foreground">{Math.round(own.progress * 100)}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -2117,7 +2155,12 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
           Still shown when someone ELSE read a book you haven't touched. */}
       {aggregate && (aggregate.distinct_readers > 1 || own.total_seconds === 0) && (
         <p className="text-xs text-muted-foreground/60 mt-3">
-          All readers: {formatDuration(aggregate.total_seconds)} · {aggregate.total_sessions} reading day{aggregate.total_sessions !== 1 ? 's' : ''} · {aggregate.distinct_readers} reader{aggregate.distinct_readers !== 1 ? 's' : ''}
+          {(() => {
+            const dur = formatDuration(aggregate.total_seconds)
+            const days = plural(aggregate.total_sessions, { one: '# reading day', other: '# reading days' })
+            const readers = plural(aggregate.distinct_readers, { one: '# reader', other: '# readers' })
+            return t`All readers: ${dur} · ${days} · ${readers}`
+          })()}
         </p>
       )}
       {/* Log a session by hand · export the log */}

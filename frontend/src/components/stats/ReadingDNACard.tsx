@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Sparkles, Moon, Sunrise, Zap, BookMarked, Compass, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react'
 import type { ReadingDNA, ReadingDNATrait } from './shared'
+import { Trans } from '@lingui/react/macro'
 
 const COLLAPSE_KEY = 'tome_dna_collapsed'
 
@@ -73,7 +74,7 @@ export function ReadingDNABody({ dna, showLink = false }: { dna: ReadingDNA; sho
           to="/stats"
           className="mt-3 block text-[11px] text-muted-foreground hover:text-foreground transition-colors text-center"
         >
-          Full breakdown →
+          <Trans>Full breakdown →</Trans>
         </Link>
       )}
     </div>
@@ -103,7 +104,7 @@ export function ReadingDNACard({ dna }: { dna: ReadingDNA }) {
       >
         <span className="flex items-center gap-2 text-sm font-semibold min-w-0">
           <Sparkles className="w-[15px] h-[15px] text-primary/75 shrink-0" />
-          <span className="shrink-0">Reading DNA</span>
+          <span className="shrink-0"><Trans>Reading DNA</Trans></span>
           {collapsed && dna.archetype && (
             <span className="text-[13px] text-muted-foreground truncate">
               · <span className="text-foreground font-semibold">{dna.archetype}</span>

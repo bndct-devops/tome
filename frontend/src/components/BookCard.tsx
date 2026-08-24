@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useLingui } from '@lingui/react/macro'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 
+/* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
   blue: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   pink: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
@@ -16,6 +18,7 @@ const COLOR_CLASSES: Record<string, string> = {
   yellow: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
   teal: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
 }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 export type ViewMode = 'large' | 'small' | 'list'
 
@@ -41,9 +44,10 @@ interface BookCardProps {
 
 /** Compact read-only star rating for cards. Renders nothing when unrated. */
 function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: number }) {
+  const { t } = useLingui()
   if (!rating) return null
   return (
-    <span className="inline-flex items-center gap-px" aria-label={`Rated ${rating} of 5`}>
+    <span className="inline-flex items-center gap-px" aria-label={t`Rated ${rating} of 5`}>
       {[1, 2, 3, 4, 5].map(n => (
         <Star
           key={n}
@@ -60,6 +64,7 @@ export function BookCard({
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
   readingStatus, progressPct, rating, flipId, showFormatBadge = true,
 }: BookCardProps) {
+  const { t } = useLingui()
   const navigate = useNavigate()
   const bookTypes = useBookTypes()
   const cardRef = useRef<HTMLDivElement | HTMLAnchorElement>(null)
@@ -71,6 +76,7 @@ export function BookCard({
   }, [focused])
   const bookType = book.book_type_id != null ? bookTypes.find(t => t.id === book.book_type_id) : null
   const typeBadgeClass = bookType
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
     ? (COLOR_CLASSES[bookType.color ?? ''] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300')
     : null
 
@@ -203,6 +209,7 @@ export function BookCard({
     const yRatio = y * 2 - 1  // -1 to 1
     setMousePos({ x: x * 100, y: y * 100 })
     if (coverDivRef.current) {
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS transform
       coverDivRef.current.style.transform = `rotateY(${xRatio * 4}deg) rotateX(${yRatio * -4}deg) translateY(-3px)`
     }
   }
@@ -289,8 +296,8 @@ export function BookCard({
               'bg-background/40 backdrop-blur-sm hover:bg-background/60 transition-all',
               'opacity-0 group-hover:opacity-100',
             )}
-            title="Read"
-            aria-label="Read book"
+            title={t`Read`}
+            aria-label={t`Read book`}
             onClick={e => stop(e, () => navigate(`/reader/${book.id}`))}
           >
             <BookOpen className="w-3.5 h-3.5 text-foreground/90" />

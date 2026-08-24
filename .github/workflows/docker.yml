@@ -57,6 +57,15 @@ jobs:
         run: npm ci --legacy-peer-deps
         working-directory: frontend
 
+      - name: Check message catalogs are up to date
+        # A PR that adds or edits a <Trans>/t`` string must also commit the
+        # re-extracted src/locales/*/messages.po (npm run i18n:extract).
+        run: |
+          npm run i18n:extract
+          git diff --exit-code -- src/locales \
+            || { echo "::error::Message catalogs are stale. Run 'npm run i18n:extract' in frontend/ and commit src/locales."; exit 1; }
+        working-directory: frontend
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
         working-directory: frontend

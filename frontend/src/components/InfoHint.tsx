@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
+import { useLingui } from '@lingui/react/macro'
 
 // A small "i" that explains a chart or control on hover or tap. Tap-toggle so
 // it works on touch (native title tooltips don't). Reserved for the non-obvious.
 // Pass `text` for a plain sentence, or `children` for structured content (a
 // legend, a definition list); `wide` widens the popover for the latter.
 export function InfoHint({ text, children, wide }: { text?: string; children?: ReactNode; wide?: boolean }) {
+  const { t } = useLingui()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
   // iOS Safari doesn't focus buttons on tap, so onBlur alone never closes the
@@ -22,7 +24,7 @@ export function InfoHint({ text, children, wide }: { text?: string; children?: R
     <span ref={rootRef} className="relative inline-flex leading-none">
       <button
         type="button"
-        aria-label="What is this?"
+        aria-label={t`What is this?`}
         onClick={() => setOpen(o => !o)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}

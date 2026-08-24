@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t, msg, plural } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
 import { createPortal } from 'react-dom'
 import { useChartColors } from '@/lib/useChartAccent'
 import { HScrollRow } from '@/components/HScrollRow'
@@ -10,14 +13,14 @@ interface HourDowCell {
   sessions: number
 }
 
-const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DOW_LABELS = [msg`Sun`, msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`]
 
 function formatDuration(seconds: number): string {
   if (seconds === 0) return '0m'
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   if (h === 0) return `${m}m`
-  return `${h}h ${m}m`
+  return t`${h}h ${m}m`
 }
 
 export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
@@ -33,7 +36,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
 
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">No session data.</p>
+      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No session data.</Trans></p>
     )
   }
 
@@ -84,7 +87,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
             fill={tick}
             textAnchor="end"
           >
-            {label}
+            {i18n._(label)}
           </text>
         ))}
 
@@ -127,12 +130,12 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
             }}
           >
             <div className="font-medium">
-              {DOW_LABELS[tooltip.dow]} {tooltip.hour}:00
+              {i18n._(DOW_LABELS[tooltip.dow])} {tooltip.hour}:00
             </div>
             <div className="text-muted-foreground">
               {tooltip.seconds > 0
-                ? `${formatDuration(tooltip.seconds)} · ${tooltip.sessions} session${tooltip.sessions !== 1 ? 's' : ''}`
-                : 'No activity'}
+                ? (() => { const dur = formatDuration(tooltip.seconds); return plural(tooltip.sessions, { one: `${dur} · # session`, other: `${dur} · # sessions` }) })()
+                : t`No activity`}
             </div>
           </div>,
           document.body,

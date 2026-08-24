@@ -75,6 +75,7 @@ export function SeriesStackCard({ book, count, view, focused, index = 0, onOpen 
   // overlapping neighbouring cards. Small view halves the offsets — its grid
   // gap is tighter.
   const lg = view === 'large'
+  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const deepLayerCls = lg
     ? 'translate-x-2 -translate-y-2 group-hover:translate-x-3 group-hover:-translate-y-3.5 group-hover:rotate-2'
     : 'translate-x-1 -translate-y-1 group-hover:translate-x-1.5 group-hover:-translate-y-2 group-hover:rotate-2'
@@ -82,6 +83,7 @@ export function SeriesStackCard({ book, count, view, focused, index = 0, onOpen 
     ? 'translate-x-1 -translate-y-1 group-hover:translate-x-1.5 group-hover:-translate-y-2 group-hover:rotate-1'
     : 'translate-x-0.5 -translate-y-0.5 group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:rotate-1'
   const layerBaseCls = 'absolute inset-0 rounded-xl overflow-hidden border border-border bg-muted transition-transform duration-300 ease-out'
+  /* eslint-enable lingui/no-unlocalized-strings */
 
   return (
     <div

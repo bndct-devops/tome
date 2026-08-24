@@ -6,8 +6,10 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { TomeMark } from '@/components/TomeMark'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Trans, useLingui } from '@lingui/react/macro'
 
 export function SetupPage() {
+  const { t } = useLingui()
   const { user, login } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({ username: '', email: '', password: '', confirm: '' })
@@ -27,8 +29,8 @@ export function SetupPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!passwordsMatch) { setError('Passwords do not match'); return }
-    if (!passwordStrong) { setError('Password must be at least 8 characters'); return }
+    if (!passwordsMatch) { setError(t`Passwords do not match`); return }
+    if (!passwordStrong) { setError(t`Password must be at least 8 characters`); return }
 
     setLoading(true)
     setError(null)
@@ -41,7 +43,7 @@ export function SetupPage() {
       await login(form.username, form.password)
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed')
+      setError(err instanceof Error ? err.message : t`Setup failed`)
     } finally {
       setLoading(false)
     }
@@ -49,6 +51,7 @@ export function SetupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-top">
+      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
       <style>{`
         @keyframes fade-in-up {
           from { opacity: 0; transform: translateY(12px); }
@@ -82,32 +85,32 @@ export function SetupPage() {
             <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
               <span className="text-[10px] font-semibold text-primary-foreground">1</span>
             </div>
-            <span className="text-xs font-medium text-foreground">Create admin account</span>
+            <span className="text-xs font-medium text-foreground"><Trans>Create admin account</Trans></span>
           </div>
           <div className="w-8 h-px bg-border mx-1" />
           <div className="flex items-center gap-1.5 opacity-40">
             <div className="w-5 h-5 rounded-full border border-border flex items-center justify-center">
               <span className="text-[10px] text-muted-foreground">2</span>
             </div>
-            <span className="text-xs text-muted-foreground">Your library</span>
+            <span className="text-xs text-muted-foreground"><Trans>Your library</Trans></span>
           </div>
         </div>
 
         {/* Card — fade in on mount */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-lg shadow-black/5 animate-fade-in-up">
-          <h2 className="text-lg font-medium text-foreground mb-1">Welcome to Tome</h2>
-          <p className="text-sm text-muted-foreground mb-6">Create your admin account to get started</p>
+          <h2 className="text-lg font-medium text-foreground mb-1"><Trans>Welcome to Tome</Trans></h2>
+          <p className="text-sm text-muted-foreground mb-6"><Trans>Create your admin account to get started</Trans></p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Username
+                <Trans>Username</Trans>
               </label>
               <input
                 type="text"
                 value={form.username}
                 onChange={e => set('username', e.target.value)}
-                placeholder="librarian"
+                placeholder={t`librarian`}
                 required
                 autoComplete="username"
                 className="w-full px-3 py-2.5 rounded-lg text-sm bg-background border border-input text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01] transition-all duration-200"
@@ -116,7 +119,7 @@ export function SetupPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Email
+                <Trans>Email</Trans>
               </label>
               <input
                 type="email"
@@ -131,7 +134,7 @@ export function SetupPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Password
+                <Trans>Password</Trans>
               </label>
               <div className="relative">
                 <input
@@ -154,14 +157,14 @@ export function SetupPage() {
               {form.password.length > 0 && (
                 <p className={cn('text-xs flex items-center gap-1', passwordStrong ? 'text-success' : 'text-muted-foreground')}>
                   {passwordStrong ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                  {passwordStrong ? 'Strong enough' : 'Minimum 8 characters'}
+                  {passwordStrong ? t`Strong enough` : t`Minimum 8 characters`}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Confirm password
+                <Trans>Confirm password</Trans>
               </label>
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -203,7 +206,7 @@ export function SetupPage() {
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  Create admin account
+                  <Trans>Create admin account</Trans>
                 </>
               )}
             </button>
@@ -214,22 +217,22 @@ export function SetupPage() {
         <div className="mt-5 flex items-center justify-center gap-6">
           <div className="flex flex-col items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60">Your Library</span>
+            <span className="text-xs text-muted-foreground/60"><Trans>Your Library</Trans></span>
           </div>
           <div className="w-px h-6 bg-border/60" />
           <div className="flex flex-col items-center gap-1.5">
             <Smartphone className="w-3.5 h-3.5 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60">KOReader Sync</span>
+            <span className="text-xs text-muted-foreground/60"><Trans>KOReader Sync</Trans></span>
           </div>
           <div className="w-px h-6 bg-border/60" />
           <div className="flex flex-col items-center gap-1.5">
             <BarChart3 className="w-3.5 h-3.5 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60">Reading Stats</span>
+            <span className="text-xs text-muted-foreground/60"><Trans>Reading Stats</Trans></span>
           </div>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-4">
-          Tome · Your personal library
+          <Trans>Tome · Your personal library</Trans>
         </p>
       </div>
     </div>

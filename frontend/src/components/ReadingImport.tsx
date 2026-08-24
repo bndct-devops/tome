@@ -5,6 +5,10 @@ import { useRef, useState } from 'react'
 import { CheckCircle2, FileUp, Loader2, Upload } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 
 interface MatchedRow {
   title: string
@@ -26,7 +30,7 @@ interface Preview {
   skipped_unread: number
 }
 
-const VIA_LABEL = { isbn: 'ISBN', title: 'title', fuzzy: 'fuzzy' } as const
+const VIA_LABEL: Record<string, MessageDescriptor> = { isbn: msg`ISBN`, title: msg`title`, fuzzy: msg`fuzzy` }
 
 export function ReadingImport() {
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -48,7 +52,7 @@ export function ReadingImport() {
       setChecked(new Set(p.matched.map((_, i) => i)))
       setPhase('idle')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read that file')
+      setError(e instanceof Error ? e.message : t`Could not read that file`)
       setPhase('idle')
     }
   }
@@ -67,13 +71,14 @@ export function ReadingImport() {
         '/import/reading-csv/apply', { items },
       )
       const a = r.applied
-      setSummary(
-        `Applied: ${a.status} statuses, ${a.rating} ratings, ${a.finished_on} finish dates, ${a.review} reviews.`,
-      )
+      {
+        const statuses = a.status, ratings = a.rating, finishes = a.finished_on, reviews = a.review
+        setSummary(t`Applied: ${statuses} statuses, ${ratings} ratings, ${finishes} finish dates, ${reviews} reviews.`)
+      }
       setPreview(null)
       setPhase('done')
     } catch {
-      setError('Applying failed — nothing was changed.')
+      setError(t`Applying failed — nothing was changed.`)
       setPhase('idle')
     }
   }
@@ -81,11 +86,11 @@ export function ReadingImport() {
   return (
     <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
       <p className="text-xs text-muted-foreground mb-4">
-        Bring your reading history from Goodreads or StoryGraph: upload their CSV
+        <Trans>Bring your reading history from Goodreads or StoryGraph: upload their CSV
         export, review what matches your library, apply. Importing only fills
         gaps — it never overwrites a status, rating, review, or finish date you
         already have. &quot;To read&quot; shelves are skipped (that&apos;s what the wishlist
-        is for).
+        is for).</Trans>
       </p>
 
       <input
@@ -104,7 +109,7 @@ export function ReadingImport() {
             className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-all hover:bg-muted disabled:opacity-50"
           >
             {phase === 'previewing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
-            Choose CSV export
+            <Trans>Choose CSV export</Trans>
           </button>
           {summary && (
             <span className="flex items-center gap-1.5 text-xs text-success">
@@ -117,11 +122,13 @@ export function ReadingImport() {
 
       {preview && (
         <div className="space-y-3">
+          {(() => { const dialect = preview.dialect; const matched = preview.matched.length; const unmatched = preview.unmatched.length; const skipped = preview.skipped_unread; return (
           <p className="text-xs text-muted-foreground">
-            Recognized a <span className="font-semibold text-foreground">{preview.dialect}</span> export:{' '}
-            {preview.matched.length} matched, {preview.unmatched.length} not in your library,{' '}
-            {preview.skipped_unread} to-read rows skipped.
+            <Trans>Recognized a <span className="font-semibold text-foreground">{dialect}</span> export:{' '}
+            {matched} matched, {unmatched} not in your library,{' '}
+            {skipped} to-read rows skipped.</Trans>
           </p>
+          ) })()}
 
           {preview.matched.length > 0 && (
             <div className="max-h-72 overflow-y-auto overscroll-contain rounded-lg border border-border">
@@ -151,10 +158,10 @@ export function ReadingImport() {
                       <span className="block truncate text-xs text-foreground">{m.matched_title}</span>
                       <span className="block truncate text-[11px] text-muted-foreground">
                         {m.status}
-                        {m.rating != null ? ` · ${m.rating} stars` : ''}
-                        {m.finished_on ? ` · finished ${m.finished_on}` : ''}
-                        {' · matched by '}{VIA_LABEL[m.match_via]}
-                        {noop ? ' · nothing to fill (already tracked)' : ''}
+                        {m.rating != null ? (() => { const r = m.rating; return t` · ${r} stars` })() : ''}
+                        {m.finished_on ? (() => { const d = m.finished_on; return t` · finished ${d}` })() : ''}
+                        {(() => { const via = i18n._(VIA_LABEL[m.match_via]); return t` · matched by ${via}` })()}
+                        {noop ? t` · nothing to fill (already tracked)` : ''}
                       </span>
                     </span>
                   </label>
@@ -165,7 +172,7 @@ export function ReadingImport() {
 
           {preview.unmatched.length > 0 && (
             <details className="text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Not in your library ({preview.unmatched.length})</summary>
+              {(() => { const n = preview.unmatched.length; return <summary className="cursor-pointer"><Trans>Not in your library ({n})</Trans></summary> })()}
               <ul className="mt-1 max-h-32 overflow-y-auto pl-4">
                 {preview.unmatched.map((u, i) => (
                   <li key={i} className="truncate">{u.title} — {u.author}</li>
@@ -181,13 +188,13 @@ export function ReadingImport() {
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
             >
               {phase === 'applying' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              Apply {checked.size} selected
+              {(() => { const n = checked.size; return t`Apply ${n} selected` })()}
             </button>
             <button
               onClick={() => { setPreview(null); setError(null) }}
               className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
-              Cancel
+              <Trans>Cancel</Trans>
             </button>
           </div>
         </div>

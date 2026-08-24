@@ -14,6 +14,8 @@ import { WishlistModal } from '@/components/WishlistModal'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { docsLink, DOCS } from '@/lib/docs'
 import { cn } from '@/lib/utils'
+import { Trans, Plural } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 function WishCover({ coverUrl }: { coverUrl: string | null }) {
   return (
@@ -35,12 +37,12 @@ function WishCover({ coverUrl }: { coverUrl: string | null }) {
 function ageLabel(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const days = Math.floor(diff / 86_400_000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 30) return `${days}d ago`
+  if (days === 0) return t`Today`
+  if (days === 1) return t`Yesterday`
+  if (days < 30) return t`${days}d ago`
   const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
+  if (months < 12) return t`${months}mo ago`
+  { const years = Math.floor(months / 12); return t`${years}y ago` }
 }
 
 // ── Following (release detection) ─────────────────────────────────────────────
@@ -104,18 +106,18 @@ function FollowingSection() {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-foreground">Following</h2>
-        <span className="text-xs text-muted-foreground">{follows.length} series</span>
+        <h2 className="text-sm font-semibold text-foreground"><Trans>Following</Trans></h2>
+        <span className="text-xs text-muted-foreground"><Plural value={follows.length} one="# series" other="# series" /></span>
       </div>
       <p className="text-xs text-muted-foreground mb-3">
-        Get notified when a new volume of a followed series is released.
+        <Trans>Get notified when a new volume of a followed series is released.</Trans>
       </p>
 
       <div className="relative mb-3">
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="Follow a series — search Hardcover…"
+          placeholder={t`Follow a series — search Hardcover…`}
           className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {searching && <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />}
@@ -134,7 +136,7 @@ function FollowingSection() {
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-foreground truncate">{r.name}</span>
                   <span className="block text-xs text-muted-foreground truncate">
-                    {r.author ?? 'Unknown author'}{r.total ? ` · ${r.total} volumes` : ''}
+                    {r.author ?? t`Unknown author`}{(() => { const n = r.total; return n ? t` · ${n} volumes` : '' })()}
                   </span>
                 </span>
                 <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -154,14 +156,14 @@ function FollowingSection() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground truncate">{f.name}</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {f.latest_known_index != null && <>Latest: vol {fmtVol(f.latest_known_index)}</>}
-                  {f.owned_max_index != null && <> · you have vol {fmtVol(f.owned_max_index)}</>}
+                  {f.latest_known_index != null && (() => { const v = fmtVol(f.latest_known_index); return <Trans>Latest: vol {v}</Trans> })()}
+                  {f.owned_max_index != null && (() => { const v = fmtVol(f.owned_max_index); return <Trans> · you have vol {v}</Trans> })()}
                 </p>
               </div>
               <button
                 onClick={() => unfollow(f.id)}
-                title="Unfollow"
-                aria-label={`Unfollow ${f.name}`}
+                title={t`Unfollow`}
+                aria-label={(() => { const name = f.name; return t`Unfollow ${name}` })()}
                 className="p-1.5 rounded text-muted-foreground/60 hover:text-destructive transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -193,7 +195,7 @@ export function WishlistPage() {
       const all = await listWishes()
       setWishes(all)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load wishlist')
+      setError(e instanceof Error ? e.message : t`Failed to load wishlist`)
     } finally {
       setLoading(false)
     }
@@ -213,9 +215,9 @@ export function WishlistPage() {
     try {
       await deleteWish(wish.id)
       setWishes(prev => prev.filter(w => w.id !== wish.id))
-      toast.success('Wish removed')
+      toast.success(t`Wish removed`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove wish')
+      toast.error(e instanceof Error ? e.message : t`Failed to remove wish`)
     } finally {
       setDeleting(null)
     }
@@ -229,8 +231,8 @@ export function WishlistPage() {
       <AppShell>
         <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
           <Sparkles className="w-10 h-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Members can add books to their wishlist.</p>
-          <Link to="/" className="text-sm text-primary hover:underline">Go back</Link>
+          <p className="text-sm text-muted-foreground"><Trans>Members can add books to their wishlist.</Trans></p>
+          <Link to="/" className="text-sm text-primary hover:underline"><Trans>Go back</Trans></Link>
         </div>
       </AppShell>
     )
@@ -244,12 +246,12 @@ export function WishlistPage() {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Wish</span>
+          <span className="hidden sm:inline"><Trans>Wish</Trans></span>
         </button>
       }
     >
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        <h1 className="font-display text-xl text-foreground">Wishlist</h1>
+        <h1 className="font-display text-xl text-foreground"><Trans>Wishlist</Trans></h1>
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -266,7 +268,7 @@ export function WishlistPage() {
               {openWishes.length > 0 && (
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold text-foreground">
-                    Open
+                    <Trans>Open</Trans>
                     <span className="ml-2 text-xs font-normal text-muted-foreground">({openWishes.length})</span>
                   </h2>
                   <a
@@ -275,7 +277,7 @@ export function WishlistPage() {
                     rel="noopener noreferrer"
                     className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
                   >
-                    Learn more <ExternalLink className="w-3 h-3" />
+                    <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               )}
@@ -284,16 +286,16 @@ export function WishlistPage() {
                 <div className="flex flex-col items-center gap-4 py-12 text-center">
                   <Sparkles className="w-12 h-12 text-muted-foreground/30" />
                   <div>
-                    <p className="text-sm font-medium text-foreground mb-1">Your wishlist is empty</p>
+                    <p className="text-sm font-medium text-foreground mb-1"><Trans>Your wishlist is empty</Trans></p>
                     <p className="text-xs text-muted-foreground">
-                      Add books you'd like to see in the library.{' '}
+                      <Trans>Add books you'd like to see in the library.</Trans>{' '}
                       <a
                         href={docsLink(DOCS.wishlist)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="underline underline-offset-2 hover:text-primary transition-colors"
                       >
-                        Learn more
+                        <Trans>Learn more</Trans>
                       </a>
                     </p>
                   </div>
@@ -302,7 +304,7 @@ export function WishlistPage() {
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
                     <Plus className="w-4 h-4" />
-                    Add a wish
+                    <Trans>Add a wish</Trans>
                   </button>
                 </div>
               ) : (
@@ -321,7 +323,7 @@ export function WishlistPage() {
                         {w.series && w.series_index == null && (
                           <span className="mt-0.5 self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
                             <Layers className="w-2.5 h-2.5" />
-                            Whole series
+                            <Trans>Whole series</Trans>
                           </span>
                         )}
                         {w.series && w.series_index == null && w.series_coverage && w.series_coverage.length > 0 && (
@@ -336,8 +338,8 @@ export function WishlistPage() {
                         onClick={() => handleDelete(w)}
                         disabled={deleting === w.id}
                         className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 disabled:opacity-40"
-                        title="Remove wish"
-                        aria-label="Remove wish"
+                        title={t`Remove wish`}
+                        aria-label={t`Remove wish`}
                       >
                         {deleting === w.id
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -357,7 +359,7 @@ export function WishlistPage() {
                   className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors mb-3"
                 >
                   {fulfilledOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Fulfilled
+                  <Trans>Fulfilled</Trans>
                   <span className="text-xs font-normal">({fulfilledWishes.length})</span>
                 </button>
 
@@ -376,14 +378,14 @@ export function WishlistPage() {
                           <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{w.title}</p>
                           {w.author && <p className="text-xs text-muted-foreground truncate">{w.author}</p>}
                           <span className="mt-1 self-start text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/20 font-medium">
-                            Fulfilled
+                            <Trans>Fulfilled</Trans>
                           </span>
                           {w.fulfilled_book_id && (
                             <Link
                               to={`/books/${w.fulfilled_book_id}`}
                               className="mt-1 text-xs text-primary hover:underline"
                             >
-                              View book
+                              <Trans>View book</Trans>
                             </Link>
                           )}
                         </div>
@@ -404,7 +406,7 @@ export function WishlistPage() {
           onClose={() => setAddOpen(false)}
           onCreated={() => {
             load()
-            toast.success('Wish added')
+            toast.success(t`Wish added`)
           }}
         />
       )}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +62,7 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
 
   return (
     <div className="flex flex-col">
-      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0">Time per volume</p>
+      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0"><Trans>Time per volume</Trans></p>
       <div className="relative h-24">
         {/* faint baseline rule */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />
@@ -69,7 +71,8 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
             const isRead = v.seconds > 0
             const pct = isRead ? Math.max(v.seconds / max, 0.1) : 0
             const mins = Math.round(v.seconds / 60)
-            const label = v.series_index != null ? `Vol ${v.series_index}` : v.title
+            const idx = v.series_index
+            const label = idx != null ? t`Vol ${idx}` : v.title
             const tip = `${label}: ${mins > 0 ? `${mins}m` : 'unread'}`
             return (
               <div
@@ -91,8 +94,8 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
         </div>
       </div>
       <div className="flex justify-between text-xs text-muted-foreground/50 mt-1 shrink-0">
-        <span>{firstIdx != null ? `Vol ${firstIdx}` : ''}</span>
-        <span>{lastIdx != null ? `Vol ${lastIdx}` : ''}</span>
+        <span>{firstIdx != null ? t`Vol ${firstIdx}` : ''}</span>
+        <span>{lastIdx != null ? t`Vol ${lastIdx}` : ''}</span>
       </div>
     </div>
   )
@@ -122,10 +125,10 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
 
   const supporting: { label: string; value: string }[] = [
     { label: 'finished', value: `${own.books_finished}/${own.books_total} (${own.completion_pct}%)` },
-    { label: 'sessions', value: String(own.sessions) },
-    { label: 'pages', value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
+    { label: t`sessions`, value: String(own.sessions) },
+    { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
     ...(own.avg_volume_seconds > 0
-      ? [{ label: 'avg / volume', value: formatDuration(own.avg_volume_seconds) }] : []),
+      ? [{ label: t`avg / volume`, value: formatDuration(own.avg_volume_seconds) }] : []),
   ]
 
   // "Est. remaining" used to live here (avg finished volume × unfinished). The
@@ -133,17 +136,19 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
   const bottomStats: { label: string; value: string }[] = []
   if (own.longest_volume != null) {
     bottomStats.push({
-      label: 'Longest volume',
-      value: own.longest_volume.series_index != null
-        ? `Vol ${own.longest_volume.series_index} · ${formatDuration(own.longest_volume.seconds)}`
-        : formatDuration(own.longest_volume.seconds),
+      label: t`Longest volume`,
+      value: (() => {
+        const idx = own.longest_volume.series_index
+        const dur = formatDuration(own.longest_volume.seconds)
+        return idx != null ? t`Vol ${idx} · ${dur}` : dur
+      })(),
     })
   }
   if (own.first_read) {
-    bottomStats.push({ label: 'First read', value: formatDate(own.first_read.slice(0, 10)) })
+    bottomStats.push({ label: t`First read`, value: formatDate(own.first_read.slice(0, 10)) })
   }
   if (own.last_read) {
-    bottomStats.push({ label: 'Last read', value: formatDate(own.last_read.slice(0, 10)) })
+    bottomStats.push({ label: t`Last read`, value: formatDate(own.last_read.slice(0, 10)) })
   }
 
   return (
@@ -156,7 +161,7 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
           aria-expanded={open}
           className="flex items-center gap-1.5 font-display text-base text-foreground hover:text-primary transition-colors"
         >
-          Reading Stats
+          <Trans>Reading Stats</Trans>
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !open && '-rotate-90')} />
         </button>
       </div>
@@ -205,7 +210,12 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
           {/* Admin aggregate footer */}
           {aggregate && (
             <p className="text-xs text-muted-foreground/60 mt-3">
-              All readers: {formatDuration(aggregate.total_seconds)} · {aggregate.total_sessions} session{aggregate.total_sessions !== 1 ? 's' : ''} · {aggregate.distinct_readers} reader{aggregate.distinct_readers !== 1 ? 's' : ''}
+              {(() => {
+                const dur = formatDuration(aggregate.total_seconds)
+                const sess = plural(aggregate.total_sessions, { one: '# session', other: '# sessions' })
+                const readers = plural(aggregate.distinct_readers, { one: '# reader', other: '# readers' })
+                return t`All readers: ${dur} · ${sess} · ${readers}`
+              })()}
             </p>
           )}
         </div>

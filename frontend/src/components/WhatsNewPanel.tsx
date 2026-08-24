@@ -7,6 +7,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Minus, Plus, RefreshCw, Sparkles, Wrench, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface WhatsNewEntry {
   kind: string
@@ -22,9 +24,11 @@ const SEEN_KEY = 'tome_seen_version'
 // Once per SPA session is enough — remounts (route changes) must not refetch.
 let checkedThisSession = false
 
+// eslint-disable-next-line lingui/no-unlocalized-strings -- changelog section keys
 const KIND_ORDER = ['Added', 'Changed', 'Fixed', 'Removed']
 
 // Per-kind visual identity — an icon chip per entry beats a wall of gray text.
+/* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map keyed by changelog sections */
 const KIND_META: Record<string, { icon: typeof Plus; chip: string }> = {
   Added: { icon: Plus, chip: 'bg-success/15 text-success' },
   Changed: { icon: RefreshCw, chip: 'bg-primary/15 text-primary' },
@@ -32,6 +36,7 @@ const KIND_META: Record<string, { icon: typeof Plus; chip: string }> = {
   Removed: { icon: Minus, chip: 'bg-destructive/15 text-destructive' },
 }
 const KIND_FALLBACK = { icon: Sparkles, chip: 'bg-muted text-muted-foreground' }
+/* eslint-enable lingui/no-unlocalized-strings */
 
 // Inline `code` spans from the changelog render as code, not literal backticks.
 function renderInline(text: string): ReactNode {
@@ -110,15 +115,15 @@ export function WhatsNewPanel() {
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Just updated
+                  <Trans>Just updated</Trans>
                 </p>
                 <h2 className="font-display text-xl leading-tight text-foreground">
-                  What&apos;s new in Tome {data.version}
+                  {(() => { const version = data.version; return <Trans>What&apos;s new in Tome {version}</Trans> })()}
                 </h2>
               </div>
               <button
                 onClick={dismiss}
-                aria-label="Dismiss"
+                aria-label={t`Dismiss`}
                 className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <X className="h-4 w-4" />
@@ -167,7 +172,7 @@ export function WhatsNewPanel() {
               onClick={dismiss}
               className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90"
             >
-              Got it
+              <Trans>Got it</Trans>
             </button>
           </div>
         </div>

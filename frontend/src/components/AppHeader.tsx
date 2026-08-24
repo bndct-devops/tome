@@ -6,6 +6,7 @@ import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
 import { WhatsNewPanel } from '@/components/WhatsNewPanel'
 import { CommandPalette } from '@/components/CommandPalette'
+import { Trans, useLingui } from '@lingui/react/macro'
 
 /**
  * The one top navbar — menu button, wordmark, a search slot, and the right-side
@@ -21,6 +22,7 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
   onUploadClick?: () => void
 }) {
   const { user } = useAuth()
+  const { t } = useLingui()
   // z-40: above content-level stickies (page toolbars at z-20, timeline axis at
   // z-30) so the notification dropdown isn't cut, below modals at z-50.
   return (
@@ -29,7 +31,7 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
         <button
           className="md:hidden flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted shrink-0"
           onClick={onMenuClick}
-          aria-label="Open navigation"
+          aria-label={t`Open navigation`}
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -50,7 +52,7 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all touch-feedback"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Upload</span>
+              <span className="hidden sm:inline"><Trans>Upload</Trans></span>
             </button>
           )}
         </div>
@@ -66,7 +68,7 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
 
 /** The header's search box. With `onSubmit` it's a form (Enter submits — the
  *  standalone pages jump to the dashboard results); without, a live filter. */
-export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, placeholder = 'Search books… (/)' }: {
+export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, placeholder }: {
   value: string
   onChange: (v: string) => void
   onClear: () => void
@@ -74,18 +76,19 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
   inputRef?: RefObject<HTMLInputElement | null>
   placeholder?: string
 }) {
+  const { t } = useLingui()
   const inner = (
     <>
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
       <input
         ref={inputRef}
-        aria-label="Search books"
+        aria-label={t`Search books`}
         // On phones the box can shrink to a sliver (page actions squeeze it) and
         // the placeholder clips mid-letter — hide it there; the icon says enough.
         // Rests quiet (tinted fill, no border), sharpens on focus — filled AND
         // bordered at rest made it the heaviest element in the whole bar.
         className="w-full h-8 pl-9 pr-8 rounded-lg bg-muted/60 border border-transparent text-sm placeholder:text-muted-foreground max-sm:placeholder:text-transparent transition-colors hover:bg-muted focus:bg-card focus:border-border focus:outline-none focus:ring-1 focus:ring-ring"
-        placeholder={placeholder}
+        placeholder={placeholder ?? t`Search books… (/)`}
         value={value}
         onChange={e => onChange(e.target.value)}
       />
@@ -93,7 +96,7 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         <button
           type="button"
           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          aria-label="Clear search"
+          aria-label={t`Clear search`}
           onClick={onClear}
         >
           <X className="w-3.5 h-3.5" />

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 import {
   AlignLeft, Loader2, Check, X, FileWarning, Play, Ban, RotateCcw,
 } from 'lucide-react'
@@ -11,6 +13,7 @@ import {
 const POLL_MS = 1000
 
 function formatBytes(n: number): string {
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- unit
   if (!n) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let i = 0
@@ -22,12 +25,13 @@ function formatBytes(n: number): string {
 function formatDuration(secs: number | null): string {
   if (secs == null) return '—'
   const s = Math.max(0, Math.round(secs))
-  if (s < 60) return `${s}s`
+  if (s < 60) return t`${s}s`
   const m = Math.floor(s / 60)
   const rem = s % 60
-  if (m < 60) return `${m}m ${rem}s`
+  if (m < 60) return t`${m}m ${rem}s`
   const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}m`
+  const mm = m % 60
+  return t`${h}h ${mm}m`
 }
 
 function formatCount(n: number): string {
@@ -73,7 +77,7 @@ export function WordCountTab() {
         setState(s)
         if (s.status === 'running') startPolling()
       })
-      .catch(() => { if (alive) setError('Failed to load word-count status') })
+      .catch(() => { if (alive) setError(t`Failed to load word-count status`) })
     return () => { alive = false; stopPolling() }
   }, [startPolling, stopPolling])
 
@@ -85,7 +89,7 @@ export function WordCountTab() {
       setState(s)
       startPolling()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to start')
+      setError(e instanceof Error ? e.message : t`Failed to start`)
     } finally {
       setBusy(false)
     }
@@ -122,12 +126,12 @@ export function WordCountTab() {
           <AlignLeft className="w-4 h-4" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold">Word counts</h2>
+          <h2 className="text-sm font-semibold"><Trans>Word counts</Trans></h2>
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            Parse each EPUB to store its word count. New uploads get this automatically — this
+            <Trans>Parse each EPUB to store its word count. New uploads get this automatically — this
             backfills books added before the feature. It only reads the files and writes one
             number per book; nothing on disk is modified. Word counts power words-read and
-            reading-speed stats. PDF and CBZ are skipped.
+            reading-speed stats. PDF and CBZ are skipped.</Trans>
           </p>
         </div>
       </div>
@@ -143,9 +147,9 @@ export function WordCountTab() {
       {!running && !terminal && (
         <div className="border border-border rounded-xl bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border grid grid-cols-3 gap-2 text-center">
-            <Stat label="EPUBs" value={preflight ? formatCount(preflight.epub_total) : '—'} />
-            <Stat label="Already counted" value={preflight ? formatCount(preflight.already_counted) : '—'} />
-            <Stat label="To count" value={preflight ? formatCount(pending) : '—'} accent={pending > 0}
+            <Stat label={t`EPUBs`} value={preflight ? formatCount(preflight.epub_total) : '—'} />
+            <Stat label={t`Already counted`} value={preflight ? formatCount(preflight.already_counted) : '—'} />
+            <Stat label={t`To count`} value={preflight ? formatCount(pending) : '—'} accent={pending > 0}
               sub={preflight ? formatBytes(preflight.pending_bytes) : undefined} />
           </div>
           <div className="px-4 py-3">
@@ -154,7 +158,7 @@ export function WordCountTab() {
               disabled={busy || pending === 0}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {pending === 0 ? 'Every EPUB is counted' : `Count ${formatCount(pending)} EPUB${pending !== 1 ? 's' : ''}`}
+              {pending === 0 ? t`Every EPUB is counted` : plural(pending, { one: 'Count # EPUB', other: 'Count # EPUBs' })}
             </button>
           </div>
         </div>
@@ -167,7 +171,7 @@ export function WordCountTab() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                Counting… {formatCount(state.done_files)} / {formatCount(state.total_files)}
+                {(() => { const done = formatCount(state.done_files); const total = formatCount(state.total_files); return <Trans>Counting… {done} / {total}</Trans> })()}
               </span>
               <span className="text-xs text-muted-foreground tabular-nums">{pct.toFixed(1)}%</span>
             </div>
@@ -176,22 +180,22 @@ export function WordCountTab() {
             </div>
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>{formatBytes(state.done_bytes)} / {formatBytes(state.total_bytes)}</span>
-              <span>Elapsed {formatDuration(state.elapsed_seconds)} · ~{formatDuration(state.eta_seconds)} left</span>
+              {(() => { const el = formatDuration(state.elapsed_seconds); const eta = formatDuration(state.eta_seconds); return <span><Trans>Elapsed {el} · ~{eta} left</Trans></span> })()}
             </div>
           </div>
           <div className="px-4 py-3 flex flex-col gap-3">
             <div className="text-xs text-muted-foreground truncate">
-              <span className="text-foreground/70">Current:</span>{' '}
+              <span className="text-foreground/70"><Trans>Current:</Trans></span>{' '}
               <span className="font-mono">{state.current_file?.split('/').pop() ?? '…'}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
-              <Stat label="Counted" value={formatCount(state.counted)} accent />
-              <Stat label="Words found" value={formatCount(state.words_total)} />
-              <Stat label="Failed" value={formatCount(state.failed)} danger={state.failed > 0} />
+              <Stat label={t`Counted`} value={formatCount(state.counted)} accent />
+              <Stat label={t`Words found`} value={formatCount(state.words_total)} />
+              <Stat label={t`Failed`} value={formatCount(state.failed)} danger={state.failed > 0} />
             </div>
             <button onClick={handleCancel} disabled={busy}
               className="self-start flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50">
-              <Ban className="w-3.5 h-3.5" /> Stop
+              <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
             </button>
           </div>
         </div>
@@ -206,16 +210,16 @@ export function WordCountTab() {
             {state.status === 'cancelled' && <Ban className="w-4 h-4" />}
             {state.status === 'error' && <FileWarning className="w-4 h-4" />}
             <span className="text-sm font-semibold">
-              {state.status === 'done' && 'Word count complete'}
-              {state.status === 'cancelled' && 'Word count stopped'}
-              {state.status === 'error' && 'Word count failed'}
+              {state.status === 'done' && t`Word count complete`}
+              {state.status === 'cancelled' && t`Word count stopped`}
+              {state.status === 'error' && t`Word count failed`}
             </span>
-            <span className="ml-auto text-xs text-muted-foreground">Took {formatDuration(state.elapsed_seconds)}</span>
+            {(() => { const dur = formatDuration(state.elapsed_seconds); return <span className="ml-auto text-xs text-muted-foreground"><Trans>Took {dur}</Trans></span> })()}
           </div>
           <div className="px-4 py-3 grid grid-cols-3 gap-2 text-center border-b border-border">
-            <Stat label="Counted" value={formatCount(state.counted)} accent />
-            <Stat label="Words found" value={formatCount(state.words_total)} />
-            <Stat label="Failed" value={formatCount(state.failed)} danger={state.failed > 0} />
+            <Stat label={t`Counted`} value={formatCount(state.counted)} accent />
+            <Stat label={t`Words found`} value={formatCount(state.words_total)} />
+            <Stat label={t`Failed`} value={formatCount(state.failed)} danger={state.failed > 0} />
           </div>
           {state.error && (
             <div className="px-4 py-2 text-xs text-destructive border-b border-border">{state.error}</div>
@@ -223,7 +227,7 @@ export function WordCountTab() {
           {state.issues.length > 0 && (
             <div className="px-4 py-3 border-b border-border">
               <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                <FileWarning className="w-3.5 h-3.5" /> Could not parse ({state.issues.length})
+                <FileWarning className="w-3.5 h-3.5" /> {(() => { const n = state.issues.length; return <Trans>Could not parse ({n})</Trans> })()}
               </p>
               <div className="max-h-64 overflow-y-auto flex flex-col gap-1">
                 {state.issues.map((it, i) => (
@@ -238,13 +242,13 @@ export function WordCountTab() {
           <div className="px-4 py-3 flex items-center gap-2">
             <button onClick={handleDismiss} disabled={busy}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Done
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} <Trans>Done</Trans>
             </button>
             {state.failed > 0 && (
               <button onClick={handleStart} disabled={busy}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50">
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                Retry {formatCount(state.failed)} failed
+                {(() => { const n = formatCount(state.failed); return <Trans>Retry {n} failed</Trans> })()}
               </button>
             )}
           </div>

@@ -1,4 +1,6 @@
 import { ProgressRow } from './ProgressRow'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 
 interface AuthorAffinityEntry {
   author: string
@@ -13,13 +15,13 @@ function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   if (h === 0) return `${m}m`
-  return `${h}h ${m}m`
+  return t`${h}h ${m}m`
 }
 
 export function AuthorAffinity({ data }: { data: AuthorAffinityEntry[] }) {
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">No author data.</p>
+      <p className="text-sm text-muted-foreground text-center py-4"><Trans>No author data.</Trans></p>
     )
   }
 
@@ -33,7 +35,7 @@ export function AuthorAffinity({ data }: { data: AuthorAffinityEntry[] }) {
           label={a.author}
           value={formatDuration(a.seconds)}
           pct={(a.seconds / maxSeconds) * 100}
-          sub={`${a.books_finished} finished · ${a.book_count} book${a.book_count !== 1 ? 's' : ''} read`}
+          sub={(() => { const fin = a.books_finished; return plural(a.book_count, { one: `${fin} finished · # book read`, other: `${fin} finished · # books read` }) })()}
         />
       ))}
     </div>

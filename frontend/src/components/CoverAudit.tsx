@@ -8,6 +8,10 @@ import { Link } from 'react-router-dom'
 import { ExternalLink, ImageOff, Loader2, RefreshCw, Wand2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t, msg } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 
 interface FlaggedBook {
   book_id: number
@@ -28,10 +32,10 @@ interface AuditResponse {
 
 type FixState = 'fixing' | 'fixed' | 'nocandidate' | 'failed'
 
-const REASON_LABEL: Record<FlaggedBook['reason'], string> = {
-  missing: 'No cover',
-  low_res: 'Low resolution',
-  unreadable: 'Unreadable file',
+const REASON_LABEL: Record<FlaggedBook['reason'], MessageDescriptor> = {
+  missing: msg`No cover`,
+  low_res: msg`Low resolution`,
+  unreadable: msg`Unreadable file`,
 }
 
 export function CoverAudit() {
@@ -83,7 +87,7 @@ export function CoverAudit() {
   if (!data) {
     return (
       <div className="flex items-center gap-2 py-10 justify-center text-sm text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin" /> Scanning covers…
+        <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Scanning covers…</Trans>
       </div>
     )
   }
@@ -94,9 +98,12 @@ export function CoverAudit() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-muted-foreground">
-          {data.books.length === 0
-            ? `All ${data.scanned} covers look healthy.`
-            : `${data.books.length} of ${data.scanned} books flagged (low-res = narrower than ${data.min_width}px).`}
+          {(() => {
+            const scanned = data.scanned
+            if (data.books.length === 0) return t`All ${scanned} covers look healthy.`
+            const flagged = data.books.length, minW = data.min_width
+            return t`${flagged} of ${scanned} books flagged (low-res = narrower than ${minW}px).`
+          })()}
         </p>
         <div className="ml-auto flex items-center gap-2">
           {missingCount > 0 && (
@@ -106,7 +113,7 @@ export function CoverAudit() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
             >
               {bulkRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-              Auto-fix {missingCount} missing
+              <Trans>Auto-fix {missingCount} missing</Trans>
             </button>
           )}
           <button
@@ -115,7 +122,7 @@ export function CoverAudit() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted disabled:opacity-50 transition-all"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
-            Rescan
+            <Trans>Rescan</Trans>
           </button>
         </div>
       </div>
@@ -124,9 +131,9 @@ export function CoverAudit() {
         <div className="rounded-xl border border-border overflow-hidden">
           <div className="grid grid-cols-[3rem_1fr_8rem_7rem_6rem] items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <span />
-            <span>Book</span>
-            <span>Problem</span>
-            <span>Size</span>
+            <span><Trans>Book</Trans></span>
+            <span><Trans>Problem</Trans></span>
+            <span><Trans>Size</Trans></span>
             <span />
           </div>
           {data.books.map(b => {
@@ -161,7 +168,7 @@ export function CoverAudit() {
                     state === 'fixed' && 'text-success',
                   )}
                 >
-                  {state === 'fixed' ? 'Fixed' : REASON_LABEL[b.reason]}
+                  {state === 'fixed' ? t`Fixed` : i18n._(REASON_LABEL[b.reason])}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {b.width != null ? `${b.width}×${b.height}px` : '—'}
@@ -171,7 +178,7 @@ export function CoverAudit() {
                     <button
                       onClick={() => autoFix(b)}
                       disabled={state === 'fixing' || bulkRunning}
-                      title="Apply the first cover-search candidate"
+                      title={t`Apply the first cover-search candidate`}
                       className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                     >
                       {state === 'fixing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -179,7 +186,7 @@ export function CoverAudit() {
                   )}
                   <Link
                     to={`/books/${b.book_id}`}
-                    title="Open book (pick a cover by eye)"
+                    title={t`Open book (pick a cover by eye)`}
                     className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -192,7 +199,7 @@ export function CoverAudit() {
       )}
       {Object.values(fix).some(s => s === 'nocandidate' || s === 'failed') && (
         <p className="text-xs text-muted-foreground">
-          Some books had no usable candidate or failed to apply — open them and use the cover picker.
+          <Trans>Some books had no usable candidate or failed to apply — open them and use the cover picker.</Trans>
         </p>
       )}
     </div>

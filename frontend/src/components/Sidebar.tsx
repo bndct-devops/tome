@@ -17,6 +17,9 @@ import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
 import { applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
 import { DOCS, docsLink } from '@/lib/docs'
+import { Trans, useLingui } from '@lingui/react/macro'
+import { msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 
 const SIDEBAR_KEY = 'tome_sidebar'
 
@@ -40,6 +43,7 @@ const ALL_ICONS: [string, LucideIcon][] = Object.entries(LucideIcons).filter(
 ) as [string, LucideIcon][]
 
 export function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useLingui()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -68,8 +72,8 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
         type="button"
         onClick={() => { setOpen(o => !o); setSearch('') }}
         className="flex items-center justify-center w-7 h-7 rounded-md border border-border bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-        title="Choose icon"
-        aria-label="Choose icon"
+        title={t`Choose icon`}
+        aria-label={t`Choose icon`}
       >
         <Curr className="w-3.5 h-3.5" />
       </button>
@@ -79,7 +83,7 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
             ref={searchRef}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search icons…"
+            placeholder={t`Search icons…`}
             className="w-full mb-2 px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <div className="grid grid-cols-8 gap-1 max-h-[300px] overflow-y-auto">
@@ -98,7 +102,7 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
               </button>
             ))}
           </div>
-          {!search && <p className="text-[10px] text-muted-foreground text-center mt-1.5">Search to find more icons</p>}
+          {!search && <p className="text-[10px] text-muted-foreground text-center mt-1.5"><Trans>Search to find more icons</Trans></p>}
         </div>
       )}
     </div>
@@ -120,6 +124,7 @@ interface Props {
 }
 
 export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange, onSavedFiltersChange, onOpenSeriesView, onOpenHomeView, mobileOpen, onMobileClose }: Props) {
+  const { t } = useLingui()
   const [open, setOpen] = useState(() => localStorage.getItem(SIDEBAR_KEY) !== 'closed')
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -209,7 +214,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   }
 
   function openCreateLibModal() {
-    setLibModalTitle('New Library')
+    setLibModalTitle(t`New Library`)
     setLibModalInitialName('')
     setLibModalInitialIcon('Library')
     setLibModalInitialPublic(true)
@@ -223,7 +228,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   }
 
   function openEditLibModal(lib: Library) {
-    setLibModalTitle('Edit Library')
+    setLibModalTitle(t`Edit Library`)
     setLibModalInitialName(lib.name)
     setLibModalInitialIcon(lib.icon ?? 'Library')
     setLibModalInitialPublic(lib.is_public ?? true)
@@ -239,7 +244,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   const [shareShelf, setShareShelf] = useState<SavedFilter | null>(null)
 
   function openEditFilterModal(sf: SavedFilter) {
-    setModalTitle('Edit Shelf')
+    setModalTitle(t`Edit Shelf`)
     setModalInitialName(sf.name)
     setModalInitialIcon(sf.icon ?? 'Bookmark')
     setModalDefaultIcon('Bookmark')
@@ -253,6 +258,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 
   return (
     <>
+      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS, not copy */}
       <style>{`
         @keyframes sidebar-jiggle {
           0%, 100% { transform: rotate(0deg); }
@@ -311,8 +317,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           <div className="flex flex-col items-center flex-1 overflow-y-auto py-2 space-y-0.5 overscroll-contain">
             <button
               onClick={onOpenHomeView}
-              title="Home"
-              aria-label="Home"
+              title={t`Home`}
+              aria-label={t`Home`}
               className={cn(
                 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                 isHomeTab
@@ -324,8 +330,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             </button>
             <button
               onClick={selectAllBooks}
-              title="All Books"
-              aria-label="All Books"
+              title={t`All Books`}
+              aria-label={t`All Books`}
               className={cn(
                 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                 isAllBooks
@@ -337,8 +343,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             </button>
             <button
               onClick={onOpenSeriesView}
-              title="Series"
-              aria-label="Series"
+              title={t`Series`}
+              aria-label={t`Series`}
               className={cn(
                 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                 isSeriesTab
@@ -350,8 +356,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             </button>
             <Link
               to="/stats"
-              title="Stats"
-              aria-label="Stats"
+              title={t`Stats`}
+              aria-label={t`Stats`}
               className={cn(
                 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                 location.pathname === '/stats'
@@ -363,8 +369,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             </Link>
             <Link
               to="/highlights"
-              title="Highlights"
-              aria-label="Highlights"
+              title={t`Highlights`}
+              aria-label={t`Highlights`}
               className={cn(
                 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                 location.pathname === '/highlights'
@@ -377,8 +383,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             {isMember(user) && (
               <Link
                 to="/wishlist"
-                title="Wishlist"
-                aria-label="Wishlist"
+                title={t`Wishlist`}
+                aria-label={t`Wishlist`}
                 className={cn(
                   'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                   location.pathname === '/wishlist'
@@ -392,8 +398,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             {isAdmin(user) && (
               <Link
                 to="/bindery"
-                title="Bindery"
-                aria-label="Bindery"
+                title={t`Bindery`}
+                aria-label={t`Bindery`}
                 className={cn(
                   'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
                   location.pathname === '/bindery'
@@ -465,7 +471,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 )}
               >
                 <Home className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate">Home</span>
+                <span className="truncate"><Trans>Home</Trans></span>
               </button>
               <button
                 onClick={selectAllBooks}
@@ -477,7 +483,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 )}
               >
                 <BookOpen className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate">All Books</span>
+                <span className="truncate"><Trans>All Books</Trans></span>
               </button>
               <button
                 onClick={onOpenSeriesView}
@@ -489,7 +495,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 )}
               >
                 <Layers className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate">Series</span>
+                <span className="truncate"><Trans>Series</Trans></span>
               </button>
               <Link
                 to="/stats"
@@ -501,7 +507,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 )}
               >
                 <BarChart3 className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate">Stats</span>
+                <span className="truncate"><Trans>Stats</Trans></span>
               </Link>
               <Link
                 to="/highlights"
@@ -513,7 +519,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 )}
               >
                 <Quote className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate">Highlights</span>
+                <span className="truncate"><Trans>Highlights</Trans></span>
               </Link>
               {isMember(user) && (
                 <Link
@@ -526,7 +532,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <Sparkles className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Wishlist</span>
+                  <span className="truncate"><Trans>Wishlist</Trans></span>
                 </Link>
               )}
               {isMember(user) && (
@@ -540,7 +546,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <BookMarked className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Hardcover</span>
+                  <span className="truncate"><Trans>Hardcover</Trans></span>
                 </Link>
               )}
               {isAdmin(user) && (
@@ -554,7 +560,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <BookPlus className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Bindery</span>
+                  <span className="truncate"><Trans>Bindery</Trans></span>
                   {binderyCount > 0 && (
                     <span
                       className="ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full"
@@ -568,9 +574,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             </div>
 
             <Section
-              title="Libraries"
+              title={t`Libraries`}
               icon={<LibraryIcon className="w-3 h-3" />}
-              onAdd={openCreateLibModal}
+              onAdd={openCreateLibModal} addLabel={t`New library`}
             >
               {libraries.map(lib => (
                 <SidebarItem
@@ -593,7 +599,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 
             {savedFilters.length > 0 && (
               <Section
-                title="Shelves"
+                title={t`Shelves`}
                 icon={<Bookmark className="w-3 h-3" />}
               >
                 {savedFilters.map(sf => (
@@ -653,7 +659,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               <button
                 onClick={onMobileClose}
                 className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
-                aria-label="Close navigation"
+                aria-label={t`Close navigation`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -671,7 +677,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <Home className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Home</span>
+                  <span className="truncate"><Trans>Home</Trans></span>
                 </button>
                 <button
                   onClick={() => { selectAllBooks(); onMobileClose() }}
@@ -683,7 +689,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <BookOpen className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">All Books</span>
+                  <span className="truncate"><Trans>All Books</Trans></span>
                 </button>
                 <button
                   onClick={() => { onOpenSeriesView(); onMobileClose() }}
@@ -695,7 +701,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <Layers className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Series</span>
+                  <span className="truncate"><Trans>Series</Trans></span>
                 </button>
                 <Link
                   to="/stats"
@@ -708,7 +714,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <BarChart3 className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Stats</span>
+                  <span className="truncate"><Trans>Stats</Trans></span>
                 </Link>
                 <Link
                   to="/highlights"
@@ -721,7 +727,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   )}
                 >
                   <Quote className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate">Highlights</span>
+                  <span className="truncate"><Trans>Highlights</Trans></span>
                 </Link>
                 {isMember(user) && (
                   <Link
@@ -735,7 +741,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     )}
                   >
                     <Sparkles className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                    <span className="truncate">Wishlist</span>
+                    <span className="truncate"><Trans>Wishlist</Trans></span>
                   </Link>
                 )}
                 {isAdmin(user) && (
@@ -750,7 +756,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     )}
                   >
                     <BookPlus className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                    <span className="truncate flex-1">Bindery</span>
+                    <span className="truncate flex-1"><Trans>Bindery</Trans></span>
                     {binderyCount > 0 && (
                       <span className="text-xs font-medium text-primary tabular-nums">{binderyCount}</span>
                     )}
@@ -759,9 +765,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               </div>
 
               <Section
-                title="Libraries"
+                title={t`Libraries`}
                 icon={<LibraryIcon className="w-3 h-3" />}
-                onAdd={openCreateLibModal}
+                onAdd={openCreateLibModal} addLabel={t`New library`}
               >
                 {libraries.map(lib => (
                   <SidebarItem
@@ -784,7 +790,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 
               {savedFilters.length > 0 && (
                 <Section
-                  title="Shelves"
+                  title={t`Shelves`}
                   icon={<Bookmark className="w-3 h-3" />}
                 >
                   {savedFilters.map(sf => (
@@ -816,7 +822,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{user?.username}</p>
-                  {isAdmin(user) && <p className="text-[11px] text-muted-foreground">Admin</p>}
+                  {isAdmin(user) && <p className="text-[11px] text-muted-foreground"><Trans>Admin</Trans></p>}
                 </div>
               </div>
               {/* Actions */}
@@ -828,7 +834,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
                   <Settings className="w-5 h-5 shrink-0" />
-                  Settings
+                  <Trans>Settings</Trans>
                 </Link>
                 {isAdmin(user) && (
                   <Link
@@ -837,7 +843,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                     className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   >
                     <Shield className="w-5 h-5 shrink-0" />
-                    Admin
+                    <Trans>Admin</Trans>
                   </Link>
                 )}
                 <a
@@ -848,7 +854,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
                   <BookOpen className="w-5 h-5 shrink-0" />
-                  <span className="flex-1">Docs</span>
+                  <span className="flex-1"><Trans>Docs</Trans></span>
                   <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-60" />
                 </a>
                 <button
@@ -856,7 +862,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-colors"
                 >
                   <LogOut className="w-5 h-5 shrink-0" />
-                  Log out
+                  <Trans>Log out</Trans>
                 </button>
               </div>
             </div>
@@ -867,15 +873,16 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 }
 
 
-const THEME_OPTIONS: { id: ThemeId; icon: typeof Sun; label: string }[] = [
-  { id: 'light', icon: Sun, label: 'Light' },
-  { id: 'dark', icon: Moon, label: 'Dark' },
-  { id: 'black', icon: MoonStar, label: 'Black' },
-  { id: 'amber', icon: Flame, label: 'Amber' },
-  { id: 'ember', icon: Coffee, label: 'Ember' },
+const THEME_OPTIONS: { id: ThemeId; icon: typeof Sun; label: MessageDescriptor }[] = [
+  { id: 'light', icon: Sun, label: msg`Light` },
+  { id: 'dark', icon: Moon, label: msg`Dark` },
+  { id: 'black', icon: MoonStar, label: msg`Black` },
+  { id: 'amber', icon: Flame, label: msg`Amber` },
+  { id: 'ember', icon: Coffee, label: msg`Ember` },
 ]
 
 function ThemeMenuItems({ itemClass }: { itemClass: string }) {
+  const { i18n } = useLingui()
   const [current, setCurrent] = useState(getStoredTheme)
   return (
     <>
@@ -888,7 +895,7 @@ function ThemeMenuItems({ itemClass }: { itemClass: string }) {
             className={itemClass}
           >
             <Icon className="w-4 h-4 shrink-0" />
-            {label}
+            {i18n._(label)}
             {current === id && <Check className="w-3.5 h-3.5 shrink-0 text-primary ml-auto" />}
           </button>
         </Fragment>
@@ -898,16 +905,19 @@ function ThemeMenuItems({ itemClass }: { itemClass: string }) {
 }
 
 function MobileThemeRow() {
+  const { t, i18n } = useLingui()
   const [current, setCurrent] = useState(getStoredTheme)
   return (
     <div className="flex items-center gap-1 px-3 py-1.5">
-      <span className="flex-1 text-sm text-muted-foreground">Theme</span>
-      {THEME_OPTIONS.map(({ id, icon: Icon, label }) => (
+      <span className="flex-1 text-sm text-muted-foreground"><Trans>Theme</Trans></span>
+      {THEME_OPTIONS.map(({ id, icon: Icon, label }) => {
+        const themeName = i18n._(label)
+        return (
         <button
           key={id}
           onClick={() => { applyTheme(id); setCurrent(id) }}
-          title={label}
-          aria-label={`${label} theme`}
+          title={themeName}
+          aria-label={t`${themeName} theme`}
           className={cn(
             'flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
             current === id
@@ -917,12 +927,14 @@ function MobileThemeRow() {
         >
           <Icon className="w-4 h-4" />
         </button>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
 function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: string; is_admin?: boolean; role?: string } | null; logout: () => void; onExpand: () => void }) {
+  const { t } = useLingui()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -941,16 +953,16 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
     <div ref={ref} className="relative shrink-0 border-t border-border flex flex-col items-center gap-0.5 py-2">
       <button
         onClick={onExpand}
-        title="Expand sidebar"
-        aria-label="Expand sidebar"
+        title={t`Expand sidebar`}
+        aria-label={t`Expand sidebar`}
         className="flex items-center justify-center w-9 h-7 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-accent/60 transition-colors"
       >
         <ChevronRight className="w-4 h-4" />
       </button>
       <button
         onClick={() => setOpen(o => !o)}
-        title={user?.username ?? 'User menu'}
-        aria-label={user?.username ?? 'User menu'}
+        title={user?.username ?? t`User menu`}
+        aria-label={user?.username ?? t`User menu`}
         className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent/60 transition-colors"
       >
         <div className="flex w-6 h-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary ring-2 ring-primary/20">
@@ -961,17 +973,17 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
         <div className="absolute bottom-full left-1 right-1 mb-1 bg-card border border-border rounded-xl shadow-lg shadow-accent-soft py-1.5 z-50 w-40">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
-            Settings
+            <Trans>Settings</Trans>
           </Link>
           {(user?.is_admin || user?.role === 'admin') && (
             <Link to="/admin" onClick={() => setOpen(false)} className={menuItem}>
               <Shield className="w-4 h-4 shrink-0" />
-              Admin
+              <Trans>Admin</Trans>
             </Link>
           )}
           <a href={docsLink(DOCS.home)} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className={menuItem}>
             <BookOpen className="w-4 h-4 shrink-0" />
-            <span className="flex-1">Docs</span>
+            <span className="flex-1"><Trans>Docs</Trans></span>
             <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
           </a>
           <div className="my-1 h-px bg-border mx-2" />
@@ -979,7 +991,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
           <div className="my-1 h-px bg-border mx-2" />
           <button onClick={logout} className={destructive}>
             <LogOut className="w-4 h-4 shrink-0" />
-            Log out
+            <Trans>Log out</Trans>
           </button>
         </div>
       )}
@@ -988,6 +1000,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
 }
 
 function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_admin?: boolean; role?: string } | null; logout: () => void; onCollapse: () => void }) {
+  const { t } = useLingui()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -1016,8 +1029,8 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
       </button>
       <button
         onClick={onCollapse}
-        title="Collapse sidebar"
-        aria-label="Collapse sidebar"
+        title={t`Collapse sidebar`}
+        aria-label={t`Collapse sidebar`}
         className="flex items-center justify-center w-7 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-accent/60 transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />
@@ -1027,17 +1040,17 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
         <div className="absolute bottom-full left-2 right-2 mb-1 bg-card border border-border rounded-xl shadow-lg shadow-accent-soft py-1.5 z-50">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
-            Settings
+            <Trans>Settings</Trans>
           </Link>
           {(user?.is_admin || user?.role === 'admin') && (
             <Link to="/admin" onClick={() => setOpen(false)} className={menuItem}>
               <Shield className="w-4 h-4 shrink-0" />
-              Admin
+              <Trans>Admin</Trans>
             </Link>
           )}
           <a href={docsLink(DOCS.home)} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className={menuItem}>
             <BookOpen className="w-4 h-4 shrink-0" />
-            <span className="flex-1">Docs</span>
+            <span className="flex-1"><Trans>Docs</Trans></span>
             <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
           </a>
           <div className="my-1 h-px bg-border mx-2" />
@@ -1045,7 +1058,7 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
           <div className="my-1 h-px bg-border mx-2" />
           <button onClick={logout} className={destructive}>
             <LogOut className="w-4 h-4 shrink-0" />
-            Log out
+            <Trans>Log out</Trans>
           </button>
         </div>
       )}
@@ -1053,10 +1066,12 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
   )
 }
 
-function Section({ title, icon, onAdd, onTitleClick, children }: {
+function Section({ title, icon, onAdd, addLabel, onTitleClick, children }: {
   title: string
   icon: React.ReactNode
   onAdd?: () => void
+  /** Accessible label for the add button, e.g. "New library". */
+  addLabel?: string
   onTitleClick?: () => void
   children: React.ReactNode
 }) {
@@ -1076,8 +1091,8 @@ function Section({ title, icon, onAdd, onTitleClick, children }: {
           <button
             onClick={onAdd}
             className="p-2.5 -m-2 text-muted-foreground hover:text-foreground transition-colors"
-            title={`New ${title.toLowerCase().replace(/s$/, '')}`}
-            aria-label={`New ${title.toLowerCase().replace(/s$/, '')}`}
+            title={addLabel}
+            aria-label={addLabel}
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -1099,6 +1114,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
   onShare?: () => void
   onDelete?: () => Promise<void>
 }) {
+  const { t } = useLingui()
   return (
     <div
       className={cn(
@@ -1112,7 +1128,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
       <span className="shrink-0 sidebar-item-icon">{getIcon(iconName)}</span>
       <span className="truncate flex-1">{label}</span>
       {isPrivate && (
-        <span title="Private library" className="shrink-0 flex items-center group-hover:hidden group-focus-within:hidden">
+        <span title={t`Private library`} className="shrink-0 flex items-center group-hover:hidden group-focus-within:hidden">
           <Lock className="w-3 h-3 text-muted-foreground/50" />
         </span>
       )}
@@ -1127,8 +1143,8 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
           <button
             onClick={e => { e.stopPropagation(); onEdit() }}
             className="p-0.5 rounded hover:text-foreground transition-colors"
-            title="Edit"
-            aria-label="Edit"
+            title={t`Edit`}
+            aria-label={t`Edit`}
           >
             <Pencil className="w-3 h-3" />
           </button>
@@ -1137,8 +1153,8 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
           <button
             onClick={e => { e.stopPropagation(); onShare() }}
             className="p-0.5 rounded hover:text-foreground transition-colors"
-            title="Share"
-            aria-label="Share"
+            title={t`Share`}
+            aria-label={t`Share`}
           >
             <Share2 className="w-3 h-3" />
           </button>
@@ -1147,8 +1163,8 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
           <button
             onClick={async e => { e.stopPropagation(); await onDelete() }}
             className="p-0.5 rounded hover:text-destructive transition-colors"
-            title="Delete"
-            aria-label="Delete"
+            title={t`Delete`}
+            aria-label={t`Delete`}
           >
             <Trash2 className="w-3 h-3" />
           </button>
@@ -1172,6 +1188,7 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
   onChanged?: () => void
   onClose: () => void
 }) {
+  const { t } = useLingui()
   const [name, setName] = useState(initialName ?? '')
   const [icon, setIcon] = useState(initialIcon ?? 'Library')
   const [isPublic, setIsPublic] = useState(initialIsPublic ?? true)
@@ -1206,7 +1223,7 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
       }
       onChanged?.()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update sharing')
+      setError(e instanceof Error ? e.message : t`Failed to update sharing`)
     } finally {
       setBusyUserId(null)
     }
@@ -1227,7 +1244,7 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
       await onSave(name.trim(), icon, isPublic)
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save')
+      setError(e instanceof Error ? e.message : t`Failed to save`)
     } finally {
       setSaving(false)
     }
@@ -1245,15 +1262,15 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
           value={name}
           onChange={e => { setName(e.target.value); setError('') }}
           onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
-          placeholder="Name…"
+          placeholder={t`Name…`}
           className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">Icon</span>
+          <span className="text-sm text-muted-foreground"><Trans>Icon</Trans></span>
           <IconPicker value={icon} onChange={setIcon} />
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground flex-1">Public library</span>
+          <span className="text-sm text-muted-foreground flex-1"><Trans>Public library</Trans></span>
           <button
             type="button"
             onClick={() => setIsPublic(v => !v)}
@@ -1270,16 +1287,16 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
         </div>
         {!isPublic && (
           <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Lock className="w-3 h-3" /> Private — only assigned users can access
+            <Lock className="w-3 h-3" /> <Trans>Private — only assigned users can access</Trans>
           </p>
         )}
         {canShare && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Users className="w-3.5 h-3.5" /> Share with users
+              <Users className="w-3.5 h-3.5" /> <Trans>Share with users</Trans>
             </div>
             {users.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No other users to share with.</p>
+              <p className="text-xs text-muted-foreground"><Trans>No other users to share with.</Trans></p>
             ) : (
               <div className="max-h-40 overflow-y-auto rounded-lg border border-border divide-y divide-border">
                 {users.map(u => {
@@ -1307,7 +1324,7 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
           </div>
         )}
         {!isPublic && libraryId == null && (
-          <p className="text-xs text-muted-foreground">Save the library first, then reopen it to share with users.</p>
+          <p className="text-xs text-muted-foreground"><Trans>Save the library first, then reopen it to share with users.</Trans></p>
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex items-center justify-end gap-2 pt-1">
@@ -1315,14 +1332,14 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
             onClick={onClose}
             className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
           >
-            Save
+            <Trans>Save</Trans>
           </button>
         </div>
       </div>

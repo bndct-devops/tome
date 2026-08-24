@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@lingui/core/macro'
 
 interface StarRatingProps {
   /** The fill to display (may be a derived value, e.g. a volume average). */
@@ -64,7 +65,7 @@ export function StarRating({
     return (
       <span
         className={cn('inline-flex items-center gap-px', className)}
-        aria-label={value != null ? `Rated ${value} of 5` : undefined}
+        aria-label={value != null ? t`Rated ${value} of 5` : undefined}
       >
         {[1, 2, 3, 4, 5].map(n => (
           <span key={n} className="relative inline-flex">{star(n)}</span>

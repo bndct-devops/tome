@@ -1,3 +1,5 @@
+/* eslint-disable lingui/no-unlocalized-strings -- DEAD CODE: /users redirects to /admin
+   (AdminPage's UsersTab replaced this page). Not translated; candidate for deletion. */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {

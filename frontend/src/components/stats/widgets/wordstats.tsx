@@ -6,9 +6,11 @@ import {
 import { FileText } from 'lucide-react'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 
-function Empty({ text = 'No word counts yet.' }: { text?: string }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{text}</p>
+function Empty({ text }: { text?: string }) {
+  return <p className="py-10 text-center text-sm text-muted-foreground">{text ?? t`No word counts yet.`}</p>
 }
 
 // Compact number: 1_240_000 -> "1.2M", 84_300 -> "84k", 932 -> "932".
@@ -42,7 +44,7 @@ export function WordsRead({ data }: { data: StatsResponse['words'] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <span className="text-3xl font-bold leading-none text-foreground">{compact(data.total_words)}</span>
-        <span className="text-xs text-muted-foreground">words read · {data.books_counted} book{data.books_counted !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-muted-foreground">{plural(data.books_counted, { one: 'words read · # book', other: 'words read · # books' })}</span>
       </div>
       {years.length >= 2 && (
         <div className="flex flex-col gap-1.5">
@@ -59,7 +61,9 @@ export function WordsRead({ data }: { data: StatsResponse['words'] }) {
           ))}
         </div>
       )}
-      <p className="text-xs text-muted-foreground">avg <span className="font-medium text-foreground">{compact(avgPerBook)}</span> words per book</p>
+      {(() => { const avg = compact(avgPerBook); return (
+      <p className="text-xs text-muted-foreground"><Trans>avg <span className="font-medium text-foreground">{avg}</span> words per book</Trans></p>
+      ) })()}
     </div>
   )
 }
@@ -82,23 +86,23 @@ function WpmRow({ b }: { b: StatsResponse['wpm']['books'][number] }) {
 // (container query, not viewport) — so a wide tile fills with two columns
 // instead of one tall list with dead space on the right.
 export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
-  if (!data || data.books_counted === 0) return <Empty text="No timed reading with word counts yet." />
+  if (!data || data.books_counted === 0) return <Empty text={t`No timed reading with word counts yet.`} />
   const fast = data.books.slice(0, 3)
   const slow = data.books.length > 6 ? data.books.slice(-3).reverse() : []
   return (
     <div className="@container flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <span className="text-3xl font-bold leading-none text-foreground">{data.overall.toLocaleString()}</span>
-        <span className="text-xs text-muted-foreground">words/min · across {data.books_counted} book{data.books_counted !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-muted-foreground">{plural(data.books_counted, { one: 'words/min · across # book', other: 'words/min · across # books' })}</span>
       </div>
       <div className="grid grid-cols-1 gap-x-8 gap-y-2.5 @md:grid-cols-2">
         <div className="flex flex-col gap-2.5">
-          {fast.length > 0 && slow.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fastest</p>}
+          {fast.length > 0 && slow.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Fastest</Trans></p>}
           {fast.map((b) => <WpmRow key={b.book_id} b={b} />)}
         </div>
         {slow.length > 0 && (
           <div className="flex flex-col gap-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Slowest</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Slowest</Trans></p>
             {slow.map((b) => <WpmRow key={b.book_id} b={b} />)}
           </div>
         )}
@@ -109,7 +113,7 @@ export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
 
 // 4 ── Re-reads: books whose pages you've revisited on a later day ──────────────
 export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
-  if (!data || data.books.length === 0) return <Empty text="No re-reads yet — pages you revisit on a later day show up here." />
+  if (!data || data.books.length === 0) return <Empty text={t`No re-reads yet — pages you revisit on a later day show up here.`} />
   return (
     <div className="flex flex-col gap-2.5">
       {data.books.slice(0, 8).map((b) => (
@@ -153,8 +157,12 @@ export function BookLength({ data }: { data: StatsResponse['book_lengths'] }) {
         </ResponsiveContainer>
       </div>
       <p className="truncate text-[11px] text-muted-foreground">
-        avg <span className="font-medium text-foreground">{compact(data.avg_words)}</span> · median {compact(data.median_words)}
-        {data.longest && <> · longest <span className="text-foreground">{data.longest.title}</span> ({compact(data.longest.words)})</>}
+        {(() => { const avg = compact(data.avg_words); const median = compact(data.median_words); return (
+          <Trans>avg <span className="font-medium text-foreground">{avg}</span> · median {median}</Trans>
+        ) })()}
+        {data.longest && (() => { const title = data.longest.title; const words = compact(data.longest.words); return (
+          <Trans> · longest <span className="text-foreground">{title}</span> ({words})</Trans>
+        ) })()}
       </p>
     </div>
   )

@@ -17,6 +17,8 @@ import {
 } from '@/lib/goals'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 // ── Ring card (shared by the dashboard tile and the Home strip) ───────────────
 
@@ -79,7 +81,7 @@ export function GoalEditorModal({
       onSaved(saved)
       onClose()
     } catch {
-      setError(goal ? 'Could not update the goal.' : 'Could not create the goal — it may already exist.')
+      setError(goal ? t`Could not update the goal.` : t`Could not create the goal — it may already exist.`)
       setSaving(false)
     }
   }
@@ -90,19 +92,19 @@ export function GoalEditorModal({
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl shadow-accent-soft">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h2 className="text-base font-semibold">{goal ? 'Edit goal' : 'Set a reading goal'}</h2>
+            <h2 className="text-base font-semibold">{goal ? t`Edit goal` : t`Set a reading goal`}</h2>
             <p className="text-xs text-muted-foreground">
-              {goal ? goalTitle(goal) : 'Pick a rhythm — progress counts automatically.'}
+              {goal ? goalTitle(goal) : t`Pick a rhythm — progress counts automatically.`}
             </p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
+          <button type="button" onClick={onClose} aria-label={t`Close`} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {!goal && (
           <>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Goal</p>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground"><Trans>Goal</Trans></p>
             <div className="mb-4 grid grid-cols-2 gap-1.5">
               {ALLOWED_GOAL_KINDS.map((k) => (
                 <button
@@ -121,16 +123,16 @@ export function GoalEditorModal({
 
             {bookTypes.length > 0 && (
               <>
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Counts</p>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground"><Trans>Counts</Trans></p>
                 <select
                   value={bookTypeId ?? ''}
                   onChange={(e) => setBookTypeId(e.target.value === '' ? null : Number(e.target.value))}
                   className="mb-4 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
                 >
-                  <option value="">All books</option>
-                  {bookTypes.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label} only
+                  <option value="">{t`All books`}</option>
+                  {bookTypes.map((bt) => (
+                    <option key={bt.id} value={bt.id}>
+                      {(() => { const label = bt.label; return t`${label} only` })()}
                     </option>
                   ))}
                 </select>
@@ -139,7 +141,7 @@ export function GoalEditorModal({
           </>
         )}
 
-        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Target</p>
+        <p className="mb-1.5 text-xs font-medium text-muted-foreground"><Trans>Target</Trans></p>
         <div className="mb-2 flex gap-1.5">
           {meta.presets.map((p) => (
             <button
@@ -169,13 +171,13 @@ export function GoalEditorModal({
         </div>
 
         {!goal && taken(kind, bookTypeId) && (
-          <p className="mb-3 text-xs text-muted-foreground">You already have this goal — edit it from its tile instead.</p>
+          <p className="mb-3 text-xs text-muted-foreground"><Trans>You already have this goal — edit it from its tile instead.</Trans></p>
         )}
         {error && <p className="mb-3 text-xs text-destructive">{error}</p>}
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             type="button"
@@ -183,7 +185,7 @@ export function GoalEditorModal({
             disabled={!valid || saving}
             className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {goal ? 'Save' : 'Set goal'}
+            {goal ? t`Save` : t`Set goal`}
           </button>
         </div>
       </div>
@@ -210,20 +212,20 @@ export function GoalWidgetBody({
   const [creating, setCreating] = useState(false)
 
   if (goals === null) {
-    return <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Loading…</div>
+    return <div className="flex h-full items-center justify-center text-xs text-muted-foreground"><Trans>Loading…</Trans></div>
   }
 
   if (goals.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
         <Target className="h-6 w-6 text-muted-foreground/40" />
-        <p className="text-xs text-muted-foreground">Set a target and watch the ring fill as you read.</p>
+        <p className="text-xs text-muted-foreground"><Trans>Set a target and watch the ring fill as you read.</Trans></p>
         <button
           type="button"
           onClick={() => setCreating(true)}
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90"
         >
-          Set a goal
+          <Trans>Set a goal</Trans>
         </button>
         {creating && <GoalEditorModal existing={[]} onSaved={onChanged} onClose={() => setCreating(false)} />}
       </div>
@@ -238,7 +240,7 @@ export function GoalWidgetBody({
       style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(11.5rem, 1fr))' }}
     >
       {goals.map((goal) => {
-        const caption = goal.period === 'year' && goal.year ? `${goal.year} Challenge` : goalMeta(goal.kind).caption
+        const caption = goal.period === 'year' && goal.year ? (() => { const y = goal.year; return t`${y} Challenge` })() : goalMeta(goal.kind).caption
         const sub = goal.book_type_label ? `${goal.book_type_label} · ${goalSubtext(goal)}` : goalSubtext(goal)
         return (
           <div
@@ -255,7 +257,7 @@ export function GoalWidgetBody({
               <button
                 type="button"
                 onClick={() => setEditing(goal)}
-                title="Edit goal"
+                title={t`Edit goal`}
                 className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Pencil className="h-3 w-3" />
@@ -263,7 +265,7 @@ export function GoalWidgetBody({
               <button
                 type="button"
                 onClick={() => deleteGoal(goal.id).then(onChanged).catch(() => {})}
-                title="Delete this goal"
+                title={t`Delete this goal`}
                 className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3 w-3" />
@@ -280,7 +282,7 @@ export function GoalWidgetBody({
         className="flex min-h-[4.25rem] items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
       >
         <Plus className="h-3.5 w-3.5" />
-        New goal
+        <Trans>New goal</Trans>
       </button>
 
       {editing && (

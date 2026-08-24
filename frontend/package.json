@@ -10,9 +10,13 @@
     "preview": "vite preview",
     "screenshots": "node scripts/screenshots.mjs",
     "screenshots:showcase": "node scripts/screenshots.mjs --showcase",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "i18n:extract": "lingui extract",
+    "i18n:compile": "lingui compile"
   },
   "dependencies": {
+    "@lingui/core": "^6.6.0",
+    "@lingui/react": "^6.6.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.2.2",
     "class-variance-authority": "^0.7.1",
@@ -32,12 +36,18 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@lingui/babel-plugin-lingui-macro": "^6.6.0",
+    "@lingui/cli": "^6.6.0",
+    "@lingui/format-po": "^6.6.0",
+    "@lingui/vite-plugin": "^6.6.0",
     "@playwright/test": "^1.62.1",
+    "@rolldown/plugin-babel": "^0.2.3",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",
+    "eslint-plugin-lingui": "^0.14.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",

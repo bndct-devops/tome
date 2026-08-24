@@ -4,6 +4,8 @@ import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
+import { Trans } from '@lingui/react/macro'
+import { t, plural } from '@lingui/core/macro'
 
 interface UploadItem {
   id: string
@@ -153,7 +155,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
       } catch (err) {
         setItems(prev => prev.map(it =>
           it.id === item.id
-            ? { ...it, status: 'error', errorMsg: err instanceof Error ? err.message : 'Upload failed' }
+            ? { ...it, status: 'error', errorMsg: err instanceof Error ? err.message : t`Upload failed` }
             : it
         ))
         failed++
@@ -170,16 +172,16 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
     }
     if (success > 0) {
       onDone()
-      const skipNote = skipped > 0 ? `, ${skipped} already in library` : ''
+      const skipNote = skipped > 0 ? t`, ${skipped} already in library` : ''
       if (failed === 0) {
-        toast.success(`${success} book${success !== 1 ? 's' : ''} uploaded${skipNote}`)
+        toast.success(plural(success, { one: '# book uploaded', other: '# books uploaded' }) + skipNote)
       } else {
-        toast.info(`${success} uploaded, ${failed} failed${skipNote}`)
+        toast.info(t`${success} uploaded, ${failed} failed` + skipNote)
       }
     } else if (failed > 0) {
-      toast.error(`Upload failed for ${failed} file${failed !== 1 ? 's' : ''}`)
+      toast.error(plural(failed, { one: 'Upload failed for # file', other: 'Upload failed for # files' }))
     } else if (skipped > 0) {
-      toast.info(`Nothing to upload — ${skipped} file${skipped !== 1 ? 's are' : ' is'} already in your library`)
+      toast.info(plural(skipped, { one: 'Nothing to upload — # file is already in your library', other: 'Nothing to upload — # files are already in your library' }))
     }
   }
 
@@ -225,7 +227,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-base font-semibold flex items-center gap-2">
-            <Upload className="w-4 h-4 text-muted-foreground" /> Upload Books
+            <Upload className="w-4 h-4 text-muted-foreground" /> <Trans>Upload Books</Trans>
           </h2>
           <button
             onClick={handleClose}
@@ -253,8 +255,9 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
           >
             <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              Drop books here or <span className="text-primary">click to browse</span>
+              <Trans>Drop books here or <span className="text-primary">click to browse</span></Trans>
             </p>
+            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- file extensions */}
             <p className="text-xs text-muted-foreground/60 mt-1">epub, pdf, cbz, cbr, mobi, azw3</p>
           </div>
           <input
@@ -269,13 +272,13 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
           {/* Bulk type selector */}
           {items.length > 1 && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground shrink-0">Set all to</span>
+              <span className="text-muted-foreground shrink-0"><Trans>Set all to</Trans></span>
               <select
                 value={bulkType}
                 onChange={e => { setBulkType(e.target.value); setAllTypes(e.target.value) }}
                 className="flex-1 text-sm sm:text-xs rounded-md border border-border bg-background px-1.5 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">No type</option>
+                <option value="">{t`No type`}</option>
                 {bookTypes.map(bt => (
                   <option key={bt.id} value={String(bt.id)}>{bt.label}</option>
                 ))}
@@ -300,7 +303,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                     disabled={item.status !== 'pending'}
                     className="shrink-0 text-sm sm:text-xs rounded-md border border-border bg-background px-1.5 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                   >
-                    <option value="">No type</option>
+                    <option value="">{t`No type`}</option>
                     {bookTypes.map(bt => (
                       <option key={bt.id} value={String(bt.id)}>{bt.label}</option>
                     ))}
@@ -311,7 +314,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                       <button
                         onClick={() => removeItem(item.id)}
                         className="text-muted-foreground hover:text-destructive transition-colors"
-                        title="Remove"
+                        title={t`Remove`}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -332,14 +335,14 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                   )}
                   {item.status === 'duplicate' && (
                     <p className="px-2.5 pb-2 text-xs text-warning">
-                      Already in your library — will be skipped.{' '}
+                      <Trans>Already in your library — will be skipped.</Trans>{' '}
                       <a
                         href={`/books/${item.dupBookId}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="underline hover:no-underline"
                       >
-                        View book
+                        <Trans>View book</Trans>
                       </a>
                     </p>
                   )}
@@ -359,7 +362,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
               {summary.failed === 0
                 ? <CheckCircle2 className="w-4 h-4 shrink-0" />
                 : <AlertCircle className="w-4 h-4 shrink-0" />}
-              {summary.success} uploaded{summary.failed > 0 ? `, ${summary.failed} failed` : ''}
+              {(() => { const ok = summary.success; const failedN = summary.failed; return t`${ok} uploaded` + (failedN > 0 ? t`, ${failedN} failed` : '') })()}
             </div>
           )}
         </div>
@@ -367,7 +370,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
         {/* Footer */}
         <div className="px-5 py-4 border-t border-border flex items-center justify-between gap-3 shrink-0">
           <span className="text-xs text-muted-foreground">
-            {items.length > 0 ? `${items.length} file${items.length !== 1 ? 's' : ''} selected` : ''}
+            {items.length > 0 ? plural(items.length, { one: '# file selected', other: '# files selected' }) : ''}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -375,7 +378,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
               disabled={uploading}
               className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
-              {summary ? 'Close' : 'Cancel'}
+              {summary ? t`Close` : t`Cancel`}
             </button>
             <button
               onClick={uploadAll}
@@ -383,7 +386,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
             >
               {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-              Upload All
+              <Trans>Upload All</Trans>
             </button>
           </div>
         </div>

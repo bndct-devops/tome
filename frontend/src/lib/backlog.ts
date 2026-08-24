@@ -1,3 +1,5 @@
+import { t } from '@lingui/core/macro'
+
 // Backlog completion estimates (#187) — shared types + formatting for the
 // book page cell, the series header line and the Stats "Backlog" tile.
 
@@ -44,26 +46,28 @@ export interface BacklogScope {
 
 /** "~45 min" / "~11 h" — coarse on purpose, these are estimates. */
 export function formatEstimateHours(seconds: number): string {
-  if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))} min`
-  return `~${Math.round(seconds / 3600)} h`
+  if (seconds < 3600) { const m = Math.max(1, Math.round(seconds / 60)); return t`~${m} min` }
+  const h = Math.round(seconds / 3600)
+  return t`~${h} h`
 }
 
 /** "~13 days" / "~4 weeks" / "~3.7 months" at the user's daily pace. */
 export function formatEstimateDays(days: number): string {
   const d = Math.round(days)
-  if (d < 1) return 'under a day'
-  if (d < 14) return `~${d} day${d === 1 ? '' : 's'}`
-  if (d < 60) return `~${Math.round(d / 7)} weeks`
-  return `~${(d / 30).toFixed(1).replace(/\.0$/, '')} months`
+  if (d < 1) return t`under a day`
+  if (d < 14) return d === 1 ? t`~1 day` : t`~${d} days`
+  if (d < 60) { const w = Math.round(d / 7); return t`~${w} weeks` }
+  const mo = (d / 30).toFixed(1).replace(/\.0$/, '')
+  return t`~${mo} months`
 }
 
 /** One-line explanation of where a figure came from, for tooltips. */
 export function describePace(pace: EstimatePace, method: EstimateMethod | null): string {
   const parts: string[] = []
-  if (method === 'words') parts.push(`Word count at your measured ${Math.round(pace.wpm ?? 0)} wpm`)
-  else if (method === 'default') parts.push(`Word count at a default ${pace.default_wpm} wpm (no finished books to measure your pace yet)`)
-  else if (method === 'type_avg') parts.push('Your average time per finished book of this type (no word count)')
-  if (pace.minutes_per_day) parts.push(`days at ~${Math.round(pace.minutes_per_day)} min a day (last ${pace.window_days} days)`)
-  else parts.push('no recent reading, so no day estimate')
+  if (method === 'words') { const wpm = Math.round(pace.wpm ?? 0); parts.push(t`Word count at your measured ${wpm} wpm`) }
+  else if (method === 'default') { const wpm = pace.default_wpm; parts.push(t`Word count at a default ${wpm} wpm (no finished books to measure your pace yet)`) }
+  else if (method === 'type_avg') parts.push(t`Your average time per finished book of this type (no word count)`)
+  if (pace.minutes_per_day) { const mpd = Math.round(pace.minutes_per_day); const win = pace.window_days; parts.push(t`days at ~${mpd} min a day (last ${win} days)`) }
+  else parts.push(t`no recent reading, so no day estimate`)
   return parts.join(' · ')
 }

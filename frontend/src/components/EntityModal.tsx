@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { IconPicker } from '@/components/Sidebar'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 interface Props {
   title: string
@@ -38,7 +40,7 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
       await onSave(name.trim(), icon)
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save')
+      setError(e instanceof Error ? e.message : t`Failed to save`)
     } finally {
       setSaving(false)
     }
@@ -59,12 +61,12 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
           onKeyDown={e => {
             if (e.key === 'Enter') handleSave()
           }}
-          placeholder="Name…"
+          placeholder={t`Name…`}
           className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
         />
 
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">Icon</span>
+          <span className="text-sm text-muted-foreground"><Trans>Icon</Trans></span>
           <IconPicker value={icon} onChange={setIcon} />
         </div>
 
@@ -75,7 +77,7 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
             onClick={onClose}
             className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button
             onClick={handleSave}
@@ -83,7 +85,7 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Save
+            <Trans>Save</Trans>
           </button>
         </div>
       </div>

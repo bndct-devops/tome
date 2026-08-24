@@ -9,6 +9,9 @@ import {
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
+import { Trans, useLingui, Plural } from '@lingui/react/macro'
+import { t, plural, msg } from '@lingui/core/macro'
+import type { MessageDescriptor } from '@lingui/core'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import { BookCard, type ViewMode } from '@/components/BookCard'
@@ -115,8 +118,21 @@ interface HighlightSpotlight {
   } | null
 }
 
-const SORT_LABELS: Record<SortField, string> = {
-  title: 'Title', author: 'Author', year: 'Year', added_at: 'Date Added', rating: 'My Rating',
+const SORT_LABELS: Record<SortField, MessageDescriptor> = {
+  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date Added`, rating: msg`My Rating`,
+}
+
+// Reading-status + series-status display names, shared by filter buttons and chips.
+const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
+  unread: msg`Unread`, want_to_read: msg`Want to Read`, reading: msg`Reading`,
+  read: msg`Read`, shelved: msg`Shelved`,
+}
+const MISSING_LABELS: Record<string, MessageDescriptor> = {
+  cover: msg`Cover`, description: msg`Description`, author: msg`Author`,
+  series: msg`Series`, any: msg`Any`,
+}
+const SERIES_STATUS_LABELS: Record<string, MessageDescriptor> = {
+  ongoing: msg`ongoing`, finished: msg`finished`, hiatus: msg`hiatus`,
 }
 
 const VIEW_KEY = 'tome_view'
@@ -138,6 +154,7 @@ interface BulkDeleteModalProps {
 }
 
 function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: BulkDeleteModalProps) {
+  const { t } = useLingui()
   const [deleting, setDeleting] = useState(false)
 
   if (!open) return null
@@ -163,7 +180,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
             <div className="flex items-center gap-2">
               <Trash2 className="w-4 h-4 text-destructive" />
               <h2 className="text-base font-semibold text-foreground">
-                Delete {selectedIds.size} book{selectedIds.size !== 1 ? 's' : ''}
+                <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
               </h2>
             </div>
             <button
@@ -178,7 +195,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
           {/* Warning */}
           <div className="px-6 pb-3 shrink-0">
             <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-              This permanently removes the selected books and their files from disk. This cannot be undone.
+              <Trans>This permanently removes the selected books and their files from disk. This cannot be undone.</Trans>
             </p>
           </div>
 
@@ -213,7 +230,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
               })}
               {selectedIds.size > selectedBooks.length && (
                 <p className="text-xs text-muted-foreground py-2">
-                  …and {selectedIds.size - selectedBooks.length} more not shown
+                  {(() => { const more = selectedIds.size - selectedBooks.length; return t`…and ${more} more not shown` })()}
                 </p>
               )}
             </div>
@@ -223,7 +240,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
             {deleting && (
               <span className="text-xs text-muted-foreground mr-auto">
-                Deleting {selectedIds.size} book{selectedIds.size !== 1 ? 's' : ''}...
+                <Plural value={selectedIds.size} one="Deleting # book..." other="Deleting # books..." />
               </span>
             )}
             <button
@@ -231,7 +248,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
               disabled={deleting}
               className="px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
             >
-              Cancel
+              <Trans>Cancel</Trans>
             </button>
             <button
               onClick={handleDelete}
@@ -239,7 +256,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-50 transition-all"
             >
               {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Delete {selectedIds.size} book{selectedIds.size !== 1 ? 's' : ''}
+              <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
             </button>
           </div>
         </div>
@@ -248,16 +265,18 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
   )
 }
 
+// Duration abbreviations go through the catalog so locales can adapt the units.
 function formatReadingTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
+  if (seconds < 60) return t`${seconds}s`
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  if (h === 0) return `${m}m`
-  if (m === 0) return `${h}h`
-  return `${h}h ${m}m`
+  if (h === 0) return t`${m}m`
+  if (m === 0) return t`${h}h`
+  return t`${h}h ${m}m`
 }
 
 export function DashboardPage() {
+  const { t, i18n } = useLingui()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -406,36 +425,41 @@ export function DashboardPage() {
   }> {
     if (arcs.length === 0) return [{ label: '', description: null, volumes: books }]
     const sorted = [...arcs].sort((a, b) => a.start_index - b.start_index)
-    const sections: Array<{ label: string; description: string | null; volumes: SeriesDetailBook[] }> = sorted.map(arc => ({
-      label: `${arc.name} · Vol. ${arc.start_index}–${arc.end_index}`,
-      description: arc.description ?? null,
-      volumes: books.filter(v =>
-        v.series_index != null &&
-        v.series_index >= arc.start_index &&
-        v.series_index <= arc.end_index
-      ),
-    }))
+    const sections: Array<{ label: string; description: string | null; volumes: SeriesDetailBook[] }> = sorted.map(arc => {
+      const { name, start_index, end_index } = arc
+      return {
+        label: t`${name} · Vol. ${start_index}–${end_index}`,
+        description: arc.description ?? null,
+        volumes: books.filter(v =>
+          v.series_index != null &&
+          v.series_index >= arc.start_index &&
+          v.series_index <= arc.end_index
+        ),
+      }
+    })
     const unassigned = books.filter(v =>
       v.series_index == null ||
       !sorted.some(a => v.series_index! >= a.start_index && v.series_index! <= a.end_index)
     )
     if (unassigned.length > 0) {
-      sections.push({ label: 'Unassigned', description: null, volumes: unassigned })
+      sections.push({ label: t`Unassigned`, description: null, volumes: unassigned })
     }
     return sections.filter(s => s.volumes.length > 0)
   }
 
   function SeriesStatusBadge({ status }: { status: SeriesStatus | undefined }) {
     if (!status || status === 'unknown') return null
+    /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
     const cls =
       status === 'ongoing'
         ? 'bg-warning/15 text-warning'
         : status === 'finished'
         ? 'bg-success/15 text-success'
         : /* hiatus */ 'bg-muted text-muted-foreground'
+    /* eslint-enable lingui/no-unlocalized-strings */
     return (
       <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide leading-none', cls)}>
-        {status}
+        {SERIES_STATUS_LABELS[status] ? i18n._(SERIES_STATUS_LABELS[status]) : status}
       </span>
     )
   }
@@ -592,7 +616,7 @@ export function DashboardPage() {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Download failed')
+      toastError(e instanceof Error ? e.message : t`Download failed`)
     } finally {
       setBulkPending(false)
     }
@@ -603,12 +627,12 @@ export function DashboardPage() {
     setBulkPending(true)
     try {
       await api.post(`/libraries/${libId}/books`, { book_ids: [...selected] })
-      toastSuccess(`Added ${selected.size} book${selected.size !== 1 ? 's' : ''} to library`)
+      toastSuccess(plural(selected.size, { one: 'Added # book to library', other: 'Added # books to library' }))
       clearSelection()
       setBulkLibMenu(false)
       loadLibraries()
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Failed')
+      toastError(e instanceof Error ? e.message : t`Failed`)
     } finally {
       setBulkPending(false)
     }
@@ -630,12 +654,12 @@ export function DashboardPage() {
         deleted += res.deleted.length
         failed += res.errors.length
       }
-      toastSuccess(`Deleted ${deleted} book${deleted !== 1 ? 's' : ''}`)
+      toastSuccess(plural(deleted, { one: 'Deleted # book', other: 'Deleted # books' }))
       if (failed) {
-        toastError(`${failed} book${failed !== 1 ? 's' : ''} could not be deleted`)
+        toastError(plural(failed, { one: '# book could not be deleted', other: '# books could not be deleted' }))
       }
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Delete failed')
+      toastError(e instanceof Error ? e.message : t`Delete failed`)
     }
     setDeleteModalOpen(false)
     clearSelection()
@@ -653,13 +677,13 @@ export function DashboardPage() {
       if (bulkMetaTagsAdd.length) body.tags_add = bulkMetaTagsAdd
       if (bulkMetaTypeId) body.book_type_id = bulkMetaTypeId
       await api.put('/books/bulk-metadata', body)
-      toastSuccess(`Updated metadata for ${selected.size} book${selected.size !== 1 ? 's' : ''}`)
+      toastSuccess(plural(selected.size, { one: 'Updated metadata for # book', other: 'Updated metadata for # books' }))
       setBulkMetaOpen(false)
       setBulkMetaAuthor(''); setBulkMetaSeries(''); setBulkMetaTagsAdd([]); setBulkMetaTypeId('')
       clearSelection()
       loadBooks(); loadFacets()
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Failed to update metadata')
+      toastError(e instanceof Error ? e.message : t`Failed to update metadata`)
     } finally {
       setBulkMetaSaving(false)
     }
@@ -699,6 +723,7 @@ export function DashboardPage() {
         const scale = a.width / b.width
         child.style.transition = 'none'
         child.style.transformOrigin = 'top left'
+        // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS transform
         child.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${scale})`
         moved.push(child)
       }
@@ -842,7 +867,7 @@ export function DashboardPage() {
       })
       .catch(err => {
         if (err instanceof Error && err.name === 'AbortError') return
-        toastError('Failed to load books')
+        toastError(t`Failed to load books`)
       })
       .finally(() => {
         if (reset) {
@@ -995,19 +1020,25 @@ export function DashboardPage() {
   }, [tab, homeMode, readingDna])
 
   // ── Filter chip helpers ───────────────────────────────────────────────────
+  const filterLibraryChipName = libraries.find(l => l.id === filterLibrary)?.name ?? t`Library`
+  const filterFormatUpper = filterFormat.toUpperCase()
+  const filterLanguageLabel = facets.languages.find(l => l.code === filterLanguage)?.label ?? filterLanguage
+  const filterStatusLabel = READING_STATUS_LABELS[filterReadingStatus] ? i18n._(READING_STATUS_LABELS[filterReadingStatus]) : filterReadingStatus
+  const filterMissingLabel = MISSING_LABELS[filterMissing] ? i18n._(MISSING_LABELS[filterMissing]) : filterMissing
+  const filterUploaderName = userList.find(u => u.id === filterAddedBy)?.username ?? filterAddedBy
   const activeFilterChips: { label: string; key: string }[] = [
-    ...(filterLibrary ? [{ label: `Library: ${libraries.find(l => l.id === filterLibrary)?.name ?? 'Library'}`, key: 'library_id' }] : []),
-    ...(filterSeries ? [{ label: `Series: ${filterSeries}`, key: 'series' }] : []),
-    ...(filterNoSeries ? [{ label: 'No Series', key: 'no_series' }] : []),
-    ...(filterAuthor ? [{ label: `Author: ${filterAuthor}`, key: 'author' }] : []),
-    ...(filterTag ? [{ label: `Tag: ${filterTag}`, key: 'tag' }] : []),
-    ...(filterFormat ? [{ label: `Format: ${filterFormat.toUpperCase()}`, key: 'format' }] : []),
-    ...(filterLanguage ? [{ label: `Language: ${facets.languages.find(l => l.code === filterLanguage)?.label ?? filterLanguage}`, key: 'language' }] : []),
-    ...(filterReadingStatus ? [{ label: `Status: ${filterReadingStatus.charAt(0).toUpperCase() + filterReadingStatus.slice(1)}`, key: 'reading_status' }] : []),
-    ...(filterMinRating ? [{ label: filterMinRating === 5 ? 'Rated: 5 stars' : `Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
-    ...(filterMissing ? [{ label: `Missing: ${filterMissing.charAt(0).toUpperCase() + filterMissing.slice(1)}`, key: 'missing' }] : []),
-    ...(filterOwnership === 'mine' ? [{ label: 'My Books', key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: 'Shared Library', key: 'ownership' }] : []),
-    ...(filterAddedBy ? [{ label: `Uploader: ${userList.find(u => u.id === filterAddedBy)?.username ?? filterAddedBy}`, key: 'added_by' }] : []),
+    ...(filterLibrary ? [{ label: t`Library: ${filterLibraryChipName}`, key: 'library_id' }] : []),
+    ...(filterSeries ? [{ label: t`Series: ${filterSeries}`, key: 'series' }] : []),
+    ...(filterNoSeries ? [{ label: t`No Series`, key: 'no_series' }] : []),
+    ...(filterAuthor ? [{ label: t`Author: ${filterAuthor}`, key: 'author' }] : []),
+    ...(filterTag ? [{ label: t`Tag: ${filterTag}`, key: 'tag' }] : []),
+    ...(filterFormat ? [{ label: t`Format: ${filterFormatUpper}`, key: 'format' }] : []),
+    ...(filterLanguage ? [{ label: t`Language: ${filterLanguageLabel}`, key: 'language' }] : []),
+    ...(filterReadingStatus ? [{ label: t`Status: ${filterStatusLabel}`, key: 'reading_status' }] : []),
+    ...(filterMinRating ? [{ label: filterMinRating === 5 ? t`Rated: 5 stars` : t`Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
+    ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
+    ...(filterOwnership === 'mine' ? [{ label: t`My Books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared Library`, key: 'ownership' }] : []),
+    ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
   ]
 
   // Params to pass to SaveFilterButton (excludes library_id — that belongs in sidebar)
@@ -1023,6 +1054,7 @@ export function DashboardPage() {
   // follows the slider value. view-fade covers the grid/list switch.
   const cardView: ViewMode = view === 'list' ? 'list' : gridSize < 150 ? 'small' : 'large'
   const gridClass = view === 'list'
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
     ? 'flex flex-col gap-2.5 animate-[view-fade_0.25s_ease-out]'
     : cn(
         'grid transition-[gap] duration-300 ease-out animate-[view-fade_0.25s_ease-out]',
@@ -1032,6 +1064,7 @@ export function DashboardPage() {
   // without it a 180px minimum fits only one track on a 390px screen
   const gridStyle = view === 'list'
     ? undefined
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS grid template
     : { gridTemplateColumns: `repeat(auto-fill, minmax(min(${gridSize}px, 42vw), 1fr))` }
 
   // Active library name for heading
@@ -1041,11 +1074,11 @@ export function DashboardPage() {
   const homeStatItems: { value: string; label: string; icon: ReactNode }[] = homeStats ? [
     // A zero-day streak is a sad opener — only lead with it when it exists
     ...(homeStats.current_streak_days > 0
-      ? [{ value: String(homeStats.current_streak_days), label: 'Day streak', icon: <Flame className="w-5 h-5" /> }]
+      ? [{ value: String(homeStats.current_streak_days), label: t`Day streak`, icon: <Flame className="w-5 h-5" /> }]
       : []),
-    { value: String(homeStats.books_finished_30d), label: 'Finished · 30d', icon: <BookCheck className="w-5 h-5" /> },
-    { value: formatReadingTime(homeStats.reading_seconds_30d), label: 'Read · 30d', icon: <Clock className="w-5 h-5" /> },
-    { value: String(homeStats.pages_turned_30d), label: 'Pages · 30d', icon: <BookOpenCheck className="w-5 h-5" /> },
+    { value: String(homeStats.books_finished_30d), label: t`Finished · 30d`, icon: <BookCheck className="w-5 h-5" /> },
+    { value: formatReadingTime(homeStats.reading_seconds_30d), label: t`Read · 30d`, icon: <Clock className="w-5 h-5" /> },
+    { value: String(homeStats.pages_turned_30d), label: t`Pages · 30d`, icon: <BookOpenCheck className="w-5 h-5" /> },
   ] : []
 
   // Compact Focus / Dashboard switch — placed inline next to the KPI band in
@@ -1053,8 +1086,8 @@ export function DashboardPage() {
   const modeToggle = (
     <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border bg-card p-0.5 sm:shrink-0">
       {([
-        { id: 'focus', label: 'Focus', icon: <Moon className="w-3.5 h-3.5" /> },
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+        { id: 'focus', label: t`Focus`, icon: <Moon className="w-3.5 h-3.5" /> },
+        { id: 'dashboard', label: t`Dashboard`, icon: <LayoutGrid className="w-3.5 h-3.5" /> },
       ] as const).map((m) => (
         <button
           key={m.id}
@@ -1102,7 +1135,10 @@ export function DashboardPage() {
         onDone={() => { loadBooks(); loadFacets() }}
         onWishMatches={(wishIds) => {
           const n = wishIds.length
-          toast.info(`This upload satisfies ${n} wish${n !== 1 ? 'es' : ''} — review in Admin > Wishlist`)
+          toast.info(plural(n, {
+            one: 'This upload satisfies # wish — review in Admin > Wishlist',
+            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+          }))
         }}
       />
 
@@ -1263,12 +1299,12 @@ export function DashboardPage() {
                 return (
                   <section className="px-5 py-4">
                     <header className="flex items-center justify-between mb-2">
-                      <h2 className="text-base text-foreground">Pick up where you left off</h2>
+                      <h2 className="text-base text-foreground"><Trans>Pick up where you left off</Trans></h2>
                       <button
                         onClick={dismiss}
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        Dismiss
+                        <Trans>Dismiss</Trans>
                       </button>
                     </header>
                     <HScrollRow className="gap-3 pb-1" controlsTop="top-[60px]">
@@ -1289,7 +1325,7 @@ export function DashboardPage() {
                             {b.title}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {b.days_ago != null ? `${b.days_ago}d ago` : 'A while ago'}
+                            {(() => { const d = b.days_ago; return d != null ? t`${d}d ago` : t`A while ago` })()}
                           </p>
                         </a>
                       ))}
@@ -1300,18 +1336,18 @@ export function DashboardPage() {
 
               {/* ── Continue Reading ──────────────────────────────────────── */}
               <section className="flex flex-col gap-3 px-5 py-5">
-                <h2 className="text-base font-semibold text-foreground">Continue Reading</h2>
+                <h2 className="text-base font-semibold text-foreground"><Trans>Continue Reading</Trans></h2>
                 {continueReading.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
                     <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
                       <BookOpen className="w-8 h-8 text-primary/40" />
                     </div>
                     <div>
-                      <p className="text-base font-medium text-foreground">Nothing in progress</p>
-                      <p className="text-sm text-muted-foreground mt-1">Start reading and your progress will show up here</p>
+                      <p className="text-base font-medium text-foreground"><Trans>Nothing in progress</Trans></p>
+                      <p className="text-sm text-muted-foreground mt-1"><Trans>Start reading and your progress will show up here</Trans></p>
                     </div>
                     <button onClick={() => setTab('books')} className="text-sm text-primary hover:underline">
-                      Browse your library
+                      <Trans>Browse your library</Trans>
                     </button>
                   </div>
                 ) : (
@@ -1363,7 +1399,7 @@ export function DashboardPage() {
                 if (rows.length === 0) return null
                 return (
                   <div className="flex flex-col gap-3 px-5 py-5">
-                    <h2 className="text-base font-semibold text-foreground">Series Progress</h2>
+                    <h2 className="text-base font-semibold text-foreground"><Trans>Series Progress</Trans></h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {rows.map(({ book, read, total, pct }) => (
                         <button
@@ -1394,7 +1430,7 @@ export function DashboardPage() {
               {/* ── Recently Finished ─────────────────────────────────────── */}
               {recentlyFinished.length > 0 && (
                 <section className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground">Recently Finished</h2>
+                  <h2 className="text-base font-semibold text-foreground"><Trans>Recently Finished</Trans></h2>
                   <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
                     {recentlyFinished.map(book => (
                       <div key={book.id} className="shrink-0 w-24">
@@ -1416,7 +1452,7 @@ export function DashboardPage() {
               {/* ── Recently Added ────────────────────────────────────────── */}
               {recentlyAdded.length > 0 && (
                 <section className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground">Recently Added</h2>
+                  <h2 className="text-base font-semibold text-foreground"><Trans>Recently Added</Trans></h2>
                   <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
                     {recentlyAdded.map(book => (
                       <div key={book.id} className="shrink-0 w-24">
@@ -1439,7 +1475,7 @@ export function DashboardPage() {
               {/* ── Reading Log ───────────────────────────────────────────── */}
               {activityLog.length > 0 && (
                 <div className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground">Reading Log</h2>
+                  <h2 className="text-base font-semibold text-foreground"><Trans>Reading Log</Trans></h2>
                   <div className="flex flex-col gap-1">
                     {(() => {
                       // Back-to-back sessions of the same book collapse into one row
@@ -1451,9 +1487,9 @@ export function DashboardPage() {
                         const today = new Date()
                         const yesterday = new Date(today)
                         yesterday.setDate(today.getDate() - 1)
-                        if (d.toDateString() === today.toDateString()) return 'Today'
-                        if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-                        return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+                        if (d.toDateString() === today.toDateString()) return t`Today`
+                        if (d.toDateString() === yesterday.toDateString()) return t`Yesterday`
+                        return d.toLocaleDateString(i18n.locale, { weekday: 'short', month: 'short', day: 'numeric' })
                       }
                       type LogRow = { entry: ActivityEntry; sessions: number; seconds: number }
                       const days: { label: string; first: string; rows: LogRow[] }[] = []
@@ -1492,9 +1528,10 @@ export function DashboardPage() {
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-foreground truncate">{entry.book_title}</p>
                                 <p className="text-[10px] text-muted-foreground">
-                                  {sessions > 1
-                                    ? `${sessions} sessions · ${formatReadingTime(seconds)}`
-                                    : formatReadingTime(seconds)}
+                                  {(() => {
+                                    const time = formatReadingTime(seconds)
+                                    return sessions > 1 ? t`${sessions} sessions · ${time}` : time
+                                  })()}
                                 </p>
                               </div>
                               <span className="text-[10px] text-muted-foreground shrink-0">
@@ -1527,7 +1564,7 @@ export function DashboardPage() {
                     <header className="flex items-center justify-between mb-2.5">
                       <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                         <Quote className="w-4 h-4 text-primary/60" />
-                        {spotlight.on_this_day ? 'On this day' : 'From your highlights'}
+                        {spotlight.on_this_day ? t`On this day` : t`From your highlights`}
                       </h2>
                       <div className="flex items-center gap-2">
                         <button
@@ -1537,14 +1574,14 @@ export function DashboardPage() {
                               `/annotations/spotlight${cur ? `?exclude=${cur}` : ''}`
                             ).then(setSpotlight).catch(() => {})
                           }}
-                          title="Show another highlight"
-                          aria-label="Show another highlight"
+                          title={t`Show another highlight`}
+                          aria-label={t`Show another highlight`}
                           className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Shuffle className="w-3.5 h-3.5" />
                         </button>
                         <a href="/highlights" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                          All →
+                          <Trans>All →</Trans>
                         </a>
                       </div>
                     </header>
@@ -1574,7 +1611,7 @@ export function DashboardPage() {
                 className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0"
               >
                 <Home className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Library</span>
+                <span className="hidden sm:inline"><Trans>Library</Trans></span>
               </button>
               <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
               {expandedSeries ? (
@@ -1583,13 +1620,13 @@ export function DashboardPage() {
                     onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
                     className="hover:text-foreground transition-colors"
                   >
-                    Series
+                    <Trans>Series</Trans>
                   </button>
                   <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
                   <span className="font-medium text-foreground truncate max-w-[200px] sm:max-w-[300px]">{expandedSeries}</span>
                 </>
               ) : (
-                <span className="font-medium text-foreground">Series</span>
+                <span className="font-medium text-foreground"><Trans>Series</Trans></span>
               )}
             </div>
             {seriesLoading ? (
@@ -1599,7 +1636,7 @@ export function DashboardPage() {
             ) : seriesList.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
                 <BookOpen className="w-12 h-12 opacity-20" />
-                <p className="text-sm">No series found — add series metadata to your books.</p>
+                <p className="text-sm"><Trans>No series found — add series metadata to your books.</Trans></p>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -1621,7 +1658,7 @@ export function DashboardPage() {
                               {seriesDetail.name !== '__unserialized__' && (
                                 <button
                                   onClick={() => setShareSeries(seriesDetail.name)}
-                                  title="Share this series — a public metadata-only page"
+                                  title={t`Share this series — a public metadata-only page`}
                                   className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                 >
                                   <Share2 className="w-4 h-4" />
@@ -1644,14 +1681,18 @@ export function DashboardPage() {
                               return (
                                 <div className="mt-3">
                                   <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                                    <span>{readCount} read &middot; {readingCount} reading &middot; {total - readCount - readingCount} unread</span>
-                                    <span>{total} volumes</span>
+                                    {(() => { const unreadCount = total - readCount - readingCount; return (
+                                      <span><Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans></span>
+                                    ) })()}
+                                    <span><Plural value={total} one="# volume" other="# volumes" /></span>
                                   </div>
                                   {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
                                     <p className="text-[10px] text-muted-foreground mb-1.5" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
-                                      <span className="text-foreground font-medium tabular-nums">{formatEstimateHours(seriesDetail.backlog.seconds)}</span> left in this series
-                                      {seriesDetail.backlog.days != null && <> &middot; {formatEstimateDays(seriesDetail.backlog.days)} at your pace</>}
-                                      {seriesDetail.backlog.unestimated > 0 && <> &middot; {seriesDetail.backlog.unestimated} not estimated</>}
+                                      {(() => { const dur = formatEstimateHours(seriesDetail.backlog.seconds); return (
+                                        <Trans><span className="text-foreground font-medium tabular-nums">{dur}</span> left in this series</Trans>
+                                      ) })()}
+                                      {seriesDetail.backlog.days != null && (() => { const d = formatEstimateDays(seriesDetail.backlog.days); return <Trans> &middot; {d} at your pace</Trans> })()}
+                                      {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
                                     </p>
                                   )}
                                   <div className="h-2 rounded-full bg-muted overflow-hidden flex">
@@ -1674,7 +1715,7 @@ export function DashboardPage() {
                                     onClick={() => setSeriesDescExpanded(v => !v)}
                                     className="text-xs font-medium text-primary hover:opacity-80 mt-1 transition-opacity"
                                   >
-                                    {seriesDescExpanded ? 'Show less' : 'Show more'}
+                                    {seriesDescExpanded ? t`Show less` : t`Show more`}
                                   </button>
                                 )}
                               </div>
@@ -1684,7 +1725,8 @@ export function DashboardPage() {
                             {(() => {
                               const continueBook = getContinueBook(seriesDetail.books)
                               if (!continueBook) return null
-                              const volLabel = continueBook.series_index != null ? `Vol. ${continueBook.series_index}` : continueBook.title
+                              const volIdx = continueBook.series_index
+                              const volLabel = volIdx != null ? t`Vol. ${volIdx}` : continueBook.title
                               const isResuming = continueBook.reading_status === 'reading'
                               return (
                                 <button
@@ -1692,7 +1734,7 @@ export function DashboardPage() {
                                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
                                 >
                                   <Play className="w-3.5 h-3.5" />
-                                  {isResuming ? `Resume ${volLabel}` : `Start ${volLabel}`}
+                                  {isResuming ? t`Resume ${volLabel}` : t`Start ${volLabel}`}
                                 </button>
                               )
                             })()}
@@ -1702,16 +1744,16 @@ export function DashboardPage() {
                               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                             >
                               {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
-                              Mark all read
+                              <Trans>Mark all read</Trans>
                             </button>
                             {isAdmin(user) && (
                               <button
                                 onClick={() => setManageSeriesOpen(true)}
                                 className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-all"
-                                title="Manage series"
+                                title={t`Manage series`}
                               >
                                 <Settings2 className="w-3.5 h-3.5" />
-                                Manage
+                                <Trans>Manage</Trans>
                               </button>
                             )}
                             <SeriesFollowButton seriesName={seriesDetail.name} />
@@ -1763,8 +1805,8 @@ export function DashboardPage() {
                                           <button
                                             onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
                                             className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                            title="Read"
-                                            aria-label="Read"
+                                            title={t`Read`}
+                                            aria-label={t`Read`}
                                           >
                                             <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
                                               <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
@@ -1780,9 +1822,11 @@ export function DashboardPage() {
                                           {/* Volume number overlay */}
                                           {vol.series_index != null && (
                                             <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5">
+                                              {(() => { const idx = vol.series_index; return (
                                               <span className="text-[9px] font-bold text-white leading-none">
-                                                Vol. {vol.series_index}
+                                                <Trans>Vol. {idx}</Trans>
                                               </span>
+                                              ) })()}
                                             </div>
                                           )}
                                         </div>
@@ -1823,19 +1867,19 @@ export function DashboardPage() {
                           <div className="relative aspect-[2/3] bg-muted overflow-hidden">
                             <CoverImage
                               src={s.cover_book_id ? `/api/books/${s.cover_book_id}/cover` : null}
-                              alt={isUnserialized ? 'Unserialized' : s.name}
+                              alt={isUnserialized ? t`Unserialized` : s.name}
                               imgClassName="group-hover:scale-105"
                             />
                             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-2">
                               <span className="text-[10px] font-semibold text-white/90">
-                                {s.book_count} {s.book_count === 1 ? 'book' : 'books'}
+                                <Plural value={s.book_count} one="# book" other="# books" />
                               </span>
                             </div>
                           </div>
                           <div className="px-3 py-2.5 flex flex-col gap-0.5 min-w-0">
                             <div className="flex items-start gap-1.5 flex-wrap">
                               <span className="text-xs font-semibold text-foreground leading-tight line-clamp-2">
-                                {isUnserialized ? 'No Series' : s.name}
+                                {isUnserialized ? t`No Series` : s.name}
                               </span>
                               {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
                             </div>
@@ -1847,7 +1891,7 @@ export function DashboardPage() {
                               <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
                             )}
                             {isUnserialized && (
-                              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">Books without a series</p>
+                              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5"><Trans>Books without a series</Trans></p>
                             )}
                             {!isUnserialized && s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
                               <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden flex">
@@ -1882,7 +1926,7 @@ export function DashboardPage() {
                     'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
                     sort === f ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   )}>
-                  {SORT_LABELS[f]}
+                  {i18n._(SORT_LABELS[f])}
                   {sort === f && (order === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                 </button>
               ))}
@@ -1897,7 +1941,7 @@ export function DashboardPage() {
                   : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
               )}>
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              Filters
+              <Trans>Filters</Trans>
               {hasFilters && (
                 <span className="ml-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold">
                   {activeFilterChips.length}
@@ -1919,7 +1963,7 @@ export function DashboardPage() {
 
             {(hasFilters || filterLibrary) && (
               <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1">
-                Clear all
+                <Trans>Clear all</Trans>
               </button>
             )}
 
@@ -1930,18 +1974,23 @@ export function DashboardPage() {
                 : (() => {
                     // Grouped rows are series stacks + standalones — "titles", not the
                     // ambiguous "entries" (which read like a book count and never matched it).
-                    const noun = (n: number) => groupActive ? (n === 1 ? 'title' : 'titles') : (n === 1 ? 'book' : 'books')
-                    return totalCount !== null && totalCount > books.length
-                      ? `${books.length} of ${totalCount} ${noun(totalCount)}`
-                      : `${books.length} ${noun(books.length)}`
+                    const shown = books.length
+                    if (totalCount !== null && totalCount > shown) {
+                      return groupActive
+                        ? plural(totalCount, { one: `${shown} of # title`, other: `${shown} of # titles` })
+                        : plural(totalCount, { one: `${shown} of # book`, other: `${shown} of # books` })
+                    }
+                    return groupActive
+                      ? plural(shown, { one: '# title', other: '# titles' })
+                      : plural(shown, { one: '# book', other: '# books' })
                   })()}
             </span>
 
             {/* Group by series toggle */}
             <button
               onClick={() => persistGroup(!groupBySeries)}
-              title={groupBySeries ? 'Show individual volumes' : 'Group volumes by series'}
-              aria-label="Group by series"
+              title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
+              aria-label={t`Group by series`}
               aria-pressed={groupBySeries}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
@@ -1951,7 +2000,7 @@ export function DashboardPage() {
               )}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Group series</span>
+              <span className="hidden sm:inline"><Trans>Group series</Trans></span>
             </button>
 
             {/* Select mode toggle — selection operates on individual books, hidden while grouped */}
@@ -1977,16 +2026,16 @@ export function DashboardPage() {
                 >
                   {selectionMode
                     ? selected.size > 0
-                      ? <><XSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Deselect all</span></>
-                      : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Select all</span></>
-                    : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Select</span></>
+                      ? <><XSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Deselect all</Trans></span></>
+                      : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Select all</Trans></span></>
+                    : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Select</Trans></span></>
                   }
                 </button>
                 {selectionMode && (
                   <button
                     onClick={exitSelectionMode}
-                    title="Exit selection mode"
-                    aria-label="Exit selection mode"
+                    title={t`Exit selection mode`}
+                    aria-label={t`Exit selection mode`}
                     className="p-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -2003,8 +2052,8 @@ export function DashboardPage() {
                 step={10}
                 value={gridSize}
                 onChange={e => persistGridSize(Number(e.target.value))}
-                title="Cover size"
-                aria-label="Cover size"
+                title={t`Cover size`}
+                aria-label={t`Cover size`}
                 tabIndex={view === 'grid' ? 0 : -1}
                 className={cn(
                   'cover-slider transition-all duration-200',
@@ -2017,8 +2066,8 @@ export function DashboardPage() {
                 }}
               />
               {([
-                { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: 'Grid view' },
-                { mode: 'list' as ViewPref, Icon: List, title: 'List view' },
+                { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
+                { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
               ]).map(({ mode, Icon, title }) => (
                 <button key={mode} onClick={() => persistView(mode)} title={title} aria-label={title}
                   className={cn('p-1.5 rounded-md transition-all',
@@ -2033,7 +2082,7 @@ export function DashboardPage() {
           {filterOpen && (
             <div className="mb-4 p-4 rounded-xl border border-border bg-card flex flex-col gap-4">
               <div className="flex items-center justify-between sm:hidden">
-                <span className="text-xs font-medium text-muted-foreground">Filters</span>
+                <span className="text-xs font-medium text-muted-foreground"><Trans>Filters</Trans></span>
                 <button
                   onClick={() => setFilterOpen(false)}
                   className="p-1 text-muted-foreground hover:text-foreground"
@@ -2042,16 +2091,16 @@ export function DashboardPage() {
                 </button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <FilterSelect label="Series" value={filterSeries} options={facets.series} onChange={v => setFilter('series', v)} />
-                <FilterSelect label="Author" value={filterAuthor} options={facets.authors} onChange={v => setFilter('author', v)} />
-                <FilterSelect label="Tag" value={filterTag} options={facets.tags} onChange={v => setFilter('tag', v)} />
-                <FilterSelect label="Format" value={filterFormat} options={facets.formats.map(f => f.toUpperCase())} onChange={v => setFilter('format', v.toLowerCase())} />
+                <FilterSelect label={t`Series`} value={filterSeries} options={facets.series} onChange={v => setFilter('series', v)} />
+                <FilterSelect label={t`Author`} value={filterAuthor} options={facets.authors} onChange={v => setFilter('author', v)} />
+                <FilterSelect label={t`Tag`} value={filterTag} options={facets.tags} onChange={v => setFilter('tag', v)} />
+                <FilterSelect label={t`Format`} value={filterFormat} options={facets.formats.map(f => f.toUpperCase())} onChange={v => setFilter('format', v.toLowerCase())} />
                 {facets.languages.length > 1 && (
-                  <FilterSelect label="Language" value={filterLanguage} options={facets.languages.map(l => ({ value: l.code, label: l.label }))} onChange={v => setFilter('language', v)} />
+                  <FilterSelect label={t`Language`} value={filterLanguage} options={facets.languages.map(l => ({ value: l.code, label: l.label }))} onChange={v => setFilter('language', v)} />
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14">Status</span>
+                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Status</Trans></span>
                 {(['', 'unread', 'want_to_read', 'reading', 'read', 'shelved'] as const).map(s => (
                   <button
                     key={s}
@@ -2063,19 +2112,19 @@ export function DashboardPage() {
                         : 'border-border bg-card text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {s === '' ? 'All' : s === 'want_to_read' ? 'Want to Read' : s.charAt(0).toUpperCase() + s.slice(1)}
+                    {s === '' ? t`All` : i18n._(READING_STATUS_LABELS[s])}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14">Rating</span>
+                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Rating</Trans></span>
                 {([
-                  { value: '', label: 'All' },
-                  { value: '1', label: 'Rated' },
-                  { value: '3', label: '3+' },
-                  { value: '4', label: '4+' },
-                  { value: '5', label: '5' },
-                ]).map(({ value, label }) => (
+                  { value: '', label: t`All`, starless: true },
+                  { value: '1', label: t`Rated`, starless: true },
+                  { value: '3', label: '3+', starless: false },
+                  { value: '4', label: '4+', starless: false },
+                  { value: '5', label: '5', starless: false },
+                ]).map(({ value, label, starless }) => (
                   <button
                     key={value}
                     onClick={() => setFilter('min_rating', value)}
@@ -2086,20 +2135,20 @@ export function DashboardPage() {
                         : 'border-border bg-card text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {label !== 'All' && label !== 'Rated' && <Star className="w-3 h-3 fill-current" />}
+                    {!starless && <Star className="w-3 h-3 fill-current" />}
                     {label}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14">Missing</span>
+                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Missing</Trans></span>
                 {([
-                  { value: '', label: 'None' },
-                  { value: 'cover', label: 'Cover' },
-                  { value: 'description', label: 'Description' },
-                  { value: 'author', label: 'Author' },
-                  { value: 'series', label: 'Series' },
-                  { value: 'any', label: 'Any' },
+                  { value: '', label: t`None` },
+                  { value: 'cover', label: t`Cover` },
+                  { value: 'description', label: t`Description` },
+                  { value: 'author', label: t`Author` },
+                  { value: 'series', label: t`Series` },
+                  { value: 'any', label: t`Any` },
                 ]).map(({ value, label }) => (
                   <button
                     key={value}
@@ -2118,11 +2167,11 @@ export function DashboardPage() {
               {/* Ownership filter — members only (not admin) */}
               {isMember(user) && !isAdmin(user) && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14">Books</span>
+                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Books</Trans></span>
                   {([
-                    { value: '', label: 'All' },
-                    { value: 'mine', label: 'My Books' },
-                    { value: 'shared', label: 'Shared Library' },
+                    { value: '', label: t`All` },
+                    { value: 'mine', label: t`My Books` },
+                    { value: 'shared', label: t`Shared Library` },
                   ] as const).map(({ value, label }) => (
                     <button
                       key={value}
@@ -2142,13 +2191,13 @@ export function DashboardPage() {
               {/* Uploader filter — admins only */}
               {isAdmin(user) && userList.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14">Uploader</span>
+                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Uploader</Trans></span>
                   <select
                     value={filterAddedBy ?? ''}
                     onChange={e => setFilter('added_by', e.target.value)}
                     className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                   >
-                    <option value="">All users</option>
+                    <option value="">{t`All users`}</option>
                     {userList.map(u => (
                       <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
                     ))}
@@ -2156,15 +2205,15 @@ export function DashboardPage() {
                 </div>
               )}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14">Type</span>
+                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Type</Trans></span>
                 <select
                   value={contentType}
                   onChange={e => setContentType(e.target.value)}
                   className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  <option value="volume">Volumes</option>
-                  <option value="chapter">Chapters</option>
-                  <option value="">All</option>
+                  <option value="volume">{t`Volumes`}</option>
+                  <option value="chapter">{t`Chapters`}</option>
+                  <option value="">{t`All`}</option>
                 </select>
               </div>
             </div>
@@ -2173,7 +2222,7 @@ export function DashboardPage() {
           {/* ── Bulk action bar ──────────────────────────────────────────── */}
           {selectionMode && (
             <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/5 border border-primary/20">
-              <span className="text-xs font-medium text-primary">{selected.size} selected</span>
+              <span className="text-xs font-medium text-primary">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
               <div className="flex-1" />
               <button
                 onClick={bulkDownload}
@@ -2181,7 +2230,7 @@ export function DashboardPage() {
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
               >
                 <Download className="w-3.5 h-3.5" />
-                Download ZIP
+                <Trans>Download ZIP</Trans>
               </button>
               {isMember(user) && (
                 <SendButton
@@ -2196,7 +2245,7 @@ export function DashboardPage() {
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
               >
                 <Pencil className="w-3.5 h-3.5" />
-                Edit Metadata
+                <Trans>Edit Metadata</Trans>
               </button>
               {libraries.some(l => l.can_edit) && (
                 <div className="relative">
@@ -2206,7 +2255,7 @@ export function DashboardPage() {
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                   >
                     <LibraryIcon className="w-3.5 h-3.5" />
-                    Add to Library
+                    <Trans>Add to Library</Trans>
                   </button>
                   {bulkLibMenu && (
                     <>
@@ -2233,10 +2282,10 @@ export function DashboardPage() {
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Delete
+                <Trans>Delete</Trans>
               </button>
               <button onClick={exitSelectionMode} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Done
+                <Trans>Done</Trans>
               </button>
             </div>
           )}
@@ -2245,8 +2294,8 @@ export function DashboardPage() {
           {search && !loading && totalCount !== null && (
             <p className="text-sm text-muted-foreground mb-3">
               {totalCount === 0
-                ? `No results for "${search}"`
-                : `${totalCount} result${totalCount !== 1 ? 's' : ''} for "${search}"`}
+                ? t`No results for "${search}"`
+                : plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
             </p>
           )}
 
@@ -2263,28 +2312,28 @@ export function DashboardPage() {
               {search ? (
                 <>
                   <div>
-                    <p className="text-base font-medium text-foreground">No results found</p>
-                    <p className="text-sm text-muted-foreground mt-1">Nothing matched &ldquo;{search}&rdquo;</p>
+                    <p className="text-base font-medium text-foreground"><Trans>No results found</Trans></p>
+                    <p className="text-sm text-muted-foreground mt-1"><Trans>Nothing matched &ldquo;{search}&rdquo;</Trans></p>
                   </div>
                   <button
                     onClick={() => { setSearchInput(''); setFilter('q', '') }}
                     className="text-sm text-primary hover:underline"
                   >
-                    Clear search
+                    <Trans>Clear search</Trans>
                   </button>
                 </>
               ) : (hasFilters || filterLibrary) ? (
                 <>
                   <div>
-                    <p className="text-base font-medium text-foreground">No matches</p>
-                    <p className="text-sm text-muted-foreground mt-1">Try adjusting your filters</p>
+                    <p className="text-base font-medium text-foreground"><Trans>No matches</Trans></p>
+                    <p className="text-sm text-muted-foreground mt-1"><Trans>Try adjusting your filters</Trans></p>
                   </div>
-                  <button onClick={clearFilters} className="text-sm text-primary hover:underline">Clear all filters</button>
+                  <button onClick={clearFilters} className="text-sm text-primary hover:underline"><Trans>Clear all filters</Trans></button>
                 </>
               ) : (
                 <div>
-                  <p className="text-base font-medium text-foreground">Your library is empty</p>
-                  <p className="text-sm text-muted-foreground mt-1">Upload or scan a folder to get started</p>
+                  <p className="text-base font-medium text-foreground"><Trans>Your library is empty</Trans></p>
+                  <p className="text-sm text-muted-foreground mt-1"><Trans>Upload or scan a folder to get started</Trans></p>
                 </div>
               )}
             </div>
@@ -2329,11 +2378,14 @@ export function DashboardPage() {
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
           )}
-          {!hasMore && booksRef.current.length >= PAGE_SIZE && (
-            <p className="text-center text-xs text-muted-foreground py-4">
-              All {booksRef.current.length} books loaded
-            </p>
-          )}
+          {!hasMore && booksRef.current.length >= PAGE_SIZE && (() => {
+            const loadedCount = booksRef.current.length
+            return (
+              <p className="text-center text-xs text-muted-foreground py-4">
+                <Trans>All {loadedCount} books loaded</Trans>
+              </p>
+            )
+          })()}
           </>
           )}
         </main>
@@ -2359,7 +2411,7 @@ export function DashboardPage() {
             <div className="pointer-events-auto w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
               <div className="flex items-start justify-between mb-1">
                 <h2 className="text-base font-semibold text-foreground">
-                  Edit Metadata for {selected.size} Book{selected.size !== 1 ? 's' : ''}
+                  <Plural value={selected.size} one="Edit Metadata for # Book" other="Edit Metadata for # Books" />
                 </h2>
                 <button
                   onClick={() => setBulkMetaOpen(false)}
@@ -2370,33 +2422,33 @@ export function DashboardPage() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground mb-4">
-                Only filled fields will be updated. Leave blank to keep existing values.
+                <Trans>Only filled fields will be updated. Leave blank to keep existing values.</Trans>
               </p>
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Author</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Author</Trans></label>
                   <AutocompleteInput
                     value={bulkMetaAuthor}
                     onChange={setBulkMetaAuthor}
                     suggestions={facets.authors}
-                    placeholder="Author"
+                    placeholder={t`Author`}
                     className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Series</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Series</Trans></label>
                   <AutocompleteInput
                     value={bulkMetaSeries}
                     onChange={setBulkMetaSeries}
                     suggestions={facets.series}
-                    placeholder="Series name"
+                    placeholder={t`Series name`}
                     className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Add Tags</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Add Tags</Trans></label>
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {bulkMetaTagsAdd.map(tag => (
                       <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
@@ -2415,7 +2467,7 @@ export function DashboardPage() {
                     value={bulkMetaTagInput}
                     onChange={setBulkMetaTagInput}
                     suggestions={facets.tags.filter(t => !bulkMetaTagsAdd.includes(t))}
-                    placeholder="Add tag…"
+                    placeholder={t`Add tag…`}
                     onSelect={tag => {
                       if (tag && !bulkMetaTagsAdd.includes(tag)) {
                         setBulkMetaTagsAdd(prev => [...prev, tag])
@@ -2434,13 +2486,13 @@ export function DashboardPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Type</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Type</Trans></label>
                   <select
                     value={bulkMetaTypeId}
                     onChange={e => setBulkMetaTypeId(e.target.value ? Number(e.target.value) : '')}
                     className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
                   >
-                    <option value="">— keep existing —</option>
+                    <option value="">{t`— keep existing —`}</option>
                     {bookTypes.map(t => (
                       <option key={t.id} value={t.id}>{t.label}</option>
                     ))}
@@ -2454,7 +2506,7 @@ export function DashboardPage() {
                   disabled={bulkMetaSaving}
                   className="px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:bg-muted transition-colors"
                 >
-                  Cancel
+                  <Trans>Cancel</Trans>
                 </button>
                 <button
                   onClick={bulkSaveMetadata}
@@ -2462,7 +2514,7 @@ export function DashboardPage() {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                 >
                   {bulkMetaSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Save Changes
+                  <Trans>Save Changes</Trans>
                 </button>
               </div>
             </div>
@@ -2476,13 +2528,14 @@ export function DashboardPage() {
 function FilterSelect({ label, value, options, onChange }: {
   label: string; value: string; options: (string | { value: string; label: string })[]; onChange: (v: string) => void
 }) {
+  const { t } = useLingui()
   const opts = options.map(o => typeof o === 'string' ? { value: o, label: o } : o)
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)}
         className="h-8 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-foreground">
-        <option value="">All</option>
+        <option value="">{t`All`}</option>
         {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>

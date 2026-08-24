@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { KeyRound, Eye, EyeOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { Trans } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 
 export function ForcePasswordChange() {
   const { user, refreshUser } = useAuth()
@@ -16,14 +18,14 @@ export function ForcePasswordChange() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (next.length < 8) { setError('Password must be at least 8 characters.'); return }
-    if (next !== confirm) { setError('Passwords do not match.'); return }
+    if (next.length < 8) { setError(t`Password must be at least 8 characters.`); return }
+    if (next !== confirm) { setError(t`Passwords do not match.`); return }
     setSaving(true)
     try {
       await api.put('/auth/me/password', { current_password: current, new_password: next })
       await refreshUser()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to update password.')
+      setError(e instanceof Error ? e.message : t`Failed to update password.`)
     } finally {
       setSaving(false)
     }
@@ -37,10 +39,12 @@ export function ForcePasswordChange() {
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
               <KeyRound className="w-6 h-6 text-primary" />
             </div>
-            <h1 className="text-lg font-semibold text-foreground">Set your password</h1>
+            <h1 className="text-lg font-semibold text-foreground"><Trans>Set your password</Trans></h1>
             <p className="text-sm text-muted-foreground text-center mt-1">
-              Hi <span className="font-medium text-foreground">{user?.username}</span> — your account was created by an admin.
-              Please set a personal password before continuing.
+              {(() => { const username = user?.username; return (
+              <Trans>Hi <span className="font-medium text-foreground">{username}</span> — your account was created by an admin.
+              Please set a personal password before continuing.</Trans>
+              ) })()}
             </p>
           </div>
 
@@ -48,7 +52,7 @@ export function ForcePasswordChange() {
             <div className="relative">
               <input
                 type={showCurrent ? 'text' : 'password'}
-                placeholder="Temporary password"
+                placeholder={t`Temporary password`}
                 value={current}
                 onChange={e => setCurrent(e.target.value)}
                 required
@@ -63,7 +67,7 @@ export function ForcePasswordChange() {
             <div className="relative">
               <input
                 type={showNext ? 'text' : 'password'}
-                placeholder="New password"
+                placeholder={t`New password`}
                 value={next}
                 onChange={e => setNext(e.target.value)}
                 required
@@ -77,7 +81,7 @@ export function ForcePasswordChange() {
 
             <input
               type="password"
-              placeholder="Confirm new password"
+              placeholder={t`Confirm new password`}
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
               required
@@ -92,7 +96,7 @@ export function ForcePasswordChange() {
               className="mt-1 w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
               {saving && <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />}
-              {saving ? 'Saving…' : 'Set password & continue'}
+              {saving ? t`Saving…` : t`Set password & continue`}
             </button>
           </form>
         </div>
