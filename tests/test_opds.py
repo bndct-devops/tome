@@ -126,3 +126,44 @@ def test_opds_root_endpoint_serves_default_namespace(client):
         assert "ns0:" not in resp.text
     finally:
         client.app.dependency_overrides.pop(get_current_user_basic, None)
+
+
+def test_opds_search_descriptor_targets_results_endpoint(client):
+    """The OpenSearch descriptor's Url template must point at the results feed,
+    not back at the descriptor itself — otherwise a client that follows the
+    template gets opensearchdescription XML instead of an acquisition feed and
+    shows nothing (GH #191)."""
+    import re
+
+    client.app.dependency_overrides[get_current_user_basic] = lambda: _AdminUser()
+    try:
+        resp = client.get("/opds/search")
+        assert resp.status_code == 200
+        assert "opensearchdescription" in resp.headers["content-type"]
+        tmpl = re.search(r'template="([^"]+)"', resp.text).group(1)
+        assert tmpl.endswith("/opds/search/results?q={searchTerms}"), tmpl
+    finally:
+        client.app.dependency_overrides.pop(get_current_user_basic, None)
+
+
+def test_opds_search_via_descriptor_template_returns_results(client, make_book):
+    """End-to-end: resolving the advertised OpenSearch template must yield an
+    acquisition feed containing the match — the exact path an OPDS reader takes
+    when the user searches (GH #191). Fails if the template bounces back to the
+    descriptor."""
+    import re
+
+    make_book(title="Findable Unique Title", author="Searchable Author")
+    client.app.dependency_overrides[get_current_user_basic] = lambda: _AdminUser()
+    try:
+        desc = client.get("/opds/search")
+        tmpl = re.search(r'template="([^"]+)"', desc.text).group(1)
+        url = tmpl.replace("{searchTerms}", "Findable")
+        path = url.split("testserver", 1)[1] if "testserver" in url else url
+
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert "application/atom+xml" in resp.headers["content-type"]
+        assert "Findable Unique Title" in resp.text
+    finally:
+        client.app.dependency_overrides.pop(get_current_user_basic, None)
