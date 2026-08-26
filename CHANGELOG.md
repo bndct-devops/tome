@@ -7,6 +7,11 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- Reader tap zones are now configurable. A "Tap zones" setting in the EPUB
+  and comic readers' settings panel offers Default (tap right for next page),
+  Swapped (tap left for next - for reading one-handed with the device in the
+  left hand), and Off (turn pages by swipe only). RTL comics keep advancing
+  in their reading direction; swipes and arrow keys are unaffected. (#192)
 - The TomeSync plugin's connection settings are now editable on the device
   (plugin build 41). The server URL baked in at download time can be changed
   under TomeSync → Settings — the fix for a device stranded by a server that
