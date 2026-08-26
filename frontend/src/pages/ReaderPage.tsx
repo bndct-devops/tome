@@ -649,6 +649,50 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
   )
 })
 
+// A tappable / draggable progress bar. Click or drag anywhere along it to jump
+// to that fraction of the book (shared by the comic / PDF / EPUB readers).
+function SeekBar({ progress, onSeek, isDark }: {
+  progress: number
+  onSeek: (fraction: number) => void
+  isDark: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+  const seekAt = useCallback((clientX: number) => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0) return
+    onSeek(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)))
+  }, [onSeek])
+  return (
+    <div
+      ref={ref}
+      onPointerDown={(e) => {
+        dragging.current = true
+        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* noop */ }
+        seekAt(e.clientX)
+      }}
+      onPointerMove={(e) => { if (dragging.current) seekAt(e.clientX) }}
+      onPointerUp={() => { dragging.current = false }}
+      onPointerCancel={() => { dragging.current = false }}
+      className="w-16 sm:w-24 h-4 flex items-center cursor-pointer touch-none"
+      title="Tap or drag to jump"
+      role="slider"
+      aria-valuenow={progress}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
+        <div
+          className={cn('h-full rounded-full', dragging.current ? '' : 'transition-all duration-300')}
+          style={{ width: `${progress}%`, background: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
+        />
+      </div>
+    </div>
+  )
+}
+
 // ── Main ReaderPage component ─────────────────────────────────────────────────
 
 export default function ReaderPage() {
@@ -1556,12 +1600,11 @@ export default function ReaderPage() {
             </span>
 
             <div className="flex items-center gap-2">
-              <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
-                <div
-                  className="h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
-                />
-              </div>
+              <SeekBar
+                progress={progress}
+                isDark={isDarkTheme}
+                onSeek={(f) => { if (comicTotalPages > 0) setComicCurrentPage(Math.round(f * (comicTotalPages - 1))) }}
+              />
               <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
             </div>
 
@@ -1731,12 +1774,11 @@ export default function ReaderPage() {
           </span>
 
           <div className="flex items-center gap-2">
-            <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
-              />
-            </div>
+            <SeekBar
+              progress={progress}
+              isDark={isDarkTheme}
+              onSeek={(f) => { if (pdfTotalPages > 0) pdfRef.current?.scrollToPage(Math.round(f * (pdfTotalPages - 1))) }}
+            />
             <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
           </div>
 
@@ -2061,12 +2103,11 @@ export default function ReaderPage() {
         </span>
 
         <div className="flex items-center gap-2">
-          <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
-            />
-          </div>
+          <SeekBar
+            progress={progress}
+            isDark={isDarkTheme}
+            onSeek={(f) => { viewRef.current?.goToFraction(f).catch(() => {}) }}
+          />
           <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
         </div>
 
