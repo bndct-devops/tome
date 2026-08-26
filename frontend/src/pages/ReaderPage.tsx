@@ -12,6 +12,7 @@ import { api } from '@/lib/api'
 import type { Book, BookFile } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { AnnotationPainter, fillForColor, isWebAnnotation, type ReaderAnnotation } from '@/lib/readerAnnotations'
+import { type TapLayout, TAP_LAYOUTS, resolveTap, loadTapLayout } from '@/lib/readerTapZones'
 
 // pdf.js renders pages off the main thread; point it at the bundled worker.
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
@@ -93,6 +94,8 @@ interface StreamingComicReaderProps {
   fitMode: FitMode
   spread: boolean
   theme: ReaderTheme
+  tapLayout: TapLayout
+  onToggleMenu: () => void
   onPageChange: (page: number) => void
   onReadComplete: () => void
 }
@@ -105,6 +108,8 @@ function StreamingComicReader({
   fitMode,
   spread,
   theme,
+  tapLayout,
+  onToggleMenu,
   onPageChange,
   onReadComplete,
 }: StreamingComicReaderProps) {
@@ -158,19 +163,21 @@ function StreamingComicReader({
   const goNext = useCallback(() => goToPage(Math.min(currentPage + step, totalPages - 1)), [currentPage, step, goToPage, totalPages])
   const goPrev = useCallback(() => goToPage(Math.max(currentPage - step, 0)), [currentPage, step, goToPage])
 
-  // Click navigation: left half = prev, right half = next (respects RTL)
-  // Disabled when zoomed in
+  // Click navigation via the configurable tap zones. goNext/goPrev already
+  // encode reading direction, so the zone only picks prev vs next; to preserve
+  // the previous behaviour, an RTL comic on the default 'edge' layout mirrors
+  // its sides. Disabled while zoomed in.
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (zoomRef.current > 1) return
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const isLeftHalf = clickX < rect.width / 2
-    if (isRTL) {
-      isLeftHalf ? goNext() : goPrev()
-    } else {
-      isLeftHalf ? goPrev() : goNext()
-    }
-  }, [isRTL, goNext, goPrev])
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    const layout = tapLayout === 'edge' && isRTL ? 'edge-swapped' : tapLayout
+    const action = resolveTap(layout, x, y)
+    if (action === 'prev') goPrev()
+    else if (action === 'next') goNext()
+    else if (action === 'menu') onToggleMenu()
+  }, [tapLayout, isRTL, goNext, goPrev, onToggleMenu])
 
   // Touch: swipe to navigate, pinch to zoom, double-tap to toggle zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -381,6 +388,8 @@ interface PdfReaderProps {
   theme: ReaderTheme
   fitMode: FitMode
   zoom: number
+  tapLayout: TapLayout
+  onToggleMenu: () => void
   onDocLoaded: (total: number) => void
   onError: (message: string) => void
   onProgress: (page: number, total: number) => void
@@ -388,7 +397,7 @@ interface PdfReaderProps {
 }
 
 const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
-  { bookId, initialPage, initialFraction, theme, fitMode, zoom, onDocLoaded, onError, onProgress, onReadComplete },
+  { bookId, initialPage, initialFraction, theme, fitMode, zoom, tapLayout, onToggleMenu, onDocLoaded, onError, onProgress, onReadComplete },
   ref,
 ) {
   const themeColors = THEMES[theme]
@@ -614,11 +623,29 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
       ? 'sepia(0.45) brightness(0.97)'
       : 'none'
 
+  // Tap zones: a continuous-scroll PDF "turns a page" by scrolling ~one viewport.
+  const handleTap = useCallback((e: React.MouseEvent) => {
+    const el = containerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const action = resolveTap(
+      tapLayout,
+      (e.clientX - rect.left) / rect.width,
+      (e.clientY - rect.top) / rect.height,
+    )
+    if (action === 'menu') { onToggleMenu(); return }
+    if (action) {
+      const dir = action === 'next' ? 1 : -1
+      el.scrollBy({ top: dir * el.clientHeight * 0.9, behavior: 'smooth' })
+    }
+  }, [tapLayout, onToggleMenu])
+
   return (
     <div
       ref={containerRef}
       className="flex-1 overflow-y-auto overflow-x-hidden"
       style={{ background: themeColors.bg }}
+      onClick={handleTap}
     >
       {!base && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -649,6 +676,70 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
   )
 })
 
+// ── Tap-zone settings control (shared by the comic / EPUB / PDF panels) ───────
+
+function TapZoneGlyph({ layout }: { layout: TapLayout }) {
+  const box: React.CSSProperties = { border: '1px solid currentColor', opacity: 0.75 }
+  const ic = 'w-3 h-3'
+  const cell = 'flex-1 flex items-center justify-center'
+  if (layout === 'off') {
+    return <div className="flex w-14 h-9 rounded items-center justify-center" style={box}><Minus className={ic} /></div>
+  }
+  if (layout === 'forward') {
+    return (
+      <div className="relative flex w-14 h-9 rounded overflow-hidden" style={box}>
+        <div className={cell}><ChevronRight className={ic} /></div>
+        <div className={cell}><AlignJustify className={ic} /></div>
+        <div className={cell}><ChevronRight className={ic} /></div>
+        <div className="absolute bottom-0 left-1/3 w-1/3 h-1/2 flex items-center justify-center"
+             style={{ borderTop: '1px solid currentColor' }}>
+          <ChevronLeft className="w-2.5 h-2.5" />
+        </div>
+      </div>
+    )
+  }
+  const swapped = layout === 'edge-swapped'
+  return (
+    <div className="flex w-14 h-9 rounded overflow-hidden" style={box}>
+      <div className={cell}>{swapped ? <ChevronRight className={ic} /> : <ChevronLeft className={ic} />}</div>
+      <div className={cell}><AlignJustify className={ic} /></div>
+      <div className={cell}>{swapped ? <ChevronLeft className={ic} /> : <ChevronRight className={ic} />}</div>
+    </div>
+  )
+}
+
+function TapZoneSetting({ value, onChange, textColor, isDark }: {
+  value: TapLayout
+  onChange: (v: TapLayout) => void
+  textColor: string
+  isDark: boolean
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium mb-3" style={{ color: textColor, opacity: 0.5 }}>PAGE TURN (TAP ZONES)</p>
+      <div className="grid grid-cols-2 gap-2">
+        {TAP_LAYOUTS.map((l) => (
+          <button
+            key={l.id}
+            onClick={() => onChange(l.id)}
+            title={l.hint}
+            className={cn(
+              'flex flex-col items-center gap-1.5 rounded-lg px-2 py-2 text-[11px] border transition-colors',
+              value === l.id
+                ? (isDark ? 'bg-white/20 border-white/30' : 'bg-black/10 border-black/20')
+                : (isDark ? 'border-white/10 hover:bg-white/10' : 'border-black/10 hover:bg-black/5'),
+            )}
+            style={{ color: textColor }}
+          >
+            <TapZoneGlyph layout={l.id} />
+            <span className="opacity-80">{l.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main ReaderPage component ─────────────────────────────────────────────────
 
 export default function ReaderPage() {
@@ -666,6 +757,8 @@ export default function ReaderPage() {
     () => (localStorage.getItem('reader_theme') as ReaderTheme) ?? 'light'
   )
   const [showSettings, setShowSettings] = useState(false)
+  // Tap-to-turn zone layout, shared across the comic / EPUB / PDF readers.
+  const [tapLayout, setTapLayout] = useState<TapLayout>(() => loadTapLayout())
 
   // ── EPUB-only state ─────────────────────────────────────────────────────────
   const [chapterLabel, setChapterLabel] = useState('')
@@ -765,6 +858,10 @@ export default function ReaderPage() {
   useEffect(() => { localStorage.setItem('reader_comic_fit', fitMode) }, [fitMode])
   useEffect(() => { localStorage.setItem('reader_comic_mode', comicMode) }, [comicMode])
   useEffect(() => { localStorage.setItem('reader_comic_spread', spread ? '1' : '0') }, [spread])
+
+  // Persist the tap-zone layout (shared across readers; `reader_*` key so it
+  // rides along in the settings backup export).
+  useEffect(() => { localStorage.setItem('reader_tap_layout', tapLayout) }, [tapLayout])
 
   // Persist PDF reader preferences.
   useEffect(() => { localStorage.setItem('reader_pdf_fit', pdfFitMode) }, [pdfFitMode])
@@ -1451,6 +1548,8 @@ export default function ReaderPage() {
               fitMode={fitMode}
               spread={spread}
               theme={theme}
+              tapLayout={tapLayout}
+              onToggleMenu={() => setShowToolbar((v) => !v)}
               onPageChange={setComicCurrentPage}
               onReadComplete={handleComicReadComplete}
             />
@@ -1479,6 +1578,7 @@ export default function ReaderPage() {
                 </button>
               </div>
               <div className="p-4 flex flex-col gap-6">
+                <TapZoneSetting value={tapLayout} onChange={setTapLayout} textColor={themeColors.text} isDark={isDarkTheme} />
                 <div>
                   <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>BACKGROUND</p>
                   <div className="flex gap-2">
@@ -1666,6 +1766,8 @@ export default function ReaderPage() {
               theme={theme}
               fitMode={pdfFitMode}
               zoom={pdfZoom}
+              tapLayout={tapLayout}
+              onToggleMenu={() => setShowToolbar((v) => !v)}
               onDocLoaded={setPdfTotalPages}
               onError={(m) => setLoadError(m)}
               onProgress={handlePdfProgress}
@@ -1686,6 +1788,7 @@ export default function ReaderPage() {
                 </button>
               </div>
               <div className="p-4 flex flex-col gap-6">
+                <TapZoneSetting value={tapLayout} onChange={setTapLayout} textColor={themeColors.text} isDark={isDarkTheme} />
                 <div>
                   <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>BACKGROUND</p>
                   <div className="flex gap-2">
@@ -1833,9 +1936,32 @@ export default function ReaderPage() {
           )}
           <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
-          {/* Click zones for prev/next */}
-          <div className="absolute inset-y-0 left-0 w-1/5 cursor-pointer z-10" onClick={epubPrev} />
-          <div className="absolute inset-y-0 right-0 w-1/5 cursor-pointer z-10" onClick={epubNext} />
+          {/* Configurable tap zones for prev/next. Only the side strips are
+              overlaid so the centre stays free for text selection; the "menu"
+              zone is intentionally omitted for EPUB (centre taps reach the
+              text). Layout is shared with the comic/PDF readers via settings. */}
+          {tapLayout !== 'off' && (
+            tapLayout === 'forward' ? (
+              <>
+                <div className="absolute inset-y-0 left-0 w-1/4 cursor-pointer z-10" onClick={epubNext} />
+                <div className="absolute inset-y-0 right-0 w-1/4 cursor-pointer z-10" onClick={epubNext} />
+                <div className="absolute bottom-0 left-[35%] w-[30%] h-1/4 cursor-pointer z-10" onClick={epubPrev} />
+              </>
+            ) : (
+              <>
+                <div
+                  className={cn('absolute inset-y-0 w-1/4 cursor-pointer z-10',
+                    tapLayout === 'edge-swapped' ? 'right-0' : 'left-0')}
+                  onClick={epubPrev}
+                />
+                <div
+                  className={cn('absolute inset-y-0 w-1/4 cursor-pointer z-10',
+                    tapLayout === 'edge-swapped' ? 'left-0' : 'right-0')}
+                  onClick={epubNext}
+                />
+              </>
+            )
+          )}
 
           {/* Selection toolbar — pick a colour to create a highlight */}
           {selText && !activeHighlight && (
@@ -1967,6 +2093,7 @@ export default function ReaderPage() {
             </div>
 
             <div className="p-4 flex flex-col gap-6">
+              <TapZoneSetting value={tapLayout} onChange={setTapLayout} textColor={themeColors.text} isDark={isDarkTheme} />
               {/* Font size */}
               <div>
                 <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>FONT SIZE</p>
