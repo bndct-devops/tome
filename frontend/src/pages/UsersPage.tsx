@@ -19,6 +19,10 @@ interface UserData {
   is_admin: boolean
   created_at: string
   role: 'admin' | 'member' | 'guest'
+  permissions?: {
+    excluded_tags: string | null
+    download_limit: number | null
+  } | null
 }
 
 interface UserModalProps {
@@ -146,6 +150,69 @@ function UserModal({ user, onClose, onSaved }: UserModalProps) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// Per-user content restrictions (issue #190): hidden tags + daily download cap.
+function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: UserData) => void }) {
+  const [tags, setTags] = useState(user.permissions?.excluded_tags ?? '')
+  const [limit, setLimit] = useState<string>(
+    user.permissions?.download_limit == null ? '' : String(user.permissions.download_limit),
+  )
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    setSaved(false)
+    try {
+      const trimmed = limit.trim()
+      const updated = await api.put<UserData>(`/users/${user.id}/permissions`, {
+        excluded_tags: tags.trim() || null,
+        download_limit: trimmed === '' ? null : Math.max(0, parseInt(trimmed, 10) || 0),
+      })
+      onSaved(updated)
+      setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground">
+          Hidden tags — books carrying any of these tags are hidden from this user (comma-separated)
+        </label>
+        <input
+          value={tags}
+          onChange={(e) => { setTags(e.target.value); setSaved(false) }}
+          placeholder="e.g. 성인, mature"
+          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+        />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-xs text-muted-foreground shrink-0">Downloads per day</label>
+        <input
+          value={limit}
+          onChange={(e) => { setLimit(e.target.value); setSaved(false) }}
+          inputMode="numeric"
+          placeholder="unlimited"
+          className="w-28 rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+        />
+        <span className="text-xs text-muted-foreground">blank = unlimited, 0 = disabled</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save restrictions'}
+        </button>
+        {saved && <span className="text-xs text-green-600">Saved</span>}
       </div>
     </div>
   )
@@ -365,6 +432,12 @@ export function UsersPage() {
                       </div>
                       {permSaving === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
                     </div>
+                    {u.role !== 'admin' && (
+                      <RestrictionEditor
+                        user={u}
+                        onSaved={(s) => setUsers((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...s } : x)))}
+                      />
+                    )}
                   </div>
                 )}
               </div>

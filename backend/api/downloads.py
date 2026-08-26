@@ -39,6 +39,9 @@ def bulk_download(
     if not books:
         raise HTTPException(404, "No books found")
 
+    from backend.services.downloads_quota import enforce_download, record_download
+    enforce_download(db, current_user, count=len(books))
+
     from backend.services.metadata_embed import get_baked_path
     from backend.services.ko_hash import record_served_artifact
 
@@ -58,6 +61,7 @@ def bulk_download(
                 serve = get_baked_path(book, f)
                 record_served_artifact(db, book.id, f, serve)
                 zf.write(str(serve), f"{folder}/{raw.name}")
+            record_download(db, current_user, book.id)
 
     buf.seek(0)
     # Parity with the single-download path, which audits each download.

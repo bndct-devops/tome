@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -95,5 +95,14 @@ class UserPermission(Base):
     can_use_kosync: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     can_share: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     can_bulk_operations: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Content restrictions
+    # Comma-separated tag names this user must never see; books carrying any of
+    # them are filtered out of every listing/search/OPDS feed and cannot be
+    # downloaded (e.g. an under-18 account with "성인" excluded).
+    excluded_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Per-day download cap: NULL = unlimited, 0 = downloads disabled, N = at most
+    # N downloads per (UTC) day. Enforced across the single/bulk/OPDS endpoints.
+    download_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="permissions")

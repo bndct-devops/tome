@@ -28,6 +28,17 @@ def is_admin(user: User) -> bool:
     return user.is_admin or user.role == "admin"
 
 
+def excluded_tags_for(user) -> list[str]:
+    """Tag names this user must never see (issue #190). Parsed from the
+    comma-separated ``UserPermission.excluded_tags``; empty for admins and users
+    with no restriction set."""
+    perms = getattr(user, "permissions", None)
+    raw = getattr(perms, "excluded_tags", None) if perms else None
+    if not raw:
+        return []
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
 def is_member_or_above(user: User) -> bool:
     return has_role(user, "member")
 
@@ -59,7 +70,7 @@ def book_visibility_filter(db: Session, user: User):
     ]
 
     no_library = ~Book.libraries.any()
-    return or_(
+    visible = or_(
         # Own uploads are always visible to their uploader.
         Book.added_by == user.id,
         # Unfiled books fall back to the shared-collection rule: admin-uploaded
@@ -74,6 +85,15 @@ def book_visibility_filter(db: Session, user: User):
         Book.libraries.any(Library.owner_id == user.id),
         Book.libraries.any(Library.assigned_users.any(_User.id == user.id)),
     )
+
+    # Per-user content restriction (issue #190): hide any book carrying one of
+    # the user's excluded tags. Applied on top of visibility so it also removes
+    # the tag from filter dropdowns and blocks downloads of those books.
+    excluded = excluded_tags_for(user)
+    if excluded:
+        from backend.models.book import BookTag
+        visible = and_(visible, ~Book.tags.any(BookTag.tag.in_(excluded)))
+    return visible
 
 
 def user_can_see_book(db: Session, user: User, book: "Book") -> bool:  # type: ignore[name-defined]

@@ -419,6 +419,9 @@ class PermissionsSchema(BaseModel):
     can_use_kosync: bool = True
     can_share: bool = False
     can_bulk_operations: bool = False
+    # Content restrictions (issue #190)
+    excluded_tags: Optional[str] = None   # comma-separated tag names to hide
+    download_limit: Optional[int] = None  # per-day cap; None = unlimited, 0 = off
 
     model_config = {"from_attributes": True}
 
@@ -667,7 +670,10 @@ def set_permissions(
     if not perms:
         perms = UserPermission(user_id=user.id)
         db.add(perms)
-    for field, val in body.model_dump().items():
+    # Partial update: only the fields actually present in the request are
+    # applied, so a caller can change e.g. just the download limit without
+    # resetting every other permission to its schema default.
+    for field, val in body.model_dump(exclude_unset=True).items():
         setattr(perms, field, val)
     db.commit()
     db.refresh(user)

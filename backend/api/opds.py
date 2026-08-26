@@ -393,10 +393,14 @@ def opds_download(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
+    from backend.services.downloads_quota import enforce_download, record_download
+    enforce_download(db, user)
+
     from backend.services.audit import audit
     audit(db, "books.downloaded",
           user_id=user.id, username=user.username,
           resource_type="book", resource_id=book.id, resource_title=book.title)
+    record_download(db, user, book.id)
 
     # Queue this download so the next unknown KOSync progress push auto-links to this book
     try:

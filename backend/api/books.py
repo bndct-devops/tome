@@ -2113,6 +2113,9 @@ def download_book(
     if not user_can_see_book(db, current_user, book_file.book):
         raise HTTPException(status_code=404, detail="File not found")
 
+    from backend.services.downloads_quota import enforce_download, record_download
+    enforce_download(db, current_user)
+
     file_path = Path(book_file.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File no longer on disk")
@@ -2120,6 +2123,7 @@ def download_book(
     from backend.services.metadata_embed import get_baked_path
     serve_path = get_baked_path(book_file.book, book_file)
     record_served_artifact(db, book_file.book_id, book_file, serve_path)
+    record_download(db, current_user, book_id)
 
     filename = f"{book_file.book.title}.{book_file.format}"
     audit(db, "books.downloaded", user_id=current_user.id, username=current_user.username,
