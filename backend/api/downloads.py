@@ -40,24 +40,32 @@ def bulk_download(
         raise HTTPException(404, "No books found")
 
     from backend.services.metadata_embed import get_baked_path
+    from backend.services.download_quota import enforce_download_limit, record_download
     from backend.services.ko_hash import record_served_artifact
+
+    # The quota counts files, so enforce against the number of files this zip
+    # will actually contain — before any expensive baking/zipping starts.
+    servable = [
+        (book, f)
+        for book in books
+        for f in book.files
+        if Path(f.file_path).exists()
+    ]
+    enforce_download_limit(db, current_user, count=len(servable))
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for book in books:
+        for book, f in servable:
             author = (book.author or "Unknown Author").replace("/", "-")[:60]
             title = book.title.replace("/", "-")[:80]
             folder = f"{author} - {title}"
-            for f in book.files:
-                raw = Path(f.file_path)
-                if not raw.exists():
-                    continue
-                # Serve a copy with Tome's metadata baked in, like every other
-                # download path (single/OPDS/TomeSync). Falls back to the raw
-                # file if baking fails. Keep the original filename in the zip.
-                serve = get_baked_path(book, f)
-                record_served_artifact(db, book.id, f, serve)
-                zf.write(str(serve), f"{folder}/{raw.name}")
+            # Serve a copy with Tome's metadata baked in, like every other
+            # download path (single/OPDS/TomeSync). Falls back to the raw
+            # file if baking fails. Keep the original filename in the zip.
+            serve = get_baked_path(book, f)
+            record_served_artifact(db, book.id, f, serve)
+            zf.write(str(serve), f"{folder}/{Path(f.file_path).name}")
+            record_download(db, current_user, book.id)
 
     buf.seek(0)
     # Parity with the single-download path, which audits each download.

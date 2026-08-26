@@ -44,6 +44,16 @@ class User(Base):
     hardcover_linked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Linking and syncing are separate opt-ins: a linked user can pause pushes.
     hardcover_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Content restrictions (issue #190), admin-set. Lives on User, not the
+    # deprecated UserPermission table. Admin accounts are never restricted.
+    # excluded_tags: JSON list of tag names — books carrying any of them
+    # (case-insensitive) are invisible to this user (see
+    # backend/core/permissions.py:book_visibility_filter).
+    # download_limit: NULL = unlimited, 0 = downloads disabled, N = at most
+    # N files per UTC day, enforced on every download path (single / bulk /
+    # OPDS / TomeSync) via backend/services/download_quota.py.
+    excluded_tags: Mapped[str | None] = mapped_column(Text, nullable=True)
+    download_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

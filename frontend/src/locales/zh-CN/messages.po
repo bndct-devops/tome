@@ -1736,6 +1736,10 @@ msgstr ""
 msgid "Black"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "blank = unlimited, 0 = downloads disabled"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "book"
 msgstr ""
@@ -2603,6 +2607,10 @@ msgstr ""
 msgid "Download failed"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Download limit must be a number of 0 or more"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Download Markdown export"
 msgstr ""
@@ -2633,6 +2641,10 @@ msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "Downloaded {n} highlights"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Downloads per day"
 msgstr ""
 
 #: src/components/UploadModal.tsx
@@ -2685,6 +2697,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "e.g. 2023"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "e.g. adult, mature"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -3065,6 +3081,10 @@ msgstr ""
 msgid "Failed to save rating"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Failed to save restrictions"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Failed to save review"
 msgstr ""
@@ -3416,6 +3436,10 @@ msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "Hiatus"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Hidden tags — books carrying any of these tags are invisible to this user (comma-separated)"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -5766,6 +5790,10 @@ msgstr ""
 msgid "Save note"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Save restrictions"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Save the library first, then reopen it to share with users."
 msgstr ""
@@ -5774,6 +5802,7 @@ msgstr ""
 msgid "Save this board as an image"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Saved"
 msgstr ""
@@ -5787,6 +5816,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -6997,6 +7027,10 @@ msgstr ""
 #: src/components/PositionHistoryModal.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "unknown device"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "unlimited"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx

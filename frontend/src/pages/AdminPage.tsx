@@ -42,6 +42,8 @@ interface UserData {
   is_admin: boolean
   created_at: string
   role: 'admin' | 'member' | 'guest'
+  excluded_tags?: string[]
+  download_limit?: number | null
 }
 
 interface AdminStats {
@@ -183,6 +185,80 @@ function UserModal({ user, onClose, onSaved }: {
 }
 
 // ── UsersTab ──────────────────────────────────────────────────────────────
+
+// Content restrictions (issue #190): hidden tags + daily download cap.
+// Rendered in the expanded user row for non-admin accounts only.
+function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: UserData) => void }) {
+  const { t } = useLingui()
+  const [tags, setTags] = useState((user.excluded_tags ?? []).join(', '))
+  const [limit, setLimit] = useState(user.download_limit == null ? '' : String(user.download_limit))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    setSaving(true)
+    setSaved(false)
+    setError(null)
+    const trimmedLimit = limit.trim()
+    const parsed = trimmedLimit === '' ? null : parseInt(trimmedLimit, 10)
+    if (parsed !== null && (Number.isNaN(parsed) || parsed < 0)) {
+      setError(t`Download limit must be a number of 0 or more`)
+      setSaving(false)
+      return
+    }
+    try {
+      const updated = await api.put<UserData>(`/users/${user.id}/restrictions`, {
+        excluded_tags: tags.split(',').map(s => s.trim()).filter(Boolean),
+        download_limit: parsed,
+      })
+      onSaved(updated)
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t`Failed to save restrictions`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground">
+          <Trans>Hidden tags — books carrying any of these tags are invisible to this user (comma-separated)</Trans>
+        </label>
+        <input
+          value={tags}
+          onChange={(e) => { setTags(e.target.value); setSaved(false) }}
+          placeholder={t`e.g. adult, mature`}
+          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+        />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-xs text-muted-foreground shrink-0"><Trans>Downloads per day</Trans></label>
+        <input
+          value={limit}
+          onChange={(e) => { setLimit(e.target.value); setSaved(false) }}
+          inputMode="numeric"
+          placeholder={t`unlimited`}
+          className="w-28 rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+        />
+        <span className="text-xs text-muted-foreground"><Trans>blank = unlimited, 0 = downloads disabled</Trans></span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {saving ? t`Saving…` : t`Save restrictions`}
+        </button>
+        {saved && <span className="text-xs text-success"><Trans>Saved</Trans></span>}
+        {error && <span className="text-xs text-destructive">{error}</span>}
+      </div>
+    </div>
+  )
+}
 
 function UsersTab() {
   const { t, i18n } = useLingui()
@@ -370,6 +446,12 @@ function UsersTab() {
                     </div>
                     {permSaving === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
                   </div>
+                  {u.role !== 'admin' && (
+                    <RestrictionEditor
+                      user={u}
+                      onSaved={(saved) => setUsers(prev => prev.map(x => x.id === saved.id ? saved : x))}
+                    />
+                  )}
                 </div>
               )}
             </div>
