@@ -570,13 +570,22 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
       raf = requestAnimationFrame(() => {
         raf = 0
         const mid = el.scrollTop + el.clientHeight / 2
+        // Pages flow one per row normally, but two per row in spread mode, so
+        // walk the layout a ROW at a time (row height = the tallest page in it).
+        // Accumulating per-page heights would double-count in spread and throw
+        // the page/progress numbers off.
+        const perRow = spread ? 2 : 1
         let acc = 0
         let page = 0
-        for (let i = 0; i < numPages; i++) {
-          const h = heightFor(i) + 16 // wrapper + gap
-          if (mid < acc + h) { page = i; break }
-          acc += h
-          page = i
+        for (let first = 0; first < numPages; first += perRow) {
+          let rowH = 0
+          for (let k = first; k < Math.min(numPages, first + perRow); k++) {
+            rowH = Math.max(rowH, heightFor(k))
+          }
+          rowH += 16 // wrapper + gap
+          page = first
+          if (mid < acc + rowH) break
+          acc += rowH
         }
         if (page !== currentPageRef.current) {
           currentPageRef.current = page
@@ -592,7 +601,7 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => { el.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numPages, pageHeights, displayW])
+  }, [numPages, pageHeights, displayW, spread])
 
   // ── Initial scroll to the saved position ───────────────────────────────────
   useEffect(() => {
@@ -635,7 +644,7 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
         </div>
       )}
       <div className={cn('gap-4 py-4', spread
-        ? 'flex flex-row flex-wrap items-start justify-center content-start'
+        ? 'grid grid-cols-2 justify-items-center items-start'
         : 'flex flex-col items-center')}>
         {Array.from({ length: numPages }, (_, i) => (
           <div
