@@ -334,7 +334,7 @@ def opds_search_descriptor(request: Request, user: User = Depends(get_current_us
         f'<InputEncoding>UTF-8</InputEncoding>'
         f'<OutputEncoding>UTF-8</OutputEncoding>'
         f'<Url type="{ACQUISITION_TYPE}"'
-        f'     template="{base}/opds/search?q={{searchTerms}}"/>'
+        f'     template="{base}/opds/search/results?q={{searchTerms}}"/>'
         '</OpenSearchDescription>'
     )
     return Response(content=xml, media_type="application/opensearchdescription+xml")
