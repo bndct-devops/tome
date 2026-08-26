@@ -20,7 +20,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 type ReaderTheme = 'light' | 'sepia' | 'dark'
 type FontFamily = 'default' | 'serif' | 'sans'
-type FitMode = 'width' | 'height'
+type FitMode = 'width' | 'height' | 'page'
 type ComicMode = 'page' | 'webtoon'
 
 interface TocItem {
@@ -381,6 +381,7 @@ interface PdfReaderProps {
   theme: ReaderTheme
   fitMode: FitMode
   zoom: number
+  spread: boolean
   onDocLoaded: (total: number) => void
   onError: (message: string) => void
   onProgress: (page: number, total: number) => void
@@ -388,7 +389,7 @@ interface PdfReaderProps {
 }
 
 const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
-  { bookId, initialPage, initialFraction, theme, fitMode, zoom, onDocLoaded, onError, onProgress, onReadComplete },
+  { bookId, initialPage, initialFraction, theme, fitMode, zoom, spread, onDocLoaded, onError, onProgress, onReadComplete },
   ref,
 ) {
   const themeColors = THEMES[theme]
@@ -414,15 +415,23 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
   // Per-page real heights once rendered (corrects the page-1 estimate).
   const [pageHeights, setPageHeights] = useState<Map<number, number>>(new Map())
 
-  // CSS display width for every page given the current fit mode + zoom.
+  // CSS display width for every page given the current fit mode + zoom. In
+  // spread (two-up) mode each page gets at most half the width so a pair fits
+  // side by side.
   const displayW = (() => {
     if (!base || !containerW || !containerH) return 0
     const aspect = base.h / base.w
+    let w: number
     if (fitMode === 'height') {
-      const h = (containerH - 24) * zoom
-      return h / aspect
+      w = (containerH - 24) / aspect
+    } else if (fitMode === 'page') {
+      // fit the whole page: bounded by both the width and the height
+      w = Math.min(containerW - 24, (containerH - 24) / aspect)
+    } else {
+      w = Math.min(containerW - 24, 1100)
     }
-    return (Math.min(containerW - 24, 1100)) * zoom
+    if (spread) w = Math.min(w, (containerW - 36) / 2)
+    return w * zoom
   })()
 
   const estPageHeight = base && displayW ? displayW * (base.h / base.w) : 0
@@ -625,7 +634,9 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColors.text, opacity: 0.5 }} />
         </div>
       )}
-      <div className="flex flex-col items-center gap-4 py-4">
+      <div className={cn('gap-4 py-4', spread
+        ? 'flex flex-row flex-wrap items-start justify-center content-start'
+        : 'flex flex-col items-center')}>
         {Array.from({ length: numPages }, (_, i) => (
           <div
             key={i}
@@ -736,6 +747,7 @@ export default function ReaderPage() {
   const [pdfZoom, setPdfZoom] = useState<number>(
     () => Number(localStorage.getItem('reader_pdf_zoom') ?? 1) || 1
   )
+  const [pdfSpread, setPdfSpread] = useState(() => localStorage.getItem('reader_pdf_spread') === '1')
   const pdfRef = useRef<PdfReaderHandle | null>(null)
 
   // ── EPUB refs ────────────────────────────────────────────────────────────────
@@ -769,6 +781,7 @@ export default function ReaderPage() {
   // Persist PDF reader preferences.
   useEffect(() => { localStorage.setItem('reader_pdf_fit', pdfFitMode) }, [pdfFitMode])
   useEffect(() => { localStorage.setItem('reader_pdf_zoom', String(pdfZoom)) }, [pdfZoom])
+  useEffect(() => { localStorage.setItem('reader_pdf_spread', pdfSpread ? '1' : '0') }, [pdfSpread])
 
   // ── Save progress (debounced) ────────────────────────────────────────────────
   //
@@ -1222,7 +1235,7 @@ export default function ReaderPage() {
       } else if (e.key === '-') {
         setPdfZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))
       } else if (e.key === 'w' || e.key === 'W') {
-        setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))
+        setPdfFitMode((m) => (m === 'width' ? 'height' : m === 'height' ? 'page' : 'width'))
       } else if (e.key === 'Escape') {
         navigate(-1)
       }
@@ -1603,12 +1616,24 @@ export default function ReaderPage() {
 
           {/* Fit mode toggle */}
           <button
-            onClick={() => setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))}
+            onClick={() => setPdfFitMode((m) => (m === 'width' ? 'height' : m === 'height' ? 'page' : 'width'))}
             className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-            title={pdfFitMode === 'width' ? 'Fit page height (W)' : 'Fit page width (W)'}
+            title={`Fit: ${pdfFitMode === 'width' ? 'width' : pdfFitMode === 'height' ? 'height' : 'whole page'} (W to cycle)`}
             style={{ color: themeColors.text }}
           >
-            {pdfFitMode === 'width' ? <StretchVertical className="w-4 h-4" /> : <StretchHorizontal className="w-4 h-4" />}
+            {pdfFitMode === 'width'
+              ? <StretchHorizontal className="w-4 h-4" />
+              : pdfFitMode === 'height'
+                ? <StretchVertical className="w-4 h-4" />
+                : <Square className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setPdfSpread((s) => !s)}
+            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60', pdfSpread && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
+            title="Two-page spread (best in landscape)"
+            style={{ color: themeColors.text }}
+          >
+            <Columns2 className="w-4 h-4" />
           </button>
 
           {/* Zoom */}
@@ -1665,6 +1690,7 @@ export default function ReaderPage() {
               initialFraction={pdfInitialFraction}
               theme={theme}
               fitMode={pdfFitMode}
+              spread={pdfSpread}
               zoom={pdfZoom}
               onDocLoaded={setPdfTotalPages}
               onError={(m) => setLoadError(m)}
