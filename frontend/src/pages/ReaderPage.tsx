@@ -4,7 +4,7 @@ import {
   ArrowLeft, BookOpen, Settings, Rows4,
   ChevronLeft, ChevronRight, Minus, Plus, X,
   Loader2, AlignJustify, RotateCcw, GalleryHorizontalEnd, Columns2, Square,
-  StretchHorizontal, StretchVertical, StickyNote, Trash2,
+  StretchHorizontal, StretchVertical, StickyNote, Trash2, Search,
 } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -38,7 +38,15 @@ interface FoliateViewElement extends HTMLElement {
   getCFI(index: number, range: Range): string
   prev(): void
   next(): void
+  search(opts: { query: string; index?: number }): AsyncIterable<
+    | { progress: number }
+    | { label: string; subitems: { cfi: string; excerpt: { pre: string; match: string; post: string } }[] }
+    | 'done'
+  >
+  clearSearch(): void
 }
+
+interface SearchHit { label: string; cfi: string; pre: string; match: string; post: string }
 
 // KOReader wall-clock format — annotations compare timestamps as strings.
 function koNow(): string {
@@ -696,6 +704,11 @@ export default function ReaderPage() {
   }, [])
   const [toc, setToc] = useState<TocItem[]>([])
   const [showToc, setShowToc] = useState(false)
+  // ── In-book full-text search (EPUB) ───────────────────────────────────────
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([])
+  const [searching, setSearching] = useState(false)
   const [fontSize, setFontSize] = useState<number>(
     () => Number(localStorage.getItem('reader_font_size') ?? 100)
   )
@@ -1283,6 +1296,44 @@ export default function ReaderPage() {
     setShowToc(false)
   }
 
+  // Full-text search across the whole EPUB via foliate's search API. Matches are
+  // auto-highlighted in the view; results stream in section by section and are
+  // capped to keep very common terms from producing an unbounded list.
+  const runSearch = useCallback(async (q: string) => {
+    const view = viewRef.current
+    const query = q.trim()
+    setSearchHits([])
+    if (!view) return
+    if (!query) { try { view.clearSearch() } catch { /* noop */ } return }
+    setSearching(true)
+    const hits: SearchHit[] = []
+    try {
+      for await (const r of view.search({ query })) {
+        if (r === 'done') break
+        if ('subitems' in r) {
+          for (const s of r.subitems) {
+            hits.push({
+              label: r.label || '',
+              cfi: s.cfi,
+              pre: s.excerpt?.pre ?? '',
+              match: s.excerpt?.match ?? query,
+              post: s.excerpt?.post ?? '',
+            })
+          }
+          setSearchHits([...hits])
+          if (hits.length >= 500) break
+        }
+      }
+    } catch { /* ignore search errors */ } finally {
+      setSearching(false)
+    }
+  }, [])
+
+  function closeSearch() {
+    setShowSearch(false)
+    try { viewRef.current?.clearSearch() } catch { /* noop */ }
+  }
+
   function changeFontSize(delta: number) {
     setFontSize(prev => {
       const next = Math.min(200, Math.max(60, prev + delta))
@@ -1776,7 +1827,15 @@ export default function ReaderPage() {
         </span>
 
         <button
-          onClick={() => { setShowToc((o) => !o); setShowSettings(false) }}
+          onClick={() => { setShowSearch((o) => !o); setShowToc(false); setShowSettings(false) }}
+          className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showSearch && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
+          title="Search in book"
+          style={{ color: themeColors.text }}
+        >
+          <Search className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => { setShowToc((o) => !o); setShowSettings(false); setShowSearch(false) }}
           className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showToc && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
           title="Table of contents"
           style={{ color: themeColors.text }}
@@ -1795,6 +1854,57 @@ export default function ReaderPage() {
 
       {/* Main area */}
       <div className="flex flex-1 overflow-hidden relative">
+
+        {/* Search drawer */}
+        {showSearch && (
+          <div
+            className="absolute inset-y-0 left-0 md:relative md:inset-auto w-80 max-w-[90vw] shrink-0 border-r overflow-y-auto flex flex-col z-20"
+            style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}>Search</span>
+              <button onClick={closeSearch} style={{ color: themeColors.text, opacity: 0.5 }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery) }}
+              className="px-3 py-3 border-b"
+              style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }}
+            >
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search this book…"
+                className="w-full rounded-lg px-3 py-1.5 text-sm outline-none"
+                style={{ background: isDarkTheme ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', color: themeColors.text }}
+              />
+            </form>
+            <div className="px-4 py-1.5 text-[11px]" style={{ color: themeColors.text, opacity: 0.4 }}>
+              {searching
+                ? 'Searching…'
+                : searchHits.length
+                  ? `${searchHits.length}${searchHits.length >= 500 ? '+' : ''} result${searchHits.length === 1 ? '' : 's'}`
+                  : (searchQuery.trim() ? 'No results' : 'Press Enter to search')}
+            </div>
+            {searchHits.map((h, i) => (
+              <button
+                key={i}
+                onClick={() => { viewRef.current?.goTo(h.cfi).catch(() => {}) }}
+                className="text-left px-4 py-2 text-xs border-b transition-opacity hover:opacity-100"
+                style={{ color: themeColors.text, opacity: 0.8, borderColor: isDarkTheme ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+              >
+                {h.label && <div className="text-[10px] mb-0.5 truncate" style={{ opacity: 0.5 }}>{h.label}</div>}
+                <div className="line-clamp-2">
+                  <span style={{ opacity: 0.6 }}>{h.pre}</span>
+                  <span className="font-semibold" style={{ background: isDarkTheme ? 'rgba(250,204,21,0.25)' : 'rgba(250,204,21,0.45)' }}>{h.match}</span>
+                  <span style={{ opacity: 0.6 }}>{h.post}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* TOC drawer */}
         {showToc && (
