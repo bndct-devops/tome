@@ -4,7 +4,7 @@ import {
   ArrowLeft, BookOpen, Settings, Rows4,
   ChevronLeft, ChevronRight, Minus, Plus, X,
   Loader2, AlignJustify, RotateCcw, GalleryHorizontalEnd, Columns2, Square,
-  StretchHorizontal, StretchVertical, StickyNote, Trash2,
+  StretchHorizontal, StretchVertical, StickyNote, Trash2, Languages,
 } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -30,7 +30,7 @@ interface TocItem {
 }
 
 interface FoliateViewElement extends HTMLElement {
-  renderer?: { setStyles(css: string): void } | null
+  renderer?: { setStyles(css: string): void; getContents?(): { doc: Document }[] } | null
   book?: { toc?: TocItem[] } | null
   open(file: File): Promise<void>
   goTo(target: string | number): Promise<void>
@@ -696,6 +696,12 @@ export default function ReaderPage() {
   }, [])
   const [toc, setToc] = useState<TocItem[]>([])
   const [showToc, setShowToc] = useState(false)
+  // ── Browser-translation view (EPUB) ───────────────────────────────────────
+  // Reflows the current chapter into the main document so Safari/Chrome's own
+  // "Translate Page" — which can't reach foliate's sandboxed iframe — works.
+  const [showReflow, setShowReflow] = useState(false)
+  const [reflowHtml, setReflowHtml] = useState('')
+  const [reflowLang, setReflowLang] = useState<string | undefined>(undefined)
   const [fontSize, setFontSize] = useState<number>(
     () => Number(localStorage.getItem('reader_font_size') ?? 100)
   )
@@ -1283,6 +1289,31 @@ export default function ReaderPage() {
     setShowToc(false)
   }
 
+  // Snapshot the current chapter's readable HTML into the main document. Scripts,
+  // styles and media are stripped — only the text structure is kept, so the
+  // browser's translator has plain, translatable content to work on.
+  const buildReflow = useCallback(() => {
+    const doc = viewRef.current?.renderer?.getContents?.()?.[0]?.doc
+    if (!doc?.body) { setReflowHtml(''); return }
+    const clone = doc.body.cloneNode(true) as HTMLElement
+    clone.querySelectorAll('script, style, link, iframe, object, embed, svg, img, video, audio, source, noscript')
+      .forEach((el) => el.remove())
+    clone.querySelectorAll('*').forEach((el) => {
+      for (const a of Array.from(el.attributes)) {
+        if (a.name.startsWith('on') || a.name === 'style') el.removeAttribute(a.name)
+      }
+    })
+    setReflowHtml(clone.innerHTML)
+    setReflowLang(doc.documentElement.getAttribute('lang') || undefined)
+  }, [])
+
+  function openReflow() {
+    buildReflow()
+    setShowReflow(true)
+    setShowToc(false)
+    setShowSettings(false)
+  }
+
   function changeFontSize(delta: number) {
     setFontSize(prev => {
       const next = Math.min(200, Math.max(60, prev + delta))
@@ -1776,6 +1807,14 @@ export default function ReaderPage() {
         </span>
 
         <button
+          onClick={() => (showReflow ? setShowReflow(false) : openReflow())}
+          className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showReflow && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
+          title="Text view (for browser translation)"
+          style={{ color: themeColors.text }}
+        >
+          <Languages className="w-4 h-4" />
+        </button>
+        <button
           onClick={() => { setShowToc((o) => !o); setShowSettings(false) }}
           className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showToc && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
           title="Table of contents"
@@ -1832,6 +1871,35 @@ export default function ReaderPage() {
             </div>
           )}
           <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+
+          {/* Browser-translation view: the current chapter reflowed into the main
+              document (foliate renders in a sandboxed iframe the page translator
+              can't reach). Use the browser's own Translate on this view. */}
+          {showReflow && (
+            <div className="absolute inset-0 z-30 overflow-y-auto" style={{ background: themeColors.bg }}>
+              <div
+                className="sticky top-0 flex items-center justify-between px-4 py-2 text-[11px] border-b"
+                style={{ background: themeColors.bg, color: themeColors.text, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+              >
+                <span style={{ opacity: 0.6 }}>Text view — run your browser's Translate on this page</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={buildReflow} title="Refresh from current position" style={{ color: themeColors.text, opacity: 0.6 }}>
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setShowReflow(false)} title="Close" style={{ color: themeColors.text, opacity: 0.6 }}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div
+                className="mx-auto max-w-2xl px-5 py-6 leading-relaxed"
+                style={{ color: themeColors.text, fontSize: `${fontSize}%` }}
+                lang={reflowLang}
+                translate="yes"
+                dangerouslySetInnerHTML={{ __html: reflowHtml || '<p style="opacity:.5">No text on this page.</p>' }}
+              />
+            </div>
+          )}
 
           {/* Click zones for prev/next */}
           <div className="absolute inset-y-0 left-0 w-1/5 cursor-pointer z-10" onClick={epubPrev} />
