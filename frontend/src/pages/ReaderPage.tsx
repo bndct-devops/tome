@@ -70,6 +70,57 @@ const FONT_FAMILIES: Record<FontFamily, { css: string; label: MessageDescriptor 
 }
 /* eslint-enable lingui/no-unlocalized-strings */
 
+// ── Tap zones (issue #192) ────────────────────────────────────────────────────
+// Where a tap on the reading surface turns the page. 'swapped' puts "next" on
+// the left so the device can be held one-handed in the left hand. Swipes and
+// keyboard navigation are unaffected.
+
+type TapZoneMode = 'default' | 'swapped' | 'off'
+
+const TAP_ZONE_MODES: Record<TapZoneMode, { label: MessageDescriptor; hint: MessageDescriptor }> = {
+  default: { label: msg`Default`, hint: msg`Tap right for next page` },
+  swapped: { label: msg`Swapped`, hint: msg`Tap left for next page` },
+  off:     { label: msg`Off`,     hint: msg`Turn pages by swipe only` },
+}
+
+function loadTapZoneMode(): TapZoneMode {
+  const v = localStorage.getItem('reader_tap_zones')
+  return v === 'swapped' || v === 'off' ? v : 'default'
+}
+
+function TapZoneSetting({ value, onChange, themeColors, isDarkTheme }: {
+  value: TapZoneMode
+  onChange: (m: TapZoneMode) => void
+  themeColors: { bg: string; text: string }
+  isDarkTheme: boolean
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>TAP ZONES</Trans></p>
+      <div className="flex gap-2">
+        {(Object.keys(TAP_ZONE_MODES) as TapZoneMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => onChange(m)}
+            className={cn(
+              'flex-1 py-2 rounded-lg border text-xs font-medium transition-all',
+              value === m ? 'border-transparent' : 'opacity-50 hover:opacity-75'
+            )}
+            style={{
+              color: themeColors.text,
+              borderColor: value === m ? themeColors.text : (isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'),
+              background: value === m ? (isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)') : 'transparent',
+            }}
+          >
+            {i18n._(TAP_ZONE_MODES[m].label)}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs mt-2" style={{ color: themeColors.text, opacity: 0.4 }}>{i18n._(TAP_ZONE_MODES[value].hint)}</p>
+    </div>
+  )
+}
+
 // Build CSS string to inject into epub renderer
 /* eslint-disable lingui/no-unlocalized-strings -- CSS template, not user-facing text */
 function buildReaderCSS(theme: ReaderTheme, fontSize: number, fontFamily: FontFamily): string {
@@ -101,6 +152,7 @@ interface StreamingComicReaderProps {
   fitMode: FitMode
   spread: boolean
   theme: ReaderTheme
+  tapZones: TapZoneMode
   onPageChange: (page: number) => void
   onReadComplete: () => void
 }
@@ -113,6 +165,7 @@ function StreamingComicReader({
   fitMode,
   spread,
   theme,
+  tapZones,
   onPageChange,
   onReadComplete,
 }: StreamingComicReaderProps) {
@@ -166,19 +219,17 @@ function StreamingComicReader({
   const goNext = useCallback(() => goToPage(Math.min(currentPage + step, totalPages - 1)), [currentPage, step, goToPage, totalPages])
   const goPrev = useCallback(() => goToPage(Math.max(currentPage - step, 0)), [currentPage, step, goToPage])
 
-  // Click navigation: left half = prev, right half = next (respects RTL)
-  // Disabled when zoomed in
+  // Click navigation: left half = prev, right half = next (respects RTL and
+  // the tap-zone setting). Disabled when zoomed in.
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (zoomRef.current > 1) return
+    if (zoomRef.current > 1 || tapZones === 'off') return
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const clickX = e.clientX - rect.left
     const isLeftHalf = clickX < rect.width / 2
-    if (isRTL) {
-      isLeftHalf ? goNext() : goPrev()
-    } else {
-      isLeftHalf ? goPrev() : goNext()
-    }
-  }, [isRTL, goNext, goPrev])
+    let forward = isRTL ? isLeftHalf : !isLeftHalf
+    if (tapZones === 'swapped') forward = !forward
+    forward ? goNext() : goPrev()
+  }, [isRTL, tapZones, goNext, goPrev])
 
   // Touch: swipe to navigate, pinch to zoom, double-tap to toggle zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -718,6 +769,7 @@ export default function ReaderPage() {
   const [comicTotalPages, setComicTotalPages] = useState(0)
   const [comicCurrentPage, setComicCurrentPage] = useState(0)
   const [isRTL, setIsRTL] = useState(() => localStorage.getItem('reader_comic_rtl') === '1')
+  const [tapZones, setTapZones] = useState<TapZoneMode>(loadTapZoneMode)
   const [fitMode, setFitMode] = useState<FitMode>(
     () => (localStorage.getItem('reader_comic_fit') as FitMode) ?? 'width'
   )
@@ -772,6 +824,7 @@ export default function ReaderPage() {
 
   // Persist comic reader preferences so they carry across chapters.
   useEffect(() => { localStorage.setItem('reader_comic_rtl', isRTL ? '1' : '0') }, [isRTL])
+  useEffect(() => { localStorage.setItem('reader_tap_zones', tapZones) }, [tapZones])
   useEffect(() => { localStorage.setItem('reader_comic_fit', fitMode) }, [fitMode])
   useEffect(() => { localStorage.setItem('reader_comic_mode', comicMode) }, [comicMode])
   useEffect(() => { localStorage.setItem('reader_comic_spread', spread ? '1' : '0') }, [spread])
@@ -1461,6 +1514,7 @@ export default function ReaderPage() {
               fitMode={fitMode}
               spread={spread}
               theme={theme}
+              tapZones={tapZones}
               onPageChange={setComicCurrentPage}
               onReadComplete={handleComicReadComplete}
             />
@@ -1511,6 +1565,7 @@ export default function ReaderPage() {
                     ))}
                   </div>
                 </div>
+                <TapZoneSetting value={tapZones} onChange={setTapZones} themeColors={themeColors} isDarkTheme={isDarkTheme} />
               </div>
             </div>
           )}
@@ -1843,9 +1898,13 @@ export default function ReaderPage() {
           )}
           <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
-          {/* Click zones for prev/next */}
-          <div className="absolute inset-y-0 left-0 w-1/5 cursor-pointer z-10" onClick={epubPrev} />
-          <div className="absolute inset-y-0 right-0 w-1/5 cursor-pointer z-10" onClick={epubNext} />
+          {/* Click zones for prev/next (respect the tap-zone setting) */}
+          {tapZones !== 'off' && (
+            <>
+              <div className="absolute inset-y-0 left-0 w-1/5 cursor-pointer z-10" onClick={tapZones === 'swapped' ? epubNext : epubPrev} />
+              <div className="absolute inset-y-0 right-0 w-1/5 cursor-pointer z-10" onClick={tapZones === 'swapped' ? epubPrev : epubNext} />
+            </>
+          )}
 
           {/* Selection toolbar — pick a colour to create a highlight */}
           {selText && !activeHighlight && (
@@ -2047,6 +2106,8 @@ export default function ReaderPage() {
                   ))}
                 </div>
               </div>
+
+              <TapZoneSetting value={tapZones} onChange={setTapZones} themeColors={themeColors} isDarkTheme={isDarkTheme} />
             </div>
           </div>
         )}

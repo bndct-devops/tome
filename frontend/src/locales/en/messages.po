@@ -4772,6 +4772,10 @@ msgstr "Number of reading sessions"
 msgid "of {totalPages} pages"
 msgstr "of {totalPages} pages"
 
+#: src/pages/ReaderPage.tsx
+msgid "Off"
+msgstr "Off"
+
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
 msgstr "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
@@ -6491,6 +6495,10 @@ msgid "Sun"
 msgstr "Sun"
 
 #: src/pages/ReaderPage.tsx
+msgid "Swapped"
+msgstr "Swapped"
+
+#: src/pages/ReaderPage.tsx
 msgid "Switch to fit height"
 msgstr "Switch to fit height"
 
@@ -6590,6 +6598,18 @@ msgstr "Tags"
 #: src/pages/BinderyPage.tsx
 msgid "Tags (comma-separated)"
 msgstr "Tags (comma-separated)"
+
+#: src/pages/ReaderPage.tsx
+msgid "Tap left for next page"
+msgstr "Tap left for next page"
+
+#: src/pages/ReaderPage.tsx
+msgid "Tap right for next page"
+msgstr "Tap right for next page"
+
+#: src/pages/ReaderPage.tsx
+msgid "TAP ZONES"
+msgstr "TAP ZONES"
 
 #: src/components/stats/GoalWidget.tsx
 msgid "Target"
@@ -6918,6 +6938,10 @@ msgstr "Tu"
 #: src/components/stats/widgets/habits.tsx
 msgid "Tue"
 msgstr "Tue"
+
+#: src/pages/ReaderPage.tsx
+msgid "Turn pages by swipe only"
+msgstr "Turn pages by swipe only"
 
 #: src/pages/ReaderPage.tsx
 msgid "Two-page spread (S)"
