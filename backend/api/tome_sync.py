@@ -1412,6 +1412,9 @@ def download_book_via_api_key(
     if not user_can_see_book(db, user, book_file.book):
         raise HTTPException(status_code=404, detail="File not found")
 
+    from backend.services.download_quota import enforce_download_limit, record_download
+    enforce_download_limit(db, user)
+
     file_path = Path(book_file.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File no longer on disk")
@@ -1420,6 +1423,7 @@ def download_book_via_api_key(
     from backend.services.ko_hash import record_served_artifact
     serve_path = get_baked_path(book_file.book, book_file)
     record_served_artifact(db, book_file.book_id, book_file, serve_path)
+    record_download(db, user, book_file.book_id)
 
     filename = f"{book_file.book.title}.{book_file.format}"
     return FileResponse(

@@ -393,6 +393,10 @@ def opds_download(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
+    from backend.services.download_quota import enforce_download_limit, record_download
+    enforce_download_limit(db, user)
+    record_download(db, user, book.id)
+
     from backend.services.audit import audit
     audit(db, "books.downloaded",
           user_id=user.id, username=user.username,

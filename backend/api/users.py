@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -432,8 +433,22 @@ class UserOut(BaseModel):
     role: str
     created_at: str
     permissions: Optional[PermissionsSchema]
+    # Content restrictions (issue #190)
+    excluded_tags: list[str] = []
+    download_limit: Optional[int] = None
 
     model_config = {"from_attributes": True}
+
+
+def _stored_excluded_tags(user: User) -> list[str]:
+    """The admin-entered tag list as stored (original casing), for display."""
+    if not user.excluded_tags:
+        return []
+    try:
+        raw = json.loads(user.excluded_tags)
+    except (ValueError, TypeError):
+        return []
+    return [t for t in raw if isinstance(t, str)]
 
 
 class UserCreate(BaseModel):
@@ -491,6 +506,8 @@ def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
                 role="admin" if u.is_admin else u.role,
                 created_at=str(u.created_at),
                 permissions=PermissionsSchema.model_validate(perms) if perms else None,
+                excluded_tags=_stored_excluded_tags(u),
+                download_limit=u.download_limit,
             )
         )
     return result
@@ -532,6 +549,8 @@ def create_user(body: UserCreate, db: Session = Depends(get_db), admin: User = D
         role="admin" if user.is_admin else user.role,
         created_at=str(user.created_at),
         permissions=PermissionsSchema.model_validate(user.permissions),
+        excluded_tags=_stored_excluded_tags(user),
+        download_limit=user.download_limit,
     )
 
 
@@ -612,6 +631,8 @@ def update_user(
         role="admin" if user.is_admin else user.role,
         created_at=str(user.created_at),
         permissions=PermissionsSchema.model_validate(user.permissions) if user.permissions else None,
+        excluded_tags=_stored_excluded_tags(user),
+        download_limit=user.download_limit,
     )
 
 
@@ -680,6 +701,62 @@ def set_permissions(
         role="admin" if user.is_admin else user.role,
         created_at=str(user.created_at),
         permissions=PermissionsSchema.model_validate(user.permissions),
+        excluded_tags=_stored_excluded_tags(user),
+        download_limit=user.download_limit,
+    )
+
+
+class RestrictionsIn(BaseModel):
+    """Content restrictions (issue #190). A dedicated endpoint — deliberately
+    not folded into PUT /permissions, whose full-replace contract is left
+    untouched."""
+    excluded_tags: list[str] = []
+    download_limit: Optional[int] = None  # None = unlimited, 0 = disabled, N = files per UTC day
+
+
+@router.put("/users/{user_id}/restrictions", response_model=UserOut)
+def set_restrictions(
+    user_id: int,
+    body: RestrictionsIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_admin or user.role == "admin":
+        raise HTTPException(status_code=400, detail="Admin accounts cannot be restricted")
+    if body.download_limit is not None and body.download_limit < 0:
+        raise HTTPException(status_code=400, detail="download_limit must be 0 or greater")
+
+    # Normalise: trim, drop empties, dedupe case-insensitively (matching is
+    # case-insensitive too), keep the admin's casing for display.
+    seen: set[str] = set()
+    tags: list[str] = []
+    for t in body.excluded_tags:
+        t = t.strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            tags.append(t)
+
+    user.excluded_tags = json.dumps(tags) if tags else None
+    user.download_limit = body.download_limit
+    db.commit()
+    db.refresh(user)
+    audit(db, "users.restrictions_updated", user_id=admin.id, username=admin.username,
+          resource_type="user", resource_id=user.id, resource_title=user.username,
+          details={"excluded_tags": tags, "download_limit": body.download_limit})
+    return UserOut(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        is_active=user.is_active,
+        is_admin=user.is_admin,
+        role="admin" if user.is_admin else user.role,
+        created_at=str(user.created_at),
+        permissions=PermissionsSchema.model_validate(user.permissions) if user.permissions else None,
+        excluded_tags=_stored_excluded_tags(user),
+        download_limit=user.download_limit,
     )
 
 

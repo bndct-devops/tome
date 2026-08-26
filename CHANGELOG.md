@@ -7,6 +7,14 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- Per-user content restrictions, set by an admin in Admin → Users. Hidden
+  tags make books carrying any of the listed tags (matched
+  case-insensitively) invisible to that user everywhere - browsing, search,
+  filters, OPDS and the KOReader plugin - including the user's own uploads.
+  A downloads-per-day limit caps how many files the account can fetch per
+  UTC day (0 disables downloads entirely, blank means unlimited), enforced
+  on every download path: single file, bulk ZIP, OPDS and TomeSync. Admin
+  accounts are never restricted. (#190)
 - Reader tap zones are now configurable. A "Tap zones" setting in the EPUB
   and comic readers' settings panel offers Default (tap right for next page),
   Swapped (tap left for next - for reading one-handed with the device in the

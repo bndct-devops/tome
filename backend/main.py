@@ -146,6 +146,15 @@ async def lifespan(app: FastAPI):
         if "oidc_issuer" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN oidc_issuer VARCHAR(255)"))
             conn.commit()
+        # Content restrictions (issue #190). Both nullable, so every existing
+        # account stays unrestricted and unlimited. download_events itself is
+        # created by create_all.
+        if "excluded_tags" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN excluded_tags TEXT"))
+            conn.commit()
+        if "download_limit" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN download_limit INTEGER"))
+            conn.commit()
         # Migrate api_keys.key (plaintext) → key_hash (sha256) + key_prefix (display)
         # so a DB leak doesn't compromise any KOReader plugin install. One-way: existing
         # installed plugins keep working because they send the plaintext, we hash on lookup.

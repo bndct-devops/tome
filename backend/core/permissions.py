@@ -32,6 +32,20 @@ def is_member_or_above(user: User) -> bool:
     return has_role(user, "member")
 
 
+def excluded_tags_for(user: User) -> list[str]:
+    """Tag names this user must never see (issue #190), lowercased.
+    Stored as a JSON list in ``User.excluded_tags``; empty for admins and
+    for users with no restriction set."""
+    if is_admin(user) or not user.excluded_tags:
+        return []
+    import json
+    try:
+        raw = json.loads(user.excluded_tags)
+    except (ValueError, TypeError):
+        return []
+    return [t.strip().lower() for t in raw if isinstance(t, str) and t.strip()]
+
+
 def book_visibility_filter(db: Session, user: User):
     """Return a SQLAlchemy filter expression restricting Book rows to those
     the user is allowed to see. This is the single source of truth for book
@@ -59,7 +73,7 @@ def book_visibility_filter(db: Session, user: User):
     ]
 
     no_library = ~Book.libraries.any()
-    return or_(
+    visible = or_(
         # Own uploads are always visible to their uploader.
         Book.added_by == user.id,
         # Unfiled books fall back to the shared-collection rule: admin-uploaded
@@ -74,6 +88,18 @@ def book_visibility_filter(db: Session, user: User):
         Book.libraries.any(Library.owner_id == user.id),
         Book.libraries.any(Library.assigned_users.any(_User.id == user.id)),
     )
+
+    # Per-user content restriction (issue #190): a book carrying an excluded
+    # tag is invisible — including the user's own uploads (the restriction is
+    # account-wide by design, e.g. an under-18 account). Matching is
+    # case-insensitive; note SQLite's lower() only folds ASCII, which is fine
+    # for the tag conventions in use (CJK tags have no case).
+    excluded = excluded_tags_for(user)
+    if excluded:
+        from sqlalchemy import func
+        from backend.models.book import BookTag
+        visible = and_(visible, ~Book.tags.any(func.lower(BookTag.tag).in_(excluded)))
+    return visible
 
 
 def user_can_see_book(db: Session, user: User, book: "Book") -> bool:  # type: ignore[name-defined]
