@@ -24,7 +24,7 @@ from backend.models.book import Book
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.services import reconciled_reading as rr
-from backend.services.reading_day import date_modifier, effective_today
+from backend.services.reading_day import DayCtx
 
 # Per-axis vocabulary, tone-checked. Tuple is (low-pole word, high-pole word).
 _NOUN = {
@@ -75,19 +75,18 @@ def _lerp_score(v: float, lo: float, hi: float) -> float:
     return _clamp((v - lo) / (hi - lo) * 100.0)
 
 
-def compute_reading_dna(db: Session, user: User, tz_offset: int) -> dict:
+def compute_reading_dna(db: Session, user: User, tz_offset: int, tz_name: str | None = None) -> dict:
     now = datetime.utcnow()
-    # Plain local offset — used ONLY for the hour-of-day trait, where 1am must
-    # read as hour 1. Day-identity buckets use the reading-day modifier below.
-    offset_hours = -(tz_offset // 60)
-    tzm = f"{offset_hours:+d} hours"
-    day_mod = date_modifier(tz_offset)
+    # One DayCtx for everything: day-identity buckets use the reading-day
+    # variant; rr.hour_dow internally picks the plain-local (no rollover)
+    # variant so 1am reads as hour 1.
+    day_mod = DayCtx(tz_offset, tz_name)
     covered = rr.covered_book_ids(db, user.id)
 
     traits: dict[str, float] = {}
 
     # ── Time (early bird ↔ night owl) — trailing 365d hour distribution ──────────
-    hour_dow = rr.hour_dow(db, user.id, tzm, covered, now - timedelta(days=365), None)
+    hour_dow = rr.hour_dow(db, user.id, day_mod, covered, now - timedelta(days=365), None)
     hour_secs: dict[int, int] = {}
     for (_d, h), (secs, _sess) in hour_dow.items():
         hour_secs[h] = hour_secs.get(h, 0) + secs
@@ -104,7 +103,7 @@ def compute_reading_dna(db: Session, user: User, tz_offset: int) -> dict:
     # two active days, and the user's own "today" — not the UTC date.
     adays = rr.active_days(db, user.id, day_mod, covered)
     if adays:
-        today = effective_today(tz_offset)
+        today = day_mod.today()
         window = 120
         first = min(adays)
         span = min(window, (today - first).days + 1)

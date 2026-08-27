@@ -13,6 +13,17 @@ All notable changes to Tome are documented here. Format loosely follows
   also fade in and out as they enter and leave the results. Honours the
   system "reduce motion" preference.
 
+### Fixed
+- Reading streaks (and every day-bucketed stat) now handle daylight-saving
+  time correctly. Day bucketing used the browser's current UTC offset for
+  all of history, so a session started between 3 and 4 AM local time in the
+  opposite DST regime landed on the wrong day - a single winter bedtime
+  read could silently cut a months-long streak, and the streak number
+  changed at each clock change. The web app now sends its IANA timezone
+  alongside the offset and the server buckets each timestamp against the
+  timezone's real transition history. Clients that only send an offset
+  (KOReader plugin, external API users) keep the previous behaviour.
+
 ### Added
 - Per-user content restrictions, set by an admin in Admin → Users. Hidden
   tags make books carrying any of the listed tags (matched

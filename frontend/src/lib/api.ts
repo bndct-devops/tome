@@ -1,6 +1,22 @@
 const API_BASE = "/api"
 
+// Wherever a request sends the legacy tz_offset (a single fixed offset), pair
+// it with the IANA timezone name so the backend can bucket reading days
+// DST-correctly per timestamp instead of applying today's offset to all of
+// history (a January 03:39 CET read otherwise lands on the wrong day when
+// queried in summer, breaking streaks).
+function withTz(path: string): string {
+  if (!path.includes("tz_offset=") || /[?&]tz=/.test(path)) return path
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return zone ? `${path}&tz=${encodeURIComponent(zone)}` : path
+  } catch {
+    return path
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  path = withTz(path)
   const token = localStorage.getItem("tome_token")
   const headers: HeadersInit = {
     "Content-Type": "application/json",

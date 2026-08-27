@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.tome_sync import ReadingSession
 # Re-exported for existing importers; the canonical home is reading_day.
-from backend.services.reading_day import ROLLOVER_HOURS, date_modifier, effective_today  # noqa: F401
+from backend.services.reading_day import ROLLOVER_HOURS, DayCtx, date_modifier, effective_today  # noqa: F401
 
 
 def streaks_from_dates(day_set: set[date], today: date) -> tuple[int, int]:
@@ -43,17 +43,18 @@ def compute_user_streaks(
     db: Session,
     user_id: int,
     tz_offset_minutes: int,
+    tz_name: str | None = None,
 ) -> tuple[int, int]:
     """Return (current_streak, longest_streak) for a user, in their local day with 4h rollover."""
-    modifier = date_modifier(tz_offset_minutes)
+    day = DayCtx(tz_offset_minutes, tz_name)
     rows = (
-        db.query(func.date(ReadingSession.started_at, modifier).label("d"))
+        db.query(day.dt_day(ReadingSession.started_at).label("d"))
         .filter(ReadingSession.user_id == user_id)
         .distinct()
         .all()
     )
     day_set = {date.fromisoformat(r.d) for r in rows if r.d}
-    return streaks_from_dates(day_set, effective_today(tz_offset_minutes))
+    return streaks_from_dates(day_set, day.today())
 
 
 def reconciled_user_streaks(
@@ -61,6 +62,7 @@ def reconciled_user_streaks(
     user_id: int,
     tz_offset_minutes: int,
     covered: list[int] | None = None,
+    tz_name: str | None = None,
 ) -> tuple[int, int]:
     """Return (current, longest) streaks counting reconciled reading.
 
@@ -76,6 +78,7 @@ def reconciled_user_streaks(
     if covered is None:
         covered = rr.covered_book_ids(db, user_id)
     if not covered:
-        return compute_user_streaks(db, user_id, tz_offset_minutes)
-    day_set = rr.active_days(db, user_id, date_modifier(tz_offset_minutes), covered)
-    return streaks_from_dates(day_set, effective_today(tz_offset_minutes))
+        return compute_user_streaks(db, user_id, tz_offset_minutes, tz_name)
+    day = DayCtx(tz_offset_minutes, tz_name)
+    day_set = rr.active_days(db, user_id, day, covered)
+    return streaks_from_dates(day_set, day.today())

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from backend.models.ko_stats import PageStat
 from backend.models.tome_sync import ReadingSession
 from backend.services.reading_day import (
+    DayCtx,
     date_modifier,
     effective_today,
     epoch_day_int,
@@ -142,5 +143,5 @@ def test_dna_rhythm_counts_midnight_read_as_one_active_day(db, admin_user, make_
     db.flush()
 
     covered = rr.covered_book_ids(db, user.id)
-    days = rr.active_days(db, user.id, date_modifier(CEST), covered)
+    days = rr.active_days(db, user.id, DayCtx(CEST), covered)
     assert len(days) == 20

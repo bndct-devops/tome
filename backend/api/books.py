@@ -1289,7 +1289,7 @@ def get_reader_pacing(
     has such history (the reader falls back to a default pace)."""
     from backend.models.book import BookChapter
     from backend.services import reconciled_reading as rr
-    from backend.services.reading_day import date_modifier
+    from backend.services.reading_day import DayCtx
 
     book = _visible_book_or_404(db, current_user, book_id)
     chapters = (
@@ -1301,7 +1301,7 @@ def get_reader_pacing(
 
     wpm = None
     covered = rr.covered_book_ids(db, current_user.id)
-    secs_by_book = rr.book_seconds(db, current_user.id, date_modifier(0), covered, None, None)
+    secs_by_book = rr.book_seconds(db, current_user.id, DayCtx(0), covered, None, None)
     rows = (
         db.query(Book.id, Book.word_count)
         .join(UserBookStatus, UserBookStatus.book_id == Book.id)
@@ -1337,6 +1337,7 @@ def get_reader_pacing(
 def get_book_estimate(
     book_id: int,
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    tz: Optional[str] = Query(None, description="IANA timezone name for DST-correct day bucketing"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -1346,7 +1347,7 @@ def get_book_estimate(
     from backend.services import backlog_estimate as be
 
     book = _visible_book_or_404(db, current_user, book_id)
-    pace = be.compute_pace(db, current_user.id, tz_offset)
+    pace = be.compute_pace(db, current_user.id, tz_offset, tz)
     return be.estimate_book(book, pace)
 
 
@@ -1468,6 +1469,7 @@ def restore_position(
 def get_book_reading_stats(
     book_id: int,
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    tz: Optional[str] = Query(None, description="IANA timezone name for DST-correct day bucketing"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1489,14 +1491,14 @@ def get_book_reading_stats(
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
 
-    own = compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset)
+    own = compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset, tz_name=tz)
     aggregate = (
         compute_book_aggregate_stats(db, book_id=book_id)
         if _is_admin(current_user)
         else None
     )
     # Per-page intensity from imported KOReader page-stats (None if web-only reading)
-    intensity = compute_book_page_intensity(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset)
+    intensity = compute_book_page_intensity(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset, tz_name=tz)
     # Time per TOC chapter (None without a chapter map or page-stats)
     chapters = compute_book_chapter_times(db, user_id=current_user.id, book_id=book_id)
 
@@ -1515,6 +1517,7 @@ def add_manual_reading_session(
     book_id: int,
     payload: ManualSessionIn,
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    tz: Optional[str] = Query(None, description="IANA timezone name for DST-correct day bucketing"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1598,7 +1601,7 @@ def add_manual_reading_session(
         )
 
     db.commit()
-    return {"own": compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset)}
+    return {"own": compute_book_reading_stats(db, user_id=current_user.id, book_id=book_id, tz_offset=tz_offset, tz_name=tz)}
 
 
 @router.delete("/{book_id}/imported-history")
