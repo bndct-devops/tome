@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { IconPicker } from '@/components/Sidebar'
+import { ModalShell } from '@/components/ModalShell'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -47,11 +48,10 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft max-w-sm w-full mx-4 p-6 space-y-4">
+    // Mounted-on-open by callers, so `open` is always true: animated enter,
+    // instant exit (the tree unmounts with the caller's conditional).
+    <ModalShell open onClose={onClose} className="w-full max-w-sm">
+      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft p-6 space-y-4">
         <h2 className="text-base font-semibold">{title}</h2>
 
         <input
@@ -89,6 +89,6 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

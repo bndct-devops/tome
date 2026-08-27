@@ -6,6 +6,13 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- Smoother interface motion throughout the web app. Dialogs now animate
+  out as well as in, the notification dropdown pops from its corner, and
+  books gliding to their new grid positions on filter or size changes now
+  also fade in and out as they enter and leave the results. Honours the
+  system "reduce motion" preference.
+
 ### Added
 - Per-user content restrictions, set by an admin in Admin → Users. Hidden
   tags make books carrying any of the listed tags (matched

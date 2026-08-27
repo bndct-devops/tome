@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Keyboard, X } from 'lucide-react'
+import { ModalShell } from '@/components/ModalShell'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
@@ -96,18 +97,9 @@ export function KeyboardShortcutsModal({ open, onClose }: Props) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, onClose])
 
-  if (!open) return null
-
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Panel */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+    <ModalShell open={open} onClose={onClose} className="w-full max-w-md">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2.5">
@@ -147,8 +139,7 @@ export function KeyboardShortcutsModal({ open, onClose }: Props) {
               </div>
             ))}
           </div>
-        </div>
       </div>
-    </>
+    </ModalShell>
   )
 }

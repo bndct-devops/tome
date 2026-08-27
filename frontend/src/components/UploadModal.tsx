@@ -3,6 +3,7 @@ import { X, FileText, Layers, Upload, CheckCircle2, AlertCircle, Loader2 } from 
 import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useToast } from '@/contexts/ToastContext'
+import { ModalShell } from '@/components/ModalShell'
 import { cn } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -185,45 +186,25 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
     }
   }
 
-  const [closing, setClosing] = useState(false)
-  const [visible, setVisible] = useState(false)
-
+  // Fresh state on every open; content stays intact during the exit animation.
   useEffect(() => {
     if (isOpen) {
-      setClosing(false)
-      requestAnimationFrame(() => setVisible(true))
+      setItems([])
+      setBulkType('')
+      setSummary(null)
     }
   }, [isOpen])
 
   function handleClose() {
     if (uploading) return
-    setClosing(true)
-    setVisible(false)
-    setTimeout(() => {
-      setClosing(false)
-      setItems([])
-      setBulkType('')
-      setSummary(null)
-      onClose()
-    }, 200)
+    onClose()
   }
-
-  if (!isOpen && !closing) return null
 
   const pendingCount = items.filter(it => it.status === 'pending').length
 
   return (
-    <div
-      className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200',
-        visible ? 'bg-black/40 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-0'
-      )}
-      onMouseDown={e => { if (e.target === e.currentTarget) handleClose() }}
-    >
-      <div className={cn(
-        'bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft w-full max-w-lg flex flex-col max-h-[90vh] transition-all duration-200',
-        visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-      )}>
+    <ModalShell open={isOpen} onClose={handleClose} className="w-full max-w-lg">
+      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-base font-semibold flex items-center gap-2">
@@ -391,6 +372,6 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
           </div>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

@@ -5,6 +5,7 @@ import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { X, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { api } from '@/lib/api'
+import { ModalShell } from '@/components/ModalShell'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
 
@@ -164,8 +165,8 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
   const isBusy = statusSaving || arcsSaving
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-3xl bg-card rounded-2xl border border-border shadow-xl shadow-accent-soft flex flex-col max-h-[90vh] min-h-[420px]">
+    <ModalShell open className="w-full max-w-3xl">
+      <div className="bg-card rounded-2xl border border-border shadow-xl shadow-accent-soft flex flex-col max-h-[90vh] min-h-[420px]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
@@ -360,6 +361,6 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
           </div>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

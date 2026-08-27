@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { AnimatePresence, m } from 'motion/react'
 import { Bell, Check, BookOpen, Target, Timer } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -134,8 +135,15 @@ export function NotificationBell() {
         )}
       </button>
 
+      <AnimatePresence>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-80 max-h-96 flex flex-col bg-card border border-border rounded-xl shadow-xl shadow-accent-soft overflow-hidden">
+        <m.div
+          initial={{ opacity: 0, scale: 0.95, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: -4 }}
+          transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
+          style={{ transformOrigin: 'top right' }}
+          className="absolute right-0 top-full mt-1.5 z-50 w-80 max-h-96 flex flex-col bg-card border border-border rounded-xl shadow-xl shadow-accent-soft overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
             <span className="text-xs font-semibold text-foreground"><Trans>Notifications</Trans></span>
@@ -195,8 +203,9 @@ export function NotificationBell() {
               ))
             )}
           </div>
-        </div>
+        </m.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }

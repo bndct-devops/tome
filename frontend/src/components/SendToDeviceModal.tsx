@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send, X, Loader2, AlertTriangle } from 'lucide-react'
 import { BookAnimation } from '@/components/BookAnimation'
+import { ModalShell } from '@/components/ModalShell'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { BookFile } from '@/lib/books'
@@ -63,8 +64,6 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
     })
   }, [open])
 
-  if (!open) return null
-
   async function handleSend() {
     if (!selectedDevice) return
     setSending(true)
@@ -99,10 +98,8 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
   const selectedFile = singleBook?.files.find(f => f.id === selectedFileId)
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
-      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className="bg-card border border-border rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <ModalShell open={open} onClose={onClose} className="w-full max-w-md">
+        <div className="bg-card border border-border rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
@@ -238,7 +235,6 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
             )}
           </div>
         </div>
-      </div>
-    </>
+    </ModalShell>
   )
 }

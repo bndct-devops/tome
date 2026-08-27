@@ -5,6 +5,7 @@ import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { Loader2, Sparkles, BookOpen, ExternalLink, Check, X } from 'lucide-react'
 import { BookAnimation } from '@/components/BookAnimation'
+import { ModalShell } from '@/components/ModalShell'
 import type { BookDetail, MetadataCandidate } from '@/lib/books'
 
 const API = import.meta.env.VITE_API_URL ?? ''
@@ -61,10 +62,8 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
 
   useEffect(() => {
     if (open) {
-      setCandidates([])
-      setError(null)
-      setStep('search')
-      setQuery('')
+      // Full reset on open (not close) so content survives the exit animation.
+      reset()
       setTimeout(() => doSearch(''), 50)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,7 +166,6 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
       if (!r.ok) throw new Error(await r.text())
       const updated: BookDetail = await r.json()
       onApplied(updated)
-      reset()
       onClose()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t`Apply failed`)
@@ -177,19 +175,12 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
   }
 
   function handleClose() {
-    reset()
     onClose()
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-
-      {/* Panel */}
-      <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+    <ModalShell open={open} onClose={handleClose} className="w-full max-w-3xl">
+      <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
           <div className="flex items-center gap-2 font-semibold text-sm">
@@ -420,6 +411,6 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { AnimatePresence, m } from 'motion/react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   BookOpen, X, Home, ChevronRight,
@@ -8,6 +9,7 @@ import {
   Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon, Shuffle, Share2,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
+import { ModalShell } from '@/components/ModalShell'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural, msg } from '@lingui/core/macro'
@@ -157,8 +159,6 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
   const { t } = useLingui()
   const [deleting, setDeleting] = useState(false)
 
-  if (!open) return null
-
   const selectedBooks = books.filter(b => selectedIds.has(b.id))
 
   async function handleDelete() {
@@ -168,13 +168,8 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
   }
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/50"
-        onClick={() => { if (!deleting) onCancel() }}
-      />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl shadow-accent-soft flex flex-col max-h-[80vh]">
+    <ModalShell open={open} onClose={() => { if (!deleting) onCancel() }} className="w-full max-w-md">
+        <div className="bg-card border border-border rounded-2xl shadow-2xl shadow-accent-soft flex flex-col max-h-[80vh]">
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
             <div className="flex items-center gap-2">
@@ -260,8 +255,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
             </button>
           </div>
         </div>
-      </div>
-    </>
+    </ModalShell>
   )
 }
 
@@ -699,48 +693,7 @@ export function DashboardPage() {
   const [books, setBooks] = useState<Book[]>([])
   const { handleToggle } = useShiftSelect(books.map(b => b.id))
 
-  // FLIP-animate the books grid through cover-size reflows: when the column
-  // count changes, cards glide from their old box to the new one instead of
-  // teleporting. Rendered card width is a step function of the slider (1fr
-  // stretching), so easing the size value itself does nothing — the motion
-  // has to come from animating the reflow.
   const booksGridRef = useRef<HTMLDivElement | null>(null)
-  const flipRectsRef = useRef<Map<string, { left: number; top: number; width: number }>>(new Map())
-  useLayoutEffect(() => {
-    const el = booksGridRef.current
-    const prev = flipRectsRef.current
-    const next = new Map<string, { left: number; top: number; width: number }>()
-    if (el) {
-      const moved: HTMLElement[] = []
-      for (const child of Array.from(el.children) as HTMLElement[]) {
-        const id = child.dataset.flipId
-        if (!id) continue
-        // offset* is layout-relative (scroll- and transform-independent)
-        next.set(id, { left: child.offsetLeft, top: child.offsetTop, width: child.offsetWidth })
-        const a = prev.get(id)
-        const b = next.get(id)!
-        if (!a || (a.left === b.left && a.top === b.top && a.width === b.width)) continue
-        const scale = a.width / b.width
-        child.style.transition = 'none'
-        child.style.transformOrigin = 'top left'
-        // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS transform
-        child.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${scale})`
-        moved.push(child)
-      }
-      if (moved.length > 0) {
-        // One synchronous reflow commits the inverted transforms before they
-        // transition back — a lone rAF can collapse into the same style flush
-        void el.offsetWidth
-        for (const child of moved) {
-          child.style.transition = 'transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)'
-          child.style.transform = ''
-        }
-      }
-    }
-    flipRectsRef.current = next
-    // books in the deps so positions are (re)captured when the list loads or
-    // changes — without it the post-load baseline is empty and nothing animates
-  }, [gridSize, view, books])
   const [totalCount, setTotalCount] = useState<number | null>(null)
   const [readingStatuses, setReadingStatuses] = useState<Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>>({})
   const [facets, setFacets] = useState<Facets>({ series: [], authors: [], tags: [], formats: [], languages: [] })
@@ -2339,10 +2292,21 @@ export function DashboardPage() {
             </div>
           ) : (
             <div key={view} ref={booksGridRef} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
+              {/* POC: Motion layout animations replace the hand-rolled FLIP above —
+                  `layout` covers reflows (grid-size slider, filter survivors gliding)
+                  and AnimatePresence adds enter/exit, which FLIP never had. */}
+              <AnimatePresence mode="popLayout" initial={false}>
               {books.map((book, i) => (
-                groupActive && book.series ? (
+                <m.div
+                  key={`${cardView}-${groupActive && book.series ? 'stack-' : ''}${book.id}`}
+                  layout
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ layout: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
+                >
+                {groupActive && book.series ? (
                   <SeriesStackCard
-                    key={`${cardView}-stack-${book.id}`}
                     book={book}
                     count={book.series_count ?? 1}
                     view={cardView}
@@ -2352,8 +2316,6 @@ export function DashboardPage() {
                   />
                 ) : (
                 <BookCard
-                  key={`${cardView}-${book.id}`}
-                  flipId={String(book.id)}
                   book={book}
                   view={cardView}
                   index={i}
@@ -2367,8 +2329,10 @@ export function DashboardPage() {
                   progressPct={readingStatuses[book.id]?.progress_pct}
                   rating={readingStatuses[book.id]?.rating}
                 />
-                )
+                )}
+                </m.div>
               ))}
+              </AnimatePresence>
             </div>
           )}
           {/* Infinite scroll sentinel */}
@@ -2401,14 +2365,8 @@ export function DashboardPage() {
       />
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
-      {bulkMetaOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/50"
-            onClick={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <div className="pointer-events-auto w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
+      <ModalShell open={bulkMetaOpen} onClose={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }} className="w-full max-w-md">
+            <div className="bg-card border border-border rounded-2xl shadow-2xl p-6">
               <div className="flex items-start justify-between mb-1">
                 <h2 className="text-base font-semibold text-foreground">
                   <Plural value={selected.size} one="Edit Metadata for # Book" other="Edit Metadata for # Books" />
@@ -2518,9 +2476,7 @@ export function DashboardPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </>
-      )}
+      </ModalShell>
     </div>
   )
 }

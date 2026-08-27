@@ -35,8 +35,6 @@ interface BookCardProps {
   progressPct?: number | null
   rating?: number | null
   index?: number
-  // Set as data-flip-id on the root so a parent grid can FLIP-animate reflows
-  flipId?: string
   // Home rows are usually all one format — the badge is noise there, so those
   // callers turn it off. Library grids keep it (that's where formats differ).
   showFormatBadge?: boolean
@@ -62,7 +60,7 @@ function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: num
 export function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
-  readingStatus, progressPct, rating, flipId, showFormatBadge = true,
+  readingStatus, progressPct, rating, showFormatBadge = true,
 }: BookCardProps) {
   const { t } = useLingui()
   const navigate = useNavigate()
@@ -231,7 +229,6 @@ export function BookCard({
   return (
     <div
       ref={cardRef as React.RefObject<HTMLDivElement>}
-      data-flip-id={flipId}
       className={cn('group flex flex-col cursor-pointer touch-feedback', onSelect && 'select-none')}
       style={{ perspective: '600px' }}
       onClick={onSelect ? onSelect : () => navigate(`/books/${book.id}`)}

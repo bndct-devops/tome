@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Copy, Link2, Loader2, Share2, Trash2, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { ModalShell } from '@/components/ModalShell'
 import { copyToClipboard } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -72,10 +73,8 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
   }
 
   return createPortal(
-    <>
-      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+    <ModalShell open onClose={onClose} className="w-full max-w-md">
+        <div className="rounded-xl border border-border bg-card shadow-xl">
           <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
             <Share2 className="h-4 w-4 text-primary" />
             <h2 className="font-display text-base text-foreground"><Trans>Share &quot;{title}&quot;</Trans></h2>
@@ -164,8 +163,7 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
             )}
           </div>
         </div>
-      </div>
-    </>,
+    </ModalShell>,
     document.body,
   )
 }
