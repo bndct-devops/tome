@@ -4,6 +4,7 @@ import { t } from '@lingui/core/macro'
 import { AlertCircle, Check, ChevronDown, ChevronUp, Loader2, Search, Sparkles, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ModalShell } from '@/components/ModalShell'
 import type { MetadataCandidate } from '@/lib/books'
 import { CoverImage } from './CoverImage'
 
@@ -55,6 +56,9 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
 
   useEffect(() => {
     if (open && bookIds.length > 0) {
+      // Reset on open (not close) so content survives the exit animation.
+      setProgress(null)
+      setDoneState(null)
       fetchAll()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,25 +184,16 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
 
   function handleClose() {
     if (applying) return
-    setResults([])
-    setRowState({})
-    setError(null)
-    setProgress(null)
-    setDoneState(null)
     onClose()
   }
-
-  if (!open) return null
 
   const matched = results.filter(r => r.best_match_index !== null).length
   const needsReview = results.filter(r => r.best_match_index === null && r.candidates.length > 0).length
   const noMatch = results.filter(r => r.candidates.length === 0).length
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-
-      <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
+    <ModalShell open={open} onClose={handleClose} className="w-full max-w-3xl">
+      <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2 font-semibold text-sm">
@@ -453,6 +448,6 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           </div>
         )}
       </div>
-    </div>
+    </ModalShell>
   )
 }

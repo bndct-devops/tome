@@ -3,6 +3,7 @@ import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { X, Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ModalShell } from '@/components/ModalShell'
 import {
   searchWishCandidates,
   searchWishSeries,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/wishlist'
 
 interface Props {
+  open: boolean
   onClose: () => void
   onCreated: () => void
 }
@@ -31,7 +33,7 @@ function SeriesThumb({ url }: { url: string | null }) {
   )
 }
 
-export function WishlistModal({ onClose, onCreated }: Props) {
+export function WishlistModal({ open, onClose, onCreated }: Props) {
   const [searchMode, setSearchMode] = useState<Mode>('book')
   const [seriesAvailable, setSeriesAvailable] = useState(false)
   const [query, setQuery] = useState('')
@@ -53,26 +55,26 @@ export function WishlistModal({ onClose, onCreated }: Props) {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [visible, setVisible] = useState(false)
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    requestAnimationFrame(() => setVisible(true))
+    if (!open) return
     inputRef.current?.focus()
     // Series search is Hardcover-only — only offer the Series tab when available.
     seriesSearchAvailable().then(r => setSeriesAvailable(!!r.available)).catch(() => {})
-  }, [])
+  }, [open])
 
   useEffect(() => {
+    if (!open) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') handleClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [open])
 
   const doSearch = useCallback(async (q: string, mode: Mode) => {
     if (!q.trim()) {
@@ -120,8 +122,7 @@ export function WishlistModal({ onClose, onCreated }: Props) {
   }
 
   function handleClose() {
-    setVisible(false)
-    setTimeout(onClose, 200)
+    onClose()
   }
 
   function deriveSeriesName(c: WishSearchResult): string {
@@ -224,17 +225,8 @@ export function WishlistModal({ onClose, onCreated }: Props) {
   const inSearchState = !manualMode && !selected && !selectedSeries
 
   return (
-    <div
-      className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200',
-        visible ? 'bg-black/40 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-0'
-      )}
-      onMouseDown={e => { if (e.target === e.currentTarget) handleClose() }}
-    >
-      <div className={cn(
-        'bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft w-full max-w-lg flex flex-col max-h-[85vh] transition-all duration-200',
-        visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-      )}>
+    <ModalShell open={open} onClose={handleClose} className="w-full max-w-lg">
+      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-base font-semibold"><Trans>Add to Wishlist</Trans></h2>
@@ -557,6 +549,6 @@ export function WishlistModal({ onClose, onCreated }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

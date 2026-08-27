@@ -183,6 +183,9 @@ export function WishlistPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  // Bumped on each open so the always-mounted modal remounts with fresh state
+  // (it used to reset by conditional unmount, which killed the exit animation).
+  const [addEpoch, setAddEpoch] = useState(0)
   const [fulfilledOpen, setFulfilledOpen] = useState(true)
   const [deleting, setDeleting] = useState<number | null>(null)
 
@@ -242,7 +245,7 @@ export function WishlistPage() {
     <AppShell
       actions={
         <button
-          onClick={() => setAddOpen(true)}
+          onClick={() => { setAddEpoch(e => e + 1); setAddOpen(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -300,7 +303,7 @@ export function WishlistPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => setAddOpen(true)}
+                    onClick={() => { setAddEpoch(e => e + 1); setAddOpen(true) }}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
                     <Plus className="w-4 h-4" />
@@ -401,15 +404,15 @@ export function WishlistPage() {
         {!loading && !error && <FollowingSection />}
       </div>
 
-      {addOpen && (
-        <WishlistModal
-          onClose={() => setAddOpen(false)}
-          onCreated={() => {
-            load()
-            toast.success(t`Wish added`)
-          }}
-        />
-      )}
+      <WishlistModal
+        key={addEpoch}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={() => {
+          load()
+          toast.success(t`Wish added`)
+        }}
+      />
     </AppShell>
   )
 }

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { History, Loader2, RotateCcw, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { ModalShell } from '@/components/ModalShell'
 import { cn } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -57,10 +58,8 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
   }
 
   return createPortal(
-    <>
-      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-xl">
+    <ModalShell open onClose={onClose} className="w-full max-w-md">
+        <div className="flex max-h-[70vh] flex-col rounded-xl border border-border bg-card shadow-xl">
           <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
             <History className="h-4 w-4 text-primary" />
             <h2 className="font-display text-base text-foreground"><Trans>Position history</Trans></h2>
@@ -129,8 +128,7 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
             </p>
           </div>
         </div>
-      </div>
-    </>,
+    </ModalShell>,
     document.body,
   )
 }

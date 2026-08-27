@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Keyboard } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { ToastProvider } from '@/contexts/ToastContext'
+import { MotionProvider } from '@/lib/motion'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { ForcePasswordChange } from '@/components/ForcePasswordChange'
@@ -193,8 +194,10 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-          <AppRoutes />
-          <ImpersonationBanner />
+          <MotionProvider>
+            <AppRoutes />
+            <ImpersonationBanner />
+          </MotionProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

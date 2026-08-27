@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, Check, ImageOff, Loader2, Search, Upload, X } from 'lucide-react'
 import type { BookDetail } from '@/lib/books'
+import { ModalShell } from '@/components/ModalShell'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -118,20 +119,14 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
   }
 
   function handleClose() {
-    setCandidates([])
-    setError(null)
-    setCustomUrl('')
-    setQuery('')
+    // State resets on the next open; keeping it here would blank the content
+    // mid-exit-animation.
     onClose()
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-
-      <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+    <ModalShell open={open} onClose={handleClose} className="w-full max-w-2xl">
+      <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
           <div className="flex items-center gap-2 font-semibold text-sm">
@@ -289,6 +284,6 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
