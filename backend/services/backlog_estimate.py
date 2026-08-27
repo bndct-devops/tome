@@ -32,7 +32,7 @@ from backend.models.book import Book
 from backend.models.library import BookType
 from backend.models.user_book_status import UserBookStatus
 from backend.services import reconciled_reading as rr
-from backend.services.reading_day import date_modifier
+from backend.services.reading_day import DayCtx
 
 DEFAULT_WPM = 250
 WPM_MIN_SECONDS = 300
@@ -59,8 +59,8 @@ class Pace:
         }
 
 
-def compute_pace(db: Session, user_id: int, tz_offset: int = 0) -> Pace:
-    tzm = date_modifier(tz_offset)
+def compute_pace(db: Session, user_id: int, tz_offset: int = 0, tz_name: str | None = None) -> Pace:
+    tzm = DayCtx(tz_offset, tz_name)
     covered = rr.covered_book_ids(db, user_id)
 
     # All-time reconciled seconds per book — feeds both wpm and type averages.

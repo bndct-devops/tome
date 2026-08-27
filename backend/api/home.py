@@ -166,6 +166,7 @@ def get_focus(
 @router.get("/stats")
 def get_home_stats(
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    tz: str | None = Query(None, description="IANA timezone name for DST-correct day bucketing"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -200,7 +201,7 @@ def get_home_stats(
 
     # Reconciled so the home streak matches the stats page: imported KOReader
     # page-stat days count alongside live sessions (no-op without imported stats).
-    current_streak_days, _ = reconciled_user_streaks(db, current_user.id, tz_offset)
+    current_streak_days, _ = reconciled_user_streaks(db, current_user.id, tz_offset, tz_name=tz)
 
     return {
         "current_streak_days": current_streak_days,
@@ -213,13 +214,14 @@ def get_home_stats(
 @router.get("/reading-dna")
 def get_home_reading_dna(
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
+    tz: str | None = Query(None, description="IANA timezone name for DST-correct day bucketing"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Reading-personality summary for the Home rail (see services.reading_dna)."""
     from backend.services.reading_dna import compute_reading_dna
 
-    return compute_reading_dna(db, current_user, tz_offset)
+    return compute_reading_dna(db, current_user, tz_offset, tz)
 
 
 @router.get("/activity")

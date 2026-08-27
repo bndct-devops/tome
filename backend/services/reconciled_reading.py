@@ -32,6 +32,7 @@ than MIN_SESSION_SECONDS are noise (a page flip while shelving) and aren't count
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Optional
 
 from sqlalchemy import Integer, and_, exists, func, or_
@@ -39,6 +40,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.ko_stats import PageStat
 from backend.models.tome_sync import ReadingSession
+from backend.services.reading_day import DayCtx
 
 # ReadingSession.device values that can never be described by imported KOReader
 # page-stats. Everything else (device names, NULL legacy rows) is device-origin.
@@ -126,12 +128,12 @@ def _rs_filtered(db: Session, user_id: int, covered: list[int],
     return q
 
 
-def _ps_day(tzm: str):
-    return func.date(PageStat.start_time, "unixepoch", tzm)
+def _ps_day(day: DayCtx):
+    return day.epoch_day(PageStat.start_time)
 
 
-def _ps_local(tzm: str):
-    return func.datetime(PageStat.start_time, "unixepoch", tzm)
+def _ps_local(day: DayCtx, *, rollover: bool):
+    return day.epoch_shifted(PageStat.start_time, rollover=rollover)
 
 
 # A new session starts when the gap between consecutive page rows of the same
@@ -142,7 +144,7 @@ SESSION_GAP_SECONDS = 1800
 MIN_SESSION_SECONDS = 10
 
 
-def _cluster_rows(db, user_id: int, tzm: str,
+def _cluster_rows(db, user_id: int, day: DayCtx,
                   cutoff: Optional[datetime], range_end: Optional[datetime],
                   book_id: Optional[int] = None,
                   min_secs: int = MIN_SESSION_SECONDS):
@@ -167,7 +169,7 @@ def _cluster_rows(db, user_id: int, tzm: str,
     """
     from sqlalchemy import text
 
-    where, params = ["user_id = :uid"], {"uid": user_id, "tzm": tzm,
+    where, params = ["user_id = :uid"], {"uid": user_id,
                                          "gap": SESSION_GAP_SECONDS,
                                          "min_secs": min_secs}
     ce, ee = _epoch(cutoff), _epoch(range_end)
@@ -193,7 +195,6 @@ def _cluster_rows(db, user_id: int, tzm: str,
             FROM ordered
         )
         SELECT book_id,
-               date(MIN(start_time), 'unixepoch', :tzm) AS day,
                MIN(start_time) AS start,
                MAX(start_time) AS last_start,
                SUM(duration_seconds) AS secs,
@@ -203,12 +204,22 @@ def _cluster_rows(db, user_id: int, tzm: str,
         GROUP BY book_id, cluster_id
         HAVING SUM(duration_seconds) >= :min_secs
     """)
-    return db.execute(sql, params).all()
+    # The day label is computed Python-side so it is DST-correct per cluster
+    # (a SQL bind can only carry one fixed offset for all rows).
+    return [
+        SimpleNamespace(
+            book_id=r.book_id,
+            day=day.py_day(int(r.start)).isoformat(),
+            start=r.start, last_start=r.last_start,
+            secs=r.secs, pages=r.pages, device=r.device,
+        )
+        for r in db.execute(sql, params).all()
+    ]
 
 
 # ── Totals ────────────────────────────────────────────────────────────────────
 
-def totals(db, user_id, tzm, covered, cutoff, range_end) -> tuple[int, int, int]:
+def totals(db, user_id, day, covered, cutoff, range_end) -> tuple[int, int, int]:
     """(seconds, sessions, pages) reconciled over the window."""
     rs = _rs_filtered(db, user_id, covered, cutoff, range_end).with_entities(
         func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
@@ -224,18 +235,18 @@ def totals(db, user_id, tzm, covered, cutoff, range_end) -> tuple[int, int, int]
         secs += int(ps[0] or 0)
         pages += int(ps[1] or 0)
         # real sessions: gap-clustered, not one-per-(book, day)
-        sessions += len(_cluster_rows(db, user_id, tzm, cutoff, range_end))
+        sessions += len(_cluster_rows(db, user_id, day, cutoff, range_end))
     return secs, sessions, pages
 
 
 # ── Daily (per local-day) ───────────────────────────────────────────────────────
 
-def daily_map(db, user_id, tzm, covered, start_dt, end_dt) -> dict[str, tuple[int, int, int]]:
+def daily_map(db, user_id, day, covered, start_dt, end_dt) -> dict[str, tuple[int, int, int]]:
     """day_str -> (seconds, sessions, pages). Caller fills the gaps."""
     rows = (
         _rs_filtered(db, user_id, covered, start_dt, end_dt)
         .with_entities(
-            func.date(ReadingSession.started_at, tzm).label("day"),
+            day.dt_day(ReadingSession.started_at).label("day"),
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("secs"),
             func.count(ReadingSession.id).label("sessions"),
             func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages"),
@@ -250,7 +261,7 @@ def daily_map(db, user_id, tzm, covered, start_dt, end_dt) -> dict[str, tuple[in
         day_groups = (
             _ps_filtered(db, user_id, start_dt, end_dt)
             .with_entities(
-                _ps_day(tzm).label("day"),
+                _ps_day(day).label("day"),
                 func.sum(PageStat.duration_seconds).label("secs"),
                 func.count(PageStat.id).label("pages"),
             )
@@ -259,7 +270,7 @@ def daily_map(db, user_id, tzm, covered, start_dt, end_dt) -> dict[str, tuple[in
         for g in day_groups:
             e = out.setdefault(g.day, [0, 0, 0])
             e[0] += int(g.secs or 0); e[2] += int(g.pages or 0)
-        for c in _cluster_rows(db, user_id, tzm, start_dt, end_dt):
+        for c in _cluster_rows(db, user_id, day, start_dt, end_dt):
             e = out.setdefault(c.day, [0, 0, 0])
             e[1] += 1
     return {d: (v[0], v[1], v[2]) for d, v in out.items()}
@@ -267,7 +278,7 @@ def daily_map(db, user_id, tzm, covered, start_dt, end_dt) -> dict[str, tuple[in
 
 # ── Per-book ────────────────────────────────────────────────────────────────────
 
-def book_seconds(db, user_id, tzm, covered, cutoff, range_end) -> dict[int, tuple[int, int, int]]:
+def book_seconds(db, user_id, day, covered, cutoff, range_end) -> dict[int, tuple[int, int, int]]:
     """book_id -> (seconds, sessions, pages) reconciled over the window."""
     rows = (
         _rs_filtered(db, user_id, covered, cutoff, range_end)
@@ -294,15 +305,15 @@ def book_seconds(db, user_id, tzm, covered, cutoff, range_end) -> dict[int, tupl
         for r in rows2:
             e = out.setdefault(r.book_id, [0, 0, 0])
             e[0] += int(r.secs or 0); e[2] += int(r.pages or 0)
-        for c in _cluster_rows(db, user_id, tzm, cutoff, range_end):
+        for c in _cluster_rows(db, user_id, day, cutoff, range_end):
             e = out.setdefault(c.book_id, [0, 0, 0])
             e[1] += 1
     return {b: (v[0], v[1], v[2]) for b, v in out.items()}
 
 
-def book_month_seconds(db, user_id, tzm, covered, start_dt) -> dict[tuple[int, str], int]:
+def book_month_seconds(db, user_id, day, covered, start_dt) -> dict[tuple[int, str], int]:
     """(book_id, 'YYYY-MM') -> seconds. For the genre-over-time stack."""
-    rs_month = func.strftime("%Y-%m", func.datetime(ReadingSession.started_at, tzm))
+    rs_month = func.strftime("%Y-%m", day.dt_shifted(ReadingSession.started_at))
     rows = (
         _rs_filtered(db, user_id, covered, start_dt, None)
         .filter(ReadingSession.book_id.isnot(None))
@@ -312,7 +323,7 @@ def book_month_seconds(db, user_id, tzm, covered, start_dt) -> dict[tuple[int, s
     )
     out: dict[tuple[int, str], int] = {(r.book_id, r.m): int(r.secs or 0) for r in rows}
     if covered:
-        ps_month = func.strftime("%Y-%m", _ps_local(tzm))
+        ps_month = func.strftime("%Y-%m", _ps_local(day, rollover=True))
         rows2 = (
             _ps_filtered(db, user_id, start_dt, None)
             .with_entities(PageStat.book_id, ps_month.label("m"),
@@ -324,9 +335,9 @@ def book_month_seconds(db, user_id, tzm, covered, start_dt) -> dict[tuple[int, s
     return out
 
 
-def book_day_seconds(db, user_id, tzm, covered) -> dict[tuple[int, str], int]:
+def book_day_seconds(db, user_id, day, covered) -> dict[tuple[int, str], int]:
     """(book_id, 'YYYY-MM-DD') -> seconds, all time. For the reading timeline."""
-    rs_day = func.date(ReadingSession.started_at, tzm)
+    rs_day = day.dt_day(ReadingSession.started_at)
     rows = (
         _rs_filtered(db, user_id, covered, None, None)
         .filter(ReadingSession.book_id.isnot(None))
@@ -338,7 +349,7 @@ def book_day_seconds(db, user_id, tzm, covered) -> dict[tuple[int, str], int]:
     if covered:
         rows2 = (
             _ps_filtered(db, user_id, None, None)
-            .with_entities(PageStat.book_id, _ps_day(tzm).label("d"),
+            .with_entities(PageStat.book_id, _ps_day(day).label("d"),
                            func.coalesce(func.sum(PageStat.duration_seconds), 0).label("secs"))
             .group_by(PageStat.book_id, "d").all()
         )
@@ -349,9 +360,9 @@ def book_day_seconds(db, user_id, tzm, covered) -> dict[tuple[int, str], int]:
 
 # ── Hour × day-of-week ──────────────────────────────────────────────────────────
 
-def hour_dow(db, user_id, tzm, covered, cutoff, range_end) -> dict[tuple[int, int], tuple[int, int]]:
+def hour_dow(db, user_id, day, covered, cutoff, range_end) -> dict[tuple[int, int], tuple[int, int]]:
     """(dow, hour) -> (seconds, sessions)."""
-    rs_local = func.datetime(ReadingSession.started_at, tzm)
+    rs_local = day.dt_shifted(ReadingSession.started_at, rollover=False)
     rows = (
         _rs_filtered(db, user_id, covered, cutoff, range_end)
         .with_entities(
@@ -367,8 +378,8 @@ def hour_dow(db, user_id, tzm, covered, cutoff, range_end) -> dict[tuple[int, in
         rows2 = (
             _ps_filtered(db, user_id, cutoff, range_end)
             .with_entities(
-                func.cast(func.strftime("%w", _ps_local(tzm)), Integer).label("dow"),
-                func.cast(func.strftime("%H", _ps_local(tzm)), Integer).label("hour"),
+                func.cast(func.strftime("%w", _ps_local(day, rollover=False)), Integer).label("dow"),
+                func.cast(func.strftime("%H", _ps_local(day, rollover=False)), Integer).label("hour"),
                 func.coalesce(func.sum(PageStat.duration_seconds), 0).label("secs"),
                 func.count(func.distinct(PageStat.book_id)).label("sessions"),
             )
@@ -382,9 +393,9 @@ def hour_dow(db, user_id, tzm, covered, cutoff, range_end) -> dict[tuple[int, in
 
 # ── Monthly (per 'YYYY-MM') ─────────────────────────────────────────────────────
 
-def monthly_map(db, user_id, tzm, covered, start_dt) -> dict[str, tuple[int, int]]:
+def monthly_map(db, user_id, day, covered, start_dt) -> dict[str, tuple[int, int]]:
     """'YYYY-MM' -> (seconds, sessions)."""
-    rs_month = func.strftime("%Y-%m", func.datetime(ReadingSession.started_at, tzm))
+    rs_month = func.strftime("%Y-%m", day.dt_shifted(ReadingSession.started_at))
     rows = (
         _rs_filtered(db, user_id, covered, start_dt, None)
         .with_entities(rs_month.label("m"),
@@ -396,7 +407,7 @@ def monthly_map(db, user_id, tzm, covered, start_dt) -> dict[str, tuple[int, int
     if covered:
         day_groups = (
             _ps_filtered(db, user_id, start_dt, None)
-            .with_entities(PageStat.book_id, _ps_day(tzm).label("day"),
+            .with_entities(PageStat.book_id, _ps_day(day).label("day"),
                            func.sum(PageStat.duration_seconds).label("secs"))
             .group_by(PageStat.book_id, "day").all()
         )
@@ -409,7 +420,7 @@ def monthly_map(db, user_id, tzm, covered, start_dt) -> dict[str, tuple[int, int
 
 # ── Reconciled active-day set (for streaks) ─────────────────────────────────────
 
-def active_days(db, user_id, tzm, covered) -> set:
+def active_days(db, user_id, day, covered) -> set:
     from datetime import date as _date
     # A day is "active" if the user read at all that day — page-stat OR session,
     # covered book or not. We deliberately do NOT exclude covered-book sessions
@@ -421,14 +432,14 @@ def active_days(db, user_id, tzm, covered) -> set:
     rs_days = {
         r[0] for r in
         _rs_filtered(db, user_id, [], None, None)
-        .with_entities(func.date(ReadingSession.started_at, tzm)).distinct().all()
+        .with_entities(day.dt_day(ReadingSession.started_at)).distinct().all()
         if r[0]
     }
     if covered:
         rs_days |= {
             r[0] for r in
             _ps_filtered(db, user_id, None, None)
-            .with_entities(_ps_day(tzm)).distinct().all()
+            .with_entities(_ps_day(day)).distinct().all()
             if r[0]
         }
     return {_date.fromisoformat(d) for d in rs_days}

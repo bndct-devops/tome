@@ -392,7 +392,7 @@ def _serialize_books(db: Session, owner: User, books: list) -> list[dict]:
     content, and it is what makes a share worth looking at. Still zero routes
     to files."""
     from backend.services import reconciled_reading as rr
-    from backend.services.reading_day import date_modifier
+    from backend.services.reading_day import DayCtx
 
     book_ids = [b.id for b in books]
     status_rows = {
@@ -407,7 +407,7 @@ def _serialize_books(db: Session, owner: User, books: list) -> list[dict]:
     # Reconciled per-day reading (UTC day-bucketing — the owner's exact tz is
     # unknown server-side and a public page doesn't need it to the hour).
     covered = rr.covered_book_ids(db, owner.id)
-    day_secs = rr.book_day_seconds(db, owner.id, date_modifier(0), covered)
+    day_secs = rr.book_day_seconds(db, owner.id, DayCtx(0), covered)
     activity: dict[int, list[dict]] = {}
     for (bid, day), secs in sorted(day_secs.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
         if bid in (set(book_ids)) and secs > 0 and day is not None:
