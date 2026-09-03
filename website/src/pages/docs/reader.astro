@@ -64,6 +64,25 @@ import { withBase } from '../../lib/path'
     </tbody>
   </table>
 
+  <h3 id="tap-zones">Tap zones</h3>
+  <p>
+    On a touch screen, tapping the reading surface turns the page. Which side does what is a
+    setting in the reader's settings panel (<Kbd>s</Kbd>), shared by the EPUB and comic readers
+    and remembered per browser:
+  </p>
+  <ul>
+    <li><strong>Default</strong> — tap right for the next page, left for the previous one.</li>
+    <li><strong>Swapped</strong> — tap left for next. For reading one-handed with the device in
+      your left hand, thumb over the near edge.</li>
+    <li><strong>Off</strong> — taps never turn pages; swipe instead. Useful when you keep
+      turning pages by accident while zooming or scrolling.</li>
+  </ul>
+  <p>
+    Right-to-left comics keep advancing in their reading direction whatever the setting says,
+    swipes and arrow keys are unaffected, and while zoomed into a comic page taps pan rather
+    than turn.
+  </p>
+
   <h2>Highlights &amp; notes</h2>
   <p>
     Your KOReader highlights are painted right in the text, in their KOReader colours. Each
@@ -123,6 +142,7 @@ import { withBase } from '../../lib/path'
   <Callout variant="tip" title="Mobile gestures work too">
     Tap left/right thirds of the screen to turn pages, tap centre for the controls overlay.
     Pinch-zoom is supported in page mode.
+    Which side means "next" is the <a href="#tap-zones">tap zones</a> setting above.
   </Callout>
 
   <h2>PDF</h2>

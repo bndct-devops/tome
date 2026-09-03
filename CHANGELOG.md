@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-03
+
 ### Changed
 - Smoother interface motion throughout the web app. Dialogs now animate
   out as well as in, the notification dropdown pops from its corner, and
@@ -23,6 +25,10 @@ All notable changes to Tome are documented here. Format loosely follows
   alongside the offset and the server buckets each timestamp against the
   timezone's real transition history. Clients that only send an offset
   (KOReader plugin, external API users) keep the previous behaviour.
+- OPDS search returns results again. The OpenSearch description pointed
+  readers at the descriptor URL instead of the results feed, so a search from
+  an OPDS client got the description document back and showed nothing. Thanks
+  @ziozzang. (#193)
 
 ### Added
 - Per-user content restrictions, set by an admin in Admin → Users. Hidden

@@ -68,6 +68,10 @@ Tome ships with three built-in themes:
 
 Switch themes in **Settings > Appearance**. The theme is stored per-browser, so different devices can use different themes.
 
+### Interface Language
+
+The web UI is translatable. Choose a language in **Settings > Appearance > Language**; on first visit Tome follows the browser language when a catalog exists for it. Translations are community-maintained `.po` files and anything untranslated falls back to English -- see [translating.md](translating.md) to improve or add one. The KOReader plugin, OPDS and the website stay English.
+
 ### Custom Themes
 
 You can create a fully custom theme by pasting 10 comma-separated hex color values in **Settings > Appearance > Custom Theme**. The 10 values map to the theme's color palette in order. Custom themes are stored per-browser alongside your theme preference.
@@ -148,6 +152,15 @@ Click any book's cover to open the cover picker. Search Google Books and OpenLib
 
 Admins have an additional uploader dropdown filter on the dashboard to view books by a specific user.
 
+### Content Restrictions
+
+Admins can narrow an individual account further under **Admin > Users**:
+
+- **Hidden tags** -- a comma-separated list. Books carrying any of these tags (matched case-insensitively) are invisible to that user everywhere: browsing, search, filters, OPDS and the KOReader plugin, including the user's own uploads. Untagged books are not affected, so tag first, then hide.
+- **Downloads per day** -- a cap on files fetched per UTC day, enforced on every download path (single file, bulk ZIP, OPDS, TomeSync). Blank means unlimited, `0` disables downloads.
+
+Admin accounts are never restricted.
+
 ---
 
 ## Filtering
@@ -205,3 +218,4 @@ How your collection grows and what you finish:
 - **Completion by type** — finish rates per book type
 - **Per-book time table** — total time, sessions, and pages turned for every book
 - **Library growth** — books added over time
+- **Backlog** -- how long your unstarted books would take at your own pace (hours from word count x your reading speed, days from your recent minutes per day), scoped to Want to Read, all unread, a library, or a shelf. The same estimate shows as "Est. read time" on the book page and "left in this series" on the series page
