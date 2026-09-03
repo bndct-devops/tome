@@ -11,6 +11,7 @@ Tome has a built-in reader that handles EPUBs, manga/comics (CBZ/CBR), and PDFs 
 - Adjustable font size and font family (serif, sans-serif, monospace)
 - Reading position saved automatically via EPUB CFI -- reopen a book and you're right where you left off
 - Progress percentage tracked and visible on the dashboard
+- Tap zones -- on touch screens, choose in the reader settings whether tapping the right side (Default) or the left side (Swapped) turns to the next page, or turn taps off and swipe only. Shared with the comic reader, stored per browser
 
 ---
 
@@ -19,6 +20,7 @@ Tome has a built-in reader that handles EPUBs, manga/comics (CBZ/CBR), and PDFs 
 Pages are streamed individually from the server -- no need to download the entire archive before reading.
 
 - **Page navigation** -- click/tap left or right half of the screen, use arrow keys, or swipe on mobile
+- **Tap zones** -- Default (tap right for next), Swapped (tap left for next, for one-handed reading), or Off (swipe only). Set in the reader settings panel; RTL volumes keep advancing in their reading direction
 - **Two-page spread** -- auto-enabled on wide screens, toggle with `S` key. Pages display side-by-side like an open book
 - **RTL (right-to-left)** -- auto-enabled for manga book types. Page order and navigation direction flip so manga reads correctly. Toggle with `R` key
 - **Fit modes** -- fit-to-width or fit-to-height, toggle with `W` key

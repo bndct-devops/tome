@@ -328,6 +328,32 @@ import { withBase } from '../../lib/path'
     acquisition sprees you'd otherwise forget about.
   </p>
 
+  <h3>Backlog</h3>
+  <p>
+    How long the pile would take at your own pace. The tile sums an estimate for every book you
+    haven't started in its scope and shows the total in hours and in days, with a per-type
+    breakdown underneath. The scope is picked in the tile's edit-mode settings: your
+    <strong>Want to Read</strong> queue (the default), everything unread, a library, or a shelf.
+  </p>
+  <ul>
+    <li><strong>Hours</strong> come from the book's word count at your measured words per minute.
+      Books without a word count — CBZ and PDF — fall back to your average time per finished
+      book of that type. A book Tome can't place either way is counted as "not estimated yet"
+      rather than guessed.</li>
+    <li><strong>Days</strong> come from your minutes per day over the last 30 days, or the last
+      90 when the past month was quiet. No recent reading, no day figure.</li>
+  </ul>
+  <p>
+    The same estimate appears in two other places: the book page shows an <strong>Est. read
+    time</strong> cell in Details (hover it to see which pace was used), and the series page puts
+    "left in this series" over the unstarted volumes.
+  </p>
+
+  <Callout variant="info" title="It needs a couple of finished books first">
+    The pace is measured, not assumed. Until you have finished a few word-counted books of a type
+    the tile asks you to, instead of inventing a number.
+  </Callout>
+
   <h2>Timeline board</h2>
   <p>
     Your reading life as a Gantt chart. One lane per series (standalones get their own),

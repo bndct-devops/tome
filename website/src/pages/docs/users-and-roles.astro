@@ -3,6 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import SectionHero from '../../components/SectionHero.astro'
 import DocsMeta from '../../components/DocsMeta.astro'
 import Callout from '../../components/Callout.astro'
+import { withBase } from '../../lib/path'
 import Steps from '../../components/Steps.astro'
 import { ThemedShot } from '../../components/ThemedShot'
 import { RolesVisibilityDemo } from '../../components/mockups/RolesVisibilityDemo'
@@ -85,6 +86,36 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
     The dashboard has a "My books / Shared library" toggle for members so they can flip between
     "only books I uploaded" and "everything I have access to."
   </p>
+
+  <h2>Content restrictions</h2>
+  <p>
+    Library membership decides <em>which</em> books an account can reach. Two per-account
+    restrictions, set by an admin under <strong>Admin → Users</strong>, narrow that further.
+    They are meant for the shared-instance case: a child's account, a guest you'd rather
+    not hand the whole shelf to, an account that is really a KOReader on the family Wi-Fi.
+  </p>
+  <ul>
+    <li><strong>Hidden tags.</strong> A comma-separated list of tags. A book carrying any of them
+      is invisible to that account everywhere — browsing, search, filters and facets, the series
+      view, OPDS and the KOReader plugin — and is invisible even if the account uploaded it. Tags
+      match case-insensitively, so <code>Adult</code> and <code>adult</code> are the same
+      restriction. A hidden book answers 404 to that account, exactly like a book that isn't
+      there.</li>
+    <li><strong>Downloads per day.</strong> A cap on how many files the account can fetch per UTC
+      day, enforced on every download path: single file, bulk ZIP, OPDS and TomeSync. Blank means
+      unlimited, <code>0</code> disables downloads entirely. Only files actually served count, and
+      the day boundary is UTC because OPDS apps and e-readers send no timezone.</li>
+  </ul>
+  <p>
+    Admin accounts are never restricted, and reading in the browser is not a download. Both
+    restrictions live on the account, not on the books, so nothing changes for anyone else.
+  </p>
+
+  <Callout variant="tip" title="Hidden tags only hide what is tagged">
+    The gate is the tag, so an untagged book passes. Tag the books you want to keep out of reach
+    first — bulk metadata edit on a filtered selection, or <a href={withBase("/docs/scribe")}>Scribe</a>,
+    both do it in one go — and then hide the tag.
+  </Callout>
 
   <h2>Libraries</h2>
   <p>

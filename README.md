@@ -166,6 +166,17 @@ Requirements: Python 3.12+, Node.js 18+
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for project conventions and PR guidelines.
 
+## Translating
+
+The web UI is translatable. English is the source and lives in the code;
+every other language is a community-maintained catalog under
+`frontend/src/locales/<code>/messages.po`, editable with any text editor or
+[Poedit](https://poedit.net/). Anything not yet translated falls back to
+English, so partial catalogs are fine to ship. To improve a language, fill in
+the empty `msgstr` entries and open a pull request; to add one, see
+[docs/translating.md](docs/translating.md) for the two-line setup. The
+KOReader plugin and this website stay English for now.
+
 ## Documentation
 
 - [Reader](docs/reader.md) -- EPUB, comic/manga reader, keyboard shortcuts, ComicInfo.xml
@@ -174,6 +185,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for project conventions and PR guidelines
 - [Scribe](docs/scribe.md) -- Claude Code Skill for batch ingest, metadata refresh, and series audits
 - [Import Script](docs/import.md) -- bulk importing an existing collection from filenames
 - [Features](docs/features.md) -- Quick Connect, OPDS PINs, permissions, themes, API tokens, and more
+- [Translating](docs/translating.md) -- improving or adding a UI language
 
 ## Acknowledgements
 
