@@ -23,8 +23,6 @@ def shelf_query(db: Session, user: User, params: dict):
     """-> (query over Book, unsupported_keys). Values arrive as URL-shaped
     strings ('true', '3'); coerce where needed. Visibility is always the
     given user's — a shelf can never show more than its owner can see."""
-    from sqlalchemy import text as sa_text
-
     visibility = book_visibility_filter(db, user)
     query = (
         db.query(Book)
@@ -36,11 +34,8 @@ def shelf_query(db: Session, user: User, params: dict):
 
     q = params.get("q")
     if q:
-        terms = str(q).split()
-        fts_term = " ".join(f'"{t.replace(chr(34), "")}"*' for t in terms if t)
-        fts_ids = [r[0] for r in db.execute(
-            sa_text("SELECT rowid FROM books_fts WHERE books_fts MATCH :q"),
-            {"q": fts_term}).fetchall()]
+        from backend.services.fts import search_book_ids
+        fts_ids = search_book_ids(db, str(q))
         query = query.filter(Book.id.in_(fts_ids) if fts_ids else Book.id == -1)
     if params.get("series"):
         query = query.filter(Book.series == params["series"])

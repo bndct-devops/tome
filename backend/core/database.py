@@ -59,20 +59,33 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_fts(engine) -> None:
-    """Ensure books_fts exists as a STANDARD (self-contained) FTS5 table.
+    """Ensure books_fts exists as a STANDARD (self-contained) FTS5 table,
+    tokenized with ``trigram``.
 
     Standard FTS5 (no ``content=`` option) supports DELETE/INSERT by rowid, which
     lets us maintain the index incrementally per book (see services/fts.py).
     Migrates any pre-existing table — the old contentless (``content=''``) or
-    external-content (``content='books'``) variants, or one missing the tags
-    column — by dropping and recreating it; backfill_fts() then repopulates it.
+    external-content (``content='books'``) variants, one missing the tags
+    column, or one still on the default (non-trigram) tokenizer — by dropping
+    and recreating it; backfill_fts() then repopulates it.
+
+    The default ``unicode61`` tokenizer treats a run of CJK characters with no
+    whitespace as a single token, so it can only match a search term against
+    the *start* of a title/description/etc — a term like "다라" never matches
+    inside "가나다라". ``trigram`` indexes every overlapping 3-character
+    substring instead, so any 3+ character term matches anywhere it occurs.
+    (Terms under 3 characters — a normal whole-word length in Korean, Chinese
+    and Japanese — need a separate fallback; see services.fts.search_book_ids.)
     """
     with engine.connect() as conn:
         row = conn.execute(text(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='books_fts'"
         )).fetchone()
         sql = (row[0] or "") if row else ""
-        needs_recreate = (not row) or ("content=" in sql) or ("tags" not in sql)
+        needs_recreate = (
+            (not row) or ("content=" in sql) or ("tags" not in sql)
+            or ("trigram" not in sql)
+        )
         if row and needs_recreate:
             conn.execute(text("DROP TABLE IF EXISTS books_fts"))
             for trig in ("books_fts_insert", "books_fts_delete", "books_fts_update"):
@@ -80,7 +93,7 @@ def init_fts(engine) -> None:
         if needs_recreate:
             conn.execute(text("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-                    title, author, series, description, tags
+                    title, author, series, description, tags, tokenize='trigram'
                 )
             """))
         conn.commit()

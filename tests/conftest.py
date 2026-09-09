@@ -110,11 +110,13 @@ def _init_test_db():
     Base.metadata.create_all(bind=test_engine)
 
     # Create the FTS virtual table (content-less FTS5 is a SQLite extension,
-    # available in CPython's bundled sqlite3 build).
+    # available in CPython's bundled sqlite3 build). Mirrors init_fts()'s
+    # schema (backend/core/database.py) so tests exercise the same trigram
+    # tokenizer used in production.
     with test_engine.connect() as conn:
         conn.execute(text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-                title, author, series, description, tags
+                title, author, series, description, tags, tokenize='trigram'
             )
         """))
         conn.commit()
