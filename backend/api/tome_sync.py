@@ -91,8 +91,8 @@ logger = logging.getLogger(__name__)
 # username is display-only, derived from /auth/me at pairing time. Plus an
 # input_hint fix (ghost text never showed; the field was misnamed "hint") and
 # a settings-menu reorder. Co-developed with @pabsan-0.
-TOMESYNC_PLUGIN_BUILD = 44
-TOMESYNC_PLUGIN_SEMVER = "1.15.2"
+TOMESYNC_PLUGIN_BUILD = 45
+TOMESYNC_PLUGIN_SEMVER = "1.15.3"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -4965,7 +4965,8 @@ local function healBookInfoRow(path)
     local cds = DocSettings.openSettingsFile(cmf)
     local custom = cds:readSetting("custom_props")
     if type(custom) ~= "table" then return true end
-    return insertBookInfoRow(path, custom, cds:readSetting("doc_props"))
+    local ok = insertBookInfoRow(path, custom, cds:readSetting("doc_props"))
+    return ok, ok      -- healed?, wrote a row?
 end
 
 -- Last resort when a direct row write failed (schema drift): BIM's own
@@ -5316,8 +5317,15 @@ function TomeSync:_syncMetadataImpl(interactive)
             self.meta_ledger[c.path] = led
             -- Self-heal: a book we wrote to earlier whose cache row is gone
             -- (deleted by build 42/43) gets re-extracted in the background.
-            if led.keys and not healBookInfoRow(c.path) then
-                table.insert(missing_rows, c.path)
+            if led.keys then
+                local healed, wrote = healBookInfoRow(c.path)
+                if not healed then
+                    table.insert(missing_rows, c.path)
+                elseif wrote then
+                    -- A cache row was rebuilt: displays must be told, or
+                    -- bookshelf keeps its stale series list (Kindle pass).
+                    changed_any = true
+                end
             end
             bump(c)
         end)

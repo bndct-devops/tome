@@ -233,5 +233,7 @@ def test_build_bumped_for_rebake():
     # 1.15.2 / build 44 updates the cover-browser cache row in place instead
     # of deleting it (bookshelf series views lost the books whose rows were
     # gone) and queues a background re-extraction for rows already missing.
-    assert TOMESYNC_PLUGIN_BUILD >= 44
-    assert TOMESYNC_PLUGIN_SEMVER == "1.15.2"
+    # 1.15.3 / build 45 broadcasts BookMetadataChanged after the self-heal
+    # rebuilt cache rows (bookshelf's series list stayed stale otherwise).
+    assert TOMESYNC_PLUGIN_BUILD >= 45
+    assert TOMESYNC_PLUGIN_SEMVER == "1.15.3"

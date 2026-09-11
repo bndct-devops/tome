@@ -295,6 +295,10 @@ def test_plugin_writes_koreader_custom_metadata_not_the_file():
     assert "insertBookInfoRow(path, custom, cds:readSetting(\"doc_props\"))" in apply
     assert "healBookInfoRow(c.path)" in impl
     assert "reextractMissingRows(missing_rows)" in impl
+    # Rebuilding a missing row counts as a change: bookshelf clears its
+    # series cache only on BookMetadataChanged.
+    heal = impl[impl.index("local healed, wrote = healBookInfoRow(c.path)"):]
+    assert "elseif wrote then" in heal and "changed_any = true" in heal[:400]
     assert "UIManager:scheduleIn(5, function() pcall(bim.extractInBackground" in lua
     cols = lua[lua.index("local BIM_COLS = {"):lua.index("}", lua.index("local BIM_COLS = {"))]
     assert cols.count('"') == 50                                  # 25 columns, INSERT order
