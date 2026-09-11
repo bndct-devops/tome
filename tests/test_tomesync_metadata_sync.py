@@ -330,6 +330,20 @@ def test_plugin_reports_old_server_distinctly():
     assert "does not support metadata sync yet" in impl
 
 
+def test_plugin_gates_on_koreader_custom_metadata_support():
+    """KOReader < 2023.10 has no custom metadata API: menu entries are
+    disabled and a manual run explains instead of failing every book."""
+    lua = _impl()
+    assert "\nlocal function metaSyncSupported()" in lua
+    assert 'type(DocSettings.flushCustomMetadata) == "function"' in lua
+    menu = _body(lua, "_menuItems")
+    assert menu.count("enabled_func = metaSyncSupported") == 2
+    assert "Needs KOReader " in menu
+    sync = _body(lua, "_syncMetadata")
+    assert "if not metaSyncSupported() then" in sync
+    assert "or newer (custom book metadata)" in sync
+
+
 def test_plugin_menu_and_triggers():
     lua = _impl()
     menu = _body(lua, "_menuItems")

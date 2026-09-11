@@ -19,7 +19,7 @@ Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 
 ## Highlights
 
-- **TomeSync** -- custom KOReader plugin records reading sessions, syncs positions bidirectionally (device to web, web to device), and works fully offline. This is what makes Tome different. [Details](docs/koreader-plugin.md)
+- **TomeSync** -- custom KOReader plugin records reading sessions, syncs positions bidirectionally (device to web, web to device), and works fully offline. This is what makes Tome different. Use a current KOReader release (v2024.07 or newer for all features). [Details](docs/koreader-plugin.md)
 - **Reading stats** -- session tracking, streaks, time-of-day heatmaps, reading pace, completion estimates, genre trends, monthly comparisons, and per-book breakdowns -- all powered by real session data from your e-reader
 - **Hardcover sync** -- push your ratings (half-stars included), progress, and finish dates to your [Hardcover](https://hardcover.app) profile. One-way, opt-in, per-user; nothing is ever deleted on Hardcover. If you don't know Hardcover yet: it's the indie, ad-free Goodreads alternative with a public API -- well worth a look even without Tome. [Details](https://tome.bndct.sh/docs/hardcover)
 - **Metadata from 3 sources** -- fetch and compare metadata from [Hardcover](https://hardcover.app), Google Books, and OpenLibrary with a side-by-side diff UI

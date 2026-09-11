@@ -4818,6 +4818,16 @@ end
 -- to the file's embedded value instead of sticking.
 
 local META_CHUNK = 25
+local META_MIN_KOREADER = "2023.10"
+
+-- KOReader gained custom metadata in v2023.10; older builds have no
+-- DocSettings:flushCustomMetadata, so there is nothing to write into.
+local function metaSyncSupported()
+    local ok, DocSettings = pcall(require, "docsettings")
+    return ok and type(DocSettings) == "table"
+        and type(DocSettings.flushCustomMetadata) == "function"
+        and type(DocSettings.findCustomMetadataFile) == "function"
+end
 local META_PROPS = {{ "title", "authors", "series", "series_index", "language",
                      "keywords", "description" }}
 
@@ -5034,6 +5044,16 @@ end
 
 function TomeSync:_syncMetadata(interactive)
     if not interactive and not G_reader_settings:isTrue("tomesync_meta_sync") then return end
+    if not metaSyncSupported() then
+        if interactive then
+            UIManager:show(InfoMessage:new{{
+                text = "Metadata sync needs KOReader " .. META_MIN_KOREADER
+                       .. " or newer (custom book metadata).",
+                timeout = 5,
+            }})
+        end
+        return
+    end
     -- Automatic triggers (launch, WiFi up, sweep) can land within seconds of
     -- each other - KOReader raises NetworkConnected right at startup - and a
     -- second pass would only re-send fingerprints. One automatic run per two
@@ -5593,7 +5613,9 @@ function TomeSync:_menuItems()
                   .. "cover for the books on this device into KOReader's custom "
                   .. "metadata. Only books Tome can verify by file hash are "
                   .. "touched; the book files themselves are never modified. "
-                  .. "Runs regardless of the automatic setting.",
+                  .. "Runs regardless of the automatic setting. Needs "
+                  .. "KOReader " .. META_MIN_KOREADER .. " or newer.",
+        enabled_func = metaSyncSupported,
         callback  = function() self:_syncMetadata(true) end,
     }})
     -- Inbox: only shown when the server has Send-to-KOReader enabled (set by the
@@ -5718,7 +5740,9 @@ function TomeSync:_menuItems()
                        .. "(the book files are never modified). Tome is the "
                        .. "source of truth: metadata edited on this device is "
                        .. "overridden. Runs shortly after launch and when WiFi "
-                       .. "connects; \\"Apply Tome metadata now\\" runs it on demand.",
+                       .. "connects; \\"Apply Tome metadata now\\" runs it on demand. "
+                       .. "Needs KOReader " .. META_MIN_KOREADER .. " or newer.",
+        enabled_func = metaSyncSupported,
         checked_func = function() return G_reader_settings:isTrue("tomesync_meta_sync") end,
         callback     = function()
             local on = not G_reader_settings:isTrue("tomesync_meta_sync")

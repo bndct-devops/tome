@@ -6,6 +6,8 @@ Syncs reading progress and sessions between KOReader and your Tome library.
 
 ## Setup
 
+**KOReader version.** Use the current KOReader release; the plugin is developed and tested against the latest stable (v2025.08 at the time of writing) and self-updates alongside Tome. Minimum for all features is **v2024.07** (highlights sync uses KOReader's annotations API). Older releases still load the plugin, but features that need a newer API are disabled: metadata sync needs v2023.10 or newer, and the file browser refreshes ratings only after a restart before v2025.04.
+
 1. Open Tome in your browser at `http://<your-server>:<port>/settings`
 2. Scroll to the **KOReader** section
 3. Click **Download Plugin**

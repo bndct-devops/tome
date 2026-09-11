@@ -36,6 +36,12 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     <li>Restart KOReader. TomeSync registers itself in the wrench menu.</li>
   </Steps>
 
+  <Callout variant="note" title="KOReader version">
+    Use the current KOReader release. All features need <strong>v2024.07 or newer</strong>
+    (highlights sync relies on KOReader's annotations API); metadata sync needs v2023.10 or
+    newer. Older releases still load the plugin, with the affected entries disabled.
+  </Callout>
+
   <Callout variant="tip" title="No manual config">
     Other tools document KOSync setup. Tome ships a plugin pre-configured. No URL entry, no
     account registration, no key pasting. Press <Kbd>⌘</Kbd>+<Kbd>K</Kbd> if you can't find
