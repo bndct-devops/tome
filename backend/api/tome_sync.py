@@ -91,8 +91,8 @@ logger = logging.getLogger(__name__)
 # username is display-only, derived from /auth/me at pairing time. Plus an
 # input_hint fix (ghost text never showed; the field was misnamed "hint") and
 # a settings-menu reorder. Co-developed with @pabsan-0.
-TOMESYNC_PLUGIN_BUILD = 43
-TOMESYNC_PLUGIN_SEMVER = "1.15.1"
+TOMESYNC_PLUGIN_BUILD = 44
+TOMESYNC_PLUGIN_SEMVER = "1.15.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -4860,6 +4860,129 @@ local function sidecarSig(path)
         .. tostring(cv and lfs.attributes(cv, "modification") or 0)
 end
 
+-- CoverBrowser's BookInfoManager (BIM) caches title/author/series/cover per
+-- file in bookinfo_cache.sqlite3, and other plugins (bookshelf) build their
+-- shelves and series groups from those rows. Build 42/43 *deleted* the row
+-- for every book it touched (InvalidateMetadataCache) and relied on the
+-- cover browser re-extracting on display - but only the cover browser does
+-- that, only for what it shows, so books not browsed that way dropped out
+-- of bookshelf's series views. Now the row is updated in place, and a row
+-- that is missing gets a background re-extraction queued (BIM's own
+-- subprocess, no UI freeze; covers follow lazily on display).
+local function bookInfoManager()
+    local ok, bim = pcall(require, "bookinfomanager")
+    if ok and type(bim) == "table" and bim.getBookInfo and bim.setBookInfoProperties then
+        return bim
+    end
+    return nil
+end
+
+-- Update BIM's cached row with what the device now shows. `props` are the
+-- effective custom_props; `cleared` lists keys that went back to the file's
+-- own value (NULL them, the next extraction fills the true value in).
+-- Returns "updated" | "missing" | nil (no BIM).
+local function updateBookInfoRow(path, props, cleared, cover_changed)
+    local bim = bookInfoManager()
+    if not bim then return nil end
+    local ok, row = pcall(bim.getBookInfo, bim, path, false)
+    if not ok or type(row) ~= "table" then return "missing" end
+    local upd = {{}}
+    for _, k in ipairs(META_PROPS) do
+        if props[k] ~= nil then
+            upd[k] = props[k]
+        elseif cleared and cleared[k] then
+            upd[k] = false
+        end
+    end
+    if cover_changed then
+        -- Keep the old thumbnail on screen; a nil cover_fetched makes the
+        -- cover browser / bookshelf re-fetch the cover at their own size.
+        upd.cover_fetched = false
+    end
+    if next(upd) ~= nil then
+        pcall(bim.setBookInfoProperties, bim, path, upd)
+    end
+    return "updated"
+end
+
+-- BIM's bookinfo columns, in INSERT order (stable since 2020). Used to write
+-- a metadata-only row for a file whose row is missing - exactly what BIM's
+-- own extraction produces without cover_specs, minus the document open.
+-- Covers follow lazily: cover_fetched stays NULL, so the cover browser and
+-- bookshelf fetch one at their own size when they next display the book.
+local BIM_COLS = {{
+    "directory", "filename", "filesize", "filemtime", "in_progress",
+    "unsupported", "cover_fetched", "has_meta", "has_cover", "cover_sizetag",
+    "ignore_meta", "ignore_cover", "pages",
+    "title", "authors", "series", "series_index", "language", "keywords", "description",
+    "cover_w", "cover_h", "cover_bb_type", "cover_bb_stride", "cover_bb_data",
+}}
+
+-- Insert (or replace a stale in-progress) row from the merged view KOReader
+-- shows: custom props over the file's own. Returns true on success.
+local function insertBookInfoRow(path, custom, orig)
+    local bim = bookInfoManager()
+    if not bim then return false end
+    local attr = lfs.attributes(path)
+    if not attr then return false end
+    local dir, name = util.splitFilePathName(path)
+    local row = {{
+        directory = dir, filename = name,
+        filesize = attr.size, filemtime = attr.modification,
+        in_progress = 0, pages = orig and orig.pages or nil,
+    }}
+    local any = false
+    for _, k in ipairs(META_PROPS) do
+        local v = custom[k]
+        if v == nil and orig then v = orig[k] end
+        if v ~= nil then row[k] = v; any = true end
+    end
+    if any then row.has_meta = "Y" end
+    local ok = pcall(function()
+        bim:openDbConnection()
+        for i, col in ipairs(BIM_COLS) do
+            bim.set_stmt:bind1(i, row[col])
+        end
+        bim.set_stmt:step()
+        bim.set_stmt:clearbind():reset()
+    end)
+    if not ok then
+        pcall(function() bim.set_stmt:clearbind():reset() end)
+    end
+    return ok
+end
+
+-- Self-heal for a file we wrote to earlier whose row is gone (deleted by
+-- build 42/43): rebuild it from the custom-metadata file we left behind.
+local function healBookInfoRow(path)
+    local bim = bookInfoManager()
+    if not bim then return true end             -- nothing to heal without BIM
+    local ok, row = pcall(bim.getBookInfo, bim, path, false)
+    if not ok or row ~= nil then return true end
+    local DocSettings = require("docsettings")
+    local cmf = DocSettings:findCustomMetadataFile(path)
+    if not cmf then return true end
+    local cds = DocSettings.openSettingsFile(cmf)
+    local custom = cds:readSetting("custom_props")
+    if type(custom) ~= "table" then return true end
+    return insertBookInfoRow(path, custom, cds:readSetting("doc_props"))
+end
+
+-- Last resort when a direct row write failed (schema drift): BIM's own
+-- background extraction. Deferred a few seconds so it does not collide with
+-- the cover browser's post-refresh job (starting a job kills the previous).
+local function reextractMissingRows(paths)
+    if #paths == 0 then return 0 end
+    local bim = bookInfoManager()
+    if not bim or not bim.extractInBackground then return 0 end
+    local files = {{}}
+    for _, path in ipairs(paths) do
+        table.insert(files, {{ filepath = path }})
+    end
+    UIManager:scheduleIn(5, function() pcall(bim.extractInBackground, bim, files) end)
+    return #files
+end
+
 local function fetchToFile(api_path, dest)
     if not NetworkMgr:isConnected() then return false, "offline" end
     local fh = io.open(dest, "wb")
@@ -5000,10 +5123,17 @@ function TomeSync:_applyDeviceMetadata(path, entry, prev_keys)
             os.remove(tmp)
         end
     end
-    -- Drop the cover browser's cached row for this file: it caches the merged
-    -- props + cover at extraction time and re-extracts on next display.
-    UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", path))
-    return true, nil, keys, cover_ok, sidecarSig(path)
+    -- Keep the cover browser's cached row current (it caches the merged
+    -- props + cover at extraction time). Updated in place; never deleted.
+    local cleared = {{}}
+    if prev_keys then
+        for k in pairs(prev_keys) do if not keys[k] then cleared[k] = true end end
+    end
+    local row_state = updateBookInfoRow(path, custom, cleared, entry.cover == true and cover_ok)
+    if row_state == "missing" then
+        row_state = insertBookInfoRow(path, custom, cds:readSetting("doc_props")) and "inserted" or "missing"
+    end
+    return true, nil, keys, cover_ok, sidecarSig(path), row_state
 end
 
 -- Undo what we wrote for a file Tome no longer vouches for (the file was
@@ -5037,7 +5167,19 @@ function TomeSync:_revokeDeviceMetadata(path, prev_keys, had_cover)
         if cover then os.remove(cover); changed = true end
     end
     if changed then
-        UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", path))
+        -- The row still holds our values: put the file's own back (NULL where
+        -- the file has none) and let the cover be re-fetched on display.
+        local bim = bookInfoManager()
+        if bim then
+            local orig = custom_file and DocSettings.openSettingsFile(custom_file):readSetting("doc_props")
+            local upd = {{}}
+            for k in pairs(prev_keys or {{}}) do
+                local v = type(orig) == "table" and orig[k] or nil
+                upd[k] = (v == nil) and false or v
+            end
+            if had_cover then upd.cover_fetched = false end
+            if next(upd) ~= nil then pcall(bim.setBookInfoProperties, bim, path, upd) end
+        end
     end
     return changed
 end
@@ -5104,6 +5246,7 @@ function TomeSync:_syncMetadataImpl(interactive)
     local stats = {{ updated = 0, unchanged = 0, rejected = 0, failed = 0,
                      covers_failed = 0, reverted = 0 }}
     local total, done, changed_any = #candidates, 0, false
+    local missing_rows = {{}}
 
     -- Everything below runs as a chain of small scheduled steps - one file
     -- hashed, or one book applied, per tick - so the UI repaints and taps
@@ -5122,7 +5265,11 @@ function TomeSync:_syncMetadataImpl(interactive)
     local function finish(err)
         meta_sync_running = false
         self:_saveState("tomesync_meta_ledger", self.meta_ledger)
-        if changed_any then
+        local queued = reextractMissingRows(missing_rows)
+        if queued > 0 then
+            logger.info("TomeSync: queued background metadata extraction for", queued, "file(s)")
+        end
+        if changed_any or queued > 0 then
             UIManager:broadcastEvent(Event:new("BookMetadataChanged"))
         end
         if interactive then
@@ -5167,6 +5314,11 @@ function TomeSync:_syncMetadataImpl(interactive)
             local led = self.meta_ledger[c.path] or {{}}
             led.id, led.md5, led.size, led.mtime = c.id, c.md5, c.size, c.mtime
             self.meta_ledger[c.path] = led
+            -- Self-heal: a book we wrote to earlier whose cache row is gone
+            -- (deleted by build 42/43) gets re-extracted in the background.
+            if led.keys and not healBookInfoRow(c.path) then
+                table.insert(missing_rows, c.path)
+            end
             bump(c)
         end)
         each(resp.rejected, function(c)
@@ -5202,11 +5354,12 @@ function TomeSync:_syncMetadataImpl(interactive)
             end
             local c, entry = w.c, w.entry
             local prev = self.meta_ledger[c.path]
-            local aok, res, err, keys, cover_ok, sig =
+            local aok, res, err, keys, cover_ok, sig, row_state =
                 pcall(self._applyDeviceMetadata, self, c.path, entry, prev and prev.keys)
             if aok and res then
                 stats.updated = stats.updated + 1
                 changed_any = true
+                if row_state == "missing" then table.insert(missing_rows, c.path) end
                 if not cover_ok then stats.covers_failed = stats.covers_failed + 1 end
                 self.meta_ledger[c.path] = {{
                     id = c.id, md5 = c.md5, size = c.size, mtime = c.mtime,

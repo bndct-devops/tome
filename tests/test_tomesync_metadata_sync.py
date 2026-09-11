@@ -282,9 +282,23 @@ def test_plugin_writes_koreader_custom_metadata_not_the_file():
     assert "shadowed by a stale sidecar copy" in apply
     # The book file is never opened for writing.
     assert 'io.open(path, "w' not in apply and 'io.open(path, "a' not in apply
-    # Displays are told: cover-browser DB row dropped + generic metadata event.
-    assert 'Event:new("InvalidateMetadataCache"' in apply
-    assert 'Event:new("BookMetadataChanged")' in _body(_impl(), "_syncMetadataImpl")
+    # The cover-browser cache row is updated in place, never deleted: other
+    # plugins (bookshelf) build shelves and series groups from those rows and
+    # only the cover browser re-creates them, only for what it displays.
+    assert "updateBookInfoRow(path, custom, cleared" in apply
+    assert 'Event:new("InvalidateMetadataCache"' not in _impl()
+    impl = _body(_impl(), "_syncMetadataImpl")
+    # Missing rows are written directly (metadata-only, like BIM's own
+    # extraction without cover_specs); the background extractor is only the
+    # fallback, deferred so it cannot kill the cover browser's own job.
+    lua = _impl()
+    assert "insertBookInfoRow(path, custom, cds:readSetting(\"doc_props\"))" in apply
+    assert "healBookInfoRow(c.path)" in impl
+    assert "reextractMissingRows(missing_rows)" in impl
+    assert "UIManager:scheduleIn(5, function() pcall(bim.extractInBackground" in lua
+    cols = lua[lua.index("local BIM_COLS = {"):lua.index("}", lua.index("local BIM_COLS = {"))]
+    assert cols.count('"') == 50                                  # 25 columns, INSERT order
+    assert 'Event:new("BookMetadataChanged")' in impl
 
 
 def test_plugin_reapplies_after_a_device_side_edit():
@@ -305,6 +319,7 @@ def test_plugin_reverts_its_writes_when_tome_stops_vouching():
     revoke = _body(lua, "_revokeDeviceMetadata")
     assert "for k in pairs(prev_keys)" in revoke          # only keys we own
     assert "findCustomCoverFile(path)" in revoke and "os.remove(cover)" in revoke
+    assert "setBookInfoProperties, bim, path, upd" in revoke     # file's own values back in place
     impl = _body(lua, "_syncMetadataImpl")
     rejected = impl[impl.find("each(resp.rejected"):impl.find("each(resp.books")]
     assert "_revokeDeviceMetadata" in rejected

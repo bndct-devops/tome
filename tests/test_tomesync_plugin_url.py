@@ -230,5 +230,8 @@ def test_build_bumped_for_rebake():
     # 1.15.1 / build 43 runs metadata sync as one-file-per-tick scheduled
     # steps with a progress notification: the first run on a Kindle froze
     # the home screen ~30 s (35 covers + document opens in three bursts).
-    assert TOMESYNC_PLUGIN_BUILD >= 43
-    assert TOMESYNC_PLUGIN_SEMVER == "1.15.1"
+    # 1.15.2 / build 44 updates the cover-browser cache row in place instead
+    # of deleting it (bookshelf series views lost the books whose rows were
+    # gone) and queues a background re-extraction for rows already missing.
+    assert TOMESYNC_PLUGIN_BUILD >= 44
+    assert TOMESYNC_PLUGIN_SEMVER == "1.15.2"
