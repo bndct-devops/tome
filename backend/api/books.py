@@ -148,15 +148,8 @@ def _filtered_books_query(
         query = query.filter(book_visibility_filter(db, current_user))
 
     if q:
-        from sqlalchemy import text as sa_text
-        # Split into individual prefix-matched terms (AND semantics is FTS5 default)
-        terms = q.split()
-        fts_term = " ".join(f'"{t.replace(chr(34), "")}"*' for t in terms if t)
-        fts_rows = db.execute(
-            sa_text("SELECT rowid FROM books_fts WHERE books_fts MATCH :q ORDER BY rank"),
-            {"q": fts_term},
-        ).fetchall()
-        fts_ids = [row[0] for row in fts_rows]
+        from backend.services.fts import search_book_ids
+        fts_ids = search_book_ids(db, q)
         if fts_ids:
             query = query.filter(Book.id.in_(fts_ids))
         else:

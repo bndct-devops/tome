@@ -6,6 +6,18 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- Search now matches Korean, Chinese and Japanese substrings anywhere in a
+  word, not just at its start. `books_fts` now uses SQLite's `trigram`
+  tokenizer instead of the default `unicode61`, which treats a run of CJK
+  characters with no whitespace as one token and so could only prefix-match
+  it - searching "다라" never found "가나다라". Trigram indexes every
+  overlapping 3-character substring instead, but SQLite's trigram tokenizer
+  can't tokenize (and so never matches) a search term under 3 characters -
+  a normal *whole word* length in these languages (Korean "역사" = "history",
+  "조선" = "Joseon), not a rare edge case. Terms under 3 characters now fall
+  back to a substring scan over the same columns instead.
+
 ## [2.4.0] - 2026-09-03
 
 ### Changed
