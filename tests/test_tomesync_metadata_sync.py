@@ -344,6 +344,15 @@ def test_plugin_gates_on_koreader_custom_metadata_support():
     assert "or newer (custom book metadata)" in sync
 
 
+def test_plugin_runs_as_scheduled_steps_with_progress():
+    """One file per UI tick, never a whole chunk in one blocking pass."""
+    impl = _body(_impl(), "_syncMetadataImpl")
+    assert "UIManager:scheduleIn(TICK, step)" in impl        # one apply per tick
+    assert "UIManager:scheduleIn(TICK, hashStep)" in impl    # one hash per tick
+    assert "TomeSync: metadata %d of %d" in impl              # progress notification
+    assert "checking metadata for %d book(s)" in impl
+
+
 def test_plugin_menu_and_triggers():
     lua = _impl()
     menu = _body(lua, "_menuItems")

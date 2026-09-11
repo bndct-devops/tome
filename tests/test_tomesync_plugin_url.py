@@ -227,5 +227,8 @@ def test_build_bumped_for_rebake():
     # series, tags, description and cover are written into KOReader's own
     # custom-metadata sidecar for books on the device (opt-in, hash-verified
     # per file, the book files themselves never modified).
-    assert TOMESYNC_PLUGIN_BUILD >= 42
-    assert TOMESYNC_PLUGIN_SEMVER == "1.15.0"
+    # 1.15.1 / build 43 runs metadata sync as one-file-per-tick scheduled
+    # steps with a progress notification: the first run on a Kindle froze
+    # the home screen ~30 s (35 covers + document opens in three bursts).
+    assert TOMESYNC_PLUGIN_BUILD >= 43
+    assert TOMESYNC_PLUGIN_SEMVER == "1.15.1"

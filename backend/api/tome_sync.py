@@ -91,8 +91,8 @@ logger = logging.getLogger(__name__)
 # username is display-only, derived from /auth/me at pairing time. Plus an
 # input_hint fix (ghost text never showed; the field was misnamed "hint") and
 # a settings-menu reorder. Co-developed with @pabsan-0.
-TOMESYNC_PLUGIN_BUILD = 42
-TOMESYNC_PLUGIN_SEMVER = "1.15.0"
+TOMESYNC_PLUGIN_BUILD = 43
+TOMESYNC_PLUGIN_SEMVER = "1.15.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -5103,7 +5103,21 @@ function TomeSync:_syncMetadataImpl(interactive)
     meta_sync_running = true
     local stats = {{ updated = 0, unchanged = 0, rejected = 0, failed = 0,
                      covers_failed = 0, reverted = 0 }}
-    local idx, changed_any = 1, false
+    local total, done, changed_any = #candidates, 0, false
+
+    -- Everything below runs as a chain of small scheduled steps - one file
+    -- hashed, or one book applied, per tick - so the UI repaints and taps
+    -- keep working between them. The first run on a device did all of this
+    -- in a few multi-second bursts on the UI thread (hash 25 files, one
+    -- request, then 25 cover fetches + document opens back to back) and the
+    -- home screen sat frozen for ~30 s (issue #210 follow-up).
+    local TICK = 0.05
+
+    local function progress(text)
+        if interactive then
+            UIManager:show(Notification:new{{ text = text, timeout = 2 }})
+        end
+    end
 
     local function finish(err)
         meta_sync_running = false
@@ -5130,49 +5144,14 @@ function TomeSync:_syncMetadataImpl(interactive)
         end
     end
 
-    local function step()
-        if idx > #candidates then finish() return end
-        local items, by_key = {{}}, {{}}
-        local n = 0
-        while idx <= #candidates and n < META_CHUNK do
-            local c = candidates[idx]
-            idx = idx + 1
-            local led = self.meta_ledger[c.path]
-            local md5
-            if led and led.md5 and led.size == c.size and led.mtime == c.mtime then
-                md5 = led.md5
-            else
-                local hok, h = pcall(util.partialMD5, c.path)
-                md5 = (hok and type(h) == "string") and h or nil
-            end
-            if md5 then
-                c.md5 = md5
-                n = n + 1
-                local untouched = led and led.id == c.id and led.fp
-                                  and led.sig == sidecarSig(c.path)
-                table.insert(items, {{
-                    book_id = c.id, ko_md5 = md5,
-                    fingerprint = untouched and led.fp or nil,
-                }})
-                local key = tostring(c.id) .. "|" .. md5
-                by_key[key] = by_key[key] or {{}}
-                table.insert(by_key[key], c)
-            else
-                stats.failed = stats.failed + 1
+    -- Apply the server's answer for one batch, one book per tick.
+    local function applyBatch(by_key, resp, on_done)
+        local function bump(c)
+            done = done + 1
+            if done % 5 == 0 or done == total then
+                progress(string.format("TomeSync: metadata %d of %d", done, total))
             end
         end
-        if n == 0 then UIManager:scheduleIn(0.1, step) return end
-
-        local ok, resp, code = pcall(apiRequest, "POST", "/tome-sync/metadata", {{ items = items }})
-        if not ok or type(resp) ~= "table" or type(code) ~= "number" or code >= 300 then
-            if code == 404 or code == 405 then
-                finish("Your Tome server does not support metadata sync yet - update Tome first.")
-            else
-                finish("Metadata sync stopped: server unreachable.")
-            end
-            return
-        end
-
         local function each(list, fn)
             if type(list) ~= "table" then return end
             for _, e in ipairs(list) do
@@ -5182,11 +5161,13 @@ function TomeSync:_syncMetadataImpl(interactive)
                 end
             end
         end
+        -- Cheap bookkeeping first (no I/O beyond the ledger).
         each(resp.unchanged, function(c)
             stats.unchanged = stats.unchanged + 1
             local led = self.meta_ledger[c.path] or {{}}
             led.id, led.md5, led.size, led.mtime = c.id, c.md5, c.size, c.mtime
             self.meta_ledger[c.path] = led
+            bump(c)
         end)
         each(resp.rejected, function(c)
             stats.rejected = stats.rejected + 1
@@ -5204,8 +5185,22 @@ function TomeSync:_syncMetadataImpl(interactive)
             -- Remember the hash (no point re-hashing) but forget any fingerprint
             -- or ownership: nothing of ours may be trusted for this file now.
             self.meta_ledger[c.path] = {{ id = c.id, md5 = c.md5, size = c.size, mtime = c.mtime }}
+            bump(c)
         end)
-        each(resp.books, function(c, entry)
+        -- The expensive part - cover fetch, maybe a document open, sidecar
+        -- write - one book per tick.
+        local work = {{}}
+        each(resp.books, function(c, entry) table.insert(work, {{ c = c, entry = entry }}) end)
+        local i = 0
+        local function step()
+            i = i + 1
+            local w = work[i]
+            if not w then
+                self:_saveState("tomesync_meta_ledger", self.meta_ledger)
+                on_done()
+                return
+            end
+            local c, entry = w.c, w.entry
             local prev = self.meta_ledger[c.path]
             local aok, res, err, keys, cover_ok, sig =
                 pcall(self._applyDeviceMetadata, self, c.path, entry, prev and prev.keys)
@@ -5225,11 +5220,70 @@ function TomeSync:_syncMetadataImpl(interactive)
                 stats.failed = stats.failed + 1
                 logger.warn("TomeSync: metadata apply failed for", c.path, aok and err or res)
             end
-        end)
-        self:_saveState("tomesync_meta_ledger", self.meta_ledger)
-        UIManager:scheduleIn(0.5, step)
+            bump(c)
+            UIManager:scheduleIn(TICK, step)
+        end
+        step()
     end
-    step()
+
+    -- Hash one candidate per tick; every META_CHUNK hashed (or at the end),
+    -- ask the server about that batch and apply it before hashing on.
+    local idx = 0
+    local items, by_key, batch_n = {{}}, {{}}, 0
+    local hashStep
+    local function sendBatch()
+        local sent_items, sent_keys = items, by_key
+        items, by_key, batch_n = {{}}, {{}}, 0
+        local ok, resp, code = pcall(apiRequest, "POST", "/tome-sync/metadata", {{ items = sent_items }})
+        if not ok or type(resp) ~= "table" or type(code) ~= "number" or code >= 300 then
+            if code == 404 or code == 405 then
+                finish("Your Tome server does not support metadata sync yet - update Tome first.")
+            else
+                finish("Metadata sync stopped: server unreachable.")
+            end
+            return
+        end
+        applyBatch(sent_keys, resp, function() UIManager:scheduleIn(TICK, hashStep) end)
+    end
+    hashStep = function()
+        idx = idx + 1
+        local c = candidates[idx]
+        if not c then
+            if batch_n > 0 then sendBatch() else finish() end
+            return
+        end
+        local led = self.meta_ledger[c.path]
+        local md5
+        if led and led.md5 and led.size == c.size and led.mtime == c.mtime then
+            md5 = led.md5
+        else
+            local hok, h = pcall(util.partialMD5, c.path)
+            md5 = (hok and type(h) == "string") and h or nil
+        end
+        if md5 then
+            c.md5 = md5
+            local untouched = led and led.id == c.id and led.fp
+                              and led.sig == sidecarSig(c.path)
+            table.insert(items, {{
+                book_id = c.id, ko_md5 = md5,
+                fingerprint = untouched and led.fp or nil,
+            }})
+            local key = tostring(c.id) .. "|" .. md5
+            by_key[key] = by_key[key] or {{}}
+            table.insert(by_key[key], c)
+            batch_n = batch_n + 1
+        else
+            stats.failed = stats.failed + 1
+            done = done + 1
+        end
+        if batch_n >= META_CHUNK then
+            sendBatch()
+        else
+            UIManager:scheduleIn(TICK, hashStep)
+        end
+    end
+    progress(string.format("TomeSync: checking metadata for %d book(s)…", total))
+    hashStep()
 end
 
 -- ── Self-update ──────────────────────────────────────────────────────────────

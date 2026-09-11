@@ -19,8 +19,8 @@ All notable changes to Tome are documented here. Format loosely follows
   passed through Tome, or a different edition, is left alone). Opt-in per
   device via Settings > "Apply Tome metadata to this device"; runs shortly
   after launch and when WiFi connects, and on demand via "Apply Tome
-  metadata now". Steady-state runs send nothing but fingerprints. Plugin
-  build 42 / 1.15.0.
+  metadata now", which shows progress while it runs. Steady-state runs send
+  nothing but fingerprints. Plugin build 43 / 1.15.1.
 
 ## [2.4.0] - 2026-09-03
 
