@@ -6,6 +6,22 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- TomeSync metadata sync (Tome -> KOReader), issue #210. Metadata edited in
+  Tome - title, author, series and index, language, tags, description and
+  cover - is written into KOReader's own custom metadata for the books on
+  the device, so Tome is the source of truth for what the device shows.
+  The book files themselves are never modified: the plugin writes the same
+  `custom_metadata.lua` sidecar and custom cover that Book information >
+  Edit does, so reading position, sidecar state and file identity stay put,
+  and KOReader's own "reset" still restores the file's embedded values.
+  Only books Tome can verify by file hash are touched (a file that never
+  passed through Tome, or a different edition, is left alone). Opt-in per
+  device via Settings > "Apply Tome metadata to this device"; runs shortly
+  after launch and when WiFi connects, and on demand via "Apply Tome
+  metadata now". Steady-state runs send nothing but fingerprints. Plugin
+  build 42 / 1.15.0.
+
 ## [2.4.0] - 2026-09-03
 
 ### Changed

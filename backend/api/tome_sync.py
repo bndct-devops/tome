@@ -91,8 +91,8 @@ logger = logging.getLogger(__name__)
 # username is display-only, derived from /auth/me at pairing time. Plus an
 # input_hint fix (ghost text never showed; the field was misnamed "hint") and
 # a settings-menu reorder. Co-developed with @pabsan-0.
-TOMESYNC_PLUGIN_BUILD = 41
-TOMESYNC_PLUGIN_SEMVER = "1.14.0"
+TOMESYNC_PLUGIN_BUILD = 42
+TOMESYNC_PLUGIN_SEMVER = "1.15.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1197,6 +1197,86 @@ def match_hashes(
     return {"matches": {m: bid for m, bid in found.items() if bid in visible}}
 
 
+class MetadataSyncItem(PydanticBaseModel):
+    book_id: int
+    ko_md5: str
+    fingerprint: Optional[str] = None
+
+
+class MetadataSyncRequest(PydanticBaseModel):
+    items: list[MetadataSyncItem] = []
+
+    # KOReader's Lua rapidjson encodes an empty table as a JSON object.
+    @field_validator("items", mode="before")
+    @classmethod
+    def _coerce_empty_object(cls, v):
+        return [] if isinstance(v, dict) and not v else v
+
+
+METADATA_SYNC_MAX_ITEMS = 100
+
+
+@router.post("/tome-sync/metadata")
+def device_metadata_sync(
+    body: MetadataSyncRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """Metadata for books the plugin holds on the device (Tome -> KOReader).
+
+    Each item names a book id the plugin believes a device file is, plus the
+    file's KOReader partial-MD5. The pair is **only answered when Tome has
+    that exact hash on record for that exact book** (recorded when the file
+    was scanned or served) - a filename-heuristic resolve, a different
+    edition, or a file that never passed through Tome is rejected, so the
+    plugin can never write one book's metadata onto another. Books the user
+    cannot see are rejected the same way (indistinguishable by design).
+
+    ``fingerprint`` is what the plugin stored from the last answer; a match
+    means "nothing changed" and the book is listed under ``unchanged``
+    instead of being re-sent. See services/device_metadata.py.
+    """
+    from backend.models.ko_stats import KoHash
+    from backend.services.device_metadata import device_metadata, metadata_fingerprint
+
+    items = body.items[:METADATA_SYNC_MAX_ITEMS]
+    ids = {i.book_id for i in items}
+    if not ids:
+        return {"books": [], "unchanged": [], "rejected": []}
+
+    books = {
+        b.id: b
+        for b in db.query(Book)
+        .options(joinedload(Book.tags))
+        .filter(Book.id.in_(ids), Book.status == "active", book_visibility_filter(db, user))
+        .all()
+    }
+    known = {
+        (bid, md5)
+        for bid, md5 in db.query(KoHash.book_id, KoHash.ko_partial_md5)
+        .filter(KoHash.book_id.in_(ids))
+        .all()
+    }
+
+    # Results are keyed by the (book_id, ko_md5) pair, not the bare id: two
+    # device files can legitimately map to one book (a raw and a baked copy),
+    # and the plugin must be able to tell which of them was answered.
+    out: list[dict] = []
+    unchanged: list[dict] = []
+    rejected: list[dict] = []
+    for item in items:
+        pair = {"book_id": item.book_id, "ko_md5": item.ko_md5}
+        book = books.get(item.book_id)
+        if book is None or (item.book_id, item.ko_md5) not in known:
+            rejected.append(pair)
+            continue
+        if item.fingerprint and item.fingerprint == metadata_fingerprint(book):
+            unchanged.append(pair)
+            continue
+        out.append({**pair, **device_metadata(book)})
+    return {"books": out, "unchanged": unchanged, "rejected": rejected}
+
+
 class SweepBody(PydanticBaseModel):
     status: Optional[str] = None       # reading | read (sidecar summary.status)
     rating: Optional[float] = None     # 0.5–5.0 half-star steps
@@ -1841,6 +1921,9 @@ local last_session_init = {{ book_id = nil, at = 0 }}
 local state_pruned = false
 -- Library-sweep latch: one sweep at a time per KOReader process.
 local sweep_running = false
+local meta_sync_running = false
+local meta_sync_launched = false
+local meta_last_auto = 0     -- os.time() of the last automatic run (debounce)
 local SWEEP_EXTS = {{ epub = true, pdf = true, cbz = true, cbr = true, mobi = true, azw3 = true }}
 
 -- ── HTTP client ──────────────────────────────────────────────────────────────
@@ -2240,6 +2323,9 @@ function TomeSync:init()
     -- the per-book open/close push alone misses a book you rate and never reopen
     -- (e.g. a finished book), so the rating would otherwise sit unsent forever.
     self.pending_ratings = self.state:readSetting("tomesync_pending_ratings") or {{}}
+    -- Metadata sync ledger: device path -> what we last wrote (see the
+    -- "Metadata sync" section). Pruned with book_map.
+    self.meta_ledger = self.state:readSetting("tomesync_meta_ledger") or {{}}
     self:_pruneState()
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
@@ -2275,6 +2361,14 @@ function TomeSync:init()
     if G_reader_settings:isTrue("tomesync_auto_sync_stats") then
         UIManager:scheduleIn(12, function() pcall(function() self:_syncReadingStats(false) end) end)
     end
+
+    -- Metadata sync (Tome -> device): opt-in, deferred, once per KOReader
+    -- process (init runs again for every ReaderUI, so a chunk-local latch
+    -- keeps a book open from re-running the whole library pass).
+    if not meta_sync_launched and G_reader_settings:isTrue("tomesync_meta_sync") then
+        meta_sync_launched = true
+        UIManager:scheduleIn(20, function() pcall(function() self:_syncMetadata(false) end) end)
+    end
 end
 
 -- The data tables that live in the dedicated state file (tomesync_update and
@@ -2283,7 +2377,7 @@ end
 local STATE_KEYS = {{
     "tomesync_book_map", "tomesync_pending_sessions", "tomesync_adopt_pending",
     "tomesync_repair_map", "tomesync_annot_baseline", "tomesync_rating_baseline",
-    "tomesync_pending_ratings",
+    "tomesync_pending_ratings", "tomesync_meta_ledger",
 }}
 
 function TomeSync:_saveState(key, value)
@@ -2370,8 +2464,15 @@ function TomeSync:_pruneState()
         end
         if changed then self.state:saveSetting("tomesync_sweep", sweep) end
     end
+    for path in pairs(self.meta_ledger) do
+        if lfs.attributes(path, "mode") ~= "file" then
+            self.meta_ledger[path] = nil
+            changed = true
+        end
+    end
     if changed then
         self.state:saveSetting("tomesync_book_map", self.book_map)
+        self.state:saveSetting("tomesync_meta_ledger", self.meta_ledger)
         self.state:saveSetting("tomesync_annot_baseline", self.annot_baseline)
         self.state:saveSetting("tomesync_rating_baseline", self.rating_baseline)
         self.state:saveSetting("tomesync_repair_map", self.repair_map)
@@ -2647,6 +2748,9 @@ function TomeSync:onNetworkConnected()
         UIManager:scheduleIn(4, function()
             pcall(function() self:_syncReadingStats(false) end)
         end)
+    end
+    if G_reader_settings:isTrue("tomesync_meta_sync") then
+        UIManager:scheduleIn(6, function() pcall(function() self:_syncMetadata(false) end) end)
     end
 end
 
@@ -4600,6 +4704,10 @@ function TomeSync:_sweepLibraryImpl()
                 stats.matched, stats.adopted, stats.unmatched, stats.failed),
             timeout = 8,
         }})
+        -- Newly matched books can now take Tome's metadata too (opt-in).
+        if not aborted and stats.matched > 0 then
+            UIManager:scheduleIn(1, function() pcall(function() self:_syncMetadata(false) end) end)
+        end
     end
 
     local function step()
@@ -4686,6 +4794,354 @@ function TomeSync:_adoptSidecar(book_id, path)
     end
     local ok, _resp, code = pcall(apiRequest, "POST", "/tome-sync/sweep/" .. book_id, body)
     return ok and type(code) == "number" and code < 300
+end
+
+-- ── Metadata sync (Tome → device) ────────────────────────────────────────────
+-- Writes Tome's metadata into KOReader's own custom-metadata sidecar
+-- (custom_metadata.lua + cover.<ext> next to the .sdr) — the same override
+-- layer that Book information > Edit fills in by hand. The book file itself
+-- is never touched, so its partial-MD5 identity, reading position and sidecar
+-- state all stay put; deleting the sidecar file restores the file's own
+-- metadata.
+--
+-- Safety: the server answers ONLY for (book_id, partial-MD5) pairs it has on
+-- record for that exact book (hashed when Tome scanned or served the file).
+-- A filename-heuristic resolve, a different edition or a sideloaded file it
+-- never saw is rejected server-side, so one book's metadata can never land
+-- on another file.
+--
+-- Per-file ledger (dedicated state file, pruned with book_map):
+--   path -> {{ id=, md5=, size=, mtime=, fp=, keys={{...}} }}
+-- md5/size/mtime skip re-hashing files that have not changed; fp is the
+-- server's content fingerprint (a match = nothing to do, nothing sent);
+-- keys = which custom_props we own, so a field Tome later clears falls back
+-- to the file's embedded value instead of sticking.
+
+local META_CHUNK = 25
+local META_PROPS = {{ "title", "authors", "series", "series_index", "language",
+                     "keywords", "description" }}
+
+-- Tome stores every cover under a .jpg name whatever the bytes are; KOReader
+-- picks the decoder by extension, so name the copy by its real format.
+local function sniffImageExt(path)
+    local fh = io.open(path, "rb")
+    if not fh then return nil end
+    local head = fh:read(12) or ""
+    fh:close()
+    local b1, b2 = head:byte(1, 2)
+    if b1 == 255 and b2 == 216 then return "jpg" end
+    if b1 == 137 and head:sub(2, 4) == "PNG" then return "png" end
+    if head:sub(1, 4) == "RIFF" and head:sub(9, 12) == "WEBP" then return "webp" end
+    if head:sub(1, 6) == "GIF87a" or head:sub(1, 6) == "GIF89a" then return "gif" end
+    return nil
+end
+
+-- What the device currently holds for a file's custom metadata: the mtimes
+-- of custom_metadata.lua and the custom cover. Stored in the ledger after a
+-- write and compared before the next one, so an edit or reset made on the
+-- device (KOReader rewrites those files) forces a re-apply even when Tome's
+-- fingerprint is unchanged - "Tome is the source of truth" has to hold in
+-- that direction too.
+local function sidecarSig(path)
+    local DocSettings = require("docsettings")
+    local cm = DocSettings:findCustomMetadataFile(path)
+    local cv = DocSettings:findCustomCoverFile(path)
+    return tostring(cm and lfs.attributes(cm, "modification") or 0) .. ":"
+        .. tostring(cv and lfs.attributes(cv, "modification") or 0)
+end
+
+local function fetchToFile(api_path, dest)
+    if not NetworkMgr:isConnected() then return false, "offline" end
+    local fh = io.open(dest, "wb")
+    if not fh then return false, "cannot open temp file" end
+    socketutil:set_timeout(10, 60)
+    local ok, code = http.request({{
+        url     = serverURL() .. "/api" .. api_path,
+        method  = "GET",
+        headers = {{ ["Authorization"] = "Bearer " .. apiKey() }},
+        sink    = ltn12.sink.file(fh),
+    }})
+    socketutil:reset_timeout()
+    if not ok or (type(code) == "number" and code >= 300) then
+        os.remove(dest)
+        return false, tostring(code or "request failed")
+    end
+    return true
+end
+
+-- The file's own embedded metadata, as KOReader reads it. Stored as doc_props
+-- in the custom-metadata file so Book information's "reset" can restore a
+-- field (KOReader indexes that table unconditionally, so it must exist).
+-- Cheapest source first; opening the document is the last resort — exactly
+-- what KOReader itself does when you edit a never-opened book's metadata.
+function TomeSync:_originalProps(path)
+    local ok, props = pcall(function()
+        local cb = self.ui and self.ui.coverbrowser
+        if cb and cb.getDocProps then
+            local p = cb.getDocProps(path)
+            if type(p) == "table" then return p end
+        end
+        local BookList = require("ui/widget/booklist")
+        if BookList.hasBookBeenOpened(path) then
+            local ds = BookList.getDocSettings(path)
+            local p = ds and ds:readSetting("doc_props")
+            if type(p) == "table" then
+                local copy = {{}}
+                for k, v in pairs(p) do copy[k] = v end
+                copy.pages = ds:readSetting("doc_pages") or copy.pages
+                return copy
+            end
+        end
+        local DocumentRegistry = require("document/documentregistry")
+        local document = DocumentRegistry:hasProvider(path)
+                     and DocumentRegistry:openDocument(path)
+        if not document then return nil end
+        local loaded, pages = true, nil
+        if document.loadDocument then           -- CreDocument: metadata only
+            if not document:loadDocument(false) then loaded = false end
+        else
+            pages = document:getPageCount()
+        end
+        local p = loaded and document:getProps() or nil
+        if p then p.pages = pages end
+        document:close()
+        return p
+    end)
+    if not ok then
+        logger.warn("TomeSync: could not read original props for", path, props)
+        return {{}}
+    end
+    props = type(props) == "table" and props or {{}}
+    props.display_title = nil
+    return props
+end
+
+-- Writes one book's props (+ cover) into its custom-metadata sidecar.
+-- Returns ok, err, keys_written, cover_ok. Never opens the book file for
+-- writing; a failed cover fetch leaves the props applied and is reported so
+-- the caller can retry the cover next run.
+function TomeSync:_applyDeviceMetadata(path, entry, prev_keys)
+    local DocSettings = require("docsettings")
+    local props = type(entry.props) == "table" and entry.props or {{}}
+    local custom_file = DocSettings:findCustomMetadataFile(path)
+    local cds
+    if custom_file then
+        cds = DocSettings.openSettingsFile(custom_file)
+        if type(cds:readSetting("doc_props")) ~= "table" then
+            cds:saveSetting("doc_props", self:_originalProps(path))
+        end
+    else
+        cds = DocSettings.openSettingsFile()
+        cds:saveSetting("doc_props", self:_originalProps(path))
+    end
+    local custom = cds:readSetting("custom_props")
+    if type(custom) ~= "table" then custom = {{}} end
+    local keys = {{}}
+    for _, k in ipairs(META_PROPS) do
+        local v = jval(props[k])
+        if v ~= nil then
+            custom[k] = v
+            keys[k] = true
+        elseif prev_keys and prev_keys[k] then
+            custom[k] = nil     -- Tome cleared a field we set: back to the file's own
+        end
+    end
+    if next(custom) == nil then
+        if custom_file then os.remove(custom_file) end
+    else
+        cds:saveSetting("custom_props", custom)
+        if not cds:flushCustomMetadata(path) then
+            return false, "could not write custom metadata"
+        end
+    end
+
+    local cover_ok = true
+    if entry.cover == true then
+        local tmp_dir = DataStorage:getDataDir() .. "/cache"
+        util.makePath(tmp_dir)
+        local tmp = tmp_dir .. "/tomesync_cover_" .. tostring(entry.book_id)
+        local fok = fetchToFile("/books/" .. tostring(entry.book_id) .. "/cover", tmp)
+        local ext = fok and sniffImageExt(tmp) or nil
+        if fok and ext then
+            local named = tmp .. "." .. ext     -- flushCustomCover copies as cover.<ext>
+            os.rename(tmp, named)
+            local old = DocSettings:findCustomCoverFile(path)
+            if old then os.remove(old) end
+            if not DocSettings:flushCustomCover(path, named) then cover_ok = false end
+            os.remove(named)
+        else
+            cover_ok = false
+            os.remove(tmp)
+        end
+    end
+    -- Drop the cover browser's cached row for this file: it caches the merged
+    -- props + cover at extraction time and re-extracts on next display.
+    UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", path))
+    return true, nil, keys, cover_ok, sidecarSig(path)
+end
+
+function TomeSync:_syncMetadata(interactive)
+    if not interactive and not G_reader_settings:isTrue("tomesync_meta_sync") then return end
+    -- Automatic triggers (launch, WiFi up, sweep) can land within seconds of
+    -- each other - KOReader raises NetworkConnected right at startup - and a
+    -- second pass would only re-send fingerprints. One automatic run per two
+    -- minutes is plenty; "Apply Tome metadata now" is never debounced.
+    if not interactive then
+        if os.time() - meta_last_auto < 120 then return end
+        meta_last_auto = os.time()
+    end
+    if meta_sync_running then
+        if interactive then
+            UIManager:show(InfoMessage:new{{ text = "Metadata sync already running.", timeout = 3 }})
+        end
+        return
+    end
+    if interactive then
+        whenConnected(function() self:_syncMetadataImpl(true) end)
+    elseif NetworkMgr:isConnected() then
+        self:_syncMetadataImpl(false)
+    end
+end
+
+function TomeSync:_syncMetadataImpl(interactive)
+    -- The book open in the reader right now is left for the next run: its
+    -- in-memory doc_props would otherwise disagree with the sidecar.
+    local open_file = self.ui and self.ui.document and self.ui.document.file
+    local candidates = {{}}
+    for path, id in pairs(self.book_map) do
+        if type(id) == "number" and path ~= open_file then
+            local attr = lfs.attributes(path)
+            if attr and attr.mode == "file" then
+                table.insert(candidates, {{ path = path, id = id,
+                                           size = attr.size, mtime = attr.modification }})
+            end
+        end
+    end
+    table.sort(candidates, function(a, b) return a.path < b.path end)
+    if #candidates == 0 then
+        if interactive then
+            UIManager:show(InfoMessage:new{{
+                text = "No Tome books on this device yet.\\nOpen or download a book first.",
+                timeout = 4,
+            }})
+        end
+        return
+    end
+
+    meta_sync_running = true
+    local stats = {{ updated = 0, unchanged = 0, rejected = 0, failed = 0, covers_failed = 0 }}
+    local idx, changed_any = 1, false
+
+    local function finish(err)
+        meta_sync_running = false
+        self:_saveState("tomesync_meta_ledger", self.meta_ledger)
+        if changed_any then
+            UIManager:broadcastEvent(Event:new("BookMetadataChanged"))
+        end
+        if interactive then
+            local text = (err and (err .. "\\n\\n") or "Metadata sync done.\\n\\n")
+                .. string.format("Updated: %d\\nUnchanged: %d\\nNot matched by Tome: %d\\nFailed: %d",
+                                 stats.updated, stats.unchanged, stats.rejected, stats.failed)
+            if stats.covers_failed > 0 then
+                text = text .. string.format("\\nCovers not fetched: %d", stats.covers_failed)
+            end
+            UIManager:show(InfoMessage:new{{ text = text, timeout = 8 }})
+        elseif stats.updated > 0 then
+            UIManager:show(Notification:new{{
+                text = string.format("TomeSync: metadata updated for %d book(s)", stats.updated),
+                timeout = 3,
+            }})
+        end
+    end
+
+    local function step()
+        if idx > #candidates then finish() return end
+        local items, by_key = {{}}, {{}}
+        local n = 0
+        while idx <= #candidates and n < META_CHUNK do
+            local c = candidates[idx]
+            idx = idx + 1
+            local led = self.meta_ledger[c.path]
+            local md5
+            if led and led.md5 and led.size == c.size and led.mtime == c.mtime then
+                md5 = led.md5
+            else
+                local hok, h = pcall(util.partialMD5, c.path)
+                md5 = (hok and type(h) == "string") and h or nil
+            end
+            if md5 then
+                c.md5 = md5
+                n = n + 1
+                local untouched = led and led.id == c.id and led.fp
+                                  and led.sig == sidecarSig(c.path)
+                table.insert(items, {{
+                    book_id = c.id, ko_md5 = md5,
+                    fingerprint = untouched and led.fp or nil,
+                }})
+                local key = tostring(c.id) .. "|" .. md5
+                by_key[key] = by_key[key] or {{}}
+                table.insert(by_key[key], c)
+            else
+                stats.failed = stats.failed + 1
+            end
+        end
+        if n == 0 then UIManager:scheduleIn(0.1, step) return end
+
+        local ok, resp, code = pcall(apiRequest, "POST", "/tome-sync/metadata", {{ items = items }})
+        if not ok or type(resp) ~= "table" or type(code) ~= "number" or code >= 300 then
+            if code == 404 then
+                finish("Your Tome server does not support metadata sync yet - update Tome first.")
+            else
+                finish("Metadata sync stopped: server unreachable.")
+            end
+            return
+        end
+
+        local function each(list, fn)
+            if type(list) ~= "table" then return end
+            for _, e in ipairs(list) do
+                if type(e) == "table" and e.book_id ~= nil and type(e.ko_md5) == "string" then
+                    local cs = by_key[tostring(e.book_id) .. "|" .. e.ko_md5]
+                    if cs then for _, c in ipairs(cs) do fn(c, e) end end
+                end
+            end
+        end
+        each(resp.unchanged, function(c)
+            stats.unchanged = stats.unchanged + 1
+            local led = self.meta_ledger[c.path] or {{}}
+            led.id, led.md5, led.size, led.mtime = c.id, c.md5, c.size, c.mtime
+            self.meta_ledger[c.path] = led
+        end)
+        each(resp.rejected, function(c)
+            stats.rejected = stats.rejected + 1
+            -- Remember the hash (no point re-hashing) but forget any fingerprint
+            -- or ownership: nothing of ours may be trusted for this file now.
+            self.meta_ledger[c.path] = {{ id = c.id, md5 = c.md5, size = c.size, mtime = c.mtime }}
+        end)
+        each(resp.books, function(c, entry)
+            local prev = self.meta_ledger[c.path]
+            local aok, res, err, keys, cover_ok, sig =
+                pcall(self._applyDeviceMetadata, self, c.path, entry, prev and prev.keys)
+            if aok and res then
+                stats.updated = stats.updated + 1
+                changed_any = true
+                if not cover_ok then stats.covers_failed = stats.covers_failed + 1 end
+                self.meta_ledger[c.path] = {{
+                    id = c.id, md5 = c.md5, size = c.size, mtime = c.mtime,
+                    -- No fingerprint until the cover made it too, so a failed
+                    -- cover fetch is retried next run instead of forgotten.
+                    fp = cover_ok and jval(entry.fingerprint) or nil,
+                    keys = keys, sig = sig,
+                }}
+            else
+                stats.failed = stats.failed + 1
+                logger.warn("TomeSync: metadata apply failed for", c.path, aok and err or res)
+            end
+        end)
+        self:_saveState("tomesync_meta_ledger", self.meta_ledger)
+        UIManager:scheduleIn(0.5, step)
+    end
+    step()
 end
 
 -- ── Self-update ──────────────────────────────────────────────────────────────
@@ -5063,6 +5519,15 @@ function TomeSync:_menuItems()
                   .. "what Tome doesn't already have.",
         callback  = function() self:_sweepLibrary() end,
     }})
+    table.insert(sub_items, {{
+        text      = "Apply Tome metadata now",
+        help_text = "Write Tome's title, author, series, tags, description and "
+                  .. "cover for the books on this device into KOReader's custom "
+                  .. "metadata. Only books Tome can verify by file hash are "
+                  .. "touched; the book files themselves are never modified. "
+                  .. "Runs regardless of the automatic setting.",
+        callback  = function() self:_syncMetadata(true) end,
+    }})
     -- Inbox: only shown when the server has Send-to-KOReader enabled (set by the
     -- launch poll). Badge shows the pending count.
     if self.inbox_enabled then
@@ -5175,6 +5640,22 @@ function TomeSync:_menuItems()
         callback     = function()
             G_reader_settings:saveSetting("tomesync_suspend_wifi",
                 not G_reader_settings:isTrue("tomesync_suspend_wifi"))
+        end,
+    }})
+    table.insert(settings_items, {{
+        text         = "Apply Tome metadata to this device",
+        help_text    = "Keep title, author, series, tags, description and cover "
+                       .. "of the books that came from Tome in step with the "
+                       .. "Tome library, using KOReader's own custom metadata "
+                       .. "(the book files are never modified). Tome is the "
+                       .. "source of truth: metadata edited on this device is "
+                       .. "overridden. Runs shortly after launch and when WiFi "
+                       .. "connects; \\"Apply Tome metadata now\\" runs it on demand.",
+        checked_func = function() return G_reader_settings:isTrue("tomesync_meta_sync") end,
+        callback     = function()
+            local on = not G_reader_settings:isTrue("tomesync_meta_sync")
+            G_reader_settings:saveSetting("tomesync_meta_sync", on)
+            if on then self:_syncMetadata(true) end
         end,
     }})
     -- Idle cap: how long a single page may count before the rest of the gap is

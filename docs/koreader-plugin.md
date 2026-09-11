@@ -22,6 +22,7 @@ The plugin is pre-configured with your server URL and API key. No manual configu
 
 - **Reading sync** -- position, progress, and reading sessions sync between KOReader and Tome's web reader
 - **Rating sync** -- KOReader's native star rating and review sync both ways with Tome
+- **Metadata sync** -- Tome's title, author, series, tags, description and cover are written into KOReader's custom metadata for the books on your device (opt-in; the book files are never modified)
 - **Reading-history import** -- backfill Tome's Stats with KOReader's own per-page reading history from before TomeSync (reading time and pages only -- never your read/unread status)
 - **Series browser** -- browse your library's series and download entire series to your device in one tap
 - **Offline-safe** -- everything works seamlessly when your server is unreachable; sessions queue and flush later
@@ -227,6 +228,8 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 |---|---|
 | **Browse series** | Opens the series browser. Lists all series with book count and author. Tap to download. |
 | **Sync reading history** | Imports KOReader's per-page reading log into Tome's Stats (time and pages only). First run backfills everything; chunked and resumable. See [Reading-History Import](#reading-history-import). |
+| **Sync closed books** | Library sweep: adopts status, rating and progress from books on the device TomeSync has never synced (read before Tome, sideloaded). Only fills what Tome doesn't already have. |
+| **Apply Tome metadata now** | Writes Tome's title, author, series, tags, description and cover for the books on this device into KOReader's custom metadata, then shows a summary. Runs regardless of the automatic setting. See [Metadata sync](#metadata-sync-tome---koreader). |
 | **Settings** | Submenu with persistent options and diagnostics (see below). |
 | **About** | Version info (semver + build). |
 
@@ -252,6 +255,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Auto-check for updates on launch** | Opt-in toggle. When on, TomeSync checks for updates shortly after startup and prompts only when one is available. |
 | **Auto-sync reading history on launch** | Opt-in toggle, off by default. When on, TomeSync pushes new KOReader reading history to Tome shortly after startup (the first run backfills your whole history; chunked and resumable). Reading time and pages only — never your read/unread status. See [Reading-History Import](#reading-history-import). |
 | **Sync on suspend** | Opt-in toggle. When the device goes to sleep, catches up anything still pending (sessions, ratings, reading history if enabled) so your stats are current without waking the device. Only syncs when WiFi is already connected. |
+| **Apply Tome metadata to this device** | Opt-in toggle, off by default. Keeps the metadata KOReader shows for Tome books in step with the Tome library via KOReader's custom metadata (the book files are never modified). Tome is the source of truth: metadata edited on the device is overridden. Runs after launch and when WiFi connects. See [Metadata sync](#metadata-sync-tome---koreader). |
 | **Aggressive sync (turn WiFi on at suspend)** | Opt-in, requires Sync on suspend. Turns WiFi on at suspend to sync, then lets the device power it back down. Uses more battery. |
 | **Idle time cap** | Longest gap between page turns that still counts as reading (default 10 minutes). Time beyond the cap — you fell asleep, the cover did not sleep the device — is not booked to the session. |
 | **Device name** | The label Tome shows for this device in the reading log and stats. Defaults to the device model; set a name if you use several devices of the same kind. |
@@ -291,6 +295,55 @@ Device→device sync needs both devices to have the **Tome-served copy** of the 
 
 Rendering highlights *inside the web reader* is a separate, later step — for now
 the web side shows them as a list on the detail page.
+
+---
+
+## Metadata sync (Tome -> KOReader)
+
+Opt-in, off by default: **Settings > Apply Tome metadata to this device**.
+
+When it is on, the plugin keeps the metadata KOReader shows for the books on
+your device in step with your Tome library: title, author, series and series
+index, language, tags (as keywords), description and cover. Tome is the
+source of truth - if you edit a field in Tome, the device follows on its next
+sync, and a field you edit or reset on the device is put back to Tome's
+value.
+
+**What it writes.** KOReader has its own override layer for book metadata: the
+`custom_metadata.lua` file and custom cover in the book's `.sdr` folder, the
+same thing Book information > Edit fills in when you correct a title by hand.
+The plugin writes exactly that. The book file itself is never modified, so
+its identity (the hash Tome and KOReader match on), your reading position,
+highlights and every other sidecar setting stay untouched. KOReader's own
+"reset" on a field still restores the file's embedded value, and deleting the
+sidecar file puts everything back the way the file came.
+
+**What it does not do.** It does not rename files on the device: a book
+downloaded as `Vol. 1 — Old Title.epub` keeps that filename (the file browser
+shows the new title, the classic filename view does not). It does not clear
+a field Tome has no value for - those fall back to whatever the file itself
+carries. It does not touch the files in the Tome library on the server.
+
+**Which books.** Only books the plugin already knows (downloaded through
+TomeSync, opened and resolved, or matched by a library sweep) **and** that
+Tome can verify by file hash: the server answers only for files whose hash
+it recorded when it scanned or served them. A file that never passed through
+Tome, or a different edition of the same book, is reported as "Not matched
+by Tome" and left alone, so one book's metadata can never land on another
+file. Books that are invisible to your account are treated the same way.
+
+**When it runs.** Shortly after KOReader starts, when WiFi connects, and
+after a library sweep finds new matches (automatic runs are debounced to one
+per two minutes). **Apply Tome metadata now** in the TomeSync menu runs it on
+demand, whether or not the automatic setting is on, and shows a summary:
+updated / unchanged / not matched by Tome / failed. The book currently open
+in the reader is skipped and picked up on the next run. Steady-state runs
+are cheap: the plugin sends a fingerprint per book and the server answers
+"unchanged" - no descriptions or covers move until something actually
+changed in Tome or on the device.
+
+Requires plugin build 42 (1.15.0) and a Tome server that ships it; on an
+older server the action reports that metadata sync is not supported.
 
 ---
 

@@ -115,6 +115,28 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     the web and the device since the last sync, <strong>Tome wins</strong>.
   </p>
 
+  <h3>Metadata sync (Tome &rarr; KOReader)</h3>
+  <p>
+    Opt-in, per device: <strong>Settings &rarr; Apply Tome metadata to this device</strong>. When it
+    is on, the metadata KOReader shows for the books on your device follows your Tome library:
+    title, author, series and index, language, tags, description and cover. Edit a field in Tome
+    and the device picks it up on its next sync; edit or reset a field on the device and it goes
+    back to Tome's value. <strong>Tome is the source of truth.</strong>
+  </p>
+  <p>
+    The plugin writes KOReader's own <em>custom metadata</em> (the sidecar file and custom cover that
+    Book information &rarr; Edit fills in by hand), never the book file itself, so file identity,
+    reading position and highlights stay untouched and KOReader's own "reset" still restores what
+    the file carries. Filenames on the device are not renamed. Only books Tome can verify by file
+    hash are touched: a file that never passed through Tome, or a different edition, is reported as
+    "not matched" and left alone, so one book's metadata can never land on another file.
+  </p>
+  <p>
+    Runs shortly after launch and when WiFi connects; <strong>Apply Tome metadata now</strong> in
+    the TomeSync menu runs it on demand and shows a summary. Steady-state runs only exchange
+    fingerprints, so nothing is re-sent until something actually changed. Requires plugin build 42.
+  </p>
+
   <h3>Offline-first</h3>
   <p>
     When your server is unreachable, sync silently skips with zero delay — no freezing, no error
