@@ -277,6 +277,9 @@ def test_plugin_writes_koreader_custom_metadata_not_the_file():
     assert 'saveSetting("custom_props"' in apply
     assert "flushCustomMetadata(" in apply
     assert "flushCustomCover(" in apply
+    # Read-back through KOReader's own lookup: a stale copy shadowing the
+    # read-only fallback location must count as a failure, not success.
+    assert "shadowed by a stale sidecar copy" in apply
     # The book file is never opened for writing.
     assert 'io.open(path, "w' not in apply and 'io.open(path, "a' not in apply
     # Displays are told: cover-browser DB row dropped + generic metadata event.
@@ -295,6 +298,19 @@ def test_plugin_reapplies_after_a_device_side_edit():
     assert "led.sig == sidecarSig(c.path)" in impl
 
 
+def test_plugin_reverts_its_writes_when_tome_stops_vouching():
+    """A file synced earlier that is later rejected (replaced under the same
+    name, book deleted in Tome) must not keep the old book's metadata."""
+    lua = _impl()
+    revoke = _body(lua, "_revokeDeviceMetadata")
+    assert "for k in pairs(prev_keys)" in revoke          # only keys we own
+    assert "findCustomCoverFile(path)" in revoke and "os.remove(cover)" in revoke
+    impl = _body(lua, "_syncMetadataImpl")
+    rejected = impl[impl.find("each(resp.rejected"):impl.find("each(resp.books")]
+    assert "_revokeDeviceMetadata" in rejected
+    assert "prev.keys" in rejected and "prev.cover" in rejected
+
+
 def test_plugin_skips_open_book_and_gates_on_setting():
     impl = _body(_impl(), "_syncMetadataImpl")
     # The book currently open in the reader is left for the next run - its
@@ -306,6 +322,12 @@ def test_plugin_skips_open_book_and_gates_on_setting():
     # the manual action is not.
     assert "os.time() - meta_last_auto < 120" in sync
     assert "if not interactive then" in sync
+
+
+def test_plugin_reports_old_server_distinctly():
+    impl = _body(_impl(), "_syncMetadataImpl")
+    assert "code == 404 or code == 405" in impl
+    assert "does not support metadata sync yet" in impl
 
 
 def test_plugin_menu_and_triggers():

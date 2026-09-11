@@ -4953,6 +4953,22 @@ function TomeSync:_applyDeviceMetadata(path, entry, prev_keys)
         if not cds:flushCustomMetadata(path) then
             return false, "could not write custom metadata"
         end
+        -- Read back through the same lookup KOReader uses. On read-only book
+        -- storage flushCustomMetadata falls back to KOReader's internal
+        -- docsettings folder, but a stale copy left in the book folder still
+        -- shadows it - the device would keep showing the old values while we
+        -- record the book as applied. Count that as a failure instead, so it
+        -- is retried rather than forgotten.
+        local eff = DocSettings:findCustomMetadataFile(path)
+        local seen = eff and DocSettings.openSettingsFile(eff):readSetting("custom_props")
+        if type(seen) ~= "table" then
+            return false, "custom metadata not readable after write"
+        end
+        for k in pairs(keys) do
+            if seen[k] ~= custom[k] then
+                return false, "custom metadata shadowed by a stale sidecar copy"
+            end
+        end
     end
 
     local cover_ok = true
@@ -4978,6 +4994,42 @@ function TomeSync:_applyDeviceMetadata(path, entry, prev_keys)
     -- props + cover at extraction time and re-extracts on next display.
     UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", path))
     return true, nil, keys, cover_ok, sidecarSig(path)
+end
+
+-- Undo what we wrote for a file Tome no longer vouches for (the file was
+-- replaced under the same name, the book was deleted in Tome, visibility
+-- changed): drop only the custom_props keys we own and the cover we placed,
+-- so the file falls back to its own embedded metadata. Anything the user
+-- customised by hand on the device is left alone.
+function TomeSync:_revokeDeviceMetadata(path, prev_keys, had_cover)
+    local DocSettings = require("docsettings")
+    local changed = false
+    local custom_file = DocSettings:findCustomMetadataFile(path)
+    if custom_file and type(prev_keys) == "table" then
+        local cds = DocSettings.openSettingsFile(custom_file)
+        local custom = cds:readSetting("custom_props")
+        if type(custom) == "table" then
+            for k in pairs(prev_keys) do
+                if custom[k] ~= nil then custom[k] = nil; changed = true end
+            end
+            if changed then
+                if next(custom) == nil then
+                    os.remove(custom_file)
+                else
+                    cds:saveSetting("custom_props", custom)
+                    cds:flushCustomMetadata(path)
+                end
+            end
+        end
+    end
+    if had_cover then
+        local cover = DocSettings:findCustomCoverFile(path)
+        if cover then os.remove(cover); changed = true end
+    end
+    if changed then
+        UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", path))
+    end
+    return changed
 end
 
 function TomeSync:_syncMetadata(interactive)
@@ -5029,7 +5081,8 @@ function TomeSync:_syncMetadataImpl(interactive)
     end
 
     meta_sync_running = true
-    local stats = {{ updated = 0, unchanged = 0, rejected = 0, failed = 0, covers_failed = 0 }}
+    local stats = {{ updated = 0, unchanged = 0, rejected = 0, failed = 0,
+                     covers_failed = 0, reverted = 0 }}
     local idx, changed_any = 1, false
 
     local function finish(err)
@@ -5042,6 +5095,9 @@ function TomeSync:_syncMetadataImpl(interactive)
             local text = (err and (err .. "\\n\\n") or "Metadata sync done.\\n\\n")
                 .. string.format("Updated: %d\\nUnchanged: %d\\nNot matched by Tome: %d\\nFailed: %d",
                                  stats.updated, stats.unchanged, stats.rejected, stats.failed)
+            if stats.reverted > 0 then
+                text = text .. string.format("\\nReverted (no longer a Tome match): %d", stats.reverted)
+            end
             if stats.covers_failed > 0 then
                 text = text .. string.format("\\nCovers not fetched: %d", stats.covers_failed)
             end
@@ -5089,7 +5145,7 @@ function TomeSync:_syncMetadataImpl(interactive)
 
         local ok, resp, code = pcall(apiRequest, "POST", "/tome-sync/metadata", {{ items = items }})
         if not ok or type(resp) ~= "table" or type(code) ~= "number" or code >= 300 then
-            if code == 404 then
+            if code == 404 or code == 405 then
                 finish("Your Tome server does not support metadata sync yet - update Tome first.")
             else
                 finish("Metadata sync stopped: server unreachable.")
@@ -5114,6 +5170,17 @@ function TomeSync:_syncMetadataImpl(interactive)
         end)
         each(resp.rejected, function(c)
             stats.rejected = stats.rejected + 1
+            -- A file we wrote to before is no longer vouched for (replaced on
+            -- the device under the same name, book deleted in Tome, ...):
+            -- take our metadata back off it so it shows its own again.
+            local prev = self.meta_ledger[c.path]
+            if prev and (prev.keys or prev.cover) then
+                local rok, reverted = pcall(self._revokeDeviceMetadata, self, c.path, prev.keys, prev.cover)
+                if rok and reverted then
+                    stats.reverted = stats.reverted + 1
+                    changed_any = true
+                end
+            end
             -- Remember the hash (no point re-hashing) but forget any fingerprint
             -- or ownership: nothing of ours may be trusted for this file now.
             self.meta_ledger[c.path] = {{ id = c.id, md5 = c.md5, size = c.size, mtime = c.mtime }}
@@ -5132,6 +5199,7 @@ function TomeSync:_syncMetadataImpl(interactive)
                     -- cover fetch is retried next run instead of forgotten.
                     fp = cover_ok and jval(entry.fingerprint) or nil,
                     keys = keys, sig = sig,
+                    cover = (entry.cover == true and cover_ok) or nil,
                 }}
             else
                 stats.failed = stats.failed + 1
