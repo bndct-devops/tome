@@ -57,6 +57,19 @@ def test_record_is_idempotent_and_none_is_noop(db, make_book):
     assert db.query(KoHash).filter(KoHash.book_id == book.id).count() == 1
 
 
+def test_record_ignores_pending_duplicate_before_flush(db, make_book):
+    """The production session is autoflush=False, so a `db.query` cannot see a
+    row that is still pending in the session. Without a pending-object check the
+    same (book_id, md5) is queued for a duplicate INSERT and the scan transaction
+    dies on the uq_ko_hash_book_md5 constraint at commit."""
+    book = make_book(title="Unflushed Hash", author="A")
+    db.autoflush = False  # match SessionLocal(autoflush=False) in production
+    record_ko_hash(db, book.id, "f" * 32, kind="raw")
+    record_ko_hash(db, book.id, "f" * 32, kind="raw")
+    db.commit()
+    assert db.query(KoHash).filter(KoHash.book_id == book.id).count() == 1
+
+
 def test_baked_hashes_pruned_to_last_n(db, make_book):
     book = make_book(title="Bake Book", author="A")
     for i in range(BAKED_HASHES_KEPT + 3):
