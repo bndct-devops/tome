@@ -1495,7 +1495,7 @@ export function SettingsPage() {
         <section>
           <SectionHeader title={t`API Tokens`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-2">
+            <div className="p-5 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
@@ -1507,22 +1507,13 @@ export function SettingsPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {user?.is_admin && apiTokens.length > 0 && (
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={apiTokensAllUsers}
-                        onClick={() => setApiTokensAllUsers(v => !v)}
-                        className={cn(
-                          'relative w-8 h-[18px] rounded-full transition-colors shrink-0',
-                          apiTokensAllUsers ? 'bg-primary' : 'bg-muted-foreground/30'
-                        )}
-                      >
-                        <span className={cn(
-                          'absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform',
-                          apiTokensAllUsers ? 'translate-x-[16px]' : 'translate-x-0.5'
-                        )} />
-                      </button>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={apiTokensAllUsers}
+                        onChange={e => setApiTokensAllUsers(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded accent-primary"
+                      />
                       <Trans>All users</Trans>
                     </label>
                   )}
