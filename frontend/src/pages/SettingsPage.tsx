@@ -835,15 +835,14 @@ export function SettingsPage() {
                 </p>
               ) : (
                 <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
-                  <div className={cn(
-                    'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
-                    clientDevicesAllUsers && user?.is_admin ? 'grid-cols-[13rem_11rem_5.5rem_5.5rem_minmax(5rem,1fr)_2rem]' : 'grid-cols-[13rem_11rem_5.5rem_1fr_2rem]'
-                  )}>
+                  {/* One template for both modes so nothing shifts when the admin toggle flips;
+                      the Owner column is simply empty until "All users" is on. */}
+                  <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
                     <span><Trans>Device</Trans></span>
                     <span><Trans>System</Trans></span>
                     <span><Trans>Last seen</Trans></span>
                     <span><Trans>Added</Trans></span>
-                    {clientDevicesAllUsers && user?.is_admin && <span><Trans>Owner</Trans></span>}
+                    <span>{clientDevicesAllUsers && user?.is_admin && <Trans>Owner</Trans>}</span>
                     <span />
                   </div>
                   {clientDevices.map(d => {
@@ -852,8 +851,7 @@ export function SettingsPage() {
                       <div
                         key={d.id}
                         className={cn(
-                          'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                          clientDevicesAllUsers && user?.is_admin ? 'sm:grid-cols-[13rem_11rem_5.5rem_5.5rem_minmax(5rem,1fr)_2rem]' : 'sm:grid-cols-[13rem_11rem_5.5rem_1fr_2rem]',
+                          'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
                           isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
                         )}
                       >
@@ -879,9 +877,9 @@ export function SettingsPage() {
                         <span className="text-muted-foreground hidden sm:block shrink-0">
                           {new Date(d.created_at).toLocaleDateString(i18n.locale)}
                         </span>
-                        {clientDevicesAllUsers && user?.is_admin && (
-                          <span className="text-muted-foreground truncate hidden sm:block">{d.username}</span>
-                        )}
+                        <span className="text-muted-foreground truncate hidden sm:block">
+                          {clientDevicesAllUsers && user?.is_admin ? d.username : ''}
+                        </span>
                         <span className="flex justify-end shrink-0">
                           {!isRevoked && (
                             <button
