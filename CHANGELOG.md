@@ -22,6 +22,18 @@ All notable changes to Tome are documented here. Format loosely follows
   metadata now", which shows progress while it runs. Steady-state runs send
   nothing but fingerprints. Plugin build 45 / 1.15.3.
 
+### Fixed
+- Library scans no longer fail when two byte-identical files are picked up
+  in one run. The second copy queued the same KOReader file hash again
+  inside the scan's single transaction, the database's uniqueness check
+  rejected it at commit, and the whole scan rolled back - every book that
+  scan had just added vanished from Tome while its files stayed in the
+  library. Contributed by @obitheway (#215).
+- The per-book caps on baked KOReader hashes and on reading-position history
+  are now exact. Both prunes ran before the newly added row was written and
+  so kept one entry too many (6 instead of 5 hashes, 41 instead of 40
+  history entries).
+
 ## [2.4.0] - 2026-09-03
 
 ### Changed

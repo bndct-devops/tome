@@ -130,7 +130,10 @@ def db() -> Session:
     """Yields a SQLAlchemy Session that is rolled back after each test."""
     connection = test_engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection)
+    # autoflush=False mirrors backend.core.database.SessionLocal. A session
+    # that autoflushes hides a whole class of prod bugs: queries silently see
+    # rows that are still pending in the real server session (see #215).
+    session = Session(bind=connection, autoflush=False)
 
     yield session
 

@@ -41,7 +41,10 @@ def _record_history(
         user_id=user_id, book_id=book_id,
         percentage=percentage, progress=progress, device=device,
     ))
-    # Prune beyond the cap — ids beat created_at for same-second inserts.
+    # Prune beyond the cap — ids beat created_at for same-second inserts. The
+    # server session is autoflush=False, so flush first or the query never sees
+    # the row just added and the cap drifts to HISTORY_KEEP + 1.
+    db.flush()
     stale = (
         db.query(PositionHistory.id)
         .filter(PositionHistory.user_id == user_id, PositionHistory.book_id == book_id)
