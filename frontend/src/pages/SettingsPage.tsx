@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
-  AlertTriangle, ExternalLink, Send,
+  AlertTriangle, ExternalLink, Send, QrCode,
 } from 'lucide-react'
+import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
 import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { NotificationChannels } from '@/components/NotificationChannels'
@@ -161,6 +162,7 @@ export function SettingsPage() {
   const [qcAuthorizing, setQcAuthorizing] = useState(false)
   const [qcError, setQcError] = useState<string | null>(null)
   const [qcSuccess, setQcSuccess] = useState(false)
+  const [showConnectPhone, setShowConnectPhone] = useState(false)
 
   async function handleQcAuthorize(e: React.FormEvent) {
     e.preventDefault()
@@ -720,10 +722,19 @@ export function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium text-foreground"><Trans>Quick Connect</Trans></p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    <Trans>Sign in on a new device without entering your password. On the new device, tap "Quick Connect" on the login screen to get a 6-character code, then enter it here.</Trans>
+                    <Trans>Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap "Quick Connect" on its login screen.</Trans>
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowConnectPhone(true)}
+                className="mb-4 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-border hover:bg-muted transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <Trans>Connect a phone</Trans>
+              </button>
+              {showConnectPhone && <ConnectPhoneModal onClose={() => setShowConnectPhone(false)} />}
               <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-xs">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Code from new device</Trans></label>

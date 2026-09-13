@@ -2018,6 +2018,7 @@ msgid "Click for details"
 msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
+#: src/components/ConnectPhoneModal.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareShelfModal.tsx
@@ -2133,6 +2134,11 @@ msgstr ""
 msgid "Confirm password"
 msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
+#: src/pages/SettingsPage.tsx
+msgid "Connect a phone"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
 msgstr ""
@@ -2189,6 +2195,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Core"
+msgstr ""
+
+#: src/components/ConnectPhoneModal.tsx
+msgid "Could not create a code"
 msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
@@ -3894,6 +3904,7 @@ msgstr ""
 #~ msgid "Loading..."
 #~ msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareLinksOverview.tsx
@@ -4200,6 +4211,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "New board"
+msgstr ""
+
+#: src/components/ConnectPhoneModal.tsx
+msgid "New code"
 msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
@@ -4864,6 +4879,10 @@ msgstr ""
 msgid "Open book (pick a cover by eye)"
 msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "Open in the Tome app"
+msgstr ""
+
 #: src/components/AppHeader.tsx
 msgid "Open navigation"
 msgstr ""
@@ -5050,6 +5069,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Personal Records"
+msgstr ""
+
+#: src/components/ConnectPhoneModal.tsx
+msgid "Phone connected"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
@@ -5840,6 +5863,10 @@ msgstr ""
 msgid "Scan Now"
 msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Scanner"
 msgstr ""
@@ -6325,7 +6352,11 @@ msgid "Sign in"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+#~ msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap \"Quick Connect\" on its login screen."
 msgstr ""
 
 #: src/pages/LoginPage.tsx
@@ -6710,6 +6741,10 @@ msgstr ""
 msgid "This board is empty."
 msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "This code has expired."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "This is a whole-series wish — it stays open as volumes arrive."
 msgstr ""
@@ -6952,6 +6987,7 @@ msgstr ""
 msgid "Try adjusting your filters"
 msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
 #: src/pages/LoginPage.tsx
 msgid "Try again"
 msgstr ""

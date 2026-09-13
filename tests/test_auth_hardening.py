@@ -105,6 +105,61 @@ class TestQuickConnectPollToken:
         assert resp.status_code == 410
 
 
+class TestQuickConnectIssuedCodes:
+    """"Connect a phone": the signed-in browser issues a pre-authorized code and
+    shows it as a QR; the phone polls once and is in. The issuer can watch the
+    code's state and cancel it early."""
+
+    def test_issued_code_is_pre_authorized_and_single_use(self, client: TestClient):
+        issued = client.post("/api/auth/quick-connect/issue")
+        assert issued.status_code == 200
+        body = issued.json()
+        assert len(body["code"]) == 6
+        assert len(body["poll_token"]) >= 32
+
+        done = client.post("/api/auth/quick-connect/poll",
+                           json={"code": body["code"], "poll_token": body["poll_token"]})
+        assert done.status_code == 200
+        assert done.json()["status"] == "authorized"
+        assert done.json()["access_token"]
+
+        # consumed: a second poll is gone, and so is the status view
+        again = client.post("/api/auth/quick-connect/poll",
+                            json={"code": body["code"], "poll_token": body["poll_token"]})
+        assert again.status_code == 410
+        assert client.get(f"/api/auth/quick-connect/{body['code']}").status_code == 404
+
+    def test_status_then_cancel(self, client: TestClient):
+        body = client.post("/api/auth/quick-connect/issue").json()
+
+        st = client.get(f"/api/auth/quick-connect/{body['code']}")
+        assert st.status_code == 200
+        assert st.json()["status"] == "authorized"
+
+        assert client.delete(f"/api/auth/quick-connect/{body['code']}").status_code == 204
+        assert client.get(f"/api/auth/quick-connect/{body['code']}").status_code == 404
+        gone = client.post("/api/auth/quick-connect/poll",
+                           json={"code": body["code"], "poll_token": body["poll_token"]})
+        assert gone.status_code == 410
+
+    def test_unknown_or_unowned_code_is_404(self, client: TestClient, db):
+        assert client.get("/api/auth/quick-connect/ZZZZZZ").status_code == 404
+        assert client.delete("/api/auth/quick-connect/ZZZZZZ").status_code == 404
+
+        # A pending code initiated by some other device is not ours to inspect or cancel
+        init = client.post("/api/auth/quick-connect/initiate").json()
+        assert client.get(f"/api/auth/quick-connect/{init['code']}").status_code == 404
+        assert client.delete(f"/api/auth/quick-connect/{init['code']}").status_code == 404
+        # ...and it still works for its owner
+        pending = client.post("/api/auth/quick-connect/poll",
+                              json={"code": init["code"], "poll_token": init["poll_token"]})
+        assert pending.status_code == 200 and pending.json()["status"] == "pending"
+
+    def test_issue_requires_auth(self, client: TestClient):
+        resp = client.post("/api/auth/quick-connect/issue", headers={"Authorization": ""})
+        assert resp.status_code == 401
+
+
 # ---------------------------------------------------------------------------
 # KOSync registration
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ import hmac
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -38,17 +38,18 @@ class PollRequest(BaseModel):
     poll_token: str
 
 
-@router.post("/initiate", response_model=InitiateResponse)
-def initiate(db: Session = Depends(get_db)):
-    """Generate a new Quick Connect code. No authentication required."""
-    # Clean up expired codes
+class CodeStatusResponse(BaseModel):
+    status: str  # "pending" | "authorized"
+    expires_at: datetime
+
+
+def _new_code(db: Session) -> QuickConnectCode:
+    """Create and persist a fresh, unique code with the standard TTL."""
     db.query(QuickConnectCode).filter(QuickConnectCode.expires_at < datetime.utcnow()).delete()
     db.commit()
 
     now = datetime.utcnow()
-    expires = now + timedelta(minutes=CODE_TTL_MINUTES)
     code = generate_code()
-    # Ensure uniqueness (extremely unlikely collision but be safe)
     while db.query(QuickConnectCode).filter(QuickConnectCode.code == code).first():
         code = generate_code()
 
@@ -56,12 +57,77 @@ def initiate(db: Session = Depends(get_db)):
         code=code,
         poll_token=secrets.token_urlsafe(32),
         created_at=now,
-        expires_at=expires,
+        expires_at=now + timedelta(minutes=CODE_TTL_MINUTES),
     )
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    return entry
+
+
+def _owned_live_code(db: Session, code: str, user_id: int) -> QuickConnectCode:
+    """A code the current user issued or authorized, still within its TTL.
+    Anything else is a plain 404 so the endpoint is not an oracle."""
+    entry = db.query(QuickConnectCode).filter(QuickConnectCode.code == code.upper().strip()).first()
+    if not entry or entry.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Code not found")
+    if entry.expires_at < datetime.utcnow():
+        db.delete(entry)
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Code not found")
+    return entry
+
+
+@router.post("/initiate", response_model=InitiateResponse)
+def initiate(db: Session = Depends(get_db)):
+    """Generate a new Quick Connect code. No authentication required."""
+    entry = _new_code(db)
     return InitiateResponse(code=entry.code, poll_token=entry.poll_token, expires_at=entry.expires_at)
+
+
+@router.post("/issue", response_model=InitiateResponse)
+def issue(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Issue a code that is already authorized for the current user.
+
+    This is the "Connect a phone" direction: the signed-in browser shows the
+    code (as a QR) and the phone polls once with it to receive its JWT. The
+    code carries the same TTL and single use as a typed one, and the issuer
+    can cancel it early (DELETE below), which is what closing the QR does.
+    """
+    entry = _new_code(db)
+    entry.user_id = current_user.id
+    entry.authorized_at = datetime.utcnow()
+    db.commit()
+
+    ip = request.client.host if request.client else None
+    audit(db, "auth.quick_connect_issued",
+          user_id=current_user.id, username=current_user.username, ip=ip,
+          details={"code": entry.code})
+    return InitiateResponse(code=entry.code, poll_token=entry.poll_token, expires_at=entry.expires_at)
+
+
+@router.get("/{code}", response_model=CodeStatusResponse)
+def code_status(code: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """State of a code the current user owns. 404 once it is consumed, cancelled
+    or expired, which is how the issuing browser learns the phone took it."""
+    entry = _owned_live_code(db, code, current_user.id)
+    return CodeStatusResponse(
+        status="authorized" if entry.authorized_at is not None else "pending",
+        expires_at=entry.expires_at,
+    )
+
+
+@router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel(code: str, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Invalidate a code the current user owns before it expires."""
+    entry = _owned_live_code(db, code, current_user.id)
+    db.delete(entry)
+    db.commit()
+    ip = request.client.host if request.client else None
+    audit(db, "auth.quick_connect_cancelled",
+          user_id=current_user.id, username=current_user.username, ip=ip,
+          details={"code": entry.code})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/authorize", status_code=200)

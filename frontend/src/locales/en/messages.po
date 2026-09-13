@@ -2018,6 +2018,7 @@ msgid "Click for details"
 msgstr "Click for details"
 
 #: src/components/BulkMetadataReviewModal.tsx
+#: src/components/ConnectPhoneModal.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareShelfModal.tsx
@@ -2133,6 +2134,11 @@ msgstr "Confirm new password"
 msgid "Confirm password"
 msgstr "Confirm password"
 
+#: src/components/ConnectPhoneModal.tsx
+#: src/pages/SettingsPage.tsx
+msgid "Connect a phone"
+msgstr "Connect a phone"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
 msgstr "Content"
@@ -2190,6 +2196,10 @@ msgstr "Copy token"
 #: src/pages/SettingsPage.tsx
 msgid "Core"
 msgstr "Core"
+
+#: src/components/ConnectPhoneModal.tsx
+msgid "Could not create a code"
+msgstr "Could not create a code"
 
 #: src/components/stats/GoalWidget.tsx
 msgid "Could not create the goal — it may already exist."
@@ -3894,6 +3904,7 @@ msgstr "Loading your reading life…"
 #~ msgid "Loading..."
 #~ msgstr "Loading..."
 
+#: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ShareLinksOverview.tsx
@@ -4201,6 +4212,10 @@ msgstr "never used"
 #: src/pages/StatsPage.tsx
 msgid "New board"
 msgstr "New board"
+
+#: src/components/ConnectPhoneModal.tsx
+msgid "New code"
+msgstr "New code"
 
 #: src/components/MetadataFetchModal.tsx
 msgid "New cover"
@@ -4864,6 +4879,10 @@ msgstr "Open a book downloaded via OPDS"
 msgid "Open book (pick a cover by eye)"
 msgstr "Open book (pick a cover by eye)"
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "Open in the Tome app"
+msgstr "Open in the Tome app"
+
 #: src/components/AppHeader.tsx
 msgid "Open navigation"
 msgstr "Open navigation"
@@ -5051,6 +5070,10 @@ msgstr "Period Comparison"
 #: src/pages/StatsPage.tsx
 msgid "Personal Records"
 msgstr "Personal Records"
+
+#: src/components/ConnectPhoneModal.tsx
+msgid "Phone connected"
+msgstr "Phone connected"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Pick"
@@ -5840,6 +5863,10 @@ msgstr "Scan Library"
 msgid "Scan Now"
 msgstr "Scan Now"
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window."
+msgstr "Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window."
+
 #: src/pages/AdminPage.tsx
 msgid "Scanner"
 msgstr "Scanner"
@@ -6325,8 +6352,12 @@ msgid "Sign in"
 msgstr "Sign in"
 
 #: src/pages/SettingsPage.tsx
-msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
-msgstr "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+#~ msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+#~ msgstr "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
+
+#: src/pages/SettingsPage.tsx
+msgid "Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap \"Quick Connect\" on its login screen."
+msgstr "Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap \"Quick Connect\" on its login screen."
 
 #: src/pages/LoginPage.tsx
 msgid "Sign in to your library"
@@ -6710,6 +6741,10 @@ msgstr "Theme name is required"
 msgid "This board is empty."
 msgstr "This board is empty."
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "This code has expired."
+msgstr "This code has expired."
+
 #: src/pages/AdminPage.tsx
 msgid "This is a whole-series wish — it stays open as volumes arrive."
 msgstr "This is a whole-series wish — it stays open as volumes arrive."
@@ -6952,6 +6987,7 @@ msgstr "Trimming only shortens this session's length and end time — page turns
 msgid "Try adjusting your filters"
 msgstr "Try adjusting your filters"
 
+#: src/components/ConnectPhoneModal.tsx
 #: src/pages/LoginPage.tsx
 msgid "Try again"
 msgstr "Try again"
