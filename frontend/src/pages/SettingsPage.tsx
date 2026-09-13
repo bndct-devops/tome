@@ -860,7 +860,12 @@ export function SettingsPage() {
                         <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
                           <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           <span className="truncate">{d.name}</span>
-                          {d.app_version && <span className="text-muted-foreground font-normal shrink-0">{d.app_version}</span>}
+                          {d.app_version && (
+                            // "0.1 (1)" → show "0.1", keep the build number in the tooltip
+                            <span className="text-muted-foreground font-normal shrink-0" title={d.app_version}>
+                              {d.app_version.replace(/\s*\(.*\)\s*$/, '')}
+                            </span>
+                          )}
                           {isRevoked && (
                             <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
                               <Trans>Revoked</Trans>
