@@ -815,7 +815,7 @@ export function SettingsPage() {
                       )}
                     >
                       <span className={cn(
-                        'absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform',
+                        'absolute left-0 top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform',
                         clientDevicesAllUsers ? 'translate-x-[16px]' : 'translate-x-0.5'
                       )} />
                     </button>
@@ -837,7 +837,7 @@ export function SettingsPage() {
                 <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
                   <div className={cn(
                     'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
-                    clientDevicesAllUsers && user?.is_admin ? 'grid-cols-[minmax(12rem,16rem)_12rem_6rem_6rem_1fr_2rem]' : 'grid-cols-[minmax(12rem,16rem)_12rem_6rem_1fr_2rem]'
+                    clientDevicesAllUsers && user?.is_admin ? 'grid-cols-[13rem_11rem_5.5rem_5.5rem_minmax(5rem,1fr)_2rem]' : 'grid-cols-[13rem_11rem_5.5rem_1fr_2rem]'
                   )}>
                     <span><Trans>Device</Trans></span>
                     <span><Trans>System</Trans></span>
@@ -853,7 +853,7 @@ export function SettingsPage() {
                         key={d.id}
                         className={cn(
                           'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                          clientDevicesAllUsers && user?.is_admin ? 'sm:grid-cols-[minmax(12rem,16rem)_12rem_6rem_6rem_1fr_2rem]' : 'sm:grid-cols-[minmax(12rem,16rem)_12rem_6rem_1fr_2rem]',
+                          clientDevicesAllUsers && user?.is_admin ? 'sm:grid-cols-[13rem_11rem_5.5rem_5.5rem_minmax(5rem,1fr)_2rem]' : 'sm:grid-cols-[13rem_11rem_5.5rem_1fr_2rem]',
                           isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
                         )}
                       >
