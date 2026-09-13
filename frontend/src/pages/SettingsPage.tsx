@@ -837,7 +837,7 @@ export function SettingsPage() {
                 <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
                   <div className={cn(
                     'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
-                    clientDevicesAllUsers && user?.is_admin ? 'grid-cols-[1fr_9rem_7rem_6rem_5rem_2rem]' : 'grid-cols-[1fr_9rem_7rem_6rem_2rem]'
+                    clientDevicesAllUsers && user?.is_admin ? 'grid-cols-[minmax(12rem,16rem)_12rem_6rem_6rem_1fr_2rem]' : 'grid-cols-[minmax(12rem,16rem)_12rem_6rem_1fr_2rem]'
                   )}>
                     <span><Trans>Device</Trans></span>
                     <span><Trans>System</Trans></span>
@@ -853,11 +853,11 @@ export function SettingsPage() {
                         key={d.id}
                         className={cn(
                           'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                          clientDevicesAllUsers && user?.is_admin ? 'sm:grid-cols-[1fr_9rem_7rem_6rem_5rem_2rem]' : 'sm:grid-cols-[1fr_9rem_7rem_6rem_2rem]',
+                          clientDevicesAllUsers && user?.is_admin ? 'sm:grid-cols-[minmax(12rem,16rem)_12rem_6rem_6rem_1fr_2rem]' : 'sm:grid-cols-[minmax(12rem,16rem)_12rem_6rem_1fr_2rem]',
                           isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
                         )}
                       >
-                        <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
+                        <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
                           <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           <span className="truncate">{d.name}</span>
                           {d.app_version && <span className="text-muted-foreground font-normal shrink-0">{d.app_version}</span>}
@@ -867,7 +867,7 @@ export function SettingsPage() {
                             </span>
                           )}
                         </span>
-                        <span className="text-muted-foreground hidden sm:block truncate">{d.platform ?? '—'}</span>
+                        <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '—'}</span>
                         <span className="text-muted-foreground hidden sm:block shrink-0">
                           {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}
                         </span>
