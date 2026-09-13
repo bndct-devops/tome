@@ -797,7 +797,7 @@ export function SettingsPage() {
         <section>
           <SectionHeader title={t`Connected devices`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-3">
+            <div className="p-5 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
                   <Trans>Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code.</Trans>
@@ -1495,7 +1495,7 @@ export function SettingsPage() {
         <section>
           <SectionHeader title={t`API Tokens`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
