@@ -13,6 +13,7 @@ from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 logger = logging.getLogger(__name__)
 
 from backend.api import health, auth, books, libraries, book_types
+from backend.api import devices as devices_api
 from backend.api import users  # noqa: F401
 from backend.api import downloads
 from backend.api import opds
@@ -808,6 +809,7 @@ def create_app() -> FastAPI:
     # API routes
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
+    app.include_router(devices_api.router, prefix="/api")
     app.include_router(home.router, prefix="/api")
     app.include_router(books.router, prefix="/api")
     app.include_router(libraries.router, prefix="/api")

@@ -5,6 +5,7 @@ from backend.models.library import Library, SavedFilter, BookType  # noqa: F401
 from backend.models.user_book_status import UserBookStatus  # noqa: F401
 from backend.models.user_series_rating import UserSeriesRating  # noqa: F401
 from backend.models.api_token import ApiToken  # noqa: F401
+from backend.models.client_device import ClientDevice  # noqa: F401
 from backend.models.series_meta import Arc, SeriesMeta  # noqa: F401
 from backend.models.user_device import UserDevice  # noqa: F401
 from backend.models.wish import Wish  # noqa: F401

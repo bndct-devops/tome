@@ -14,9 +14,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.security import create_access_token, get_current_user
+from backend.core.security import get_current_user
 from backend.models.quick_connect import QuickConnectCode, generate_code
+from backend.schemas.auth import DeviceInfo
 from backend.services.audit import audit
+from backend.services.client_devices import issue_token
 
 router = APIRouter(prefix="/auth/quick-connect", tags=["auth"])
 
@@ -36,6 +38,9 @@ class AuthorizeRequest(BaseModel):
 class PollRequest(BaseModel):
     code: str
     poll_token: str
+    # A native client names itself here so the login shows up under
+    # Settings > Connected devices and can be revoked.
+    device: DeviceInfo | None = None
 
 
 class CodeStatusResponse(BaseModel):
@@ -177,9 +182,9 @@ def poll(body: PollRequest, request: Request, db: Session = Depends(get_db)):
     if entry.authorized_at is None or entry.user_id is None:
         return {"status": "pending"}
 
-    # Authorized — issue a JWT and consume the code
-    token = create_access_token(entry.user_id)
+    # Authorized — issue a JWT (device-bound if the client named itself) and consume the code
     user_id = entry.user_id
+    token = issue_token(db, user_id, body.device)
 
     db.delete(entry)
     db.commit()

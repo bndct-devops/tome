@@ -1280,6 +1280,7 @@ msgid "Add your SMTP sender address to Amazon's <0>Approved Personal Document E-
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Added"
 msgstr ""
 
@@ -2139,6 +2140,10 @@ msgstr ""
 msgid "Connect a phone"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Connected devices"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
 msgstr ""
@@ -2545,6 +2550,7 @@ msgstr ""
 #: src/components/SendToDeviceModal.tsx
 #: src/components/stats/widgets/overview.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Device"
 msgstr ""
 
@@ -3741,6 +3747,10 @@ msgid "Last read"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+msgid "Last seen"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 msgid "Last sync: {d}"
 msgstr ""
 
@@ -4398,6 +4408,10 @@ msgstr ""
 
 #: src/components/SendToDeviceModal.tsx
 msgid "No devices configured"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "No devices connected yet. Use \"Connect a phone\" above to sign the Tome app in."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -5075,6 +5089,10 @@ msgstr ""
 msgid "Phone connected"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Pick"
 msgstr ""
@@ -5724,6 +5742,15 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Revoke"
+msgstr ""
+
+#. placeholder {0}: d.name
+#: src/pages/SettingsPage.tsx
+#~ msgid "Revoke \"{0}\"? It is signed out immediately and has to connect again."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
 msgstr ""
 
 #: src/components/ShareLinksOverview.tsx
@@ -6637,6 +6664,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Synopsis or description"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "System"
 msgstr ""
 
 #: src/pages/ReaderPage.tsx

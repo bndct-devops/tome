@@ -27,18 +27,26 @@ def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
-def create_access_token(subject: str | int) -> str:
+def create_access_token(subject: str | int, device_token_id: str | None = None) -> str:
+    """JWT for a user. With `device_token_id` the token is bound to a
+    ClientDevice row (as `jti`) and dies when that row is revoked."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     payload = {"sub": str(subject), "exp": expire}
+    if device_token_id:
+        payload["jti"] = device_token_id
     return jwt.encode(payload, _signing_key(), algorithm=settings.jwt_algorithm)
 
 
-def decode_token(token: str) -> Optional[str]:
+def decode_claims(token: str) -> Optional[dict]:
     try:
-        payload = jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
-        return payload.get("sub")
+        return jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
     except JWTError:
         return None
+
+
+def decode_token(token: str) -> Optional[str]:
+    claims = decode_claims(token)
+    return claims.get("sub") if claims else None
 
 
 async def get_current_user(
@@ -83,13 +91,30 @@ async def get_current_user(
         request.state.api_token_id = api_token.id
         return user
 
-    user_id = decode_token(token)
+    claims = decode_claims(token)
+    user_id = claims.get("sub") if claims else None
     if user_id is None:
         raise credentials_exc
 
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None or not user.is_active:
         raise credentials_exc
+
+    # Device-bound token: the row must exist, belong to this user and not be revoked.
+    jti = claims.get("jti")
+    if jti:
+        from backend.models.client_device import ClientDevice
+        device = db.query(ClientDevice).filter(ClientDevice.token_id == jti).first()
+        if device is None or device.revoked_at is not None or device.user_id != user.id:
+            raise credentials_exc
+        now = datetime.utcnow()
+        if device.last_seen_at is None or now - device.last_seen_at > timedelta(minutes=5):
+            try:
+                device.last_seen_at = now
+                db.commit()
+            except Exception:
+                db.rollback()
+        request.state.device_id = device.id
     return user
 
 

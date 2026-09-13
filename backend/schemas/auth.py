@@ -4,9 +4,17 @@ from pydantic import BaseModel, field_validator
 import re
 
 
+class DeviceInfo(BaseModel):
+    """How a native client introduces itself at login (see ClientDevice)."""
+    name: str
+    platform: str | None = None
+    app_version: str | None = None
+
+
 class LoginRequest(BaseModel):
     username: str  # username or email
     password: str
+    device: DeviceInfo | None = None
 
 
 class TokenResponse(BaseModel):

@@ -13,6 +13,7 @@ from backend.core.security import (
 from backend.models.user import User, UserPermission
 from backend.schemas.auth import LoginRequest, SetupRequest, TokenResponse, UserOut
 from backend.services.audit import audit
+from backend.services.client_devices import issue_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -93,8 +94,9 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled",
         )
-    token = create_access_token(user.id)
-    audit(db, "auth.login", user_id=user.id, username=user.username, ip=ip)
+    token = issue_token(db, user.id, body.device)
+    audit(db, "auth.login", user_id=user.id, username=user.username, ip=ip,
+          details={"device": body.device.name} if body.device else None)
     return {"access_token": token, "token_type": "bearer"}
 
 

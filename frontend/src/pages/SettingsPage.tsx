@@ -6,6 +6,7 @@ import {
   AlertTriangle, ExternalLink, Send, QrCode,
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
+import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
 import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { NotificationChannels } from '@/components/NotificationChannels'
@@ -163,6 +164,29 @@ export function SettingsPage() {
   const [qcError, setQcError] = useState<string | null>(null)
   const [qcSuccess, setQcSuccess] = useState(false)
   const [showConnectPhone, setShowConnectPhone] = useState(false)
+
+  // ── Connected devices ─────────────────────────────────────────────────────
+  const [clientDevices, setClientDevices] = useState<ClientDevice[] | null>(null) // null = loading
+  const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
+  const [clientDevicesTick, setClientDevicesTick] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    listDevices(clientDevicesAllUsers)
+      .then(list => { if (alive) setClientDevices(list) })
+      .catch(() => { if (alive) setClientDevices([]) })
+    return () => { alive = false }
+  }, [clientDevicesAllUsers, clientDevicesTick, showConnectPhone])
+
+  async function handleRevokeClientDevice(d: ClientDevice) {
+    const name = d.name
+    if (!confirm(t`Revoke "${name}"? It is signed out immediately and has to connect again.`)) return
+    try {
+      await revokeDevice(d.id)
+    } finally {
+      setClientDevicesTick(n => n + 1)
+    }
+  }
 
   async function handleQcAuthorize(e: React.FormEvent) {
     e.preventDefault()
@@ -766,6 +790,101 @@ export function SettingsPage() {
               )}
             </div>
 
+          </div>
+        </section>
+
+        {/* ── Connected devices ───────────────────────────────────────── */}
+        <section>
+          <SectionHeader title={t`Connected devices`} />
+          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-5 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  <Trans>Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code.</Trans>
+                </p>
+                {user?.is_admin && (
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={clientDevicesAllUsers}
+                      onChange={e => setClientDevicesAllUsers(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-primary"
+                    />
+                    <Trans>All users</Trans>
+                  </label>
+                )}
+              </div>
+
+              {clientDevices === null ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Trans>Loading…</Trans>
+                </div>
+              ) : clientDevices.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  <Trans>No devices connected yet. Use "Connect a phone" above to sign the Tome app in.</Trans>
+                </p>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  <div className={cn(
+                    'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
+                    clientDevicesAllUsers && user?.is_admin ? 'grid-cols-[1fr_9rem_7rem_6rem_5rem_2rem]' : 'grid-cols-[1fr_9rem_7rem_6rem_2rem]'
+                  )}>
+                    <span><Trans>Device</Trans></span>
+                    <span><Trans>System</Trans></span>
+                    <span><Trans>Last seen</Trans></span>
+                    <span><Trans>Added</Trans></span>
+                    {clientDevicesAllUsers && user?.is_admin && <span><Trans>Owner</Trans></span>}
+                    <span />
+                  </div>
+                  {clientDevices.map(d => {
+                    const isRevoked = d.revoked_at !== null
+                    return (
+                      <div
+                        key={d.id}
+                        className={cn(
+                          'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
+                          clientDevicesAllUsers && user?.is_admin ? 'sm:grid-cols-[1fr_9rem_7rem_6rem_5rem_2rem]' : 'sm:grid-cols-[1fr_9rem_7rem_6rem_2rem]',
+                          isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
+                          <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{d.name}</span>
+                          {d.app_version && <span className="text-muted-foreground font-normal shrink-0">{d.app_version}</span>}
+                          {isRevoked && (
+                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                              <Trans>Revoked</Trans>
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-muted-foreground hidden sm:block truncate">{d.platform ?? '—'}</span>
+                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                          {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}
+                        </span>
+                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                          {new Date(d.created_at).toLocaleDateString(i18n.locale)}
+                        </span>
+                        {clientDevicesAllUsers && user?.is_admin && (
+                          <span className="text-muted-foreground truncate hidden sm:block">{d.username}</span>
+                        )}
+                        <span className="flex justify-end shrink-0">
+                          {!isRevoked && (
+                            <button
+                              onClick={() => handleRevokeClientDevice(d)}
+                              title={t`Revoke`}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 

@@ -1280,6 +1280,7 @@ msgid "Add your SMTP sender address to Amazon's <0>Approved Personal Document E-
 msgstr "Add your SMTP sender address to Amazon's <0>Approved Personal Document E-mail List</0>, or emails will be silently dropped."
 
 #: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Added"
 msgstr "Added"
 
@@ -2139,6 +2140,10 @@ msgstr "Confirm password"
 msgid "Connect a phone"
 msgstr "Connect a phone"
 
+#: src/pages/SettingsPage.tsx
+msgid "Connected devices"
+msgstr "Connected devices"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
 msgstr "Content"
@@ -2545,6 +2550,7 @@ msgstr "Details:"
 #: src/components/SendToDeviceModal.tsx
 #: src/components/stats/widgets/overview.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Device"
 msgstr "Device"
 
@@ -3741,6 +3747,10 @@ msgid "Last read"
 msgstr "Last read"
 
 #: src/pages/SettingsPage.tsx
+msgid "Last seen"
+msgstr "Last seen"
+
+#: src/pages/SettingsPage.tsx
 msgid "Last sync: {d}"
 msgstr "Last sync: {d}"
 
@@ -4399,6 +4409,10 @@ msgstr "No description yet for this volume."
 #: src/components/SendToDeviceModal.tsx
 msgid "No devices configured"
 msgstr "No devices configured"
+
+#: src/pages/SettingsPage.tsx
+msgid "No devices connected yet. Use \"Connect a phone\" above to sign the Tome app in."
+msgstr "No devices connected yet. Use \"Connect a phone\" above to sign the Tome app in."
 
 #: src/pages/SettingsPage.tsx
 msgid "No devices yet. Add one to start sending books."
@@ -5075,6 +5089,10 @@ msgstr "Personal Records"
 msgid "Phone connected"
 msgstr "Phone connected"
 
+#: src/pages/SettingsPage.tsx
+msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+msgstr "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+
 #: src/pages/HardcoverPage.tsx
 msgid "Pick"
 msgstr "Pick"
@@ -5725,6 +5743,15 @@ msgstr "Reviewing {n} files"
 #: src/pages/SettingsPage.tsx
 msgid "Revoke"
 msgstr "Revoke"
+
+#. placeholder {0}: d.name
+#: src/pages/SettingsPage.tsx
+#~ msgid "Revoke \"{0}\"? It is signed out immediately and has to connect again."
+#~ msgstr "Revoke \"{0}\"? It is signed out immediately and has to connect again."
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+msgstr "Revoke \"{name}\"? It is signed out immediately and has to connect again."
 
 #: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
@@ -6638,6 +6665,10 @@ msgstr "Syncing…"
 #: src/pages/BinderyPage.tsx
 msgid "Synopsis or description"
 msgstr "Synopsis or description"
+
+#: src/pages/SettingsPage.tsx
+msgid "System"
+msgstr "System"
 
 #: src/pages/ReaderPage.tsx
 msgid "Table of contents"
