@@ -33,6 +33,40 @@ All notable changes to Tome are documented here. Format loosely follows
   are now exact. Both prunes ran before the newly added row was written and
   so kept one entry too many (6 instead of 5 hashes, 41 instead of 40
   history entries).
+- Hardcover sync no longer stamps the sync day as the finish date of a
+  book that has none. A book marked read with an empty finish date (a
+  reading-history CSV import with no Date Read, typically books read years
+  before anything was tracked) got Hardcover's default of "today" on the
+  read entry, and every later sync kept it. Tome now clears the date
+  explicitly on the entries it creates, so the book shows as read with no
+  date. Entries that already existed on Hardcover are left alone: a finish
+  date you recorded there is never overwritten by a missing one in Tome.
+  Reported by @maichler (#217).
+- Marking a book read from the KOReader plugin's series browser now records
+  a finish date, like the web app does. It previously set the status only,
+  so stats fell back to the row's last-modified time and Hardcover filled
+  in the sync day.
+- Hardcover entries Tome creates now carry the book's Tome "date added"
+  instead of the day the sync first ran, so a library built over time no
+  longer collapses onto one date on Hardcover. New entries only: existing
+  entries keep their date, since Tome cannot tell an entry it created from
+  one you already had. Reported by @maichler (#218).
+- Re-reads sync to Hardcover again. Once a book had been finished and
+  synced, setting it back to "reading" opened a new read entry on Hardcover
+  but progress never followed: the sync remembered the completed read as
+  fully pushed and kept pointing at it. Leaving "read" now resets that
+  per-read state, and progress lands on the read entry currently open
+  (a fresh one is opened if Hardcover did not). Reported by @maichler
+  (#219).
+
+### Changed
+- Setting a finished book back to "reading" now starts it over: progress,
+  the resume position and the synced device position reset so the re-read
+  begins at page one. Before, the book reopened on its last page and the
+  next progress report finished it again immediately. Only the live
+  bookmark resets; reading sessions, position history and the completed
+  read on Hardcover are untouched. Applies to the web app and the KOReader
+  plugin's status write-back.
 
 ## [2.4.0] - 2026-09-03
 

@@ -68,7 +68,8 @@ def test_restore_reverts_false_completion(client: TestClient, db: Session, admin
     upsert_position(db, user_id=user.id, book_id=book.id,
                     percentage=1.0, progress="cfi(end)", device="Kindle")
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read",
-                          progress_pct=1.0, finished_at=datetime(2026, 7, 1)))
+                          progress_pct=1.0, finished_at=datetime(2026, 7, 1),
+                          hardcover_synced_pct=1.0, hardcover_read_id=3003))
     db.flush()
 
     hid = next(h["id"] for h in client.get(f"/api/books/{book.id}/position-history").json()["history"]
@@ -85,6 +86,9 @@ def test_restore_reverts_false_completion(client: TestClient, db: Session, admin
     assert status.status == "reading"
     assert status.finished_at is None
     assert status.progress_pct == 0.45
+    # Leaving "read" also ends the read-through for the Hardcover mirror, or
+    # the restored (lower) progress could never out-run the 1.0 snapshot.
+    assert status.hardcover_synced_pct is None and status.hardcover_read_id is None
 
 
 def test_restore_rejects_foreign_entry(client: TestClient, db: Session, admin_user, make_book):

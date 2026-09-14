@@ -13,7 +13,9 @@ from backend.core.ratings import validate_rating
 from backend.core.security import get_current_user
 from backend.core.permissions import require_role
 from backend.services.hardcover_sync import nudge as hardcover_nudge
-from backend.services.book_progress import upsert_position, clear_position
+from backend.services.book_progress import (
+    upsert_position, clear_position, restart_reading, reset_hardcover_read_state,
+)
 from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
@@ -124,14 +126,18 @@ def set_book_status(
     # Only overwrite progress_pct/cfi when explicitly sent (not just defaulting to None)
     raw = body.model_dump(exclude_unset=True)
     if row:
+        was_read = row.status == "read"
         # finished_at marks the transition into "read" (updated_at is useless as
         # a finish date — it moves on every rating/CFI write) and clears when
         # the user un-finishes the book.
-        if body.status == "read" and row.status != "read":
+        if body.status == "read" and not was_read:
             row.finished_at = datetime.utcnow()
             hardcover_nudge()
         elif body.status != "read":
             row.finished_at = None
+        if was_read and body.status != "read":
+            # Leaving "read" ends that read-through for the Hardcover mirror.
+            reset_hardcover_read_state(row)
         row.status = body.status
         if body.status == 'unread':
             row.progress_pct = None
@@ -139,6 +145,12 @@ def set_book_status(
             # Drop the synced device position too, or the device re-pulls it on
             # open and the "unread" reset silently un-does itself.
             clear_position(db, user_id=current_user.id, book_id=book_id)
+        elif body.status == "reading" and was_read and 'progress_pct' not in raw:
+            # "Reading again": start over from page one. A client that sends
+            # an explicit position (API users) keeps its own bookmark instead.
+            restart_reading(db, row)
+            if 'cfi' in raw:
+                row.cfi = body.cfi
         else:
             if 'progress_pct' in raw:
                 row.progress_pct = body.progress_pct

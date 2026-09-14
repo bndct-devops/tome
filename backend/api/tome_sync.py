@@ -32,7 +32,9 @@ from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import Annotation, AnnotationTombstone, ApiKey, ReadingSession, TomeSyncPosition
 from backend.models.ko_stats import StatsImport
 from backend.models.send_queue import SendQueueItem
-from backend.services.book_progress import apply_progress_to_status, upsert_position
+from backend.services.book_progress import (
+    apply_progress_to_status, upsert_position, restart_reading, reset_hardcover_read_state,
+)
 from backend.services.hardcover_sync import nudge as hardcover_nudge
 from backend.services.session_hygiene import is_suspect, notify_suspect_session
 from backend.services.audit import audit
@@ -1147,6 +1149,20 @@ def put_reading_status(
     if row is None:
         row = UserBookStatus(user_id=user.id, book_id=book_id)
         db.add(row)
+    # Same transition rules as the web status endpoint (users.py): stamp the
+    # finish date on the way into "read" (stats and the Hardcover mirror both
+    # read it), clear it on the way out, and a finished book set back to
+    # "reading" starts over from page one.
+    was_read = row.status == "read"
+    if body.status == "read" and not was_read:
+        row.finished_at = datetime.utcnow()
+        hardcover_nudge()
+    elif body.status != "read":
+        row.finished_at = None
+    if was_read and body.status != "read":
+        reset_hardcover_read_state(row)
+    if was_read and body.status == "reading":
+        restart_reading(db, row)
     row.status = body.status
     db.commit()
     return {"ok": True, "book_id": book_id, "status": body.status}

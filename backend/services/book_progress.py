@@ -118,6 +118,37 @@ def upsert_position(
     return row
 
 
+def reset_hardcover_read_state(row: UserBookStatus) -> None:
+    """Forget the per-read Hardcover sync snapshot when a book leaves "read".
+
+    ``hardcover_synced_pct`` is forward-only within one read-through (see
+    ``hardcover_sync.needs_sync``) and ``hardcover_read_id`` points at the
+    read entry that progress is written to. Neither is meaningful once the
+    finished read is over: left in place, a re-read never out-runs the
+    ``1.0`` snapshot, and any progress that did get through would land on
+    the *completed* entry. Clearing both lets the next push start from zero
+    and adopt (or open) the read entry that is currently in progress.
+    """
+    row.hardcover_synced_pct = None
+    row.hardcover_read_id = None
+
+
+def restart_reading(db: Session, row: UserBookStatus) -> None:
+    """A finished book explicitly set back to "reading" starts over.
+
+    Only the live bookmark is reset - progress, the resume CFI and the synced
+    device position - so the re-read begins at page one instead of resuming
+    at the last page, which the sticky rule would immediately re-finish.
+    History is untouched: sessions, position history and the finished read
+    entry on Hardcover all stay. Does not commit.
+    """
+    row.progress_pct = None
+    row.cfi = None
+    row.finished_at = None
+    clear_position(db, user_id=row.user_id, book_id=row.book_id)
+    reset_hardcover_read_state(row)
+
+
 def clear_position(db: Session, *, user_id: int, book_id: int) -> None:
     """Drop the synced reading position for a user+book.
 

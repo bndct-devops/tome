@@ -579,6 +579,355 @@ async def test_push_row_status_only_without_pages(db, admin_user, make_book):
     assert not hs.needs_sync(row)
 
 
+# ── dates: finish date + date_added (#217, #218) ─────────────────────────────
+
+def _json_calls(seen):
+    import json
+    return [json.loads(b) for b in seen]
+
+
+def _variables_for(seen, op: str):
+    """Variables of the first request whose query names ``op``."""
+    for call in _json_calls(seen):
+        if op in call["query"]:
+            return call["variables"]
+    return None
+
+
+@respx.mock
+async def test_push_row_insert_sends_date_added(db, admin_user, make_book):
+    """A user_book we create carries the book's Tome added_at as date_added,
+    not the sync day (#218)."""
+    from datetime import datetime
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Old Friend")
+    book.added_at = datetime(2018, 9, 14, 10, 0)
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 100
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.2)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        if "mutation InsertUserBook" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book": {"id": 1001, "error": None}}})
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 3003, "finished_at": None}]}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 3003, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    assert _variables_for(seen, "InsertUserBook")["object"]["date_added"] == "2018-09-14"
+
+
+@respx.mock
+async def test_push_row_adopted_entry_keeps_its_date_added(db, admin_user, make_book):
+    """An entry that already existed on Hardcover is the user's own history:
+    no date_added (or any other) rewrite on adoption."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Already Shelved")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 100
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.2)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        assert "mutation InsertUserBook" not in body
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": [
+                {"id": 1001, "status_id": 2, "user_book_reads": [{"id": 3003, "finished_at": None}]}]}})
+        if "mutation UpdateUserBook" in body:
+            return httpx.Response(200, json={"data": {"update_user_book": {"id": 1001, "error": None}}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 3003, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    assert row.hardcover_user_book_id == 1001 and row.hardcover_read_id == 3003
+    assert all("date_added" not in b for b in seen)
+
+
+@respx.mock
+async def test_push_row_read_without_finish_date_clears_auto_filled_date(db, admin_user, make_book):
+    """CSV import with an empty Date Read: Hardcover stamps the auto-created
+    read entry with today; the push must send an explicit finished_at null so
+    the entry shows no date rather than the sync day (#217)."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Read Long Ago")
+    book.hardcover_book_id = 77
+    book.hardcover_edition_id = 555
+    book.hardcover_pages = 258
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         progress_pct=1.0, finished_at=None)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        if "mutation InsertUserBook" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book": {"id": 1001, "error": None}}})
+        if "query Reads" in body:
+            # the auto-created read: finished today, at the edition's page count
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 3003, "finished_at": "2026-09-12"}]}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 3003, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    read = _variables_for(seen, "UpdateRead")
+    assert read["id"] == 3003, "must adopt the auto-created finished read for a 'read' row"
+    assert "finished_at" in read["object"] and read["object"]["finished_at"] is None
+    assert read["object"]["progress_pages"] == 258
+    assert row.hardcover_synced_pct == 1.0
+
+
+@respx.mock
+async def test_push_row_read_without_finish_date_pageless_still_clears(db, admin_user, make_book):
+    """No page count normally means no read-row write at all; the date clear
+    must still go out or the page-less imported book keeps the sync day."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Pageless")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = None
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         progress_pct=1.0, finished_at=None)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        if "mutation InsertUserBook" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book": {"id": 1001, "error": None}}})
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 3003, "finished_at": "2026-09-12"}]}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 3003, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    read = _variables_for(seen, "UpdateRead")
+    assert read is not None and read["object"] == {"finished_at": None}
+    assert row.hardcover_synced_pct == 1.0
+    assert not hs.needs_sync(row)
+
+
+@respx.mock
+async def test_push_row_read_with_finish_date_sends_it(db, admin_user, make_book):
+    from datetime import datetime
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Dated")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 100
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         progress_pct=1.0, finished_at=datetime(2024, 3, 2, 21, 0))
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        if "mutation InsertUserBook" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book": {"id": 1001, "error": None}}})
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 3003, "finished_at": "2026-09-12"}]}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 3003, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    assert _variables_for(seen, "UpdateRead")["object"]["finished_at"] == "2024-03-02"
+
+
+@respx.mock
+async def test_push_row_adopted_read_without_tome_finish_date_is_left_alone(db, admin_user, make_book):
+    """Tome has no finish date but Hardcover does (the user's own record from
+    before Tome): unknown must not overwrite known — no finished_at key at all."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Known On Hardcover")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 100
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         progress_pct=1.0, finished_at=None)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": [
+                {"id": 1001, "status_id": 3, "user_book_reads": [{"id": 3003, "finished_at": "2020-05-01"}]}]}})
+        if "mutation UpdateUserBook" in body:
+            return httpx.Response(200, json={"data": {"update_user_book": {"id": 1001, "error": None}}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 3003, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    read = _variables_for(seen, "UpdateRead")
+    assert read["id"] == 3003 and "finished_at" not in read["object"]
+
+
+# ── re-reads (#219) ──────────────────────────────────────────────────────────
+
+def test_needs_sync_after_reread_reset():
+    """After the first completion the snapshot sits at 1.0 and blocks every
+    re-read push; the transition out of "read" must reset it."""
+    from backend.services.book_progress import reset_hardcover_read_state
+    row = UserBookStatus(status="reading", progress_pct=0.05, hardcover_read_id=3003,
+                         hardcover_synced_status="reading", hardcover_synced_pct=1.0)
+    assert not hs.needs_sync(row), "the reported bug: stuck behind the 1.0 snapshot"
+    reset_hardcover_read_state(row)
+    assert row.hardcover_synced_pct is None and row.hardcover_read_id is None
+    assert hs.needs_sync(row)
+
+
+@respx.mock
+async def test_push_row_reread_adopts_open_read_not_finished_one(db, admin_user, make_book):
+    """Re-read: Hardcover opened a fresh read on the status flip. With the
+    pointer cleared, the push adopts that open entry and writes progress
+    there — never onto the completed previous read."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Again")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 200
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.1,
+                         hardcover_user_book_id=1001, hardcover_read_id=None,
+                         hardcover_synced_status="reading", hardcover_synced_pct=None)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        assert "mutation InsertRead" not in body
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 4004, "finished_at": None}]}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 4004, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    read = _variables_for(seen, "UpdateRead")
+    assert read["id"] == 4004 and read["object"]["progress_pages"] == 20
+    assert row.hardcover_read_id == 4004 and row.hardcover_synced_pct == 0.1
+
+
+@respx.mock
+async def test_push_row_reread_opens_new_read_when_newest_is_finished(db, admin_user, make_book):
+    """If Hardcover did not open a new entry, the newest read is the completed
+    one: insert a fresh read rather than rewriting the finished record."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Again 2")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 200
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.1,
+                         hardcover_user_book_id=1001, hardcover_read_id=None,
+                         hardcover_synced_status="reading", hardcover_synced_pct=None)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        assert "mutation UpdateRead" not in body, "must not touch the finished read"
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 3003, "finished_at": "2025-01-01"}]}})
+        if "mutation InsertRead" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book_read": {"id": 5005, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    ins = _variables_for(seen, "InsertRead")
+    assert ins["ubId"] == 1001 and ins["read"]["progress_pages"] == 20
+    assert "finished_at" not in ins["read"]
+    assert row.hardcover_read_id == 5005
+
+
+@respx.mock
+async def test_push_row_first_sync_of_reading_row_never_adopts_users_finished_read(db, admin_user, make_book):
+    """First link of a book the user already finished on Hardcover years ago,
+    now re-reading via Tome: the pre-existing completed read stays intact."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Old Favourite")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 200
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.3)
+    db.add(row)
+    db.flush()
+    seen = []
+
+    def responder(request):
+        body = request.read().decode()
+        seen.append(body)
+        assert "mutation UpdateRead" not in body
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": [
+                {"id": 1001, "status_id": 3, "user_book_reads": [{"id": 3003, "finished_at": "2019-06-01"}]}]}})
+        if "mutation UpdateUserBook" in body:
+            return httpx.Response(200, json={"data": {"update_user_book": {"id": 1001, "error": None}}})
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 3003, "finished_at": "2019-06-01"}]}})
+        if "mutation InsertRead" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book_read": {"id": 5005, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    assert row.hardcover_read_id == 5005
+    assert _variables_for(seen, "InsertRead")["read"]["progress_pages"] == 60
+
+
 # ── auth failure → expired + one notification ────────────────────────────────
 
 def test_mark_token_expired_notifies_once(db, admin_user):

@@ -302,3 +302,76 @@ def test_want_to_read_finishes_straight_to_read(db: Session, client: TestClient,
     db.flush()
     assert row.status == "read"
     assert row.finished_at is not None
+
+
+# ── reading again (#219) ──────────────────────────────────────────────────────
+
+def test_reading_again_starts_over(client: TestClient, db: Session, admin_user, make_book):
+    """A finished book set back to "reading" resets the live bookmark only:
+    progress, resume CFI, synced device position and the per-read Hardcover
+    snapshot. The finished read stays in history (sessions are untouched)."""
+    from backend.models.tome_sync import TomeSyncPosition
+    from backend.models.user_book_status import UserBookStatus
+    from backend.services.book_progress import upsert_position
+    user, _ = admin_user
+    book = make_book(title="Reread Me")
+    _put_status(client, book.id, {"status": "read", "progress_pct": 1.0, "cfi": "epubcfi(/6/99!/4/2)"})
+    upsert_position(db, user_id=user.id, book_id=book.id, percentage=1.0, progress="end", device="Kindle")
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    row.hardcover_synced_pct = 1.0
+    row.hardcover_read_id = 3003
+    row.hardcover_synced_status = "read"
+    db.commit()
+
+    data = _put_status(client, book.id, {"status": "reading"})
+    assert data["status"] == "reading"
+    assert data["progress_pct"] is None
+    assert data["cfi"] is None
+    db.refresh(row)
+    assert row.finished_at is None
+    assert row.hardcover_synced_pct is None and row.hardcover_read_id is None
+    assert row.hardcover_synced_status == "read", "the status diff is what triggers the next push"
+    assert db.query(TomeSyncPosition).filter_by(user_id=user.id, book_id=book.id).count() == 0
+
+
+def test_reading_again_with_explicit_progress_keeps_it(client: TestClient, db: Session, admin_user, make_book):
+    """An API client that sends its own position on the way back to "reading"
+    keeps that bookmark; only the Hardcover per-read snapshot resets."""
+    from backend.models.user_book_status import UserBookStatus
+    user, _ = admin_user
+    book = make_book(title="Reread With Position")
+    _put_status(client, book.id, {"status": "read", "progress_pct": 1.0})
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    row.hardcover_synced_pct = 1.0
+    row.hardcover_read_id = 3003
+    db.commit()
+
+    data = _put_status(client, book.id, {"status": "reading", "progress_pct": 0.42, "cfi": "epubcfi(/6/4!/4/2)"})
+    assert data["progress_pct"] == pytest.approx(0.42)
+    assert data["cfi"] == "epubcfi(/6/4!/4/2)"
+    db.refresh(row)
+    assert row.hardcover_synced_pct is None and row.hardcover_read_id is None
+
+
+def test_leaving_read_for_shelf_resets_hardcover_read_state(client: TestClient, db: Session, admin_user, make_book):
+    from backend.models.user_book_status import UserBookStatus
+    user, _ = admin_user
+    book = make_book(title="Back To Queue")
+    _put_status(client, book.id, {"status": "read"})
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    row.hardcover_synced_pct = 1.0
+    row.hardcover_read_id = 3003
+    db.commit()
+    _put_status(client, book.id, {"status": "want_to_read"})
+    db.refresh(row)
+    assert row.hardcover_synced_pct is None and row.hardcover_read_id is None
+
+
+def test_reading_to_reading_does_not_reset_progress(client: TestClient, make_book):
+    """Only the transition out of "read" starts over; re-sending "reading" on
+    a book in progress must not wipe its bookmark."""
+    book = make_book(title="Still Reading")
+    _put_status(client, book.id, {"status": "reading", "progress_pct": 0.3, "cfi": "epubcfi(/6/8!/4/2)"})
+    data = _put_status(client, book.id, {"status": "reading"})
+    assert data["progress_pct"] == pytest.approx(0.3)
+    assert data["cfi"] == "epubcfi(/6/8!/4/2)"

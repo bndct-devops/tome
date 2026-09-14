@@ -1421,7 +1421,7 @@ def restore_position(
     from datetime import datetime
     from backend.models.tome_sync import PositionHistory
     from backend.models.user_book_status import UserBookStatus
-    from backend.services.book_progress import upsert_position
+    from backend.services.book_progress import upsert_position, reset_hardcover_read_state
 
     _visible_book_or_404(db, current_user, book_id)
     entry = db.get(PositionHistory, history_id)
@@ -1450,6 +1450,7 @@ def restore_position(
     else:
         if status_row.status == "read":
             status_row.finished_at = None
+            reset_hardcover_read_state(status_row)
         if entry.percentage > 0:
             status_row.status = "reading"
         elif status_row.status != "want_to_read":

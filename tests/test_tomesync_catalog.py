@@ -139,6 +139,42 @@ def test_status_writeback_upserts_and_reads_back(db, client, admin_user, make_bo
     assert books[0]["status"] == "read"
 
 
+def test_status_writeback_stamps_finish_date_and_restarts_rereads(db, client, admin_user, make_book):
+    """The device's "mark read" must record a finish date like the web endpoint
+    does (stats and the Hardcover mirror read it - without it Hardcover shows
+    the sync day, #217), and "reading" on a finished book starts over (#219)."""
+    from backend.models.tome_sync import TomeSyncPosition
+    from backend.services.book_progress import upsert_position
+    user, _ = admin_user
+    book = make_book(title="Device Finished", author="X", series="Df", series_index=1)
+    hdr = _hdr(db, user)
+    upsert_position(db, user_id=user.id, book_id=book.id, percentage=0.9, progress="p", device="Kindle")
+    db.commit()
+
+    assert client.put(f"/api/tome-sync/status/{book.id}", json={"status": "read"}, headers=hdr).status_code == 200
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    db.refresh(row)
+    assert row.status == "read" and row.finished_at is not None
+    first_finish = row.finished_at
+    row.hardcover_synced_pct = 1.0
+    row.hardcover_read_id = 3003
+    row.progress_pct = 1.0
+    row.cfi = "end"
+    db.commit()
+
+    # idempotent: marking read again keeps the original finish date
+    client.put(f"/api/tome-sync/status/{book.id}", json={"status": "read"}, headers=hdr)
+    db.refresh(row)
+    assert row.finished_at == first_finish
+
+    assert client.put(f"/api/tome-sync/status/{book.id}", json={"status": "reading"}, headers=hdr).status_code == 200
+    db.refresh(row)
+    assert row.status == "reading" and row.finished_at is None
+    assert row.progress_pct is None and row.cfi is None
+    assert row.hardcover_synced_pct is None and row.hardcover_read_id is None
+    assert db.query(TomeSyncPosition).filter_by(user_id=user.id, book_id=book.id).count() == 0
+
+
 def test_status_writeback_validates_and_404s(db, client, admin_user, make_book):
     user, _ = admin_user
     book = make_book(title="V", author="X")
