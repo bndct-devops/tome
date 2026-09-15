@@ -26,3 +26,13 @@ def issue_token(db: Session, user_id: int, device: DeviceInfo | None) -> str:
     db.commit()
     db.refresh(row)
     return create_access_token(user_id, device_token_id=row.token_id)
+
+
+def revoke_all(db: Session, user_id: int) -> int:
+    """Revoke every active device of a user. Returns how many were revoked.
+    The caller commits."""
+    return (
+        db.query(ClientDevice)
+        .filter(ClientDevice.user_id == user_id, ClientDevice.revoked_at.is_(None))
+        .update({ClientDevice.revoked_at: datetime.utcnow()}, synchronize_session=False)
+    )

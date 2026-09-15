@@ -71,6 +71,7 @@ def list_annotations(
     q: Optional[str] = Query(None, description="case-insensitive text search"),
     on_this_day: bool = Query(False),
     only_notes: bool = Query(False, description="only highlights carrying a note"),
+    book_id: Optional[int] = Query(None, description="only highlights on this book"),
     # 10k ceiling: the export paths ask for everything at once, and a request
     # over the cap is a 422, not a truncation — see the Markdown export.
     limit: int = Query(200, ge=1, le=10_000),
@@ -102,6 +103,9 @@ def list_annotations(
 
     if only_notes:
         query = query.filter(Annotation.note.isnot(None), Annotation.note != "")
+
+    if book_id is not None:
+        query = query.filter(Annotation.book_id == book_id)
 
     # Newest highlights first (KOReader's own timestamp, falling back to id).
     rows = (

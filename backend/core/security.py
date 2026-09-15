@@ -29,11 +29,13 @@ def hash_password(plain: str) -> str:
 
 def create_access_token(subject: str | int, device_token_id: str | None = None) -> str:
     """JWT for a user. With `device_token_id` the token is bound to a
-    ClientDevice row (as `jti`) and dies when that row is revoked."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(subject), "exp": expire}
+    ClientDevice row (as `jti`) and carries no `exp`: it lives until that row
+    is revoked. Every other token expires after `jwt_expire_minutes`."""
+    payload: dict = {"sub": str(subject)}
     if device_token_id:
         payload["jti"] = device_token_id
+    else:
+        payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     return jwt.encode(payload, _signing_key(), algorithm=settings.jwt_algorithm)
 
 

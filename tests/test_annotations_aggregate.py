@@ -167,3 +167,50 @@ def test_spotlight_exclude_with_single_highlight_returns_it_again(client, db, ad
                        params={"exclude": got["id"]}, headers=_hdr(user)).json()["highlight"]
     # Better the same highlight than an empty card.
     assert again is not None and again["id"] == got["id"]
+
+
+def test_book_id_filter(client, db, admin_user, make_book):
+    user, _ = admin_user
+    b1 = make_book(title="Dune")
+    b2 = make_book(title="Hyperion")
+    _anno(db, user, b1, "Fear is the mind-killer", "a1", note="n")
+    _anno(db, user, b1, "The spice must flow", "a2")
+    _anno(db, user, b2, "The Time Tombs", "a3", note="n")
+    db.commit()
+
+    r = client.get("/api/annotations", params={"book_id": b1.id}, headers=_hdr(user)).json()
+    assert r["total"] == 2 and r["books"] == 1
+    assert {i["book_id"] for i in r["items"]} == {b1.id}
+    # composes with the other filters
+    r = client.get("/api/annotations", params={"book_id": b1.id, "only_notes": "1"}, headers=_hdr(user)).json()
+    assert r["total"] == 1 and r["items"][0]["highlighted_text"] == "Fear is the mind-killer"
+    # no param: unchanged
+    r = client.get("/api/annotations", headers=_hdr(user)).json()
+    assert r["total"] == 3 and r["books"] == 2
+    # a book without highlights
+    assert client.get("/api/annotations", params={"book_id": 999999}, headers=_hdr(user)).json() == \
+        {"total": 0, "books": 0, "items": []}
+
+
+def test_book_id_filter_respects_visibility(client, db, admin_user, make_book):
+    from backend.models.library import Library
+
+    admin, _ = admin_user
+    member = User(username="reader", email="reader@x.io", hashed_password=hash_password("x"),
+                  is_admin=False, role="member", is_active=True)
+    db.add(member)
+    db.flush()
+    hidden = make_book(title="Private")
+    lib = Library(name="Admin only", is_public=False, owner_id=admin.id)
+    db.add(lib)
+    db.flush()
+    hidden.libraries.append(lib)
+    # a stale highlight of the member's on a book they can no longer see
+    _anno(db, member, hidden, "should not leak", "v1")
+    _anno(db, admin, hidden, "admin's own", "v2")
+    db.commit()
+
+    r = client.get("/api/annotations", params={"book_id": hidden.id}, headers=_hdr(member)).json()
+    assert r == {"total": 0, "books": 0, "items": []}
+    r = client.get("/api/annotations", params={"book_id": hidden.id}, headers=_hdr(admin)).json()
+    assert r["total"] == 1 and r["items"][0]["highlighted_text"] == "admin's own"

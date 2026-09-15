@@ -1,5 +1,7 @@
 """Connected devices: a native client that names itself at login gets a
 revocable, device-bound JWT and shows up under /auth/devices."""
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -103,3 +105,75 @@ def test_member_scope(client: TestClient, db: Session):
 
 def test_unknown_device_404(client: TestClient):
     assert client.delete("/api/auth/devices/99999").status_code == 404
+
+
+def test_device_token_has_no_expiry_web_token_keeps_it(client: TestClient):
+    from backend.core.security import decode_claims
+
+    phone = _pair_phone(client)
+    claims = decode_claims(phone)
+    assert claims["jti"] and "exp" not in claims
+
+    web = client.post("/api/auth/login", json={"username": "testadmin", "password": "adminpass123"})
+    web_claims = decode_claims(web.json()["access_token"])
+    assert "jti" not in web_claims and "exp" in web_claims
+    from backend.core.config import settings
+    remaining = web_claims["exp"] - datetime.now(timezone.utc).timestamp()
+    assert abs(remaining - settings.jwt_expire_minutes * 60) < 60
+
+
+def test_device_token_still_valid_past_web_expiry(client: TestClient, monkeypatch):
+    from backend.core import security
+
+    phone = _pair_phone(client)
+    web = client.post("/api/auth/login", json={"username": "testadmin", "password": "adminpass123"}).json()["access_token"]
+
+    # Jump past the web token's lifetime: jose checks `exp` against datetime.now(UTC).
+    future = datetime.now(timezone.utc) + timedelta(minutes=security.settings.jwt_expire_minutes + 60)
+
+    class _FrozenDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return future.replace(tzinfo=None)
+
+        @classmethod
+        def now(cls, tz=None):
+            return future if tz else future.replace(tzinfo=None)
+
+    import jose.jwt
+    monkeypatch.setattr(jose.jwt, "datetime", _FrozenDatetime)
+
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {web}"}).status_code == 401
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {phone}"}).status_code == 200
+
+    device_id = client.get("/api/auth/devices", headers={"Authorization": f"Bearer {phone}"}).json()[0]["id"]
+    assert client.delete(f"/api/auth/devices/{device_id}", headers={"Authorization": f"Bearer {phone}"}).status_code == 204
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {phone}"}).status_code == 401
+
+
+def test_password_change_revokes_devices_not_web(client: TestClient, db: Session):
+    member, _ = _make_member(db, "pwchanger")
+    creds = {"username": member.username, "password": "memberpass"}
+    phone = client.post("/api/auth/login", json={**creds, "device": {"name": "Phone"}}).json()["access_token"]
+    tablet = client.post("/api/auth/login", json={**creds, "device": {"name": "Tablet"}}).json()["access_token"]
+    web = client.post("/api/auth/login", json=creds).json()["access_token"]
+    # another user's device is untouched
+    admin_phone = _pair_phone(client)
+
+    r = client.put("/api/auth/me/password", json={"current_password": "memberpass", "new_password": "newpass123"},
+                   headers={"Authorization": f"Bearer {web}"})
+    assert r.status_code == 204
+
+    for token in (phone, tablet):
+        assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {web}"}).status_code == 200
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {admin_phone}"}).status_code == 200
+    mine = client.get("/api/auth/devices", headers={"Authorization": f"Bearer {web}"}).json()
+    assert len(mine) == 2 and all(d["revoked_at"] for d in mine)
+
+
+def test_wrong_current_password_revokes_nothing(client: TestClient):
+    phone = _pair_phone(client)
+    r = client.put("/api/auth/me/password", json={"current_password": "nope", "new_password": "newpass123"})
+    assert r.status_code == 400
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {phone}"}).status_code == 200

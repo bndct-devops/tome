@@ -13,7 +13,7 @@ from backend.core.security import (
 from backend.models.user import User, UserPermission
 from backend.schemas.auth import LoginRequest, SetupRequest, TokenResponse, UserOut
 from backend.services.audit import audit
-from backend.services.client_devices import issue_token
+from backend.services.client_devices import issue_token, revoke_all
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -147,8 +147,12 @@ def change_password(
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     current_user.hashed_password = hash_password(body.new_password)
     current_user.must_change_password = False
+    # Device tokens do not expire, so a new password signs out every connected
+    # device. Web sessions keep their token until it expires.
+    revoked = revoke_all(db, current_user.id)
     db.commit()
-    audit(db, "auth.password_changed", user_id=current_user.id, username=current_user.username)
+    audit(db, "auth.password_changed", user_id=current_user.id, username=current_user.username,
+          details={"devices_revoked": revoked} if revoked else None)
     return Response(status_code=204)
 
 
