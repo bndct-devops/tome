@@ -12,7 +12,10 @@ With an IANA timezone name (`tz` query param, sent by the web app alongside
 Offset-only clients (plugin, external API users) keep the old fixed-offset
 behaviour bit-for-bit.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+import pytest
 
 from backend.models.ko_stats import PageStat
 from backend.models.tome_sync import ReadingSession
@@ -130,3 +133,51 @@ def test_stats_endpoints_accept_tz(client, db, admin_user, make_book):
     blob = str(daily)
     assert "2026-01-08" in blob
     assert "2026-01-09" not in blob
+
+
+# ── Zones without DST (#225) ──────────────────────────────────────────────────
+# A zone with no transition since _TRANSITIONS_START_YEAR has an empty WHEN
+# list; case() then compiled to `CASE ELSE … END`, which SQLite rejects, and
+# every stats endpoint 500'd for e.g. Japan, India, Vietnam, Arizona and UTC.
+
+NO_DST_ZONES = [("Asia/Ho_Chi_Minh", -420), ("Asia/Kolkata", -330), ("America/Phoenix", 420), ("UTC", 0)]
+
+
+@pytest.mark.parametrize("tz_name,offset", NO_DST_ZONES)
+def test_no_dst_zone_sql_matches_local_time(db, admin_user, make_book, tz_name, offset):
+    user, _ = admin_user
+    book = make_book(title=f"No DST {tz_name}")
+    _session(db, user, book, PROD_UTC)
+    db.add(PageStat(user_id=user.id, book_id=book.id, page=1, total_pages=100,
+                    start_time=PROD_EPOCH, duration_seconds=300, device="Kindle"))
+    db.flush()
+
+    ctx = DayCtx(offset, tz_name)
+    local = PROD_UTC.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(tz_name)).replace(tzinfo=None)
+    day = (local - timedelta(hours=4)).date().isoformat()
+    assert db.query(ctx.dt_day(ReadingSession.started_at)).scalar() == day
+    assert db.query(ctx.epoch_day(PageStat.start_time)).scalar() == day
+    unrolled = local.strftime("%Y-%m-%d %H:%M:%S")
+    assert db.query(ctx.dt_shifted(ReadingSession.started_at, rollover=False)).scalar() == unrolled
+    assert db.query(ctx.epoch_shifted(PageStat.start_time, rollover=False)).scalar() == unrolled
+
+
+@pytest.mark.parametrize("tz_name,offset", NO_DST_ZONES)
+def test_no_dst_zone_stats_endpoints(client, db, admin_user, make_book, tz_name, offset):
+    user, _ = admin_user
+    book = make_book(title=f"No DST API {tz_name}")
+    _session(db, user, book, PROD_UTC)
+    db.flush()
+
+    q = f"tz_offset={offset}&tz={tz_name}"
+    for path in (
+        f"/api/stats?days=0&{q}",
+        f"/api/stats/completion-estimates?{q}",
+        f"/api/stats/timeline?{q}",
+        f"/api/stats/sessions?{q}",
+        f"/api/home/stats?{q}",
+        f"/api/home/reading-dna?{q}",
+        f"/api/books/{book.id}/reading-stats?{q}",
+    ):
+        r = client.get(path)
+        assert r.status_code == 200, f"{path}: {r.status_code} {r.text[:200]}"

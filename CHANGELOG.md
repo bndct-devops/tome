@@ -58,6 +58,11 @@ All notable changes to Tome are documented here. Format loosely follows
   per-read state, and progress lands on the read entry currently open
   (a fresh one is opened if Hardcover did not). Reported by @maichler
   (#219).
+- Reading stats load again for timezones without daylight saving time.
+  Since 2.4.0 the stats page, the home stats and per-book reading stats
+  failed with a server error for web users in zones such as Japan, China,
+  India, Vietnam, Arizona or UTC: the query built for zones with no DST
+  change was invalid SQL. Contributed by @dangngo (#225).
 
 ### Changed
 - Setting a finished book back to "reading" now starts it over: progress,
