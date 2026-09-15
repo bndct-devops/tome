@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     # book to be pulled onto KOReader by the TomeSync plugin's inbox (no
     # email/Amazon). Set to false to disable — the flag remains the kill switch.
     send_to_koreader: bool = True
+    # Show the native-app UI in Settings (Connect a phone QR, Connected devices).
+    # Off until the Tome app is publicly available; the pairing and device
+    # endpoints work either way.
+    native_app: bool = False               # env TOME_NATIVE_APP
 
     # KOSync → plugin position bridge (env TOME_KOSYNC_POSITION_BRIDGE).
     # Experimental, off by default. The KOSync endpoint is deliberately a

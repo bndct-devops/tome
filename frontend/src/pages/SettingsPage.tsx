@@ -165,6 +165,16 @@ export function SettingsPage() {
   const [qcSuccess, setQcSuccess] = useState(false)
   const [showConnectPhone, setShowConnectPhone] = useState(false)
 
+  // Native-app UI (Connect a phone, Connected devices) is behind TOME_NATIVE_APP.
+  const [nativeApp, setNativeApp] = useState(false)
+  useEffect(() => {
+    let alive = true
+    api.get<{ native_app: boolean }>('/meta/features')
+      .then(f => { if (alive) setNativeApp(f.native_app) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
   // ── Connected devices ─────────────────────────────────────────────────────
   const [clientDevices, setClientDevices] = useState<ClientDevice[] | null>(null) // null = loading
   const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
@@ -746,19 +756,25 @@ export function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium text-foreground"><Trans>Quick Connect</Trans></p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    <Trans>Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap "Quick Connect" on its login screen.</Trans>
+                    {nativeApp
+                      ? <Trans>Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap "Quick Connect" on its login screen.</Trans>
+                      : <Trans>Sign in on a new device without entering your password. On the new device, tap "Quick Connect" on the login screen to get a 6-character code, then enter it here.</Trans>}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowConnectPhone(true)}
-                className="mb-4 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-border hover:bg-muted transition-colors"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <Trans>Connect a phone</Trans>
-              </button>
-              {showConnectPhone && <ConnectPhoneModal onClose={() => setShowConnectPhone(false)} />}
+              {nativeApp && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowConnectPhone(true)}
+                    className="mb-4 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-border hover:bg-muted transition-colors"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <Trans>Connect a phone</Trans>
+                  </button>
+                  {showConnectPhone && <ConnectPhoneModal onClose={() => setShowConnectPhone(false)} />}
+                </>
+              )}
               <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-xs">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Code from new device</Trans></label>
@@ -794,111 +810,113 @@ export function SettingsPage() {
         </section>
 
         {/* ── Connected devices ───────────────────────────────────────── */}
-        <section>
-          <SectionHeader title={t`Connected devices`} />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  <Trans>Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code.</Trans>
-                </p>
-                {user?.is_admin && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={clientDevicesAllUsers}
-                      onClick={() => setClientDevicesAllUsers(v => !v)}
-                      className={cn(
-                        'relative w-8 h-[18px] rounded-full transition-colors shrink-0',
-                        clientDevicesAllUsers ? 'bg-primary' : 'bg-muted-foreground/30'
-                      )}
-                    >
-                      <span className={cn(
-                        'absolute left-0 top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform',
-                        clientDevicesAllUsers ? 'translate-x-[16px]' : 'translate-x-0.5'
-                      )} />
-                    </button>
-                    <Trans>All users</Trans>
-                  </label>
-                )}
-              </div>
-
-              {clientDevices === null ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <Trans>Loading…</Trans>
-                </div>
-              ) : clientDevices.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">
-                  <Trans>No devices connected yet. Use "Connect a phone" above to sign the Tome app in.</Trans>
-                </p>
-              ) : (
-                <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
-                  {/* One template for both modes so nothing shifts when the admin toggle flips;
-                      the Owner column is simply empty until "All users" is on. */}
-                  <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
-                    <span><Trans>Device</Trans></span>
-                    <span><Trans>System</Trans></span>
-                    <span><Trans>Last seen</Trans></span>
-                    <span><Trans>Added</Trans></span>
-                    <span>{clientDevicesAllUsers && user?.is_admin && <Trans>Owner</Trans>}</span>
-                    <span />
-                  </div>
-                  {clientDevices.map(d => {
-                    const isRevoked = d.revoked_at !== null
-                    return (
-                      <div
-                        key={d.id}
+        {(nativeApp || (clientDevices?.length ?? 0) > 0) && (
+          <section>
+            <SectionHeader title={t`Connected devices`} />
+            <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
+              <div className="p-5 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    <Trans>Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code.</Trans>
+                  </p>
+                  {user?.is_admin && (
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={clientDevicesAllUsers}
+                        onClick={() => setClientDevicesAllUsers(v => !v)}
                         className={cn(
-                          'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                          isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                          'relative w-8 h-[18px] rounded-full transition-colors shrink-0',
+                          clientDevicesAllUsers ? 'bg-primary' : 'bg-muted-foreground/30'
                         )}
                       >
-                        <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
-                          <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <span className="truncate">{d.name}</span>
-                          {d.app_version && (
-                            // "0.1 (1)" → show "0.1", keep the build number in the tooltip
-                            <span className="text-muted-foreground font-normal shrink-0" title={d.app_version}>
-                              {d.app_version.replace(/\s*\(.*\)\s*$/, '')}
-                            </span>
-                          )}
-                          {isRevoked && (
-                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
-                              <Trans>Revoked</Trans>
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '—'}</span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}
-                        </span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {new Date(d.created_at).toLocaleDateString(i18n.locale)}
-                        </span>
-                        <span className="text-muted-foreground truncate hidden sm:block">
-                          {clientDevicesAllUsers && user?.is_admin ? d.username : ''}
-                        </span>
-                        <span className="flex justify-end shrink-0">
-                          {!isRevoked && (
-                            <button
-                              onClick={() => handleRevokeClientDevice(d)}
-                              title={t`Revoke`}
-                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </span>
-                      </div>
-                    )
-                  })}
+                        <span className={cn(
+                          'absolute left-0 top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform',
+                          clientDevicesAllUsers ? 'translate-x-[16px]' : 'translate-x-0.5'
+                        )} />
+                      </button>
+                      <Trans>All users</Trans>
+                    </label>
+                  )}
                 </div>
-              )}
+
+                {clientDevices === null ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Trans>Loading…</Trans>
+                  </div>
+                ) : clientDevices.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">
+                    <Trans>No devices connected yet. Use "Connect a phone" above to sign the Tome app in.</Trans>
+                  </p>
+                ) : (
+                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                    {/* One template for both modes so nothing shifts when the admin toggle flips;
+                        the Owner column is simply empty until "All users" is on. */}
+                    <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+                      <span><Trans>Device</Trans></span>
+                      <span><Trans>System</Trans></span>
+                      <span><Trans>Last seen</Trans></span>
+                      <span><Trans>Added</Trans></span>
+                      <span>{clientDevicesAllUsers && user?.is_admin && <Trans>Owner</Trans>}</span>
+                      <span />
+                    </div>
+                    {clientDevices.map(d => {
+                      const isRevoked = d.revoked_at !== null
+                      return (
+                        <div
+                          key={d.id}
+                          className={cn(
+                            'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
+                            isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                          )}
+                        >
+                          <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
+                            <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="truncate">{d.name}</span>
+                            {d.app_version && (
+                              // "0.1 (1)" → show "0.1", keep the build number in the tooltip
+                              <span className="text-muted-foreground font-normal shrink-0" title={d.app_version}>
+                                {d.app_version.replace(/\s*\(.*\)\s*$/, '')}
+                              </span>
+                            )}
+                            {isRevoked && (
+                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                                <Trans>Revoked</Trans>
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '—'}</span>
+                          <span className="text-muted-foreground hidden sm:block shrink-0">
+                            {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}
+                          </span>
+                          <span className="text-muted-foreground hidden sm:block shrink-0">
+                            {new Date(d.created_at).toLocaleDateString(i18n.locale)}
+                          </span>
+                          <span className="text-muted-foreground truncate hidden sm:block">
+                            {clientDevicesAllUsers && user?.is_admin ? d.username : ''}
+                          </span>
+                          <span className="flex justify-end shrink-0">
+                            {!isRevoked && (
+                              <button
+                                onClick={() => handleRevokeClientDevice(d)}
+                                title={t`Revoke`}
+                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ── Appearance ───────────────────────────────────────────────── */}
         <section>

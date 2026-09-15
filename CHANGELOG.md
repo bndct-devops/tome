@@ -21,27 +21,9 @@ All notable changes to Tome are documented here. Format loosely follows
   after launch and when WiFi connects, and on demand via "Apply Tome
   metadata now", which shows progress while it runs. Steady-state runs send
   nothing but fingerprints. Plugin build 45 / 1.15.3.
-- **Connect a phone with a QR code.** Settings > Quick Connect has a
-  "Connect a phone" button that shows a QR code for the Tome app. Scan it
-  and the phone is signed in, with nothing typed on either side. The code
-  is single-use, expires after five minutes and is cancelled when the
-  dialog closes. On a phone browser the same link opens the app directly.
-  The typed-code sign-in on the login screen is unchanged. (#221)
-- **Connected devices with revoke.** Settings lists the apps signed in to
-  your account with name, app version, system, last seen and date added.
-  Revoking one signs it out on its next request. Admins can switch the
-  list to all users' devices. Web sessions, the KOReader plugin and OPDS
-  are not affected. (#222)
 - **Highlights for a single book.** `GET /api/annotations` accepts an
   optional `book_id` to return only that book's highlights. Without it the
   endpoint behaves as before.
-
-### Changed
-- **Connected devices stay signed in until revoked.** An app listed under
-  Connected devices no longer gets logged out after seven days; its
-  session lasts until you revoke it. Changing your password now signs out
-  all of your connected devices. Web sessions keep their seven-day
-  lifetime and are not signed out by a password change.
 
 ### Fixed
 - Library scans no longer fail when two byte-identical files are picked up

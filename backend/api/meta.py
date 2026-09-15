@@ -113,6 +113,12 @@ def _ver_tuple(v: str) -> tuple:
     return tuple(parts or [0])
 
 
+@router.get("/features")
+def features(current_user: User = Depends(get_current_user)) -> dict:
+    """UI feature flags the frontend cannot infer from other endpoints."""
+    return {"native_app": settings.native_app}
+
+
 @router.get("/update-check")
 def update_check(current_user: User = Depends(get_current_user)) -> dict:
     from backend.core.permissions import is_admin
