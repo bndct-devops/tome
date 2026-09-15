@@ -147,6 +147,12 @@ class DayCtx:
             for instant, off in reversed(trans[1:])
         ]
         first_off = trans[0][1]
+        if not whens:
+            # Fixed-offset zone (no DST transitions in the window): case() with
+            # no WHEN compiles to invalid `CASE ELSE ... END`, which SQLite
+            # rejects with "near ELSE: syntax error". A constant modifier is
+            # equivalent when the offset never changes.
+            return literal(f"{first_off - shift_minutes:+d} minutes")
         return case(*whens, else_=literal(f"{first_off - shift_minutes:+d} minutes"))
 
     def _fixed_modifier(self, rollover_hours: int) -> str:
