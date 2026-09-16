@@ -66,6 +66,17 @@ All notable changes to Tome are documented here. Format loosely follows
   failed with a server error for web users in zones such as Japan, China,
   India, Vietnam, Arizona or UTC: the query built for zones with no DST
   change was invalid SQL. Contributed by @dangngo (#225).
+- Hardcover sync no longer removes or rewrites entries you made yourself.
+  When Tome matches a book that is already on your profile it adopts that
+  entry, and it could not tell the difference afterwards: re-match, pick
+  and exclude all deleted it, and marking the book read in Tome wrote over
+  the finished read it carried. A read you logged in print years ago could
+  lose its dates with one click. Tome now records which entries it created
+  and only those are ever removed, exclude stops syncing without deleting
+  anything, and a finished read Tome did not create is left untouched
+  instead of being rewritten or duplicated. Entries that already exist
+  count as yours, since their origin cannot be recovered. Reported by
+  @maichler (#227).
 
 ### Changed
 - Setting a finished book back to "reading" now starts it over: progress,

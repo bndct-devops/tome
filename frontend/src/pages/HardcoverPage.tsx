@@ -455,7 +455,7 @@ export function HardcoverPage() {
                           <button
                             onClick={() => void rematch(b, 'retry')}
                             className="text-muted-foreground hover:text-foreground"
-                            title={t`Remove our entry from Hardcover and re-match automatically`}
+                            title={t`Remove the entry Tome created on Hardcover and re-match automatically. An entry that was already on your profile is kept.`}
                           >
                             <Trans>Re-match</Trans>
                           </button>
@@ -472,7 +472,7 @@ export function HardcoverPage() {
                           <button
                             onClick={() => void rematch(b, 'exclude')}
                             className="text-muted-foreground hover:text-destructive"
-                            title={t`Never sync this book`}
+                            title={t`Never sync this book. Nothing is removed from Hardcover.`}
                           >
                             <Trans>Exclude</Trans>
                           </button>

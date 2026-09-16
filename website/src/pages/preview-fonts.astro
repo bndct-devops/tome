@@ -1,0 +1,120 @@
+---
+// Font preview — five sans-serif options side by side using the actual
+// landing-page hero content. Open /preview-fonts to compare.
+import BaseLayout from '../layouts/BaseLayout.astro'
+import SiteHeader from '../components/SiteHeader.astro'
+
+const stacks = [
+  {
+    id: 'inter-tight',
+    label: 'Inter Tight (current)',
+    notes: 'Safe, neutral, dev-default. Tightened Inter. Nothing wrong, nothing distinctive.',
+    family: "'Inter Tight', system-ui, sans-serif",
+    weight: 700,
+  },
+  {
+    id: 'geist',
+    label: 'Geist Sans (Vercel)',
+    notes: 'Most contemporary. Reads "modern dev tool" — also reads "every Vercel-adjacent product 2023+".',
+    family: "'Geist', system-ui, sans-serif",
+    weight: 700,
+  },
+  {
+    id: 'onest',
+    label: 'Onest',
+    notes: 'Warmer than Inter, less default. Slightly humanist. Good middle ground.',
+    family: "'Onest', system-ui, sans-serif",
+    weight: 700,
+  },
+  {
+    id: 'switzer',
+    label: 'Switzer',
+    notes: 'Cleaner geometric sans. Sharper than Inter, friendlier than Geist. From Fontshare.',
+    family: "'Switzer', system-ui, sans-serif",
+    weight: 700,
+  },
+  {
+    id: 'manrope',
+    label: 'Manrope',
+    notes: 'Friendlier, slightly rounded. Less serious than Geist. Popular in indie dev tools.',
+    family: "'Manrope', system-ui, sans-serif",
+    weight: 700,
+  },
+]
+---
+<BaseLayout title="Font preview — internal">
+  <!-- Geist Sans via jsdelivr (not on Google Fonts) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/style.css" />
+  <!-- The rest from Google Fonts (Inter Tight already loaded by BaseLayout) -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&family=Manrope:wght@400;500;700;800&display=swap" />
+  <!-- Switzer from Fontshare -->
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,700&display=swap" />
+
+  <SiteHeader />
+  <main class="max-w-5xl mx-auto px-6 pt-32 pb-24">
+    <div class="mb-12">
+      <p class="text-xs uppercase tracking-widest text-[var(--muted)] mb-2">Internal</p>
+      <h1 class="text-3xl font-bold mb-3" style={`font-family: ${stacks[0].family}`}>Font preview — five sans options</h1>
+      <p class="text-[var(--muted)] max-w-2xl">
+        Same hero rendered in each candidate. All five are sans (no Fraunces in any).
+        Tell me which one — I'll wire it across the site.
+      </p>
+    </div>
+
+    {stacks.map((s) => (
+      <section class="mb-16 pb-12 border-b border-[var(--border)]">
+        <div class="flex items-baseline justify-between gap-4 mb-6">
+          <div>
+            <span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest mb-1.5" style={`background: var(--accent); color: var(--accent-fg); font-family: ${s.family}`}>
+              {s.label}
+            </span>
+            <p class="text-xs text-[var(--muted)] max-w-2xl mt-1.5" style={`font-family: ${s.family}`}>
+              {s.notes}
+            </p>
+          </div>
+        </div>
+
+        <div style={`font-family: ${s.family}`}>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)] mb-4">
+            Made for KOReader users who actually read.
+          </p>
+          <h2 class="text-4xl md:text-6xl font-bold tracking-tight mb-5 leading-[1.05]" style={`font-weight: ${s.weight}`}>
+            A self-hosted ebook library that <span class="text-[var(--accent)]">knows how you read</span>.
+          </h2>
+          <p class="text-lg md:text-xl text-[var(--muted)] mb-7 max-w-3xl leading-relaxed">
+            Most library servers stop at file management. Tome connects to your e-reader, records every reading session,
+            syncs positions both ways, and turns it into stats that get sharper the more you read.
+          </p>
+
+          <!-- Smaller heading + button + body sample so you can judge the whole system -->
+          <div class="grid md:grid-cols-2 gap-8 mt-8">
+            <div>
+              <h3 class="text-2xl font-bold mb-3" style={`font-weight: ${s.weight}`}>Stats that get sharper the more you read.</h3>
+              <p class="text-base text-[var(--muted)] leading-relaxed">
+                Streaks, time-of-day heatmaps, reading pace, completion estimates.
+                Every minute on your e-reader feeds back into actionable insight.
+              </p>
+            </div>
+            <div class="space-y-3">
+              <button class="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[var(--accent)] text-[var(--accent-fg)] font-medium" style={`font-family: ${s.family}`}>
+                Quick start
+              </button>
+              <pre class="text-xs rounded-lg p-4 bg-[var(--card)] border" style="font-family: 'JetBrains Mono', monospace"><code>docker run -d \
+  -p 8080:8080 \
+  -v ./data:/data \
+  ghcr.io/bndct-devops/tome</code></pre>
+              <p class="text-[11px] uppercase tracking-widest text-[var(--muted)]">
+                Numbers · 1 234 567 · 89.4%
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    ))}
+
+    <div class="text-sm text-[var(--muted)] text-center pt-8">
+      <a href="/" class="hover:text-[var(--fg)] transition-colors">← back to live landing</a>
+    </div>
+  </main>
+</BaseLayout>

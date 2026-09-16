@@ -4212,7 +4212,11 @@ msgid "Never expires"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
-msgid "Never sync this book"
+#~ msgid "Never sync this book"
+#~ msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Never sync this book. Nothing is removed from Hardcover."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -5601,7 +5605,11 @@ msgid "Remove from library"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
-msgid "Remove our entry from Hardcover and re-match automatically"
+#~ msgid "Remove our entry from Hardcover and re-match automatically"
+#~ msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "Remove the entry Tome created on Hardcover and re-match automatically. An entry that was already on your profile is kept."
 msgstr ""
 
 #: src/pages/WishlistPage.tsx

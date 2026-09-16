@@ -775,9 +775,10 @@ async def test_push_row_read_with_finish_date_sends_it(db, admin_user, make_book
 
 
 @respx.mock
-async def test_push_row_adopted_read_without_tome_finish_date_is_left_alone(db, admin_user, make_book):
-    """Tome has no finish date but Hardcover does (the user's own record from
-    before Tome): unknown must not overwrite known — no finished_at key at all."""
+async def test_push_row_adopted_finished_read_is_never_touched(db, admin_user, make_book):
+    """The user's own finished read (a print read logged years before Tome):
+    Tome neither rewrites it nor inserts a second read beside it, which would
+    claim a read-through that never happened (#227)."""
     user, _ = admin_user
     user.hardcover_user_id = 42
     book = make_book(title="Known On Hardcover")
@@ -804,8 +805,11 @@ async def test_push_row_adopted_read_without_tome_finish_date_is_left_alone(db, 
     respx.post(HARDCOVER_URL).mock(side_effect=responder)
     async with httpx.AsyncClient() as client:
         await hs._push_row(client, "tok", user, row, book)
-    read = _variables_for(seen, "UpdateRead")
-    assert read["id"] == 3003 and "finished_at" not in read["object"]
+    assert not any("mutation UpdateRead" in b for b in seen), "their read must stay as it is"
+    assert not any("mutation InsertRead" in b for b in seen), "a second read would be a phantom re-read"
+    assert row.hardcover_read_id is None
+    assert row.hardcover_synced_pct == 1.0   # snapshotted, so the reconciler settles
+    assert row.hardcover_created is False
 
 
 # ── re-reads (#219) ──────────────────────────────────────────────────────────
@@ -1079,6 +1083,7 @@ def test_rematch_retry_clears_match_and_deletes_profile_entry(client, db, admin_
     book.hardcover_match_method = "search"
     row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading",
                          progress_pct=0.5, hardcover_user_book_id=1234,
+                         hardcover_created=True,   # Tome's own entry: ours to remove
                          hardcover_read_id=55, hardcover_synced_pct=0.5,
                          hardcover_synced_status="reading")
     db.add(row)
@@ -1194,6 +1199,7 @@ def test_manual_match_pins_record_and_clears_old_state(client, db, admin_user, m
     book.hardcover_match_method = "search"
     row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading",
                          progress_pct=0.42, hardcover_user_book_id=111,
+                         hardcover_created=True,   # Tome's own entry: ours to remove
                          hardcover_synced_pct=0.42, hardcover_synced_status="reading")
     db.add(row)
     db.flush()
@@ -1670,3 +1676,165 @@ async def test_pull_wtr_adopts_owned_unmatched_book(db, admin_user, make_book):
     assert row.hardcover_user_book_id == 501
     assert not hs.needs_sync(row)
     assert db.query(Wish).filter_by(user_id=user.id).count() == 0
+
+
+# ── coexistence: entries Tome did not create (#227) ──────────────────────────
+
+@respx.mock
+async def test_push_row_marks_entries_it_creates(db, admin_user, make_book):
+    """Ownership is recorded at insert time — the only moment it is knowable."""
+    user, _ = admin_user
+    user.hardcover_user_id = 42
+    book = make_book(title="Brand New To Hardcover")
+    book.hardcover_book_id = 77
+    book.hardcover_pages = 200
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.25)
+    db.add(row)
+    db.flush()
+
+    def responder(request):
+        body = request.read().decode()
+        if "query UserBook" in body:
+            return httpx.Response(200, json={"data": {"user_books": []}})
+        if "mutation InsertUserBook" in body:
+            return httpx.Response(200, json={"data": {"insert_user_book": {"id": 1001, "error": None}}})
+        if "query Reads" in body:
+            return httpx.Response(200, json={"data": {"user_book_reads": [{"id": 7007, "finished_at": None}]}})
+        if "mutation UpdateRead" in body:
+            return httpx.Response(200, json={"data": {"update_user_book_read": {"id": 7007, "error": None}}})
+        return httpx.Response(200, json={"data": {}})
+
+    respx.post(HARDCOVER_URL).mock(side_effect=responder)
+    async with httpx.AsyncClient() as client:
+        await hs._push_row(client, "tok", user, row, book)
+    assert row.hardcover_created is True
+    assert row.hardcover_user_book_id == 1001 and row.hardcover_read_id == 7007
+
+
+def test_rematch_never_deletes_an_entry_we_adopted(client, db, admin_user, make_book, monkeypatch):
+    """The reported case: a book read in print, logged on Hardcover long before
+    Tome. Re-matching drops Tome's link and leaves the entry alone."""
+    user, _ = admin_user
+    _link_test_user(user)
+    book = make_book(title="Read In Print")
+    book.hardcover_book_id = 999
+    book.hardcover_match_method = "isbn"
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         hardcover_user_book_id=1234, hardcover_created=False,
+                         hardcover_read_id=55, hardcover_synced_status="read")
+    db.add(row)
+    db.flush()
+
+    async def fake_delete(client_, token, ub_id):
+        raise AssertionError("must not delete an entry the user brought")
+
+    monkeypatch.setattr(hs, "delete_user_book", fake_delete)
+    r = client.post(f"/api/hardcover/books/{book.id}/rematch", json={"mode": "retry"})
+    assert r.status_code == 200
+    assert r.json()["removed_from_profile"] is False
+    db.refresh(book); db.refresh(row)
+    assert book.hardcover_book_id is None          # the link is dropped
+    assert row.hardcover_user_book_id is None
+    assert row.hardcover_created is False
+
+
+def test_manual_pick_never_deletes_an_entry_we_adopted(client, db, admin_user, make_book, monkeypatch):
+    user, _ = admin_user
+    _link_test_user(user)
+    book = make_book(title="Also Read In Print")
+    book.hardcover_book_id = 999
+    book.hardcover_match_method = "isbn"
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         hardcover_user_book_id=1234, hardcover_created=False)
+    db.add(row)
+    db.flush()
+
+    async def fake_delete(client_, token, ub_id):
+        raise AssertionError("must not delete an entry the user brought")
+
+    async def fake_resolve(token, b, hc_id):
+        b.hardcover_book_id = hc_id
+        b.hardcover_match_method = "manual"
+
+    monkeypatch.setattr(hs, "delete_user_book", fake_delete)
+    monkeypatch.setattr(hs, "resolve_manual_match", fake_resolve)
+    r = client.post(f"/api/hardcover/books/{book.id}/match", json={"hardcover_book_id": 785858})
+    assert r.status_code == 200
+    db.refresh(book)
+    assert book.hardcover_book_id == 785858
+
+
+def test_exclude_never_deletes_even_our_own_entry(client, db, admin_user, make_book, monkeypatch):
+    """Exclude means "stop syncing", not "remove from my profile"."""
+    user, _ = admin_user
+    _link_test_user(user)
+    book = make_book(title="Private Read")
+    book.hardcover_book_id = 999
+    book.hardcover_match_method = "isbn"
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="read",
+                         hardcover_user_book_id=1234, hardcover_created=True)
+    db.add(row)
+    db.flush()
+
+    async def fake_delete(client_, token, ub_id):
+        raise AssertionError("exclude must never delete")
+
+    monkeypatch.setattr(hs, "delete_user_book", fake_delete)
+    r = client.post(f"/api/hardcover/books/{book.id}/rematch", json={"mode": "exclude"})
+    assert r.status_code == 200
+    db.refresh(book)
+    assert book.hardcover_match_method == "excluded"
+
+
+def test_failed_delete_changes_nothing(client, db, admin_user, make_book, monkeypatch):
+    """A delete that does not go through must not leave an orphaned entry
+    behind: the ids stay so the user can retry."""
+    user, _ = admin_user
+    _link_test_user(user)
+    book = make_book(title="Wrong Match")
+    book.hardcover_book_id = 999
+    book.hardcover_match_method = "search"
+    row = UserBookStatus(user_id=user.id, book_id=book.id, status="reading",
+                         hardcover_user_book_id=1234, hardcover_created=True,
+                         hardcover_synced_pct=0.5, hardcover_synced_status="reading")
+    db.add(row)
+    db.flush()
+
+    async def fake_delete(client_, token, ub_id):
+        return False
+
+    monkeypatch.setattr(hs, "delete_user_book", fake_delete)
+    r = client.post(f"/api/hardcover/books/{book.id}/rematch", json={"mode": "retry"})
+    assert r.status_code == 502
+    db.refresh(book); db.refresh(row)
+    assert book.hardcover_book_id == 999
+    assert row.hardcover_user_book_id == 1234
+    assert row.hardcover_created is True
+
+
+def test_hardcover_created_column_add_is_safe_on_a_legacy_table():
+    """The startup ALTER in backend/main.py, run against a pre-#227 schema:
+    it applies, and every row that predates it counts as the user's own."""
+    from pathlib import Path
+    from sqlalchemy import create_engine, text
+
+    stmt = ("ALTER TABLE user_book_status ADD COLUMN "
+            "hardcover_created BOOLEAN NOT NULL DEFAULT 0")
+    main_src = (Path(__file__).resolve().parents[1] / "backend" / "main.py").read_text()
+    assert stmt in main_src, "startup migration and this test must not drift apart"
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE user_book_status (id INTEGER PRIMARY KEY, user_id INTEGER, "
+            "book_id INTEGER, hardcover_user_book_id INTEGER)"))
+        conn.execute(text(
+            "INSERT INTO user_book_status (id, user_id, book_id, hardcover_user_book_id) "
+            "VALUES (1, 1, 1, 4242)"))
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(user_book_status)")).fetchall()}
+        assert "hardcover_created" not in cols, "precondition: the legacy shape"
+
+        conn.execute(text(stmt))
+
+        assert conn.execute(text(
+            "SELECT hardcover_created FROM user_book_status WHERE id = 1")).scalar() == 0

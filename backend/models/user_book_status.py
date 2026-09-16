@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -39,6 +39,13 @@ class UserBookStatus(Base):
     hardcover_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     hardcover_error: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     hardcover_fail_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # True only when Tome itself inserted the Hardcover entry this row points
+    # at. False means the entry was already on the user's profile and Tome
+    # merely adopted it — their own reading history, which Tome may write to
+    # but must never delete, and whose finished reads it must not rewrite.
+    # Legacy rows default to False on purpose: origin cannot be recovered
+    # afterwards, so an unknown entry is treated as the user's (#227).
+    hardcover_created: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # When the book was marked read. updated_at is NOT a finish date — it moves
     # on every rating/review/CFI write (onupdate), so it must not be displayed
     # as one. Stamped by apply_progress_to_status / the status endpoint on the

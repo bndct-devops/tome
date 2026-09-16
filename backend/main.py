@@ -327,6 +327,13 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN hardcover_error VARCHAR(255)"))
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN hardcover_fail_count INTEGER NOT NULL DEFAULT 0"))
             conn.commit()
+        # Ownership of the Hardcover entry (#227). Existing rows default to 0 =
+        # "not ours": their origin cannot be recovered, and treating an unknown
+        # entry as the user's own is the safe direction — Tome never deletes it.
+        if ubs_cols and "hardcover_created" not in ubs_cols:
+            conn.execute(text(
+                "ALTER TABLE user_book_status ADD COLUMN hardcover_created BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
         # Hardcover Want-to-Read pull resolves shelf entries by matched book id
         # every cycle — create_all only builds indexes for brand-new tables, and
         # this must run after the hardcover_book_id column-add above.

@@ -242,23 +242,36 @@ def hardcover_books(
     return out
 
 
-async def _clear_book_match_state(db: Session, book: Book, current_user: User) -> bool:
-    """Shared by rematch and manual match: best-effort delete the profile entry
-    WE created for the acting user, then reset the book-level match and every
-    user's push state (the match is book-level — after it changes, everyone's
-    stored user_book ids point at the old record)."""
+async def _clear_book_match_state(db: Session, book: Book, current_user: User,
+                                  *, remove_profile_entry: bool = True) -> bool:
+    """Shared by rematch and manual match: delete the profile entry WE created
+    for the acting user, then reset the book-level match and every user's push
+    state (the match is book-level — after it changes, everyone's stored
+    user_book ids point at the old record).
+
+    An entry Tome merely adopted is the user's own Hardcover record and is
+    never deleted (#227); only the link to it is dropped. The delete runs
+    before anything is cleared, so a failed one leaves no orphan behind: the
+    caller keeps its ids and can retry."""
     row = (
         db.query(UserBookStatus)
         .filter(UserBookStatus.user_id == current_user.id, UserBookStatus.book_id == book.id)
         .first()
     )
     removed = False
-    if row and row.hardcover_user_book_id and current_user.hardcover_token_status == "ok":
+    if (remove_profile_entry and row and row.hardcover_user_book_id
+            and row.hardcover_created and current_user.hardcover_token_status == "ok"):
         token = hardcover_sync.user_token(current_user)
         if token:
             async with httpx.AsyncClient(timeout=15) as client:
                 removed = await hardcover_sync.delete_user_book(
                     client, token, row.hardcover_user_book_id)
+            if not removed:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not remove the entry on your Hardcover profile, "
+                           "so nothing was changed here. Try again in a moment.",
+                )
 
     book.hardcover_book_id = None
     book.hardcover_edition_id = None
@@ -268,6 +281,7 @@ async def _clear_book_match_state(db: Session, book: Book, current_user: User) -
     book.hardcover_match_method = None
     db.query(UserBookStatus).filter(UserBookStatus.book_id == book.id).update({
         "hardcover_user_book_id": None,
+        "hardcover_created": False,
         "hardcover_read_id": None,
         "hardcover_synced_rating": None,
         "hardcover_synced_pct": None,
@@ -305,7 +319,11 @@ async def hardcover_rematch(
     if not book or book.status != "active":
         raise HTTPException(status_code=404, detail="Book not found")
 
-    removed = await _clear_book_match_state(db, book, current_user)
+    # Exclude means "stop syncing this book", never "remove it from my
+    # profile" (#227) — only a retry repairs a wrong match by deleting the
+    # entry Tome itself created.
+    removed = await _clear_book_match_state(
+        db, book, current_user, remove_profile_entry=(body.mode == "retry"))
     if body.mode == "exclude":
         book.hardcover_match_method = "excluded"
         book.hardcover_matched_at = datetime.utcnow()
