@@ -32,9 +32,11 @@ import { withBase } from '../../lib/path'
   <Callout variant="info" title="One-way, and additive">
     Tome only ever <em>writes your own reading data to your own profile</em>. Nothing on Hardcover
     is deleted or cleared: removing a rating in Tome doesn't remove it on Hardcover, and books you
-    shelve as unread are never pushed at all. The single exception is explicit wrong-match repair —
-    re-matching a book removes the profile entry <em>Tome itself created</em> before writing the
-    corrected one.
+    shelve as unread are never pushed at all. The single exception is explicit wrong-match repair:
+    re-matching or re-picking a book removes the profile entry <em>Tome itself created</em> before
+    writing the corrected one. An entry that was already on your profile when Tome first matched
+    the book is yours, not Tome's: it is never deleted, and a finished read on it is never
+    rewritten, so a book you read in print long before Tome keeps its dates.
   </Callout>
 
   <h2>Linking your account</h2>
@@ -114,9 +116,11 @@ import { withBase } from '../../lib/path'
     <li><strong>Pick</strong> — search Hardcover yourself and pin the right record. Manual picks
       are never second-guessed: no re-match or metadata edit will overwrite them.</li>
     <li><strong>Re-match</strong> — clear the current match (removing the profile entry Tome
-      created) and let the next cycle try again. Do this after fixing a bad ISBN or title.</li>
+      created, never one that was already yours) and let the next cycle try again. Do this after
+      fixing a bad ISBN or title.</li>
     <li><strong>Exclude</strong> — stop syncing this book entirely, e.g. a private read you'd
-      rather keep off a public profile.</li>
+      rather keep off a public profile. Nothing is removed from Hardcover: an entry that is
+      already there stays, it just stops receiving updates.</li>
   </ul>
 
   <h2>Page numbers on the book page</h2>
