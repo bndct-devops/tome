@@ -119,8 +119,9 @@ import { withBase } from '../../lib/path'
       created, never one that was already yours) and let the next cycle try again. Do this after
       fixing a bad ISBN or title.</li>
     <li><strong>Exclude</strong> — stop syncing this book entirely, e.g. a private read you'd
-      rather keep off a public profile. Nothing is removed from Hardcover: an entry that is
-      already there stays, it just stops receiving updates.</li>
+      rather keep off a public profile. Nothing is removed from Hardcover, so excluding a book
+      keeps it off your profile only if it has not synced yet. One that is already there stays
+      and simply stops receiving updates; delete it on Hardcover yourself if you want it gone.</li>
   </ul>
 
   <h2>Page numbers on the book page</h2>
