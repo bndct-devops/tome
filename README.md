@@ -150,7 +150,7 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 
 ## Development
 
-Requirements: Python 3.12+, Node.js 18+
+Requirements: Python 3.12+, Node.js 22.19+
 
 ```bash
 ./dev.sh   # starts backend :8080 + frontend :5173

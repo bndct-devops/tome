@@ -13,7 +13,7 @@ contribution process is correspondingly light.
 
 ## Getting set up
 
-Requirements: **Python 3.12+**, **Node.js 18+**.
+Requirements: **Python 3.12+**, **Node.js 22.19+**.
 
 ```bash
 git clone https://github.com/bndct-devops/tome
