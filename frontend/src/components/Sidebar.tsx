@@ -395,6 +395,21 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 <Sparkles className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
               </Link>
             )}
+            {isMember(user) && (
+              <Link
+                to="/hardcover"
+                title={t`Hardcover`}
+                aria-label={t`Hardcover`}
+                className={cn(
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  location.pathname === '/hardcover'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <BookMarked className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+              </Link>
+            )}
             {isAdmin(user) && (
               <Link
                 to="/bindery"
@@ -742,6 +757,21 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   >
                     <Sparkles className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
                     <span className="truncate"><Trans>Wishlist</Trans></span>
+                  </Link>
+                )}
+                {isMember(user) && (
+                  <Link
+                    to="/hardcover"
+                    onClick={onMobileClose}
+                    className={cn(
+                      'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
+                      location.pathname === '/hardcover'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    )}
+                  >
+                    <BookMarked className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
+                    <span className="truncate"><Trans>Hardcover</Trans></span>
                   </Link>
                 )}
                 {isAdmin(user) && (
