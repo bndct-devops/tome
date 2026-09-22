@@ -293,7 +293,7 @@ export function BookCard({
               'bg-background/40 backdrop-blur-sm hover:bg-background/60 transition-all',
               'opacity-0 group-hover:opacity-100',
             )}
-            title={t`Read`}
+            title={t({ message: 'Read', context: 'action' })}
             aria-label={t`Read book`}
             onClick={e => stop(e, () => navigate(`/reader/${book.id}`))}
           >

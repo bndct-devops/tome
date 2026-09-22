@@ -176,7 +176,7 @@ function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen
           {b.rating != null && <div className="mt-1.5"><Rating value={b.rating} /></div>}
           {b.stats && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {b.stats.status === 'read' ? t`Read` : b.stats.status === 'reading' ? t`Reading` : null}
+              {b.stats.status === 'read' ? t({ message: 'Read', context: 'status' }) : b.stats.status === 'reading' ? t`Reading` : null}
               {b.stats.total_seconds > 0 && (
                 <>
                   {b.stats.status ? ' · ' : ''}

@@ -5375,8 +5375,21 @@ msgstr ""
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
+#~ msgid "Read"
+#~ msgstr ""
+
+#: src/components/BookCard.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+msgctxt "action"
 msgid "Read"
-msgstr ""
+msgstr "阅读"
+
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
+msgctxt "status"
+msgid "Read"
+msgstr "已读"
 
 #: src/pages/DashboardPage.tsx
 msgid "Read · 30d"

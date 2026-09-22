@@ -556,7 +556,7 @@ export function BookDetailPage() {
       className="mt-4 flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
       <BookMarked className="w-4 h-4" />
-      <Trans>Read</Trans>
+      <Trans context="action">Read</Trans>
     </button>
   ) : null
 

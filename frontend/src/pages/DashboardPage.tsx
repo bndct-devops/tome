@@ -127,7 +127,7 @@ const SORT_LABELS: Record<SortField, MessageDescriptor> = {
 // Reading-status + series-status display names, shared by filter buttons and chips.
 const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
   unread: msg`Unread`, want_to_read: msg`Want to Read`, reading: msg`Reading`,
-  read: msg`Read`, shelved: msg`Shelved`,
+  read: msg({ message: 'Read', context: 'status' }), shelved: msg`Shelved`,
 }
 const MISSING_LABELS: Record<string, MessageDescriptor> = {
   cover: msg`Cover`, description: msg`Description`, author: msg`Author`,
@@ -1758,8 +1758,8 @@ export function DashboardPage() {
                                           <button
                                             onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
                                             className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                            title={t`Read`}
-                                            aria-label={t`Read`}
+                                            title={t({ message: 'Read', context: 'action' })}
+                                            aria-label={t({ message: 'Read', context: 'action' })}
                                           >
                                             <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
                                               <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
