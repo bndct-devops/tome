@@ -2086,7 +2086,7 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
     bottomStats.push({ label: t`Last read`, value: formatDate(own.last_read.slice(0, 10)) })
   }
   if (own.finished_at) {
-    bottomStats.push({ label: t`Finished`, value: formatDate(own.finished_at.slice(0, 10)) })
+    bottomStats.push({ label: t({ message: 'Finished', context: 'reading' }), value: formatDate(own.finished_at.slice(0, 10)) })
   }
   // Reading days from distinct session days
   if (own.session_timeline.length > 0) {

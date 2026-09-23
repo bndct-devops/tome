@@ -3232,6 +3232,17 @@ msgstr "finished"
 #: src/components/ManageSeriesModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
+#~ msgid "Finished"
+#~ msgstr "Finished"
+
+#: src/pages/BookDetailPage.tsx
+#: src/pages/StatsPage.tsx
+msgctxt "reading"
+msgid "Finished"
+msgstr "Finished"
+
+#: src/components/ManageSeriesModal.tsx
+msgctxt "series"
 msgid "Finished"
 msgstr "Finished"
 

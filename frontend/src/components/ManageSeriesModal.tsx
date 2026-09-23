@@ -30,7 +30,7 @@ interface ArcRow {
 
 const STATUS_OPTIONS: { value: SeriesStatus; label: MessageDescriptor }[] = [
   { value: 'ongoing', label: msg`Ongoing` },
-  { value: 'finished', label: msg`Finished` },
+  { value: 'finished', label: msg({ message: 'Finished', context: 'series' }) },
   { value: 'hiatus', label: msg`Hiatus` },
   { value: 'unknown', label: msg`Unknown` },
 ]

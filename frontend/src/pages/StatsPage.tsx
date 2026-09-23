@@ -208,7 +208,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'stat-finished',
-    title: msg`Finished`,
+    title: msg({ message: 'Finished', context: 'reading' }),
     icon: BookCheck,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.books_finished)} />,
