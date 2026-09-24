@@ -6,6 +6,24 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **KOReader sync code: hand offline reading to your phone.** When the
+  e-reader has no network but your phone does, TomeSync > "Show sync code"
+  turns everything the device could not send - reading sessions, positions
+  and ratings - into a QR code on the e-ink screen (several pages for a long
+  offline stretch, tap to turn). Scan it with the Tome app (Home or Settings
+  > KOReader) or the web UI (Settings > KOReader > Scan a sync code, camera
+  or a photo of the screen) and it lands in Tome at once, with an overview of
+  which books were touched: cover, sessions and time, pages, progress before
+  and after. Scanning a code twice, or the device flushing the same queue
+  later over WiFi, changes nothing: sessions carry the same dedup key as the
+  plugin's own sync, and a position never overwrites one that is newer on the
+  server (the phone read on meanwhile). "Scanned" on the device moves a
+  watermark so the next code only carries newer reading; the queues stay put
+  for the WiFi sync. A device clock that is clearly wrong (ahead of the
+  server, or days behind) is corrected. Plugin build 46 / 1.16.0, gesture
+  "TomeSync: Show sync code", `POST /api/sync-code`.
+
 ### Changed
 - The sidebar, the collapsed rail and the mobile drawer render the top-level
   navigation from one shared item list, so an entry can no longer go missing
@@ -14,6 +32,10 @@ All notable changes to Tome are documented here. Format loosely follows
   the drawer. Contributed by @maichler (#237).
 
 ### Fixed
+- **Closing a book while offline no longer loses its reading session.** The
+  plugin queued a session only when the device went to sleep; closing the
+  book with no network dropped it. Both paths now queue, and the offline
+  queue holds 200 sessions instead of 50. Plugin build 46.
 - Search matches Korean, Chinese and Japanese text anywhere in a word, not
   only at its start (#206). The search index now uses SQLite's trigram
   tokenizer, which indexes every overlapping run of three characters; a

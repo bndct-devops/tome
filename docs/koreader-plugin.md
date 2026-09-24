@@ -200,7 +200,8 @@ The plugin is designed to work seamlessly when your server is not reachable -- w
 
 - **No WiFi at all:** Every sync request is skipped instantly. There is zero delay or freezing. You will not notice anything different while reading.
 - **WiFi connected but server unreachable** (e.g. public WiFi without VPN): Requests time out after 5 seconds. After 3 consecutive failures, the plugin stops trying for the rest of the session. No further delays.
-- **Reading sessions are saved locally:** If a session cannot be sent to the server (because you are offline when you close the lid), it is saved to disk and retried automatically the next time you open the lid with a working connection.
+- **Reading sessions are saved locally:** If a session cannot be sent to the server (because you are offline when you close the lid or the book), it is saved to disk and retried automatically the next time you open the lid with a working connection.
+- **Positions are remembered too:** a position that could not be sent is kept per book so a sync code (below) can carry it. Positions are not re-sent on reconnect on purpose: the server keeps the latest write, and a stale device position must not overwrite what your phone did meanwhile. The next time you open or wake the book with WiFi, its current position is pushed as usual.
 
 ### Typical commute flow
 
@@ -212,9 +213,20 @@ The plugin is designed to work seamlessly when your server is not reachable -- w
 
 Sessions also flush when you tap "Sync now" in the menu, or when WiFi reconnects and you resume reading.
 
+### Sync code: hand offline reading to your phone
+
+Travelling, hotel WiFi with a captive portal, a device that never sees the home network: when the e-reader is offline but your phone is not, the plugin can hand its queue over through the screen.
+
+1. On the device: **TomeSync → Show sync code** (or the gesture *TomeSync: Show sync code*). Everything that could not be sent since the last scan - sessions, positions, ratings - is rendered as a QR code. A long offline stretch spreads over several pages; tap to turn.
+2. On the phone: scan it with the **Tome app** (Home, the viewfinder button beside your avatar, or Settings → KOReader) or the **web UI** (Settings → KOReader → *Scan a sync code*; live camera on HTTPS, or take a photo of the screen and pick it). The phone reads page after page and posts the set to Tome.
+3. Tome shows what landed: which books, cover, sessions and time, pages turned, progress before and after, whether a position was applied or kept because the server already had a newer one.
+4. Back on the device, answer **Scanned** and the next code only carries newer reading. **Later** keeps everything in the code.
+
+Nothing is removed from the device by scanning. The queue still flushes over WiFi later; Tome ignores what it already has (sessions carry the same dedup key as the normal sync, positions never overwrite a newer server position). Highlights and notes are not part of the code - they sync on the next real connection. The code carries the device's clock, so a device whose time is clearly wrong (ahead of the server, or days behind) gets its timestamps corrected; a code scanned a while after it was shown is not mistaken for a wrong clock.
+
 ### Limits
 
-- Up to 50 sessions can be saved locally. If you go offline for an extremely long time, the oldest sessions are dropped to prevent unbounded storage use.
+- Up to 200 sessions can be saved locally. If you go offline for an extremely long time, the oldest sessions are dropped to prevent unbounded storage use.
 - Sessions saved locally survive KOReader restarts -- they are stored in KOReader's settings file.
 - The backoff counter (3 failures before giving up) resets automatically on the next successful request. You can also reset it manually via **Settings → Test connection** in the plugin menu.
 
@@ -232,6 +244,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Sync reading history** | Imports KOReader's per-page reading log into Tome's Stats (time and pages only). First run backfills everything; chunked and resumable. See [Reading-History Import](#reading-history-import). |
 | **Sync closed books** | Library sweep: adopts status, rating and progress from books on the device TomeSync has never synced (read before Tome, sideloaded). Only fills what Tome doesn't already have. |
 | **Apply Tome metadata now** | Writes Tome's title, author, series, tags, description and cover for the books on this device into KOReader's custom metadata, then shows a summary. Runs regardless of the automatic setting. See [Metadata sync](#metadata-sync-tome---koreader). |
+| **Show sync code (N)** | Renders the unsent sessions, positions and ratings as a QR code for a phone to scan. N is how many items the code would carry. See [Sync code](#sync-code-hand-offline-reading-to-your-phone). |
 | **Settings** | Submenu with persistent options and diagnostics (see below). |
 | **About** | Version info (semver + build). |
 
@@ -276,6 +289,7 @@ TomeSync registers bindable gesture actions (KOReader **Settings → Taps and ge
 | **TomeSync: Browse series** | Jumps straight to the series browser/downloader. |
 | **TomeSync: Sync highlights** | Pushes the current book's highlights and notes to Tome immediately. |
 | **TomeSync: Sync reading history** | Imports KOReader's per-page reading history into Tome's Stats (time and pages only). |
+| **TomeSync: Show sync code** | Shows the sync code (offline hand-off to a phone). |
 
 ---
 

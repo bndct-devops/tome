@@ -252,6 +252,11 @@ msgstr ""
 msgid "(not set)"
 msgstr ""
 
+#. placeholder {0}: result.sessions_added
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, =0 {No new sessions} one {# new session} other {# new sessions}}"
+msgstr ""
+
 #. placeholder {0}: tooltip.sessions
 #: src/components/stats/HourDowHeatmap.tsx
 msgid "{0, plural, one {{dur} · # session} other {{dur} · # sessions}}"
@@ -272,6 +277,11 @@ msgstr ""
 msgid "{0, plural, one {# active day in this window} other {# active days in this window}}"
 msgstr ""
 
+#. placeholder {0}: result.sessions_known
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, one {# already known} other {# already known}}"
+msgstr ""
+
 #. placeholder {0}: res.errors.length
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# book could not be deleted} other {# books could not be deleted}}"
@@ -285,6 +295,11 @@ msgstr ""
 #. placeholder {0}: d.books_finished
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# book finished} other {# books finished}}"
+msgstr ""
+
+#. placeholder {0}: result.unknown_books
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, one {# book not in your library} other {# books not in your library}}"
 msgstr ""
 
 #. placeholder {0}: status.syncedDocuments
@@ -356,6 +371,26 @@ msgstr ""
 msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr ""
 
+#. placeholder {0}: b.pages
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, one {# page} other {# pages}}"
+msgstr ""
+
+#. placeholder {0}: result.positions_kept
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, one {# position kept (newer here)} other {# positions kept (newer here)}}"
+msgstr ""
+
+#. placeholder {0}: result.positions_applied
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, one {# position updated} other {# positions updated}}"
+msgstr ""
+
+#. placeholder {0}: result.ratings_applied
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{0, plural, one {# rating} other {# ratings}}"
+msgstr ""
+
 #. placeholder {0}: aggregate.distinct_readers
 #. placeholder {0}: c.users_count
 #: src/components/SeriesReadingStats.tsx
@@ -395,7 +430,9 @@ msgid "{0, plural, one {# session · {pages} pages} other {# sessions · {pages}
 msgstr ""
 
 #. placeholder {0}: aggregate.total_sessions
+#. placeholder {0}: b.sessions_added
 #. placeholder {0}: d.sessions
+#: src/components/ScanSyncCodeModal.tsx
 #: src/components/SeriesReadingStats.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# session} other {# sessions}}"
@@ -559,6 +596,10 @@ msgstr ""
 msgid "{count} sittings · {from} – {to}"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{d} days"
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 msgid "{d} days ago"
 msgstr ""
@@ -655,6 +696,10 @@ msgstr ""
 msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{h} h"
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 msgid "{h} hours ago"
 msgstr ""
@@ -688,6 +733,14 @@ msgstr ""
 msgid "{hit}/7 days this week"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{hours} h"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{hours} h {rest} min"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "{hours}h ago"
 msgstr ""
@@ -708,6 +761,10 @@ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
 msgid "{label} only"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{m} min"
 msgstr ""
 
 #: src/components/home/FocusMode.tsx
@@ -736,6 +793,10 @@ msgstr ""
 #: src/components/SyncStatusBadge.tsx
 #: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "{minutes} min"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -1516,6 +1577,10 @@ msgstr ""
 msgid "Applying failed — nothing was changed."
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Applying…"
+msgstr ""
+
 #: src/components/ManageSeriesModal.tsx
 msgid "Arc name"
 msgstr ""
@@ -2022,6 +2087,7 @@ msgstr ""
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
+#: src/components/ScanSyncCodeModal.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/components/UploadModal.tsx
@@ -2202,6 +2268,10 @@ msgstr ""
 msgid "Core"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Could not apply the sync code"
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "Could not create a code"
 msgstr ""
@@ -2228,6 +2298,10 @@ msgstr ""
 
 #: src/components/ReadingImport.tsx
 msgid "Could not read that file"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Could not read that photo."
 msgstr ""
 
 #: src/components/SeriesFollowButton.tsx
@@ -2562,6 +2636,10 @@ msgstr ""
 msgid "Device name"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr ""
@@ -2603,6 +2681,7 @@ msgstr ""
 #~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
 #~ msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
 #: src/components/WordCount.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -3224,6 +3303,7 @@ msgstr ""
 msgid "Finish Rate per Book Category"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "finished"
@@ -3743,6 +3823,15 @@ msgstr ""
 msgid "Label (e.g. KOReader)"
 msgstr ""
 
+#. placeholder {0}: result.device ?? 'KOReader'
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "Landed from {0}."
+#~ msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Landed from {deviceName}."
+msgstr ""
+
 #: src/components/MetadataManager.tsx
 msgid "Lang"
 msgstr ""
@@ -4137,6 +4226,10 @@ msgstr ""
 msgid "Missing: {filterMissingLabel}"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "missing: {missingList}"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Mo"
 msgstr ""
@@ -4383,6 +4476,10 @@ msgstr ""
 msgid "No books match the current filters."
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead."
+msgstr ""
+
 #: src/components/MetadataManager.tsx
 msgid "No candidates found."
 msgstr ""
@@ -4539,6 +4636,10 @@ msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "No previous data to compare"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "No QR code found in that photo. Fill the frame with the code and try again."
 msgstr ""
 
 #: src/components/stats/widgets/taste.tsx
@@ -4827,6 +4928,10 @@ msgstr ""
 msgid "Nothing matched “{search}”"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Nothing new. Tome already had everything in this code."
+msgstr ""
+
 #: src/components/ShareLinksOverview.tsx
 msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 msgstr ""
@@ -4866,6 +4971,10 @@ msgstr ""
 
 #: src/lib/goals.ts
 msgid "on pace"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -4998,6 +5107,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Padding"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Page {collected} of {total} read. Tap the device for the next page."
 msgstr ""
 
 #: src/pages/ReaderPage.tsx
@@ -5164,6 +5277,10 @@ msgstr ""
 msgid "Position history — restore a bad sync"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "position kept, newer here"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Prefix"
 msgstr ""
@@ -5227,6 +5344,25 @@ msgstr ""
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Progress"
+msgstr ""
+
+#. placeholder {0}: pct(b.progress_after)
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "Progress {0}"
+#~ msgstr ""
+
+#. placeholder {0}: pct(b.progress_before)
+#. placeholder {1}: pct(b.progress_after)
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "Progress {0} → {1}"
+#~ msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Progress {after}"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Progress {before} → {after}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -5329,6 +5465,15 @@ msgstr ""
 msgid "Rated"
 msgstr ""
 
+#. placeholder {0}: b.rating
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "rated {0}"
+#~ msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "rated {rating}"
+msgstr ""
+
 #: src/components/BookCard.tsx
 msgid "Rated {rating} of 5"
 msgstr ""
@@ -5428,6 +5573,10 @@ msgstr ""
 
 #: src/components/home/FocusMode.tsx
 msgid "Read on the web"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -5535,6 +5684,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Reading stats appear once sessions arrive — synced from the TomeSync KOReader plugin, logged by hand on a book page, or imported from a KOReader statistics file."
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Reading the photo…"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -5913,6 +6066,15 @@ msgstr ""
 msgid "Saving…"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+#: src/pages/SettingsPage.tsx
+msgid "Scan a sync code"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Scan another"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Scan complete"
 msgstr ""
@@ -6252,6 +6414,10 @@ msgstr ""
 msgid "Sessions ({n})"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Sessions already known"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Set <0>TOME_SMTP_HOST</0>, <1>TOME_SMTP_PORT</1>, <2>TOME_SMTP_USER</2>, and <3>TOME_SMTP_PASSWORD</3>."
 msgstr ""
@@ -6552,6 +6718,10 @@ msgstr ""
 msgid "Start matching this book again"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Start over"
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 msgid "Start reading"
 msgstr ""
@@ -6570,6 +6740,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Started vs finished ratio"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Starting the camera…"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -6644,6 +6818,10 @@ msgstr ""
 
 #: src/components/HardcoverSync.tsx
 msgid "Sync automatically"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Sync code applied"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
@@ -6779,6 +6957,10 @@ msgstr ""
 msgid "That file was rejected"
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "That QR code is not a Tome sync code."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "That SSO identity is already linked to another account."
 msgstr ""
@@ -6786,6 +6968,27 @@ msgstr ""
 #: src/pages/BinderyPage.tsx
 msgid "The book type's own library is always added automatically."
 msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
+#~ msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "the device"
+msgstr ""
+
+#. placeholder {0}: Math.round(Math.abs(result.clock_offset_seconds) / 60)
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "The device clock is off by {0} min; times were corrected."
+#~ msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "The device clock is off by {offset}; times were corrected."
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+#~ msgid "The device clock is off by {offsetMinutes} min; times were corrected."
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "the sync password set above"
@@ -7246,6 +7449,10 @@ msgstr ""
 msgid "Use a <0>Google App Password</0>, not your regular password."
 msgstr ""
 
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Use a photo"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Use this as the OPDS password in KOReader (username stays the same)."
 msgstr ""
@@ -7343,6 +7550,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
+msgstr ""
+
+#: src/components/ScanSyncCodeModal.tsx
+msgid "Waiting for a code…"
 msgstr ""
 
 #: src/pages/LoginPage.tsx
