@@ -118,6 +118,20 @@ class TestBinderyCount:
         assert resp.status_code == 200
         assert resp.json()["count"] == 3
 
+    def test_count_includes_files_when_bindery_is_inside_a_hidden_dir(
+        self, client: TestClient, tmp_path: Path, monkeypatch
+    ):
+        # Only dot-paths inside the bindery are hidden; the bindery's own
+        # location (e.g. ~/.local/share/tome/bindery) must not matter.
+        bindery_path = tmp_path / ".local" / "bindery"
+        bindery_path.mkdir(parents=True)
+        (bindery_path / "Faust v01.cbz").write_bytes(b"PK\x03\x04fake")
+        monkeypatch.setattr("backend.core.config.settings.incoming_dir", bindery_path)
+
+        resp = client.get("/api/bindery/count")
+        assert resp.status_code == 200
+        assert resp.json()["count"] == 1
+
 
 # ---------------------------------------------------------------------------
 # TestBinderyList

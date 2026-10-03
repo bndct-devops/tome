@@ -156,7 +156,7 @@ def bindery_count(
     incoming = settings.incoming_dir
     count = 0
     for p in incoming.rglob("*"):
-        if p.is_file() and not any(part.startswith(".") for part in p.parts):
+        if p.is_file() and not any(part.startswith(".") for part in p.relative_to(incoming).parts):
             if p.suffix.lower() in SUPPORTED_EXTENSIONS:
                 count += 1
     return {"count": count}
