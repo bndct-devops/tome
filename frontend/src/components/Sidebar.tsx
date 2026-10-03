@@ -637,14 +637,11 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
 }
 
 function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: number; pulse: boolean }) {
+  const pulseClassName = pulse && 'animate-[badge-ping_0.4s_ease-in-out]'
   // The rail is icon-only, too narrow for a number.
-  if (variant === 'rail') return <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
-  if (variant === 'drawer') return <span className="ml-auto text-xs font-medium text-primary tabular-nums">{count}</span>
+  if (variant === 'rail') return <span className={cn('absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary', pulseClassName)} />
   return (
-    <span
-      className="ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full"
-      style={{ animation: pulse ? 'badge-ping 0.4s ease-in-out' : 'none' }}
-    >
+    <span className={cn('ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full', pulseClassName)}>
       {count}
     </span>
   )
