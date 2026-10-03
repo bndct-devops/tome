@@ -10,6 +10,7 @@ const PYTHON = process.env.E2E_PYTHON ?? path.join(ROOT, '.venv', 'bin', 'python
 
 export const ADMIN = { username: 'e2e', password: 'e2e-password-1' }
 export const LIBRARY_DIR = path.join(E2E_DIR, '.data', 'library')
+export const BINDERY_DIR = path.join(E2E_DIR, '.data', 'bindery')
 
 /** Reset the sandbox DB + library and load a scenario (see e2e/seed.py). */
 export function seed(scenario: 'orphans' | 'duplicates' | 'many' | 'race' | 'reset', count?: number) {

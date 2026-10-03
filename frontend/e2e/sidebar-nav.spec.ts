@@ -1,5 +1,7 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { seed, login } from './helpers'
+import { seed, login, BINDERY_DIR } from './helpers'
 
 // The top-level nav renders three ways: expanded sidebar and collapsed rail on
 // desktop, drawer on phones. All three must offer the same entries in the same
@@ -96,5 +98,34 @@ test.describe('sidebar nav on a phone', () => {
       await entryIn(nav, entry).click()
       await expect(nav).not.toBeInViewport()
     }
+  })
+})
+
+test.describe('bindery badge', () => {
+  // seed('reset') leaves the bindery alone, so each test removes its file.
+  const waiting = path.join(BINDERY_DIR, 'waiting.epub')
+
+  test.beforeEach(async ({ page }) => {
+    seed('reset')
+    await login(page)
+  })
+
+  test.afterEach(() => fs.rmSync(waiting, { force: true }))
+
+  test('sidebar, rail and drawer show files waiting in the bindery', async ({ page }) => {
+    const sidebarBadge = sidebarNav(page).getByRole('link', { name: /^Bindery/ }).getByText('1', { exact: true })
+    await expect(sidebarBadge).toHaveCount(0)
+
+    fs.writeFileSync(waiting, '')
+    // The count is fetched on mount (then every 30s).
+    await page.reload()
+    await expect(sidebarBadge).toBeVisible()
+
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+    await expect(railNav(page).getByRole('link', { name: 'Bindery' }).locator('span')).toBeVisible()
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: 'Open navigation' }).click()
+    await expect(drawerNav(page).getByRole('link', { name: /^Bindery/ }).getByText('1', { exact: true })).toBeVisible()
   })
 })
