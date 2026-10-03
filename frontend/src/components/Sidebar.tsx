@@ -14,7 +14,7 @@ import type { Library, SavedFilter } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
 import { TomeMark } from '@/components/TomeMark'
-import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
+import { useAuth, isAdmin, isMember, type AuthUser } from '@/contexts/AuthContext'
 import { applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
 import { DOCS, docsLink } from '@/lib/docs'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -213,6 +213,18 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     goToBooks(params)
   }
 
+  const navItems = ([
+    { id: 'home', label: t`Home`, icon: Home, onSelect: onOpenHomeView, active: isHomeTab },
+    { id: 'books', label: t`All Books`, icon: BookOpen, onSelect: selectAllBooks, active: isAllBooks },
+    { id: 'series', label: t`Series`, icon: Layers, onSelect: onOpenSeriesView, active: isSeriesTab },
+    { id: 'stats', label: t`Stats`, icon: BarChart3, to: '/stats' },
+    { id: 'highlights', label: t`Highlights`, icon: Quote, to: '/highlights' },
+    { id: 'wishlist', label: t`Wishlist`, icon: Sparkles, to: '/wishlist', visible: isMember },
+    { id: 'hardcover', label: t`Hardcover`, icon: BookMarked, to: '/hardcover', visible: isMember },
+    { id: 'bindery', label: t`Bindery`, icon: BookPlus, to: '/bindery', visible: isAdmin,
+      badge: { count: binderyCount, pulse: badgePulse } },
+  ] satisfies NavItem[]).filter(item => item.visible?.(user) ?? true)
+
   function openCreateLibModal() {
     setLibModalTitle(t`New Library`)
     setLibModalInitialName('')
@@ -315,119 +327,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       )}>
         {!open && (
           <div className="flex flex-col items-center flex-1 overflow-y-auto py-2 space-y-0.5 overscroll-contain">
-            <button
-              onClick={onOpenHomeView}
-              title={t`Home`}
-              aria-label={t`Home`}
-              className={cn(
-                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                isHomeTab
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <Home className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-            </button>
-            <button
-              onClick={selectAllBooks}
-              title={t`All Books`}
-              aria-label={t`All Books`}
-              className={cn(
-                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                isAllBooks
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <BookOpen className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-            </button>
-            <button
-              onClick={onOpenSeriesView}
-              title={t`Series`}
-              aria-label={t`Series`}
-              className={cn(
-                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                isSeriesTab
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <Layers className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-            </button>
-            <Link
-              to="/stats"
-              title={t`Stats`}
-              aria-label={t`Stats`}
-              className={cn(
-                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                location.pathname === '/stats'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <BarChart3 className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-            </Link>
-            <Link
-              to="/highlights"
-              title={t`Highlights`}
-              aria-label={t`Highlights`}
-              className={cn(
-                'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                location.pathname === '/highlights'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <Quote className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-            </Link>
-            {isMember(user) && (
-              <Link
-                to="/wishlist"
-                title={t`Wishlist`}
-                aria-label={t`Wishlist`}
-                className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                  location.pathname === '/wishlist'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <Sparkles className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-              </Link>
-            )}
-            {isMember(user) && (
-              <Link
-                to="/hardcover"
-                title={t`Hardcover`}
-                aria-label={t`Hardcover`}
-                className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                  location.pathname === '/hardcover'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <BookMarked className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-              </Link>
-            )}
-            {isAdmin(user) && (
-              <Link
-                to="/bindery"
-                title={t`Bindery`}
-                aria-label={t`Bindery`}
-                className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
-                  location.pathname === '/bindery'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <BookPlus className="w-4 h-4 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                {binderyCount > 0 && (
-                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
-                )}
-              </Link>
-            )}
+            {navItems.map(item => <NavEntry key={item.id} item={item} variant="rail" />)}
             {libraries.length > 0 && (
               <div className="w-6 h-px bg-border my-0.5" />
             )}
@@ -476,116 +376,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         {open && (
           <nav className="flex-1 overflow-y-auto px-2 pt-3 pb-4 space-y-4 overscroll-contain">
             <div>
-              <button
-                onClick={onOpenHomeView}
-                className={cn(
-                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                  isHomeTab
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <Home className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate"><Trans>Home</Trans></span>
-              </button>
-              <button
-                onClick={selectAllBooks}
-                className={cn(
-                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                  isAllBooks
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <BookOpen className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate"><Trans>All Books</Trans></span>
-              </button>
-              <button
-                onClick={onOpenSeriesView}
-                className={cn(
-                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                  isSeriesTab
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <Layers className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate"><Trans>Series</Trans></span>
-              </button>
-              <Link
-                to="/stats"
-                className={cn(
-                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                  location.pathname === '/stats'
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <BarChart3 className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate"><Trans>Stats</Trans></span>
-              </Link>
-              <Link
-                to="/highlights"
-                className={cn(
-                  'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                  location.pathname === '/highlights'
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <Quote className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                <span className="truncate"><Trans>Highlights</Trans></span>
-              </Link>
-              {isMember(user) && (
-                <Link
-                  to="/wishlist"
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                    location.pathname === '/wishlist'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <Sparkles className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Wishlist</Trans></span>
-                </Link>
-              )}
-              {isMember(user) && (
-                <Link
-                  to="/hardcover"
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                    location.pathname === '/hardcover'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <BookMarked className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Hardcover</Trans></span>
-                </Link>
-              )}
-              {isAdmin(user) && (
-                <Link
-                  to="/bindery"
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-                    location.pathname === '/bindery'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <BookPlus className="w-4 h-4 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Bindery</Trans></span>
-                  {binderyCount > 0 && (
-                    <span
-                      className="ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full"
-                      style={{ animation: badgePulse ? 'badge-ping 0.4s ease-in-out' : 'none' }}
-                    >
-                      {binderyCount}
-                    </span>
-                  )}
-                </Link>
-              )}
+              {navItems.map(item => <NavEntry key={item.id} item={item} variant="sidebar" />)}
             </div>
 
             <Section
@@ -682,116 +473,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 
             <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4 overscroll-contain">
               <div>
-                <button
-                  onClick={() => { onOpenHomeView(); onMobileClose() }}
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                    isHomeTab
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <Home className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Home</Trans></span>
-                </button>
-                <button
-                  onClick={() => { selectAllBooks(); onMobileClose() }}
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                    isAllBooks
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <BookOpen className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>All Books</Trans></span>
-                </button>
-                <button
-                  onClick={() => { onOpenSeriesView(); onMobileClose() }}
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                    isSeriesTab
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <Layers className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Series</Trans></span>
-                </button>
-                <Link
-                  to="/stats"
-                  onClick={onMobileClose}
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                    location.pathname === '/stats'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <BarChart3 className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Stats</Trans></span>
-                </Link>
-                <Link
-                  to="/highlights"
-                  onClick={onMobileClose}
-                  className={cn(
-                    'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                    location.pathname === '/highlights'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <Quote className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                  <span className="truncate"><Trans>Highlights</Trans></span>
-                </Link>
-                {isMember(user) && (
-                  <Link
-                    to="/wishlist"
-                    onClick={onMobileClose}
-                    className={cn(
-                      'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                      location.pathname === '/wishlist'
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <Sparkles className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                    <span className="truncate"><Trans>Wishlist</Trans></span>
-                  </Link>
-                )}
-                {isMember(user) && (
-                  <Link
-                    to="/hardcover"
-                    onClick={onMobileClose}
-                    className={cn(
-                      'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                      location.pathname === '/hardcover'
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <BookMarked className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                    <span className="truncate"><Trans>Hardcover</Trans></span>
-                  </Link>
-                )}
-                {isAdmin(user) && (
-                  <Link
-                    to="/bindery"
-                    onClick={onMobileClose}
-                    className={cn(
-                      'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-                      location.pathname === '/bindery'
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <BookPlus className="w-5 h-5 shrink-0 group-hover:animate-[wiggle_0.4s_ease-in-out]" />
-                    <span className="truncate flex-1"><Trans>Bindery</Trans></span>
-                    {binderyCount > 0 && (
-                      <span className="text-xs font-medium text-primary tabular-nums">{binderyCount}</span>
-                    )}
-                  </Link>
-                )}
+                {navItems.map(item => <NavEntry key={item.id} item={item} variant="drawer" onActivate={onMobileClose} />)}
               </div>
 
               <Section
@@ -899,6 +581,72 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           </div>
         </div>
     </>
+  )
+}
+
+
+type NavItem = {
+  id: string
+  label: string
+  icon: LucideIcon
+  // Hides the entry from the nav; it does not restrict access.
+  visible?: (user: AuthUser | null) => boolean
+  badge?: { count: number; pulse: boolean }
+} & ({ to: string } | { onSelect: () => void; active: boolean })
+
+type NavVariant = 'rail' | 'sidebar' | 'drawer'
+
+const NAV_VARIANTS: Record<NavVariant, { entryClassName: string; activeClassName: string; iconClassName: string; showLabel: boolean }> = {
+  rail: {
+    entryClassName: 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+    activeClassName: 'bg-primary/10 text-primary',
+    iconClassName: 'w-4 h-4',
+    showLabel: false,
+  },
+  sidebar: {
+    entryClassName: 'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
+    activeClassName: 'bg-primary/10 text-primary font-medium',
+    iconClassName: 'w-4 h-4 shrink-0',
+    showLabel: true,
+  },
+  drawer: {
+    entryClassName: 'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
+    activeClassName: 'bg-primary/10 text-primary font-medium',
+    iconClassName: 'w-5 h-5 shrink-0',
+    showLabel: true,
+  },
+}
+
+function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVariant; onActivate?: () => void }) {
+  const { pathname } = useLocation()
+  const style = NAV_VARIANTS[variant]
+  const { icon: Icon, label, badge } = item
+  const active = 'to' in item ? pathname === item.to : item.active
+  const className = cn(style.entryClassName, active ? style.activeClassName : 'text-muted-foreground hover:text-foreground hover:bg-muted')
+  const labelProps = style.showLabel ? {} : { title: label, 'aria-label': label }
+  const content = (
+    <>
+      <Icon className={cn(style.iconClassName, 'group-hover:animate-[wiggle_0.4s_ease-in-out]')} />
+      {style.showLabel && <span className="truncate">{label}</span>}
+      {badge && badge.count > 0 && <NavBadge variant={variant} {...badge} />}
+    </>
+  )
+  return 'to' in item
+    ? <Link to={item.to} onClick={onActivate} className={className} {...labelProps}>{content}</Link>
+    : <button onClick={() => { item.onSelect(); onActivate?.() }} className={className} {...labelProps}>{content}</button>
+}
+
+function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: number; pulse: boolean }) {
+  // The rail is icon-only, too narrow for a number.
+  if (variant === 'rail') return <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
+  if (variant === 'drawer') return <span className="ml-auto text-xs font-medium text-primary tabular-nums">{count}</span>
+  return (
+    <span
+      className="ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full"
+      style={{ animation: pulse ? 'badge-ping 0.4s ease-in-out' : 'none' }}
+    >
+      {count}
+    </span>
   )
 }
 
