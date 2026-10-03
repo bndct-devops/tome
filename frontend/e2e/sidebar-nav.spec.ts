@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { seed, login, BINDERY_DIR } from './helpers'
+import { seed, login, BINDERY_DIR, MEMBER, GUEST } from './helpers'
 
 // The top-level nav renders three ways: expanded sidebar and collapsed rail on
 // desktop, drawer on phones. All three must offer the same entries in the same
@@ -99,6 +99,26 @@ test.describe('sidebar nav on a phone', () => {
       await expect(nav).not.toBeInViewport()
     }
   })
+})
+
+test.describe('sidebar nav by role', () => {
+  const roles = [
+    { user: MEMBER, entries: ADMIN_NAV.filter(e => e.name !== 'Bindery') },
+    { user: GUEST, entries: ADMIN_NAV.filter(e => !['Wishlist', 'Hardcover', 'Bindery'].includes(e.name)) },
+  ]
+
+  for (const { user, entries } of roles) {
+    test(`${user.username} sees ${entries.length} entries in sidebar, rail and drawer`, async ({ page }) => {
+      seed('reset')
+      await login(page, user)
+
+      await expect(sidebarNav(page)).toMatchAriaSnapshot(navSnapshot(entries))
+      await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+      await expect(railNav(page)).toMatchAriaSnapshot(navSnapshot(entries))
+      await page.setViewportSize({ width: 390, height: 844 })
+      await expect(drawerNav(page)).toMatchAriaSnapshot(navSnapshot(entries))
+    })
+  }
 })
 
 test.describe('bindery badge', () => {

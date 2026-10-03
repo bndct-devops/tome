@@ -3,7 +3,7 @@
 Runs against the sandbox instance started by e2e/start.sh (SQLite in WAL mode,
 so writing from a second process while uvicorn is up is fine). Every scenario
 starts from a clean slate: all book data wiped, library dir recreated, the
-`e2e` admin ensured.
+`e2e` admin and one member and one guest ensured.
 
 Usage: seed.py <orphans|duplicates|many> [count]
 """
@@ -34,6 +34,10 @@ LIBRARY = E2E_DATA / "library"
 
 ADMIN_USER = "e2e"
 ADMIN_PASSWORD = "e2e-password-1"
+MEMBER_USER = "e2e-member"
+MEMBER_PASSWORD = "e2e-password-1"
+GUEST_USER = "e2e-guest"
+GUEST_PASSWORD = "e2e-password-1"
 
 
 def reset(db) -> int:
@@ -50,20 +54,27 @@ def reset(db) -> int:
     shutil.rmtree(LIBRARY, ignore_errors=True)
     LIBRARY.mkdir(parents=True)
 
-    admin = db.query(User).filter(User.username == ADMIN_USER).first()
-    if admin is None:
-        admin = User(
-            username=ADMIN_USER,
-            email="e2e@example.com",
-            hashed_password=hash_password(ADMIN_PASSWORD),
+    admin = _ensure_user(db, ADMIN_USER, ADMIN_PASSWORD, "admin")
+    _ensure_user(db, MEMBER_USER, MEMBER_PASSWORD, "member")
+    _ensure_user(db, GUEST_USER, GUEST_PASSWORD, "guest")
+    return admin.id
+
+
+def _ensure_user(db, username: str, password: str, role: str) -> User:
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        user = User(
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password=hash_password(password),
             is_active=True,
-            is_admin=True,
-            role="admin",
+            is_admin=role == "admin",
+            role=role,
             must_change_password=False,
         )
-        db.add(admin)
+        db.add(user)
         db.flush()
-    return admin.id
+    return user
 
 
 def _write_file(rel_path: str, content: bytes) -> Path:

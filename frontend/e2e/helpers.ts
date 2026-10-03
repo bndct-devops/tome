@@ -9,6 +9,8 @@ const ROOT = path.resolve(E2E_DIR, '..', '..')
 const PYTHON = process.env.E2E_PYTHON ?? path.join(ROOT, '.venv', 'bin', 'python')
 
 export const ADMIN = { username: 'e2e', password: 'e2e-password-1' }
+export const MEMBER = { username: 'e2e-member', password: 'e2e-password-1' }
+export const GUEST = { username: 'e2e-guest', password: 'e2e-password-1' }
 export const LIBRARY_DIR = path.join(E2E_DIR, '.data', 'library')
 export const BINDERY_DIR = path.join(E2E_DIR, '.data', 'bindery')
 
@@ -20,10 +22,10 @@ export function seed(scenario: 'orphans' | 'duplicates' | 'many' | 'race' | 'res
 }
 
 /** Log in through the login form, the way a user does. */
-export async function login(page: Page) {
+export async function login(page: Page, user = ADMIN) {
   await page.goto('/login')
-  await page.fill('input[type="text"]', ADMIN.username)
-  await page.fill('input[type="password"]', ADMIN.password)
+  await page.fill('input[type="text"]', user.username)
+  await page.fill('input[type="password"]', user.password)
   await page.click('button[type="submit"]')
   await page.waitForURL('**/')
 }
