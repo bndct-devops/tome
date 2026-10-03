@@ -15,7 +15,7 @@ export const LIBRARY_DIR = path.join(E2E_DIR, '.data', 'library')
 export const BINDERY_DIR = path.join(E2E_DIR, '.data', 'bindery')
 
 /** Reset the sandbox DB + library and load a scenario (see e2e/seed.py). */
-export function seed(scenario: 'orphans' | 'duplicates' | 'many' | 'race' | 'reset', count?: number) {
+export function seed(scenario: 'orphans' | 'duplicates' | 'many' | 'race' | 'shelves' | 'reset', count?: number) {
   const args = [path.join(E2E_DIR, 'seed.py'), scenario]
   if (count !== undefined) args.push(String(count))
   execFileSync(PYTHON, args, { stdio: 'pipe' })

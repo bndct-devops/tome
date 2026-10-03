@@ -282,7 +282,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             count={lib.book_count}
             active={activeLibrary === lib.id}
             isPrivate={lib.is_public === false}
-            onClick={() => selectLibrary(lib.id)}
+            onClick={() => { selectLibrary(lib.id); onMobileClose() }}
             onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
             onDelete={lib.can_edit ? async () => {
               await api.delete(`/libraries/${lib.id}`)
@@ -304,7 +304,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               label={sf.name}
               iconName={sf.icon ?? 'Bookmark'}
               active={activeSavedFilter === sf.id}
-              onClick={() => selectSavedFilter(sf)}
+              onClick={() => { selectSavedFilter(sf); onMobileClose() }}
               onEdit={() => openEditFilterModal(sf)}
               onShare={() => setShareShelf(sf)}
               onDelete={async () => {

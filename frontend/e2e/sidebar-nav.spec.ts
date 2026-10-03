@@ -35,6 +35,11 @@ async function expectActive(nav: Locator, entry: NavEntry) {
   await expect(entryIn(nav, entry)).toHaveClass(/bg-primary\/10/)
 }
 
+async function openDrawer(page: Page) {
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await expect(page.getByRole('navigation')).toBeInViewport()
+}
+
 test.describe('sidebar nav on desktop', () => {
   test.beforeEach(async ({ page }) => {
     seed('reset')
@@ -75,28 +80,48 @@ test.describe('sidebar nav on a phone', () => {
 
   test('drawer lists every entry, each one navigates and closes the drawer', async ({ page }) => {
     const nav = drawerNav(page)
-    const openDrawer = async () => {
-      await page.getByRole('button', { name: 'Open navigation' }).click()
-      await expect(nav).toBeInViewport()
-    }
 
-    await openDrawer()
+    await openDrawer(page)
     await expect(nav).toMatchAriaSnapshot(navSnapshot(ADMIN_NAV))
     await page.getByRole('button', { name: 'Close navigation' }).click()
     await expect(nav).not.toBeInViewport()
 
     for (const entry of ADMIN_NAV) {
-      await openDrawer()
+      await openDrawer(page)
       await entryIn(nav, entry).click()
       await expect(page).toHaveURL(entry.url)
       await expect(nav).not.toBeInViewport()
 
       // Tapping the page you are already on changes no URL; the drawer must
       // still close.
-      await openDrawer()
+      await openDrawer(page)
       await expectActive(nav, entry)
       await entryIn(nav, entry).click()
       await expect(nav).not.toBeInViewport()
+    }
+  })
+})
+
+test.describe('libraries and shelves in the drawer', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('tapping a library or shelf closes the drawer, also when it is already open', async ({ page }) => {
+    seed('shelves')
+    await login(page)
+    const drawer = page.getByRole('navigation')
+
+    for (const { name, url } of [
+      { name: 'Seeded Library', url: /library_id=\d+/ },
+      { name: 'Seeded Shelf', url: /saved_filter=\d+/ },
+    ]) {
+      await openDrawer(page)
+      await drawer.getByText(name, { exact: true }).click()
+      await expect(page).toHaveURL(url)
+      await expect(drawer).not.toBeInViewport()
+
+      await openDrawer(page)
+      await drawer.getByText(name, { exact: true }).click()
+      await expect(drawer).not.toBeInViewport()
     }
   })
 })
