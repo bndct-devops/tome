@@ -267,6 +267,58 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     setModalOpen(true)
   }
 
+  const libraryAndShelfSections = (
+    <>
+      <Section
+        title={t`Libraries`}
+        icon={<LibraryIcon className="w-3 h-3" />}
+        onAdd={openCreateLibModal} addLabel={t`New library`}
+      >
+        {libraries.map(lib => (
+          <SidebarItem
+            key={lib.id}
+            label={lib.name}
+            iconName={lib.icon ?? 'Library'}
+            count={lib.book_count}
+            active={activeLibrary === lib.id}
+            isPrivate={lib.is_public === false}
+            onClick={() => selectLibrary(lib.id)}
+            onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
+            onDelete={lib.can_edit ? async () => {
+              await api.delete(`/libraries/${lib.id}`)
+              if (activeLibrary === lib.id) selectAllBooks()
+              onLibrariesChange()
+            } : undefined}
+          />
+        ))}
+      </Section>
+
+      {savedFilters.length > 0 && (
+        <Section
+          title={t`Shelves`}
+          icon={<Bookmark className="w-3 h-3" />}
+        >
+          {savedFilters.map(sf => (
+            <SidebarItem
+              key={sf.id}
+              label={sf.name}
+              iconName={sf.icon ?? 'Bookmark'}
+              active={activeSavedFilter === sf.id}
+              onClick={() => selectSavedFilter(sf)}
+              onEdit={() => openEditFilterModal(sf)}
+              onShare={() => setShareShelf(sf)}
+              onDelete={async () => {
+                await api.delete(`/saved-filters/${sf.id}`)
+                if (activeSavedFilter === sf.id) selectAllBooks()
+                onSavedFiltersChange()
+              }}
+            />
+          ))}
+        </Section>
+      )}
+    </>
+  )
+
 
   return (
     <>
@@ -379,53 +431,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               {navItems.map(item => <NavEntry key={item.id} item={item} variant="sidebar" />)}
             </div>
 
-            <Section
-              title={t`Libraries`}
-              icon={<LibraryIcon className="w-3 h-3" />}
-              onAdd={openCreateLibModal} addLabel={t`New library`}
-            >
-              {libraries.map(lib => (
-                <SidebarItem
-                  key={lib.id}
-                  label={lib.name}
-                  iconName={lib.icon ?? 'Library'}
-                  count={lib.book_count}
-                  active={activeLibrary === lib.id}
-                  isPrivate={lib.is_public === false}
-                  onClick={() => selectLibrary(lib.id)}
-                  onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
-                  onDelete={lib.can_edit ? async () => {
-                    await api.delete(`/libraries/${lib.id}`)
-                    if (activeLibrary === lib.id) selectAllBooks()
-                    onLibrariesChange()
-                  } : undefined}
-                />
-              ))}
-            </Section>
-
-            {savedFilters.length > 0 && (
-              <Section
-                title={t`Shelves`}
-                icon={<Bookmark className="w-3 h-3" />}
-              >
-                {savedFilters.map(sf => (
-                  <SidebarItem
-                    key={sf.id}
-                    label={sf.name}
-                    iconName={sf.icon ?? 'Bookmark'}
-                    active={activeSavedFilter === sf.id}
-                    onClick={() => selectSavedFilter(sf)}
-                    onEdit={() => openEditFilterModal(sf)}
-                    onShare={() => setShareShelf(sf)}
-                    onDelete={async () => {
-                      await api.delete(`/saved-filters/${sf.id}`)
-                      if (activeSavedFilter === sf.id) selectAllBooks()
-                      onSavedFiltersChange()
-                    }}
-                  />
-                ))}
-              </Section>
-            )}
+            {libraryAndShelfSections}
           </nav>
         )}
 
@@ -476,53 +482,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 {navItems.map(item => <NavEntry key={item.id} item={item} variant="drawer" onActivate={onMobileClose} />)}
               </div>
 
-              <Section
-                title={t`Libraries`}
-                icon={<LibraryIcon className="w-3 h-3" />}
-                onAdd={openCreateLibModal} addLabel={t`New library`}
-              >
-                {libraries.map(lib => (
-                  <SidebarItem
-                    key={lib.id}
-                    label={lib.name}
-                    iconName={lib.icon ?? 'Library'}
-                    count={lib.book_count}
-                    active={activeLibrary === lib.id}
-                    isPrivate={lib.is_public === false}
-                    onClick={() => selectLibrary(lib.id)}
-                    onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
-                    onDelete={lib.can_edit ? async () => {
-                      await api.delete(`/libraries/${lib.id}`)
-                      if (activeLibrary === lib.id) selectAllBooks()
-                      onLibrariesChange()
-                    } : undefined}
-                  />
-                ))}
-              </Section>
-
-              {savedFilters.length > 0 && (
-                <Section
-                  title={t`Shelves`}
-                  icon={<Bookmark className="w-3 h-3" />}
-                >
-                  {savedFilters.map(sf => (
-                    <SidebarItem
-                      key={sf.id}
-                      label={sf.name}
-                      iconName={sf.icon ?? 'Bookmark'}
-                      active={activeSavedFilter === sf.id}
-                      onClick={() => selectSavedFilter(sf)}
-                      onEdit={() => openEditFilterModal(sf)}
-                      onShare={() => setShareShelf(sf)}
-                      onDelete={async () => {
-                        await api.delete(`/saved-filters/${sf.id}`)
-                        if (activeSavedFilter === sf.id) selectAllBooks()
-                        onSavedFiltersChange()
-                      }}
-                    />
-                  ))}
-                </Section>
-              )}
+              {libraryAndShelfSections}
             </nav>
 
             {/* Mobile user footer */}
