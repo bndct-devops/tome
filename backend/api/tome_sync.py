@@ -93,8 +93,22 @@ logger = logging.getLogger(__name__)
 # username is display-only, derived from /auth/me at pairing time. Plus an
 # input_hint fix (ghost text never showed; the field was misnamed "hint") and
 # a settings-menu reorder. Co-developed with @pabsan-0.
-TOMESYNC_PLUGIN_BUILD = 45
-TOMESYNC_PLUGIN_SEMVER = "1.15.3"
+# BUILD 46: sync code — reading done offline handed to an online phone as a
+# QR code (sessions, positions, ratings that could not be sent), scanned by
+# the Tome app or the web UI and posted to /api/sync-code. Positions that
+# fail to PUT are now remembered per book (tomesync_pending_positions) so
+# the code has them; closing a book while offline now queues its session
+# like the suspend path already did (it used to be dropped); the session
+# queue cap rises 50 -> 200. "Scanned" moves a watermark
+# (tomesync_scan_mark); the queues themselves still flush over WiFi and the
+# server dedups. Gesture: "TomeSync: Show sync code".
+# BUILD 47: sync code review fixes. "Show sync code" now ends the sitting
+# in progress (as a lid close would) and starts a new one, so the book being
+# read is in the code and not only its position; the menu count "(N)" counts
+# unsent items only (the open book's live position no longer makes it read
+# "(1)" after a full sync).
+TOMESYNC_PLUGIN_BUILD = 47
+TOMESYNC_PLUGIN_SEMVER = "1.16.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1853,6 +1867,7 @@ local Device           = require("device")
 local NetworkMgr       = require("ui/network/manager")
 local http             = require("socket.http")
 local ltn12            = require("ltn12")
+local mime             = require("mime")
 local rapidjson        = require("rapidjson")
 local lfs              = require("libs/libkoreader-lfs")
 local util             = require("util")
@@ -2310,6 +2325,9 @@ function TomeSync:init()
     self:_migrateState()
     self.book_map       = self.state:readSetting("tomesync_book_map") or {{}}
     self.pending_sessions = self.state:readSetting("tomesync_pending_sessions") or {{}}
+    -- Positions that failed to PUT, latest per book (string book_id ->
+    -- {{ pc=, xp=, t= }}). Only the sync code reads these; see _putPosition.
+    self.pending_positions = self.state:readSetting("tomesync_pending_positions") or {{}}
     -- Send-to-KOReader inbox (beta): enabled only if the server reports the
     -- feature; count drives the menu badge. Populated by the launch poll below.
     self.inbox_enabled  = false
@@ -2394,6 +2412,7 @@ local STATE_KEYS = {{
     "tomesync_book_map", "tomesync_pending_sessions", "tomesync_adopt_pending",
     "tomesync_repair_map", "tomesync_annot_baseline", "tomesync_rating_baseline",
     "tomesync_pending_ratings", "tomesync_meta_ledger",
+    "tomesync_pending_positions", "tomesync_scan_mark",
 }}
 
 function TomeSync:_saveState(key, value)
@@ -2522,6 +2541,17 @@ function TomeSync:onDispatcherRegisterActions()
         title    = "TomeSync: Sync reading history",
         general  = true,
     }})
+    Dispatcher:registerAction("tome_show_sync_code", {{
+        category = "none",
+        event    = "TomeShowSyncCode",
+        title    = "TomeSync: Show sync code",
+        general  = true,
+    }})
+end
+
+function TomeSync:onTomeShowSyncCode()
+    self:_showSyncCode()
+    return true
 end
 
 function TomeSync:onTomeOpenMenu()
@@ -2636,11 +2666,7 @@ function TomeSync:_heartbeatNow()
     if not self.enabled or not self.book_id then return end
     local pct = self:_getCurrentPercentage()
     self.last_progress = pct
-    pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
-        progress   = self:_getCurrentProgress(),
-        percentage = pct,
-        device     = deviceName(),
-    }})
+    self:_putPosition(self.book_id, self:_getCurrentProgress(), pct, deviceName())
     -- Flush any offline sessions while we know WiFi is up
     self:_flushPendingSessions()
     self:_flushPendingRatings()
@@ -2658,9 +2684,7 @@ function TomeSync:onSuspend()
         local duration, session_end = self:_sessionTotals(os.time())
         local dev      = deviceName()
 
-        pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
-            progress = cfi, percentage = pct, device = dev,
-        }})
+        self:_putPosition(self.book_id, cfi, pct, dev)
 
         -- Sync highlights/notes alongside position (bidirectional merge with the server).
         pcall(function() self:_syncAnnotations() end)
@@ -2679,17 +2703,7 @@ function TomeSync:onSuspend()
                 device           = dev,
                 session_uuid     = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev),
             }}
-            local sok, sresult, scode = pcall(apiRequest, "POST", "/tome-sync/session", session)
-            if not sok or not sresult or (type(scode) == "number" and scode >= 300) then
-                -- Failed to send — save for later
-                table.insert(self.pending_sessions, session)
-                -- Cap at 50 to prevent unbounded growth
-                while #self.pending_sessions > 50 do
-                    table.remove(self.pending_sessions, 1)
-                end
-                self:_saveState("tomesync_pending_sessions", self.pending_sessions)
-                logger.info("TomeSync: session queued for retry, pending:", #self.pending_sessions)
-            end
+            self:_postSessionOrQueue(session)
         end
     end
 
@@ -3107,6 +3121,353 @@ function TomeSync:_syncReadingStats(manual)
     sendNext()
 end
 
+-- ── Offline queues ───────────────────────────────────────────────────────────
+-- Sessions that failed to POST wait here for the next flush (resume, Sync
+-- now, WiFi up, suspend). The cap keeps the state file bounded; a very long
+-- offline stretch that hits it drops the oldest sessions.
+local PENDING_SESSIONS_CAP = 200
+
+function TomeSync:_postSessionOrQueue(session)
+    local sok, sresult, scode = pcall(apiRequest, "POST", "/tome-sync/session", session)
+    if sok and sresult and not (type(scode) == "number" and scode >= 300) then
+        return true
+    end
+    table.insert(self.pending_sessions, session)
+    while #self.pending_sessions > PENDING_SESSIONS_CAP do
+        table.remove(self.pending_sessions, 1)
+    end
+    self:_saveState("tomesync_pending_sessions", self.pending_sessions)
+    logger.info("TomeSync: session queued for retry, pending:", #self.pending_sessions)
+    return false
+end
+
+-- Position PUT that remembers the write when the server cannot be reached,
+-- so an offline stretch still has a position per book to hand over in the
+-- sync code. Latest write per book only. An entry is dropped by the next
+-- successful PUT for that book (the device caught up on its own) or when a
+-- code carrying it is marked scanned. Positions are deliberately NOT
+-- re-flushed on reconnect: the server is last-write-wins for positions, and
+-- a stale device position must not overwrite what the phone did meanwhile.
+function TomeSync:_putPosition(book_id, progress, pct, dev)
+    local ok, resp, code = pcall(apiRequest, "PUT", "/tome-sync/position/" .. book_id, {{
+        progress = progress, percentage = pct, device = dev,
+    }})
+    local key = tostring(book_id)
+    if ok and resp and type(code) == "number" and code < 300 then
+        if self.pending_positions[key] ~= nil then
+            self.pending_positions[key] = nil
+            self:_saveState("tomesync_pending_positions", self.pending_positions)
+        end
+        return true
+    end
+    -- Only transport failures (offline, backoff, timeout) and server errors
+    -- are worth carrying; a 4xx (book gone, key revoked) would never succeed.
+    if type(code) == "number" and code < 500 then return false end
+    self.pending_positions[key] = {{ pc = pct, xp = progress, t = os.time() }}
+    self:_saveState("tomesync_pending_positions", self.pending_positions)
+    return false
+end
+
+-- ── Sync code (QR hand-off from an offline device) ──────────────────────────
+-- Everything queued while offline (sessions, positions, ratings) rendered as
+-- QR pages for a phone to scan and post to Tome. Format and write rules live
+-- in backend/services/sync_code.py; the phone only reads the page header and
+-- the server decodes. "Scanned" moves a watermark so the next code carries
+-- only newer items; the queues themselves are untouched and still flush over
+-- WiFi, where the server dedups them.
+-- base64 chars per page. With medium error correction this lands around QR
+-- version 17 (85 modules): big modules for a phone camera on e-ink, and a
+-- quarter of the symbol can be unreadable before a page fails.
+local SYNC_CODE_CHUNK = 480
+local SYNC_CODE_EC_LEVEL = 2  -- luaqrcode: 1 = L, 2 = M, 3 = Q, 4 = H
+
+local function daysFromCivil(y, m, d)
+    if m <= 2 then y = y - 1 end
+    local era = math.floor(y / 400)
+    local yoe = y - era * 400
+    local mp = (m + 9) % 12
+    local doy = math.floor((153 * mp + 2) / 5) + d - 1
+    local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+    return era * 146097 + doe - 719468
+end
+
+-- "2026-09-24T13:05:00Z" -> epoch seconds. Queued sessions store ISO strings
+-- (what the session endpoint takes); the code carries epochs to stay small.
+local function isoUtcToEpoch(str)
+    if type(str) ~= "string" then return nil end
+    local y, mo, d, h, mi, se = str:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)")
+    if not y then return nil end
+    return daysFromCivil(tonumber(y), tonumber(mo), tonumber(d)) * 86400
+        + tonumber(h) * 3600 + tonumber(mi) * 60 + tonumber(se)
+end
+
+-- include_live: add the open book's live position (the code wants it; the
+-- menu count does not, it would read "(1)" whenever a book is open).
+function TomeSync:_syncCodeItems(include_live)
+    local mark = self.state:readSetting("tomesync_scan_mark") or 0
+    local sessions, positions, ratings = {{}}, {{}}, {{}}
+    for _, s in ipairs(self.pending_sessions) do
+        -- The start epoch comes from the dedup key, so the server rebuilds the
+        -- exact "book-start-device" key the WiFi flush will send later.
+        local st = tonumber((s.session_uuid or ""):match("^%d+%-(%d+)%-")) or isoUtcToEpoch(s.started_at)
+        local en = isoUtcToEpoch(s.ended_at) or (st and s.duration_seconds and st + s.duration_seconds) or st
+        if st and en > mark then
+            table.insert(sessions, {{
+                b = s.book_id, st = st, en = en, d = s.duration_seconds,
+                ps = s.progress_start, pe = s.progress_end, pg = s.pages_turned,
+            }})
+        end
+    end
+    for key, p in pairs(self.pending_positions) do
+        if (p.t or 0) > mark and tonumber(key) then
+            table.insert(positions, {{ b = tonumber(key), pc = p.pc or 0, xp = p.xp, t = p.t }})
+        end
+    end
+    -- The open book's live position, replacing any queued entry for it.
+    if include_live and self.book_id and self.ui and self.ui.document then
+        for i = #positions, 1, -1 do
+            if positions[i].b == self.book_id then table.remove(positions, i) end
+        end
+        table.insert(positions, {{
+            b = self.book_id, pc = self:_getCurrentPercentage(),
+            xp = self:_getCurrentProgress(), t = os.time(),
+        }})
+    end
+    for key, r in pairs(self.pending_ratings) do
+        if tonumber(key) then
+            table.insert(ratings, {{
+                b = tonumber(key), r = r.rating or rapidjson.null, rv = r.review or rapidjson.null,
+            }})
+        end
+    end
+    return sessions, positions, ratings
+end
+
+function TomeSync:_syncCodePages()
+    local sessions, positions, ratings = self:_syncCodeItems(true)
+    if #sessions == 0 and #positions == 0 and #ratings == 0 then
+        return nil, "empty"
+    end
+    local zok, zlib = pcall(require, "ffi/zlib")
+    if not zok or type(zlib) ~= "table" or not zlib.zlib_compress then
+        return nil, "This KOReader build cannot compress the sync code."
+    end
+    local now = os.time()
+    local id = string.format("%08x", (now * 7919 + math.floor((os.clock() * 1000) % 1000)) % 0x7fffffff)
+    local payload = {{ v = 1, id = id, dev = deviceName(), t = now }}
+    if #sessions  > 0 then payload.s = sessions  end
+    if #positions > 0 then payload.p = positions end
+    if #ratings   > 0 then payload.r = ratings   end
+    local eok, json = pcall(rapidjson.encode, payload)
+    if not eok or type(json) ~= "string" then return nil, "Could not encode the sync code." end
+    local cok, packed = pcall(zlib.zlib_compress, json)
+    if not cok or type(packed) ~= "string" then return nil, "Could not compress the sync code." end
+    local b64 = (mime.b64(packed))
+    local n = math.max(1, math.ceil(#b64 / SYNC_CODE_CHUNK))
+    local pages = {{}}
+    for i = 1, n do
+        pages[i] = string.format("TSC1:%s:%d/%d:%s", id, i, n,
+            b64:sub((i - 1) * SYNC_CODE_CHUNK + 1, i * SYNC_CODE_CHUNK))
+    end
+    return pages, nil, {{ t = now, sessions = #sessions, positions = #positions, ratings = #ratings }}
+end
+
+-- "Show sync code" ends the sitting in progress and starts a fresh one, as a
+-- lid close followed by a lid open would: the reading done so far in the open
+-- book becomes a queued session the code can carry, instead of staying
+-- invisible until the next suspend. The later close or suspend then posts a
+-- new session with a new start key, so nothing collides on the server. Same
+-- steps as onSuspend minus the annotation sync (highlights are not part of
+-- the code by design).
+function TomeSync:_cutSittingForSyncCode()
+    if not self.enabled or not self.book_id or not self.ui or not self.ui.document then return end
+    local now      = os.time()
+    local pct      = self:_getCurrentPercentage()
+    local cfi      = self:_getCurrentProgress()
+    local duration, session_end = self:_sessionTotals(now)
+    local dev      = deviceName()
+
+    self:_putPosition(self.book_id, cfi, pct, dev)
+    pcall(function() self:_pushRatingOnLeave() end)
+
+    if duration > 10 then
+        self:_postSessionOrQueue({{
+            book_id          = self.book_id,
+            started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
+            ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", session_end),
+            duration_seconds = duration,
+            progress_start   = self.progress_start,
+            progress_end     = pct,
+            pages_turned     = self.page_count,
+            device           = dev,
+            session_uuid     = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev),
+        }})
+    end
+
+    self.session_start  = now
+    self.page_count     = 0
+    self.active_seconds = 0
+    self.last_activity  = now
+    self.progress_start = pct
+    self.last_progress  = pct
+end
+
+function TomeSync:_showSyncCode()
+    self:_cutSittingForSyncCode()
+    local pages, err, info = self:_syncCodePages()
+    if not pages then
+        UIManager:show(InfoMessage:new{{
+            text = err == "empty"
+                and "Nothing to hand over: every session and position since the last scan has already reached Tome."
+                or err,
+            timeout = 5,
+        }})
+        return
+    end
+    self:_showSyncCodePage(pages, 1, info)
+end
+
+local function plural(n, word)
+    return n .. " " .. word .. (n == 1 and "" or "s")
+end
+
+-- KOReader's QRWidget picks the error-correction level itself (whatever fits
+-- the smallest symbol, usually L); a code read off e-ink under glass wants M.
+-- Same painting as QRWidget, with the level pinned.
+local function syncCodeImage(qrencode, ImageWidget, Blitbuffer, text, size)
+    local ok, grid = qrencode.qrcode(text, SYNC_CODE_EC_LEVEL)
+    if not ok then
+        logger.warn("TomeSync: QR encode failed:", tostring(grid))
+        return ImageWidget:new{{ image = Blitbuffer.new(size, size) }}
+    end
+    local n = #grid
+    local sq = math.max(1, math.floor(size / n))
+    local bb = Blitbuffer.new(sq * n, sq * n)
+    bb:fill(Blitbuffer.COLOR_BLACK)
+    for x, col in ipairs(grid) do
+        for y, v in ipairs(col) do
+            if v < 0 then bb:paintRect((x - 1) * sq, (y - 1) * sq, sq, sq, Blitbuffer.COLOR_WHITE) end
+        end
+    end
+    return ImageWidget:new{{ image = bb, width = sq * n, height = sq * n }}
+end
+
+function TomeSync:_showSyncCodePage(pages, index, info)
+    local Screen          = Device.screen
+    local Blitbuffer      = require("ffi/blitbuffer")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local FrameContainer  = require("ui/widget/container/framecontainer")
+    local InputContainer  = require("ui/widget/container/inputcontainer")
+    local VerticalGroup   = require("ui/widget/verticalgroup")
+    local VerticalSpan    = require("ui/widget/verticalspan")
+    local TextBoxWidget   = require("ui/widget/textboxwidget")
+    local ImageWidget     = require("ui/widget/imagewidget")
+    local qrencode        = require("ffi/qrencode")
+    local Geom            = require("ui/geometry")
+    local GestureRange    = require("ui/gesturerange")
+    local Font            = require("ui/font")
+    local Size            = require("ui/size")
+
+    local n = #pages
+    local screen_w, screen_h = Screen:getWidth(), Screen:getHeight()
+    local text_w = math.floor(screen_w * 0.85)
+    -- Leave room for the two lines above and below; the code itself is the
+    -- largest square that fits so the modules stay big for the camera.
+    local qr_size = math.min(screen_w - Screen:scaleBySize(40), screen_h - Screen:scaleBySize(220))
+    local summary = {{}}
+    if info.sessions  > 0 then table.insert(summary, plural(info.sessions, "session")) end
+    if info.positions > 0 then table.insert(summary, plural(info.positions, "position")) end
+    if info.ratings   > 0 then table.insert(summary, plural(info.ratings, "rating")) end
+    local title = n > 1 and string.format("Sync code, page %d of %d", index, n) or "Sync code"
+    local hint = index < n
+        and "Scan with the Tome app or the web UI, then tap for the next page."
+        or "Scan with the Tome app or the web UI, then tap."
+
+    local body = VerticalGroup:new{{
+        align = "center",
+        TextBoxWidget:new{{ text = title, face = Font:getFace("tfont", 22), width = text_w, alignment = "center" }},
+        TextBoxWidget:new{{ text = table.concat(summary, ", "), face = Font:getFace("cfont", 16), width = text_w, alignment = "center" }},
+        VerticalSpan:new{{ width = Size.padding.large }},
+        syncCodeImage(qrencode, ImageWidget, Blitbuffer, pages[index], qr_size),
+        VerticalSpan:new{{ width = Size.padding.large }},
+        TextBoxWidget:new{{ text = hint, face = Font:getFace("cfont", 16), width = text_w, alignment = "center" }},
+    }}
+    local widget = InputContainer:new{{
+        modal = true,
+        dimen = Geom:new{{ x = 0, y = 0, w = screen_w, h = screen_h }},
+        FrameContainer:new{{
+            background = Blitbuffer.COLOR_WHITE,
+            bordersize = 0,
+            padding = 0,
+            width = screen_w,
+            height = screen_h,
+            CenterContainer:new{{ dimen = Geom:new{{ w = screen_w, h = screen_h }}, body }},
+        }},
+    }}
+    local function advance()
+        -- Close with a full (flashing) refresh: a partial one leaves the
+        -- dense code ghosting on e-ink until the next full repaint.
+        UIManager:close(widget, "full")
+        if index < n then
+            self:_showSyncCodePage(pages, index + 1, info)
+        else
+            self:_syncCodeDone(pages, info)
+        end
+        return true
+    end
+    widget.ges_events.Tap = {{ GestureRange:new{{ ges = "tap", range = widget.dimen }} }}
+    widget.onTap = advance
+    if Device:hasKeys() then
+        widget.key_events.AnyKeyPressed = {{ {{ Device.input.group.Any }} }}
+        widget.onAnyKeyPressed = advance
+    end
+    -- Full refresh: a partial one leaves the page behind ghosting through the
+    -- code, and a camera reads ghosting as modules.
+    UIManager:show(widget, "full")
+end
+
+function TomeSync:_syncCodeDone(pages, info)
+    local dialog
+    dialog = ButtonDialog:new{{
+        title = "Did the phone confirm the scan?\\n\\n"
+             .. "Scanned: the next code only carries what is new. Everything "
+             .. "stays queued for the next WiFi sync either way; Tome ignores "
+             .. "what it has already seen.",
+        buttons = {{
+            {{
+                {{ text = "Show again", callback = function()
+                    UIManager:close(dialog)
+                    self:_showSyncCodePage(pages, 1, info)
+                end }},
+                {{ text = "Later", callback = function() UIManager:close(dialog) end }},
+            }},
+            {{
+                {{ text = "Scanned", callback = function()
+                    UIManager:close(dialog, "full")
+                    self:_markSyncCodeScanned(info.t)
+                end }},
+            }},
+        }},
+    }}
+    UIManager:show(dialog)
+end
+
+function TomeSync:_markSyncCodeScanned(t)
+    self:_saveState("tomesync_scan_mark", t)
+    -- Positions carried by that code are done with. Sessions stay for the
+    -- WiFi flush, which the server turns into a no-op.
+    local kept = {{}}
+    for key, p in pairs(self.pending_positions) do
+        if (p.t or 0) > t then kept[key] = p end
+    end
+    self.pending_positions = kept
+    self:_saveState("tomesync_pending_positions", kept)
+    UIManager:show(InfoMessage:new{{
+        text = "Marked as scanned. The next code only carries newer reading.",
+        timeout = 3,
+    }})
+end
+
 function TomeSync:_flushPendingSessions()
     if #self.pending_sessions == 0 then return end
     if not NetworkMgr:isConnected() then return end
@@ -3138,9 +3499,7 @@ function TomeSync:onCloseDocument()
     local duration, session_end = self:_sessionTotals(os.time())
     local dev      = deviceName()
 
-    pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
-        progress = cfi, percentage = pct, device = dev,
-    }})
+    self:_putPosition(self.book_id, cfi, pct, dev)
 
     -- Flush + merge highlights/notes before the book closes.
     pcall(function() self:_syncAnnotations() end)
@@ -3148,8 +3507,9 @@ function TomeSync:onCloseDocument()
     pcall(function() self:_pushRatingOnLeave() end)
 
     if duration > 10 then
-        local uuid = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev)
-        pcall(apiRequest, "POST", "/tome-sync/session", {{
+        -- Queued on failure like the suspend path: closing a book while
+        -- offline used to drop the session on the floor.
+        self:_postSessionOrQueue({{
             book_id          = self.book_id,
             started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
             ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", session_end),
@@ -3158,7 +3518,7 @@ function TomeSync:onCloseDocument()
             progress_end     = pct,
             pages_turned     = self.page_count,
             device           = dev,
-            session_uuid     = uuid,
+            session_uuid     = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev),
         }})
     end
 
@@ -3316,9 +3676,7 @@ end
 function TomeSync:_pushPosition()
     local pct = self:_getCurrentPercentage()
     self.last_progress = pct
-    pcall(apiRequest, "PUT", "/tome-sync/position/" .. self.book_id, {{
-        progress = self:_getCurrentProgress(), percentage = pct, device = deviceName(),
-    }})
+    self:_putPosition(self.book_id, self:_getCurrentProgress(), pct, deviceName())
 end
 
 -- "Sync now" position sync (issue #175): pull first, then push. This was
@@ -6188,6 +6546,21 @@ function TomeSync:_menuItems()
         }})
     end
 
+    table.insert(sub_items, {{
+        text_func = function()
+            local s, p, r = self:_syncCodeItems(false)
+            local n = #s + #p + #r
+            if n > 0 then return string.format("Show sync code (%d)", n) end
+            return "Show sync code"
+        end,
+        help_text = "Hands the reading done while offline to a phone that is "
+                 .. "online: sessions, positions and ratings that could not "
+                 .. "be sent are shown as a QR code. Scan it with the Tome app "
+                 .. "or the web UI (Settings > KOReader > Scan a sync code). "
+                 .. "Nothing is removed here; the next WiFi sync still runs "
+                 .. "and Tome ignores what it already has.",
+        callback = function() self:_showSyncCode() end,
+    }})
     table.insert(sub_items, {{
         text           = "Settings",
         sub_item_table = settings_items,

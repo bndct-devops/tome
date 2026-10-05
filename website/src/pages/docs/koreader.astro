@@ -147,9 +147,26 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <p>
     When your server is unreachable, sync silently skips with zero delay — no freezing, no error
     dialogs. Sessions save to disk and flush automatically the next time you open the lid with a
-    working connection. Up to 50 sessions can queue offline, surviving KOReader restarts. After 3
+    working connection. Up to 200 sessions can queue offline, surviving KOReader restarts. After 3
     consecutive failures, the plugin backs off for the rest of the session to avoid unnecessary
     timeouts.
+  </p>
+
+  <h3 id="sync-code">Sync code: hand offline reading to your phone</h3>
+  <p>
+    Travelling, hotel WiFi with a captive portal, a device that never sees the home network: when
+    the e-reader is offline but your phone is not, <strong>TomeSync → Show sync code</strong>
+    turns everything the device could not send — sessions, positions, ratings — into a QR code on
+    the e-ink screen (several pages for a long stretch, tap to turn). Scan it with the Tome app
+    (Home, or Settings → KOReader) or the web UI (Settings → KOReader → Scan a sync code) and it
+    lands in Tome at once, with an overview of which books were touched: cover, sessions and time,
+    pages, progress before and after.
+  </p>
+  <p>
+    Scanning twice, or the device flushing the same queue later over WiFi, changes nothing: sessions
+    carry the same dedup key as the normal sync, and a position never overwrites one that is newer
+    on the server. Answer <em>Scanned</em> on the device and the next code only carries newer
+    reading. Highlights are not part of the code; they sync on the next real connection.
   </p>
 
   <Callout variant="info" title="Currently supported devices">

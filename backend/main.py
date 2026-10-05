@@ -40,6 +40,7 @@ from backend.api import notifications as notifications_api
 from backend.api import oidc as oidc_api
 from backend.api import goals as goals_api
 from backend.api import annotations as annotations_api
+from backend.api import sync_code as sync_code_api
 from backend.api import hardcover as hardcover_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
@@ -847,6 +848,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_backup.router, prefix="/api")
     app.include_router(share_api.router, prefix="/api")
     app.include_router(annotations_api.router, prefix="/api")
+    app.include_router(sync_code_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

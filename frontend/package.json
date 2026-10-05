@@ -23,6 +23,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "html-to-image": "^1.11.13",
+    "jsqr": "^1.4.0",
     "lucide-react": "^1.7.0",
     "motion": "^13.1.1",
     "pdfjs-dist": "^6.2.108",

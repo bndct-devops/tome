@@ -235,5 +235,12 @@ def test_build_bumped_for_rebake():
     # gone) and queues a background re-extraction for rows already missing.
     # 1.15.3 / build 45 broadcasts BookMetadataChanged after the self-heal
     # rebuilt cache rows (bookshelf's series list stayed stale otherwise).
-    assert TOMESYNC_PLUGIN_BUILD >= 45
-    assert TOMESYNC_PLUGIN_SEMVER == "1.15.3"
+    # 1.16.0 / build 46 adds the sync code: reading done offline handed to
+    # an online phone as a QR code (sessions, positions, ratings), remembers
+    # positions that failed to PUT, queues sessions on book close when
+    # offline, and raises the session queue cap to 200.
+    # 1.16.1 / build 47: "Show sync code" ends the sitting in progress so the
+    # open book's reading is in the code; the menu count lists unsent items
+    # only.
+    assert TOMESYNC_PLUGIN_BUILD >= 47
+    assert TOMESYNC_PLUGIN_SEMVER == "1.16.1"

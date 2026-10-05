@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
-  AlertTriangle, ExternalLink, Send, QrCode,
+  AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
+import { ScanSyncCodeModal } from '@/components/ScanSyncCodeModal'
 import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
 import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -164,6 +165,7 @@ export function SettingsPage() {
   const [qcError, setQcError] = useState<string | null>(null)
   const [qcSuccess, setQcSuccess] = useState(false)
   const [showConnectPhone, setShowConnectPhone] = useState(false)
+  const [showScanCode, setShowScanCode] = useState(false)
 
   // Native-app UI (Connect a phone, Connected devices) is behind TOME_NATIVE_APP.
   const [nativeApp, setNativeApp] = useState(false)
@@ -1304,17 +1306,32 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleDownloadPlugin}
-                disabled={pluginDownloading}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
-              >
-                {pluginDownloading
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <Download className="w-3.5 h-3.5" />
-                }
-                {pluginDownloading ? t`Preparing…` : t`Download plugin ZIP`}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleDownloadPlugin}
+                  disabled={pluginDownloading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+                >
+                  {pluginDownloading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Download className="w-3.5 h-3.5" />
+                  }
+                  {pluginDownloading ? t`Preparing…` : t`Download plugin ZIP`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowScanCode(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors"
+                  title={t`Read the QR code an offline KOReader device shows under TomeSync > Show sync code`}
+                >
+                  <ScanLine className="w-3.5 h-3.5" />
+                  <Trans>Scan a sync code</Trans>
+                </button>
+                {showScanCode && <ScanSyncCodeModal onClose={() => setShowScanCode(false)} />}
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                <Trans>Device offline but your phone is not? "Show sync code" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it.</Trans>
+              </p>
 
               <SetupGuide />
 
