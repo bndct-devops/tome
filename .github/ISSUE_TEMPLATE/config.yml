@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or setup help
+    url: https://github.com/bndct-devops/tome/discussions/categories/q-a
+    about: Ask how to set something up or why something behaves the way it does.
+  - name: Tome Reader (iOS) feedback
+    url: https://github.com/bndct-devops/tome/discussions/categories/tome-reader-ios
+    about: Feedback, questions and ideas about the native iOS app.
