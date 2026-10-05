@@ -53,3 +53,45 @@ def index_book(db: Session, book: Book, tags: list[str] | None = None) -> None:
 def unindex_book(db: Session, book_id: int) -> None:
     """Remove a book's FTS row (call before deleting the book)."""
     db.execute(text("DELETE FROM books_fts WHERE rowid = :id"), {"id": book_id})
+
+
+def search_book_ids(db: Session, q: str) -> set[int]:
+    """Resolve a `q=` search string to the set of matching book ids.
+
+    Splits `q` into whitespace-separated terms (AND semantics, matching FTS5's
+    default) and looks each up against `books_fts`. Terms of 3+ characters use
+    FTS5 prefix matching as before. `books_fts` uses the trigram tokenizer,
+    which only tokenizes (and so can only match) substrings of 3 or more
+    characters — https://www.sqlite.org/fts5.html: "Substrings consisting of
+    fewer than 3 unicode characters do not match any rows". That silently
+    drops every 1-2 character term, which is far more common than it sounds:
+    it's a normal *whole word* length in Korean, Chinese and Japanese (e.g.
+    Korean "역사" = "history", "조선" = "Joseon), not just a rare substring.
+    Those short terms fall back to a plain substring LIKE scan over the same
+    FTS columns. Per-term result sets (whichever path found them) are
+    intersected so mixed-length queries still get AND semantics.
+    """
+    terms = [t for t in q.split() if t]
+    long_terms = [t for t in terms if len(t) >= 3]
+    short_terms = [t for t in terms if len(t) < 3]
+
+    id_sets: list[set[int]] = []
+    if long_terms:
+        fts_term = " ".join(f'"{t.replace(chr(34), "")}"*' for t in long_terms)
+        fts_rows = db.execute(
+            text("SELECT rowid FROM books_fts WHERE books_fts MATCH :q"),
+            {"q": fts_term},
+        ).fetchall()
+        id_sets.append({row[0] for row in fts_rows})
+    for t in short_terms:
+        like_rows = db.execute(
+            text(
+                "SELECT rowid FROM books_fts WHERE "
+                "title LIKE :p OR author LIKE :p OR series LIKE :p "
+                "OR description LIKE :p OR tags LIKE :p"
+            ),
+            {"p": f"%{t}%"},
+        ).fetchall()
+        id_sets.append({row[0] for row in like_rows})
+
+    return set.intersection(*id_sets) if id_sets else set()
