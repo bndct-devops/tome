@@ -3405,7 +3405,9 @@ function TomeSync:_showSyncCodePage(pages, index, info)
         }},
     }}
     local function advance()
-        UIManager:close(widget)
+        -- Close with a full (flashing) refresh: a partial one leaves the
+        -- dense code ghosting on e-ink until the next full repaint.
+        UIManager:close(widget, "full")
         if index < n then
             self:_showSyncCodePage(pages, index + 1, info)
         else
@@ -3441,7 +3443,7 @@ function TomeSync:_syncCodeDone(pages, info)
             }},
             {{
                 {{ text = "Scanned", callback = function()
-                    UIManager:close(dialog)
+                    UIManager:close(dialog, "full")
                     self:_markSyncCodeScanned(info.t)
                 end }},
             }},
