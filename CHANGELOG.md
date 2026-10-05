@@ -6,6 +6,25 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- The sidebar, the collapsed rail and the mobile drawer render the top-level
+  navigation from one shared item list, so an entry can no longer go missing
+  from one of them (the cause of #230). The drawer's Bindery badge now matches
+  the sidebar's, and tapping the library or shelf you are already on closes
+  the drawer. Contributed by @maichler (#237).
+
+### Fixed
+- Search matches Korean, Chinese and Japanese text anywhere in a word, not
+  only at its start (#206). The search index now uses SQLite's trigram
+  tokenizer, which indexes every overlapping run of three characters; a
+  search term shorter than that, a normal whole word in these languages,
+  falls back to a substring scan over the same columns. Accents are still
+  folded, so "gunter" keeps finding "Günter". Existing installs rebuild the
+  index on the next start. Based on #207 by @ziozzang.
+- The Bindery badge showed no count when the bindery directory itself sits
+  inside a hidden directory such as `~/.local/share/tome/bindery`, although
+  the Bindery page listed the waiting files. Contributed by @maichler (#236).
+
 ## [2.5.0] - 2026-09-19 - "Paperback"
 
 ### Added

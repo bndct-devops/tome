@@ -12,11 +12,11 @@ from backend.core.database import init_fts
 from backend.services.fts import search_book_ids
 
 
-def _insert(db, book_id, title="", description=""):
+def _insert(db, book_id, title="", description="", author=""):
     db.execute(text(
         "INSERT INTO books_fts(rowid, title, author, series, description, tags) "
-        "VALUES (:id, :title, '', '', :description, '')"
-    ), {"id": book_id, "title": title, "description": description})
+        "VALUES (:id, :title, :author, '', :description, '')"
+    ), {"id": book_id, "title": title, "author": author, "description": description})
 
 
 def test_init_fts_migrates_pre_trigram_table_to_trigram():
@@ -34,7 +34,7 @@ def test_init_fts_migrates_pre_trigram_table_to_trigram():
         sql = conn.execute(text(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='books_fts'"
         )).scalar()
-    assert "trigram" in sql
+    assert "trigram remove_diacritics 1" in sql
 
     # Idempotent: calling it again on an already-migrated table is a no-op,
     # not a second drop-and-recreate.
@@ -117,3 +117,41 @@ def test_search_mixed_length_terms_use_and_semantics(client, make_book, db):
 
 def test_search_book_ids_empty_query_returns_empty_set(db):
     assert search_book_ids(db, "   ") == set()
+
+
+def test_init_fts_migrates_plain_trigram_table_to_diacritics_folding():
+    """A table on plain ``trigram`` (no accent folding) is recreated too."""
+    engine = create_engine("sqlite:///:memory:")
+    with engine.connect() as conn:
+        conn.execute(text(
+            "CREATE VIRTUAL TABLE books_fts USING fts5("
+            "title, author, series, description, tags, tokenize='trigram')"
+        ))
+        conn.commit()
+
+    init_fts(engine)
+
+    with engine.connect() as conn:
+        sql = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='books_fts'"
+        )).scalar()
+    assert "remove_diacritics 1" in sql
+
+
+def test_search_folds_diacritics(client, make_book, db):
+    """``trigram`` drops the accent folding ``unicode61`` had by default;
+    ``remove_diacritics 1`` restores it, so "gunter" still finds "Günter"."""
+    grass = make_book(title="Die Blechtrommel", author="Günter Grass", description="")
+    cafe = make_book(title="Café Europa", description="")
+    other = make_book(title="Cooking Basics", description="")
+    _insert(db, grass.id, title="Die Blechtrommel", author="Günter Grass")
+    _insert(db, cafe.id, title="Café Europa")
+    _insert(db, other.id, title="Cooking Basics")
+    db.flush()
+
+    for term, expected in (("gunter", grass.id), ("cafe", cafe.id), ("Günter", grass.id)):
+        resp = client.get("/api/books", params={"q": term})
+        assert resp.status_code == 200, term
+        ids = {b["id"] for b in resp.json()}
+        assert expected in ids, term
+        assert other.id not in ids, term

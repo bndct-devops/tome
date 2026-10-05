@@ -76,6 +76,12 @@ def init_fts(engine) -> None:
     substring instead, so any 3+ character term matches anywhere it occurs.
     (Terms under 3 characters — a normal whole-word length in Korean, Chinese
     and Japanese — need a separate fallback; see services.fts.search_book_ids.)
+
+    ``remove_diacritics 1`` keeps the accent folding ``unicode61`` did by
+    default and ``trigram`` does not: without it "gunter" no longer finds
+    "Günter". The option needs SQLite 3.45+ (the Docker image ships 3.46).
+    The migration check keys on it so a table from an interim build that had
+    plain ``trigram`` is recreated as well.
     """
     with engine.connect() as conn:
         row = conn.execute(text(
@@ -84,7 +90,7 @@ def init_fts(engine) -> None:
         sql = (row[0] or "") if row else ""
         needs_recreate = (
             (not row) or ("content=" in sql) or ("tags" not in sql)
-            or ("trigram" not in sql)
+            or ("remove_diacritics" not in sql)
         )
         if row and needs_recreate:
             conn.execute(text("DROP TABLE IF EXISTS books_fts"))
@@ -93,7 +99,8 @@ def init_fts(engine) -> None:
         if needs_recreate:
             conn.execute(text("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-                    title, author, series, description, tags, tokenize='trigram'
+                    title, author, series, description, tags,
+                    tokenize='trigram remove_diacritics 1'
                 )
             """))
         conn.commit()

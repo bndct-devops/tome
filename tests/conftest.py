@@ -116,7 +116,8 @@ def _init_test_db():
     with test_engine.connect() as conn:
         conn.execute(text("""
             CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
-                title, author, series, description, tags, tokenize='trigram'
+                title, author, series, description, tags,
+                tokenize='trigram remove_diacritics 1'
             )
         """))
         conn.commit()
