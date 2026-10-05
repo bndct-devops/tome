@@ -107,7 +107,8 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
       setResult(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : t`Could not apply the sync code`)
-      submitted.current = false
+      // Stay latched: the camera still sees the same pages and would otherwise
+      // re-submit the failed set every tick. "Start over" clears it.
     } finally {
       setBusy(false)
     }
@@ -124,8 +125,10 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
     }
     const current = headerRef.current
     const same = current !== null && current.id === h.id && current.total === h.total
+    const page = text.trim()
+    if (same && pagesRef.current.get(h.index) === page) return  // page still in view, nothing new
     const next = same ? new Map(pagesRef.current) : new Map<number, string>()
-    next.set(h.index, text.trim())
+    next.set(h.index, page)
     headerRef.current = h
     pagesRef.current = next
     setPages(next)

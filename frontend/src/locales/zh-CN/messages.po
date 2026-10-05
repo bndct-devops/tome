@@ -2637,7 +2637,11 @@ msgid "Device name"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
+#~ msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx

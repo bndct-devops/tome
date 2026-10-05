@@ -239,5 +239,8 @@ def test_build_bumped_for_rebake():
     # an online phone as a QR code (sessions, positions, ratings), remembers
     # positions that failed to PUT, queues sessions on book close when
     # offline, and raises the session queue cap to 200.
-    assert TOMESYNC_PLUGIN_BUILD >= 46
-    assert TOMESYNC_PLUGIN_SEMVER == "1.16.0"
+    # 1.16.1 / build 47: "Show sync code" ends the sitting in progress so the
+    # open book's reading is in the code; the menu count lists unsent items
+    # only.
+    assert TOMESYNC_PLUGIN_BUILD >= 47
+    assert TOMESYNC_PLUGIN_SEMVER == "1.16.1"

@@ -217,7 +217,7 @@ Sessions also flush when you tap "Sync now" in the menu, or when WiFi reconnects
 
 Travelling, hotel WiFi with a captive portal, a device that never sees the home network: when the e-reader is offline but your phone is not, the plugin can hand its queue over through the screen.
 
-1. On the device: **TomeSync → Show sync code** (or the gesture *TomeSync: Show sync code*). Everything that could not be sent since the last scan - sessions, positions, ratings - is rendered as a QR code. A long offline stretch spreads over several pages; tap to turn.
+1. On the device: **TomeSync → Show sync code** (or the gesture *TomeSync: Show sync code*). Everything that could not be sent since the last scan - sessions, positions, ratings - is rendered as a QR code. The book you are reading is included too: showing the code ends the sitting so far, like closing the lid, and starts a new one. A long offline stretch spreads over several pages; tap to turn.
 2. On the phone: scan it with the **Tome app** (Home, the viewfinder button beside your avatar, or Settings → KOReader) or the **web UI** (Settings → KOReader → *Scan a sync code*; live camera on HTTPS, or take a photo of the screen and pick it). The phone reads page after page and posts the set to Tome.
 3. Tome shows what landed: which books, cover, sessions and time, pages turned, progress before and after, whether a position was applied or kept because the server already had a newer one.
 4. Back on the device, answer **Scanned** and the next code only carries newer reading. **Later** keeps everything in the code.
@@ -244,7 +244,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Sync reading history** | Imports KOReader's per-page reading log into Tome's Stats (time and pages only). First run backfills everything; chunked and resumable. See [Reading-History Import](#reading-history-import). |
 | **Sync closed books** | Library sweep: adopts status, rating and progress from books on the device TomeSync has never synced (read before Tome, sideloaded). Only fills what Tome doesn't already have. |
 | **Apply Tome metadata now** | Writes Tome's title, author, series, tags, description and cover for the books on this device into KOReader's custom metadata, then shows a summary. Runs regardless of the automatic setting. See [Metadata sync](#metadata-sync-tome---koreader). |
-| **Show sync code (N)** | Renders the unsent sessions, positions and ratings as a QR code for a phone to scan. N is how many items the code would carry. See [Sync code](#sync-code-hand-offline-reading-to-your-phone). |
+| **Show sync code (N)** | Renders the unsent sessions, positions and ratings as a QR code for a phone to scan. N is how many unsent items are waiting (sessions, positions and ratings that could not be sent). See [Sync code](#sync-code-hand-offline-reading-to-your-phone). |
 | **Settings** | Submenu with persistent options and diagnostics (see below). |
 | **About** | Version info (semver + build). |
 

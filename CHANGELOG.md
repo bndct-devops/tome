@@ -11,7 +11,9 @@ All notable changes to Tome are documented here. Format loosely follows
   e-reader has no network but your phone does, TomeSync > "Show sync code"
   turns everything the device could not send - reading sessions, positions
   and ratings - into a QR code on the e-ink screen (several pages for a long
-  offline stretch, tap to turn). Scan it with the Tome app (Home or Settings
+  offline stretch, tap to turn). The book you are reading is included:
+  showing the code ends the sitting so far, like closing the lid.
+  Scan it with the Tome app (Home or Settings
   > KOReader) or the web UI (Settings > KOReader > Scan a sync code, camera
   or a photo of the screen) and it lands in Tome at once, with an overview of
   which books were touched: cover, sessions and time, pages, progress before
@@ -21,7 +23,7 @@ All notable changes to Tome are documented here. Format loosely follows
   server (the phone read on meanwhile). "Scanned" on the device moves a
   watermark so the next code only carries newer reading; the queues stay put
   for the WiFi sync. A device clock that is clearly wrong (ahead of the
-  server, or days behind) is corrected. Plugin build 46 / 1.16.0, gesture
+  server, or days behind) is corrected. Plugin build 47 / 1.16.1, gesture
   "TomeSync: Show sync code", `POST /api/sync-code`.
 
 ### Changed
@@ -35,7 +37,7 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Closing a book while offline no longer loses its reading session.** The
   plugin queued a session only when the device went to sleep; closing the
   book with no network dropped it. Both paths now queue, and the offline
-  queue holds 200 sessions instead of 50. Plugin build 46.
+  queue holds 200 sessions instead of 50. Plugin build 47.
 - Search matches Korean, Chinese and Japanese text anywhere in a word, not
   only at its start (#206). The search index now uses SQLite's trigram
   tokenizer, which indexes every overlapping run of three characters; a

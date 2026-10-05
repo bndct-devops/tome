@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
-  AlertTriangle, ExternalLink, Send, QrCode,
- ScanLine } from 'lucide-react'
+  AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
+} from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
 import { ScanSyncCodeModal } from '@/components/ScanSyncCodeModal'
 import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
@@ -1330,7 +1330,7 @@ export function SettingsPage() {
                 {showScanCode && <ScanSyncCodeModal onClose={() => setShowScanCode(false)} />}
               </div>
               <p className="text-xs text-muted-foreground -mt-2">
-                <Trans>Device offline but your phone is not? "Show sync code" in the plugin turns the unsent sessions and positions into a QR code you can scan here.</Trans>
+                <Trans>Device offline but your phone is not? "Show sync code" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it.</Trans>
               </p>
 
               <SetupGuide />

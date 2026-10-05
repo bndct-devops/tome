@@ -102,8 +102,13 @@ logger = logging.getLogger(__name__)
 # queue cap rises 50 -> 200. "Scanned" moves a watermark
 # (tomesync_scan_mark); the queues themselves still flush over WiFi and the
 # server dedups. Gesture: "TomeSync: Show sync code".
-TOMESYNC_PLUGIN_BUILD = 46
-TOMESYNC_PLUGIN_SEMVER = "1.16.0"
+# BUILD 47: sync code review fixes. "Show sync code" now ends the sitting
+# in progress (as a lid close would) and starts a new one, so the book being
+# read is in the code and not only its position; the menu count "(N)" counts
+# unsent items only (the open book's live position no longer makes it read
+# "(1)" after a full sync).
+TOMESYNC_PLUGIN_BUILD = 47
+TOMESYNC_PLUGIN_SEMVER = "1.16.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -3196,7 +3201,9 @@ local function isoUtcToEpoch(str)
         + tonumber(h) * 3600 + tonumber(mi) * 60 + tonumber(se)
 end
 
-function TomeSync:_syncCodeItems()
+-- include_live: add the open book's live position (the code wants it; the
+-- menu count does not, it would read "(1)" whenever a book is open).
+function TomeSync:_syncCodeItems(include_live)
     local mark = self.state:readSetting("tomesync_scan_mark") or 0
     local sessions, positions, ratings = {{}}, {{}}, {{}}
     for _, s in ipairs(self.pending_sessions) do
@@ -3217,7 +3224,7 @@ function TomeSync:_syncCodeItems()
         end
     end
     -- The open book's live position, replacing any queued entry for it.
-    if self.book_id and self.ui and self.ui.document then
+    if include_live and self.book_id and self.ui and self.ui.document then
         for i = #positions, 1, -1 do
             if positions[i].b == self.book_id then table.remove(positions, i) end
         end
@@ -3237,7 +3244,7 @@ function TomeSync:_syncCodeItems()
 end
 
 function TomeSync:_syncCodePages()
-    local sessions, positions, ratings = self:_syncCodeItems()
+    local sessions, positions, ratings = self:_syncCodeItems(true)
     if #sessions == 0 and #positions == 0 and #ratings == 0 then
         return nil, "empty"
     end
@@ -3265,7 +3272,48 @@ function TomeSync:_syncCodePages()
     return pages, nil, {{ t = now, sessions = #sessions, positions = #positions, ratings = #ratings }}
 end
 
+-- "Show sync code" ends the sitting in progress and starts a fresh one, as a
+-- lid close followed by a lid open would: the reading done so far in the open
+-- book becomes a queued session the code can carry, instead of staying
+-- invisible until the next suspend. The later close or suspend then posts a
+-- new session with a new start key, so nothing collides on the server. Same
+-- steps as onSuspend minus the annotation sync (highlights are not part of
+-- the code by design).
+function TomeSync:_cutSittingForSyncCode()
+    if not self.enabled or not self.book_id or not self.ui or not self.ui.document then return end
+    local now      = os.time()
+    local pct      = self:_getCurrentPercentage()
+    local cfi      = self:_getCurrentProgress()
+    local duration, session_end = self:_sessionTotals(now)
+    local dev      = deviceName()
+
+    self:_putPosition(self.book_id, cfi, pct, dev)
+    pcall(function() self:_pushRatingOnLeave() end)
+
+    if duration > 10 then
+        self:_postSessionOrQueue({{
+            book_id          = self.book_id,
+            started_at       = os.date("!%Y-%m-%dT%H:%M:%SZ", self.session_start),
+            ended_at         = os.date("!%Y-%m-%dT%H:%M:%SZ", session_end),
+            duration_seconds = duration,
+            progress_start   = self.progress_start,
+            progress_end     = pct,
+            pages_turned     = self.page_count,
+            device           = dev,
+            session_uuid     = string.format("%d-%d-%s", self.book_id, self.session_start or 0, dev),
+        }})
+    end
+
+    self.session_start  = now
+    self.page_count     = 0
+    self.active_seconds = 0
+    self.last_activity  = now
+    self.progress_start = pct
+    self.last_progress  = pct
+end
+
 function TomeSync:_showSyncCode()
+    self:_cutSittingForSyncCode()
     local pages, err, info = self:_syncCodePages()
     if not pages then
         UIManager:show(InfoMessage:new{{
@@ -6498,7 +6546,7 @@ function TomeSync:_menuItems()
 
     table.insert(sub_items, {{
         text_func = function()
-            local s, p, r = self:_syncCodeItems()
+            local s, p, r = self:_syncCodeItems(false)
             local n = #s + #p + #r
             if n > 0 then return string.format("Show sync code (%d)", n) end
             return "Show sync code"
