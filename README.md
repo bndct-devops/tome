@@ -86,6 +86,7 @@ offline, and keep progress and stats in sync. It is in **free beta until
 
 The app is closed source and entirely optional. Tome never requires it, and
 everything it does goes through the same public API any other client can use.
+Feedback on the app goes to [Discussions > Tome Reader (iOS)](https://github.com/bndct-devops/tome/discussions/categories/tome-reader-ios).
 
 | | | | | |
 |---|---|---|---|---|
@@ -200,6 +201,11 @@ KOReader plugin and this website stay English for now.
 - [Import Script](docs/import.md) -- bulk importing an existing collection from filenames
 - [Features](docs/features.md) -- Quick Connect, OPDS PINs, permissions, themes, API tokens, and more
 - [Translating](docs/translating.md) -- improving or adding a UI language
+
+## Questions and feedback
+
+Bugs and concrete feature requests go to [Issues](https://github.com/bndct-devops/tome/issues).
+Setup questions, rough ideas and anything else go to [Discussions](https://github.com/bndct-devops/tome/discussions).
 
 ## Acknowledgements
 
