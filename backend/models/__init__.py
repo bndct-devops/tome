@@ -14,3 +14,4 @@ from backend.models.send_queue import SendQueueItem  # noqa: F401
 from backend.models.user_dashboard import UserDashboard  # noqa: F401
 from backend.models.ko_stats import PageStat, StatsImport, KoStatsBookMatch, KoHash  # noqa: F401
 from backend.models.download_event import DownloadEvent  # noqa: F401
+from backend.models.instance_setting import InstanceSetting  # noqa: F401

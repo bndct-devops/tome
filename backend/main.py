@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 from backend.api import health, auth, books, libraries, book_types
 from backend.api import devices as devices_api
+from backend.api import telemetry as telemetry_api
 from backend.api import users  # noqa: F401
 from backend.api import downloads
 from backend.api import opds
@@ -376,6 +377,10 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Auto-import disabled (set TOME_AUTO_IMPORT=true to enable)")
 
+    # Opt-in telemetry: a daily check that sends the monthly report when it is
+    # due and consent is current. Does nothing at all otherwise.
+    telemetry_task = asyncio.create_task(_telemetry_loop())
+
     # One-shot backfill of KOReader partial-MD5s for pre-existing library
     # files (new files are hashed at ingest/serve time). No-op once done.
     import threading
@@ -405,7 +410,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown: cancel the background tasks cleanly
-    for task in (auto_import_task, release_task, hardcover_task):
+    for task in (auto_import_task, release_task, hardcover_task, telemetry_task):
         if task is not None:
             task.cancel()
             try:
@@ -424,6 +429,28 @@ async def _auto_import_loop() -> None:
             raise
         except Exception:
             logger.exception("Unhandled error in auto-import loop")
+
+
+async def _telemetry_loop() -> None:
+    """Background task: once a day, send the telemetry report if it is due."""
+    from backend.core.database import SessionLocal
+    from backend.services.telemetry import send_if_due
+
+    def _tick() -> str:
+        with SessionLocal() as db:
+            return send_if_due(db)
+
+    await asyncio.sleep(120)  # let startup settle
+    while True:
+        try:
+            result = await asyncio.to_thread(_tick)
+            if result == "sent":
+                logger.info("Telemetry report sent")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Unhandled error in telemetry loop")
+        await asyncio.sleep(24 * 3600)
 
 
 async def _release_check_loop() -> None:
@@ -819,6 +846,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
     app.include_router(devices_api.router, prefix="/api")
+    app.include_router(telemetry_api.router, prefix="/api")
     app.include_router(home.router, prefix="/api")
     app.include_router(books.router, prefix="/api")
     app.include_router(libraries.router, prefix="/api")

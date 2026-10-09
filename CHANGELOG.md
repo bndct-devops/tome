@@ -7,6 +7,19 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Telemetry, opt-in.** Admins are asked once, on Home, whether Tome may
+  send one small anonymous report a month: version, plugin build, platform,
+  bucketed counts of users, books and libraries, which features were used in
+  the last 30 days, and the format mix. Never a title, a name or a hostname.
+  The card shows the exact report before you can say yes, "No thanks" sends
+  nothing and is remembered, and `TOME_TELEMETRY=false` hides the question
+  entirely. Nothing is sent without a stored, positive answer, and if a later
+  version changes what the report contains, sending pauses until you have
+  looked at the new shape. Settings > About shows where things stand in
+  words, with the last and next report dates, and every send is in the audit
+  log with a hash of what left. What the report contains and where it goes
+  is documented at tome.bndct.sh/docs/telemetry; the receiver is the public
+  tome-pulse repository, and its aggregates are public at tome.bndct.sh/stats.
 - **Calendar.** A new page in the sidebar shows each month of your
   reading as a calendar: each book you read sits in its day as a small chip
   with the time you spent on it, marked when you finished it (on a phone, a

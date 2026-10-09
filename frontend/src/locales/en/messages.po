@@ -1569,6 +1569,10 @@ msgstr "Already in your library — will be skipped."
 msgid "Amber"
 msgstr "Amber"
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Anonymous monthly report:"
+msgstr "Anonymous monthly report:"
+
 #: src/pages/DashboardPage.tsx
 msgid "Any"
 msgstr "Any"
@@ -2068,6 +2072,7 @@ msgstr "Can't find it? Add manually"
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/components/stats/widgets/overview.tsx
+#: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
@@ -2206,6 +2211,7 @@ msgstr "Click for details"
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/GoalWidget.tsx
+#: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
@@ -3613,6 +3619,10 @@ msgstr "fuzzy"
 msgid "Generate PIN"
 msgstr "Generate PIN"
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Generated just now from your instance, by the same code that would send it. Once a month, to the Tome project, nothing else."
+msgstr "Generated just now from your instance, by the same code that would send it. Once a month, to the Tome project, nothing else."
+
 #: src/pages/BookDetailPage.tsx
 msgid "Genres"
 msgstr "Genres"
@@ -3698,6 +3708,10 @@ msgstr "Has cover"
 #: src/pages/StatsPage.tsx
 msgid "Height auto-fits the content — only width is resizable"
 msgstr "Height auto-fits the content — only width is resizable"
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Help count Tome installs?"
+msgstr "Help count Tome installs?"
 
 #. placeholder {0}: user?.username
 #: src/components/ForcePasswordChange.tsx
@@ -3828,6 +3842,10 @@ msgstr "How you spread your 1–5 stars"
 #: src/pages/AdminPage.tsx
 msgid "Icon"
 msgstr "Icon"
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
+msgstr "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
 
 #: src/pages/AdminPage.tsx
 msgid "Impersonation failed"
@@ -4981,6 +4999,10 @@ msgstr "No suggested match yet — search for the book to link, or upload it fir
 msgid "No table of contents available."
 msgstr "No table of contents available."
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "No thanks"
+msgstr "No thanks"
+
 #: src/components/stats/widgets/wordstats.tsx
 msgid "No timed reading with word counts yet."
 msgstr "No timed reading with word counts yet."
@@ -5158,6 +5180,18 @@ msgstr "of {totalPages} pages"
 msgid "Off"
 msgstr "Off"
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Off, declined on {d}."
+msgstr "Off, declined on {d}."
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Off, disabled by TOME_TELEMETRY."
+msgstr "Off, disabled by TOME_TELEMETRY."
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Off, you have not opted in."
+msgstr "Off, you have not opted in."
+
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
 msgstr "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
@@ -5174,6 +5208,14 @@ msgstr "On board"
 msgid "on pace"
 msgstr "on pace"
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "On since {since}. First report on its way."
+msgstr "On since {since}. First report on its way."
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "On since {since}. Last sent {last}, next {next}."
+msgstr "On since {since}. Last sent {last}, next {next}."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 msgstr "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
@@ -5182,6 +5224,10 @@ msgstr "On the KOReader device open TomeSync and tap \"Show sync code\". Point t
 #: src/pages/HighlightsPage.tsx
 msgid "On this day"
 msgstr "On this day"
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
+msgstr "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
 
 #: src/pages/StatsPage.tsx
 msgid "One series front and center — you pick which"
@@ -5418,6 +5464,10 @@ msgstr "Paste your Hardcover API token"
 #: src/components/NotificationChannels.tsx
 msgid "Pause"
 msgstr "Pause"
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Paused, the report changed in this version. Review it to resume."
+msgstr "Paused, the report changed in this version. Review it to resume."
 
 #: src/components/stats/widgets/insights.tsx
 msgid "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
@@ -6498,6 +6548,10 @@ msgstr "Send History"
 msgid "Send test email"
 msgstr "Send test email"
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Send this report monthly"
+msgstr "Send this report monthly"
+
 #: src/components/SendButton.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/SettingsPage.tsx
@@ -6800,6 +6854,14 @@ msgstr "Show more ({left} remaining)"
 msgid "Show sessions"
 msgstr "Show sessions"
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Show the new report"
+msgstr "Show the new report"
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Show the report"
+msgstr "Show the report"
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
 msgstr "Show this help"
@@ -7010,6 +7072,10 @@ msgstr "Stop"
 #: src/components/SeriesFollowButton.tsx
 msgid "Stop following this series"
 msgstr "Stop following this series"
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Stop sending"
+msgstr "Stop sending"
 
 #: src/pages/StatsPage.tsx
 msgid "Streak"
@@ -7270,6 +7336,10 @@ msgstr "This is a whole-series wish — it stays open as volumes arrive."
 #: src/pages/SettingsPage.tsx
 msgid "This is the only time you will see this token. Store it somewhere safe — it cannot be recovered."
 msgstr "This is the only time you will see this token. Store it somewhere safe — it cannot be recovered."
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "This is the report"
+msgstr "This is the report"
 
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "this month"

@@ -27,6 +27,7 @@ export const DOCS_NAV: DocGroup[] = [
       { href: '/docs/send-to-device',     title: 'Send to device' },
       { href: '/docs/wishlist',           title: 'Wishlist' },
       { href: '/docs/themes',             title: 'Themes & shortcuts' },
+      { href: '/docs/telemetry',          title: 'Telemetry' },
     ],
   },
   {

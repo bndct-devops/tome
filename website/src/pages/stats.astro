@@ -1,0 +1,45 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import SiteHeader from '../components/SiteHeader.astro'
+import { PulseStats } from '../components/PulseStats'
+import { withBase } from '../lib/path'
+---
+<BaseLayout title="Tome in numbers" description="How many Tome instances report in, how much gets read through them, and which features are actually used. Built from the opt-in monthly report.">
+  <SiteHeader />
+  <article class="pulse-page">
+    <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
+      <p class="inline-block mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+        Public numbers
+      </p>
+      <h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-6 leading-[1.1]">Tome in numbers</h1>
+      <p class="text-lg md:text-xl text-[var(--muted)] leading-relaxed max-w-2xl mx-auto">
+        Every figure here comes from instances whose admin looked at the report and chose to send
+        it. One small anonymous report a month, nothing per person, nothing per book. What it
+        contains and how consent works is on
+        the <a href={withBase("/docs/telemetry")}>telemetry page</a>; the service that collects it
+        is <a href="https://github.com/bndct-devops/tome-pulse">tome-pulse</a>.
+      </p>
+    </header>
+    <section class="max-w-5xl mx-auto px-6 pb-24">
+      <PulseStats client:load />
+    </section>
+  </article>
+</BaseLayout>
+
+<style is:global>
+  .pulse-headline { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 12px; }
+  .pulse-headline > div { padding: 18px 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+  .pulse-headline strong { display: block; font-size: 2rem; line-height: 1.1; font-weight: 700; color: var(--fg); }
+  .pulse-headline span { display: block; margin-top: 6px; font-size: 0.85rem; color: var(--muted); }
+  .pulse-generated { font-size: 0.8rem; color: var(--muted); margin: 0 0 28px; }
+  .pulse-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .pulse-card { padding: 18px 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+  .pulse-card h3 { margin: 0 0 12px; font-size: 0.95rem; font-weight: 600; color: var(--fg); }
+  .pulse-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .pulse-card li { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr) 3.2em; align-items: center; gap: 10px; font-size: 0.85rem; }
+  .pulse-label { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pulse-track { height: 8px; border-radius: 999px; background: color-mix(in oklch, var(--fg) 10%, transparent); overflow: hidden; }
+  .pulse-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+  .pulse-pct { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pulse-empty { color: var(--muted); font-size: 0.9rem; }
+</style>

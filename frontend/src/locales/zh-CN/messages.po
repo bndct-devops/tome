@@ -1569,6 +1569,10 @@ msgstr ""
 msgid "Amber"
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Anonymous monthly report:"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Any"
 msgstr ""
@@ -2068,6 +2072,7 @@ msgstr ""
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/components/stats/widgets/overview.tsx
+#: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
@@ -2206,6 +2211,7 @@ msgstr ""
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/GoalWidget.tsx
+#: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
@@ -3613,6 +3619,10 @@ msgstr ""
 msgid "Generate PIN"
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Generated just now from your instance, by the same code that would send it. Once a month, to the Tome project, nothing else."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Genres"
 msgstr ""
@@ -3697,6 +3707,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Height auto-fits the content — only width is resizable"
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Help count Tome installs?"
 msgstr ""
 
 #. placeholder {0}: user?.username
@@ -3827,6 +3841,10 @@ msgstr ""
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 msgid "Icon"
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -4981,6 +4999,10 @@ msgstr ""
 msgid "No table of contents available."
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "No thanks"
+msgstr ""
+
 #: src/components/stats/widgets/wordstats.tsx
 msgid "No timed reading with word counts yet."
 msgstr ""
@@ -5158,6 +5180,18 @@ msgstr ""
 msgid "Off"
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Off, declined on {d}."
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Off, disabled by TOME_TELEMETRY."
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Off, you have not opted in."
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
 msgstr ""
@@ -5174,6 +5208,14 @@ msgstr ""
 msgid "on pace"
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "On since {since}. First report on its way."
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "On since {since}. Last sent {last}, next {next}."
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 msgstr ""
@@ -5181,6 +5223,10 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "On this day"
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -5417,6 +5463,10 @@ msgstr ""
 
 #: src/components/NotificationChannels.tsx
 msgid "Pause"
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Paused, the report changed in this version. Review it to resume."
 msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
@@ -6498,6 +6548,10 @@ msgstr ""
 msgid "Send test email"
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Send this report monthly"
+msgstr ""
+
 #: src/components/SendButton.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/SettingsPage.tsx
@@ -6800,6 +6854,14 @@ msgstr ""
 msgid "Show sessions"
 msgstr ""
 
+#: src/components/TelemetryConsentCard.tsx
+msgid "Show the new report"
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Show the report"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
 msgstr ""
@@ -7009,6 +7071,10 @@ msgstr ""
 
 #: src/components/SeriesFollowButton.tsx
 msgid "Stop following this series"
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Stop sending"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -7269,6 +7335,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "This is the only time you will see this token. Store it somewhere safe — it cannot be recovered."
+msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "This is the report"
 msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx

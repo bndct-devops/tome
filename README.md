@@ -206,6 +206,10 @@ KOReader plugin and this website stay English for now.
 - [Features](docs/features.md) -- Quick Connect, OPDS PINs, permissions, themes, API tokens, and more
 - [Translating](docs/translating.md) -- improving or adding a UI language
 
+## Telemetry
+
+Off by default. Admins are asked once whether Tome may send one small anonymous report a month, and the question shows the exact report before you can say yes. Never a title, a name or a hostname. `TOME_TELEMETRY=false` hides the question entirely. What is in the report, how consent works and where it goes: [tome.bndct.sh/docs/telemetry](https://tome.bndct.sh/docs/telemetry). The numbers it produces are public at [tome.bndct.sh/stats](https://tome.bndct.sh/stats).
+
 ## Questions and feedback
 
 Bugs and concrete feature requests go to [Issues](https://github.com/bndct-devops/tome/issues).
