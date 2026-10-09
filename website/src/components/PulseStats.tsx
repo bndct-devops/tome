@@ -3,7 +3,7 @@
 // latest report of each instance that reported in the last 90 days.
 import { useEffect, useState } from 'react'
 
-const DEFAULT_ENDPOINT = 'https://pulse.tome.bndct.sh/v1/aggregate'
+const DEFAULT_ENDPOINT = 'https://pulse.bndct.dev/v1/aggregate'
 // ?pulse=<url> lets a dev build read a local receiver; production ignores it unless asked.
 const endpoint = () => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pulse')) || DEFAULT_ENDPOINT
 

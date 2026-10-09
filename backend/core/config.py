@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     telemetry: bool = True
     # Where the monthly report goes (env TOME_TELEMETRY_URL). Forks and test
     # instances point this elsewhere; the receiver is github.com/bndct-devops/tome-pulse.
-    telemetry_url: str = "https://pulse.tome.bndct.sh/v1/report"
+    telemetry_url: str = "https://pulse.bndct.dev/v1/report"
 
     # Auto-import settings
     auto_import: bool = False
