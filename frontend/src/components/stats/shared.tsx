@@ -7,6 +7,20 @@ import { useChartColors } from '@/lib/useChartAccent'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+// Daily + weekly streaks with their dates (ISO days; week runs are Monday-based).
+export interface StreakSummary {
+  current_days: number
+  current_start: string | null
+  longest_days: number
+  longest_start: string | null
+  longest_end: string | null
+  current_weeks: number
+  current_weeks_start: string | null
+  longest_weeks: number
+  longest_weeks_start: string | null
+  longest_weeks_end: string | null
+}
+
 export interface StatsResponse {
   range_days: number
   headline: {
@@ -17,6 +31,7 @@ export interface StatsResponse {
     current_streak_days: number
     longest_streak_days: number
     pages_turned: number
+    streaks: StreakSummary
   }
   daily: { date: string; seconds: number; sessions: number; pages: number }[]
   heatmap_daily: { date: string; seconds: number; sessions: number; pages: number }[]

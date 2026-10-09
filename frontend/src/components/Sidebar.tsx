@@ -5,7 +5,7 @@ import {
   BookOpen, Plus, Pencil, Share2, Trash2,
   ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
-  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked,
+  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -218,6 +218,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     { id: 'books', label: t`All Books`, icon: BookOpen, onSelect: selectAllBooks, active: isAllBooks },
     { id: 'series', label: t`Series`, icon: Layers, onSelect: onOpenSeriesView, active: isSeriesTab },
     { id: 'stats', label: t`Stats`, icon: BarChart3, to: '/stats' },
+    { id: 'calendar', label: t`Calendar`, icon: CalendarDays, to: '/calendar' },
     { id: 'highlights', label: t`Highlights`, icon: Quote, to: '/highlights' },
     { id: 'wishlist', label: t`Wishlist`, icon: Sparkles, to: '/wishlist', visible: isMember },
     { id: 'hardcover', label: t`Hardcover`, icon: BookMarked, to: '/hardcover', visible: isMember },

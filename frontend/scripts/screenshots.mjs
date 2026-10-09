@@ -191,6 +191,12 @@ const SHOTS = [
   // Bounded viewport (no autoCrop) — the list is long, so crop to the top: header,
   // search, on-this-day, and the first couple of books.
   { name: 'highlights',          path: '/highlights', viewport: { width: 1500, height: 1000, deviceScaleFactor: 2 }, settle: 1200 },
+  // Calendar: May 2026 is the showcase's fullest month. The 26th finishes a book and
+  // reads four, which fits the day card in one screen on desktop.
+  { name: 'calendar',            path: '/calendar?month=2026-05&day=2026-05-26', viewport: { width: 1600, height: 1260, deviceScaleFactor: 2 }, settle: 1800 },
+  { name: 'calendar-day',        path: '/calendar?month=2026-05&day=2026-05-26', viewport: { width: 1600, height: 1800, deviceScaleFactor: 2 }, settle: 1800, element: 'main aside > div', pad: 32 },
+  { name: 'mobile-calendar',     path: '/calendar?month=2026-05', mobile: true, settle: 1500 },
+  { name: 'mobile-calendar-day', path: '/calendar?month=2026-05&day=2026-05-26', mobile: true, settle: 1800 },
   { name: 'admin-word-counts',   path: '/admin', viewport: { width: 1600, height: 1600, deviceScaleFactor: 2 }, settle: 1000, after: async (page) => { await page.locator('button:has-text("Word Counts")').first().click().catch(() => {}); await page.waitForTimeout(800) }, autoCrop: true },
   { name: 'users-list',  path: '/users',    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },
   { name: 'admin-page',  path: '/admin',    viewport: { width: 1600, height: 2000, deviceScaleFactor: 2 }, settle: 1000, autoCrop: true },

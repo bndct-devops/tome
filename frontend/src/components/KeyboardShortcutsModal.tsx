@@ -54,6 +54,15 @@ const SECTIONS: ShortcutSection[] = [
     ],
   },
   {
+    title: msg`Calendar`,
+    rows: [
+      { keys: ['ArrowLeft', 'ArrowRight'], description: msg`Previous / next day` },
+      { keys: ['Shift', 'ArrowLeft'], description: msg`Previous month (Shift with either arrow)` },
+      { keys: ['t'], description: msg`Jump to today` },
+      { keys: ['Escape'], description: msg`Close the day` },
+    ],
+  },
+  {
     title: msg`Highlights`,
     rows: [
       { keys: ['/'], description: msg`Focus search` },

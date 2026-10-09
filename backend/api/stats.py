@@ -19,7 +19,7 @@ from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.user_series_rating import UserSeriesRating
 from backend.models.library import BookType
-from backend.services.streaks import reconciled_user_streaks
+from backend.services.streaks import reconciled_streak_summary
 from backend.services.reading_day import ROLLOVER_HOURS, DayCtx
 from backend.services import reconciled_reading as rr
 from backend.services.audit import audit
@@ -145,9 +145,8 @@ def get_stats(
     books_finished_count = finished_query.count()
 
     # Streaks (all time, local-day with 4h rollover). Reconciled: page-stat days count too.
-    current_streak, longest_streak = reconciled_user_streaks(
-        db, current_user.id, tz_offset, covered, tz_name=tz
-    )
+    streaks = reconciled_streak_summary(db, current_user.id, tz_offset, covered, tz_name=tz)
+    current_streak, longest_streak = streaks.current_days, streaks.longest_days
 
     # Daily aggregation (for selected range) — reconciled (page-stats win per book).
     daily = _fill_daily_map(
@@ -1020,6 +1019,7 @@ def get_stats(
             "current_streak_days": current_streak,
             "longest_streak_days": longest_streak,
             "pages_turned": pages_turned,
+            "streaks": streaks.as_dict(),
         },
         "daily": daily,
         "heatmap_daily": heatmap_daily,

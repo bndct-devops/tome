@@ -6,9 +6,10 @@ Used by:
 """
 from __future__ import annotations
 
+import math
 from bisect import bisect_right
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import NamedTuple, Optional
 
 from sqlalchemy import func, Integer
@@ -18,6 +19,10 @@ from backend.models.book import Book
 from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 from backend.services.reading_day import DayCtx
+
+
+# Days of recent reading the finish-date estimate averages over.
+FINISH_RATE_WINDOW_DAYS = 14
 
 
 class _SrcRow(NamedTuple):
@@ -413,6 +418,30 @@ def compute_book_reading_stats(
         # T/p*(1-p): at current pace, how many more seconds remain?
         estimated_finish_seconds = round(total_seconds / progress * (1 - progress))
 
+    # ── Estimated finish *date* ──────────────────────────────────────────────
+    # Turns the time left into a calendar date using how much you've actually
+    # read this book per day lately (zero days included, so reading every
+    # other day halves the rate). Window: the last 14 reading days, or since
+    # you started if that's more recent. No reading in the window = paused,
+    # so no date rather than a meaningless one years out.
+    estimated_finish_date: Optional[str] = None
+    if estimated_finish_seconds:
+        first_day: Optional[date] = None
+        window_secs = 0
+        for row in session_timeline:
+            try:
+                d = date.fromisoformat(row["date"])
+            except (ValueError, TypeError):
+                continue
+            first_day = d if first_day is None else min(first_day, d)
+            if 0 <= (today - d).days < FINISH_RATE_WINDOW_DAYS:
+                window_secs += row["seconds"]
+        if first_day is not None and window_secs > 0:
+            window_days = max(1, min(FINISH_RATE_WINDOW_DAYS, (today - first_day).days + 1))
+            days_left = max(1, math.ceil(estimated_finish_seconds / (window_secs / window_days)))
+            if days_left <= 365:
+                estimated_finish_date = (today + timedelta(days=days_left)).isoformat()
+
     return {
         "total_seconds": total_seconds,
         "sessions": sessions,
@@ -428,6 +457,7 @@ def compute_book_reading_stats(
         "by_source": by_source,
         "momentum": momentum,
         "estimated_finish_seconds": estimated_finish_seconds,
+        "estimated_finish_date": estimated_finish_date,
     }
 
 

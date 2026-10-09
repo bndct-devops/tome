@@ -11,6 +11,7 @@ const ADMIN_NAV = [
   { role: 'button', name: 'All Books', url: '/?tab=books' },
   { role: 'button', name: 'Series', url: '/?tab=series' },
   { role: 'link', name: 'Stats', url: '/stats' },
+  { role: 'link', name: 'Calendar', url: '/calendar' },
   { role: 'link', name: 'Highlights', url: '/highlights' },
   { role: 'link', name: 'Wishlist', url: '/wishlist' },
   { role: 'link', name: 'Hardcover', url: '/hardcover' },

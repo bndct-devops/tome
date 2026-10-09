@@ -1,0 +1,74 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { ThemedShot } from '../../components/ThemedShot'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Calendar" description="Every month of your reading as a calendar: what you read each day, how long, what you finished, and a card for any day you pick.">
+  <SectionHero section="features" />
+  <h1>Calendar</h1>
+  <p>
+    The Calendar is the month view of your reading. Each day you read shows the books you had
+    open as small chips, with the day's total in the corner, and clicking a day opens a card with
+    what that day looked like. It is built from the same session data
+    as <a href={withBase("/docs/stats")}>Reading stats</a>: web reader sessions, everything the
+    TomeSync KOReader plugin reports, and imported KOReader history.
+  </p>
+  <DocsMeta />
+
+  <div class="docs-shot">
+    <ThemedShot client:load name="calendar" alt="The Calendar page: a month grid with a chip per book read each day, the month's total hours above it, and a day card on the right" />
+  </div>
+
+  <h2>The month</h2>
+  <p>
+    Open <strong>Calendar</strong> from the sidebar. Above the grid is one number, the time you read
+    that month, with the number of reading days under it and a line for your streaks and the books
+    you finished. The grid is a plain calendar: weeks run Monday to Sunday, weekends are shaded, and
+    the days of the neighbouring months fill the first and last week. Click one of those to jump
+    to that month.
+  </p>
+  <p>
+    A day with reading shows up to two chips, one per book, with the series and volume number
+    where there is one, and <em>+1 more</em> when there were more. A chip with a check is a book you
+    finished that day. The day's total time sits next to the date. Today is the accent-coloured
+    circle, and the picked day is lifted slightly.
+  </p>
+  <p>
+    Use the chevrons next to the month name to move around, or the arrow keys: left and right step
+    a day, with Shift they step a month, <code>t</code> jumps back to today, and <code>Esc</code>
+    closes the day. A <strong>Today</strong> button appears whenever you are on another month.
+  </p>
+
+  <h2>The day card</h2>
+  <p>
+    Pick a day and the card on the right fills in: a one-line summary of the day, badges for
+    anything notable (a book finished or started, your biggest day of the month, where the day sits
+    in a streak, reading past midnight), then the day's time, pages, number of sittings and pace.
+  </p>
+  <div class="docs-shot">
+    <ThemedShot client:load name="calendar-day" alt="A day card: a summary line, badges, the day's totals, each book read with chapters and progress, and a timeline of when you read" />
+  </div>
+  <p>
+    <strong>What you read</strong> lists each book with the time spent, pages, pace, the chapters
+    you covered, and the progress you made that day on its bar. Under it, how that day's pace
+    compares with your usual for that book. <strong>When</strong> is a timeline of the day's
+    sittings from 4 am to 4 am, so a session that ran past midnight stays with the evening it
+    belongs to.
+  </p>
+  <p>
+    Books you had open for under a minute are not listed, though their time still counts toward
+    the day's total. A book counts as finished on the day you marked it read, or the day its
+    position first reached the end.
+  </p>
+
+  <Callout variant="info" title="On a phone">
+    The grid is compact: the number of each day with a bar under it for how long you read. Tap a
+    day and the card slides up as a sheet.
+  </Callout>
+  <figure style="margin: 1.5rem auto; max-width: 360px;">
+    <ThemedShot client:load name="mobile-calendar-day" alt="The Calendar on a phone with a day's sheet open" />
+  </figure>
+</DocsLayout>

@@ -146,6 +146,7 @@ const METRICS = [
   { id: 'longest-session', label: msg`Longest Session` },
   { id: 'books-started', label: msg`Books Started` },
   { id: 'longest-streak', label: msg`Longest Streak` },
+  { id: 'weekly-streak', label: msg`Weekly Streak` },
 ]
 
 function metricValue(stats: StatsResponse, id: string): { value: string; sub?: string } {
@@ -169,8 +170,18 @@ function metricValue(stats: StatsResponse, id: string): { value: string; sub?: s
     }
     case 'books-started':
       return { value: String(stats.completion_rate.started), sub: `${stats.completion_rate.finished} finished` }
-    case 'longest-streak':
-      return { value: `${stats.headline.longest_streak_days}d` }
+    case 'longest-streak': {
+      const s = stats.headline.streaks
+      if (!s.longest_start || !s.longest_end) return { value: `${stats.headline.longest_streak_days}d` }
+      const from = formatDate(s.longest_start)
+      const to = formatDate(s.longest_end)
+      return { value: `${stats.headline.longest_streak_days}d`, sub: t`${from} to ${to}` }
+    }
+    case 'weekly-streak': {
+      // Weeks in a row with at least one reading day (Monday-based).
+      const best = stats.headline.streaks.longest_weeks
+      return { value: `${stats.headline.streaks.current_weeks}w`, sub: t`Best: ${best}w` }
+    }
     case 'avg-session':
     default:
       return { value: formatDuration(stats.headline.avg_session_seconds), sub: `${stats.headline.total_sessions} sessions` }
@@ -547,7 +558,7 @@ const WIDGETS: WidgetDef[] = [
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     autoH: true,
     fixedWindow: msg`all`,
-    render: ({ stats }) => <PersonalRecords data={stats.records} />,
+    render: ({ stats }) => <PersonalRecords data={stats.records} streaks={stats.headline.streaks} />,
   },
   {
     id: 'library-completion',

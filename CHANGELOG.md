@@ -7,6 +7,26 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Calendar.** A new page in the sidebar shows each month of your
+  reading as a calendar: each book you read sits in its day as a small chip
+  with the time you spent on it, marked when you finished it (on a phone, a
+  bar under the day carries the time instead). The
+  month's total time, your current daily and weekly streaks and the books you
+  finished sit above it. Click a day for what it looked like: the books,
+  chapters, pages and progress you made in each, your pace compared with your
+  usual for that book, when you read, and a line summing the day up. Arrow
+  keys step through days (Shift for months) and T jumps back to today. Imported
+  KOReader history and web-reader reading are combined the same way as on the
+  Stats page.
+- **Weekly reading streaks.** Alongside the daily streak, Tome now counts
+  weeks in a row with at least one reading day, so reading every few days
+  still builds a streak. Add it as a Custom Stat tile ("Weekly Streak"), and
+  Personal Records now lists your longest daily and weekly streaks with the
+  dates they ran (so does the "Longest Streak" Custom Stat).
+- **Estimated finish date.** Books you are reading show an "Est. finish" date
+  on their page, worked out from how much of that book you have read per day
+  over the last two weeks. Books you have not touched in two weeks show the
+  time left but no date.
 - **KOReader sync code: hand offline reading to your phone.** When the
   e-reader has no network but your phone does, TomeSync > "Show sync code"
   turns everything the device could not send - reading sessions, positions

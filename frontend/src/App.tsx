@@ -21,6 +21,7 @@ import { BinderyPage } from '@/pages/BinderyPage'
 import { WishlistPage } from '@/pages/WishlistPage'
 import { HardcoverPage } from '@/pages/HardcoverPage'
 import { HighlightsPage } from '@/pages/HighlightsPage'
+import { ReadingCalendarPage } from '@/pages/ReadingCalendarPage'
 import { api } from '@/lib/api'
 import { applyTheme, getStoredTheme } from '@/lib/theme'
 
@@ -127,6 +128,14 @@ function AppRoutes() {
           }
         />
         <Route path="/stats-lab" element={<Navigate to="/stats" replace />} />
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute>
+              <ReadingCalendarPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/highlights"
           element={
