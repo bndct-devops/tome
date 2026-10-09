@@ -293,7 +293,9 @@ msgid "{0, plural, one {# book entry removed} other {# book entries removed}}"
 msgstr ""
 
 #. placeholder {0}: d.books_finished
+#. placeholder {0}: data.totals.books_finished
 #: src/components/stats/widgets/habits.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# book finished} other {# books finished}}"
 msgstr ""
 
@@ -330,6 +332,11 @@ msgstr ""
 #: src/components/CoverPickerModal.tsx
 msgid "{0, plural, one {# cover found — click to apply} other {# covers found — click to apply}}"
 msgstr ""
+
+#. placeholder {0}: s.current_days
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
+#~ msgstr ""
 
 #. placeholder {0}: hover.b.days.length
 #: src/components/stats/TimelineRibbon.tsx
@@ -373,6 +380,7 @@ msgstr ""
 
 #. placeholder {0}: b.pages
 #: src/components/ScanSyncCodeModal.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# page} other {# pages}}"
 msgstr ""
 
@@ -458,6 +466,31 @@ msgstr ""
 msgid "{0, plural, one {# volume} other {# volumes}}"
 msgstr ""
 
+#. placeholder {0}: s.current_weeks
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "{0, plural, one {# week streak} other {# week streak}}"
+#~ msgstr ""
+
+#. placeholder {0}: s.current_weeks
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "{0, plural, one {# week} other {# weeks}}"
+#~ msgstr ""
+
+#. placeholder {0}: s.current_days
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{0, plural, one {#-day streak since {from}} other {#-day streak since {from}}}"
+msgstr ""
+
+#. placeholder {0}: s.current_weeks
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{0, plural, one {#-week streak} other {#-week streak}}"
+msgstr ""
+
+#. placeholder {0}: books.length - 2
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{0, plural, one {+# more} other {+# more}}"
+msgstr ""
+
 #. placeholder {0}: est.estimated_days
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {~# day remaining} other {~# days remaining}}"
@@ -482,6 +515,11 @@ msgstr ""
 #. placeholder {0}: applyResult.applied
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {Applied # group} other {Applied # groups}}"
+msgstr ""
+
+#. placeholder {0}: s.longest_days
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{0, plural, one {Best streak # day} other {Best streak # days}}"
 msgstr ""
 
 #. placeholder {0}: healthData.missing.length
@@ -564,6 +602,10 @@ msgstr ""
 msgid "{0, plural, one {words/min · across # book} other {words/min · across # books}}"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{a} to {z}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{added} added · {skipped} skipped"
 msgstr ""
@@ -604,12 +646,20 @@ msgstr ""
 msgid "{d} days ago"
 msgstr ""
 
+#: src/components/stats/widgets/insights.tsx
+msgid "{d}d"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{d}d ago"
 msgstr ""
 
 #: src/components/stats/widgets/overview.tsx
 msgid "{daily} finished · {count} total"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{days, plural, one {across # reading day in {monthName}} other {across # reading days in {monthName}}}"
 msgstr ""
 
 #: src/components/NotificationBell.tsx
@@ -668,6 +718,10 @@ msgstr ""
 msgid "{dur} on device"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{dur} with {mainTitle}."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr ""
@@ -694,6 +748,15 @@ msgstr ""
 
 #: src/components/CoverAudit.tsx
 msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
+msgstr ""
+
+#: src/components/stats/widgets/insights.tsx
+#: src/pages/StatsPage.tsx
+msgid "{from} to {to}"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{from}% to {to}%"
 msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
@@ -834,6 +897,10 @@ msgstr ""
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{n} chapters of {mainTitle}."
+msgstr ""
+
 #: src/components/MetadataManager.tsx
 msgid "{n} chapters uploaded"
 msgstr ""
@@ -865,6 +932,14 @@ msgstr ""
 
 #: src/components/WishlistModal.tsx
 msgid "{n} volumes"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{n}% faster than your usual for this book"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{n}% slower than your usual for this book"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -921,6 +996,10 @@ msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{pph} p/h"
 msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
@@ -1015,6 +1094,10 @@ msgstr ""
 msgid "{v}m"
 msgstr ""
 
+#: src/components/stats/widgets/insights.tsx
+msgid "{w}w"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "{words} words"
 msgstr ""
@@ -1038,6 +1121,10 @@ msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
 msgid "← Back to results"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "+{gain}% today"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1168,6 +1255,10 @@ msgstr ""
 msgid "A share link is a read-only page anyone with the link can open — no account needed. It shows covers, titles, tags, descriptions, and your ratings and highlights for this book. It never exposes files: no downloads, no reading, no way in. Revoke it any time and the link dies instantly."
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "A short visit. {p} pages still count."
+msgstr ""
+
 #: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "A sync is already running"
@@ -1187,6 +1278,10 @@ msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
 msgid "about <0>{d}</0> at your pace"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "About your usual pace for this book"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -1780,8 +1875,24 @@ msgstr ""
 msgid "Best-Rated Series"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "Best: {best} days"
+#~ msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "Best: {best} weeks"
+#~ msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "Best: {best}w"
+msgstr ""
+
 #: src/components/SendButton.tsx
 msgid "Beta"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Biggest day this month"
 msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
@@ -1935,6 +2046,11 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Browse your library"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/components/Sidebar.tsx
+msgid "Calendar"
 msgstr ""
 
 #: src/components/WishlistModal.tsx
@@ -2094,12 +2210,17 @@ msgstr ""
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/ReaderPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Close"
 msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Close navigation"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Close the day"
 msgstr ""
 
 #: src/pages/LoginPage.tsx
@@ -2292,6 +2413,10 @@ msgstr ""
 msgid "Could not load this scope."
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Could not load your reading calendar."
+msgstr ""
+
 #: src/components/WordCount.tsx
 msgid "Could not parse ({n})"
 msgstr ""
@@ -2462,6 +2587,10 @@ msgstr ""
 msgid "Daily sessions on a 24h track"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "Daily streak"
+#~ msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Danger Zone"
 msgstr ""
@@ -2495,6 +2624,14 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Date Added"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Day {n} of a {len}-day streak"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Day {n} of your best streak ({len} days)"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -2915,12 +3052,20 @@ msgid "Errors"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+msgid "Est. finish"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 msgid "Est. read time"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
 msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "Every day you read, and what it looked like."
+#~ msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "Every EPUB is counted"
@@ -3313,13 +3458,12 @@ msgstr ""
 msgid "finished"
 msgstr ""
 
-#: src/components/ManageSeriesModal.tsx
-#: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 #~ msgid "Finished"
 #~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/StatsPage.tsx
 msgctxt "reading"
 msgid "Finished"
@@ -3333,6 +3477,26 @@ msgstr "已完结"
 #: src/pages/DashboardPage.tsx
 msgid "Finished · 30d"
 msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Finished {a} and went straight into {b}."
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Finished {a}."
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Finished {l}"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "finished a book"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "Finished a book"
+#~ msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
@@ -3763,6 +3927,10 @@ msgstr ""
 msgid "Jump to a book, series, author, or page…"
 msgstr ""
 
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Jump to today"
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 #: src/components/NotificationBell.tsx
 #: src/pages/AdminPage.tsx
@@ -3789,6 +3957,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Keep this one"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Kept coming back to it: {n} sittings across the day."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -4061,6 +4233,10 @@ msgstr ""
 msgid "Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation."
 msgstr ""
 
+#: src/components/stats/widgets/insights.tsx
+msgid "Longest daily streak"
+msgstr ""
+
 #: src/components/stats/widgets/overview.tsx
 msgid "Longest first"
 msgstr ""
@@ -4087,9 +4263,17 @@ msgstr ""
 msgid "Longest volume"
 msgstr ""
 
+#: src/components/stats/widgets/insights.tsx
+msgid "Longest weekly streak"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Longest: {d}d"
 msgstr ""
+
+#: src/pages/StatsPage.tsx
+#~ msgid "Longest: {d}d · Weekly: {w}w"
+#~ msgstr ""
 
 #: src/components/CoverAudit.tsx
 msgid "Low resolution"
@@ -4408,6 +4592,7 @@ msgstr ""
 msgid "Next book"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Next month"
 msgstr ""
@@ -4690,6 +4875,10 @@ msgstr ""
 msgid "No reading history yet — sessions and imported KOReader history land here."
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "No reading in {monthName} yet"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "No reading logged yet. Track time by hand — handy for a paper copy or a device that isn't synced."
 msgstr ""
@@ -4700,6 +4889,14 @@ msgstr ""
 
 #: src/components/stats/widgets/overview.tsx
 msgid "No reading sessions recorded."
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "No reading this day."
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "No reading this month yet."
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -4999,6 +5196,10 @@ msgstr ""
 msgid "Ongoing"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Only a brief open this day, under a minute."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
 msgstr ""
@@ -5043,6 +5244,10 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Opened {a} for the first time."
 msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
@@ -5133,6 +5338,7 @@ msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "Pages"
 msgstr ""
 
@@ -5199,6 +5405,10 @@ msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Passwords do not match."
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Past midnight"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
@@ -5313,11 +5523,20 @@ msgid "Previous"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
+msgid "Previous / next day"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
 msgid "Previous book"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Previous month"
+msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Previous month (Shift with either arrow)"
 msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
@@ -5620,6 +5839,11 @@ msgstr ""
 #: src/pages/StatsPage.tsx
 msgid "Reading by Weekday"
 msgstr ""
+
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/components/Sidebar.tsx
+#~ msgid "Reading Calendar"
+#~ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Reading Clock"
@@ -6608,12 +6832,20 @@ msgstr ""
 msgid "Similar Title"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "since {from}"
+#~ msgstr ""
+
 #: src/pages/ReaderPage.tsx
 msgid "Single page (S)"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Single Sign-On"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Sittings"
 msgstr ""
 
 #: src/components/CoverAudit.tsx
@@ -6652,6 +6884,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Source"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Speed"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -6740,6 +6976,10 @@ msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "Start typing to search..."
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Started {l}"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -7031,6 +7271,10 @@ msgstr ""
 msgid "This is the only time you will see this token. Store it somewhere safe — it cannot be recovered."
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "this month"
+#~ msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "This Month"
 msgstr ""
@@ -7086,6 +7330,7 @@ msgstr ""
 
 #: src/components/stats/widgets/library.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "Time"
 msgstr ""
 
@@ -7164,6 +7409,7 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Today"
 msgstr ""
@@ -7382,6 +7628,10 @@ msgstr ""
 
 #: src/components/home/FocusMode.tsx
 msgid "Up next"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Up past midnight with {mainTitle}."
 msgstr ""
 
 #: src/components/UpcomingReleases.tsx
@@ -7611,6 +7861,14 @@ msgstr ""
 msgid "Weekly pages"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+#~ msgid "Weekly streak"
+#~ msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "Weekly Streak"
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "Welcome back"
 msgstr ""
@@ -7631,12 +7889,20 @@ msgstr ""
 msgid "What is this?"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "What you read"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books."
 msgstr ""
 
 #: src/components/WhatsNewPanel.tsx
 msgid "What's new in Tome {version}"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "When"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -7777,6 +8043,10 @@ msgstr ""
 
 #: src/lib/backlog.ts
 msgid "Your average time per finished book of this type (no word count)"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "Your biggest reading day this month: {dur} with {mainTitle}."
 msgstr ""
 
 #: src/components/HardcoverSync.tsx

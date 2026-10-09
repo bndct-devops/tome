@@ -9,6 +9,7 @@ from backend.core.security import create_access_token, hash_password
 from backend.models.tome_sync import ReadingSession
 from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
+from backend.services.reading_day import DayCtx
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -112,6 +113,23 @@ def test_estimated_finish_with_progress(client: TestClient, make_book, admin_use
     assert own["progress"] == pytest.approx(0.25)
     # T/p*(1-p) = 1200/0.25*0.75 = 3600
     assert own["estimated_finish_seconds"] == pytest.approx(3600, abs=1)
+    # Read 1200s across a 2-day window (yesterday + today) = 600s/day,
+    # so 3600s left is 6 reading days out.
+    expected = DayCtx(0).today() + timedelta(days=6)
+    assert own["estimated_finish_date"] == expected.isoformat()
+
+
+def test_estimated_finish_date_none_when_paused(client: TestClient, make_book, admin_user, db: Session):
+    """No reading in the last 14 days = paused: time left, but no date."""
+    user, _ = admin_user
+    book = make_book(title="Paused Book")
+    _make_session(db, user.id, book.id, datetime.utcnow() - timedelta(days=30), duration_seconds=1200)
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.25))
+    db.flush()
+
+    own = _get_stats(client, book.id)["own"]
+    assert own["estimated_finish_seconds"] == pytest.approx(3600, abs=1)
+    assert own["estimated_finish_date"] is None
 
 
 def test_aggregate_only_for_admin(client: TestClient, make_book, admin_user, db: Session):

@@ -66,6 +66,7 @@ interface BookReadingStats {
   by_source: { device: string; seconds: number; sessions: number }[]
   momentum: { recent_seconds: number; prior_seconds: number; delta_pct: number | null; direction: string } | null
   estimated_finish_seconds: number | null
+  estimated_finish_date: string | null
 }
 
 interface BookIntensity {
@@ -2094,6 +2095,10 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
   }
   if (own.status === 'reading' && own.estimated_finish_seconds != null) {
     bottomStats.push({ label: t`Est. remaining`, value: formatDuration(own.estimated_finish_seconds) })
+  }
+  // Date at your recent per-day rate on this book; absent when it's paused.
+  if (own.status === 'reading' && own.estimated_finish_date) {
+    bottomStats.push({ label: t`Est. finish`, value: formatDate(own.estimated_finish_date) })
   }
 
   return (

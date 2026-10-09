@@ -2,11 +2,11 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
-import { Clock, FileText, BookCheck, Activity, Calendar, Flame, Timer, Sun, type LucideIcon } from 'lucide-react'
+import { Clock, FileText, BookCheck, Activity, Calendar, CalendarRange, Flame, Timer, Sun, type LucideIcon } from 'lucide-react'
 import { formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
-import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { ChartTooltip, type StatsResponse, type StreakSummary } from '@/components/stats/shared'
 
 const fmtDay = (d: string | null) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '--'
@@ -40,17 +40,35 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
 }
 
 // ── Personal records ────────────────────────────────────────────────────────────
-export function PersonalRecords({ data }: { data: StatsResponse['records'] }) {
+// "Dec 10 to Mar 8, 2026" — the year only once, so the span fits the row.
+const fmtSpan = (a: string | null, b: string | null) => {
+  if (!a || !b) return null
+  const from = new Date(a + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const to = fmtDay(b)
+  return t`${from} to ${to}`
+}
+
+export function PersonalRecords({ data, streaks }: { data: StatsResponse['records']; streaks?: StreakSummary }) {
   if (!data) return <Empty />
+  const streakRows: { icon: LucideIcon; label: string; value: string; sub: string | null }[] = []
+  if (streaks && streaks.longest_days > 0) {
+    const d = streaks.longest_days
+    const w = streaks.longest_weeks
+    streakRows.push(
+      { icon: Flame, label: t`Longest daily streak`, value: t`${d}d`, sub: fmtSpan(streaks.longest_start, streaks.longest_end) },
+      { icon: CalendarRange, label: t`Longest weekly streak`, value: t`${w}w`, sub: fmtSpan(streaks.longest_weeks_start, streaks.longest_weeks_end) },
+    )
+  }
   const rows: { icon: LucideIcon; label: string; value: string; sub: string | null }[] = [
+    ...streakRows,
     { icon: Timer, label: t`Longest session`, value: formatDuration(data.longest_session_seconds), sub: data.longest_session_title },
     { icon: Sun, label: t`Biggest reading day`, value: formatDuration(data.biggest_day_seconds), sub: fmtDay(data.biggest_day_date) },
     { icon: FileText, label: t`Most pages in a day`, value: data.most_pages_day.toLocaleString(), sub: fmtDay(data.most_pages_date) },
   ]
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2">
       {rows.map((r) => (
-        <div key={r.label} className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+        <div key={r.label} className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-1.5">
           <r.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">{r.label}</p>

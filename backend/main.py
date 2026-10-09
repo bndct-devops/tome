@@ -21,6 +21,7 @@ from backend.api import opds_pins
 from backend.api import kosync
 from backend.api import tome_sync
 from backend.api import stats
+from backend.api import reading_calendar as reading_calendar_api
 from backend.api import meta as meta_api
 from backend.api import admin_covers
 from backend.api import reading_import
@@ -828,6 +829,7 @@ def create_app() -> FastAPI:
     app.include_router(opds_pins.router, prefix="/api")
     app.include_router(kosync.router, prefix="/api")  # mounted at /api/v1/
     app.include_router(tome_sync.router, prefix="/api")
+    app.include_router(reading_calendar_api.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")
     app.include_router(quick_connect.router, prefix="/api")
     app.include_router(admin_duplicates.router, prefix="/api")
