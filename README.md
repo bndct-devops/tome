@@ -153,6 +153,8 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 | `TOME_PORT` | No | `8080` | HTTP port |
 | `TOME_PUBLIC_URL` | No | -- | Canonical public origin (e.g. `https://tome.example.org`). Pin this behind a reverse proxy so the KOReader plugin is baked with the correct `https://` URL |
 | `TOME_HARDCOVER_TOKEN` | No | -- | [Hardcover](https://hardcover.app) API token for metadata |
+| `TOME_AI_ENABLED` | No | `true` | Hard off switch for the AI features; `false` hides every AI surface and endpoint |
+| `TOME_ANTHROPIC_API_KEY` | No | -- | Anthropic API key used as the instance key for the AI features when none is stored in Settings |
 | `TOME_AUTO_IMPORT` | No | `false` | Auto-import files from the bindery on a schedule |
 | `TOME_AUTO_IMPORT_INTERVAL` | No | `300` | Seconds between auto-import scans |
 | `TOME_SCAN_WORKERS` | No | `1` | Parallel scan workers (>1 = multi-process; ~60–80 MB each) |

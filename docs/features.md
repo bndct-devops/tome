@@ -129,6 +129,59 @@ Click any book's cover to open the cover picker. Search Google Books and OpenLib
 
 ---
 
+## AI Features
+
+Tome can use Anthropic's Claude models to suggest metadata. It is bring-your-own-key: Tome ships no key and works exactly as before without one. Every AI surface is hidden until a key is available, and every AI button carries an **AI** label so it is always clear when something leaves your server.
+
+### Keys
+
+- **Your own key** -- members and admins can add an Anthropic API key under **Settings > AI**. Tome checks the key with Anthropic before saving it, stores it encrypted, and afterwards shows only its last four characters. You can replace or remove it at any time.
+- **Instance key** -- admins can store an instance key in the same section, or provide one with `TOME_ANTHROPIC_API_KEY` (a key stored in Settings takes precedence). Admins always use it; members use it only when **Let members use the instance key** is on.
+
+For each request Tome uses your own key first, then the instance key if you are allowed to use it. Guests never get AI features. Setting or removing a key and changing the AI settings are recorded in the audit log, without the key itself.
+
+### What is sent, and when
+
+Nothing is sent to Anthropic until you click an AI button. Each feature sends only what it needs:
+
+| Feature | Sent to Anthropic |
+|---|---|
+| **Identify with AI** (Bindery) | File name and folder, embedded metadata, roughly the first 3000 characters of text (EPUB and PDF; comics send their ComicInfo fields instead), the matching series already in your library with a few of its titles, the top metadata-source matches, and your book type names |
+| **AI fix** (book page) | The book's current metadata, its file names, roughly the first 2000 characters of text, a few titles from the same series, and up to eight metadata-source matches |
+| **Clean up with AI** (series view) | Title, author, volume number, year and file names of the books in the series you can see, plus the series status and arcs |
+
+No cover images, reading history or other users' data are sent.
+
+### Identify with AI
+
+In the **Bindery**, select files (or none, for all of them) and click **Identify with AI**. Files go to Anthropic in batches of ten, with progress shown on the button. Tome pre-fills the review forms with title, author, series, volume, type, language, year and tags, and gives each row a confidence mark: green at or above the confidence threshold, amber below, with the deciding reason on hover. Tags only ever come from the metadata sources, never from the model.
+
+**Accept the obvious** accepts every row at or above the threshold through the normal accept path and leaves the rest in the review list. A row you edit after identifying is marked **Edited** and is left for you to accept by hand.
+
+### Fix this book
+
+On a book page, **AI fix** sits next to **Fetch Metadata**. The model picks the metadata-source match that is this exact book (same work, volume, language and format) and proposes only the fields worth changing, with a confidence and a one-sentence reason. The proposal opens in the usual metadata diff with only the changed rows ticked. ISBNs, descriptions and covers are taken from the matched source, never written by the model.
+
+### Clean up this series
+
+In a series view, **Manage > Clean up with AI** proposes one diff for the whole series: a canonical series name, corrected volume titles and numbers, the publication status, and a non-overlapping arc list. Each change comes with a sentence of evidence and is a checkbox; **Apply selected** writes only the checked rows, in one go, through the same paths as the manual editors. A rename moves every book in the series and carries the status and arcs along. Status and arcs can only be changed by admins.
+
+### Review, threshold and audit
+
+The model never writes metadata on its own. Every proposal is shown to you first and applied only when you accept it. Accepts that came from an AI proposal are marked as AI-assisted in the audit log.
+
+The **confidence threshold** (default 85%) is set by admins under **Settings > AI**. It colours the confidence marks and decides which Bindery rows **Accept the obvious** takes. Admins can also switch each feature on or off and pick its model (Claude Opus 5.5 by default, or Sonnet 5.5 / Haiku 5.5).
+
+### Spend meter
+
+Every AI call is logged with its token counts and its cost at Anthropic's list prices. **Settings > AI > This month** shows your spend per feature for the current month; admins can switch to **All users** to see the total per user. The figures are estimates, so check your Anthropic console for the actual bill.
+
+### Turning it off
+
+Set `TOME_AI_ENABLED=false` to remove every AI surface and endpoint, regardless of keys or settings. Admins can also switch AI off from **Settings > AI** without a restart.
+
+---
+
 ## Authentication and Roles
 
 - JWT-based auth with first-run setup wizard

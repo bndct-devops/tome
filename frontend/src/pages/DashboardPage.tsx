@@ -1107,16 +1107,33 @@ export function DashboardPage() {
               : []
           }
           onClose={() => setManageSeriesOpen(false)}
-          onSaved={() => {
-            // Refresh meta map and arcs for the open series
-            if (expandedSeries) {
-              api.get<SeriesMeta>(`/series/${encodeURIComponent(expandedSeries)}/meta`)
-                .then(m => setSeriesMetaMap(prev => ({ ...prev, [expandedSeries]: m.status })))
-                .catch(() => {})
-              api.get<Arc[]>(`/series/${encodeURIComponent(expandedSeries)}/arcs`)
-                .then(setSeriesArcs)
+          onSaved={(renamedTo) => {
+            // Refresh meta map, arcs and volumes for the open series. An AI
+            // cleanup can rename the series, so follow it to the new name.
+            const name = renamedTo ?? expandedSeries
+            if (!name) return
+            if (renamedTo) {
+              setExpandedSeries(renamedTo)
+              if (searchParams.get('series_detail')) {
+                setSearchParams(prev => {
+                  const next = new URLSearchParams(prev)
+                  next.set('series_detail', renamedTo)
+                  return next
+                }, { replace: true })
+              }
+              api.get<SeriesItem[]>('/books/series')
+                .then(list => { setSeriesList(list); fetchSeriesMetaForList(list) })
                 .catch(() => {})
             }
+            api.get<SeriesMeta>(`/series/${encodeURIComponent(name)}/meta`)
+              .then(m => setSeriesMetaMap(prev => ({ ...prev, [name]: m.status })))
+              .catch(() => {})
+            api.get<Arc[]>(`/series/${encodeURIComponent(name)}/arcs`)
+              .then(setSeriesArcs)
+              .catch(() => {})
+            api.get<SeriesDetail>(`/books/series-detail?name=${encodeURIComponent(name)}`)
+              .then(setSeriesDetail)
+              .catch(() => {})
           }}
         />
       )}

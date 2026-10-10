@@ -15,6 +15,8 @@ import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
+import { AiSettings } from '@/components/AiSettings'
+import { useAiStatus } from '@/lib/ai'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
@@ -433,6 +435,17 @@ export function SettingsPage() {
   const [setupGuideOpen, setSetupGuideOpen] = useState(false)
   // Hardcover sync section hides itself when the server has the feature off
   const [hardcoverAvailable, setHardcoverAvailable] = useState(true)
+
+  // ── AI ────────────────────────────────────────────────────────────────────
+  // Hidden entirely with TOME_AI_ENABLED=false and for guests. When an admin
+  // switches AI off for the instance, members lose the section too (admins
+  // keep it so they can switch it back on), except for a member who still has
+  // a key stored: they get just that key row, so they can delete the secret.
+  const { status: aiStatus } = useAiStatus()
+  const showAi = !!aiStatus && aiStatus.env_enabled && aiStatus.can_use
+    && (aiStatus.enabled || !!user?.is_admin)
+  const showAiKeyOnly = !showAi && !!aiStatus && aiStatus.env_enabled && aiStatus.can_use
+    && aiStatus.has_own_key
 
   useEffect(() => {
     api.get<{ configured: boolean }>('/smtp-status').then(r => {
@@ -1520,6 +1533,14 @@ export function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* ── AI ───────────────────────────────────────────────────────── */}
+        {(showAi || showAiKeyOnly) && aiStatus && (
+          <section>
+            <SectionHeader title={t`AI`} />
+            <AiSettings status={aiStatus} isAdmin={!!user?.is_admin} keyOnly={showAiKeyOnly} />
+          </section>
+        )}
 
         {/* ── Hardcover ────────────────────────────────────────────────── */}
         {hardcoverAvailable && (

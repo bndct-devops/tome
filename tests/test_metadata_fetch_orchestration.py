@@ -281,3 +281,23 @@ async def test_concurrent_series_volumes_share_one_anilist_call():
     for r in results:
         assert r.sources["anilist"] == "ok"
         assert any(c.source == "anilist" for c in r.candidates)
+
+
+async def test_failed_fetch_log_never_carries_the_request_url(caplog):
+    """A 5xx error's text includes the request URL, and Google Books puts the
+    API key in its query string. The failure log names the status only."""
+    secret = "SECRETPLACEHOLDER"
+
+    async def boom():
+        req = httpx.Request("GET", f"{GB}?q=x&key={secret}")
+        resp = httpx.Response(503, request=req)
+        resp.raise_for_status()
+
+    async def other():
+        raise ValueError(f"bad payload from {GB}?key={secret}")
+
+    with caplog.at_level("WARNING", logger=mf.logger.name):
+        assert await mf._attempt_source("Google Books", boom) == ([], "error")
+        assert await mf._attempt_source("Google Books", other) == ([], "error")
+    assert secret not in caplog.text
+    assert "HTTP 503" in caplog.text and "ValueError" in caplog.text

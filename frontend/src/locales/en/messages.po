@@ -224,9 +224,17 @@ msgstr "· a shared shelf"
 msgid "· p. {page} of {totalPages}"
 msgstr "· p. {page} of {totalPages}"
 
+#: src/components/AiSettings.tsx
+msgid "\"Accept the obvious\" applies every proposal at or above this confidence. Proposals below it stay in the review list."
+msgstr "\"Accept the obvious\" applies every proposal at or above this confidence. Proposals below it stay in the review list."
+
 #: src/components/stats/widgets/habits.tsx
 msgid "({a} vs {b} pages/min)"
 msgstr "({a} vs {b} pages/min)"
+
+#: src/components/AiSettings.tsx
+msgid "(admins only)"
+msgstr "(admins only)"
 
 #: src/pages/SettingsPage.tsx
 msgid "(enables dark: variants)"
@@ -322,6 +330,11 @@ msgstr "{0, plural, one {# book, none estimated yet.} other {# books, none estim
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
 msgstr "{0, plural, one {# book} other {# books}}"
+
+#. placeholder {0}: data.total.calls
+#: src/components/AiSettings.tsx
+msgid "{0, plural, one {# call} other {# calls}}"
+msgstr "{0, plural, one {# call} other {# calls}}"
 
 #. placeholder {0}: candidates.length
 #: src/components/MetadataManager.tsx
@@ -502,6 +515,7 @@ msgid "{0, plural, one {Accept # volume} other {Accept # volumes}}"
 msgstr "{0, plural, one {Accept # volume} other {Accept # volumes}}"
 
 #. placeholder {0}: acceptedPaths.length
+#. placeholder {0}: acceptedPaths.size
 #. placeholder {0}: result.accepted.length
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Accepted # book} other {Accepted # books}}"
@@ -626,6 +640,10 @@ msgstr "{books, plural, one {{total} from # book} other {{total} from # books}}"
 msgid "{bt} — {st} to {en} ({dur})"
 msgstr "{bt} — {st} to {en} ({dur})"
 
+#: src/components/MetadataFetchModal.tsx
+msgid "{changes, plural, one {# change proposed. Check it before applying.} other {# changes proposed. Check them before applying.}}"
+msgstr "{changes, plural, one {# change proposed. Check it before applying.} other {# changes proposed. Check them before applying.}}"
+
 #: src/pages/AdminPage.tsx
 msgid "{clearResult} covers deleted."
 msgstr "{clearResult} covers deleted."
@@ -729,6 +747,10 @@ msgstr "{failed, plural, one {# book could not be deleted} other {# books could 
 #: src/components/UploadModal.tsx
 msgid "{failed, plural, one {Upload failed for # file} other {Upload failed for # files}}"
 msgstr "{failed, plural, one {Upload failed for # file} other {Upload failed for # files}}"
+
+#: src/pages/BinderyPage.tsx
+msgid "{failedN} failed: {firstErr}"
+msgstr "{failedN} failed: {firstErr}"
 
 #: src/pages/BinderyPage.tsx
 msgid "{failedN} of {totalN} failed — {firstErr}"
@@ -986,6 +1008,11 @@ msgstr "{pacePerMin} pg/min"
 msgid "{pages} pages in {dur}"
 msgstr "{pages} pages in {dur}"
 
+#: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
+msgid "{pct}% confident"
+msgstr "{pct}% confident"
+
 #: src/components/stats/widgets/habits.tsx
 msgid "{pct}% less reading this period"
 msgstr "{pct}% less reading this period"
@@ -1073,6 +1100,10 @@ msgstr "{title} — {dur} between {from} and {to}"
 #: src/lib/goals.ts
 msgid "{toGo} to go"
 msgstr "{toGo} to go"
+
+#: src/components/AiSettings.tsx
+msgid "{tokens} tokens"
+msgstr "{tokens} tokens"
 
 #: src/pages/DashboardPage.tsx
 msgid "{total, plural, one {# volume} other {# volumes}}"
@@ -1293,8 +1324,16 @@ msgid "Accept All"
 msgstr "Accept All"
 
 #: src/pages/BinderyPage.tsx
+msgid "Accept every AI proposal at or above {pct}% confidence. The rest stay here for review."
+msgstr "Accept every AI proposal at or above {pct}% confidence. The rest stay here for review."
+
+#: src/pages/BinderyPage.tsx
 msgid "Accept failed"
 msgstr "Accept failed"
+
+#: src/pages/BinderyPage.tsx
+msgid "Accept the obvious ({n})"
+msgstr "Accept the obvious ({n})"
 
 #: src/pages/BinderyPage.tsx
 msgid "Accepted: {title}"
@@ -1336,6 +1375,10 @@ msgstr "Add"
 #: src/components/SendToDeviceModal.tsx
 msgid "Add a device in Settings to start sending books."
 msgstr "Add a device in Settings to start sending books."
+
+#: src/components/AiSettings.tsx
+msgid "Add a key to turn on the AI buttons. It is checked with {provider} before it is saved and stored encrypted."
+msgstr "Add a key to turn on the AI buttons. It is checked with {provider} before it is saved and stored encrypted."
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
@@ -1444,6 +1487,10 @@ msgstr "Added"
 msgid "Added {timeAgo}"
 msgstr "Added {timeAgo}"
 
+#: src/components/AiSettings.tsx
+msgid "added {when}"
+msgstr "added {when}"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Added to Want to Read"
 msgstr "Added to Want to Read"
@@ -1457,6 +1504,48 @@ msgstr "Admin"
 #: src/pages/AdminPage.tsx
 msgid "Admin access required."
 msgstr "Admin access required."
+
+#: src/components/AiBadge.tsx
+#: src/pages/SettingsPage.tsx
+msgid "AI"
+msgstr "AI"
+
+#: src/components/ManageSeriesModal.tsx
+msgid "AI cleanup failed"
+msgstr "AI cleanup failed"
+
+#: src/pages/BinderyPage.tsx
+msgid "AI confidence {pct}%: {evidence}"
+msgstr "AI confidence {pct}%: {evidence}"
+
+#: src/components/AiSettings.tsx
+msgid "AI features"
+msgstr "AI features"
+
+#: src/components/AiSettings.tsx
+msgid "AI features are switched off for everyone. Members do not see this section or any AI button until you turn them back on below."
+msgstr "AI features are switched off for everyone. Members do not see this section or any AI button until you turn them back on below."
+
+#: src/components/AiSettings.tsx
+msgid "AI features are switched off on this server. You can still remove your stored key."
+msgstr "AI features are switched off on this server. You can still remove your stored key."
+
+#: src/components/AiSettings.tsx
+msgid "AI features on"
+msgstr "AI features on"
+
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/BookDetailPage.tsx
+msgid "AI fix"
+msgstr "AI fix"
+
+#: src/pages/BookDetailPage.tsx
+msgid "AI fix failed"
+msgstr "AI fix failed"
+
+#: src/pages/BinderyPage.tsx
+msgid "AI identification failed"
+msgstr "AI identification failed"
 
 #: src/pages/StatsPage.tsx
 msgid "all"
@@ -1539,6 +1628,7 @@ msgstr "All series"
 msgid "All types"
 msgstr "All types"
 
+#: src/components/AiSettings.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "All users"
@@ -1650,6 +1740,10 @@ msgstr "Apply failed"
 msgid "Apply Selected"
 msgstr "Apply Selected"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Apply selected ({selectedCount})"
+msgstr "Apply selected ({selectedCount})"
+
 #: src/components/CoverAudit.tsx
 msgid "Apply the first cover-search candidate"
 msgstr "Apply the first cover-search candidate"
@@ -1676,6 +1770,10 @@ msgstr "Applying {done}/{total}…"
 msgid "Applying failed — nothing was changed."
 msgstr "Applying failed — nothing was changed."
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Applying replaces the current arcs ({currentArcList}) with the checked ones."
+msgstr "Applying replaces the current arcs ({currentArcList}) with the checked ones."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Applying…"
 msgstr "Applying…"
@@ -1692,9 +1790,17 @@ msgstr "Arcs"
 msgid "Are you getting faster?"
 msgstr "Are you getting faster?"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Ask again"
+msgstr "Ask again"
+
 #: src/pages/SettingsPage.tsx
 msgid "Ask your server admin if you don't manage the Tome installation yourself."
 msgstr "Ask your server admin if you don't manage the Tome installation yourself."
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Asking Anthropic about this series. This can take a minute."
+msgstr "Asking Anthropic about this series. This can take a minute."
 
 #: src/components/MetadataManager.tsx
 msgid "Assign Chapter Metadata"
@@ -1992,6 +2098,7 @@ msgid "books"
 msgstr "books"
 
 #: src/components/CommandPalette.tsx
+#: src/components/ManageSeriesModal.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2057,10 +2164,15 @@ msgstr "Browse your library"
 msgid "Calendar"
 msgstr "Calendar"
 
+#: src/components/AiSettings.tsx
+msgid "Calls"
+msgstr "Calls"
+
 #: src/components/WishlistModal.tsx
 msgid "Can't find it? Add manually"
 msgstr "Can't find it? Add manually"
 
+#: src/components/AiSettings.tsx
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/EntityModal.tsx
 #: src/components/InstanceBackup.tsx
@@ -2119,6 +2231,10 @@ msgid "Change Password"
 msgstr "Change Password"
 
 #: src/pages/BinderyPage.tsx
+msgid "Changed after the AI proposal ({pct}% confident). Accept the obvious skips this row."
+msgstr "Changed after the AI proposal ({pct}% confident). Accept the obvious skips this row."
+
+#: src/pages/BinderyPage.tsx
 msgid "chapter"
 msgstr "chapter"
 
@@ -2134,6 +2250,11 @@ msgstr "Chapters"
 #: src/pages/StatsPage.tsx
 msgid "Chart type"
 msgstr "Chart type"
+
+#: src/components/AiSettings.tsx
+#: src/pages/BookDetailPage.tsx
+msgid "Checking…"
+msgstr "Checking…"
 
 #: src/components/WishlistModal.tsx
 msgid "Choose a different book"
@@ -2154,6 +2275,14 @@ msgstr "Choose file…"
 #: src/components/Sidebar.tsx
 msgid "Choose icon"
 msgstr "Choose icon"
+
+#: src/lib/ai.ts
+msgid "Clean up this series"
+msgstr "Clean up this series"
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Clean up with AI"
+msgstr "Clean up with AI"
 
 #: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
@@ -2301,6 +2430,10 @@ msgstr "Completion Estimates"
 msgid "Completion Rate"
 msgstr "Completion Rate"
 
+#: src/components/AiSettings.tsx
+msgid "Confidence threshold"
+msgstr "Confidence threshold"
+
 #: src/pages/StatsPage.tsx
 msgid "Configure"
 msgstr "Configure"
@@ -2395,6 +2528,10 @@ msgstr "Copy token"
 msgid "Core"
 msgstr "Core"
 
+#: src/components/AiSettings.tsx
+msgid "Cost"
+msgstr "Cost"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Could not apply the sync code"
 msgstr "Could not apply the sync code"
@@ -2419,6 +2556,10 @@ msgstr "Could not link SSO. Please try again."
 msgid "Could not load this scope."
 msgstr "Could not load this scope."
 
+#: src/components/AiSettings.tsx
+msgid "Could not load usage."
+msgstr "Could not load usage."
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Could not load your reading calendar."
 msgstr "Could not load your reading calendar."
@@ -2435,9 +2576,21 @@ msgstr "Could not read that file"
 msgid "Could not read that photo."
 msgstr "Could not read that photo."
 
+#: src/components/AiSettings.tsx
+msgid "Could not remove the key"
+msgstr "Could not remove the key"
+
 #: src/components/SeriesFollowButton.tsx
 msgid "Could not resolve this series on Hardcover"
 msgstr "Could not resolve this series on Hardcover"
+
+#: src/components/AiSettings.tsx
+msgid "Could not save AI settings"
+msgstr "Could not save AI settings"
+
+#: src/components/AiSettings.tsx
+msgid "Could not save the key"
+msgstr "Could not save the key"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Could not set match"
@@ -2656,6 +2809,10 @@ msgstr "Dead entries removed"
 msgid "Default"
 msgstr "Default"
 
+#: src/components/AiSettings.tsx
+msgid "Default ({defaultModel})"
+msgstr "Default ({defaultModel})"
+
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -2728,6 +2885,10 @@ msgstr "Delete this imported sitting"
 #: src/pages/StatsPage.tsx
 msgid "Deleted board “{name}”"
 msgstr "Deleted board “{name}”"
+
+#: src/components/AiSettings.tsx
+msgid "Deleted user"
+msgstr "Deleted user"
 
 #: src/pages/BinderyPage.tsx
 #~ msgid "Deleting..."
@@ -3002,6 +3163,10 @@ msgstr "Edit Shelf"
 msgid "Edit User"
 msgstr "Edit User"
 
+#: src/pages/BinderyPage.tsx
+msgid "Edited"
+msgstr "Edited"
+
 #: src/components/WordCount.tsx
 msgid "Elapsed {el} · ~{eta} left"
 msgstr "Elapsed {el} · ~{eta} left"
@@ -3068,6 +3233,10 @@ msgstr "Est. read time"
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
 msgstr "Est. remaining"
+
+#: src/components/AiSettings.tsx
+msgid "Estimated from list prices. Your {provider} invoice is the source of truth."
+msgstr "Estimated from list prices. Your {provider} invoice is the source of truth."
 
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "Every day you read, and what it looked like."
@@ -3391,6 +3560,14 @@ msgstr "fantasy, action, romance"
 msgid "Fastest"
 msgstr "Fastest"
 
+#: src/components/AiSettings.tsx
+msgid "Feature"
+msgstr "Feature"
+
+#: src/components/AiSettings.tsx
+msgid "Features"
+msgstr "Features"
+
 #: src/components/MetadataManager.tsx
 msgid "Fetch"
 msgstr "Fetch"
@@ -3517,6 +3694,10 @@ msgstr "Fit page height (W)"
 msgid "Fit page width (W)"
 msgstr "Fit page width (W)"
 
+#: src/lib/ai.ts
+msgid "Fix this book"
+msgstr "Fix this book"
+
 #: src/components/CoverAudit.tsx
 msgid "Fixed"
 msgstr "Fixed"
@@ -3582,6 +3763,10 @@ msgstr "Fri"
 msgid "From"
 msgstr "From"
 
+#: src/components/AiSettings.tsx
+msgid "from TOME_ANTHROPIC_API_KEY"
+msgstr "from TOME_ANTHROPIC_API_KEY"
+
 #: src/pages/DashboardPage.tsx
 msgid "From your highlights"
 msgstr "From your highlights"
@@ -3626,6 +3811,10 @@ msgstr "Generated just now from your instance, by the same code that would send 
 #: src/pages/BookDetailPage.tsx
 msgid "Genres"
 msgstr "Genres"
+
+#: src/components/AiSettings.tsx
+msgid "Get a key"
+msgstr "Get a key"
 
 #: src/components/SeriesFollowButton.tsx
 msgid "Get notified when a new volume is released"
@@ -3843,6 +4032,30 @@ msgstr "How you spread your 1–5 stars"
 msgid "Icon"
 msgstr "Icon"
 
+#: src/pages/BinderyPage.tsx
+msgid "Identified {n} of {total} files. Check the proposals before accepting."
+msgstr "Identified {n} of {total} files. Check the proposals before accepting."
+
+#: src/pages/BinderyPage.tsx
+msgid "Identify"
+msgstr "Identify"
+
+#: src/pages/BinderyPage.tsx
+msgid "Identify {n} files with AI? Their filenames, embedded metadata and first pages are sent to Anthropic in {calls} requests, billed to your key."
+msgstr "Identify {n} files with AI? Their filenames, embedded metadata and first pages are sent to Anthropic in {calls} requests, billed to your key."
+
+#: src/lib/ai.ts
+msgid "Identify in the Bindery"
+msgstr "Identify in the Bindery"
+
+#: src/pages/BinderyPage.tsx
+msgid "Identify with AI"
+msgstr "Identify with AI"
+
+#: src/pages/BinderyPage.tsx
+msgid "Identifying {done}/{total}…"
+msgstr "Identifying {done}/{total}…"
+
 #: src/components/TelemetryConsentCard.tsx
 msgid "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
 msgstr "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
@@ -3921,6 +4134,14 @@ msgstr "Index"
 #: src/components/InstanceBackup.tsx
 msgid "Instance backup"
 msgstr "Instance backup"
+
+#: src/components/AiSettings.tsx
+msgid "Instance key"
+msgstr "Instance key"
+
+#: src/components/AiSettings.tsx
+msgid "Instance settings"
+msgstr "Instance settings"
 
 #: src/pages/AdminPage.tsx
 msgid "IP:"
@@ -4092,6 +4313,10 @@ msgstr "Learn more"
 msgid "Less"
 msgstr "Less"
 
+#: src/components/AiSettings.tsx
+msgid "Let members use the instance key"
+msgstr "Let members use the instance key"
+
 #: src/pages/SetupPage.tsx
 msgid "librarian"
 msgstr "librarian"
@@ -4216,6 +4441,7 @@ msgstr "Loading your reading life…"
 #~ msgid "Loading..."
 #~ msgstr "Loading..."
 
+#: src/components/AiSettings.tsx
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
 #: src/components/PositionHistoryModal.tsx
@@ -4378,6 +4604,10 @@ msgstr "Member"
 msgid "Members can add books to their wishlist."
 msgstr "Members can add books to their wishlist."
 
+#: src/components/AiSettings.tsx
+msgid "Members without their own key use the instance key, billed to its {provider} account."
+msgstr "Members without their own key use the instance key, billed to its {provider} account."
+
 #: src/pages/AdminPage.tsx
 msgid "Merge"
 msgstr "Merge"
@@ -4439,6 +4669,14 @@ msgstr "missing: {missingList}"
 #: src/pages/StatsPage.tsx
 msgid "Mo"
 msgstr "Mo"
+
+#: src/components/AiSettings.tsx
+msgid "Model"
+msgstr "Model"
+
+#: src/components/AiSettings.tsx
+msgid "Model for {label}"
+msgstr "Model for {label}"
 
 #: src/components/stats/HourDowHeatmap.tsx
 #: src/components/stats/widgets/habits.tsx
@@ -4695,6 +4933,14 @@ msgstr "No candidates found."
 msgid "No category data."
 msgstr "No category data."
 
+#: src/components/MetadataFetchModal.tsx
+msgid "No changes proposed."
+msgstr "No changes proposed."
+
+#: src/components/ManageSeriesModal.tsx
+msgid "No changes proposed. This series looks consistent."
+msgstr "No changes proposed. This series looks consistent."
+
 #: src/pages/StatsPage.tsx
 msgid "No comparison data."
 msgstr "No comparison data."
@@ -4816,6 +5062,10 @@ msgstr "no new fields"
 #: src/components/NotificationBell.tsx
 msgid "No notifications yet"
 msgstr "No notifications yet"
+
+#: src/components/ManageSeriesModal.tsx
+msgid "no number"
+msgstr "no number"
 
 #: src/pages/AdminPage.tsx
 msgid "No open wishes."
@@ -5029,6 +5279,10 @@ msgstr "No type (staging / admin only)"
 msgid "No unstarted books in this scope."
 msgstr "No unstarted books in this scope."
 
+#: src/components/AiSettings.tsx
+msgid "No usage this month"
+msgstr "No usage this month"
+
 #: src/pages/AdminPage.tsx
 msgid "No users have added devices yet."
 msgstr "No users have added devices yet."
@@ -5180,6 +5434,10 @@ msgstr "of {totalPages} pages"
 msgid "Off"
 msgstr "Off"
 
+#: src/components/AiSettings.tsx
+msgid "Off hides every AI button and this section from members. Keys and usage are kept."
+msgstr "Off hides every AI button and this section from members. Keys and usage are kept."
+
 #: src/components/TelemetryConsentCard.tsx
 msgid "Off, declined on {d}."
 msgstr "Off, declined on {d}."
@@ -5191,6 +5449,10 @@ msgstr "Off, disabled by TOME_TELEMETRY."
 #: src/components/TelemetryConsentCard.tsx
 msgid "Off, you have not opted in."
 msgstr "Off, you have not opted in."
+
+#: src/components/AiSettings.tsx
+msgid "On"
+msgstr "On"
 
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
@@ -5246,6 +5508,10 @@ msgstr "Ongoing"
 msgid "Only a brief open this day, under a minute."
 msgstr "Only a brief open this day, under a minute."
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Only admins can change this."
+msgstr "Only admins can change this."
+
 #: src/pages/DashboardPage.tsx
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
 msgstr "Only filled fields will be updated. Leave blank to keep existing values."
@@ -5299,6 +5565,10 @@ msgstr "Opened {a} for the first time."
 #: src/components/ManageSeriesModal.tsx
 msgid "Optional"
 msgstr "Optional"
+
+#: src/components/AiSettings.tsx
+msgid "Optional helpers that propose metadata for you to confirm. Nothing is ever changed without your click. They run on {provider} with an API key: your own, or one your admin shares."
+msgstr "Optional helpers that propose metadata for you to confirm. Nothing is ever changed without your click. They run on {provider} with an API key: your own, or one your admin shares."
 
 #: src/components/WishlistModal.tsx
 msgid "Optional note (e.g. 'the new one')"
@@ -5457,6 +5727,10 @@ msgstr "Passwords do not match."
 msgid "Past midnight"
 msgstr "Past midnight"
 
+#: src/components/AiSettings.tsx
+msgid "Paste your API key"
+msgstr "Paste your API key"
+
 #: src/components/HardcoverSync.tsx
 msgid "Paste your Hardcover API token"
 msgstr "Paste your Hardcover API token"
@@ -5521,6 +5795,10 @@ msgstr "Pick which book to keep and an action per group — Merge, Delete Others
 msgid "Pick your own metric — avg session, pages/day, best day…"
 msgstr "Pick your own metric — avg session, pages/day, best day…"
 
+#: src/lib/ai.ts
+msgid "Picks the right metadata match for one book and proposes a diff to confirm."
+msgstr "Picks the right metadata match for one book and proposes a diff to confirm."
+
 #: src/pages/SettingsPage.tsx
 msgid "PIN created — copy it now, it won't be shown again."
 msgstr "PIN created — copy it now, it won't be shown again."
@@ -5544,6 +5822,10 @@ msgstr "Position history — restore a bad sync"
 #: src/components/ScanSyncCodeModal.tsx
 msgid "position kept, newer here"
 msgstr "position kept, newer here"
+
+#: src/lib/ai.ts
+msgid "Pre-fills title, author, series, volume, type and tags for new files from the filename, embedded metadata and the first pages."
+msgstr "Pre-fills title, author, series, volume, type and tags for new files from the filename, embedded metadata and the first pages."
 
 #: src/pages/SettingsPage.tsx
 msgid "Prefix"
@@ -5645,6 +5927,22 @@ msgstr "Progress % <0>(optional)</0>"
 #: src/pages/SettingsPage.tsx
 msgid "Progress Sync"
 msgstr "Progress Sync"
+
+#: src/pages/BinderyPage.tsx
+msgid "Propose metadata for all {n} files. Filenames, embedded metadata and the first pages are sent to Anthropic."
+msgstr "Propose metadata for all {n} files. Filenames, embedded metadata and the first pages are sent to Anthropic."
+
+#: src/pages/BinderyPage.tsx
+msgid "Propose metadata for the {n} selected files. Filenames, embedded metadata and the first pages are sent to Anthropic."
+msgstr "Propose metadata for the {n} selected files. Filenames, embedded metadata and the first pages are sent to Anthropic."
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Proposed by Anthropic. Nothing changes until you apply."
+msgstr "Proposed by Anthropic. Nothing changes until you apply."
+
+#: src/lib/ai.ts
+msgid "Proposes one diff for a series: name, volume titles and numbers, status and arcs."
+msgstr "Proposes one diff for a series: name, volume titles and numbers, status and arcs."
 
 #: src/components/Sidebar.tsx
 msgid "Public library"
@@ -6035,6 +6333,7 @@ msgstr "Reject files"
 msgid "Reject imported book"
 msgstr "Reject imported book"
 
+#: src/components/AiSettings.tsx
 #: src/components/UploadModal.tsx
 msgid "Remove"
 msgstr "Remove"
@@ -6107,6 +6406,10 @@ msgstr "Rename {name}"
 msgid "Rename board"
 msgstr "Rename board"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Renaming needs edit rights on every book in the series."
+msgstr "Renaming needs edit rights on every book in the series."
+
 #: src/components/LibraryHealth.tsx
 msgid "Reorganization complete"
 msgstr "Reorganization complete"
@@ -6122,6 +6425,10 @@ msgstr "Reorganize failed"
 #: src/components/LibraryHealth.tsx
 msgid "Reorganize Selected ({n})"
 msgstr "Reorganize Selected ({n})"
+
+#: src/components/AiSettings.tsx
+msgid "Replace"
+msgstr "Replace"
 
 #: src/components/NotificationChannels.tsx
 msgid "request failed"
@@ -6306,6 +6613,10 @@ msgstr "Save current filters as a shelf"
 msgid "Save failed"
 msgstr "Save failed"
 
+#: src/components/AiSettings.tsx
+msgid "Save key"
+msgstr "Save key"
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "Save note"
@@ -6458,6 +6769,10 @@ msgstr "Search icons…"
 msgid "Search manually"
 msgstr "Search manually"
 
+#: src/components/MetadataFetchModal.tsx
+msgid "Search manually instead"
+msgstr "Search manually instead"
+
 #: src/pages/BinderyPage.tsx
 msgid "Search query..."
 msgstr "Search query..."
@@ -6580,6 +6895,14 @@ msgstr "Sending"
 msgid "Sending…"
 msgstr "Sending…"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Sends the titles, volume numbers and file names of the books you can see in this series to Anthropic, which proposes fixes for you to check"
+msgstr "Sends the titles, volume numbers and file names of the books you can see in this series to Anthropic, which proposes fixes for you to check"
+
+#: src/pages/BookDetailPage.tsx
+msgid "Sends this book's metadata, file names and first pages to Anthropic, which picks the right match and proposes changes for you to check"
+msgstr "Sends this book's metadata, file names and first pages to Anthropic, which picks the right match and proposes changes for you to check"
+
 #: src/pages/AdminPage.tsx
 msgid "Sent"
 msgstr "Sent"
@@ -6626,6 +6949,7 @@ msgstr "Series Completion"
 msgid "Series index"
 msgstr "Series index"
 
+#: src/components/ManageSeriesModal.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -7056,6 +7380,7 @@ msgstr "Starting the camera…"
 msgid "Stats"
 msgstr "Stats"
 
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Status"
@@ -7345,6 +7670,10 @@ msgstr "This is the report"
 #~ msgid "this month"
 #~ msgstr "this month"
 
+#: src/components/AiSettings.tsx
+msgid "This month"
+msgstr "This month"
+
 #: src/pages/StatsPage.tsx
 msgid "This Month"
 msgstr "This Month"
@@ -7372,6 +7701,10 @@ msgstr "This permanently removes the selected books and their files from disk. T
 #: src/components/InstanceBackup.tsx
 msgid "This replaces <0>the entire database</0> at the next restart. Type <1>RESTORE</1> to arm it."
 msgstr "This replaces <0>the entire database</0> at the next restart. Type <1>RESTORE</1> to arm it."
+
+#: src/components/ManageSeriesModal.tsx
+msgid "This series has no arcs yet. Applying adds the checked ones."
+msgstr "This series has no arcs yet. Applying adds the checked ones."
 
 #: src/components/ManageSeriesModal.tsx
 msgid "This series has no volumes with a numeric index yet. Add volumes before defining arcs."
@@ -7473,6 +7806,10 @@ msgstr "Title is required"
 msgid "Title is required."
 msgstr "Title is required."
 
+#: src/components/AiSettings.tsx
+msgid "Titles, authors and a few pages of text are sent to {provider} when you use these features. Nothing is sent until you click an AI button."
+msgstr "Titles, authors and a few pages of text are sent to {provider} when you use these features. Nothing is sent until you click an AI button."
+
 #: src/components/WordCount.tsx
 msgid "To count"
 msgstr "To count"
@@ -7507,6 +7844,14 @@ msgstr "Toggle theme"
 #: src/pages/SettingsPage.tsx
 msgid "Token name"
 msgstr "Token name"
+
+#: src/components/AiSettings.tsx
+msgid "Tokens in"
+msgstr "Tokens in"
+
+#: src/components/AiSettings.tsx
+msgid "Tokens out"
+msgstr "Tokens out"
 
 #: src/pages/LoginPage.tsx
 #: src/pages/SetupPage.tsx
@@ -7586,6 +7931,7 @@ msgid "Try adjusting your filters"
 msgstr "Try adjusting your filters"
 
 #: src/components/ConnectPhoneModal.tsx
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/LoginPage.tsx
 msgid "Try again"
 msgstr "Try again"
@@ -7785,6 +8131,11 @@ msgstr "Use this as the OPDS password in KOReader (username stays the same)."
 msgid "used {d}"
 msgstr "used {d}"
 
+#: src/components/AiSettings.tsx
+msgid "Used by admins without their own key, and by members when you share it below. You can also set it with TOME_ANTHROPIC_API_KEY."
+msgstr "Used by admins without their own key, and by members when you share it below. You can also set it with TOME_ANTHROPIC_API_KEY."
+
+#: src/components/AiSettings.tsx
 #: src/pages/AdminPage.tsx
 msgid "User"
 msgstr "User"
@@ -7806,6 +8157,10 @@ msgstr "Username or email"
 #: src/pages/AdminPage.tsx
 msgid "Users"
 msgstr "Users"
+
+#: src/components/AiBadge.tsx
+msgid "Uses your Anthropic key"
+msgstr "Uses your Anthropic key"
 
 #: src/pages/SettingsPage.tsx
 msgid "Verify it's working"
@@ -7859,10 +8214,15 @@ msgstr "Vol. {volIdx}"
 msgid "volume"
 msgstr "volume"
 
+#: src/components/ManageSeriesModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Volume"
 msgstr "Volume"
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Volume {curVol}"
+msgstr "Volume {curVol}"
 
 #: src/components/SeriesCoverageStrip.tsx
 msgid "Volume {n} — not in the library"
@@ -7876,6 +8236,10 @@ msgstr "Volume <0>{v}</0>"
 msgid "Volumes"
 msgstr "Volumes"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Volumes {range}"
+msgstr "Volumes {range}"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Waiting for a code…"
 msgstr "Waiting for a code…"
@@ -7887,6 +8251,10 @@ msgstr "Waiting for authorization…"
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."
 msgstr "Walk the library directory and add any new book files found."
+
+#: src/components/AiSettings.tsx
+msgid "Want a hosted option that needs no key? <0>Say so in the discussion.</0>"
+msgstr "Want a hosted option that needs no key? <0>Say so in the discussion.</0>"
 
 #: src/pages/AdminPage.tsx
 msgid "want to read"
@@ -8091,6 +8459,14 @@ msgstr "You"
 msgid "You already have this goal — edit it from its tile instead."
 msgstr "You already have this goal — edit it from its tile instead."
 
+#: src/components/AiSettings.tsx
+msgid "You are using the instance key your admin shares. Add your own key to bill your own {provider} account instead."
+msgstr "You are using the instance key your admin shares. Add your own key to bill your own {provider} account instead."
+
+#: src/components/ManageSeriesModal.tsx
+msgid "You can only edit books you uploaded."
+msgstr "You can only edit books you uploaded."
+
 #: src/pages/BookDetailPage.tsx
 msgid "You rated this {rating}/5"
 msgstr "You rated this {rating}/5"
@@ -8111,6 +8487,10 @@ msgstr "Your account is linked to SSO — you can sign in with your identity pro
 msgid "Your account is not permitted to sign in to Tome."
 msgstr "Your account is not permitted to sign in to Tome."
 
+#: src/components/AiSettings.tsx
+msgid "Your API key"
+msgstr "Your API key"
+
 #: src/lib/backlog.ts
 msgid "Your average time per finished book of this type (no word count)"
 msgstr "Your average time per finished book of this type (no word count)"
@@ -8118,6 +8498,10 @@ msgstr "Your average time per finished book of this type (no word count)"
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Your biggest reading day this month: {dur} with {mainTitle}."
 msgstr "Your biggest reading day this month: {dur} with {mainTitle}."
+
+#: src/components/AiSettings.tsx
+msgid "Your calls use the instance key below. Add your own key to bill your own {provider} account instead."
+msgstr "Your calls use the instance key below. Add your own key to bill your own {provider} account instead."
 
 #: src/components/HardcoverSync.tsx
 msgid "Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing."

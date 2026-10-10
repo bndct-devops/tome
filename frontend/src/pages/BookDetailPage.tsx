@@ -13,7 +13,8 @@ import { useToast } from '@/contexts/ToastContext'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { MetadataFetchModal } from '@/components/MetadataFetchModal'
+import { MetadataFetchModal, type AiProposal } from '@/components/MetadataFetchModal'
+import { AiBadge } from '@/components/AiBadge'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
 import { PositionHistoryModal } from '@/components/PositionHistoryModal'
 import { ShareModal } from '@/components/ShareShelfModal'
@@ -30,6 +31,7 @@ import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
 import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate } from '@/lib/backlog'
+import { useAiStatus, fixBook, fixProposalToCandidate } from '@/lib/ai'
 
 interface Facets {
   authors: string[]
@@ -193,6 +195,14 @@ export function BookDetailPage() {
   const [draftBookTypeId, setDraftBookTypeId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fetchModalOpen, setFetchModalOpen] = useState(false)
+  // "AI fix": the proposal the metadata dialog opens on (null = normal fetch).
+  const [aiProposal, setAiProposal] = useState<AiProposal | null>(null)
+  const [aiFixing, setAiFixing] = useState(false)
+  // The book id the page currently shows. The route reuses this component for
+  // every /books/:id, so an AI fix that resolves after the user has moved to
+  // another volume must not open (or apply) on the new one.
+  const routeIdRef = useRef(id)
+  const { available: aiAvailable } = useAiStatus()
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
   const [libraries, setLibraries] = useState<LibraryType[]>([])
   const [libMenuOpen, setLibMenuOpen] = useState(false)
@@ -247,6 +257,28 @@ export function BookDetailPage() {
   const canEdit = isMember(user)
   const canDelete = isMember(user)
 
+  async function runAiFix() {
+    if (!book || aiFixing) return
+    const requested = String(book.id)
+    const stillHere = () => routeIdRef.current === requested
+    setAiFixing(true)
+    try {
+      const res = await fixBook(book.id)
+      if (!stillHere()) return
+      setAiProposal({
+        candidate: fixProposalToCandidate(res),
+        confidence: res.confidence,
+        evidence: res.evidence,
+        threshold: res.threshold,
+      })
+      setFetchModalOpen(true)
+    } catch (e) {
+      if (stillHere()) toast.error(e instanceof Error ? e.message : t`AI fix failed`)
+    } finally {
+      if (stillHere()) setAiFixing(false)
+    }
+  }
+
   useEffect(() => {
     if (!isDirty) return
     function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -299,6 +331,11 @@ export function BookDetailPage() {
   }, [navigate, book, editing, canEdit])
 
   useEffect(() => {
+    routeIdRef.current = id
+    // Per-book AI state never carries over to another book.
+    setAiFixing(false)
+    setAiProposal(null)
+    setFetchModalOpen(false)
     if (!id) return
     setAdjacent(null)
     api.get<BookDetail>(`/books/${id}`)
@@ -1424,11 +1461,23 @@ export function BookDetailPage() {
                 </button>
                 {book.content_type !== 'chapter' && (
                   <button
-                    onClick={() => setFetchModalOpen(true)}
+                    onClick={() => { setAiProposal(null); setFetchModalOpen(true) }}
                     className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline"><Trans>Fetch Metadata</Trans></span>
+                  </button>
+                )}
+                {book.content_type !== 'chapter' && aiAvailable('fix_book') && (
+                  <button
+                    onClick={runAiFix}
+                    disabled={aiFixing}
+                    title={t`Sends this book's metadata, file names and first pages to Anthropic, which picks the right match and proposes changes for you to check`}
+                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:hover:translate-y-0"
+                  >
+                    {aiFixing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span className="hidden sm:inline">{aiFixing ? <Trans>Checking…</Trans> : <Trans>AI fix</Trans>}</span>
+                    <AiBadge />
                   </button>
                 )}
                 <button
@@ -1497,6 +1546,7 @@ export function BookDetailPage() {
           open={fetchModalOpen}
           onClose={() => setFetchModalOpen(false)}
           onApplied={updated => { setBook(updated); setDraft(updated) }}
+          aiProposal={aiProposal}
         />
       )}
       {book && (

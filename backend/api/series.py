@@ -9,6 +9,8 @@ from backend.core.security import get_current_user
 from backend.core.permissions import require_role, is_admin
 from backend.models.series_meta import Arc, SeriesMeta
 from backend.models.user import User
+from backend.services import series_meta as series_meta_service
+from backend.services.series_meta import ArcError
 from backend.schemas.series import (
     ArcCreate,
     ArcOut,
@@ -19,7 +21,7 @@ from backend.schemas.series import (
 
 router = APIRouter(tags=["series"])
 
-VALID_STATUSES = {"ongoing", "finished", "hiatus", "unknown"}
+VALID_STATUSES = series_meta_service.VALID_STATUSES
 
 
 # ── Series reading-stats endpoint ─────────────────────────────────────────────
@@ -172,37 +174,10 @@ def bulk_upsert_arcs(
     """
     require_role(current_user, "admin")
 
-    for arc_in in body:
-        _validate_arc_indices(arc_in.start_index, arc_in.end_index)
-
-    existing: dict[str, Arc] = {
-        arc.name: arc
-        for arc in db.query(Arc).filter(Arc.series_name == name).all()
-    }
-
-    incoming_names = {arc_in.name for arc_in in body}
-
-    # Delete arcs not in the incoming payload
-    for arc_name, arc in list(existing.items()):
-        if arc_name not in incoming_names:
-            db.delete(arc)
-
-    # Create or update
-    for arc_in in body:
-        if arc_in.name in existing:
-            arc = existing[arc_in.name]
-            arc.start_index = arc_in.start_index
-            arc.end_index = arc_in.end_index
-            arc.description = arc_in.description
-        else:
-            arc = Arc(
-                series_name=name,
-                name=arc_in.name,
-                start_index=arc_in.start_index,
-                end_index=arc_in.end_index,
-                description=arc_in.description,
-            )
-            db.add(arc)
+    try:
+        series_meta_service.sync_arcs(db, name, body)
+    except ArcError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     db.commit()
     audit(db, "series.arcs_bulk_set", user_id=current_user.id, username=current_user.username,
@@ -256,12 +231,7 @@ def upsert_series_meta(
 ):
     """Upsert the SeriesMeta for a series. Admin only."""
     require_role(current_user, "admin")
-    meta = db.query(SeriesMeta).filter(SeriesMeta.series_name == name).first()
-    if meta is None:
-        meta = SeriesMeta(series_name=name, status=body.status)
-        db.add(meta)
-    else:
-        meta.status = body.status
+    meta = series_meta_service.set_series_status(db, name, body.status)
     db.commit()
     db.refresh(meta)
     audit(db, "series.meta_updated", user_id=current_user.id, username=current_user.username,
@@ -374,8 +344,7 @@ def set_series_rating(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _validate_arc_indices(start: float, end: float) -> None:
-    if start > end:
-        raise HTTPException(
-            status_code=400,
-            detail="start_index must be <= end_index",
-        )
+    try:
+        series_meta_service.validate_arc_indices(start, end)
+    except ArcError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

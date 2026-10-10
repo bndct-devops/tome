@@ -31,6 +31,8 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_HARDCOVER_TOKEN</code></td><td>—</td><td>Hardcover API token (optional)</td></tr>
       <tr><td><code>TOME_HARDCOVER_SYNC_ENABLED</code></td><td><code>true</code></td><td>Kill switch for per-user <a href={withBase("/docs/hardcover")}>Hardcover sync</a> (the token above is metadata-only)</td></tr>
       <tr><td><code>TOME_GOOGLE_BOOKS_KEY</code></td><td>—</td><td>Google Books API key — your own quota instead of the shared anonymous pool (fixes 403/429 on busy fetch days; recommended for non-English catalogues)</td></tr>
+      <tr><td><code>TOME_AI_ENABLED</code></td><td><code>true</code></td><td>Hard off switch for the <a href="#ai-features">AI features</a>; <code>false</code> hides every AI surface and endpoint</td></tr>
+      <tr><td><code>TOME_ANTHROPIC_API_KEY</code></td><td>—</td><td>Anthropic API key used as the instance key for the <a href="#ai-features">AI features</a> when none is stored in Settings (optional)</td></tr>
       <tr><td><code>TOME_RELEASE_DETECTION</code></td><td><code>false</code></td><td>Follow series + new-volume alerts (needs the Hardcover token) — see <a href={withBase("/docs/wishlist")}>Wishlist</a></td></tr>
       <tr><td><code>TOME_RELEASE_CHECK_INTERVAL</code></td><td><code>86400</code></td><td>Seconds between release checks</td></tr>
       <tr><td><code>TOME_AUTO_IMPORT</code></td><td><code>false</code></td><td>Auto-ingest from Bindery</td></tr>
@@ -122,6 +124,21 @@ import { withBase } from '../../lib/path'
   <p>
     With no token set, Tome still fetches metadata via Google Books and Open Library — Hardcover
     just gets skipped.
+  </p>
+
+  <h2 id="ai-features">AI features</h2>
+  <p>
+    The AI features (Bindery identify, AI fix on a book page, Clean up with AI on a series) use
+    Anthropic and are bring-your-own-key. Members and admins can add their own key under
+    Settings &gt; AI, and admins can store an instance key there.
+    <code>TOME_ANTHROPIC_API_KEY</code> provides the instance key from the environment instead; a
+    key stored in Settings takes precedence. Admins always use the instance key, members only when
+    the admin lets them.
+  </p>
+  <p>
+    Nothing is sent to Anthropic until someone clicks an AI button, and every AI surface stays
+    hidden while no key is available. <code>TOME_AI_ENABLED=false</code> removes the features
+    entirely, whatever keys or settings exist.
   </p>
 
   <h2>Library scanning</h2>

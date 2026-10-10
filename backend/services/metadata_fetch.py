@@ -111,7 +111,12 @@ async def _attempt_source(name: str, factory) -> tuple[list[MetadataCandidate], 
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning("%s metadata fetch failed: %s", name, exc)
+            # Never log str(exc): an httpx error's text carries the request URL,
+            # and Google Books puts TOME_GOOGLE_BOOKS_KEY in the query string.
+            if isinstance(exc, httpx.HTTPStatusError):
+                logger.warning("%s metadata fetch failed: HTTP %s", name, exc.response.status_code)
+            else:
+                logger.warning("%s metadata fetch failed: %s", name, type(exc).__name__)
             return [], "error"
     return [], "error"
 

@@ -18,6 +18,8 @@ import { formatBytes } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from '@/components/CoverImage'
+import { AiBadge } from '@/components/AiBadge'
+import { useAiStatus, identifyFiles, IDENTIFY_BATCH_SIZE, type IdentifyResult } from '@/lib/ai'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,6 +66,8 @@ interface BinderyAcceptFile {
   cover_url?: string | null
   tags?: string[]
   library_ids?: number[]
+  /** The fields came from an AI proposal; recorded on the accept audit entry. */
+  ai_assisted?: boolean
 }
 
 type View = 'list' | 'review'
@@ -131,7 +135,60 @@ function itemToForm(item: BinderyItem, bookTypes: BookType[]): ItemForm {
   }
 }
 
-function formToAcceptFile(path: string, form: ItemForm): BinderyAcceptFile {
+// The fields that make up a book's identity. A row still "holds" the AI
+// proposal only while these match what the proposal filled in; libraries,
+// description, cover and tags may change freely.
+const AI_IDENTITY_FIELDS = ['title', 'author', 'series', 'series_index', 'content_type', 'book_type_id'] as const
+type AiIdentity = Pick<ItemForm, typeof AI_IDENTITY_FIELDS[number]>
+
+function identityOf(form: ItemForm): AiIdentity {
+  return {
+    title: form.title, author: form.author, series: form.series,
+    series_index: form.series_index, content_type: form.content_type, book_type_id: form.book_type_id,
+  }
+}
+
+// AI identification of one file, kept per path while its row is in review.
+interface AiMark {
+  confidence: number
+  evidence: string
+  snapshot: AiIdentity  // the identity the proposal filled in
+}
+
+// True while the form still carries the AI proposal's identity. Once the user
+// picks another candidate, applies a shared field or edits the identity, the
+// row is theirs: it leaves "Accept the obvious" and is no longer ai_assisted.
+function aiFormIntact(mark: AiMark | undefined, form: ItemForm | undefined): boolean {
+  if (!mark || !form) return false
+  return AI_IDENTITY_FIELDS.every(k => mark.snapshot[k].trim() === form[k].trim())
+}
+
+// Pre-fill a review form from an AI proposal. The matched candidate supplies
+// what the model does not propose (description, publisher, ISBN, cover); the
+// proposal wins for the identity fields.
+function proposalToForm(base: ItemForm, r: IdentifyResult): ItemForm {
+  const p = r.proposal
+  if (!p) return base
+  const c = r.candidate
+  return {
+    ...base,
+    title: p.title || base.title,
+    author: p.author ?? base.author,
+    series: p.series ?? '',
+    series_index: p.series_index != null ? String(p.series_index) : '',
+    content_type: p.content_type || base.content_type,
+    book_type_id: p.book_type_id != null ? String(p.book_type_id) : base.book_type_id,
+    description: c?.description || base.description,
+    publisher: c?.publisher || base.publisher,
+    year: p.year != null ? String(p.year) : (c?.year != null ? String(c.year) : base.year),
+    isbn: c?.isbn || base.isbn,
+    language: p.language || c?.language || base.language,
+    tags: p.tags.length > 0 ? p.tags.join(', ') : base.tags,
+    cover_url: c?.cover_url || base.cover_url,
+  }
+}
+
+function formToAcceptFile(path: string, form: ItemForm, aiAssisted = false): BinderyAcceptFile {
   return {
     path,
     title: form.title,
@@ -150,6 +207,7 @@ function formToAcceptFile(path: string, form: ItemForm): BinderyAcceptFile {
       ? form.tags.split(',').map(t => t.trim()).filter(Boolean)
       : [],
     library_ids: form.library_ids,
+    ...(aiAssisted ? { ai_assisted: true } : {}),
   }
 }
 
@@ -623,6 +681,36 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
 // ConfirmDialog
 // ---------------------------------------------------------------------------
 
+function ConfidencePill({ mark, threshold, edited = false }: { mark: AiMark; threshold: number; edited?: boolean }) {
+  const { t } = useLingui()
+  const pct = Math.round(mark.confidence * 100)
+  const sure = mark.confidence >= threshold
+  if (edited) {
+    return (
+      <span
+        title={t`Changed after the AI proposal (${pct}% confident). Accept the obvious skips this row.`}
+        className="shrink-0 inline-flex items-center rounded-full border border-border bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground cursor-help"
+      >
+        <Trans>Edited</Trans>
+      </span>
+    )
+  }
+  return (
+    <span
+      title={mark.evidence}
+      aria-label={(() => { const evidence = mark.evidence; return t`AI confidence ${pct}%: ${evidence}` })()}
+      className={cn(
+        'shrink-0 inline-flex items-center rounded-full border px-1.5 py-px text-[10px] font-semibold tabular-nums cursor-help',
+        sure
+          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+          : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+      )}
+    >
+      {pct}%
+    </span>
+  )
+}
+
 interface ConfirmDialogProps {
   open: boolean
   title: string
@@ -840,6 +928,23 @@ export function BinderyPage() {
   // expanding a row retargets the panel (it used to silently hit file #1 only)
   const [suggestPath, setSuggestPath] = useState<string | null>(null)
 
+  // AI identification: "Identify with AI" pre-fills the review forms, each row
+  // carries a confidence mark, and "Accept the obvious" accepts the rows at or
+  // above the instance threshold through the normal accept path.
+  const aiStatus = useAiStatus()
+  const canIdentify = aiStatus.available('bindery_identify')
+  const [aiMarks, setAiMarks] = useState<Record<string, AiMark>>({})
+  const [aiThreshold, setAiThreshold] = useState(0.85)
+  const [identifying, setIdentifying] = useState<{ done: number; total: number } | null>(null)
+  const [confirmIdentify, setConfirmIdentify] = useState<string[] | null>(null)
+  const [acceptingObvious, setAcceptingObvious] = useState(false)
+  // An identify run takes seconds per batch and ends in enterReview from the
+  // closure it started in. These refs give it the live list instead, so files
+  // accepted, rejected or rescanned meanwhile are not brought back.
+  const liveRef = useRef({ items, view, listLibraryIds })
+  useEffect(() => { liveRef.current = { items, view, listLibraryIds } })
+  const isAiIntact = (path: string) => aiFormIntact(aiMarks[path], formData[path])
+
   // ---------------------------------------------------------------------------
   // View transition helper
   // ---------------------------------------------------------------------------
@@ -991,32 +1096,126 @@ export function BinderyPage() {
   // Enter review
   // ---------------------------------------------------------------------------
 
-  function enterReview(paths: string[]) {
-    const toReview = paths.map(p => items.find(i => i.path === p)).filter((i): i is BinderyItem => !!i)
+  function enterReview(paths: string[], aiResults?: IdentifyResult[]) {
+    const { items: liveItems, listLibraryIds: liveLibraryIds } = liveRef.current
+    const toReview = paths.map(p => liveItems.find(i => i.path === p)).filter((i): i is BinderyItem => !!i)
     if (toReview.length === 0) return
 
+    const byPath = new Map((aiResults ?? []).map(r => [r.path, r]))
     const forms: Record<string, ItemForm> = {}
+    const marks: Record<string, AiMark> = {}
     for (const item of toReview) {
-      forms[item.path] = itemToForm(item, bookTypes)
-      forms[item.path].library_ids = [...listLibraryIds]
+      const base = itemToForm(item, bookTypes)
+      base.library_ids = [...liveLibraryIds]
+      const r = byPath.get(item.path)
+      if (r?.proposal) {
+        forms[item.path] = proposalToForm(base, r)
+        marks[item.path] = { confidence: r.confidence, evidence: r.evidence, snapshot: identityOf(forms[item.path]) }
+      } else {
+        forms[item.path] = base
+      }
     }
+    setAiMarks(marks)
 
     setReviewItems(toReview)
     setReviewIndex(0)
     setFormData(forms)
     setCandidates([])
     setSearchQuery('')
-    setBatchSeries(toReview[0]?.series ?? '')
-    setBatchAuthor('')
+    const firstForm = forms[toReview[0]?.path ?? '']
+    const firstIsAi = !!marks[toReview[0]?.path ?? '']
+    setBatchSeries(firstIsAi ? firstForm.series : (toReview[0]?.series ?? ''))
+    setBatchAuthor(firstIsAi ? firstForm.author : '')
     setBatchBookTypeId(forms[toReview[0]?.path ?? '']?.book_type_id ?? '')
-    setBatchLibraryIds([...listLibraryIds])
+    setBatchLibraryIds([...liveLibraryIds])
     setListLibraryIds([])
     setExpandedRows(new Set())
     setSuggestPath(toReview[0]?.path ?? null)
     transitionTo('review')
 
-    // Fetch metadata for the first item
-    fetchPreview(toReview[0])
+    // Fetch metadata for the first item. An AI proposal is already in the
+    // form, so the candidates only populate the panel.
+    fetchPreview(toReview[0], undefined, !firstIsAi)
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI identification
+  // ---------------------------------------------------------------------------
+
+  // Large runs cost real money on the user's key: confirm past five requests.
+  function requestIdentify(paths: string[]) {
+    if (paths.length > IDENTIFY_BATCH_SIZE * 5) setConfirmIdentify(paths)
+    else void runIdentify(paths)
+  }
+
+  async function runIdentify(paths: string[]) {
+    if (paths.length === 0) return
+    setIdentifying({ done: 0, total: paths.length })
+    const results: IdentifyResult[] = []
+    let threshold = aiThreshold
+    try {
+      for (let i = 0; i < paths.length; i += IDENTIFY_BATCH_SIZE) {
+        const chunk = paths.slice(i, i + IDENTIFY_BATCH_SIZE)
+        const res = await identifyFiles(chunk)
+        results.push(...res.proposals)
+        threshold = res.threshold
+        setIdentifying({ done: i + chunk.length, total: paths.length })
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`AI identification failed`)
+    } finally {
+      setIdentifying(null)
+    }
+    if (results.length === 0) return
+    // The user can only leave the list while a run is going by navigating
+    // away; never pull them back into review from somewhere else.
+    if (liveRef.current.view !== 'list') return
+    setAiThreshold(threshold)
+    { const n = results.filter(r => r.proposal).length, total = paths.length; toast.success(t`Identified ${n} of ${total} files. Check the proposals before accepting.`) }
+    enterReview(paths, results)
+  }
+
+  async function acceptObvious() {
+    const obvious = reviewItems.filter(i => {
+      const mark = aiMarks[i.path]
+      return isAiIntact(i.path) && mark.confidence >= aiThreshold && formData[i.path]?.title.trim()
+    })
+    if (obvious.length === 0) return
+    const files = obvious.map(i => formToAcceptFile(i.path, formData[i.path], true))
+    setAcceptingObvious(true)
+    try {
+      const result = await api.post<{ accepted: { book_id: number; title: string }[]; errors: { path: string; error: string }[] }>(
+        '/bindery/accept',
+        { files }
+      )
+      const failed = new Set(result.errors.map(e => e.path))
+      const acceptedPaths = new Set(files.map(f => f.path).filter(p => !failed.has(p)))
+      if (result.errors.length > 0) {
+        const failedN = result.errors.length, firstErr = result.errors[0].error
+        toast.error(t`${failedN} failed: ${firstErr}`)
+      }
+      if (acceptedPaths.size > 0) {
+        toast.success(plural(acceptedPaths.size, { one: 'Accepted # book', other: 'Accepted # books' }))
+        setItems(prev => prev.filter(i => !acceptedPaths.has(i.path)))
+        const remaining = reviewItems.filter(i => !acceptedPaths.has(i.path))
+        if (remaining.length === 0) {
+          transitionTo('list')
+          setSelected(new Set())
+        } else {
+          setSelected(prev => new Set([...prev].filter(p => !acceptedPaths.has(p))))
+          setReviewItems(remaining)
+          setReviewIndex(0)
+          if (!remaining.some(i => i.path === suggestPath)) {
+            setSuggestPath(remaining[0].path)
+            fetchPreview(remaining[0], undefined, false)
+          }
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`Accept failed`)
+    } finally {
+      setAcceptingObvious(false)
+    }
   }
 
   async function fetchPreview(item: BinderyItem, queryOverride?: string, autoApply = true) {
@@ -1052,6 +1251,9 @@ export function BinderyPage() {
   // Accept-Alls. Explicit button — it does overwrite hand edits.
   async function matchAll() {
     setMatchingAll(0)
+    // The matcher overwrites every form, AI proposals included, so the
+    // confidence marks no longer describe what would be accepted.
+    setAiMarks({})
     let matched = 0
     try {
       for (let i = 0; i < reviewItems.length; i++) {
@@ -1242,7 +1444,7 @@ export function BinderyPage() {
     try {
       const result = await api.post<{ accepted: { book_id: number; title: string }[]; errors: { path: string; error: string }[] }>(
         '/bindery/accept',
-        { files: [formToAcceptFile(path, form)] }
+        { files: [formToAcceptFile(path, form, isAiIntact(path))] }
       )
       if (result.errors.length > 0) {
         toast.error(result.errors[0].error)
@@ -1266,7 +1468,7 @@ export function BinderyPage() {
   async function acceptAll() {
     const files: BinderyAcceptFile[] = reviewItems.map(item => {
       const form = formData[item.path]
-      return formToAcceptFile(item.path, form ?? itemToForm(item, bookTypes))
+      return formToAcceptFile(item.path, form ?? itemToForm(item, bookTypes), isAiIntact(item.path))
     })
     const invalid = files.find(f => !f.title?.trim())
     if (invalid) {
@@ -1468,7 +1670,7 @@ export function BinderyPage() {
     }
     setReviewItems(remaining)
     setReviewIndex(0)
-    fetchPreview(remaining[0])
+    fetchPreview(remaining[0], undefined, !aiMarks[remaining[0].path])
   }
 
   function skipItem() {
@@ -1482,7 +1684,7 @@ export function BinderyPage() {
       return
     }
     setReviewIndex(nextIndex)
-    fetchPreview(reviewItems[nextIndex])
+    fetchPreview(reviewItems[nextIndex], undefined, !aiMarks[reviewItems[nextIndex].path])
   }
 
   function rejectCurrentAndAdvance() {
@@ -1515,8 +1717,9 @@ export function BinderyPage() {
           className="shrink-0 rounded border-border cursor-pointer"
         />
         <button
-          className="flex-1 min-w-0 flex items-center gap-3 text-left"
+          className="flex-1 min-w-0 flex items-center gap-3 text-left disabled:cursor-wait"
           onClick={() => enterReview([item.path])}
+          disabled={identifying !== null}
         >
           <div className="flex-1 min-w-0">
             <span className="text-sm font-medium truncate block">{item.title}</span>
@@ -1613,18 +1816,34 @@ export function BinderyPage() {
                 {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected — Clear` : t`Select All` })()}
               </button>
 
+              {canIdentify && (
+                <button
+                  onClick={() => requestIdentify(hasSelection ? selectedArr : items.map(i => i.path))}
+                  disabled={identifying !== null || accepting}
+                  title={(() => { const n = hasSelection ? selectedArr.length : items.length; return hasSelection
+                    ? t`Propose metadata for the ${n} selected files. Filenames, embedded metadata and the first pages are sent to Anthropic.`
+                    : t`Propose metadata for all ${n} files. Filenames, embedded metadata and the first pages are sent to Anthropic.` })()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-muted disabled:opacity-50 transition-all"
+                >
+                  {identifying && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {(() => { if (!identifying) return t`Identify with AI`; const done = identifying.done, total = identifying.total; return t`Identifying ${done}/${total}…` })()}
+                  <AiBadge />
+                </button>
+              )}
+
               {hasSelection && (
                 <>
                   <div className="h-4 w-px bg-border" />
                   <button
                     onClick={() => enterReview(selectedArr)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                    disabled={identifying !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                   >
                     <Eye className="h-3 w-3" /> <Trans>Review</Trans>
                   </button>
                   <button
                     onClick={() => quickAccept(selectedArr)}
-                    disabled={accepting}
+                    disabled={accepting || identifying !== null}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-muted disabled:opacity-50 transition-all"
                   >
                     {accepting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
@@ -1632,7 +1851,8 @@ export function BinderyPage() {
                   </button>
                   <button
                     onClick={() => setConfirmReject(selectedArr)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/30 transition-all"
+                    disabled={identifying !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/30 disabled:opacity-50 transition-all"
                   >
                     <Trash2 className="h-3 w-3" /> <Trans>Reject</Trans>
                   </button>
@@ -1951,6 +2171,20 @@ export function BinderyPage() {
           </div>
         )}
 
+        {/* Confirm a large AI identification run */}
+        <ConfirmDialog
+          open={confirmIdentify !== null}
+          title={t`Identify with AI`}
+          message={(() => { const n = confirmIdentify?.length ?? 0, calls = Math.ceil(n / IDENTIFY_BATCH_SIZE); return t`Identify ${n} files with AI? Their filenames, embedded metadata and first pages are sent to Anthropic in ${calls} requests, billed to your key.` })()}
+          confirmLabel={t`Identify`}
+          onConfirm={() => {
+            const paths = confirmIdentify
+            setConfirmIdentify(null)
+            if (paths) void runIdentify(paths)
+          }}
+          onCancel={() => setConfirmIdentify(null)}
+        />
+
         {/* Confirm reject dialog for raw files */}
         <ConfirmDialog
           open={confirmReject !== null}
@@ -1984,6 +2218,10 @@ export function BinderyPage() {
   const isBatch = reviewItems.length > 1
   const currentItem = isBatch ? null : reviewItems[reviewIndex]
   const currentForm = currentItem ? formData[currentItem.path] : null
+  const obviousCount = reviewItems.filter(i => {
+    const mark = aiMarks[i.path]
+    return isAiIntact(i.path) && mark.confidence >= aiThreshold && formData[i.path]?.title.trim()
+  }).length
 
   return (
     <AppShell onUploaded={fetchAll}>
@@ -2003,6 +2241,18 @@ export function BinderyPage() {
               ? (() => { const n = reviewItems.length; return t`Reviewing ${n} files` })()
               : currentItem?.filename ?? ''}
           </span>
+          {obviousCount > 0 && (
+            <button
+              onClick={acceptObvious}
+              disabled={acceptingObvious || accepting}
+              title={(() => { const pct = Math.round(aiThreshold * 100); return t`Accept every AI proposal at or above ${pct}% confidence. The rest stay here for review.` })()}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
+            >
+              {acceptingObvious ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              {(() => { const n = obviousCount; return t`Accept the obvious (${n})` })()}
+              <AiBadge className="border-primary-foreground/40 text-primary-foreground/80" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -2021,6 +2271,7 @@ export function BinderyPage() {
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <FormatBadge format={currentItem.format} />
                 <ContentTypeBadge type={currentForm.content_type} />
+                {aiMarks[currentItem.path] && <ConfidencePill mark={aiMarks[currentItem.path]} threshold={aiThreshold} edited={!isAiIntact(currentItem.path)} />}
                 <span className="text-xs text-muted-foreground truncate">{currentItem.path}</span>
               </div>
               <span className="text-xs text-muted-foreground shrink-0">{formatBytes(currentItem.size)}</span>
@@ -2213,6 +2464,7 @@ export function BinderyPage() {
                       <span className="text-xs text-muted-foreground truncate w-40 shrink-0" title={item.filename}>
                         {item.filename}
                       </span>
+                      {aiMarks[item.path] && <ConfidencePill mark={aiMarks[item.path]} threshold={aiThreshold} edited={!isAiIntact(item.path)} />}
                       <input
                         className="flex-1 h-7 rounded border border-border bg-transparent px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         value={form.title}

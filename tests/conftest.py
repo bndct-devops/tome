@@ -52,6 +52,25 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True, scope="function")
+def _no_real_ai(monkeypatch):
+    """Autouse: no test may reach a real AI provider. A developer .env with
+    TOME_ANTHROPIC_API_KEY is read straight into settings, so blank it, and
+    make constructing the real provider fail loudly. Tests that exercise AI
+    install a FakeProvider (tests/ai_fake.py) via set_provider_override."""
+    from backend.core.config import settings as _settings
+    monkeypatch.setattr(_settings, "anthropic_api_key", None)
+    monkeypatch.setattr(_settings, "ai_enabled", True)
+
+    def _blocked(*args, **kwargs):
+        raise RuntimeError("Real AI provider blocked in tests: use tests/ai_fake.FakeProvider")
+
+    monkeypatch.setattr("backend.services.ai.anthropic.AnthropicProvider.__init__", _blocked)
+    yield
+    from backend.services import ai as _ai
+    _ai.set_provider_override(None)
+
+
+@pytest.fixture(autouse=True, scope="function")
 def _block_smtp():
     """Autouse fixture: replace smtplib.SMTP / SMTP_SSL with a hard block."""
     def _blocked(*args, **kwargs):

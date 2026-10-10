@@ -1012,6 +1012,7 @@ const ACTION_COLORS: Record<string, string> = {
   'books.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
   'books.metadata_edited': 'bg-info/10 text-info border-info/20',
   'books.bulk_metadata_edited': 'bg-info/10 text-info border-info/20',
+  'books.metadata_applied': 'bg-info/10 text-info border-info/20',
   'users.created': 'bg-success/10 text-success border-success/20',
   'users.updated': 'bg-info/10 text-info border-info/20',
   'users.deleted': 'bg-destructive/10 text-destructive border-destructive/20',

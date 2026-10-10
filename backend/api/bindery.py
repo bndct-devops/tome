@@ -132,6 +132,9 @@ class BinderyAcceptFile(BaseModel):
     # Libraries to file the accepted book into, on top of the automatic
     # book-type library (issue #103). Ids the user may not edit are skipped.
     library_ids: list[int] = []
+    # True when the fields came from an AI proposal (Bindery "Identify with
+    # AI"). Recorded on the accept audit entry; changes nothing else.
+    ai_assisted: bool = False
 
 
 class BinderyAcceptRequest(BaseModel):
@@ -526,7 +529,8 @@ def bindery_accept(
                 resource_type="book",
                 resource_id=book.id,
                 resource_title=book.title,
-                details={"format": suffix, "source_path": item.path},
+                details={"format": suffix, "source_path": item.path,
+                         **({"ai_assisted": True} if item.ai_assisted else {})},
             )
 
             # Clean up empty directories left behind in bindery

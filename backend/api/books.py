@@ -23,6 +23,9 @@ from backend.core.permissions import require_role, user_can_see_book
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
+from backend.services.book_updates import (
+    BookUpdateError, apply_book_update, bulk_update_books, can_edit_book,
+)
 from backend.models.library import Library
 from backend.models.user import User
 from pydantic import BaseModel as PydanticBaseModel
@@ -1880,26 +1883,12 @@ def bulk_update_metadata(
             raise HTTPException(status_code=400, detail="Invalid book_type_id")
 
     books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
-    for book in books:
-        if body.author is not None:
-            book.author = body.author or None
-        if body.series is not None:
-            book.series = body.series or None
-        if body.series_index is not None:
-            book.series_index = body.series_index
-        if body.tags is not None:
-            book.tags = [BookTag(book_id=book.id, tag=t.strip(), source="user") for t in body.tags if t.strip()]
-        elif body.tags_add:
-            existing = {t.tag for t in book.tags}
-            for t in body.tags_add:
-                if t.strip() and t.strip() not in existing:
-                    book.tags.append(BookTag(book_id=book.id, tag=t.strip(), source="user"))
-        if bt is not None:
-            book.book_type_id = bt.id
-    db.flush()
-    from backend.services.fts import index_book
-    for book in books:
-        index_book(db, book)
+    bulk_update_books(
+        db, books,
+        author=body.author, series=body.series, series_index=body.series_index,
+        tags=body.tags, tags_add=body.tags_add,
+        book_type_id=bt.id if bt is not None else None,
+    )
     db.commit()
 
     if bt is not None:
@@ -1929,30 +1918,13 @@ def update_book(
         raise HTTPException(status_code=404, detail="Book not found")
 
     # Members can only edit their own uploads; admins can edit any book
-    from backend.core.permissions import is_admin as _is_admin
-    if not _is_admin(current_user) and book.added_by != current_user.id:
+    if not can_edit_book(current_user, book):
         raise HTTPException(status_code=403, detail="You can only edit books you uploaded")
 
-    data = body.model_dump(exclude_unset=True)
-    tags = data.pop("tags", None)
-    new_type_id = data.pop("book_type_id", None)
-    for field_name, value in data.items():
-        setattr(book, field_name, value)
-    if tags is not None:
-        book.tags = [BookTag(book_id=book.id, tag=t.strip(), source="user") for t in tags if t.strip()]
-
-    if new_type_id is not None and new_type_id != book.book_type_id:
-        from backend.models.library import BookType
-        from backend.services.book_types import assign_book_to_type_library
-        bt = db.get(BookType, new_type_id)
-        if not bt:
-            raise HTTPException(status_code=400, detail="Invalid book_type_id")
-        book.book_type_id = new_type_id
-        assign_book_to_type_library(db, book, bt)
-
-    db.flush()
-    from backend.services.fts import index_book
-    index_book(db, book)
+    try:
+        apply_book_update(db, book, body.model_dump(exclude_unset=True))
+    except BookUpdateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
     db.refresh(book)
     audit(db, "books.metadata_edited", user_id=current_user.id, username=current_user.username,
@@ -2993,6 +2965,15 @@ async def apply_metadata(
     index_book(db, book)
     db.commit()
     db.refresh(book)
+
+    applied = [f for f in simple_fields if getattr(body, f) is not None]
+    if body.tags is not None:
+        applied.append("tags")
+    if body.cover_url:
+        applied.append("cover")
+    audit(db, "books.metadata_applied", user_id=current_user.id, username=current_user.username,
+          resource_type="book", resource_id=book.id, resource_title=book.title,
+          details={"fields": applied, **({"ai_assisted": True} if body.ai_assisted else {})})
     return book
 
 

@@ -6,7 +6,9 @@ import type { MessageDescriptor } from '@lingui/core'
 import { Loader2, Sparkles, BookOpen, ExternalLink, Check, X } from 'lucide-react'
 import { BookAnimation } from '@/components/BookAnimation'
 import { ModalShell } from '@/components/ModalShell'
+import { AiBadge } from '@/components/AiBadge'
 import type { BookDetail, MetadataCandidate } from '@/lib/books'
+import { cn } from '@/lib/utils'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -15,11 +17,23 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/** An AI proposal to open the dialog on ("AI fix" on the book page). The
+ *  candidate holds the proposed values; empty fields mean "no change". */
+export interface AiProposal {
+  candidate: MetadataCandidate
+  confidence: number
+  evidence: string
+  threshold: number
+}
+
 interface Props {
   book: BookDetail
   open: boolean
   onClose: () => void
   onApplied: (updated: BookDetail) => void
+  /** When set, the dialog opens straight on the diff for this proposal and
+   *  applying marks the request ai_assisted. Without it nothing changes. */
+  aiProposal?: AiProposal | null
 }
 
 type Step = 'search' | 'diff'
@@ -34,7 +48,7 @@ interface FieldRow {
 
 function candidateToFields(book: BookDetail, c: MetadataCandidate): FieldRow[] {
   return [
-    { key: 'title', label: msg`Title`, current: book.title, incoming: c.title, checked: true },
+    { key: 'title', label: msg`Title`, current: book.title, incoming: c.title || null, checked: true },
     { key: 'author', label: msg`Author`, current: book.author, incoming: c.author, checked: true },
     { key: 'description', label: msg`Description`, current: book.description, incoming: c.description, checked: true },
     { key: 'publisher', label: msg`Publisher`, current: book.publisher, incoming: c.publisher, checked: true },
@@ -48,7 +62,11 @@ function candidateToFields(book: BookDetail, c: MetadataCandidate): FieldRow[] {
   ]
 }
 
-export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
+function hasChange(f: FieldRow): boolean {
+  return !!(f.incoming && f.incoming !== f.current)
+}
+
+export function MetadataFetchModal({ book, open, onClose, onApplied, aiProposal }: Props) {
   const [step, setStep] = useState<Step>('search')
   const [loading, setLoading] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -58,13 +76,16 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
   const [selected, setSelected] = useState<MetadataCandidate | null>(null)
   const [fields, setFields] = useState<FieldRow[]>([])
   const [query, setQuery] = useState('')
+  // Set while the diff shows an AI proposal; cleared when the user goes to search.
+  const [aiMark, setAiMark] = useState<AiProposal | null>(null)
   const queryRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
       // Full reset on open (not close) so content survives the exit animation.
       reset()
-      setTimeout(() => doSearch(''), 50)
+      if (aiProposal) openProposal(aiProposal)
+      else setTimeout(() => doSearch(''), 50)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -79,6 +100,24 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
     setSelected(null)
     setFields([])
     setQuery('')
+    setAiMark(null)
+  }
+
+  // AI proposal: only rows the model actually changes start checked, so a
+  // field it left alone can never be applied by accident.
+  function openProposal(p: AiProposal) {
+    setAiMark(p)
+    setSelected(p.candidate)
+    setFields(candidateToFields(book, p.candidate).map(f => ({ ...f, checked: hasChange(f) })))
+    setStep('diff')
+  }
+
+  function searchManually() {
+    setAiMark(null)
+    setSelected(null)
+    setFields([])
+    setStep('search')
+    if (candidates.length === 0 && !loading) doSearch(query)
   }
 
   async function doSearch(q: string) {
@@ -129,13 +168,18 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
     setFields(prev => prev.map(f => f.key === key ? { ...f, checked: !f.checked } : f))
   }
 
+  // With an AI proposal, "Select all" only touches rows that change something.
+  function togglable(f: FieldRow) {
+    return !aiMark || hasChange(f)
+  }
+
   function allChecked() {
-    return fields.every(f => f.checked)
+    return fields.filter(togglable).every(f => f.checked)
   }
 
   function toggleAll() {
     const next = !allChecked()
-    setFields(prev => prev.map(f => ({ ...f, checked: next })))
+    setFields(prev => prev.map(f => togglable(f) ? { ...f, checked: next } : f))
   }
 
   async function applySelected() {
@@ -155,8 +199,9 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
       if (checkedKeys.has('isbn') && selected.isbn) body.isbn = selected.isbn
       if (checkedKeys.has('series') && selected.series) body.series = selected.series
       if (checkedKeys.has('series_index') && selected.series_index != null) body.series_index = selected.series_index
-      if (checkedKeys.has('tags')) body.tags = selected.tags
+      if (checkedKeys.has('tags') && (!aiMark || selected.tags.length > 0)) body.tags = selected.tags
       if (checkedKeys.has('cover') && selected.cover_url) body.cover_url = selected.cover_url
+      if (aiMark) body.ai_assisted = true
 
       const r = await fetch(`${API}/api/books/${book.id}/apply-metadata`, {
         method: 'POST',
@@ -183,10 +228,11 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
       <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <Trans>Fetch Metadata</Trans>
-            <span className="text-muted-foreground font-normal">— {book.title}</span>
+          <div className="flex items-center gap-2 font-semibold text-sm min-w-0">
+            <Sparkles className="h-4 w-4 text-primary shrink-0" />
+            {aiMark ? <Trans>AI fix</Trans> : <Trans>Fetch Metadata</Trans>}
+            {aiMark && <AiBadge />}
+            <span className="text-muted-foreground font-normal truncate">— {book.title}</span>
           </div>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
@@ -292,13 +338,50 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
           {/* ── Diff step ───────────────────────────────────────────── */}
           {step === 'diff' && selected && (
             <>
+              {aiMark && (() => {
+                const pct = Math.round(aiMark.confidence * 100)
+                const sure = aiMark.confidence >= aiMark.threshold
+                const changes = fields.filter(hasChange).length
+                return (
+                  <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'shrink-0 inline-flex items-center rounded-full border px-1.5 py-px text-[10px] font-semibold tabular-nums',
+                          sure
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                        )}
+                      >
+                        <Trans>{pct}% confident</Trans>
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {changes === 0
+                          ? <Trans>No changes proposed.</Trans>
+                          : plural(changes, { one: '# change proposed. Check it before applying.', other: '# changes proposed. Check them before applying.' })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-foreground">{aiMark.evidence}</p>
+                  </div>
+                )
+              })()}
+
               <div className="flex items-center justify-between">
-                <button
-                  onClick={() => { setStep('search'); setSelected(null); setFields([]) }}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Trans>← Back to results</Trans>
-                </button>
+                {aiMark ? (
+                  <button
+                    onClick={searchManually}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Trans>Search manually instead</Trans>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setStep('search'); setSelected(null); setFields([]) }}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Trans>← Back to results</Trans>
+                  </button>
+                )}
                 <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -318,29 +401,33 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                   <span><Trans>Current</Trans></span>
                   <span>
                     <Trans>Incoming</Trans>
-                    <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded border border-border bg-background normal-case tracking-normal">
-                      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
-                      {selected.source === 'hardcover' ? 'Hardcover' : selected.source === 'google_books' ? 'Google Books' : selected.source === 'anilist' ? 'AniList' : 'Open Library'}
-                    </span>
+                    {aiMark ? (
+                      <AiBadge className="ml-1.5 normal-case tracking-normal" />
+                    ) : (
+                      <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded border border-border bg-background normal-case tracking-normal">
+                        {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
+                        {selected.source === 'hardcover' ? 'Hardcover' : selected.source === 'google_books' ? 'Google Books' : selected.source === 'anilist' ? 'AniList' : 'Open Library'}
+                      </span>
+                    )}
                   </span>
                 </div>
 
                 {fields.map((f, i) => {
-                  const hasChange = !!(f.incoming && f.incoming !== f.current)
+                  const changed = hasChange(f)
                   return (
                     <div
                       key={f.key}
                       className={[
                         'grid grid-cols-[24px_100px_1fr_1fr] gap-3 items-start px-3 py-2.5 text-sm',
                         i > 0 ? 'border-t border-border/50' : '',
-                        !hasChange ? 'opacity-50' : '',
+                        !changed ? 'opacity-50' : '',
                       ].join(' ')}
                     >
                       <input
                         type="checkbox"
                         checked={f.checked}
                         onChange={() => toggleField(f.key)}
-                        disabled={!hasChange}
+                        disabled={!changed}
                         className="mt-0.5 rounded border-border"
                       />
                       <span className="font-medium text-muted-foreground text-xs mt-0.5">{i18n._(f.label)}</span>
@@ -351,7 +438,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                           {book.cover_path ? t`Has cover` : t`No cover`}
                         </span>
                       ) : (
-                        <span className={`break-words line-clamp-3 text-xs ${hasChange ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                        <span className={`break-words line-clamp-3 text-xs ${changed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                           {f.current ?? <span className="text-muted-foreground/50 italic">—</span>}
                         </span>
                       )}
@@ -378,7 +465,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                           <span className="text-muted-foreground/50 italic text-xs mt-0.5"><Trans>No cover available</Trans></span>
                         )
                       ) : (
-                        <span className={`break-words line-clamp-3 text-xs ${hasChange ? 'text-primary font-medium' : 'text-foreground'}`}>
+                        <span className={`break-words line-clamp-3 text-xs ${changed ? 'text-primary font-medium' : 'text-foreground'}`}>
                           {f.incoming ?? <span className="text-muted-foreground/50 italic">—</span>}
                         </span>
                       )}

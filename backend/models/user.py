@@ -54,6 +54,12 @@ class User(Base):
     # OPDS / TomeSync) via backend/services/download_quota.py.
     excluded_tags: Mapped[str | None] = mapped_column(Text, nullable=True)
     download_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # AI features (bring your own key). The user's personal Anthropic API key,
+    # Fernet-encrypted like hardcover_token (backend/core/crypto.py) because it
+    # must be replayed to the provider. Never returned by the API; status
+    # responses carry has_key and a masked suffix only.
+    ai_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_key_set_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

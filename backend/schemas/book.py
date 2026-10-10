@@ -124,6 +124,9 @@ class ApplyMetadataRequest(BaseModel):
     tags: Optional[list[str]] = None  # if set, replace all tags
     series: Optional[str] = None
     series_index: Optional[float] = None
+    # True when the values came from an AI proposal ("AI fix" on the book
+    # page). Recorded on the audit entry; changes nothing else.
+    ai_assisted: bool = False
 
 
 class ScanResultOut(BaseModel):

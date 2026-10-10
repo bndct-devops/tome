@@ -1,23 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { X, Plus, Trash2, Loader2, Save } from 'lucide-react'
+import { X, Plus, Trash2, Loader2, Save, Check, ArrowRight, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { ModalShell } from '@/components/ModalShell'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
+import { AiBadge } from '@/components/AiBadge'
+import {
+  applySeriesCleanup, proposeSeriesCleanup, useAiStatus,
+  type SeriesCleanupApply, type SeriesCleanupArc, type SeriesCleanupProposal,
+} from '@/lib/ai'
 
 interface Props {
   seriesName: string
   /** All series_index values that currently exist for this series (for Start/End dropdowns). */
   volumes: number[]
   onClose: () => void
-  onSaved: () => void
+  /** renamedTo is set when an AI cleanup renamed the series. */
+  onSaved: (renamedTo?: string) => void
 }
 
-type TabId = 'series' | 'arcs'
+type TabId = 'series' | 'arcs' | 'ai'
+
+/** Which parts of an AI cleanup proposal the user kept checked. */
+interface CleanupSelection {
+  name: boolean
+  books: Record<number, boolean>
+  status: boolean
+  /** By index into proposal.arcs.proposed. */
+  arcs: Record<number, boolean>
+}
 
 interface ArcRow {
   /** undefined = new row (no id yet) */
@@ -51,6 +66,93 @@ function formatVol(n: number): string {
   return Number.isInteger(n) ? String(n) : String(n)
 }
 
+function arcRange(a: SeriesCleanupArc): string {
+  return a.start_index === a.end_index
+    ? formatVol(a.start_index)
+    : `${formatVol(a.start_index)}-${formatVol(a.end_index)}`
+}
+
+function statusLabel(value: SeriesStatus): string {
+  const opt = STATUS_OPTIONS.find(o => o.value === value)
+  return opt ? i18n._(opt.label) : value
+}
+
+function initialSelection(p: SeriesCleanupProposal): CleanupSelection {
+  return {
+    name: p.series_name.proposed != null && p.permissions.series_name,
+    books: Object.fromEntries(p.books.map(r => [r.book_id, r.editable])),
+    status: p.status.proposed != null && p.permissions.status,
+    arcs: Object.fromEntries((p.arcs.proposed ?? []).map((_, i) => [i, p.permissions.arcs])),
+  }
+}
+
+function selectionToBody(p: SeriesCleanupProposal, sel: CleanupSelection): SeriesCleanupApply {
+  const body: SeriesCleanupApply = {}
+  if (sel.name && p.series_name.proposed != null) body.series_name = p.series_name.proposed
+  const books = p.books
+    .filter(r => sel.books[r.book_id] && r.editable)
+    .map(r => ({ book_id: r.book_id, title: r.proposed.title, series_index: r.proposed.series_index }))
+  if (books.length > 0) body.books = books
+  if (sel.status && p.status.proposed != null) body.status = p.status.proposed
+  const arcs = (p.arcs.proposed ?? []).filter((_, i) => sel.arcs[i])
+  if (arcs.length > 0 && p.permissions.arcs) body.arcs = arcs
+  return body
+}
+
+function countSelected(body: SeriesCleanupApply): number {
+  return (body.series_name != null ? 1 : 0) + (body.books?.length ?? 0)
+    + (body.status != null ? 1 : 0) + (body.arcs?.length ?? 0)
+}
+
+/** "old -> new", with the old value struck through. */
+function Change({ from, to }: { from: string; to: string }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span className="text-muted-foreground line-through decoration-muted-foreground/60">{from}</span>
+      <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
+      <span className="font-medium text-foreground">{to}</span>
+    </span>
+  )
+}
+
+function CleanupGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-1.5">
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+        {note && <p className="text-xs text-muted-foreground mt-0.5">{note}</p>}
+      </div>
+      <div className="rounded-lg border border-border divide-y divide-border">{children}</div>
+    </section>
+  )
+}
+
+function CleanupRow({ checked, disabled, disabledNote, onToggle, evidence, children }: {
+  checked: boolean
+  disabled?: boolean
+  disabledNote?: string
+  onToggle: () => void
+  evidence?: string
+  children: ReactNode
+}) {
+  return (
+    <label className={cn('flex items-start gap-3 px-3 py-2.5', disabled ? 'opacity-60' : 'cursor-pointer hover:bg-muted/50')}>
+      <input
+        type="checkbox"
+        checked={checked && !disabled}
+        disabled={disabled}
+        onChange={onToggle}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm text-foreground">{children}</div>
+        {evidence && <p className="text-xs text-muted-foreground mt-0.5">{evidence}</p>}
+        {disabled && disabledNote && <p className="text-xs text-warning mt-0.5">{disabledNote}</p>}
+      </div>
+    </label>
+  )
+}
+
 /**
  * Build the options list for a Start/End dropdown.
  * Includes all known volume indexes, plus the current value so historical arcs
@@ -75,6 +177,15 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
   const [arcsLoading, setArcsLoading] = useState(true)
   const [arcsSaving, setArcsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // AI cleanup state
+  const { available: aiAvailable } = useAiStatus()
+  const showAi = aiAvailable('series_cleanup')
+  const [proposal, setProposal] = useState<SeriesCleanupProposal | null>(null)
+  const [selection, setSelection] = useState<CleanupSelection | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
 
   // Load both on mount
   useEffect(() => {
@@ -162,7 +273,54 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
     }
   }
 
-  const isBusy = statusSaving || arcsSaving
+  async function runCleanup() {
+    setActiveTab('ai')
+    setSaveError(null)
+    setAiError(null)
+    setAiLoading(true)
+    try {
+      const p = await proposeSeriesCleanup(seriesName)
+      setProposal(p)
+      setSelection(initialSelection(p))
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : t`AI cleanup failed`)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  function openCleanup() {
+    if (proposal || aiLoading) {
+      setActiveTab('ai')
+      setSaveError(null)
+      return
+    }
+    void runCleanup()
+  }
+
+  const cleanupBody = proposal && selection ? selectionToBody(proposal, selection) : null
+  const selectedCount = cleanupBody ? countSelected(cleanupBody) : 0
+
+  async function applyCleanup() {
+    if (!cleanupBody || selectedCount === 0) return
+    setApplying(true)
+    setSaveError(null)
+    try {
+      const res = await applySeriesCleanup(seriesName, cleanupBody)
+      onSaved(res.renamed ? res.series_name : undefined)
+      onClose()
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : t`Save failed`)
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  function toggle(patch: (s: CleanupSelection) => CleanupSelection) {
+    setSelection(prev => (prev ? patch(prev) : prev))
+  }
+
+  const isBusy = statusSaving || arcsSaving || applying
 
   return (
     <ModalShell open className="w-full max-w-3xl">
@@ -198,6 +356,22 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               {tb === 'series' ? t`Series` : t`Arcs`}
             </button>
           ))}
+          {showAi && (
+            <button
+              onClick={openCleanup}
+              title={t`Sends the titles, volume numbers and file names of the books you can see in this series to Anthropic, which proposes fixes for you to check`}
+              className={cn(
+                'ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                activeTab === 'ai'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              {aiLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <Trans>Clean up with AI</Trans>
+              <AiBadge className={activeTab === 'ai' ? 'border-primary-foreground/40 text-primary-foreground' : undefined} />
+            </button>
+          )}
         </div>
 
         {/* Body */}
@@ -333,6 +507,168 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               </div>
             )
           )}
+
+          {activeTab === 'ai' && (
+            aiLoading ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                <Trans>Asking Anthropic about this series. This can take a minute.</Trans>
+              </div>
+            ) : aiError ? (
+              <div className="flex flex-col items-center gap-3 py-10">
+                <p className="text-sm text-destructive text-center">{aiError}</p>
+                <button
+                  onClick={() => void runCleanup()}
+                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <Trans>Try again</Trans>
+                </button>
+              </div>
+            ) : proposal && selection ? (() => {
+              const pct = Math.round(proposal.confidence * 100)
+              const sure = proposal.confidence >= proposal.threshold
+              const proposedArcs = proposal.arcs.proposed ?? []
+              const nothing = proposal.series_name.proposed == null && proposal.books.length === 0
+                && proposal.status.proposed == null && proposal.arcs.proposed == null
+              const adminOnly = t`Only admins can change this.`
+              const currentArcList = proposal.arcs.current.map(a => `${a.name} ${arcRange(a)}`).join(', ')
+              return (
+                <div className="flex flex-col gap-5">
+                  <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'shrink-0 inline-flex items-center rounded-full border px-1.5 py-px text-[10px] font-semibold tabular-nums',
+                          sure
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                        )}
+                      >
+                        <Trans>{pct}% confident</Trans>
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        <Trans>Proposed by Anthropic. Nothing changes until you apply.</Trans>
+                      </span>
+                      <button
+                        onClick={() => void runCleanup()}
+                        className="ml-auto flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors shrink-0"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <Trans>Ask again</Trans>
+                      </button>
+                    </div>
+                    <p className="text-xs text-foreground">{proposal.evidence}</p>
+                  </div>
+
+                  {nothing && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      <Trans>No changes proposed. This series looks consistent.</Trans>
+                    </p>
+                  )}
+
+                  {proposal.series_name.proposed != null && (
+                    <CleanupGroup title={t`Series name`}>
+                      <CleanupRow
+                        checked={selection.name}
+                        disabled={!proposal.permissions.series_name}
+                        disabledNote={t`Renaming needs edit rights on every book in the series.`}
+                        onToggle={() => toggle(s => ({ ...s, name: !s.name }))}
+                        evidence={proposal.series_name.evidence}
+                      >
+                        <Change from={proposal.series_name.current} to={proposal.series_name.proposed} />
+                      </CleanupRow>
+                    </CleanupGroup>
+                  )}
+
+                  {proposal.books.length > 0 && (
+                    <CleanupGroup title={t`Books`}>
+                      {proposal.books.map(row => {
+                        const cur = row.current
+                        const next = row.proposed
+                        const noNumber = t`no number`
+                        const curVol = cur.series_index != null ? formatVol(cur.series_index) : noNumber
+                        return (
+                          <CleanupRow
+                            key={row.book_id}
+                            checked={!!selection.books[row.book_id]}
+                            disabled={!row.editable}
+                            disabledNote={t`You can only edit books you uploaded.`}
+                            onToggle={() => toggle(s => ({ ...s, books: { ...s.books, [row.book_id]: !s.books[row.book_id] } }))}
+                            evidence={row.evidence}
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              {next.series_index != null ? (
+                                <span className="text-xs">
+                                  <Trans>Volume</Trans>{' '}
+                                  <Change
+                                    from={curVol}
+                                    to={formatVol(next.series_index)}
+                                  />
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  <Trans>Volume {curVol}</Trans>
+                                </span>
+                              )}
+                              {next.title != null ? (
+                                <Change from={cur.title} to={next.title} />
+                              ) : (
+                                <span className="text-foreground">{cur.title}</span>
+                              )}
+                            </div>
+                          </CleanupRow>
+                        )
+                      })}
+                    </CleanupGroup>
+                  )}
+
+                  {proposal.status.proposed != null && (
+                    <CleanupGroup title={t`Status`}>
+                      <CleanupRow
+                        checked={selection.status}
+                        disabled={!proposal.permissions.status}
+                        disabledNote={adminOnly}
+                        onToggle={() => toggle(s => ({ ...s, status: !s.status }))}
+                        evidence={proposal.status.evidence}
+                      >
+                        <Change from={statusLabel(proposal.status.current)} to={statusLabel(proposal.status.proposed)} />
+                      </CleanupRow>
+                    </CleanupGroup>
+                  )}
+
+                  {proposal.arcs.proposed != null && (
+                    <CleanupGroup
+                      title={t`Arcs`}
+                      note={currentArcList
+                        ? t`Applying replaces the current arcs (${currentArcList}) with the checked ones.`
+                        : t`This series has no arcs yet. Applying adds the checked ones.`}
+                    >
+                      {proposedArcs.map((arc, i) => {
+                        const range = arcRange(arc)
+                        return (
+                          <CleanupRow
+                            key={`${arc.name}-${i}`}
+                            checked={!!selection.arcs[i]}
+                            disabled={!proposal.permissions.arcs}
+                            disabledNote={adminOnly}
+                            onToggle={() => toggle(s => ({ ...s, arcs: { ...s.arcs, [i]: !s.arcs[i] } }))}
+                            evidence={arc.description ?? undefined}
+                          >
+                            <span className="font-medium">{arc.name}</span>{' '}
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              <Trans>Volumes {range}</Trans>
+                            </span>
+                          </CleanupRow>
+                        )
+                      })}
+                      <p className="px-3 py-2 text-xs text-muted-foreground">{proposal.arcs.evidence}</p>
+                    </CleanupGroup>
+                  )}
+                </div>
+              )
+            })() : null
+          )}
         </div>
 
         {/* Footer */}
@@ -350,14 +686,25 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
             >
               <Trans>Cancel</Trans>
             </button>
-            <button
-              onClick={activeTab === 'series' ? saveStatus : saveArcs}
-              disabled={isBusy || (activeTab === 'arcs' && arcsLoading) || (activeTab === 'series' && statusLoading)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              <Trans>Save</Trans>
-            </button>
+            {activeTab === 'ai' ? (
+              <button
+                onClick={() => void applyCleanup()}
+                disabled={isBusy || aiLoading || selectedCount === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <Trans>Apply selected ({selectedCount})</Trans>
+              </button>
+            ) : (
+              <button
+                onClick={activeTab === 'series' ? saveStatus : saveArcs}
+                disabled={isBusy || (activeTab === 'arcs' && arcsLoading) || (activeTab === 'series' && statusLoading)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <Trans>Save</Trans>
+              </button>
+            )}
           </div>
         </div>
       </div>

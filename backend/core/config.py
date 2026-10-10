@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     # the shared anonymous pool — fixes 429/quota failures, which hit hardest for
     # non-English (e.g. zh-TW) catalogues that lean on Google as the fallback.
     google_books_key: str | None = None
+    # AI features (env TOME_AI_ENABLED): the hard off switch. False hides every
+    # AI surface and endpoint regardless of keys or instance settings. True only
+    # means the features may appear; nothing is sent until a key resolves and a
+    # user clicks an AI button.
+    ai_enabled: bool = True
+    # Optional Anthropic API key (env TOME_ANTHROPIC_API_KEY). Acts as the
+    # instance key when an admin has not stored one in Settings. Used for admins,
+    # and for members only when the admin shares the instance key. Never logged,
+    # never returned by the API.
+    anthropic_api_key: str | None = None
 
     # SMTP (send-to-device)
     smtp_host: str | None = None

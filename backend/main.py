@@ -44,6 +44,7 @@ from backend.api import goals as goals_api
 from backend.api import annotations as annotations_api
 from backend.api import sync_code as sync_code_api
 from backend.api import hardcover as hardcover_api
+from backend.api import ai as ai_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
@@ -58,6 +59,7 @@ from backend.models.wish import Wish  # noqa: F401
 from backend.models.notification import Notification  # noqa: F401
 from backend.models.reading_goal import ReadingGoal  # noqa: F401
 from backend.models.book import BookChapter  # noqa: F401
+from backend.models.ai_usage import AIUsage  # noqa: F401
 
 
 @asynccontextmanager
@@ -308,6 +310,11 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE users ADD COLUMN hardcover_token_status VARCHAR(16)"))
             conn.execute(text("ALTER TABLE users ADD COLUMN hardcover_linked_at DATETIME"))
             conn.execute(text("ALTER TABLE users ADD COLUMN hardcover_sync_enabled BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        # AI features: the user's own provider key (encrypted) and when it was set.
+        if "ai_api_key" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN ai_api_key TEXT"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN ai_key_set_at DATETIME"))
             conn.commit()
         if "hardcover_book_id" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_book_id INTEGER"))
@@ -879,6 +886,11 @@ def create_app() -> FastAPI:
     app.include_router(share_api.router, prefix="/api")
     app.include_router(annotations_api.router, prefix="/api")
     app.include_router(sync_code_api.router, prefix="/api")
+    app.include_router(ai_api.router, prefix="/api")
+    # Every AI failure (refusal, provider down, no key, feature off) is a typed
+    # exception from backend/services/ai; one handler maps them to status codes
+    # so feature endpoints never repeat the mapping.
+    ai_api.register_exception_handlers(app)
 
     # Serve frontend static files in production (SPA fallback)
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

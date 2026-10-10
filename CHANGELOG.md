@@ -6,6 +6,58 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **AI features, with your own key.** Settings has a new AI section. Members
+  and admins can add their own Anthropic API key; Tome checks it with
+  Anthropic before saving, stores it encrypted and only ever shows the last
+  four characters again. Admins can set an instance key (or provide one with
+  `TOME_ANTHROPIC_API_KEY`), let members use it, set the confidence threshold
+  that "Accept the obvious" uses, and switch each AI feature on or off or pick
+  its model. Nothing is sent to Anthropic until someone clicks an AI button,
+  every AI button carries an "AI" label, and every AI surface stays hidden
+  while no key is available or when `TOME_AI_ENABLED=false`. Each call is
+  recorded with its tokens and its cost at list price, and a "This month"
+  meter in the same section shows the spend per feature (and per user, for
+  admins). Setting or removing a key and changing the AI settings are written
+  to the audit log. Guests never see the section.
+- **Identify Bindery files with AI.** "Identify with AI" in the Bindery reads
+  each selected file's name, embedded metadata and first pages, checks the
+  metadata sources and any matching series already in your library, and
+  pre-fills the review forms with title, author, series, volume, type,
+  language, year and tags. Each row gets a confidence mark with the deciding
+  reason on hover. Nothing is saved until you accept. "Accept the obvious"
+  accepts every row at or above the confidence threshold and leaves the rest
+  for the normal review; a row you edited after identifying is marked
+  "Edited" and is left to you. Files go to Anthropic in batches of ten, and
+  accepts that came from an AI proposal are marked as such in the audit log.
+- **Fix this book with AI.** An "AI fix" button next to Fetch Metadata on the
+  book page sends the book's current metadata, file names, a few pages of
+  text and the metadata-source matches to Anthropic. The model picks the
+  match that is this exact book and proposes only the fields worth changing,
+  with a confidence and a one-sentence reason. The proposal opens in the usual
+  metadata diff, and nothing is written until you apply it. Tags, ISBNs,
+  descriptions and covers only ever come from a real metadata-source match,
+  never from the model.
+- **Clean up a series with AI.** Manage on a series view has a "Clean up with
+  AI" button. Anthropic gets the titles, volume numbers, years and file names
+  of the books in the series you can see, plus its status and arcs, and
+  proposes one diff: a canonical series name, corrected volume titles and
+  numbers, the publication status and a non-overlapping arc list, each change
+  with a sentence of evidence. Every change is a checkbox, and "Apply
+  selected" writes only the checked rows, in one go, through the same paths
+  as the manual editors. A rename carries the series' status and arcs along,
+  and the apply is recorded in the audit log with its counts.
+
+### Changed
+- Applying fetched metadata on the book page is now recorded in the audit log
+  (`books.metadata_applied`, with the fields that changed, and marked
+  AI-assisted when the change came from AI fix).
+
+### Fixed
+- A Google Books server error no longer writes your `TOME_GOOGLE_BOOKS_KEY`
+  into the server log. The failed-fetch log line printed the full request
+  URL, key included; it now names only the source and the HTTP status.
+
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 
 ### Added
