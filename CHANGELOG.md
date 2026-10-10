@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-10-10 - "Pamphlet"
+
 ### Added
 - **Telemetry, opt-in.** Admins are asked once, on Home, whether Tome may
   send one small anonymous report a month: version, plugin build, platform,
