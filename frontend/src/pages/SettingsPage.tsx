@@ -15,6 +15,7 @@ import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
+import { SettingsNav } from '@/components/SettingsNav'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
@@ -600,6 +601,27 @@ export function SettingsPage() {
     }
   }
 
+  // Jump list: the same sections, in page order, with the same conditions
+  // the page uses to render them.
+  const navSections = [
+    { id: 'account', label: t`Account & Security` },
+    ...((nativeApp || (clientDevices?.length ?? 0) > 0) ? [{ id: 'devices', label: t`Connected devices` }] : []),
+    { id: 'appearance', label: t`Appearance` },
+    { id: 'language', label: t`Language` },
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+    { id: 'koreader', label: 'KOReader' },
+    { id: 'send-to-device', label: t`Send to Device` },
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+    ...(hardcoverAvailable ? [{ id: 'hardcover', label: 'Hardcover' }] : []),
+    { id: 'api-tokens', label: t`API Tokens` },
+    { id: 'notifications', label: t`Notifications` },
+    { id: 'share-links', label: t`Share links` },
+    { id: 'import', label: t`Import reading history` },
+    { id: 'export', label: t`Export` },
+    { id: 'backup', label: t`Backup` },
+    { id: 'about', label: t`About` },
+  ]
+
   const origin = window.location.origin
   const opdsUrl = `${origin}/opds`
   const kosyncUrl = `${origin}/api/v1`
@@ -607,7 +629,7 @@ export function SettingsPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 safe-top">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
               to="/"
@@ -623,10 +645,12 @@ export function SettingsPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-10 space-y-10">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 pb-10 pt-0 lg:pt-10 lg:grid lg:grid-cols-[11rem_minmax(0,48rem)] lg:gap-10 lg:justify-center">
+        <SettingsNav sections={navSections} />
+        <div className="min-w-0 space-y-10 pt-8 lg:pt-0">
 
         {/* ── Account & Security ────────────────────────────────────────── */}
-        <section>
+        <section id="account" className="scroll-mt-24">
           <SectionHeader title={t`Account & Security`} />
           <div className="mt-4 rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
 
@@ -814,7 +838,7 @@ export function SettingsPage() {
 
         {/* ── Connected devices ───────────────────────────────────────── */}
         {(nativeApp || (clientDevices?.length ?? 0) > 0) && (
-          <section>
+          <section id="devices" className="scroll-mt-24">
             <SectionHeader title={t`Connected devices`} />
             <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
               <div className="p-5 space-y-2">
@@ -922,7 +946,7 @@ export function SettingsPage() {
         )}
 
         {/* ── Appearance ───────────────────────────────────────────────── */}
-        <section>
+        <section id="appearance" className="scroll-mt-24">
           <SectionHeader title={t`Appearance`} />
 
           {/* Built-in themes — neutral core + warm pair */}
@@ -1103,7 +1127,7 @@ export function SettingsPage() {
         {/* Pills work up to roughly a dozen locales; if the list outgrows a
             row or two, swap back to a (styled) select. Labels are the
             language's own name and stay untranslated on purpose. */}
-        <section>
+        <section id="language" className="scroll-mt-24">
           <SectionHeader title={t`Language`} />
           <div className="mt-4 flex flex-wrap gap-2">
             {LOCALES.map(l => {
@@ -1132,7 +1156,7 @@ export function SettingsPage() {
         </section>
 
         {/* ── KOReader ─────────────────────────────────────────────────── */}
-        <section>
+        <section id="koreader" className="scroll-mt-24">
           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
           <SectionHeader title="KOReader" />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
@@ -1394,7 +1418,7 @@ export function SettingsPage() {
         </section>
 
         {/* ── Send to Device ──────────────────────────────────────────── */}
-        <section>
+        <section id="send-to-device" className="scroll-mt-24">
           <SectionHeader title={t`Send to Device`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
             <div className="p-5 space-y-4">
@@ -1523,7 +1547,7 @@ export function SettingsPage() {
 
         {/* ── Hardcover ────────────────────────────────────────────────── */}
         {hardcoverAvailable && (
-          <section>
+          <section id="hardcover" className="scroll-mt-24">
             {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
             <SectionHeader title="Hardcover" />
             <HardcoverSync onAvailable={setHardcoverAvailable} />
@@ -1531,7 +1555,7 @@ export function SettingsPage() {
         )}
 
         {/* ── API Tokens ───────────────────────────────────────────────── */}
-        <section>
+        <section id="api-tokens" className="scroll-mt-24">
           <SectionHeader title={t`API Tokens`} />
           <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
             <div className="p-5 space-y-4">
@@ -1728,24 +1752,24 @@ export function SettingsPage() {
 
         {/* ── Export ───────────────────────────────────────────────────── */}
         {/* ── Outbound notifications ────────────────────────────────────── */}
-        <section>
+        <section id="notifications" className="scroll-mt-24">
           <SectionHeader title={t`Notifications`} subtle />
           <NotificationChannels />
         </section>
 
         {/* ── Share links overview ──────────────────────────────────────── */}
-        <section>
+        <section id="share-links" className="scroll-mt-24">
           <SectionHeader title={t`Share links`} subtle />
           <ShareLinksOverview />
         </section>
 
         {/* ── Reading-history import ────────────────────────────────────── */}
-        <section>
+        <section id="import" className="scroll-mt-24">
           <SectionHeader title={t`Import reading history`} subtle />
           <ReadingImport />
         </section>
 
-        <section>
+        <section id="export" className="scroll-mt-24">
           <SectionHeader title={t`Export`} subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
             <p className="text-xs text-muted-foreground mb-4">
@@ -1759,7 +1783,7 @@ export function SettingsPage() {
         </section>
 
         {/* ── Personal backup ─────────────────────────────────────────── */}
-        <section>
+        <section id="backup" className="scroll-mt-24">
           <SectionHeader title={t`Backup`} subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
             <p className="text-xs text-muted-foreground mb-4">
@@ -1780,7 +1804,7 @@ export function SettingsPage() {
         </section>
 
         {/* ── About ────────────────────────────────────────────────────── */}
-        <section>
+        <section id="about" className="scroll-mt-24">
           <SectionHeader title={t`About`} subtle />
           <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
             <div className="flex flex-wrap items-center gap-3">
@@ -1824,6 +1848,7 @@ export function SettingsPage() {
           </div>
         </section>
 
+        </div>
       </main>
     </div>
   )

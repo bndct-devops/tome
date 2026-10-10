@@ -6,6 +6,12 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **Settings has a jump list.** A sticky list of the page's sections sits on
+  the left at desktop width, and a row of chips under the header on phones.
+  It follows your scroll position and jumps to a section on click, so a
+  setting is one click away instead of a scroll through the whole page.
+
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 
 ### Added

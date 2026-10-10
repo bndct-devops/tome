@@ -6747,6 +6747,10 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
+#: src/components/SettingsNav.tsx
+msgid "Settings sections"
+msgstr ""
+
 #: src/pages/SetupPage.tsx
 msgid "Setup failed"
 msgstr ""
