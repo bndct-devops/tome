@@ -49,6 +49,10 @@ All notable changes to Tome are documented here. Format loosely follows
   and the apply is recorded in the audit log with its counts.
 
 ### Changed
+- **Settings has a jump list.** A sticky list of the page's sections sits on
+  the left at desktop width, and a row of chips under the header on phones.
+  It follows your scroll position and jumps to a section on click, so a
+  setting is one click away instead of a scroll through the whole page.
 - Applying fetched metadata on the book page is now recorded in the audit log
   (`books.metadata_applied`, with the fields that changed, and marked
   AI-assisted when the change came from AI fix).
