@@ -1,3 +1,4 @@
+import { TelemetrySettings } from '@/components/TelemetryConsentCard'
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -1819,6 +1820,7 @@ export function SettingsPage() {
                 Update by pulling the new image and restarting the container.</Trans>
               </p>
             )}
+            <TelemetrySettings />
           </div>
         </section>
 

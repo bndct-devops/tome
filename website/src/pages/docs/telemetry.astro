@@ -1,0 +1,117 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Telemetry" description="What the optional monthly report contains, how consent works, what is never collected, and where the numbers go.">
+  <SectionHero section="features" />
+  <h1>Telemetry</h1>
+  <p>
+    Tome can send one small anonymous report a month to the project, so there is a real count of
+    installs and a real picture of which features get used. It is off until an admin says yes,
+    and saying yes means looking at the exact report first. This page is the whole story.
+  </p>
+  <DocsMeta />
+
+  <h2>How consent works</h2>
+  <p>
+    Admins see a card on Home, once. It has two buttons: <strong>Show the report</strong>
+    and <strong>No thanks</strong>. The first opens the report Tome would send, generated from your
+    instance right then by the same code that would send it, with one button underneath
+    it: <strong>Send this report monthly</strong>. That button is the only way to turn telemetry on.
+    There is no switch you can flip without having seen the report.
+  </p>
+  <ul>
+    <li><strong>No thanks sends nothing.</strong> Not a decline, not a ping. The decision is written
+      to your own database and the question is never asked again, not after updates either.</li>
+    <li><strong>Nothing is sent without a stored yes.</strong> No row, a declined row and the
+      environment variable below all mean the same thing: nothing leaves.</li>
+    <li><strong>Consent is tied to the report's shape.</strong> If a later version changes what the
+      report contains, even by one field, sending pauses and Settings asks you to look at the new
+      report before it resumes.</li>
+    <li><strong>You can stop any time.</strong> Settings, About, <em>Stop sending</em>. The state is
+      always written out in words there, with the dates of the last and next report.</li>
+    <li><strong>Every send is in your audit log</strong>, with a hash of what left, so you can check
+      it against what you approved.</li>
+  </ul>
+  <p>
+    To hide the question entirely, for example on a compose stack you never want asked, set
+    <code>TOME_TELEMETRY=false</code>. The card never shows and the setting is pinned off.
+  </p>
+
+  <h2>What is in the report</h2>
+  <p>
+    Every count is a bucket, every feature is a yes or no over the last 30 days, every mix is a
+    share. The instance id is a random UUID your instance mints for itself; it relates to nothing
+    else. This is a real example:
+  </p>
+  <pre><code>{`{
+  "schema": 1,
+  "instance": "79d9d74e-07e5-40e7-a199-b6c863271a7e",
+
+  "version": "2.6.0",
+  "plugin_build": 47,
+  "platform": "linux/x86_64",
+  "docker": true,
+  "install_age": "6-10",
+
+  "users": "2-5",
+  "readers_30d": "2-5",
+  "books": "251-500",
+  "libraries": "3-5",
+
+  "book_types": { "manga": 0.55, "light_novel": 0.30, "book": 0.15 },
+  "formats": { "epub": 0.55, "cbz": 0.45 },
+  "languages": { "en": 0.9, "de": 0.1 },
+
+  "reading_30d": { "sessions": "101-250", "hours": "26-50", "pages": "2501-5000", "finished": "2-5" },
+  "highlights": "101-250",
+
+  "features_30d": {
+    "koreader_sync": true, "web_reader": true, "kindle_sync_code": false, "send_to_device": false,
+    "bindery": true, "wishlist": true, "hardcover": true, "opds": false, "sso_users": false,
+    "api_tokens": true, "reading_goals": false, "series_ratings": true, "arcs": true
+  }
+}`}</code></pre>
+  <p>
+    Top to bottom: what runs, how big the install is, what is in it, how much it is read, which
+    features are alive. <code>install_age</code> is months since the first account was created.
+    <code>highlights</code> is a lifetime count because it describes what exists, not activity.
+  </p>
+
+  <h2>What is never in it</h2>
+  <ul>
+    <li>No book titles, authors, series, file names or paths.</li>
+    <li>No usernames, email addresses or hostnames.</li>
+    <li>No IP address, not even on the receiving side, where the access log is switched off.</li>
+    <li>Nothing per user and nothing per book. Reading numbers are instance totals in buckets.</li>
+    <li>No timestamps, times of day, streaks or pace. Those describe a person, not an install.</li>
+    <li>No page views, clicks or sessions. The report is built from counts that already exist in
+      your database, not from watching what you do.</li>
+    <li>No browser-side facts like locale or theme.</li>
+  </ul>
+
+  <h2>Cadence</h2>
+  <p>
+    Once a month, plus once right after you say yes. The day drifts by a few hours of random jitter
+    so a release doesn't make every instance report in the same hour. If your instance is down on
+    its day, it sends on the next start, once. An instance that stops reporting leaves the public
+    numbers after 90 days.
+  </p>
+
+  <h2>Where it goes</h2>
+  <p>
+    To <a href="https://github.com/bndct-devops/tome-pulse">tome-pulse</a>, a small public service
+    that keeps the report and the month it arrived and nothing else. Reports outside the exact
+    shape above are rejected, not stored. Raw rows are kept for twelve months. The aggregates it
+    produces are public at <a href={withBase("/stats")}>tome.bndct.sh/stats</a>, so the people
+    sending reports can see the number they helped make.
+  </p>
+
+  <Callout variant="info" title="Running a fork?">
+    Point <code>TOME_TELEMETRY_URL</code> at your own receiver, or leave it at the default to count
+    toward Tome's numbers. The receiver's source is the repository above.
+  </Callout>
+</DocsLayout>

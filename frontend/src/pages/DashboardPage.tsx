@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { ModalShell } from '@/components/ModalShell'
+import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural, msg } from '@lingui/core/macro'
@@ -1146,6 +1147,7 @@ export function DashboardPage() {
           {tab === 'home' ? (
             /* ── Home tab ────────────────────────────────────────────────── */
             <div className="flex flex-col gap-7">
+              <TelemetryConsentCard />
 
               {homeMode === 'focus' ? (
               <>

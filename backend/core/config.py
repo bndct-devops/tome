@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     # false to never call out (air-gapped installs); nothing else phones home.
     update_check: bool = True
 
+    # Opt-in telemetry (env TOME_TELEMETRY): false pins the monthly report off
+    # and hides the question entirely. True only means the admin may be asked;
+    # nothing is sent without a stored, positive answer.
+    telemetry: bool = True
+    # Where the monthly report goes (env TOME_TELEMETRY_URL). Forks and test
+    # instances point this elsewhere; the receiver is github.com/bndct-devops/tome-pulse.
+    telemetry_url: str = "https://pulse.bndct.dev/v1/report"
+
     # Auto-import settings
     auto_import: bool = False
     auto_import_interval: int = 300  # seconds
