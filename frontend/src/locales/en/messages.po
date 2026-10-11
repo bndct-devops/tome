@@ -783,6 +783,10 @@ msgstr "{dur} on device"
 msgid "{dur} with {mainTitle}."
 msgstr "{dur} with {mainTitle}."
 
+#: src/components/RecapVolumes.tsx
+msgid "{errorCount, plural, one {# recap could not be written. Try Write it on it.} other {# recaps could not be written. Try Write it on them.}}"
+msgstr "{errorCount, plural, one {# recap could not be written. Try Write it on it.} other {# recaps could not be written. Try Write it on them.}}"
+
 #: src/components/AiActivity.tsx
 msgid "{f} could not be read"
 msgstr "{f} could not be read"
@@ -1100,6 +1104,10 @@ msgstr "{pct}% more reading this period"
 msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
 msgstr "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
 
+#: src/components/RecapVolumes.tsx
+msgid "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
+msgstr "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{pph} p/h"
 msgstr "{pph} p/h"
@@ -1220,6 +1228,10 @@ msgstr "{unread, plural, one {Not written yet. # chapter needs to be read first.
 msgid "{unread, plural, one {Written with # chapter unread, so it may skip parts.} other {Written with # chapters unread, so it may skip parts.}}"
 msgstr "{unread, plural, one {Written with # chapter unread, so it may skip parts.} other {Written with # chapters unread, so it may skip parts.}}"
 
+#: src/components/RecapVolumes.tsx
+msgid "{unreadCount, plural, one {# volume still needs its chapters read; use Write it on it.} other {# volumes still need their chapters read; use Write it on them.}}"
+msgstr "{unreadCount, plural, one {# volume still needs its chapters read; use Write it on it.} other {# volumes still need their chapters read; use Write it on them.}}"
+
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
 msgstr "{v}m"
@@ -1239,6 +1251,10 @@ msgstr "{w}w"
 #: src/pages/BookDetailPage.tsx
 msgid "{words} words"
 msgstr "{words} words"
+
+#: src/components/RecapVolumes.tsx
+#~ msgid "{writingAll, plural, one {Writing # volume recap…} other {Writing # volume recaps…}}"
+#~ msgstr "{writingAll, plural, one {Writing # volume recap…} other {Writing # volume recaps…}}"
 
 #: src/components/stats/GoalWidget.tsx
 msgid "{y} Challenge"
@@ -2859,6 +2875,10 @@ msgstr "Could not update the goal."
 #: src/components/RecapVolumes.tsx
 msgid "Could not write the recap"
 msgstr "Could not write the recap"
+
+#: src/components/RecapVolumes.tsx
+msgid "Could not write the recaps"
+msgstr "Could not write the recaps"
 
 #: src/pages/StatsPage.tsx
 msgid "Couldn’t load stats."
@@ -8587,6 +8607,7 @@ msgid "Unassigned"
 msgstr "Unassigned"
 
 #: src/components/DigestConfirmDialog.tsx
+#: src/components/RecapVolumes.tsx
 msgid "under {min}"
 msgstr "under {min}"
 
@@ -9095,6 +9116,10 @@ msgid "Write again"
 msgstr "Write again"
 
 #: src/components/RecapVolumes.tsx
+msgid "Write all"
+msgstr "Write all"
+
+#: src/components/RecapVolumes.tsx
 msgid "Write it"
 msgstr "Write it"
 
@@ -9106,6 +9131,14 @@ msgstr "Writes a short recap of the story up to where you are, from the chapter 
 #: src/components/RecapVolumes.tsx
 msgid "Writing the recap. This can take up to a minute."
 msgstr "Writing the recap. This can take up to a minute."
+
+#: src/components/RecapVolumes.tsx
+msgid "Writing volume recaps…"
+msgstr "Writing volume recaps…"
+
+#: src/components/RecapVolumes.tsx
+msgid "Writing volume recaps… {runDone} of {runTotal}"
+msgstr "Writing volume recaps… {runDone} of {runTotal}"
 
 #: src/components/ReadingCompanion.tsx
 msgid "Written for {recapFor} · cached, free to reopen"

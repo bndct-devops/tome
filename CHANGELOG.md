@@ -58,8 +58,10 @@ All notable changes to Tome are documented here. Format loosely follows
   notes and shared by everyone who has read it. A row expands to its text,
   "Write it" writes one that is missing (with the usual confirmation first
   when some of the volume's chapters still need reading) and "Ask again"
-  writes it anew. The list shows even before you have a position in the open
-  book, whose row then says "Open the book to get a recap up to your page."
+  writes it anew. "Write all" writes every missing volume recap in one go,
+  after showing what it will cost. The list shows even before you have a
+  position in the open book, whose row then says "Open the book to get a
+  recap up to your page."
   Names from the glossary are links in the recap text and open their entry.
   A recap written while some volumes were still unread says so under its
   text ("Written without: vol 2 (12 of 40 chapters unread)"). There is no

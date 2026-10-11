@@ -1596,6 +1596,21 @@ def ai_plugin_recap_volumes(
     return ai_volume_recap.volumes_payload(db, user, book)
 
 
+@router.post("/tome-sync/ai/books/{book_id}/recap/volumes", status_code=202)
+def ai_plugin_recap_volumes_all(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Same as POST /api/ai/books/{id}/recap/volumes ("Write all"): starts a
+    background run, 202 ``{started, volumes}``; poll GET for
+    ``write_all.running`` / ``write_all.last``. Never queues reading."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_recap.FEATURE)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    return JSONResponse(status_code=202, content=ai_volume_recap.write_all(db, user, book))
+
+
 class AiVolumeRecapRequest(PydanticBaseModel):
     force: bool = False
     again: bool = False     # "Ask again": clear failed placeholders, rewrite in place

@@ -783,6 +783,10 @@ msgstr ""
 msgid "{dur} with {mainTitle}."
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "{errorCount, plural, one {# recap could not be written. Try Write it on it.} other {# recaps could not be written. Try Write it on them.}}"
+msgstr ""
+
 #: src/components/AiActivity.tsx
 msgid "{f} could not be read"
 msgstr ""
@@ -1100,6 +1104,10 @@ msgstr ""
 msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
+msgstr ""
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{pph} p/h"
 msgstr ""
@@ -1220,6 +1228,10 @@ msgstr ""
 msgid "{unread, plural, one {Written with # chapter unread, so it may skip parts.} other {Written with # chapters unread, so it may skip parts.}}"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "{unreadCount, plural, one {# volume still needs its chapters read; use Write it on it.} other {# volumes still need their chapters read; use Write it on them.}}"
+msgstr ""
+
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
 msgstr ""
@@ -1239,6 +1251,10 @@ msgstr ""
 #: src/pages/BookDetailPage.tsx
 msgid "{words} words"
 msgstr ""
+
+#: src/components/RecapVolumes.tsx
+#~ msgid "{writingAll, plural, one {Writing # volume recap…} other {Writing # volume recaps…}}"
+#~ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
 msgid "{y} Challenge"
@@ -2858,6 +2874,10 @@ msgstr ""
 #: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Could not write the recap"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Could not write the recaps"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -8587,6 +8607,7 @@ msgid "Unassigned"
 msgstr ""
 
 #: src/components/DigestConfirmDialog.tsx
+#: src/components/RecapVolumes.tsx
 msgid "under {min}"
 msgstr ""
 
@@ -9095,6 +9116,10 @@ msgid "Write again"
 msgstr ""
 
 #: src/components/RecapVolumes.tsx
+msgid "Write all"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
 msgid "Write it"
 msgstr ""
 
@@ -9105,6 +9130,14 @@ msgstr ""
 #: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Writing the recap. This can take up to a minute."
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Writing volume recaps…"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Writing volume recaps… {runDone} of {runTotal}"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx

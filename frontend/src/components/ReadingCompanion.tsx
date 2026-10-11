@@ -32,6 +32,8 @@ import {
 } from '@/lib/ai'
 
 const POLL_MS = 2000
+// Consecutive failed polls before the page stops following a job.
+const POLL_FAILURES = 15
 
 type Origin = 'recap' | 'glossary' | 'continue'
 
@@ -328,19 +330,25 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     return () => { cancelled = true }
   }, [bookId, enabled, loadRecap])
 
-  // Poll the job; when it ends, pick up what it made.
+  // Poll the job; when it ends, pick up what it made. A failed poll (a
+  // timeout, a blip) is not the job ending: keep polling, and give up the
+  // job (and a recap waiting on it) only after POLL_FAILURES in a row.
   const jobId = isActive(job) ? job.id : null
   useEffect(() => {
     if (!jobId) return
+    let failures = 0
     const timer = window.setInterval(() => {
       getDigestJob(jobId)
         .then(j => {
           if (!alive.current) return
+          failures = 0
           setJob(j)
           if (!isActive(j)) afterJob(j)
         })
         .catch(() => {
           if (!alive.current) return
+          failures += 1
+          if (failures < POLL_FAILURES) return
           setJob(null)
           if (recapWaitingRef.current) {
             recapWaitingRef.current = false

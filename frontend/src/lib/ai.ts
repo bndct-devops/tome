@@ -821,6 +821,25 @@ export interface RecapVolumes {
     has_position: boolean
     recap_cached: boolean
   }
+  /** What "Write all" would write now: volumes with a missing or stale recap
+   *  and every chapter read, and a conservative cost for them (0 when none);
+   *  whether a run is going on now, and the most recent run's outcome. */
+  write_all: {
+    count: number
+    est_cost_usd: number
+    running: boolean
+    last: WriteAllRun | null
+  }
+}
+
+/** The most recent "Write all" run for this user and book. `written` grows
+ *  while it runs; `finished_at` is null until it ends. */
+export interface WriteAllRun {
+  /** How many volumes the run set out to write. */
+  started: number
+  written: number[]
+  skipped: VolumeRecapSkip[]
+  finished_at: string | null
 }
 
 /** 202: the volume still has unread chapters. Nothing is queued: start them
@@ -847,6 +866,34 @@ export function requestVolumeRecap(
   bookId: number, volumeId: number, opts: { force?: boolean; again?: boolean } = {},
 ): Promise<VolumeRecap | VolumeRecapPending> {
   return api.post<VolumeRecap | VolumeRecapPending>(`/ai/books/${bookId}/recap/volumes/${volumeId}`, opts)
+}
+
+/** A volume "Write all" left alone. unread: chapters still need reading
+ *  (use "Write it" on it); fresh: its recap is current; budget: a spend limit
+ *  stopped the run (`message` says which); error: that one call failed. */
+export interface VolumeRecapSkip {
+  book_id: number
+  title: string
+  series_index: number | null
+  reason: 'unread' | 'fresh' | 'budget' | 'error'
+  missing_chapters: number
+  message?: string
+}
+
+/** 202: the run started in the background. Poll getRecapVolumes while
+ *  `write_all.running` is true; the outcome is in `write_all.last`. */
+export interface WriteAllVolumesResult {
+  /** How many volumes the run will try to write. */
+  started: number
+  /** The list as the run starts, as getRecapVolumes returns it. */
+  volumes: RecapVolumes
+}
+
+/** "Write all": start writing every missing or stale volume recap whose
+ *  chapters are all read, one call each, in the background. Never starts
+ *  reading chapters. */
+export function writeAllVolumeRecaps(bookId: number): Promise<WriteAllVolumesResult> {
+  return api.post<WriteAllVolumesResult>(`/ai/books/${bookId}/recap/volumes`, {})
 }
 
 export function getDigestJob(jobId: string): Promise<DigestJob> {

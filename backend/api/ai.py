@@ -657,11 +657,35 @@ def get_recap_volumes(
     """``{can_write, volumes: [{book_id, title, series_index, chapters,
     status: ready|partial|missing, digested, needed, text, created_at,
     missing_chapters}], current: {book_id, title, series_index, has_position,
-    recap_cached}}``. Read-only, never queues; works without a position."""
+    recap_cached}, write_all: {count, est_cost_usd, running, last}}``. Read-only, never
+    queues; works without a position. ``write_all``: what "Write all" (POST
+    .../recap/volumes) would write now and a conservative cost for it."""
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, ai_recap.FEATURE)
     ai.check_feature_available(db, digest.FEATURE)
     return volume_recap.volumes_payload(db, current_user, book)
+
+
+@router.post("/books/{book_id}/recap/volumes", status_code=202)
+def post_recap_volumes_all(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> JSONResponse:
+    """"Write all": starts a background run and answers at once with 202
+    ``{started: <volumes it will try>, volumes: <the GET payload>}``. The run
+    writes, one call each, every read earlier volume whose recap is missing or
+    stale and that has no undigested chapter; never queues reading. A spend
+    limit stops it (what was written stays). Poll GET: ``write_all.running``
+    is true while it lasts, ``write_all.last`` holds ``{written: [book_id],
+    skipped: [{book_id, title, series_index, reason: unread|fresh|budget|error,
+    missing_chapters, message?}], finished_at}``. 409 without a key, 409
+    ``already_running`` while one runs for this book. The body is ignored
+    (send ``{}``)."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    ai.check_feature_available(db, digest.FEATURE)
+    return JSONResponse(status_code=202, content=volume_recap.write_all(db, current_user, book))
 
 
 class VolumeRecapBody(BaseModel):

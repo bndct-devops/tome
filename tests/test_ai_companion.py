@@ -38,12 +38,16 @@ def _jobs_inline(db: Session, monkeypatch):
 
     digest_job.reset()
     digest.reset_triggers()
+    volume_recap.reset()
     monkeypatch.setattr(digest_job, "_spawn_worker", lambda: None)
     monkeypatch.setattr(digest_job, "_session_factory", same_session)
     monkeypatch.setattr(digest_job, "_followups", dict(digest_job._followups))
+    monkeypatch.setattr(volume_recap, "_spawn", lambda: None)
+    monkeypatch.setattr(volume_recap, "_session_factory", same_session)
     yield
     digest_job.reset()
     digest.reset_triggers()
+    volume_recap.reset()
 
 
 def _position(db: Session, user: User, book, pct: float, device: str = "Kindle") -> None:
@@ -1134,6 +1138,162 @@ def test_plugin_recap_volumes_mirror(db, admin_user, make_book, tmp_path, plugin
     assert c.post(f"{base}/{v1.id}", headers=h).status_code == 200      # no body
     assert len(fake.calls) == 1
     assert c.delete(f"{base}/{v1.id}", headers=h).json() == {"deleted": True}
+
+
+# ── recap as volumes: "Write all" ────────────────────────────────────────────
+
+def _write_all_series(db, make_book, tmp_path, user, name: str):
+    """Vols 1-4 read, reader on vol 5. Vol 1: digested, no row (writes). Vol
+    2: digested, fresh row (fresh). Vol 3: half digested, no row (unread).
+    Vol 4: digested, stale row written from 2 summaries (writes)."""
+    vols = [_epub_book(db, make_book, tmp_path, f"{name} {i}", series=name, index=i) for i in range(1, 6)]
+    for v in vols[:4]:
+        _read(db, user, v)
+    own = lambda v: digest.Scope(book=v).scope_hash
+    v1, v2, v3, v4, _ = vols
+    _digest_all(db, v1, 4)
+    _digest_all(db, v2, 4)
+    db.add(AIRecap(book_id=v2.id, chapter_idx=4, scope_hash=own(v2), position_fraction=1.0,
+                   text="Vol two recap.", model="m", digested=4, needed=4))
+    _digest_all(db, v3, 2)
+    _digest_all(db, v4, 4)
+    db.add(AIRecap(book_id=v4.id, chapter_idx=4, scope_hash=own(v4), position_fraction=1.0,
+                   text="Vol four stale.", model="m", digested=2, needed=4))
+    db.commit()
+    digest_job.reset()   # the setup's _read queued finished-book jobs
+    return vols
+
+
+def test_write_all_writes_missing_and_stale_skips_unread_and_fresh(client, db, make_book, tmp_path):
+    user = _make_user(db, "wall", "member")
+    v1, v2, v3, v4, v5 = _write_all_series(db, make_book, tmp_path, user, "Isle")
+    fake = FakeProvider(responses=[VOLUME_TEXT, VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    h = _headers(user)
+
+    g = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
+    assert g["write_all"]["count"] == 2
+    model = ai_settings.effective_model(db, "recap")
+    from backend.services.ai import estimate
+    want = sum(estimate.call_cost_guess("recap", model, volume_recap._summary_words(db, v, 4),
+                                        max_tokens=volume_recap.MAX_TOKENS, cached_words=0)
+               for v in (v1, v4))
+    assert g["write_all"]["est_cost_usd"] == round(want, 2) and want > 0
+    assert fake.calls == []
+
+    r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
+    assert r.status_code == 202, r.text
+    out = r.json()
+    assert out["started"] == 2
+    assert out["volumes"]["write_all"]["running"] is True and fake.calls == []
+    # A second "Write all" while this one runs is refused.
+    r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
+    assert r.status_code == 409 and r.json()["reason"] == "already_running"
+    volume_recap.run_now(user.id, v5.id)
+
+    vols = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
+    wa = vols["write_all"]
+    assert wa["running"] is False and wa["last"]["finished_at"]
+    assert wa["last"]["written"] == [v1.id, v4.id]
+    assert [(s["book_id"], s["reason"], s["missing_chapters"]) for s in wa["last"]["skipped"]] == [
+        (v2.id, "fresh", 0), (v3.id, "unread", 2)]
+    assert len(fake.calls) == 2 and all(c["system"] == volume_recap.VOLUME_PROMPT for c in fake.calls)
+    assert digest_job.active_for(user.id, v3.id) is None          # never queues reading
+    assert [(v["book_id"], v["status"]) for v in vols["volumes"]] == [
+        (v1.id, "ready"), (v2.id, "ready"), (v3.id, "missing"), (v4.id, "ready")]
+    assert (wa["count"], wa["est_cost_usd"]) == (0, 0.0)
+    db.expire_all()
+    assert db.query(AIRecap).filter_by(book_id=v4.id).one().digested == 4
+
+    # Nothing left to write: no call.
+    r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
+    assert r.status_code == 202 and r.json()["started"] == 0
+    volume_recap.run_now(user.id, v5.id)
+    last = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()["write_all"]["last"]
+    assert last["written"] == [] and len(fake.calls) == 2
+
+
+def test_write_all_stops_on_budget_keeping_earlier_writes(client, db, make_book, tmp_path, monkeypatch):
+    from backend.services.ai.provider import AIBudgetExceeded
+    user = _make_user(db, "wallbud", "member")
+    v1, v2, v3, v4, v5 = _write_all_series(db, make_book, tmp_path, user, "Holm")
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    real = ai.run_feature
+    calls = {"n": 0}
+
+    def limited(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise AIBudgetExceeded("Monthly AI budget reached (1.00 of 1.00 USD).", spent=1.0, limit=1.0)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(ai, "run_feature", limited)
+    h = _headers(user)
+    r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
+    assert r.status_code == 202, r.text
+    volume_recap.run_now(user.id, v5.id)
+    vols = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
+    last = vols["write_all"]["last"]
+    assert last["written"] == [v1.id]
+    budget = [s for s in last["skipped"] if s["reason"] == "budget"]
+    assert [s["book_id"] for s in budget] == [v4.id]
+    assert budget[0]["message"].startswith("Monthly AI budget reached")
+    db.expire_all()
+    assert db.query(AIRecap).filter_by(book_id=v1.id).count() == 1
+    assert db.query(AIRecap).filter_by(book_id=v4.id).one().text == "Vol four stale."
+    assert vols["write_all"]["count"] == 1
+    # The run released its guard: another one may start.
+    assert client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h).status_code == 202
+
+
+def test_write_all_in_flight_guest_and_keyless(client, db, make_book, tmp_path):
+    user = _make_user(db, "wallrun", "member")
+    keyless = _make_user(db, "wallnokey", "member", key=False)
+    guest = _make_user(db, "wallguest", "guest", key=False)
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Skerry")
+    _read(db, keyless, v1)
+    _digest_all(db, v1, 4)
+    db.commit()
+    fake = FakeProvider(responses=[])
+    ai.set_provider_override(fake)
+    url = f"/api/ai/books/{v3.id}/recap/volumes"
+
+    with companion.in_flight("volume_recap_all", user.id, v3.id, "busy"):
+        r = client.post(url, json={}, headers=_headers(user))
+    assert r.status_code == 409 and r.json()["reason"] == "already_running"
+    assert client.post(url, json={}, headers=_headers(guest)).status_code == 403
+    r = client.post(url, json={}, headers=_headers(keyless))
+    assert r.status_code == 409 and r.json().get("reason") != "already_running"
+    assert fake.calls == []
+
+
+def test_plugin_write_all_mirror(db, make_book, tmp_path, plugin):
+    c, key_for = plugin
+    user = _make_user(db, "wallplug", "member")
+    guest = _make_user(db, "wallplugg", "guest", key=False)
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Sound")
+    _digest_all(db, v1, 4)
+    h, hg = key_for(user), key_for(guest)
+    db.commit()
+    digest_job.reset()
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    base = f"/api/tome-sync/ai/books/{v3.id}/recap/volumes"
+
+    assert c.get(base, headers=h).json()["write_all"]["count"] == 1
+    assert c.post(base, headers=hg).status_code == 403
+    r = c.post(base, headers=h)
+    assert r.status_code == 202, r.text
+    assert r.json()["started"] == 1 and r.json()["volumes"]["write_all"]["running"] is True
+    assert c.post(base, headers=h).status_code == 409
+    volume_recap.run_now(user.id, v3.id)
+    wa = c.get(base, headers=h).json()["write_all"]
+    assert wa["running"] is False
+    assert wa["last"]["written"] == [v1.id]
+    assert [(s["book_id"], s["reason"]) for s in wa["last"]["skipped"]] == [(v2.id, "unread")]
+    assert wa["last"]["skipped"][0]["missing_chapters"] == 4
+    assert len(fake.calls) == 1
 
 
 def test_a_finished_book_is_digested_to_its_last_chapter(client, db, make_book, tmp_path):
