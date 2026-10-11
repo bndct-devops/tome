@@ -221,13 +221,16 @@ def _chapter_titles(db: Session, book_ids: list[int]) -> dict[tuple[int, int], s
 
 def entries_to_dicts(db: Session, scope: digest.Scope, entries: list[digest.Entry]) -> list[dict[str, Any]]:
     """``Entry.to_dict()`` with ``first_seen``/``last_seen`` as ``{book_id,
-    book_title, chapter_idx, chapter_title}``."""
+    book_title, series_index, chapter_idx, chapter_title}`` (``series_index``
+    None when the book has none)."""
     vols = scope.volumes()
     titles = _chapter_titles(db, [v.id for v in vols])
     book_titles = {v.id: v.title for v in vols}
+    indexes = {v.id: v.series_index for v in vols}
 
     def where(loc: tuple[int, int]) -> dict[str, Any]:
         return {"book_id": loc[0], "book_title": book_titles.get(loc[0]),
+                "series_index": indexes.get(loc[0]),
                 "chapter_idx": loc[1], "chapter_title": titles.get(loc)}
 
     out = []
@@ -244,7 +247,8 @@ def glossary_payload(db: Session, user: User, book: Book, window: Window) -> dic
     and ``rev``. Read-only: never queues work (``start_digest`` does).
 
     ``entries`` are in order of first appearance; each carries ``first_seen``
-    and ``last_seen`` as ``{book_id, book_title, chapter_idx, chapter_title}``."""
+    and ``last_seen`` as ``{book_id, book_title, series_index, chapter_idx,
+    chapter_title}``."""
     scope = digest.user_scope(db, user, book)
     upto = window.chapter_idx
     digests = digest.scoped_digests(db, scope, upto)

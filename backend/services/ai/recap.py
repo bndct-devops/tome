@@ -228,6 +228,37 @@ def _clean_paragraphs(parsed: dict | None) -> str:
     return "\n\n".join(out)
 
 
+def missing_volumes(db: Session, scope: digest.Scope, upto: int) -> list[dict[str, Any]]:
+    """Volumes in the scope, in reading order, with chapters inside the window
+    that have no usable digest: ``{book_id, title, series_index, missing,
+    needed}``. ``needed`` is the volume's chapters in the window, ``missing``
+    how many of those have no digest or only a failed placeholder (they gave
+    the recap nothing). Volumes with nothing missing are left out."""
+    pairs = digest.scope_chapters(db, scope, upto)
+    have = digest._usable_by_book(db, scope, upto)
+    out: list[dict[str, Any]] = []
+    by_id: dict[int, dict[str, Any]] = {}
+    for b, c in pairs:
+        v = by_id.get(b.id)
+        if v is None:
+            v = by_id[b.id] = {"book_id": b.id, "title": b.title,
+                               "series_index": b.series_index, "missing": 0, "needed": 0}
+            out.append(v)
+        v["needed"] += 1
+        d = have.get(b.id, {}).get(c.idx)
+        if d is None or d.model == digest.FAILED_MODEL:
+            v["missing"] += 1
+    return [v for v in out if v["missing"]]
+
+
+def _row_missing(row: AIRecap) -> list[dict[str, Any]]:
+    try:
+        parsed = json.loads(row.missing_json) if row.missing_json else []
+    except ValueError:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 # ── generate ─────────────────────────────────────────────────────────────────
 
 def generate(db: Session, user: User, book: Book, window: companion.Window, *,
@@ -262,6 +293,7 @@ def generate(db: Session, user: User, book: Book, window: companion.Window, *,
     fields = dict(
         position_fraction=window.end_fraction, text=recap_text, model=result.model,
         digested=digest.usable(cov), needed=cov["needed"],
+        missing_json=json.dumps(missing_volumes(db, scope, k), ensure_ascii=False),
         input_tokens=result.input_tokens + result.cache_read_tokens + result.cache_write_tokens,
         output_tokens=result.output_tokens,
     )
@@ -294,6 +326,7 @@ def to_dict(res: RecapResult, window: companion.Window, scope: digest.Scope) -> 
         "whole_book": row.chapter_idx >= n,
         "cached": res.cached,
         "partial": row.digested < row.needed,
+        "missing_volumes": _row_missing(row),
         "created_at": row.created_at.isoformat() + "Z" if row.created_at else None,
         "scope": scope.to_dict(),
     }

@@ -55,9 +55,12 @@ All notable changes to Tome are documented here. Format loosely follows
   where you stopped. "Glossary so far" lists the people, places and terms met
   up to your position, people first with the most-mentioned at the top, then
   places, then terms, each with a one-line description, a fuller note and
-  where it first appeared, with a search box. Names with brackets, such as
-  "Vane Estate (Hedge Maze)", are kept whole. Recall looks up a name the
-  glossary does not have, and answers "Nothing about that before this page."
+  where it first appeared ("vol 1, ch 12") and the chapter its line is as
+  of, with a search box that lists name matches before mentions. Names with
+  brackets, such as "Vane Estate (Hedge Maze)", are kept whole. A recap
+  written while some volumes were still unread says so under its text
+  ("Written without: vol 2 (12 of 40 chapters unread)"). Recall looks up a
+  name the glossary does not have, and answers "Nothing about that before this page."
   rather than guess. Only the chapters before your position and the current
   chapter up to your position are ever sent to Anthropic, and every glossary
   line must quote the chapter it came from or it is dropped (a short quote

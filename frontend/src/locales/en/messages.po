@@ -284,6 +284,11 @@ msgstr "{0, plural, one {{dur} over # day} other {{dur} over # days}}"
 msgid "{0, plural, one {{fin} finished · # book read} other {{fin} finished · # books read}}"
 msgstr "{0, plural, one {{fin} finished · # book read} other {{fin} finished · # books read}}"
 
+#. placeholder {0}: v.needed
+#: src/components/ReadingCompanion.tsx
+msgid "{0, plural, one {{missing} of # chapter unread} other {{missing} of # chapters unread}}"
+msgstr "{0, plural, one {{missing} of # chapter unread} other {{missing} of # chapters unread}}"
+
 #. placeholder {0}: dayEntries.length
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# active day in this window} other {# active days in this window}}"
@@ -637,6 +642,14 @@ msgstr "{base} · Vol. {idx}"
 #: src/lib/goals.ts
 msgid "{behind} behind pace"
 msgstr "{behind} behind pace"
+
+#: src/components/ReadingCompanion.tsx
+msgid "{book}, ch {ch}"
+msgstr "{book}, ch {ch}"
+
+#: src/components/ReadingCompanion.tsx
+msgid "{book}, ch {ch} · {title}"
+msgstr "{book}, ch {ch} · {title}"
 
 #: src/pages/HighlightsPage.tsx
 msgid "{books, plural, one {{total} from # book} other {{total} from # books}}"
@@ -1010,6 +1023,10 @@ msgstr "{n}% slower than your usual for this book"
 msgid "{name} · Vol. {start_index}–{end_index}"
 msgstr "{name} · Vol. {start_index}–{end_index}"
 
+#: src/components/ReadingCompanion.tsx
+msgid "{name} ({counts})"
+msgstr "{name} ({counts})"
+
 #: src/pages/StatsPage.tsx
 msgid "{name} copy"
 msgstr "{name} copy"
@@ -1192,8 +1209,8 @@ msgid "{vc, plural, one {# chapter} other {# chapters}}"
 msgstr "{vc, plural, one {# chapter} other {# chapters}}"
 
 #: src/components/ReadingCompanion.tsx
-msgid "{volume}, {chapter}"
-msgstr "{volume}, {chapter}"
+#~ msgid "{volume}, {chapter}"
+#~ msgstr "{volume}, {chapter}"
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{w}w"
@@ -1747,6 +1764,10 @@ msgstr "Amber"
 msgid "Anonymous monthly report:"
 msgstr "Anonymous monthly report:"
 
+#: src/components/ReadingCompanion.tsx
+msgid "another volume"
+msgstr "another volume"
+
 #: src/pages/DashboardPage.tsx
 msgid "Any"
 msgstr "Any"
@@ -1873,6 +1894,10 @@ msgstr "Arcs"
 #: src/pages/StatsPage.tsx
 msgid "Are you getting faster?"
 msgstr "Are you getting faster?"
+
+#: src/components/ReadingCompanion.tsx
+msgid "As of: {lastSeen}"
+msgstr "As of: {lastSeen}"
 
 #: src/components/ManageSeriesModal.tsx
 #: src/components/ReadingCompanion.tsx
@@ -2310,6 +2335,14 @@ msgstr "Category Breakdown"
 #: src/pages/StatsPage.tsx
 msgid "Category mix over the year"
 msgstr "Category mix over the year"
+
+#: src/components/ReadingCompanion.tsx
+msgid "ch {ch}"
+msgstr "ch {ch}"
+
+#: src/components/ReadingCompanion.tsx
+msgid "ch {ch} · {title}"
+msgstr "ch {ch} · {title}"
 
 #: src/pages/BookDetailPage.tsx
 msgid "ch. {n}"
@@ -8637,6 +8670,10 @@ msgstr "Viewing as <0>{impersonatedUsername}</0>"
 msgid "Vol {firstIdx}"
 msgstr "Vol {firstIdx}"
 
+#: src/components/ReadingCompanion.tsx
+msgid "vol {idx}"
+msgstr "vol {idx}"
+
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Vol {idx}"
@@ -8653,6 +8690,14 @@ msgstr "Vol {lastIdx}"
 #: src/components/UpcomingReleases.tsx
 msgid "Vol {v} · "
 msgstr "Vol {v} · "
+
+#: src/components/ReadingCompanion.tsx
+msgid "vol {vol}, ch {ch}"
+msgstr "vol {vol}, ch {ch}"
+
+#: src/components/ReadingCompanion.tsx
+msgid "vol {vol}, ch {ch} · {title}"
+msgstr "vol {vol}, ch {ch} · {title}"
 
 #: src/pages/SharePage.tsx
 msgid "Vol. {a}–{b}"
@@ -8919,6 +8964,10 @@ msgstr "Written for {recapFor} · cached, free to reopen"
 #: src/components/ReadingCompanion.tsx
 msgid "Written for the whole book · cached, free to reopen"
 msgstr "Written for the whole book · cached, free to reopen"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Written without: {writtenWithout}."
+msgstr "Written without: {writtenWithout}."
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx

@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Loader2, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
+import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
 import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -80,6 +81,29 @@ function orderEntries(entries: GlossaryEntry[]): GlossaryEntry[] {
   const places = indexed.filter(x => x.e.kind === 'place')
   const terms = indexed.filter(x => x.e.kind !== 'person' && x.e.kind !== 'place')
   return [...people, ...places, ...terms].map(x => x.e)
+}
+
+/** The names a query is matched against first. One place to add aliases
+ *  when entries carry them. */
+function entryNames(e: GlossaryEntry): string[] {
+  return [e.name]
+}
+
+/** 2 when the query matches a name, 1 when it only matches the line, 0 when
+ *  it matches neither. `q` is trimmed and lower-cased. */
+function matchRank(e: GlossaryEntry, q: string): number {
+  if (entryNames(e).some(n => n.toLocaleLowerCase().includes(q))) return 2
+  if (e.line.toLocaleLowerCase().includes(q)) return 1
+  return 0
+}
+
+/** A chapter title without a leading copy of its own number ("12. Sanguine
+ *  Horror" under "ch 12" reads as "Sanguine Horror"). */
+function bareChapterTitle(title: string | null, number: number): string | null {
+  if (!title) return null
+  const m = title.match(/^\s*(\d+)\s*[.:)-]?\s+(.+)$/)
+  if (m && Number(m[1]) === number) return m[2].trim() || null
+  return title.trim() || null
 }
 
 export function ReadingCompanion({ bookId }: { bookId: number }) {
@@ -256,8 +280,10 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
     if (!q) return ordered
-    return ordered.filter(e =>
-      e.name.toLocaleLowerCase().includes(q) || e.line.toLocaleLowerCase().includes(q))
+    // Name matches first, then entries that only mention it; each group keeps
+    // the usual order.
+    const ranked = ordered.map(e => ({ e, rank: matchRank(e, q) })).filter(x => x.rank > 0)
+    return [...ranked.filter(x => x.rank === 2), ...ranked.filter(x => x.rank === 1)].map(x => x.e)
   }, [ordered, query])
 
   if (!enabled || !companion || !companion.available || !companion.position) return null
@@ -453,11 +479,20 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const kindLabel = (kind: GlossaryEntry['kind']) =>
     kind === 'person' ? t`Person` : kind === 'place' ? t`Place` : t`Term`
 
+  // "vol 1, ch 12 · Sanguine Horror"; without a volume number "ch 12 · ...",
+  // with the book title in front when it is another book.
   const placeLabel = (p: GlossaryPlace) => {
-    const chapter = chapterLabel(p.chapter_title, p.chapter_idx)
-    const volume = p.book_title
-    return volume ? t`${volume}, ${chapter}` : chapter
+    const ch = p.chapter_idx + 1
+    const title = bareChapterTitle(p.chapter_title, ch)
+    const vol = p.series_index
+    if (vol != null) return title ? t`vol ${vol}, ch ${ch} · ${title}` : t`vol ${vol}, ch ${ch}`
+    const book = p.book_id !== bookId ? p.book_title : null
+    if (book) return title ? t`${book}, ch ${ch} · ${title}` : t`${book}, ch ${ch}`
+    return title ? t`ch ${ch} · ${title}` : t`ch ${ch}`
   }
+
+  const samePlace = (a: GlossaryPlace, b: GlossaryPlace) =>
+    a.book_id === b.book_id && a.chapter_idx === b.chapter_idx
 
   function scopeLines(scope: CompanionScope | null): string[] {
     if (!scope) return []
@@ -534,6 +569,20 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   const previouslyTitle = previously?.title ?? ''
   const recapFor = recap ? chapterLabel(recap.chapter_title, recap.chapter_idx) : ''
+  const missingVolumes = recap?.missing_volumes ?? []
+  const writtenWithout = missingVolumes.length > 0
+    ? new Intl.ListFormat(getActiveLocale(), { style: 'long', type: 'unit' }).format(
+        missingVolumes.map(v => {
+          const idx = v.series_index
+          const name = idx != null ? t`vol ${idx}` : (v.title || t`another volume`)
+          const missing = v.missing
+          const counts = plural(v.needed, {
+            one: `${missing} of # chapter unread`,
+            other: `${missing} of # chapters unread`,
+          })
+          return t`${name} (${counts})`
+        }))
+    : null
   const showPreviously = previously != null && recap == null && recapState === 'idle'
   // Nothing written yet: the section is one line and the button, open or not.
   const recapTeaser = recap == null && !showPreviously && recapState === 'idle'
@@ -620,6 +669,11 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
                   <Trans>Some chapters could not be read, so this recap may skip parts.</Trans>
                 </p>
               )}
+              {writtenWithout && (
+                <p className="text-xs text-muted-foreground/70">
+                  <Trans>Written without: {writtenWithout}.</Trans>
+                </p>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 pt-1 border-t border-border/60">
                 <p className="text-xs text-muted-foreground/70 pt-2">
                   {recap.whole_book
@@ -658,6 +712,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     const key = `${e.kind}:${e.name}`
     const open = expanded.has(key)
     const firstSeen = placeLabel(e.first_seen)
+    const lastSeen = e.last_seen && !samePlace(e.first_seen, e.last_seen) ? placeLabel(e.last_seen) : null
     return (
       <li key={key}>
         <button
@@ -688,6 +743,11 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             <p className="text-xs text-muted-foreground/70">
               <Trans>First seen: {firstSeen}</Trans>
             </p>
+            {lastSeen && (
+              <p className="text-xs text-muted-foreground/70">
+                <Trans>As of: {lastSeen}</Trans>
+              </p>
+            )}
           </div>
         )}
       </li>

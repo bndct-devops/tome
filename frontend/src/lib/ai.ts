@@ -565,6 +565,19 @@ export interface Recap {
   partial: boolean
   created_at: string | null
   scope: CompanionScope
+  /** Volumes with chapters that had no digest when the recap was written.
+   *  Empty (or absent on older servers) when nothing was missing. */
+  missing_volumes?: RecapMissingVolume[]
+}
+
+export interface RecapMissingVolume {
+  book_id: number
+  title: string | null
+  series_index: number | null
+  /** Chapters with no digest. */
+  missing: number
+  /** Chapters the recap would have used from this volume. */
+  needed: number
 }
 
 /** 202: chapters before the position are not read yet. Nothing is queued:
@@ -582,6 +595,9 @@ export interface RecapPending {
 export interface GlossaryPlace {
   book_id: number
   book_title: string
+  /** Volume number in the series, null for a standalone or unnumbered book.
+   *  Optional until every server sends it. */
+  series_index?: number | null
   chapter_idx: number
   chapter_title: string | null
 }

@@ -334,6 +334,79 @@ def test_recap_partial_after_a_failed_chapter(client, db, make_book, tmp_path):
     assert client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h).status_code == 202
     r = client.post(f"/api/ai/books/{book.id}/recap", json={"partial": True}, headers=h)
     assert r.status_code == 200 and r.json()["partial"] is True
+    assert r.json()["missing_volumes"] == [
+        {"book_id": book.id, "title": "Partial", "series_index": None, "missing": 1, "needed": 2}]
+
+
+def test_entries_to_dicts_places_carry_series_index(db, make_book, tmp_path):
+    user = _make_user(db, "places", "member")
+    lone = _epub_book(db, make_book, tmp_path, "Lone")
+    scope = digest.user_scope(db, user, lone)
+    entries = digest.fold_entries([_store_digest(db, lone, 0, [_entry("Mara Vell", "A pilot.")])])
+    [d] = companion.entries_to_dicts(db, scope, entries)
+    assert d["first_seen"]["series_index"] is None and d["last_seen"]["series_index"] is None
+
+    v1 = _epub_book(db, make_book, tmp_path, "Reef One", series="Reef", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Reef Two", series="Reef", index=2.5)
+    _read(db, user, v1)
+    scope = digest.user_scope(db, user, v2)
+    entries = digest.fold_entries([_store_digest(db, v1, 0, [_entry("Mara Vell", "A pilot.")]),
+                                   _store_digest(db, v2, 0, [_entry("Mara Vell", "Back home.")])])
+    [d] = companion.entries_to_dicts(db, scope, entries)
+    assert d["first_seen"]["book_id"] == v1.id and d["first_seen"]["series_index"] == 1.0
+    assert d["last_seen"]["book_id"] == v2.id and d["last_seen"]["series_index"] == 2.5
+
+
+def test_partial_recap_after_a_book_only_job_reports_missing_volumes(db, make_book, tmp_path):
+    user = _make_user(db, "gaps", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Gap One", series="Gap", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Gap Two", series="Gap", index=2)
+    v3 = _epub_book(db, make_book, tmp_path, "Gap Three", series="Gap", index=3)
+    _read(db, user, v1)
+    _read(db, user, v2)
+    _store_digest(db, v2, 0, [])
+    db.commit()
+    digest_job.reset()      # drop the whole-volume jobs marking v1/v2 read queued
+    fake = FakeProvider(responses=mixed)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user.id, book_id=v3.id, upto=2, current_book_only=True)
+    digest_job.run_pending()
+    assert digest_job.get(snap["id"])["status"] == "done"
+
+    window = companion.pct_window(db, v3, _mid(v3, db, 2))
+    scope = digest.user_scope(db, user, v3)
+    res = recap.generate(db, user, v3, window, partial=True)
+    body = recap.to_dict(res, window, scope)
+    expected = [
+        {"book_id": v1.id, "title": "Gap One", "series_index": 1.0, "missing": 4, "needed": 4},
+        {"book_id": v2.id, "title": "Gap Two", "series_index": 2.0, "missing": 3, "needed": 4},
+    ]
+    assert body["partial"] is True and not body["cached"]
+    assert body["missing_volumes"] == expected      # the current book: nothing missing, not listed
+    assert v3.id not in {v["book_id"] for v in body["missing_volumes"]}
+
+    # Cached: the same list, from the stored row.
+    res2 = recap.generate(db, user, v3, window, partial=True)
+    assert res2.cached
+    assert recap.to_dict(res2, window, scope)["missing_volumes"] == expected
+
+    # A row from before the column reports [].
+    res2.row.missing_json = None
+    assert recap.to_dict(res2, window, scope)["missing_volumes"] == []
+
+
+def test_fully_digested_recap_reports_no_missing_volumes(db, make_book, tmp_path):
+    user = _make_user(db, "nogaps", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Full One", series="Full", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Full Two", series="Full", index=2)
+    _read(db, user, v1)
+    _digest_all(db, v1, 4)
+    _digest_all(db, v2, 2)
+    ai.set_provider_override(FakeProvider(responses=[RECAP_TEXT]))
+    window = companion.pct_window(db, v2, _mid(v2, db, 2))
+    res = recap.generate(db, user, v2, window)
+    body = recap.to_dict(res, window, digest.user_scope(db, user, v2))
+    assert body["partial"] is False and body["missing_volumes"] == []
 
 
 def test_companion_payload(client, db, make_book, tmp_path):
@@ -407,8 +480,9 @@ def test_glossary_endpoint(client, db, make_book, tmp_path):
     assert [e["name"] for e in g["entries"]] == ["Mara Vell", "Tobin Ash"]
     mara = g["entries"][0]
     assert mara["line"] == "Back at the harbour."
-    assert mara["first_seen"] == {"book_id": v1.id, "book_title": "Cove One", "chapter_idx": 1,
-                                  "chapter_title": "The Bell"}
+    assert mara["first_seen"] == {"book_id": v1.id, "book_title": "Cove One", "series_index": 1.0,
+                                  "chapter_idx": 1, "chapter_title": "The Bell"}
+    assert mara["last_seen"]["book_id"] == v3.id and mara["last_seen"]["series_index"] == 3.0
     assert g["scope"]["excluded_volumes"] == [
         {"book_id": v2.id, "title": "Cove Two", "series_index": 2.0, "reason": "not_read"}]
     assert g["coverage"] == {"digested": 5, "needed": 6, "failed": 0}    # v3 chapter 1 missing
@@ -797,6 +871,7 @@ def test_plugin_recap_and_recall_by_pct(db, make_book, tmp_path, plugin):
     r = c.post(f"/api/tome-sync/ai/books/{book.id}/recap", json={"pct": pct}, headers=h)
     assert r.status_code == 200, r.text
     assert r.json()["chapter_idx"] == 1 and r.json()["cached"] is False
+    assert r.json()["missing_volumes"] == []
     assert "Mark1end" not in _all_text(fake.calls[-1])
     assert "Tobin Ash" in _all_text(fake.calls[-1])
 

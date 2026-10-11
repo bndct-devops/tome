@@ -41,6 +41,10 @@ class AIRecap(Base):
     model: Mapped[str] = mapped_column(String(64), nullable=False)
     digested: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     needed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # JSON list of {book_id, title, series_index, missing, needed}: volumes in
+    # scope that had chapters without a usable digest at write time. NULL on
+    # rows from before the column (reported as []).
+    missing_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
