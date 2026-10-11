@@ -301,7 +301,7 @@ function BookRow({
           ))}
           {directCalls > 0 && (() => { const cost = money(directCost); return (
             <p className="px-3 py-2 pl-8 text-muted-foreground flex justify-between gap-3">
-              <span><Plural value={directCalls} one="# other call (recap, Recall, fixes)" other="# other calls (recap, Recall, fixes)" /></span>
+              <span><Plural value={directCalls} one="# other call (recap, Recall, Ask, fixes)" other="# other calls (recap, Recall, Ask, fixes)" /></span>
               <span className="tabular-nums text-foreground">{cost}</span>
             </p>
           ) })()}

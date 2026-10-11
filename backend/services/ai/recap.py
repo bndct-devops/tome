@@ -135,7 +135,13 @@ def is_fresh(row: AIRecap | None, end_fraction: float, digested: int) -> bool:
 
 def cached_for(db: Session, user: User, book: Book, window: companion.Window,
                scope: digest.Scope | None = None) -> AIRecap | None:
-    """The cached recap this user may be served for ``window``, if fresh."""
+    """The cached recap this user may be served for ``window``, if fresh. A
+    finished book's is the whole-book row the volume list shows
+    (``volume_recap.state``)."""
+    if window.finished:
+        from backend.services.ai import volume_recap
+        st = volume_recap.state(db, user, book)
+        return st.row if st.row is not None and st.fresh else None
     scope = scope or digest.user_scope(db, user, book)
     row = get_cached(db, book.id, window.chapter_idx, scope.scope_hash)
     cov = digest.coverage(db, scope, window.chapter_idx)
@@ -146,7 +152,20 @@ def clear(db: Session, user: User, book: Book, chapter_idx: int) -> bool:
     """Delete the cache row for (book, chapter, this user's scope) ("Ask
     again"), and the placeholders of chapters before it that the model could
     not read, so the next recap tries those once more. True when a recap row
-    was deleted."""
+    was deleted. At the whole book (``chapter_idx`` = chapter count) that is
+    the book's own-scope row and placeholders (the row the volume list and a
+    finished book's page share); the user-scope row of the finished-book hook
+    is left alone."""
+    n = len(book_text.book_chapters(book, db))
+    if n and chapter_idx >= n:
+        from backend.services.ai import volume_recap
+        own = volume_recap.own_scope(book)
+        digest.clear_failed(db, own, n)
+        row = get_cached(db, book.id, n, own.scope_hash)
+        if row is not None:
+            db.delete(row)
+        db.commit()
+        return row is not None
     scope = digest.user_scope(db, user, book)
     digest.clear_failed(db, scope, chapter_idx)
     row = get_cached(db, book.id, chapter_idx, scope.scope_hash)
@@ -268,7 +287,16 @@ def generate(db: Session, user: User, book: Book, window: companion.Window, *,
 
     Raises ``RecapNotReady`` when digests are missing and ``partial`` is
     False, ``NothingToRecap`` when there is neither a summary nor text, and
-    the typed ``AIError``s from ``run_feature``."""
+    the typed ``AIError``s from ``run_feature``.
+
+    A finished book (``window.finished``) is the volume recap: the same
+    whole-book row the volume list shows, written from this book's own
+    summaries by ``volume_recap.generate_volume`` (so the two never
+    diverge)."""
+    if window.finished:
+        from backend.services.ai import volume_recap
+        row, cached = volume_recap.whole_book(db, user, book, partial=partial, force=force)
+        return RecapResult(row=row, cached=cached)
     scope = scope or digest.user_scope(db, user, book)
     k = window.chapter_idx
     cov = digest.coverage(db, scope, k)
@@ -285,8 +313,12 @@ def generate(db: Session, user: User, book: Book, window: companion.Window, *,
     if not used and book_text.count_words(text) < digest.MIN_CHAPTER_WORDS:
         raise NothingToRecap()
 
+    from backend.services.ai import estimate
+    guess = estimate.content_cost_guess(FEATURE, ai_settings.effective_model(db, FEATURE), content,
+                                        MAX_TOKENS)
     result = ai.run_feature(db, user, FEATURE, system=SYSTEM_PROMPT, user_content=content,
-                            schema=build_schema(), max_tokens=MAX_TOKENS, book_id=book.id)
+                            schema=build_schema(), max_tokens=MAX_TOKENS, book_id=book.id,
+                            cost_guess=guess)
     recap_text = _clean_paragraphs(result.parsed)
     if not recap_text:
         raise AIProviderError("The model returned an empty recap.")
@@ -399,6 +431,10 @@ def previously_for(db: Session, user: User, book: Book) -> tuple[Book, AIRecap] 
     if not n:
         return None
     row = get_cached(db, prev.id, n, digest.user_scope(db, user, prev).scope_hash)
+    if row is None:
+        # A finished volume's recap is now written for its own scope (the
+        # volume list's row); the hook's user-scope row comes first.
+        row = get_cached(db, prev.id, n, digest.Scope(book=prev).scope_hash)
     return (prev, row) if row is not None else None
 
 
@@ -421,11 +457,16 @@ def request_recap(db: Session, user: User, book: Book, window: companion.Window,
     Raises ``AIDisabled`` (recap or digests off), ``AINotConfigured`` (no
     key) and the other ``AIError``s."""
     ai.check_feature_available(db, FEATURE)
-    scope = digest.user_scope(db, user, book)
+    if window.finished:
+        from backend.services.ai import volume_recap
+        scope = volume_recap.own_scope(book)
+        cov = volume_recap.state(db, user, book).coverage
+    else:
+        scope = digest.user_scope(db, user, book)
+        cov = digest.coverage(db, scope, window.chapter_idx)
     row = cached_for(db, user, book, window, scope)
     if row is not None:
         return 200, to_dict(RecapResult(row=row, cached=True), window, scope)
-    cov = digest.coverage(db, scope, window.chapter_idx)
     if cov["digested"] < cov["needed"] and not partial:
         ai.check_feature_available(db, digest.FEATURE)
         if ai_settings.resolve_key(db, user) is None:

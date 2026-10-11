@@ -67,7 +67,7 @@ def test_status_guest_sees_no_key_and_no_admin_fields(client: TestClient, guest)
     assert body["instance_key_available"] is False
     assert "instance_key_set" not in body
     assert set(body["features"]) == {"bindery_identify", "fix_book", "series_cleanup",
-                                     "reading_digest", "recap", "recall"}
+                                     "reading_digest", "recap", "recall", "ask"}
     f = body["features"]["fix_book"]
     assert f["default_model"] == "claude-opus-5-5" and f["model"] is None and f["enabled"] is True
     assert f["kind"] == "metadata"

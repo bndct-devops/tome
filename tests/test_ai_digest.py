@@ -16,6 +16,7 @@ from starlette.testclient import TestClient
 
 from backend.core.security import create_access_token, hash_password
 from backend.models.ai_chapter_digest import AIChapterDigest
+from backend.models.ai_entity import AIEntity, AIEntityNote
 from backend.models.ai_usage import AIUsage
 from backend.models.book import Book, BookChapter
 from backend.models.tome_sync import ApiKey, TomeSyncPosition
@@ -132,14 +133,30 @@ def _read(db: Session, user: User, book: Book) -> None:
 def _store_digest(db: Session, book: Book, idx: int, entries: list[dict], summary: str = "") -> AIChapterDigest:
     row = AIChapterDigest(book_id=book.id, chapter_idx=idx, model="claude-sonnet-5-5",
                           summary=summary or f"Summary {book.id}:{idx}",
-                          entries_json=json.dumps(entries))
+                          entries_json=json.dumps([_stored(e) for e in entries]))
     db.add(row)
     db.flush()
     return row
 
 
-def _entry(name: str, line: str, kind: str = "person", evidence: str = "x") -> dict:
-    return {"name": name, "kind": kind, "line": line, "more": f"More on {name}.", "evidence": evidence}
+def _stored(e: dict) -> dict:
+    """An answer item as entries_json keeps it (``identity`` is stored as ``more``)."""
+    out = {"name": e["name"], "kind": e["kind"], "line": e["line"],
+           "more": e["more"] if "more" in e else e.get("identity", ""), "evidence": e["evidence"]}
+    if "entity_id" in e:
+        out["entity_id"] = e["entity_id"]
+    return out
+
+
+def _entry(name: str, line: str, kind: str = "person", evidence: str = "x", *, ref: int = 0,
+           identity: str | None = None, aliases: list[str] | None = None,
+           facts: dict | None = None) -> dict:
+    """An answer item in the entity shape (``ref`` 0: new). ``identity``
+    defaults to "More on {name}." (stored as the item's ``more``)."""
+    return {"ref": ref, "name": name, "kind": kind,
+            "identity": f"More on {name}." if identity is None else identity,
+            "aliases": aliases or [], "line": line,
+            "facts": {f: (facts or {}).get(f, "") for f in digest.FACT_FIELDS}, "evidence": evidence}
 
 
 _HEADING_RE = re.compile(r"^=== \[c(\d+)\](?: [^\n]*)? ===\n\n", re.S)
@@ -157,9 +174,9 @@ def chapter_blocks(user_content) -> list[tuple[int, str]]:
 
 def _echo_one(text: str) -> dict:
     words = text.split()
-    return {"summary": "Something happened.",
-            "entries": [{"name": words[0], "kind": "term", "line": "A word.", "more": "",
-                         "evidence": " ".join(words[:6])}]}
+    return {"summary": "Something happened.", "same_as": [],
+            "entries": [_entry(words[0], "A word.", kind="term", identity="",
+                               evidence=" ".join(words[:6]))]}
 
 
 def echo_digest(feature, user_content, schema):
@@ -523,7 +540,8 @@ def test_citation_check_needs_a_quote_that_names_the_entry():
 def test_fold_later_line_wins_first_seen_kept_names_merge():
     class D:
         def __init__(self, book_id, idx, entries):
-            self.book_id, self.chapter_idx, self.entries_json = book_id, idx, json.dumps(entries)
+            self.book_id, self.chapter_idx = book_id, idx
+            self.entries_json = json.dumps([_stored(e) for e in entries])
 
     folded = digest.fold_entries([
         D(1, 0, [_entry("Mara Vell", "A walker."), _entry("The Harbour", "A dock.", kind="place")]),
@@ -621,7 +639,7 @@ def test_digest_chapter_sends_exactly_chapter_k(db, make_book, tmp_path):
     assert "LATER-SPOILER" not in sent        # a later digest never feeds an earlier one
     # The state block comes first: names and kinds only, no descriptions.
     assert blocks[0]["text"].startswith(digest.STATE_HEADER)
-    assert blocks[0]["text"].split("\n")[1:] == ['{"name": "Mara Vell", "kind": "person"}']
+    assert blocks[0]["text"].split("\n")[1:] == ['{"id": 0, "name": "Mara Vell", "kind": "person", "identity": ""}']
     assert "Walked to the harbour." not in sent
     context = json.loads(blocks[1]["text"].split("\n\n", 1)[1].rsplit("\n\nThe chapter text", 1)[0])
     assert context["chapter"] == {"number": 2, "of": 4, "title": "The Bell"}
@@ -839,7 +857,7 @@ def test_prior_glossary_is_the_series_order_not_the_users_scope(db, make_book, t
     fake = FakeProvider(responses=echo_digest)
     ai.set_provider_override(fake)
     digest.digest_chapter(db, newcomer, v2, 0)
-    assert '{"name": "Mara Vell", "kind": "person"}' in fake.calls[0]["user_content"][0]["text"]
+    assert '{"id": 0, "name": "Mara Vell", "kind": "person", "identity": ""}' in fake.calls[0]["user_content"][0]["text"]
 
 
 def test_job_cancel_and_followups(db, make_book, tmp_path):
@@ -1104,7 +1122,8 @@ def test_job_endpoints_permissions_and_cancel(client: TestClient, db: Session, m
 
 class _D:
     def __init__(self, book_id, idx, entries):
-        self.book_id, self.chapter_idx, self.entries_json = book_id, idx, json.dumps(entries)
+        self.book_id, self.chapter_idx = book_id, idx
+        self.entries_json = json.dumps([_stored(e) for e in entries])
 
 
 def _names(state) -> list[str]:
@@ -1122,17 +1141,17 @@ def test_model_state_is_names_only_capped_and_append_ordered(monkeypatch):
         _D(2, 0, [_entry("Eli", "Five."), _entry("Bram", "Back again.")]),
         _D(2, 1, [_entry("Fen", "Six.", kind="term"), _entry("Ada", "Seen here too.")]),
     ]
-    after_0 = digest.model_state(earlier + current[:1], 2)
-    after_1 = digest.model_state(earlier + current, 2)
+    after_0 = digest.model_state(digest.seen_entities(earlier + current[:1], 2))
+    after_1 = digest.model_state(digest.seen_entities(earlier + current, 2))
     # The 3 entries seen most recently in earlier volumes (Bram, seen only in
     # chapter 0, is out), in first-seen order; then this volume's names in
     # order of first appearance here (Bram comes back, Ada was listed).
     assert _names(after_0) == ["Ada", "Cora", "Dov", "Eli", "Bram"]
     assert _names(after_1) == ["Ada", "Cora", "Dov", "Eli", "Bram", "Fen"]
     assert after_1[:len(after_0)] == after_0                   # append-only
-    assert all(set(s) == {"name", "kind"} for s in after_1)    # no lines, no more
-    assert after_1[1] == {"name": "Cora", "kind": "place"}
-    assert digest.GLOSSARY_STATE_MAX == 3 and digest.model_state([], 2) == []
+    assert all(set(s) == {"id", "name", "kind", "identity"} for s in after_1)    # no lines
+    assert after_1[1] == {"id": 0, "name": "Cora", "kind": "place", "identity": ""}
+    assert digest.GLOSSARY_STATE_MAX == 3 and digest.model_state(digest.seen_entities([], 2)) == []
 
 
 def test_state_blocks_come_first_and_cache_the_stable_prefix(monkeypatch):
@@ -1159,8 +1178,8 @@ def test_digest_call_sends_the_cached_state_first_and_the_text_uncached(db, make
     ai.set_provider_override(fake)
     digest.digest_chapter(db, user, book, 1)
     blocks = fake.calls[0]["user_content"]
-    assert blocks[0]["text"] == digest.STATE_HEADER + '\n{"name": "Mara Vell", "kind": "person"}'
-    assert blocks[1] == {"type": "text", "text": '{"name": "The Harbour", "kind": "place"}',
+    assert blocks[0]["text"] == digest.STATE_HEADER + '\n{"id": 0, "name": "Mara Vell", "kind": "person", "identity": ""}'
+    assert blocks[1] == {"type": "text", "text": '{"id": 0, "name": "The Harbour", "kind": "place", "identity": ""}',
                          "cache_control": {"type": "ephemeral"}}
     assert all("cache_control" not in b for b in blocks[2:])
     assert blocks[-1]["text"] == book_text.chapter_text(book, 1, db)
@@ -1174,7 +1193,7 @@ def test_known_names_keep_their_more_and_unchanged_lines_are_dropped(db, make_bo
         {"summary": "Tobin rang the bell.", "entries": [
             _entry("Tobin Ash", "Rings the ferry bell.", evidence="Tobin Ash rang the ferry bell twice"),
             {**_entry("MARA VELL", "Heard the bell from the lighthouse.",
-                      evidence="Mara Vell heard it from the lighthouse"), "more": "Later context."},
+                      evidence="Mara Vell heard it from the lighthouse"), "identity": "Later context."},
         ]},
         {"summary": "Oren kept a ledger.", "entries": [
             # Same line as now: not an update, dropped.
@@ -1410,7 +1429,9 @@ def test_no_automatic_enqueue_after_a_cancel_until_the_user_starts_one(db, make_
     # The user starts it: that job is the latest, so the triggers act again.
     r = c.post(f"/api/ai/books/{book.id}/digest", json={"scope": "book"}, headers=_headers(user))
     assert r.status_code == 202, r.text
-    assert r.json()["job"]["upto_chapter"] == 6
+    # Marked read above: an explicit start reads the whole book, not up to
+    # the stored position (companion.digest_upto).
+    assert r.json()["job"]["upto_chapter"] == 8
     assert not digest_job.last_cancelled(db, user.id, book.id)
 
 
@@ -1682,13 +1703,21 @@ def test_prompts_ask_for_evidence_that_names_the_entry():
         assert "does not count unless the name is in it" in flat
         # The check needs at least MIN_EVIDENCE_WORDS words ("Enter ROMEO" is two).
         assert f"quote of {digest.MIN_EVIDENCE_WORDS} to {digest.MAX_EVIDENCE_WORDS} words" in flat
-    # The rule the prompt describes is the one check_entries applies.
-    text = "Enter ROMEO and BENVOLIO. Is she a Capulet? O dear account!"
+    # The rule the prompt describes is the one check_entries applies: a quote
+    # that names nobody keeps the entry only because the name is in the
+    # chapter, and the stored quote is then re-anchored on the name; a name
+    # the chapter never writes is dropped.
+    text = ("Enter ROMEO and BENVOLIO. The street is wide and grey and the morning is cold "
+            "and the bells ring out over the old town square. Is she a Capulet? O dear account!")
     raw = [{"name": "Romeo", "kind": "person", "line": "A Montague.", "more": "",
             "evidence": "Is she a Capulet?"},
            {"name": "Benvolio", "kind": "person", "line": "Romeo's cousin.", "more": "",
-            "evidence": "Enter ROMEO and BENVOLIO"}]
-    assert [e["name"] for e in digest.check_entries(raw, text)] == ["Benvolio"]
+            "evidence": "Enter ROMEO and BENVOLIO"},
+           {"name": "Tybalt", "kind": "person", "line": "A Capulet.", "more": "",
+            "evidence": "Is she a Capulet?"}]
+    kept = {e["name"]: e["evidence"] for e in digest.check_entries(raw, text)}
+    assert set(kept) == {"Romeo", "Benvolio"}
+    assert "ROMEO" in kept["Romeo"] and "Capulet" not in kept["Romeo"]
 
 
 def test_a_short_quote_that_is_the_whole_name_keeps_a_main_character():
@@ -1857,11 +1886,11 @@ def test_more_survives_for_a_reader_without_the_earlier_volume(db, make_book, tm
     v2 = _epub_book(db, make_book, tmp_path, "Tide Two", series="Tide", index=2)
     _store_digest(db, v1, 0, [{**_entry("Mara Vell", "A walker.",
                                         evidence="Mara Vell walked down to the harbour"),
-                               "more": "Introduced in volume one."}])
+                               "more": "Introduced in volume one."}])   # a row before entities
     # Volume 2 lists her with the same line: kept (known only from another volume), more kept.
     ai.set_provider_override(FakeProvider(responses=[{"summary": "Back.", "entries": [
         {**_entry("Mara Vell", "A walker.", evidence="Mara Vell walked down to the harbour"),
-         "more": "Back in volume two."}]}]))
+         "identity": "Back in volume two."}]}]))
     row = digest.digest_chapter(db, user, v2, 0)
     [e] = json.loads(row.entries_json)
     assert e["more"] == "Back in volume two."
@@ -1936,3 +1965,778 @@ def test_position_trigger_leaves_a_large_backlog_to_the_explicit_start(db, make_
     other = _make_user(db, "backlog2", "member")
     job = digest.on_position_advanced(db, other, book, _mid_of(book, db, 4))           # 4 <= 4
     assert job is not None and job["upto_chapter"] == 4 and job["scope"] == "book"
+
+
+# ── entities (2d step 3) ─────────────────────────────────────────────────────
+
+GUILD = [
+    ("Arrival", "Neil Davone healed the wound while Jason Asano watched from the cart. " * 4),
+    ("Market", "Neil Brown, the smith, sold Jason a blade. Neil Davone frowned at the price. " * 4),
+    ("Stranger", "The Hooded Man stalked the market. Jason Asano saw the stranger at the gate. " * 4),
+    ("Reveal", "The Hooded Man lowered his hood, and Jason Asano saw his own face. Old Neil laughed. " * 4),
+]
+
+
+def _answer(*entries, same_as=None, summary="Something happened.") -> dict:
+    return {"summary": summary, "entries": list(entries), "same_as": same_as or []}
+
+
+def _dig(db, user, book, idx, *entries, same_as=None):
+    """Digest chapter ``idx`` with this answer; (row, the call sent)."""
+    fake = FakeProvider(responses=[_answer(*entries, same_as=same_as)])
+    ai.set_provider_override(fake)
+    row = digest.digest_chapter(db, user, book, idx)
+    return row, fake.calls[0]
+
+
+def _entities(db) -> dict[str, AIEntity]:
+    return {e.name: e for e in db.query(AIEntity).order_by(AIEntity.id)}
+
+
+def _notes(db, entity: AIEntity) -> list[AIEntityNote]:
+    return db.query(AIEntityNote).filter_by(entity_id=entity.id).order_by(AIEntityNote.chapter_idx).all()
+
+
+def _state_lines(call) -> list[dict]:
+    lines = []
+    for b in call["user_content"]:
+        if b["text"].startswith("Digest "):
+            break
+        lines += [json.loads(x) for x in b["text"].split("\n") if x.startswith("{")]
+    return lines
+
+
+@pytest.fixture()
+def guild(db, make_book, tmp_path):
+    user = _make_user(db, "guild", "member")
+    book = _epub_book(db, make_book, tmp_path, "Guild One", series="The  Guild", index=1, chapters=GUILD)
+    return user, book
+
+
+def _jason_and_neil(db, user, book):
+    _dig(db, user, book, 0,
+         _entry("Neil Davone", "Healed a wound.", evidence="Neil Davone healed the wound",
+                identity="Jason's teammate, a healer."),
+         _entry("Jason Asano", "Watched from the cart.", evidence="Jason Asano watched from the cart",
+                identity="A newcomer to the world.", facts={"status": "alive", "location": "the cart"}))
+    ents = _entities(db)
+    return ents["Jason Asano"], ents["Neil Davone"]
+
+
+def test_new_entries_create_entities_and_the_state_carries_identity(db, guild):
+    user, book = guild
+    jason, neil = _jason_and_neil(db, user, book)
+    assert jason.series_key == "the guild" and digest.series_key(book) == "the guild"
+    assert (jason.first_book_id, jason.first_chapter_idx) == (book.id, 0)
+    assert neil.identity == "Jason's teammate, a healer."
+    row0 = digest.get_digest(db, book.id, 0)
+    items = json.loads(row0.entries_json)
+    assert [(e["name"], e["entity_id"], e["more"]) for e in items] == [
+        ("Neil Davone", neil.id, "Jason's teammate, a healer."),
+        ("Jason Asano", jason.id, "A newcomer to the world.")]
+    [note] = _notes(db, jason)
+    assert note.line == "Watched from the cart." and json.loads(note.facts_json) == {
+        "status": "alive", "location": "the cart"}
+
+    _, call = _dig(db, user, book, 1, _entry("Neil Davone", "Frowned at a price.", ref=neil.id,
+                                             identity="", evidence="Neil Davone frowned at the price"))
+    assert _state_lines(call) == [
+        {"id": neil.id, "name": "Neil Davone", "kind": "person", "identity": "Jason's teammate, a healer."},
+        {"id": jason.id, "name": "Jason Asano", "kind": "person", "identity": "A newcomer to the world."}]
+    # Append-only: the next chapter's state starts with this one.
+    _, call2 = _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked the market.",
+                                              evidence="The Hooded Man stalked the market"))
+    assert _state_lines(call2)[:2] == _state_lines(call)
+    assert "Frowned at a price." not in sent_text(call2)        # identity only, no situational line
+
+
+def test_an_accepted_ref_attaches_and_a_ref_not_named_in_the_quote_is_new(db, guild):
+    user, book = guild
+    jason, neil = _jason_and_neil(db, user, book)
+    row, _ = _dig(
+        db, user, book, 1,
+        # Named by a part of the name: accepted, even with another spelling.
+        _entry("Jason", "Bought a blade.", ref=jason.id, identity="",
+               evidence="the smith, sold Jason a blade"),
+        # A ref whose entity the quote does not name: a new entity instead.
+        # (A quote naming any part of the entity's name passes: "Neil" alone
+        # would carry a ref to Neil Davone, so the ref is the model's call.)
+        _entry("Neil Brown", "Sold a blade.", ref=jason.id, identity="A smith.",
+               evidence="Neil Brown, the smith, sold"),
+    )
+    ents = _entities(db)
+    assert set(ents) == {"Neil Davone", "Jason Asano", "Neil Brown"}
+    items = {e["name"]: e for e in json.loads(row.entries_json)}
+    assert items["Jason"]["entity_id"] == jason.id and items["Jason"]["more"] == ""
+    assert items["Neil Brown"]["entity_id"] == ents["Neil Brown"].id
+    assert items["Neil Brown"]["more"] == "A smith."
+    assert [n.chapter_idx for n in _notes(db, jason)] == [0, 1]
+    assert [n.chapter_idx for n in _notes(db, neil)] == [0]
+    # The spelling used is learned as an alias (it is in the text).
+    assert [a["name"] for a in digest.entity_aliases(jason)] == ["Jason"]
+
+
+def test_a_ref_to_another_kind_or_an_unknown_id_is_new(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 1, _entry("Jason", "A place now?", kind="place", ref=jason.id,
+                                   evidence="the smith, sold Jason a blade"))
+    _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked.", ref=99999,
+                                   evidence="The Hooded Man stalked the market"))
+    ents = _entities(db)
+    assert ents["Jason"].kind == "place" and ents["Jason"].id != jason.id
+    assert "The Hooded Man" in ents
+
+
+def test_two_people_called_neil_stay_apart(db, guild):
+    user, book = guild
+    _, davone = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 1, _entry("Neil Brown", "Sold a blade.", identity="A smith.",
+                                   evidence="Neil Brown, the smith, sold"))
+    brown = _entities(db)["Neil Brown"]
+    # Chapter 3 says only "Neil": the ref decides who it is.
+    _dig(db, user, book, 3, _entry("Neil", "Laughed.", ref=brown.id, identity="",
+                                   evidence="his own face. Old Neil laughed"))
+    assert [n.chapter_idx for n in _notes(db, brown)] == [1, 3]
+    assert [n.chapter_idx for n in _notes(db, davone)] == [0]
+    assert davone.identity != brown.identity
+    assert "Neil" not in _entities(db)
+    # And the same short name pointed at the other one in another book of the series.
+    db.query(AIChapterDigest).filter_by(book_id=book.id, chapter_idx=3).delete()
+    db.query(AIEntityNote).filter_by(book_id=book.id, chapter_idx=3).delete()
+    _dig(db, user, book, 3, _entry("Neil", "Laughed.", ref=davone.id, identity="",
+                                   evidence="his own face. Old Neil laughed"))
+    assert [n.chapter_idx for n in _notes(db, davone)] == [0, 3]
+    assert [n.chapter_idx for n in _notes(db, brown)] == [1]
+
+
+def test_a_new_entry_with_a_known_name_attaches(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("JASON  ASANO", "Saw a stranger.", identity="Someone.",
+                                   evidence="Jason Asano saw the stranger"))
+    assert len(_entities(db)) == 2
+    assert [n.chapter_idx for n in _notes(db, jason)] == [0, 2]
+    assert jason.identity == "A newcomer to the world."           # stable
+
+
+def test_aliases_are_learned_only_from_the_text(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("Jason Asano", "Saw a stranger.", ref=jason.id, identity="",
+                                   aliases=["Jason", "The Outworlder", "jason"],
+                                   evidence="Jason Asano saw the stranger"))
+    assert digest.entity_aliases(jason) == [
+        {"name": "Jason", "book_id": book.id, "chapter_idx": 2, "context_end": 2}]
+
+
+def test_one_note_per_entity_and_chapter(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 3,
+         _entry("Jason Asano", "Saw his own face.", ref=jason.id, identity="",
+                facts={"status": "shaken"}, evidence="Jason Asano saw his own face"),
+         _entry("Jason", "Looked again.", ref=jason.id, identity="",
+                facts={"status": "calm", "location": "the gate"},
+                evidence="his hood, and Jason Asano saw"))
+    notes = _notes(db, jason)
+    assert [n.chapter_idx for n in notes] == [0, 3]
+    assert notes[1].line == "Saw his own face."
+    assert json.loads(notes[1].facts_json) == {"status": "shaken", "location": "the gate"}
+
+
+def test_same_as_merges_from_that_chapter_on(db, guild):
+    user, book = guild
+    jason, neil = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked the market.", identity="A stranger.",
+                                   evidence="The Hooded Man stalked the market"),
+         # Neil Davone is not in chapter 2: refused.
+         same_as=[[jason.id, neil.id]])
+    hooded = _entities(db)["The Hooded Man"]
+    assert neil.merged_into is None and jason.merged_into is None
+    _dig(db, user, book, 3, _entry("The Hooded Man", "Lowered his hood.", ref=hooded.id, identity="",
+                                   evidence="The Hooded Man lowered his hood"),
+         same_as=[[hooded.id, jason.id]])
+    assert hooded.merged_into == jason.id
+    assert (hooded.merged_book_id, hooded.merged_chapter_idx) == (book.id, 3)
+    assert "The Hooded Man" in [a["name"] for a in digest.entity_aliases(jason)]
+    notes = _notes(db, jason)
+    assert [(n.chapter_idx, n.origin_entity_id) for n in notes] == [(0, None), (2, hooded.id), (3, hooded.id)]
+    assert _notes(db, hooded) == []
+    # A merged entity is not referable; its name still finds it.
+    db.query(AIChapterDigest).filter_by(book_id=book.id, chapter_idx=1).delete()
+    _dig(db, user, book, 1, _entry("Jason", "Bought a blade.", ref=hooded.id, identity="",
+                                   evidence="the smith, sold Jason a blade"))
+    assert "Jason" in _entities(db)                               # treated as new
+
+    # Profiles: before the reveal they are two; from it on, one.
+    scope = digest.Scope(book=book)
+    before = {p.name: p for p in digest.profiles(db, scope, 3)}
+    assert before["The Hooded Man"].entity_id == hooded.id
+    assert [t["chapter_idx"] for t in before["The Hooded Man"].timeline] == [2]
+    assert "The Hooded Man" not in before["Jason Asano"].aliases
+    after = {p.name: p for p in digest.profiles(db, scope, 4)}
+    assert "The Hooded Man" not in after
+    assert [t["chapter_idx"] for t in after["Jason Asano"].timeline] == [0, 2, 3]
+    assert "The Hooded Man" in after["Jason Asano"].aliases
+
+
+def test_same_as_refused_when_a_name_is_not_in_the_text_or_kinds_differ(db, guild):
+    user, book = guild
+    jason, neil = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked.", kind="term",
+                                   evidence="The Hooded Man stalked the market"))
+    hooded = _entities(db)["The Hooded Man"]
+    _dig(db, user, book, 3, _entry("Jason Asano", "Saw his face.", ref=jason.id, identity="",
+                                   evidence="Jason Asano saw his own face"),
+         same_as=[[jason.id, neil.id], [hooded.id, jason.id], [jason.id, jason.id], [1], "x"])
+    assert all(e.merged_into is None for e in _entities(db).values())
+
+
+def test_a_multi_chapter_call_creates_then_refers(db, guild):
+    user, book = guild
+
+    def responder(feature, user_content, schema):
+        return {"chapters": [
+            {"chapter": 1, **_answer(_entry("Neil Davone", "Healed.", identity="A healer.",
+                                            evidence="Neil Davone healed the wound"))},
+            {"chapter": 2, **_answer(_entry("Neil Davone", "Frowned.", identity="",
+                                            evidence="Neil Davone frowned at the price"))},
+        ]}
+
+    ai.set_provider_override(FakeProvider(responses=responder))
+    rows = digest.digest_chapters(db, user, book, [0, 1])
+    [neil] = _entities(db).values()
+    assert [n.chapter_idx for n in _notes(db, neil)] == [0, 1]
+    assert [json.loads(r.entries_json)[0]["entity_id"] for r in rows] == [neil.id, neil.id]
+    assert neil.identity == "A healer."
+
+
+def test_a_split_unit_stores_no_entities_or_notes(db, guild):
+    user, book = guild
+    ai.set_provider_override(FakeProvider(refuse=True))
+    with pytest.raises(digest.UnitSplit):
+        digest.digest_chapters(db, user, book, [0, 1])
+    assert db.query(AIEntity).count() == 0 and db.query(AIEntityNote).count() == 0
+
+
+def test_a_failed_entity_write_stores_neither_row_nor_notes(db, guild, monkeypatch):
+    user, book = guild
+    db.flush()
+    # A session joined through a SAVEPOINT (as the job's), so its rollback
+    # does not discard the fixtures.
+    s = Session(bind=db.get_bind(), join_transaction_mode="create_savepoint", autoflush=False)
+
+    def boom(self, *a, **k):
+        s.add(AIEntity(series_key="x", kind="person", name="Half"))
+        s.flush()
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(digest._EntityWriter, "write_chapter", boom)
+    ai.set_provider_override(FakeProvider(responses=[_answer(
+        _entry("Neil Davone", "Healed.", evidence="Neil Davone healed the wound"))]))
+    try:
+        with pytest.raises(RuntimeError):
+            digest.digest_chapter(s, s.get(User, user.id), s.get(Book, book.id), 0)
+    finally:
+        s.close()
+    assert digest.get_digest(db, book.id, 0) is None
+    assert db.query(AIEntity).count() == 0
+
+
+def test_profiles_fold_facts_latest_inside_the_window(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 1, _entry("Jason", "Bought a blade.", ref=jason.id, identity="",
+                                   facts={"status": "wounded"}, evidence="the smith, sold Jason a blade"))
+    _dig(db, user, book, 2, _entry("Jason Asano", "Saw a stranger.", ref=jason.id, identity="",
+                                   facts={"status": "dead", "location": "the gate"},
+                                   evidence="Jason Asano saw the stranger"))
+    scope = digest.Scope(book=book)
+    [_, p] = digest.profiles(db, scope, 2)                       # Neil first, then Jason
+    d = p.to_dict()
+    assert d["entity_id"] == jason.id and d["identity"] == "A newcomer to the world."
+    assert d["status"] == "wounded"
+    assert d["facts"] == {
+        "status": {"value": "wounded", "book_id": book.id, "chapter_idx": 1},
+        "location": {"value": "the cart", "book_id": book.id, "chapter_idx": 0}}
+    assert d["timeline"] == [{"book_id": book.id, "chapter_idx": 0, "line": "Watched from the cart."},
+                             {"book_id": book.id, "chapter_idx": 1, "line": "Bought a blade."}]
+    assert d["first_seen"] == {"book_id": book.id, "chapter_idx": 0}
+    assert d["last_seen"] == {"book_id": book.id, "chapter_idx": 1}
+    assert d["chapters"] == 2 and d["aliases"] == ["Jason"]
+    assert set(d) == {"entity_id", "name", "kind", "aliases", "identity", "facts", "status",
+                      "timeline", "first_seen", "last_seen", "chapters"}
+    later = {p.name: p.to_dict() for p in digest.profiles(db, scope, 3)}
+    assert later["Jason Asano"]["status"] == "dead" and later["Jason Asano"]["chapters"] == 3
+    assert digest.profiles(db, scope, 0) == []
+
+
+def test_profiles_synthesise_rows_written_before_entities(db, guild):
+    user, book = guild
+    _store_digest(db, book, 0, [_entry("Mara Vell", "Walked."), _entry("Neil Davone", "Healed.")])
+    _store_digest(db, book, 1, [_entry("mara vell", "Rang a bell.")])
+    # An entity of the same name and kind exists (a later chapter re-read).
+    _dig(db, user, book, 2, _entry("Neil Davone", "Back.", identity="A healer.",
+                                   evidence="Jason Asano saw the stranger") )   # quote fails: no entity
+    assert db.query(AIEntity).count() == 0
+    db.query(AIChapterDigest).filter_by(book_id=book.id, chapter_idx=2).delete()
+    db.add(AIEntity(series_key=digest.series_key(book), kind="person", name="Neil Davone",
+                    identity="A healer.", first_book_id=book.id, first_chapter_idx=0))
+    db.flush()
+    out = [p.to_dict() for p in digest.profiles(db, digest.Scope(book=book), 2)]
+    assert [(p["name"], p["entity_id"] is None) for p in out] == [("Mara Vell", True), ("Neil Davone", False)]
+    mara, neil = out
+    assert mara["identity"] == "Walked." and mara["facts"] == {} and mara["status"] is None
+    assert [t["line"] for t in mara["timeline"]] == ["Walked.", "Rang a bell."]
+    assert mara["chapters"] == 2 and mara["first_seen"]["chapter_idx"] == 0
+    assert neil["identity"] == "A healer." and [t["line"] for t in neil["timeline"]] == ["Healed."]
+
+
+def test_entity_state_follows_merges_only_inside_prior(db, guild):
+    """The state sent for a chapter before a merge lists both entities."""
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked.", identity="A stranger.",
+                                   evidence="The Hooded Man stalked the market"))
+    hooded = _entities(db)["The Hooded Man"]
+    _dig(db, user, book, 3, _entry("Jason Asano", "Saw his face.", ref=jason.id, identity="",
+                                   evidence="Jason Asano saw his own face"),
+         same_as=[[jason.id, hooded.id]])
+    assert hooded.merged_into == jason.id
+    prior = digest._prior_digests(db, book, 3)                   # chapters 0..2: before the merge
+    names = [s["name"] for s in digest.model_state(
+        digest.seen_entities(prior, book.id, digest._series_entities(db, book)))]
+    assert names == ["Neil Davone", "Jason Asano", "The Hooded Man"]
+    prior4 = digest._prior_digests(db, book, 4)
+    names4 = [s["name"] for s in digest.model_state(
+        digest.seen_entities(prior4, book.id, digest._series_entities(db, book)))]
+    assert names4 == ["Neil Davone", "Jason Asano"]
+
+
+def test_prompts_carry_the_entity_rules():
+    for prompt in (digest.SYSTEM_PROMPT, digest.SYSTEM_PROMPT_MANY):
+        flat = " ".join(prompt.split())
+        assert "Judge by context, not by spelling" in flat
+        assert "Never set ref to an entity of a different kind" in flat
+        assert "identity is who or what they are, never what they did" in flat
+        assert "Facts only when this chapter establishes or changes them" in flat
+        assert "viewpoint character and main characters are entries" in flat
+        assert "same_as" in flat and "at most 25" in flat and "at most 3 sentences" in flat
+        assert "Front or back matter" in flat and "never use what you know about it" in flat
+    assert "refer to it with ref 0 and the same name" in " ".join(digest.SYSTEM_PROMPT_MANY.split())
+
+
+def _strict(schema: dict) -> None:
+    if schema.get("type") == "object":
+        assert schema["additionalProperties"] is False
+        assert set(schema["required"]) == set(schema["properties"])
+        for v in schema["properties"].values():
+            _strict(v)
+    if schema.get("type") == "array":
+        _strict(schema["items"])
+
+
+def test_schemas_are_strict_and_carry_the_entity_fields():
+    for schema in (digest.build_schema(), digest.build_multi_schema()):
+        _strict(schema)
+    item = digest.build_schema()["properties"]["entries"]["items"]
+    assert item["required"] == ["ref", "name", "kind", "identity", "aliases", "line", "facts", "evidence"]
+    assert set(item["properties"]["facts"]["properties"]) == set(digest.FACT_FIELDS)
+    multi = digest.build_multi_schema()["properties"]["chapters"]["items"]
+    assert "same_as" in multi["required"]
+
+
+# ── review fixes (2d step 3): the window rule for entity-level writes ──────
+
+HOOD = [
+    ("One", "The Hooded Man watched Jason Asano from the roof of the inn. " * 4),
+    ("Two", "The Hooded Man and Jason Asano argued at the gate of the town. " * 4),
+    ("Three", "Rain fell over the town and the market was quiet all day. " * 4),
+    ("Four", "The Hooded Man lowered his hood and was Jason Asano from the future. " * 4),
+]
+
+
+def _hood_start(db, user, book):
+    _dig(db, user, book, 0,
+         _entry("The Hooded Man", "Watched.", identity="A watcher on the roofs.",
+                evidence="The Hooded Man watched Jason Asano"),
+         _entry("Jason Asano", "Was watched.", identity="A traveller.",
+                evidence="The Hooded Man watched Jason Asano"))
+    ents = _entities(db)
+    return ents["The Hooded Man"], ents["Jason Asano"]
+
+
+def test_a_multi_chapter_call_decides_nothing_for_a_reader_before_its_end(db, make_book, tmp_path):
+    """A call over chapters 1..3 that proves a merge, learns an alias and
+    meets a new place in chapter 1 read chapter 3 to do it: a reader in
+    chapter 2 gets none of it (profiles and the state sent for chapter 2),
+    a reader past chapter 3 gets all of it, and the single-chapter re-read of
+    chapter 1 for the reader behind re-derives it from its own answer."""
+    user = _make_user(db, "multi", "member")
+    book = _epub_book(db, make_book, tmp_path, "Hood", series="Hood", index=1, chapters=HOOD)
+    hooded, jason = _hood_start(db, user, book)
+
+    def responder(feature, user_content, schema):
+        return {"chapters": [
+            {"chapter": 2, **_answer(
+                _entry("Jason Asano", "Argued.", ref=jason.id, identity="A traveller.", aliases=["Asano"],
+                       evidence="The Hooded Man and Jason Asano argued"),
+                _entry("The Town", "Was argued in.", kind="place", identity="SECRET: the future's town.",
+                       evidence="argued at the gate of the town"),
+                same_as=[[jason.id, hooded.id]])},
+            {"chapter": 3, **_answer(_entry("The Town", "Rained.", kind="place", identity="",
+                                            evidence="Rain fell over the town"))},
+            {"chapter": 4, **_answer(_entry("The Hooded Man", "Lowered his hood.", ref=hooded.id,
+                                            identity="", evidence="The Hooded Man lowered his hood"))},
+        ]}
+
+    ai.set_provider_override(FakeProvider(responses=responder))
+    digest.digest_chapters(db, user, book, [1, 2, 3])
+    town = _entities(db)["The Town"]
+    assert jason.merged_into == hooded.id and jason.merged_context_end == 3
+    assert town.identity_context_end == 3
+    assert {a["name"]: a["context_end"] for a in digest.entity_aliases(hooded)} == {
+        "Jason Asano": 3, "Asano": 3}
+    scope = digest.Scope(book=book)
+
+    # Reader in chapter 2 (idx 2): row 1 is not usable, and nothing it decided is either.
+    before = {p.name: p for p in digest.profiles(db, scope, 2)}
+    assert set(before) == {"The Hooded Man", "Jason Asano"}
+    assert before["The Hooded Man"].aliases == [] and before["Jason Asano"].aliases == []
+    assert before["Jason Asano"].identity == "A traveller."
+    state = digest.seen_entities(digest._prior_digests(db, book, 2), book.id,
+                                 digest._series_entities(db, book), upto=2)
+    # Two entities, not merged; the town's name is in chapter 1's text, its identity is not sent.
+    assert {s.name: s.identity for s in state} == {"The Hooded Man": "A watcher on the roofs.",
+                                                   "Jason Asano": "A traveller.", "The Town": ""}
+    # Reader past the call: one entity, its aliases, the town.
+    after = {p.name: p for p in digest.profiles(db, scope, 4)}
+    assert "Jason Asano" not in after and set(after["The Hooded Man"].aliases) == {"Jason Asano", "Asano"}
+    assert after["The Town"].identity == "SECRET: the future's town."
+
+    # The reader behind gets chapter 1 re-read on its own (the job's replace
+    # unit): no merge in that answer.
+    assert [(u.idxs, u.replace) for u in digest.plan_units(db, scope, 2)] == [((1,), True)]
+    fake = FakeProvider(responses=[_answer(
+        _entry("Jason Asano", "Argued at the gate.", ref=jason.id, identity="A traveller.",
+               evidence="The Hooded Man and Jason Asano argued"),
+        _entry("The Town", "A gate.", kind="place", identity="A walled town.",
+               evidence="argued at the gate of the town"))])
+    ai.set_provider_override(fake)
+    digest.digest_chapter(db, user, book, 1, replace_partial=True)
+    assert "SECRET" not in sent_text(fake.calls[0])
+    row1 = digest.get_digest(db, book.id, 1)
+    assert row1.context_end_idx is None
+    assert jason.merged_into is None and jason.merged_context_end is None
+    assert digest.entity_aliases(hooded) == []
+    assert town.identity == "A walled town." and town.identity_context_end == 1
+    assert [(n.chapter_idx, n.origin_entity_id) for n in _notes(db, jason)] == [(0, None), (1, None)]
+    now = {p.name: p for p in digest.profiles(db, scope, 2)}
+    assert set(now) == {"The Hooded Man", "Jason Asano", "The Town"}
+    assert now["The Town"].identity == "A walled town."
+
+
+def test_an_earlier_first_sight_takes_that_chapters_identity(db, make_book, tmp_path):
+    """Volume 3 read first gave an identity; volume 1 read later is the first
+    sight and gives none: the volume 3 text never stays as the identity of a
+    volume 1 sighting."""
+    user = _make_user(db, "firstsight", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Hood1", series="Hood", index=1, chapters=HOOD)
+    v3 = _epub_book(db, make_book, tmp_path, "Hood3", series="Hood", index=3, chapters=HOOD)
+    _dig(db, user, v3, 0, _entry("Jason Asano", "x.", identity="SECRET: the future self of the Hooded Man.",
+                                 evidence="The Hooded Man watched Jason Asano"))
+    _dig(db, user, v1, 0, _entry("Jason Asano", "Was watched.", identity="",
+                                 evidence="The Hooded Man watched Jason Asano"))
+    j = _entities(db)["Jason Asano"]
+    assert (j.first_book_id, j.first_chapter_idx) == (v1.id, 0)
+    assert j.identity == "" and j.identity_context_end == 0
+    profs = {p.name: p for p in digest.profiles(db, digest.Scope(book=v1), 2)}
+    assert "SECRET" not in profs["Jason Asano"].identity
+    # Given one there, the earlier chapter's identity is the identity.
+    db.query(AIChapterDigest).filter_by(book_id=v1.id, chapter_idx=0).delete()
+    _dig(db, user, v1, 0, _entry("Jason Asano", "Was watched.", identity="A traveller.",
+                                 evidence="The Hooded Man watched Jason Asano"))
+    assert j.identity == "A traveller."
+
+
+def test_a_note_before_a_later_merge_stays_on_its_own_entity(db, make_book, tmp_path):
+    """Two entities merged in volume 3; a volume 1 chapter digested afterwards
+    names both: each keeps its own note (line and facts), and a volume 1
+    reader sees two; a reader past the merge sees one with both lines."""
+    user = _make_user(db, "mg", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Mask 1", series="Mask", index=1)
+    v3 = _epub_book(db, make_book, tmp_path, "Mask 3", series="Mask", index=3)
+    key = digest.series_key(v1)
+    a = AIEntity(series_key=key, kind="person", name="Prince Aldo", aliases_json="[]", identity="A prince.",
+                 first_book_id=v1.id, first_chapter_idx=0)
+    b = AIEntity(series_key=key, kind="person", name="Masked Knight", aliases_json="[]",
+                 identity="A knight in a mask.", first_book_id=v1.id, first_chapter_idx=0)
+    db.add_all([a, b])
+    db.flush()
+    b.merged_into, b.merged_book_id, b.merged_chapter_idx = a.id, v3.id, 1
+    db.flush()
+    text = "Prince Aldo rode north. The Masked Knight wore a silver mask and fought well."
+    checked = [
+        ({"name": "Prince Aldo", "kind": "person", "line": "Rode north.", "more": "",
+          "evidence": "Prince Aldo rode north"}, {"ref": a.id, "facts": {"location": "the north"}}),
+        ({"name": "Masked Knight", "kind": "person", "line": "Fought well in a silver mask.", "more": "",
+          "evidence": "The Masked Knight wore a silver mask"},
+         {"ref": b.id, "facts": {"appearance": "silver mask"}}),
+    ]
+    out = digest._EntityWriter(db, v1).write_chapter(1, text, checked, [])
+    assert [e["entity_id"] for e in out] == [a.id, b.id]          # the ref to b is accepted in volume 1
+    db.add(AIChapterDigest(book_id=v1.id, chapter_idx=1, model="m", summary="s", entries_json=json.dumps(out)))
+    db.add(AIChapterDigest(book_id=v1.id, chapter_idx=0, model="m", summary="s", entries_json="[]"))
+    db.flush()
+    notes = {n.entity_id: n for n in db.query(AIEntityNote).filter_by(book_id=v1.id)}
+    assert json.loads(notes[a.id].facts_json) == {"location": "the north"}
+    assert json.loads(notes[b.id].facts_json) == {"appearance": "silver mask"}
+    assert notes[b.id].origin_entity_id is None
+    early = {p.name: p.to_dict() for p in digest.profiles(db, digest.Scope(book=v1), 2)}
+    assert set(early["Prince Aldo"]["facts"]) == {"location"}
+    assert [t["line"] for t in early["Masked Knight"]["timeline"]] == ["Fought well in a silver mask."]
+    _read(db, user, v1)
+    late = {p.name: p.to_dict()
+            for p in digest.profiles(db, digest.user_scope(db, user, v3), 2)}
+    assert "Masked Knight" not in late
+    assert set(late["Prince Aldo"]["facts"]) == {"location", "appearance"}
+    assert late["Prince Aldo"]["timeline"][0]["line"] == "Rode north. Fought well in a silver mask."
+
+
+def test_a_later_merge_does_not_conflate_an_earlier_volumes_notes(db, make_book, tmp_path):
+    user = _make_user(db, "conflate", "member")
+    v2 = _epub_book(db, make_book, tmp_path, "HoodA", series="HoodX", index=2, chapters=HOOD)
+    v3 = _epub_book(db, make_book, tmp_path, "HoodB", series="HoodX", index=3, chapters=HOOD)
+    _dig(db, user, v3, 0,
+         _entry("The Hooded Man", "Watched.", evidence="The Hooded Man watched Jason Asano"),
+         _entry("Jason Asano", "Was watched.", evidence="The Hooded Man watched Jason Asano"))
+    e = _entities(db)
+    h, j = e["The Hooded Man"], e["Jason Asano"]
+    _dig(db, user, v3, 3, _entry("Jason Asano", "Revealed.", ref=j.id, identity="",
+                                 evidence="The Hooded Man lowered his hood and was Jason Asano"),
+         same_as=[[h.id, j.id]])
+    assert j.merged_into == h.id
+    _dig(db, user, v2, 1,
+         _entry("The Hooded Man", "Argued.", ref=h.id, identity="", facts={"status": "masked"},
+                evidence="The Hooded Man and Jason Asano argued"),
+         _entry("Jason Asano", "Argued back.", ref=j.id, identity="",
+                facts={"location": "the gate", "status": "angry"},
+                evidence="The Hooded Man and Jason Asano argued"))
+    profs = {p.name: p.to_dict() for p in digest.profiles(db, digest.Scope(book=v2), 2)}
+    assert {k: v["value"] for k, v in profs["The Hooded Man"]["facts"].items()} == {"status": "masked"}
+    assert {k: v["value"] for k, v in profs["Jason Asano"]["facts"].items()} == {
+        "location": "the gate", "status": "angry"}
+    assert [t["line"] for t in profs["Jason Asano"]["timeline"]] == ["Argued back."]
+
+
+def test_the_losers_note_in_the_merge_chapter_reaches_the_survivor(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked.", identity="A stranger.",
+                                   evidence="The Hooded Man stalked the market"))
+    hooded = _entities(db)["The Hooded Man"]
+    _dig(db, user, book, 3,
+         _entry("Jason Asano", "Saw his own face.", ref=jason.id, identity="",
+                evidence="Jason Asano saw his own face"),
+         _entry("The Hooded Man", "Lowered his hood.", ref=hooded.id, identity="",
+                facts={"appearance": "Jason's face"}, evidence="The Hooded Man lowered his hood"),
+         same_as=[[hooded.id, jason.id]])
+    assert hooded.merged_into == jason.id
+    [kept] = [n for n in _notes(db, hooded)]                     # both named in chapter 3: stays
+    assert kept.chapter_idx == 3
+    scope = digest.Scope(book=book)
+    after = {p.name: p.to_dict() for p in digest.profiles(db, scope, 4)}
+    assert "The Hooded Man" not in after
+    t3 = [t for t in after["Jason Asano"]["timeline"] if t["chapter_idx"] == 3]
+    assert t3 and "Lowered his hood." in t3[0]["line"] and "Saw his own face." in t3[0]["line"]
+    assert after["Jason Asano"]["facts"]["appearance"]["value"] == "Jason's face"
+    assert after["Jason Asano"]["identity"] == "A newcomer to the world."
+
+
+SHADOW = [
+    ("Docks", "Kell Varn met Mira Holt at the docks. The water was black and still all night. " * 4),
+    ("Night", "The Grey Wolf prowled the docks with Mira Holt and nobody saw his face. " * 4),
+    ("Truth", "Kell Varn laughed. Kell Varn, the Grey Wolf, had been hiding all along. " * 4),
+]
+
+
+def test_a_ref_or_merge_never_uses_an_alias_learned_later(db, make_book, tmp_path):
+    user = _make_user(db, "shadow", "member")
+    book = _epub_book(db, make_book, tmp_path, "Shadow", chapters=SHADOW)
+    _dig(db, user, book, 0,
+         _entry("Kell Varn", "Met Mira.", evidence="Kell Varn met Mira Holt"),
+         _entry("Mira Holt", "Met Kell.", evidence="Kell Varn met Mira Holt"))
+    kell, mira = _entities(db)["Kell Varn"], _entities(db)["Mira Holt"]
+    _dig(db, user, book, 2, _entry("Kell Varn", "Was the Grey Wolf.", ref=kell.id, identity="",
+                                   aliases=["Grey Wolf"], evidence="Kell Varn, the Grey Wolf, had"))
+    assert [a["name"] for a in digest.entity_aliases(kell)] == ["Grey Wolf"]
+    # Chapter 1 read afterwards: the alias from chapter 2 neither carries the ref nor the merge.
+    row, _ = _dig(db, user, book, 1,
+                  _entry("Grey Wolf", "Prowled.", ref=kell.id, identity="A prowler.",
+                         evidence="The Grey Wolf prowled the docks"),
+                  same_as=[[kell.id, mira.id]])
+    [item] = json.loads(row.entries_json)
+    assert item["entity_id"] != kell.id and _entities(db)["Grey Wolf"].id == item["entity_id"]
+    assert mira.merged_into is None and kell.merged_into is None
+    # From chapter 2 on the alias counts.
+    db.query(AIChapterDigest).filter_by(book_id=book.id, chapter_idx=2).delete()
+    row, _ = _dig(db, user, book, 2, _entry("Grey Wolf", "Laughed.", ref=kell.id, identity="",
+                                            aliases=["Grey Wolf"], evidence="Kell Varn, the Grey Wolf, had"))
+    assert json.loads(row.entries_json)[0]["entity_id"] == kell.id
+
+
+def test_the_state_sends_no_identity_from_a_row_the_chapter_cannot_use(db, make_book, tmp_path):
+    user = _make_user(db, "stateid", "member")
+    book = _epub_book(db, make_book, tmp_path, "StateId", chapters=SHADOW)
+
+    def responder(feature, user_content, schema):
+        return {"chapters": [{"chapter": 1, **_answer(_entry("Kell Varn", "Met Mira.", identity="Secretly the Grey Wolf.",
+                                                             evidence="Kell Varn met Mira Holt"))},
+                             {"chapter": 2, **_answer()}, {"chapter": 3, **_answer()}]}
+
+    ai.set_provider_override(FakeProvider(responses=responder))
+    digest.digest_chapters(db, user, book, [0, 1, 2])
+    ents = digest._series_entities(db, book)
+    prior = digest._prior_digests(db, book, 1)
+    [s] = digest.seen_entities(prior, book.id, ents, upto=1)
+    assert s.name == "Kell Varn" and s.identity == ""             # its call read chapter 2
+    [s] = digest.seen_entities(digest._prior_digests(db, book, 3), book.id, ents, upto=3)
+    assert s.identity == "Secretly the Grey Wolf."
+    # The single re-read of chapter 1 (for a reader in chapter 1) sends no identity either.
+    fake = FakeProvider(responses=[_answer()])
+    ai.set_provider_override(fake)
+    digest.digest_chapter(db, user, book, 1, replace_partial=True)
+    assert "Secretly" not in sent_text(fake.calls[0]) and "Kell Varn" in sent_text(fake.calls[0])
+
+
+PLAY = ("ACT I. SCENE V. A hall in Capulet's house. Enter the Maskers. "
+        "ROMEO. What lady is that, which doth enrich the hand of yonder knight? "
+        "SERVANT. I know not, sir. "
+        "TYBALT. This, by his voice, should be a Montague. Fetch me my rapier, boy.")
+
+
+def test_a_speakers_own_line_keeps_the_speaker_with_a_widened_quote():
+    raw = [_entry("Romeo", "Sees Juliet.", evidence="What lady is that, which doth enrich"),
+           _entry("Tybalt", "Hears a Montague.", evidence="Fetch me my rapier, boy")]
+    got = {e["name"]: e["evidence"] for e in digest.check_entries(raw, PLAY)}
+    assert got["Romeo"] == "ROMEO. What lady is that, which doth enrich"
+    assert "TYBALT" in got["Tybalt"] and "Fetch me my rapier, boy" in got["Tybalt"]
+    for ev in got.values():
+        assert digest.evidence_in_text(ev, digest.normalize_text(PLAY))
+        assert 3 <= digest.book_text.count_words(ev) <= digest.MAX_EVIDENCE_WORDS
+    # The name after the line ("...," said Mara) works too.
+    text = "\"The tide is turning against us tonight,\" said Mara, and left the room."
+    [e] = digest.check_entries([_entry("Mara", "Warns.", evidence="The tide is turning against us")], text)
+    assert "Mara" in e["evidence"] and "The tide is turning against us" in e["evidence"]
+    # A name 20 words away is past the speaker rule; the entry is then kept
+    # on the name itself (it is in the chapter), re-anchored on it.
+    far = ("ROMEO. " + " ".join(f"word{i}" for i in range(20))
+           + " What lady is that, which doth enrich the hand.")
+    [e] = digest.check_entries([_entry("Romeo", "Sees.", evidence="What lady is that, which doth")], far)
+    assert e["evidence"].startswith("ROMEO.") and "What lady" not in e["evidence"]
+    # A quote that is not in the chapter stays dropped.
+    assert digest.check_entries([_entry("Romeo", "Sees.", evidence="What lord is that")], PLAY) == []
+
+
+def test_prompts_ask_for_speaker_tags_returning_names_and_stable_identities():
+    for prompt in (digest.SYSTEM_PROMPT, digest.SYSTEM_PROMPT_MANY):
+        flat = " ".join(prompt.split())
+        assert "in a play or dialogue, quote the speaker tag with the line" in flat
+        assert "List a glossary entity again whenever this chapter changes any of its facts" in flat
+        assert "Main and viewpoint characters are listed in every chapter they appear in" in flat
+        assert "for every entry, new or ref" in flat
+        assert '"City where Romeo is exiled" is wrong, "A city in Lombardy" is right' in flat
+        assert "at most 25" in flat
+    many = " ".join(digest.SYSTEM_PROMPT_MANY.split())
+    assert "not only the names new in it" in many
+
+
+def test_a_ref_note_carries_its_identity_and_a_reader_without_the_first_volume_gets_it(
+        db, make_book, tmp_path):
+    user = _make_user(db, "noteid", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Guild V1", series="Guild", index=1, chapters=GUILD)
+    v2 = _epub_book(db, make_book, tmp_path, "Guild V2", series="Guild", index=2, chapters=GUILD)
+    _dig(db, user, v1, 0, _entry("Neil Davone", "Healed a wound.", identity="Jason's teammate, a healer.",
+                                 evidence="Neil Davone healed the wound"))
+    neil = _entities(db)["Neil Davone"]
+    row, _ = _dig(db, user, v2, 1, _entry("Neil Davone", "Frowned at a price.", ref=neil.id,
+                                          identity="A guild healer.", evidence="Neil Davone frowned at the price"))
+    assert json.loads(row.entries_json)[0]["more"] == ""          # entries_json keeps its shape
+    [note] = [n for n in _notes(db, neil) if n.book_id == v2.id]
+    assert note.identity == "A guild healer."
+    newcomer = _make_user(db, "noteid2", "member")                # never read volume 1
+    [p] = digest.profiles(db, digest.user_scope(db, newcomer, v2), 2)
+    assert p.identity == "A guild healer." and p.identity != "Frowned at a price."
+    _read(db, user, v1)
+    [p] = digest.profiles(db, digest.user_scope(db, user, v2), 2)
+    assert p.identity == "Jason's teammate, a healer."
+
+
+def test_budget_word_count_counts_cjk_characters():
+    text = "王林走进了房间。他坐下了。"
+    assert ai._content_words(text) == book_text.count_words(text) > len(text.split())
+    assert ai._content_words([{"type": "text", "text": text}, {"type": "text", "text": "two words"}]) == \
+        book_text.count_words(text) + 2
+
+
+def test_renaming_a_series_keeps_its_glossary(db, guild):
+    user, book = guild
+    jason, neil = _jason_and_neil(db, user, book)
+    book.series = "The Adventurers' Guild"
+    db.flush()
+    assert digest._series_entities(db, book) == {}
+    profs = {p.name: p for p in digest.profiles(db, digest.Scope(book=book), 1)}
+    assert set(profs) == {"Jason Asano", "Neil Davone"}
+    assert profs["Neil Davone"].entity_id == neil.id and profs["Neil Davone"].identity == "Jason's teammate, a healer."
+
+
+LONG_SPEECH = ("ROMEO. " + " ".join(f"line{i} of the speech" for i in range(12))
+               + " Thus with a kiss I die. JULIET. What's here? a cup, closed in my true love's hand?")
+
+
+def test_a_quote_far_from_its_speaker_tag_keeps_the_entry_when_the_name_is_in_the_chapter():
+    """The second smoke: Romeo's "Thus with a kiss I die" sits 36 words from
+    the ROMEO tag, so the speaker rule could not tie it; the name is in the
+    chapter, so the entry stays with a verbatim slice naming it."""
+    [e] = digest.check_entries([_entry("Romeo", "Dies.", evidence="Thus with a kiss I die")], LONG_SPEECH)
+    assert "ROMEO" in e["evidence"]
+    assert digest.evidence_in_text(e["evidence"], digest.normalize_text(LONG_SPEECH))
+    assert 3 <= digest.book_text.count_words(e["evidence"]) <= digest.WIDE_EVIDENCE_WORDS
+    # A name the chapter never writes, or a quote not in the chapter: still dropped.
+    assert digest.check_entries([_entry("Tybalt", "Dies.", evidence="Thus with a kiss I die")], LONG_SPEECH) == []
+    assert digest.check_entries([_entry("Romeo", "Dies.", evidence="Thus with a sigh I die")], LONG_SPEECH) == []
+
+
+def test_a_ref_identity_that_echoes_the_glossary_line_is_not_this_chapters_note(db, make_book, tmp_path):
+    """The second smoke: digesting volume 2 with volume 1's entities in the
+    state, the model copied their identities ("City to which Romeo is sent in
+    exile") into the volume 2 notes, and a reader without volume 1 got them.
+    A ref's identity that repeats the glossary line is stored as no identity."""
+    user = _make_user(db, "echo", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Guild E1", series="GuildE", index=1, chapters=GUILD)
+    v2 = _epub_book(db, make_book, tmp_path, "Guild E2", series="GuildE", index=2, chapters=GUILD)
+    _dig(db, user, v1, 0, _entry("Neil Davone", "Healed a wound.",
+                                 identity="Jason's teammate, a healer who was later exiled to Mantua.",
+                                 evidence="Neil Davone healed the wound"))
+    neil = _entities(db)["Neil Davone"]
+    for ident in ("Jason's teammate, a healer who was later exiled to Mantua.",
+                  "A healer, Jason's teammate, later exiled to Mantua"):
+        db.query(AIChapterDigest).filter_by(book_id=v2.id, chapter_idx=1).delete()
+        db.query(AIEntityNote).filter_by(book_id=v2.id, chapter_idx=1).delete()
+        _dig(db, user, v2, 1, _entry("Neil Davone", "Frowned at a price.", ref=neil.id, identity=ident,
+                                     evidence="Neil Davone frowned at the price"))
+        [note] = [n for n in _notes(db, neil) if n.book_id == v2.id]
+        assert note.identity == ""
+    assert digest.echoes("A healer.", "Jason's teammate, a healer who was later exiled to Mantua.") is False
+    db.query(AIChapterDigest).filter_by(book_id=v2.id, chapter_idx=1).delete()
+    db.query(AIEntityNote).filter_by(book_id=v2.id, chapter_idx=1).delete()
+    _dig(db, user, v2, 1, _entry("Neil Davone", "Frowned at a price.", ref=neil.id,
+                                 identity="A guild healer haggling at the market.",
+                                 evidence="Neil Davone frowned at the price"))
+    [note] = [n for n in _notes(db, neil) if n.book_id == v2.id]
+    assert note.identity == "A guild healer haggling at the market."
+    # A reader without volume 1 never sees the volume 1 line.
+    newcomer = _make_user(db, "echo2", "member")
+    [p] = digest.profiles(db, digest.user_scope(db, newcomer, v2), 2)
+    assert "Mantua" not in p.identity and "exiled" not in p.identity

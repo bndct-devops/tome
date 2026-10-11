@@ -91,6 +91,17 @@ FEATURES: dict[str, Feature] = {
             effort="medium",
             kind="reading",
         ),
+        Feature(
+            key="ask",
+            label="Ask about what you have read",
+            description="Answers a question from the chapters you have read, with a quote for "
+                        "every claim. Nothing after your position.",
+            default_model=SONNET,
+            # One effort per feature: medium for the answer. The chapter-pick
+            # call runs at it too (small max_tokens keeps it cheap).
+            effort="medium",
+            kind="reading",
+        ),
     )
 }
 

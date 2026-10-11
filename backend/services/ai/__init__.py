@@ -56,9 +56,13 @@ def job_context(job_id: str | None) -> Iterator[None]:
 
 
 def _content_words(user_content: list[dict[str, Any]] | str) -> int:
+    """Words sent, counted as the chapter map counts them
+    (``book_text.count_words``: each CJK character is a word), so a CJK
+    chapter is not almost invisible to the budget guess."""
+    from backend.services.book_text import count_words   # local: book_text imports this package's users
     if isinstance(user_content, str):
-        return len(user_content.split())
-    return sum(len(str(b.get("text", "")).split()) for b in user_content if isinstance(b, dict))
+        return count_words(user_content)
+    return sum(count_words(str(b.get("text", ""))) for b in user_content if isinstance(b, dict))
 
 _provider_override: AIProvider | None = None
 

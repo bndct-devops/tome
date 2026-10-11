@@ -1,28 +1,34 @@
 // Reading companion on the book page: "Recap" and "Glossary", two collapsible
 // sections in the Highlights & Notes style. Everything is cut at the reader's
 // position (the server only reads the chapters before it), so nothing here can
-// spoil what comes next. Hidden entirely unless the companion endpoint says
-// it is available: AI on, a key, an EPUB with a chapter map, and a position.
+// spoil what comes next. Hidden unless the companion endpoint says it is
+// available (AI on, a key, an EPUB with a chapter map, and a position), or
+// says `series_recaps` without a position: then only the Recap list of the
+// earlier volumes shows.
 //
 // Nothing here queues work on its own. Chapters are read only after a click
 // (Recap, "Read the missing chapters", Continue); over CONFIRM_THRESHOLD
 // chapters the confirmation dialog asks first with an estimate. The page
-// never shows money: prices live in that dialog and in Settings > AI.
+// shows no prices beyond the Ask note (a fixed per-question range): the rest
+// lives in that dialog and in Settings > AI.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Loader2, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
 import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
+import { RecapVolumes } from '@/components/RecapVolumes'
+import { GlossaryEntryDetail } from '@/components/GlossaryEntry'
+import { AskBox } from '@/components/AskBox'
 import { cn } from '@/lib/utils'
 import { getActiveLocale } from '@/lib/i18n'
 import {
   useAiStatus, getCompanion, requestRecap, clearRecap, getGlossary, recallTerm,
-  getPreviously, getDigestJob, cancelDigestJob, isRecapPending, getDigestEstimate, startDigest,
+  getDigestJob, cancelDigestJob, isRecapPending, getDigestEstimate, startDigest,
   DIGEST_JOB_ACTIVE, DIGEST_JOB_RESUMABLE, CONFIRM_THRESHOLD,
   type Companion, type CompanionScope, type DigestEstimate, type DigestJob, type DigestScope,
-  type Glossary, type GlossaryEntry, type GlossaryPlace, type Previously, type Recap,
-  type RecapPending, type RecallResult,
+  type Glossary, type GlossaryEntry, type GlossaryPlace, type Recap,
+  type RecapPending, type RecallResult, type SeriesPlace,
 } from '@/lib/ai'
 
 const POLL_MS = 2000
@@ -83,17 +89,23 @@ function orderEntries(entries: GlossaryEntry[]): GlossaryEntry[] {
   return [...people, ...places, ...terms].map(x => x.e)
 }
 
-/** The names a query is matched against first. One place to add aliases
- *  when entries carry them. */
+/** The names a query is matched against first, and the names recap text
+ *  links to: the name plus its aliases. */
 function entryNames(e: GlossaryEntry): string[] {
-  return [e.name]
+  return [e.name, ...(e.aliases ?? []).filter(a => a && a !== e.name)]
 }
 
-/** 2 when the query matches a name, 1 when it only matches the line, 0 when
- *  it matches neither. `q` is trimmed and lower-cased. */
+/** The row's second line: the stable identity when the server sends one,
+ *  else today's line. */
+function entryLine(e: GlossaryEntry): string {
+  return e.identity || e.line
+}
+
+/** 2 when the query matches a name or alias, 1 when it only matches the
+ *  row's line, 0 when it matches neither. `q` is trimmed and lower-cased. */
 function matchRank(e: GlossaryEntry, q: string): number {
   if (entryNames(e).some(n => n.toLocaleLowerCase().includes(q))) return 2
-  if (e.line.toLocaleLowerCase().includes(q)) return 1
+  if (entryLine(e).toLocaleLowerCase().includes(q)) return 1
   return 0
 }
 
@@ -106,6 +118,70 @@ function bareChapterTitle(title: string | null, number: number): string | null {
   return title.trim() || null
 }
 
+/** Glossary names by first character, longest first, for linkNames. */
+type NameIndex = Map<string, { name: string; key: string }[]>
+
+const WORD_CHAR = /[\p{L}\p{N}_]/u
+
+function buildNameIndex(entries: GlossaryEntry[]): NameIndex {
+  const seen = new Set<string>()
+  const all: { name: string; key: string }[] = []
+  for (const e of entries) {
+    const key = `${e.kind}:${e.name}`
+    for (const n of entryNames(e)) {
+      const name = n.trim()
+      if (name.length < 2 || seen.has(name)) continue
+      seen.add(name)
+      all.push({ name, key })
+    }
+  }
+  all.sort((a, b) => b.name.length - a.name.length)
+  const index: NameIndex = new Map()
+  for (const item of all) {
+    const list = index.get(item.name[0])
+    if (list) list.push(item)
+    else index.set(item.name[0], [item])
+  }
+  return index
+}
+
+/** One paragraph with every glossary name (as written, whole word, longest
+ *  first) wrapped in a button that opens its entry. Pure: no HTML strings. */
+function linkNames(
+  text: string, index: NameIndex, title: string, onPick: (key: string, name: string) => void,
+): React.ReactNode[] {
+  if (index.size === 0) return [text]
+  const out: React.ReactNode[] = []
+  let last = 0
+  let i = 0
+  while (i < text.length) {
+    const candidates = index.get(text[i])
+    if (!candidates || (i > 0 && WORD_CHAR.test(text[i - 1]))) { i++; continue }
+    const hit = candidates.find(c => {
+      if (!text.startsWith(c.name, i)) return false
+      const end = i + c.name.length
+      return end >= text.length || !WORD_CHAR.test(text[end])
+    })
+    if (!hit) { i++; continue }
+    if (i > last) out.push(text.slice(last, i))
+    out.push(
+      <button
+        key={i}
+        type="button"
+        onClick={() => onPick(hit.key, hit.name)}
+        title={title}
+        className="underline decoration-dotted decoration-muted-foreground/60 underline-offset-2 hover:text-primary hover:decoration-primary"
+      >
+        {hit.name}
+      </button>,
+    )
+    i += hit.name.length
+    last = i
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
 export function ReadingCompanion({ bookId }: { bookId: number }) {
   const { t } = useLingui()
   const { available: aiAvailable } = useAiStatus()
@@ -116,7 +192,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   // Recap
   const [recapOpen, setRecapOpen] = useState(false)
   const [recap, setRecap] = useState<Recap | null>(null)
-  const [previously, setPreviously] = useState<Previously | null>(null)
   const [recapState, setRecapState] = useState<'idle' | 'loading' | 'waiting' | 'writing'>('idle')
   const [recapError, setRecapError] = useState<string | null>(null)
 
@@ -144,6 +219,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const [digestError, setDigestError] = useState<string | null>(null)
 
   const recapWaitingRef = useRef(false)
+  const glossaryRef = useRef<HTMLDivElement>(null)
+  const glossaryTried = useRef(false)
   const alive = useRef(true)
   useEffect(() => {
     alive.current = true
@@ -178,6 +255,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   // Read-only: the glossary GET never queues work.
   const loadGlossary = useCallback(async () => {
+    glossaryTried.current = true
     setGlossaryError(null)
     setGlossaryLoading(true)
     try {
@@ -214,6 +292,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       .then(c => {
         if (cancelled) return
         setCompanion(c)
+        // The volume list is compact (rows collapsed): open the section.
+        if (c.series_recaps) setRecapOpen(true)
         if (!c.available) return
         if (isActive(c.job)) setJob(c.job)
         else if (c.last_job) setEndedJob(c.last_job)
@@ -239,11 +319,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           }
           setRecapWait(bookId, null)
         }
-        if (c.features.recap && c.previously) {
-          getPreviously(bookId)
-            .then(p => { if (!cancelled) { setPreviously(p); setRecapOpen(true) } })
-            .catch(() => {})
-        } else if (c.features.recap && c.recap_cached) {
+        if (c.features.recap && c.recap_cached) {
           setRecapOpen(true)
           void loadRecap('loading')
         }
@@ -286,19 +362,63 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     return [...ranked.filter(x => x.rank === 2), ...ranked.filter(x => x.rank === 1)].map(x => x.e)
   }, [ordered, query])
 
-  if (!enabled || !companion || !companion.available || !companion.position) return null
+  const nameIndex = useMemo(() => buildNameIndex(glossary?.entries ?? []), [glossary])
+
+  const hasPosition = companion != null && companion.available && companion.position != null
+  const glossaryOn = hasPosition && companion != null && companion.features.glossary
+
+  // Recap text is on screen: load the glossary once (read-only) so names in
+  // it can link to their entries.
+  const ensureGlossary = useCallback(() => {
+    if (!glossaryOn || glossaryTried.current) return
+    void loadGlossary()
+  }, [glossaryOn, loadGlossary])
+
+  useEffect(() => {
+    if (recap != null) ensureGlossary()
+  }, [recap, ensureGlossary])
+
+  // A volume's chapters were read: the glossary may have grown.
+  const onVolumeDigestEnded = useCallback(() => {
+    if (glossaryOn) void loadGlossary()
+  }, [glossaryOn, loadGlossary])
+
+  if (!enabled || !companion) return null
+  const seriesOnly = !companion.available && companion.reason === 'no_position' && companion.series_recaps === true
+  if (!hasPosition && !seriesOnly) return null
 
   const { position, features } = companion
-  const pct = Math.round(position.pct * 100)
   const chapterLabel = (title: string | null, idx: number) => {
     const number = idx + 1
     return title || t`Chapter ${number}`
   }
-  const upTo = chapterLabel(position.chapter_title, position.chapter_idx)
-  const when = relativeTime(position.updated_at)
-  const fromLine = position.source === 'device'
-    ? (when ? t`from your device ${when}` : t`from your device`)
-    : (when ? t`from your web reader ${when}` : t`from your web reader`)
+  let headingLine: string | null = null
+  if (hasPosition && position) {
+    const when = relativeTime(position.updated_at)
+    const fromLine = position.source === 'device'
+      ? (when ? t`from your device ${when}` : t`from your device`)
+      : (when ? t`from your web reader ${when}` : t`from your web reader`)
+    if (position.finished) {
+      // Marked read: the window is the whole book, no "up to" chapter.
+      headingLine = t`Finished · ${fromLine}`
+    } else {
+      const pct = Math.round(position.pct * 100)
+      const upTo = chapterLabel(position.chapter_title, position.chapter_idx)
+      headingLine = t`Up to ${upTo} · ${pct}% · ${fromLine}`
+    }
+  }
+
+  const linkTitle = t`Show in the glossary`
+  function openEntry(key: string, name: string) {
+    setGlossaryOpen(true)
+    setQuery(name)
+    setRecall(null)
+    setExpanded(prev => new Set(prev).add(key))
+    window.requestAnimationFrame(() => {
+      glossaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+  const renderParagraph = (p: string) => linkNames(p, glossaryOn ? nameIndex : new Map(), linkTitle, openEntry)
 
   // ── starting work ──────────────────────────────────────────────────────────
 
@@ -381,7 +501,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   async function startRecap() {
     setRecapOpen(true)
-    setPreviously(null)
     const pending = await loadRecap('writing')
     if (!pending || !alive.current) return
     if (isActive(pending.job)) { waitOn(pending.job); return }
@@ -491,6 +610,21 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     return title ? t`ch ${ch} · ${title}` : t`ch ${ch}`
   }
 
+  // "vol 1, ch 12" (or "ch 12"): the muted place after a fact or timeline line.
+  const shortPlace = (p: SeriesPlace) => {
+    const ch = p.chapter_idx + 1
+    const vol = p.series_index
+    return vol != null ? t`vol ${vol}, ch ${ch}` : t`ch ${ch}`
+  }
+
+  // An Ask quote's place, with the chapter title when there is one.
+  const quotePlace = (p: SeriesPlace) => {
+    const ch = p.chapter_idx + 1
+    const title = bareChapterTitle(p.chapter_title ?? null, ch)
+    const short = shortPlace(p)
+    return title ? t`${short} · ${title}` : short
+  }
+
   const samePlace = (a: GlossaryPlace, b: GlossaryPlace) =>
     a.book_id === b.book_id && a.chapter_idx === b.chapter_idx
 
@@ -567,7 +701,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   // ── Recap section ──────────────────────────────────────────────────────────
 
-  const previouslyTitle = previously?.title ?? ''
   const recapFor = recap ? chapterLabel(recap.chapter_title, recap.chapter_idx) : ''
   const missingVolumes = recap?.missing_volumes ?? []
   const writtenWithout = missingVolumes.length > 0
@@ -583,9 +716,10 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           return t`${name} (${counts})`
         }))
     : null
-  const showPreviously = previously != null && recap == null && recapState === 'idle'
   // Nothing written yet: the section is one line and the button, open or not.
-  const recapTeaser = recap == null && !showPreviously && recapState === 'idle'
+  const recapTeaser = recap == null && recapState === 'idle'
+  // With earlier volumes the section is a list and this book is its last row.
+  const volumeList = companion.series_recaps === true
 
   const recapButton = (
     <button
@@ -598,102 +732,115 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     </button>
   )
 
-  const recapBlock = features.recap ? (
-    <div className="mt-4">
-      <button
-        type="button"
-        onClick={() => setRecapOpen(o => !o)}
-        aria-expanded={recapOpen}
-        className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
-      >
-        <Trans>Recap</Trans>
-        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !recapOpen && '-rotate-90')} />
-      </button>
-      {recapTeaser ? (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="text-sm text-muted-foreground min-w-0">
-              <Trans>The story so far, from the pages before your position. Nothing after it is read.</Trans>
-            </p>
-            {recapButton}
-          </div>
-          {recapError && <p className="text-xs text-destructive">{recapError}</p>}
-        </div>
-      ) : recapOpen ? (
-        <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 space-y-3">
-          {recapState === 'loading' && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <Trans>Loading the recap…</Trans>
-            </p>
-          )}
-          {recapState === 'waiting' && (
-            <>
+  const teaser = (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-sm text-muted-foreground min-w-0">
+          <Trans>The story so far, from the pages before your position. Nothing after it is read.</Trans>
+        </p>
+        {recapButton}
+      </div>
+      {recapError && <p className="text-xs text-destructive">{recapError}</p>}
+    </div>
+  )
+
+  // Today's live recap: loading, waiting, writing, the text and its footer.
+  const recapPanel = (boxed: boolean) => (
+    <div className={cn(boxed ? 'rounded-lg border border-border bg-muted/40 px-4 py-3 space-y-3' : 'space-y-3')}>
+            {recapState === 'loading' && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <Trans>Waiting for the chapters to be read. The recap is written right after.</Trans>
+                <Trans>Loading the recap…</Trans>
               </p>
-              <p className="text-xs text-muted-foreground/70">
-                <Trans>Each chapter is read once. Later recaps and the glossary reuse it.</Trans>
+            )}
+            {recapState === 'waiting' && (
+              <>
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Trans>Waiting for the chapters to be read. The recap is written right after.</Trans>
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  <Trans>Each chapter is read once. Later recaps and the glossary reuse it.</Trans>
+                </p>
+              </>
+            )}
+            {recapState === 'writing' && (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Trans>Writing the recap. This can take up to a minute.</Trans>
               </p>
-            </>
-          )}
-          {recapState === 'writing' && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <Trans>Writing the recap. This can take up to a minute.</Trans>
-            </p>
-          )}
-          {recapState === 'idle' && showPreviously && previously && (
-            <>
-              <p className="text-sm font-medium text-foreground">
-                <Trans>Previously on {previouslyTitle}</Trans>
-              </p>
-              {paragraphs(previously.text).map((p, i) => (
-                <p key={i} className="text-sm text-foreground leading-relaxed">{p}</p>
-              ))}
-              {previously.partial && (
-                <p className="text-xs text-muted-foreground/70">
-                  <Trans>Some chapters of that volume could not be read, so this may skip parts.</Trans>
-                </p>
-              )}
-            </>
-          )}
-          {recapState === 'idle' && recap && (
-            <>
-              {paragraphs(recap.text).map((p, i) => (
-                <p key={i} className="text-sm text-foreground leading-relaxed">{p}</p>
-              ))}
-              {recap.partial && (
-                <p className="text-xs text-muted-foreground/70">
-                  <Trans>Some chapters could not be read, so this recap may skip parts.</Trans>
-                </p>
-              )}
-              {writtenWithout && (
-                <p className="text-xs text-muted-foreground/70">
-                  <Trans>Written without: {writtenWithout}.</Trans>
-                </p>
-              )}
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 pt-1 border-t border-border/60">
-                <p className="text-xs text-muted-foreground/70 pt-2">
-                  {recap.whole_book
-                    ? <Trans>Written for the whole book · cached, free to reopen</Trans>
-                    : <Trans>Written for {recapFor} · cached, free to reopen</Trans>}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void askAgain()}
-                  className="flex items-center gap-1 pt-2 text-xs font-medium text-primary hover:underline"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <Trans>Ask again</Trans>
-                </button>
-              </div>
-            </>
-          )}
-          {recapState === 'idle' && recapError && <p className="text-xs text-destructive">{recapError}</p>}
-        </div>
-      ) : null}
+            )}
+            {recapState === 'idle' && recap && (
+              <>
+                {paragraphs(recap.text).map((p, i) => (
+                  <p key={i} className="text-sm text-foreground leading-relaxed">{renderParagraph(p)}</p>
+                ))}
+                {recap.partial && (
+                  <p className="text-xs text-muted-foreground/70">
+                    <Trans>Some chapters could not be read, so this recap may skip parts.</Trans>
+                  </p>
+                )}
+                {writtenWithout && (
+                  <p className="text-xs text-muted-foreground/70">
+                    <Trans>Written without: {writtenWithout}.</Trans>
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 pt-1 border-t border-border/60">
+                  <p className="text-xs text-muted-foreground/70 pt-2">
+                    {recap.whole_book
+                      ? <Trans>Written for the whole book · cached, free to reopen</Trans>
+                      : <Trans>Written for {recapFor} · cached, free to reopen</Trans>}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void askAgain()}
+                    className="flex items-center gap-1 pt-2 text-xs font-medium text-primary hover:underline"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <Trans>Ask again</Trans>
+                  </button>
+                </div>
+              </>
+            )}
+      {recapState === 'idle' && recapError && <p className="text-xs text-destructive">{recapError}</p>}
+    </div>
+  )
+
+  const currentRow = !hasPosition ? (
+    <p className="text-sm text-muted-foreground">
+      <Trans>Open the book to get a recap up to your page.</Trans>
+    </p>
+  ) : recapTeaser ? teaser : recapPanel(false)
+
+  const recapHeading = (
+    <button
+      type="button"
+      onClick={() => setRecapOpen(o => !o)}
+      aria-expanded={recapOpen}
+      className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
+    >
+      <Trans>Recap</Trans>
+      <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !recapOpen && '-rotate-90')} />
+    </button>
+  )
+
+  const recapBlock = volumeList ? (
+    <div className="mt-4">
+      {recapHeading}
+      {recapOpen && (
+        <RecapVolumes
+          bookId={bookId}
+          renderParagraph={renderParagraph}
+          current={currentRow}
+          onDigestEnded={onVolumeDigestEnded}
+          onTextShown={ensureGlossary}
+        />
+      )}
+    </div>
+  ) : features.recap ? (
+    <div className="mt-4">
+      {recapHeading}
+      {recapTeaser ? teaser : recapOpen ? recapPanel(true) : null}
     </div>
   ) : null
 
@@ -713,6 +860,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     const open = expanded.has(key)
     const firstSeen = placeLabel(e.first_seen)
     const lastSeen = e.last_seen && !samePlace(e.first_seen, e.last_seen) ? placeLabel(e.last_seen) : null
+    const aliases = (e.aliases ?? []).filter(a => a && a !== e.name)
     return (
       <li key={key}>
         <button
@@ -723,6 +871,9 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         >
           <span className="flex items-baseline gap-2 min-w-0">
             <span className="text-sm font-medium text-foreground min-w-0 break-words">{e.name}</span>
+            {aliases.length > 0 && (
+              <span className="text-xs text-muted-foreground/70 min-w-0 truncate">{aliases.join(', ')}</span>
+            )}
             {showKind && (
               <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
                 {kindLabel(e.kind)}
@@ -730,25 +881,10 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             )}
             <ChevronDown className={cn('ml-auto w-3 h-3 shrink-0 self-center text-muted-foreground/50 transition-transform', !open && '-rotate-90')} />
           </span>
-          <span className="block text-sm text-muted-foreground leading-snug mt-0.5">{e.line}</span>
+          <span className="block text-sm text-muted-foreground leading-snug mt-0.5">{entryLine(e)}</span>
         </button>
         {open && (
-          <div className="px-3 pb-2.5 -mt-0.5 space-y-1.5">
-            {e.more && <p className="text-sm text-foreground leading-relaxed">{e.more}</p>}
-            {e.evidence && (
-              <p className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-2.5">
-                {e.evidence}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground/70">
-              <Trans>First seen: {firstSeen}</Trans>
-            </p>
-            {lastSeen && (
-              <p className="text-xs text-muted-foreground/70">
-                <Trans>As of: {lastSeen}</Trans>
-              </p>
-            )}
-          </div>
+          <GlossaryEntryDetail bookId={bookId} entry={e} firstSeen={firstSeen} lastSeen={lastSeen} shortPlace={shortPlace} />
         )}
       </li>
     )
@@ -762,8 +898,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       ].filter(g => g.entries.length > 0)
     : []
 
-  const glossaryBlock = features.glossary ? (
-    <div className="mt-4">
+  const glossaryBlock = glossaryOn ? (
+    <div className="mt-4 scroll-mt-4" ref={glossaryRef}>
       <button
         type="button"
         onClick={toggleGlossary}
@@ -805,6 +941,9 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
                 </button>
               )}
             </div>
+          )}
+          {glossary != null && (features.ask ?? false) && (
+            <AskBox bookId={bookId} placeLabel={quotePlace} costHintUsd={companion.ask_cost_hint_usd} />
           )}
           {glossary != null && glossary.entries.length === 0 && !incomplete && !term && (
             <p className="text-sm text-muted-foreground">
@@ -908,9 +1047,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   return (
     <section className="mt-6" aria-label={t`Reading companion`}>
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span className="min-w-0">
-          <Trans>Up to {upTo} · {pct}% · {fromLine}</Trans>
-        </span>
+        {headingLine && <span className="min-w-0">{headingLine}</span>}
         <AiBadge />
       </p>
       <p className="mt-1 text-xs text-muted-foreground/70">

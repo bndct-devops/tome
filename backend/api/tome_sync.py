@@ -9,7 +9,7 @@ import json
 import logging
 import zipfile
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pathlib import Path
 
@@ -39,7 +39,7 @@ from backend.services.hardcover_sync import nudge as hardcover_nudge
 from backend.services import ai as ai_service
 from backend.services.ai import (
     companion as ai_companion, digest as ai_digest, digest_job as ai_digest_job,
-    recall as ai_recall, recap as ai_recap,
+    recall as ai_recall, recap as ai_recap, volume_recap as ai_volume_recap,
 )
 from backend.services.session_hygiene import is_suspect, notify_suspect_session
 from backend.services.audit import audit
@@ -1490,7 +1490,7 @@ def _ai_window(db: Session, user: User, book: Book, *, pct: Optional[float] = No
                chapter: Optional[int] = None) -> "ai_companion.Window":
     try:
         if pct is not None:
-            return ai_companion.pct_window(db, book, pct, progress)
+            return ai_companion.pct_window(db, book, pct, progress, user=user)
         return ai_companion.web_window(db, user, book, chapter)
     except ai_companion.WindowError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
@@ -1501,17 +1501,18 @@ def ai_plugin_status(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    """``{recap, recall, glossary}``: which companion entries the plugin
+    """``{recap, recall, glossary, ask}``: which companion entries the plugin
     shows for this user. All false for guests or with AI off; never a 404, so
     an old server or a disabled one just hides the entries."""
     if not settings.ai_enabled:
-        return {"recap": False, "recall": False, "glossary": False}
+        return {"recap": False, "recall": False, "glossary": False, "ask": False}
     return ai_companion.features_for(db, user)
 
 
 @router.get("/tome-sync/ai/books/{book_id}/glossary")
 def ai_plugin_glossary(
     book_id: int,
+    request: Request,
     pct: Optional[float] = Query(default=None, ge=0.0, le=1.0),
     progress: Optional[str] = Query(default=None, max_length=2048),
     chapter: Optional[int] = Query(default=None, ge=0),
@@ -1525,7 +1526,36 @@ def ai_plugin_glossary(
     book = _ai_book(db, user, book_id)
     ai_service.check_feature_available(db, ai_digest.FEATURE)
     window = _ai_window(db, user, book, pct=pct, progress=progress, chapter=chapter)
-    return ai_companion.glossary_payload(db, user, book, window)
+    return ai_companion.json_response(ai_companion.glossary_payload(db, user, book, window),
+                                      request.headers.get("accept-encoding"))
+
+
+@router.get("/tome-sync/ai/books/{book_id}/glossary/entry")
+def ai_plugin_glossary_entry(
+    book_id: int,
+    entity_id: Optional[int] = Query(default=None),
+    name: Optional[str] = Query(default=None, max_length=200),
+    kind: Optional[str] = Query(default=None, max_length=20),
+    pct: Optional[float] = Query(default=None, ge=0.0, le=1.0),
+    progress: Optional[str] = Query(default=None, max_length=2048),
+    chapter: Optional[int] = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Same as GET /api/ai/books/{id}/glossary/entry: ``{entry}`` in the
+    full v2 shape, by ``entity_id`` or ``name`` (+ ``kind``), inside the
+    window at ``pct`` + ``progress`` (or ``chapter``, or the stored
+    position). 404 when the window has no such entry."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    if entity_id is None and not (name or "").strip():
+        raise HTTPException(status_code=422, detail="Give an entity_id or a name.")
+    window = _ai_window(db, user, book, pct=pct, progress=progress, chapter=chapter)
+    entry = ai_companion.glossary_entry(db, user, book, window, entity_id=entity_id,
+                                        name=name, kind=kind)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="No such entry up to your position")
+    return {"entry": entry}
 
 
 class AiRecapRequest(PydanticBaseModel):
@@ -1550,6 +1580,65 @@ def ai_plugin_recap(
     window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
     status, payload = ai_recap.request_recap(db, user, book, window, partial=body.partial)
     return JSONResponse(status_code=status, content=payload)
+
+
+@router.get("/tome-sync/ai/books/{book_id}/recap/volumes")
+def ai_plugin_recap_volumes(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Same as GET /api/ai/books/{id}/recap/volumes: the recaps of the read
+    earlier volumes. Read-only; works without a position."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_recap.FEATURE)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    return ai_volume_recap.volumes_payload(db, user, book)
+
+
+class AiVolumeRecapRequest(PydanticBaseModel):
+    force: bool = False
+    again: bool = False     # "Ask again": clear failed placeholders, rewrite in place
+
+
+def _ai_volume(db: Session, user: User, book: Book, vol_id: int) -> Book:
+    vol = ai_volume_recap.find_volume(db, user, book, vol_id)
+    if vol is None:
+        raise HTTPException(status_code=404, detail="Not a read earlier volume of this book")
+    return vol
+
+
+@router.post("/tome-sync/ai/books/{book_id}/recap/volumes/{vol_id}")
+def ai_plugin_recap_volume(
+    book_id: int,
+    vol_id: int,
+    body: Optional[AiVolumeRecapRequest] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Same as POST /api/ai/books/{id}/recap/volumes/{vol_id}: 200 with the
+    volume item, or 202 ``{needs_digest: true, estimate, coverage}``."""
+    body = body or AiVolumeRecapRequest()
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_recap.FEATURE)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    vol = _ai_volume(db, user, book, vol_id)
+    status, payload = ai_volume_recap.request_volume(db, user, vol, force=body.force,
+                                                     again=body.again)
+    return JSONResponse(status_code=status, content=payload)
+
+
+@router.delete("/tome-sync/ai/books/{book_id}/recap/volumes/{vol_id}")
+def ai_plugin_delete_recap_volume(
+    book_id: int,
+    vol_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_recap.FEATURE)
+    vol = _ai_volume(db, user, book, vol_id)
+    return {"deleted": ai_volume_recap.clear_volume(db, user, vol)}
 
 
 @router.get("/tome-sync/ai/books/{book_id}/digest/estimate")
@@ -1614,6 +1703,41 @@ def ai_plugin_recall(
     try:
         return ai_recall.recall(db, user, book, window, body.term)
     except ai_recall.BadTerm as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post("/tome-sync/ai/books/{book_id}/ask")
+def ai_plugin_ask(
+    book_id: int,
+    # ``{question, pct?, progress?}`` (``progress`` = the xpointer at pct;
+    # without ``pct`` the stored position). Validated here: a bad body is a
+    # 422 with a plain ``detail`` string, never pydantic's error list.
+    body: Any = Depends(ai_companion.loose_json_body),
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """``{answer, found, quotes, chapters_read, chapter_idx, chapter_title}``."""
+    from backend.services.ai import ask as ai_ask
+
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_ask.FEATURE)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    data = body if isinstance(body, dict) else {}
+    question = data.get("question")
+    if not isinstance(question, str) or not question.strip() or len(question) > ai_ask.MAX_QUESTION_CHARS:
+        raise HTTPException(status_code=422,
+                            detail=f"Type a question of up to {ai_ask.MAX_QUESTION_CHARS} characters.")
+    pct = data.get("pct")
+    if pct is not None and (isinstance(pct, bool) or not isinstance(pct, (int, float))
+                            or not 0.0 <= float(pct) <= 1.0):
+        raise HTTPException(status_code=422, detail="pct must be a number from 0 to 1.")
+    progress = data.get("progress")
+    if progress is not None and (not isinstance(progress, str) or len(progress) > 2048):
+        raise HTTPException(status_code=422, detail="progress must be the xpointer string.")
+    window = _ai_window(db, user, book, pct=None if pct is None else float(pct), progress=progress)
+    try:
+        return ai_ask.ask(db, user, book, window, question)
+    except ai_ask.BadQuestion as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
 

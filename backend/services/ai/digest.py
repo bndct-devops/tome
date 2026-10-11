@@ -34,6 +34,26 @@ Spoiler safety is structural:
   otherwise the entry is dropped before storage (``check_entries``). In a
   multi-chapter call each entry is checked against its own chapter only.
 
+Entities. Each entry also resolves to an ``AIEntity`` of the series
+(``series_key``) and gets one ``AIEntityNote`` per chapter (line, facts,
+evidence), written in the digest row's transaction (``_EntityWriter``): the
+model names an entity by ``ref`` (its id in the state, which lists
+``{id, name, kind, identity}``, ``seen_entities`` / ``model_state``), the
+server accepts a ref only when the quote names that entity, attaches a new
+entry to the entity of the same name and kind, learns aliases only from the
+chapter text and merges two entities (``same_as``) only when both names are
+in it. Merges count from the chapter that proved them, so a window before
+it still sees two. ``profiles`` folds the notes inside a window. A
+multi-chapter call's entity-level decisions (a merge, an alias, a new
+entity's identity) record the call's last chapter and, like its rows, count
+for a reader of the current book only past it (``_known``); a single-chapter
+re-read of such a chapter resets and re-derives them (``_reset_at``). A
+quote of a character's own line passes when the speaker's name is within
+``SPEAKER_WORDS`` words of it, and is stored widened to include the name
+(``speaker_evidence``).
+entries_json keeps its shape (plus ``entity_id``), so ``fold_entries`` and
+everything on it are unchanged.
+
 Reading order across a series: earlier volumes (same ``series``, lower
 ``series_index``) in index order, each chapter in ``idx`` order, then the
 current book. Which earlier volumes count is per user (``user_scope``): only
@@ -62,7 +82,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from sqlalchemy import event, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
@@ -70,6 +90,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.permissions import user_can_see_book
 from backend.models.ai_chapter_digest import AIChapterDigest
+from backend.models.ai_entity import AIEntity, AIEntityNote
 from backend.models.book import Book, BookChapter
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
@@ -113,15 +134,18 @@ _LINE_MAX = 300
 _MORE_MAX = 800
 _SUMMARY_MAX = 1000
 
+_GLOSSARY_DESC = """\
+the glossary so far (every person, place and term from the chapters before, \
+in order of first appearance, one per line with its id, name, kind and \
+identity)"""
+
 _PROMPT_INTRO_ONE = """\
 You read one chapter of a book for a spoiler-safe reading companion. Your \
 output feeds a recap and a glossary that a reader opens in the middle of the \
 book, so it must contain nothing beyond the chapter you are given.
 
-You receive the glossary so far (the name and kind of every person, place and \
-term from the chapters before this one, in order of first appearance), the \
-book's title, the chapter's position and title, and the full text of this \
-chapter.
+You receive """ + _GLOSSARY_DESC + """, the book's title, the chapter's \
+position and title, and the full text of this chapter.
 
 Return:"""
 
@@ -131,38 +155,57 @@ companion. Your output feeds a recap and a glossary that a reader opens in the \
 middle of the book, so what you say about a chapter must contain nothing \
 beyond the end of that chapter.
 
-You receive the glossary so far (the name and kind of every person, place and \
-term from the chapters before these, in order of first appearance), the \
-book's title, and the chapters, each in its own block headed \
-"=== [cN] Title ===", where N in brackets identifies the block.
+You receive """ + _GLOSSARY_DESC + """, the book's title, and the chapters, \
+each in its own block headed "=== [cN] Title ===", where N in brackets \
+identifies the block.
 
 Return chapters: one item per block, in order. Set chapter to the number in \
 brackets of the block this answer is for (for "=== [c7] ... ===" that is 7), \
 never a count of the blocks and never a number from the chapter's own title. \
 For each:"""
 
+FACT_FIELDS = ("appearance", "powers_rank", "affiliations", "relationships", "status", "location")
+
 _PROMPT_FIELDS = """
 - summary: at most 3 sentences on what happens in this chapter, in the past \
 tense. Plain and factual: no judgement, no foreshadowing, no hints about what \
 comes later, nothing about the book's reputation.
 - entries: at most 25. The people, places and terms (kind: person, place or \
-term) this chapter introduces, plus names already in the glossary whose \
-description changes because of this chapter. List a name already in the \
-glossary only when its description changes, and repeat it exactly as written \
-there. For each entry:
-  - line: one sentence, at most 25 words, saying who or what it is as of the \
-end of this chapter.
-  - more: for a name new in this chapter, one or two sentences of fuller \
-context from this chapter. For a name already in the glossary, an empty string.
+term) this chapter introduces, plus glossary entities that act in this \
+chapter or whose facts this chapter changes (status above all: someone who \
+dies, wakes, is freed or captured is listed again). For each entry:
+  - ref: the id of the glossary entity this is, whenever it is that one. 0 \
+for a name new in this chapter, and for a glossary line whose id is 0.
+  - name: as this chapter writes it.
+  - identity: for every entry, new or ref, one stable line of at most 20 \
+words on who or what it is as this chapter presents it: role, nature, \
+relation to others. Never what it did or what happened to it.
+  - aliases: other names this chapter uses for the same entity (a nickname, a \
+title, a short form), as the text writes them; an empty list when none.
+  - line: one sentence, at most 25 words, saying what it did or what happened \
+to it in this chapter.
+  - facts: appearance, powers_rank, affiliations, relationships, status \
+(alive, dead, missing, captured...) and location, each a short phrase, only \
+when this chapter establishes or changes it; an empty string otherwise.
   - evidence: a quote of 3 to 20 words, copied character for character \
 from this chapter's text, that contains the entry's name (or a distinctive \
 part of it) as the text writes it. A line a character speaks does not count \
-unless the name is in it; in a play, quote a stage direction or another \
-character's line that names them. Never paraphrase it."""
+unless the name is in it; in a play or dialogue, quote the speaker tag with \
+the line ("ROMEO. What lady is that"), or a stage direction or another \
+character's line that names them. Never paraphrase it.
+- same_as: pairs [id, id] of two glossary entities this chapter proves are \
+one and the same (a disguise dropped, a title matched to a person); an empty \
+list when none."""
 
 _PROMPT_MANY_RULES = """
 - Work through the chapters in order. A name introduced in an earlier chapter \
-of this request counts as already in the glossary for the later ones.
+of this request has no id yet: for the later chapters refer to it with ref 0 \
+and the same name.
+- Each chapter's entries are complete on their own, not only the names new \
+in it: a name from the glossary or from an earlier chapter of this request \
+is listed again in every chapter that changes one of its facts (status above \
+all: dead, alive, missing, freed) or where it acts, and main and viewpoint \
+characters in every chapter they appear in.
 - What you write for a chapter uses only that chapter and what came before \
 it, never a later chapter in this request. Its evidence is copied from that \
 chapter's own text."""
@@ -172,6 +215,16 @@ _PROMPT_RULES = """
 Rules:
 - The chapter's viewpoint character and main characters are entries whenever \
 the text names them, even when they seem obvious.
+- Use ref for a glossary entity whenever this is that one, even when the \
+chapter spells or names it differently. Judge by context, not by spelling: \
+two people can share a name, and one person can go by several.
+- Never set ref to an entity of a different kind.
+- identity is who or what they are, never what they did. An identity never \
+describes events: "City where Romeo is exiled" is wrong, "A city in \
+Lombardy" is right. Facts only when this chapter establishes or changes them.
+- List a glossary entity again whenever this chapter changes any of its \
+facts (status above all) or shows it acting. Main and viewpoint characters \
+are listed in every chapter they appear in.
 - Use only the supplied text and glossary. Even if you recognise the book, \
 never use what you know about it from elsewhere, and never mention anything \
 that has not happened by the end of the chapter.
@@ -193,30 +246,44 @@ def _entries_schema() -> dict[str, Any]:
         "items": {
             "type": "object",
             "properties": {
+                "ref": {"type": "integer",
+                        "description": "The glossary id of this entity, 0 when it is new."},
                 "name": {"type": "string"},
                 "kind": {"type": "string", "enum": list(KINDS)},
+                "identity": {"type": "string"},
+                "aliases": {"type": "array", "items": {"type": "string"}},
                 "line": {"type": "string"},
-                "more": {"type": "string"},
+                "facts": {
+                    "type": "object",
+                    "properties": {f: {"type": "string"} for f in FACT_FIELDS},
+                    "required": list(FACT_FIELDS),
+                    "additionalProperties": False,
+                },
                 "evidence": {"type": "string"},
             },
-            "required": ["name", "kind", "line", "more", "evidence"],
+            "required": ["ref", "name", "kind", "identity", "aliases", "line", "facts", "evidence"],
             "additionalProperties": False,
         },
     }
 
 
+def _same_as_schema() -> dict[str, Any]:
+    return {"type": "array", "items": {"type": "array", "items": {"type": "integer"}}}
+
+
 def build_schema() -> dict[str, Any]:
-    """One chapter: ``{summary, entries}``."""
+    """One chapter: ``{summary, entries, same_as}``."""
     return {
         "type": "object",
-        "properties": {"summary": {"type": "string"}, "entries": _entries_schema()},
-        "required": ["summary", "entries"],
+        "properties": {"summary": {"type": "string"}, "entries": _entries_schema(),
+                       "same_as": _same_as_schema()},
+        "required": ["summary", "entries", "same_as"],
         "additionalProperties": False,
     }
 
 
 def build_multi_schema() -> dict[str, Any]:
-    """Several chapters: ``{chapters: [{chapter, summary, entries}]}``."""
+    """Several chapters: ``{chapters: [{chapter, summary, entries, same_as}]}``."""
     return {
         "type": "object",
         "properties": {
@@ -230,8 +297,9 @@ def build_multi_schema() -> dict[str, Any]:
                                                    "this answer is for: 7 for \"=== [c7] ... ===\"."},
                         "summary": {"type": "string"},
                         "entries": _entries_schema(),
+                        "same_as": _same_as_schema(),
                     },
-                    "required": ["chapter", "summary", "entries"],
+                    "required": ["chapter", "summary", "entries", "same_as"],
                     "additionalProperties": False,
                 },
             },
@@ -378,6 +446,74 @@ def widen_evidence(name: str, evidence: str, chapter_text: str) -> str | None:
     return quote
 
 
+SPEAKER_WORDS = 12            # a speaker's name this close to their quoted line ties it to them
+
+
+def speaker_evidence(name: str, evidence: str, chapter_text: str) -> str | None:
+    """A quote of a character's own line that leaves out the speaker tag
+    ("What lady is that" for ROMEO): when the quote occurs in
+    ``chapter_text`` and the entry's name (``names_entry``: the whole name
+    or a part of three or more letters) occurs within ``SPEAKER_WORDS``
+    words before or after that occurrence, the quote widened to a verbatim
+    slice that includes the nearest such name, cut to 3 to
+    ``MAX_EVIDENCE_WORDS`` words on the name's side. None otherwise (a name
+    further away never carries the entry)."""
+    if not evidence_in_text(evidence, normalize_text(chapter_text)):
+        return None
+    pat = _loose_pattern(evidence)
+    if pat is None:
+        return None
+    spans = [(w.start(), w.end()) for w in book_text._WORD_RE.finditer(chapter_text)]
+    haystack = normalize_text(chapter_text)
+
+    def text_of(a: int, b: int) -> str:
+        return " ".join(chapter_text[spans[a][0]:spans[b][1]].split())
+
+    for m in pat.finditer(chapter_text):
+        inside = [i for i, (a, _) in enumerate(spans) if m.start() <= a < m.end()]
+        if not inside:
+            continue
+        first, last = inside[0], inside[-1]
+        for k in range(1, SPEAKER_WORDS + 1):
+            candidates = []
+            if first - k >= 0:                                    # before: "ROMEO. What lady..."
+                a = first - k
+                candidates.append((a, min(last, a + MAX_EVIDENCE_WORDS - 1), a))
+            if last + k < len(spans):                             # after: '"...," said Romeo'
+                b = last + k
+                candidates.append((max(first, b - MAX_EVIDENCE_WORDS + 1), b, b))
+            for a, b, word in candidates:
+                if not names_entry(name, text_of(word, word)):
+                    continue
+                quote = text_of(a, b)
+                if (names_entry(name, quote) and evidence_in_text(quote, haystack)
+                        and book_text.count_words(normalize_text(quote)) <= MAX_EVIDENCE_WORDS):
+                    return quote
+    return None
+
+
+def named_evidence(name: str, evidence: str, chapter_text: str) -> str | None:
+    """The last resort for a quote that is in the chapter but names nobody
+    (the end of a long speech, far from its speaker tag): when the entry's
+    name itself occurs in the chapter (the whole name, or a part of three or
+    more letters that is not a title or particle), the stored evidence is a
+    verbatim slice of 3 to 12 words around the first occurrence of that
+    name, so the entry is still grounded in the chapter and its quote still
+    names it. None when the quote or the name is not in the chapter."""
+    haystack = normalize_text(chapter_text)
+    if not evidence_in_text(evidence, haystack):
+        return None
+    n = normalize_text(name)
+    parts = [n] + [tok for tok in book_text._WORD_RE.findall(n)
+                   if len(tok) >= 3 and tok not in _NAME_STOPWORDS and tok != n]
+    for part in parts:
+        if _find_word(part, haystack):
+            quote = widen_evidence(name, part, chapter_text)
+            if quote:
+                return quote
+    return None
+
+
 def names_entry(name: str, evidence: str) -> bool:
     """The quote names the entry: the whole name, or one of its parts of three
     or more letters that is not a title or particle, as a whole word."""
@@ -434,14 +570,21 @@ def check_entries(raw_entries: Any, chapter_text: str,
 
     ``known`` maps the normalised names already seen in the CURRENT volume
     to their current line: such an entry is dropped when its line did not
-    change. ``more`` is kept as the model gave it (capped): a reader whose
-    scope lacks the volume that introduced a name still needs it, and the
-    fold keeps the first non-empty one. Everything else is dropped."""
+    change. ``more`` is the entry's ``identity`` (``more`` for an answer in
+    the shape before entities), capped: a reader whose scope lacks the
+    volume that introduced a name still needs it, and the fold keeps the
+    first non-empty one. Everything else is dropped."""
+    return [e for e, _ in _checked(raw_entries, chapter_text, known)]
+
+
+def _checked(raw_entries: Any, chapter_text: str,
+             known: dict[str, str] | None = None) -> list[tuple[dict[str, str], dict[str, Any]]]:
+    """``check_entries`` with the raw answer item of each kept entry."""
     if not isinstance(raw_entries, list):
         return []
     known = known or {}
     haystack = normalize_text(chapter_text)
-    out: list[dict[str, str]] = []
+    out: list[tuple[dict[str, str], dict[str, Any]]] = []
     seen: set[str] = set()
     for raw in raw_entries:
         if not isinstance(raw, dict):
@@ -456,16 +599,22 @@ def check_entries(raw_entries: Any, chapter_text: str,
             continue
         evidence = _clean_evidence(raw.get("evidence") if isinstance(raw.get("evidence"), str) else "")
         if not evidence_ok(name, evidence, haystack):
-            continue
+            # A character's own line quoted without the speaker tag; else a
+            # quote in the chapter whose speaker is named too far from it.
+            evidence = (speaker_evidence(name, evidence, chapter_text)
+                        or named_evidence(name, evidence, chapter_text) or "")
+            if not evidence:
+                continue
         if book_text.count_words(normalize_text(evidence)) < MIN_EVIDENCE_WORDS:
             evidence = widen_evidence(name, evidence, chapter_text) or ""
             if not evidence:
                 continue
-        more = _str(raw.get("more"), _MORE_MAX)
+        # ``identity`` (the entity prompt) or ``more`` (rows before it).
+        more = _str(raw.get("identity") or raw.get("more"), _MORE_MAX)
         if key in known and normalize_text(known[key]) == normalize_text(line):
             continue
         seen.add(key)
-        out.append({"name": name, "kind": kind, "line": line, "more": more, "evidence": evidence})
+        out.append(({"name": name, "kind": kind, "line": line, "more": more, "evidence": evidence}, raw))
         if len(out) >= MAX_ENTRIES_PER_CHAPTER:
             break
     return out
@@ -777,6 +926,639 @@ def _prior_digests(db: Session, book: Book, idx: int) -> list[AIChapterDigest]:
     return out
 
 
+# ── entities: who and what, across a series ─────────────────────────────────
+
+MAX_ALIASES = 30
+_IDENTITY_MAX = 300
+_FACT_MAX = 200
+
+Pos = tuple[int, int]   # (book_id, chapter_idx)
+
+
+def series_key(book: Book) -> str:
+    """The entity namespace of ``book``: its series name casefolded and
+    whitespace-collapsed, ``book:{id}`` for a standalone."""
+    key = normalize_name(book.series or "")
+    return key[:255] if key else f"book:{book.id}"
+
+
+def _series_entities(db: Session, book: Book) -> dict[int, AIEntity]:
+    """The entities of ``book``'s current series key: for creating and
+    matching new entries only (readers load what their rows refer to,
+    ``_entities_for``)."""
+    return {e.id: e for e in db.query(AIEntity).filter(AIEntity.series_key == series_key(book))}
+
+
+def _load_entities(db: Session, ids: Iterable[Any]) -> dict[int, AIEntity]:
+    """The entities with these ids, plus every entity their merges point at."""
+    out: dict[int, AIEntity] = {}
+    tried: set[int] = set()
+    todo = {i for i in ids if isinstance(i, int) and not isinstance(i, bool)}
+    while todo:
+        tried |= todo
+        for e in db.query(AIEntity).filter(AIEntity.id.in_(sorted(todo))):
+            out[e.id] = e
+        todo = {e.merged_into for e in out.values() if e.merged_into is not None} - tried
+    return out
+
+
+def _entities_for(db: Session, book: Book, digests: Iterable[Any],
+                  notes: Iterable[Any] = ()) -> dict[int, AIEntity]:
+    """The entities a reader's rows and notes refer to (``entity_id``,
+    ``origin_entity_id``, the entries' ``entity_id`` and the merge targets of
+    those), loaded by id, so renaming a series hides nothing; plus the
+    entities of the book's current series key, which rows written before
+    entities match by name."""
+    ids: set[int] = set()
+    for n in notes:
+        ids.add(n.entity_id)
+        if n.origin_entity_id is not None:
+            ids.add(n.origin_entity_id)
+    for d in digests:
+        for item in digest_entries(d):
+            if isinstance(item, dict) and isinstance(item.get("entity_id"), int):
+                ids.add(item["entity_id"])
+    out = _load_entities(db, ids)
+    for eid, e in _series_entities(db, book).items():
+        out.setdefault(eid, e)
+    return out
+
+
+def entity_aliases(e: Any) -> list[dict[str, Any]]:
+    """``[{name, book_id, chapter_idx, context_end}]``: each other name, where
+    it was learned and the last chapter the call that learned it read
+    (``context_end`` missing on items written before it: that chapter)."""
+    try:
+        val = json.loads(getattr(e, "aliases_json", None) or "[]")
+    except ValueError:
+        return []
+    return [a for a in val if isinstance(a, dict) and isinstance(a.get("name"), str)] \
+        if isinstance(val, list) else []
+
+
+def _alias_pos(a: dict[str, Any]) -> tuple[Any, Any]:
+    return (a.get("book_id"), a.get("chapter_idx"))
+
+
+def _alias_ce(a: dict[str, Any]) -> int | None:
+    ce = a.get("context_end")
+    return ce if isinstance(ce, int) and not isinstance(ce, bool) else None
+
+
+def _merge_pos(e: Any) -> tuple[Any, Any]:
+    return (getattr(e, "merged_book_id", None), getattr(e, "merged_chapter_idx", None))
+
+
+def _ce_known(pos: tuple[Any, Any], ce: int | None, book_id: int, upto: int) -> bool:
+    """A decision recorded at ``pos`` by a call that read up to chapter ``ce``
+    is known to a reader of ``book_id`` whose position chapter is ``upto``:
+    earlier volumes are read in full; in the current book the call must have
+    read nothing at or past ``upto`` (the rule of ``row_usable``)."""
+    if pos[0] != book_id or ce is None or pos[1] is None:
+        return True
+    return ce <= pos[1] or ce < upto
+
+
+def _known(pos: tuple[Any, Any], ce: int | None, window: Any, book_id: int, upto: int,
+           rows: dict[Pos, Any] | None = None) -> bool:
+    """Proven inside the window by a call that read nothing past it (and, in
+    the current book, the digest row stored for that chapter is usable at
+    ``upto`` as well, ``row_usable``)."""
+    if pos not in window or not _ce_known(pos, ce, book_id, upto):
+        return False
+    row = rows.get(pos) if rows is not None and pos[0] == book_id else None
+    return row is None or row_usable(row, upto)
+
+
+def _identity_known(e: Any, window: Any, rows: dict[Pos, Any], book_id: int, upto: int) -> str:
+    """``e.identity`` when its first sight (where the identity was written)
+    is inside the window, the call that wrote it read nothing at or past
+    ``upto``, and the digest row there is usable at ``upto``; else ""."""
+    first = (getattr(e, "first_book_id", None), getattr(e, "first_chapter_idx", None))
+    if first not in window:
+        return ""
+    row = rows.get(first)
+    ce = getattr(e, "identity_context_end", None)
+    if ce is None and row is not None:
+        ce = getattr(row, "context_end_idx", None)
+    if not _ce_known(first, ce, book_id, upto):
+        return ""
+    if row is not None and first[0] == book_id and not row_usable(row, upto):
+        return ""
+    return getattr(e, "identity", "") or ""
+
+
+def _resolve(entities: dict[int, Any], eid: int, follow: Callable[[Any], bool]) -> int:
+    """``eid`` followed through ``merged_into`` while ``follow`` accepts the
+    merge (``_known`` for a window: a reader before the chapter that proved
+    two entities one, or before the end of the call that proved it, still
+    sees them apart)."""
+    seen: set[int] = set()
+    while eid not in seen:
+        seen.add(eid)
+        e = entities.get(eid)
+        target = getattr(e, "merged_into", None)
+        if e is None or target is None or target not in entities:
+            return eid
+        if not follow(e):
+            return eid
+        eid = target
+    return eid
+
+
+def _by_name_kind(entities: dict[int, Any]) -> dict[tuple[str, str], Any]:
+    """(kind, normalised name) -> the entity of that name, the unmerged one
+    first, then the earliest created."""
+    out: dict[tuple[str, str], Any] = {}
+    for e in sorted(entities.values(), key=lambda e: (e.merged_into is not None, e.id)):
+        out.setdefault((e.kind, normalize_name(e.name)), e)
+    return out
+
+
+def _entity_for_item(item: dict[str, Any], entities: dict[int, Any],
+                     by_name: dict[tuple[str, str], Any], follow: Callable[[Any], bool]) -> Any:
+    """The entity a stored entries_json item stands for inside a window."""
+    eid = item.get("entity_id")
+    ent = None
+    if isinstance(eid, int) and eid in entities:
+        ent = entities[eid]
+    elif eid is None:
+        kind = item.get("kind") if item.get("kind") in KINDS else "term"
+        ent = by_name.get((kind, normalize_name(str(item.get("name", "")))))
+    if ent is None:
+        return None
+    return entities[_resolve(entities, ent.id, follow)]
+
+
+_ECHO_STOPWORDS = frozenset("""
+a an the and or of to in on at by for with from as is was are were be been who whom whose
+which that this these those his her its their it he she they not no one""".split())
+
+
+def _content_words(text: str) -> set[str]:
+    return {w for w in book_text._WORD_RE.findall(normalize_text(text))
+            if len(w) >= 3 and w not in _ECHO_STOPWORDS}
+
+
+def echoes(identity: str, sent: str) -> bool:
+    """``identity`` repeats ``sent`` (the glossary line the model was given):
+    the same text, or a paraphrase sharing most of its content words."""
+    a, b = _content_words(identity), _content_words(sent)
+    if not a or not b:
+        return False
+    if normalize_text(identity) == normalize_text(sent):
+        return True
+    return len(a & b) / len(a | b) >= 0.6
+
+
+def _facts(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for f in FACT_FIELDS:
+        v = _str(raw.get(f), _FACT_MAX)
+        if v:
+            out[f] = v
+    return out
+
+
+class _EntityWriter:
+    """Resolves one chapter's checked entries to entities and writes their
+    notes, in the caller's transaction (``_store`` commits it with the
+    digest row). ``where`` is the chapter written; ``context_end`` the last
+    chapter its call read (the chapter itself for a single-chapter call).
+    Server rules:
+
+    - what was learned at a chapter (aliases, merges, the identity of an
+      entity first seen there) is reset before the chapter is written, so a
+      single-chapter re-read of a stale row re-derives all of it;
+    - a ``ref`` is accepted only for an entity of this series and the same
+      kind, not merged as of ``where``, whose name or an alias known at
+      ``where`` (``_known_by``: learned at or before it in reading order, by
+      a call that read nothing past it) the evidence names; otherwise the
+      entry is new;
+    - a new entry attaches to the entity of the same normalised name and
+      kind (an unmerged one first), else creates one;
+    - an entity's identity is the one its first chapter gave it: when an
+      entry moves the first sight earlier, the identity is replaced by that
+      chapter's (possibly empty) one, never kept from later text;
+    - aliases are learned only when they occur in the chapter text;
+    - a note goes to the entity a merge made of its origin only when that
+      merge is known at ``where``; else to the origin itself;
+    - ``same_as`` merges two unmerged entities of one kind only when both
+      names (or an alias of each known at ``where``) occur in the chapter
+      text: the later created points at the earlier from this chapter on,
+      its notes are re-pointed (``origin_entity_id`` kept), its name becomes
+      an alias.
+    Every identity, alias and merge records ``context_end``. One note per
+    (entity, chapter); the chapter's earlier notes are replaced."""
+
+    def __init__(self, db: Session, book: Book) -> None:
+        self.db = db
+        self.book = book
+        self.key = series_key(book)
+        self.entities = _series_entities(db, book)
+        self._order: dict[int, tuple[float, int]] = {}
+
+    def _book_order(self, book_id: int | None) -> tuple[float, int]:
+        if book_id is None:
+            return (float("inf"), 0)
+        if book_id not in self._order:
+            b = self.db.get(Book, book_id)
+            idx = b.series_index if b is not None and b.series_index is not None else 0
+            self._order[book_id] = (float(idx), book_id)
+        return self._order[book_id]
+
+    def _before(self, a: Pos, b: tuple[int | None, int | None]) -> bool:
+        if b[0] is None or b[1] is None:
+            return True
+        return self._book_order(a[0]) + (a[1],) < self._book_order(b[0]) + (b[1],)
+
+    def _known_point(self, pos: tuple[Any, Any], ce: int | None) -> tuple[float, int, int]:
+        """Reading-order key of the chapter from which a decision recorded at
+        ``pos`` by a call that read up to ``ce`` may be used."""
+        idx = pos[1] if ce is None or ce < pos[1] else ce
+        return self._book_order(pos[0]) + (idx,)
+
+    def _known_by(self, pos: tuple[Any, Any], ce: int | None, where: Pos) -> bool:
+        """A decision recorded at ``pos`` (call read up to ``ce``) may inform
+        the chapter ``where``: recorded in that chapter's own write, or before
+        it in reading order by a call that read nothing at or past it."""
+        if pos[0] is None or pos[1] is None:
+            return False
+        if tuple(pos) == where:
+            return True
+        if not self._before(pos, where):
+            return False
+        if pos[0] != where[0] or ce is None:
+            return True
+        return ce <= pos[1] or ce < where[1]
+
+    def _merged_at(self, e: Any, where: Pos) -> bool:
+        return e.merged_into is not None and self._known_by(_merge_pos(e), e.merged_context_end, where)
+
+    def _names_at(self, e: AIEntity, where: Pos) -> list[str]:
+        """The canonical name plus the aliases known at ``where``."""
+        return [e.name] + [a["name"] for a in entity_aliases(e)
+                           if self._known_by(_alias_pos(a), _alias_ce(a), where)]
+
+    def _live(self, e: AIEntity, where: Pos) -> AIEntity:
+        return self.entities[_resolve(self.entities, e.id, lambda x: self._merged_at(x, where))]
+
+    def _accept_ref(self, entry: dict[str, str], raw: dict[str, Any], where: Pos) -> AIEntity | None:
+        ref = raw.get("ref")
+        if not isinstance(ref, int) or isinstance(ref, bool) or ref <= 0:
+            return None
+        e = self.entities.get(ref)
+        if e is None or e.kind != entry["kind"] or self._merged_at(e, where):
+            return None
+        if not any(names_entry(n, entry["evidence"]) for n in self._names_at(e, where)):
+            return None
+        return e
+
+    def _same_name(self, entry: dict[str, str]) -> AIEntity | None:
+        return _by_name_kind(self.entities).get((entry["kind"], normalize_name(entry["name"])))
+
+    def _create(self, entry: dict[str, str], idx: int, ce: int) -> AIEntity:
+        e = AIEntity(series_key=self.key, kind=entry["kind"], name=entry["name"][:_NAME_MAX],
+                     aliases_json="[]", identity=entry["more"][:_IDENTITY_MAX],
+                     identity_context_end=ce, first_book_id=self.book.id, first_chapter_idx=idx)
+        self.db.add(e)
+        self.db.flush()
+        self.entities[e.id] = e
+        return e
+
+    def _put_alias(self, e: AIEntity, aliases: list[dict[str, Any]], name: str,
+                   pos: Pos, ce: int) -> bool:
+        """Add ``name`` learned at ``pos`` (call read up to ``ce``), or move
+        an alias already there to this earlier known point. True on change."""
+        k = normalize_name(name)
+        if not k or k == normalize_name(e.name):
+            return False
+        cur = next((a for a in aliases if normalize_name(a["name"]) == k), None)
+        if cur is None:
+            if len(aliases) >= MAX_ALIASES:
+                return False
+            aliases.append({"name": name, "book_id": pos[0], "chapter_idx": pos[1], "context_end": ce})
+            return True
+        old = _alias_pos(cur)
+        if old[0] is not None and old[1] is not None and \
+                self._known_point(old, _alias_ce(cur)) <= self._known_point(pos, ce):
+            return False
+        cur.update({"book_id": pos[0], "chapter_idx": pos[1], "context_end": ce})
+        return True
+
+    def _add_aliases(self, e: AIEntity, names: Iterable[Any], where: Pos, ce: int,
+                     haystack: str | None) -> None:
+        aliases = entity_aliases(e)
+        changed = False
+        for raw in names:
+            a = clean_name(raw)
+            if not normalize_name(a):
+                continue
+            if haystack is not None and not _find_word(normalize_text(a), haystack):
+                continue
+            changed = self._put_alias(e, aliases, a, where, ce) or changed
+        if changed:
+            e.aliases_json = json.dumps(aliases, ensure_ascii=False)
+
+    def _reset_at(self, where: Pos) -> None:
+        """Forget what an earlier write of chapter ``where`` decided: the
+        aliases learned there, the merges proven there (notes re-pointed by
+        them go back to their origin) and the identity of the entities first
+        seen there. The write that follows re-derives them from its answer."""
+        undone = False
+        for e in self.entities.values():
+            aliases = entity_aliases(e)
+            keep = [a for a in aliases if tuple(_alias_pos(a)) != where]
+            if len(keep) != len(aliases):
+                e.aliases_json = json.dumps(keep, ensure_ascii=False)
+            if e.merged_into is not None and tuple(_merge_pos(e)) == where:
+                e.merged_into = None
+                e.merged_book_id = e.merged_chapter_idx = e.merged_context_end = None
+                undone = True
+            if (e.first_book_id, e.first_chapter_idx) == where:
+                e.identity = ""
+                e.identity_context_end = None
+        if not undone:
+            return
+        self.db.flush()
+        for n in self.db.query(AIEntityNote).filter(AIEntityNote.entity_id.in_(list(self.entities)),
+                                                    AIEntityNote.origin_entity_id.isnot(None)):
+            target = _resolve(self.entities, n.origin_entity_id, lambda x: x.merged_into is not None)
+            n.entity_id = target
+            if target == n.origin_entity_id:
+                n.origin_entity_id = None
+        self.db.flush()
+
+    def write_chapter(self, idx: int, chapter_text: str,
+                      checked: list[tuple[dict[str, str], dict[str, Any]]],
+                      same_as: Any, context_end: int | None = None) -> list[dict[str, Any]]:
+        """The chapter's entries_json items (``entity_id`` added; ``more`` is
+        the identity of a new entry, "" for an accepted ``ref``).
+        ``context_end``: the last chapter the call read (None: this one)."""
+        db, where = self.db, (self.book.id, idx)
+        ce = context_end if context_end is not None and context_end > idx else idx
+        haystack = normalize_text(chapter_text)
+        db.query(AIEntityNote).filter(AIEntityNote.book_id == self.book.id,
+                                      AIEntityNote.chapter_idx == idx).delete(synchronize_session=False)
+        self._reset_at(where)
+        notes: dict[int, AIEntityNote] = {}
+        firsts: set[int] = set()     # entities whose identity this chapter has set
+        out: list[dict[str, Any]] = []
+        for entry, raw in checked:
+            origin = self._accept_ref(entry, raw, where)
+            accepted = origin is not None
+            if origin is None:
+                origin = self._same_name(entry)
+                if origin is None:
+                    origin = self._create(entry, idx, ce)
+                    firsts.add(origin.id)
+            first = (origin.first_book_id, origin.first_chapter_idx)
+            if origin.id not in firsts and (first == where or self._before(where, first)):
+                # First seen here (earlier than recorded, or this chapter is
+                # re-read): the identity is this chapter's, even an empty one;
+                # text from a later chapter never stays as an earlier one's.
+                origin.first_book_id, origin.first_chapter_idx = where
+                origin.identity = entry["more"][:_IDENTITY_MAX]
+                origin.identity_context_end = ce
+                firsts.add(origin.id)
+            aliases = raw.get("aliases") if isinstance(raw.get("aliases"), list) else []
+            self._add_aliases(origin, list(aliases) + [entry["name"]], where, ce, haystack)
+            # A returning entity's identity "as this chapter presents it" that
+            # merely echoes the glossary line the model was sent came from an
+            # earlier chapter, maybe one this reader has not read: not a note
+            # of this chapter.
+            note_identity = "" if (accepted and echoes(entry["more"], origin.identity)) else entry["more"]
+            self._note(notes, origin, where, entry["line"], _facts(raw.get("facts")),
+                       entry["evidence"], note_identity)
+            out.append({**entry, "more": "" if accepted else entry["more"], "entity_id": origin.id})
+        db.flush()
+        for pair in same_as if isinstance(same_as, list) else []:
+            self._merge_pair(pair, where, ce, haystack, notes)
+        db.flush()
+        return out
+
+    def _note(self, notes: dict[int, AIEntityNote], origin: AIEntity, where: Pos,
+              line: str, facts: dict[str, str], evidence: str, identity: str = "") -> None:
+        target = self._live(origin, where)
+        cur = notes.get(target.id)
+        if cur is not None:
+            merged = {**facts, **json.loads(cur.facts_json or "{}")}   # the first entry wins
+            cur.facts_json = json.dumps(merged, ensure_ascii=False)
+            cur.identity = cur.identity or identity[:_IDENTITY_MAX]
+            return
+        n = AIEntityNote(entity_id=target.id, book_id=where[0], chapter_idx=where[1], line=line,
+                         identity=identity[:_IDENTITY_MAX],
+                         facts_json=json.dumps(facts, ensure_ascii=False), evidence=evidence,
+                         origin_entity_id=origin.id if origin.id != target.id else None)
+        self.db.add(n)
+        notes[target.id] = n
+
+    def _merge_pair(self, pair: Any, where: Pos, ce: int, haystack: str,
+                    notes: dict[int, AIEntityNote]) -> None:
+        if (not isinstance(pair, list) or len(pair) != 2
+                or not all(isinstance(x, int) and not isinstance(x, bool) for x in pair)):
+            return
+        a, b = (self.entities.get(x) for x in pair)
+        if a is None or b is None or a.id == b.id or a.kind != b.kind:
+            return
+        if a.merged_into is not None or b.merged_into is not None:
+            return
+        if not all(any(_find_word(normalize_text(n), haystack) for n in self._names_at(e, where))
+                   for e in (a, b)):
+            return
+        survivor, loser = (a, b) if a.id < b.id else (b, a)
+        loser.merged_into = survivor.id
+        loser.merged_book_id, loser.merged_chapter_idx = where
+        loser.merged_context_end = ce
+        aliases = entity_aliases(survivor)
+        changed = self._put_alias(survivor, aliases, loser.name, where, ce)
+        here = self._known_point(where, ce)
+        for x in entity_aliases(loser):
+            # Known to the survivor from the merge on, or from where the loser
+            # learned it when that is later.
+            pos, xce = _alias_pos(x), _alias_ce(x)
+            if pos[0] is not None and pos[1] is not None and self._known_point(pos, xce) > here:
+                changed = self._put_alias(survivor, aliases, x["name"], pos, xce if xce is not None else pos[1]) \
+                    or changed
+            else:
+                changed = self._put_alias(survivor, aliases, x["name"], where, ce) or changed
+        if changed:
+            survivor.aliases_json = json.dumps(aliases, ensure_ascii=False)
+        self.db.flush()
+        taken = {(n.book_id, n.chapter_idx) for n in
+                 self.db.query(AIEntityNote).filter(AIEntityNote.entity_id == survivor.id)}
+        for n in self.db.query(AIEntityNote).filter(AIEntityNote.entity_id == loser.id):
+            if (n.book_id, n.chapter_idx) in taken:
+                # Both named in that chapter: the note stays on its own entity
+                # (``profiles`` reaches it through the merge from it on).
+                continue
+            n.origin_entity_id = n.origin_entity_id or loser.id
+            n.entity_id = survivor.id
+            if n.chapter_idx == where[1] and n.book_id == where[0]:
+                notes.pop(loser.id, None)
+                notes[survivor.id] = n
+        logger.info("glossary: entity %s merged into %s at book %s chapter %s",
+                    loser.id, survivor.id, where[0], where[1])
+
+
+@dataclass
+class Profile:
+    """What a reader's window says about one entity (``profiles``)."""
+    entity_id: int | None
+    name: str
+    kind: str
+    aliases: list[str] = field(default_factory=list)
+    identity: str = ""
+    facts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    timeline: list[dict[str, Any]] = field(default_factory=list)
+    first_seen: Pos | None = None
+    last_seen: Pos | None = None
+
+    @property
+    def chapters(self) -> int:
+        return len({(t["book_id"], t["chapter_idx"]) for t in self.timeline})
+
+    def to_dict(self) -> dict[str, Any]:
+        def pos(p: Pos | None) -> dict[str, int] | None:
+            return {"book_id": p[0], "chapter_idx": p[1]} if p else None
+        status = self.facts.get("status")
+        return {
+            "entity_id": self.entity_id, "name": self.name, "kind": self.kind,
+            "aliases": list(self.aliases), "identity": self.identity,
+            "facts": {k: dict(v) for k, v in self.facts.items()},
+            "status": status["value"] if status else None,
+            "timeline": [dict(t) for t in self.timeline],
+            "first_seen": pos(self.first_seen), "last_seen": pos(self.last_seen),
+            "chapters": self.chapters,
+        }
+
+    def _add(self, where: Pos, line: str, facts: dict[str, str]) -> None:
+        if self.first_seen is None:
+            self.first_seen = where
+        self.last_seen = where
+        if line:
+            last = self.timeline[-1] if self.timeline else None
+            if last is not None and (last["book_id"], last["chapter_idx"]) == where:
+                last["line"] = f"{last['line']} {line}"
+            else:
+                self.timeline.append({"book_id": where[0], "chapter_idx": where[1], "line": line})
+        for k, v in facts.items():
+            self.facts[k] = {"value": v, "book_id": where[0], "chapter_idx": where[1]}
+
+
+def profiles(db: Session, scope: Scope, upto: int) -> list[Profile]:
+    """Every entity a reader's window knows, folded from the notes of the
+    chapters ``scoped_digests`` covers (the same window as the glossary).
+    No model call.
+
+    What a multi-chapter call decided at an entity level (a merge, an alias,
+    the identity) counts only when it was proven inside the window AND, in
+    the current book, the call read nothing at or past ``upto``
+    (``_known``), like its digest row (``row_usable``).
+
+    Per entity: the canonical name, the aliases known inside the window,
+    ``identity`` (the earliest identity its own notes inside the window
+    give, else the entity's identity when its first sight is known inside
+    the window, ``_identity_known``, else one a merged-in entity's note
+    gives), for each fact field the latest value inside the window with
+    where it was set, ``status`` (the status fact's value or None), the
+    timeline of per-chapter lines, first and last chapter seen, and the
+    count of chapters. Merges count only from the chapter that proved them;
+    a note stays with the entity it was written for (``origin_entity_id``)
+    until the window knows the merge. Entities are loaded by the ids the
+    notes and rows refer to, so a renamed series keeps them
+    (``_entities_for``). A chapter with a digest row but no notes (written
+    before entities) is read from its entries_json: matched to the entity
+    of the same normalised name and kind when there is one, else a profile
+    with ``entity_id`` None; its lines go to the timeline, no facts, and its
+    first line is the identity of last resort. Ordered by first appearance."""
+    digests = scoped_digests(db, scope, upto)
+    window = {(b.id, c.idx) for b, c in scope_chapters(db, scope, upto)}
+    book_id = scope.book.id
+    vol_ids = [b.id for b in scope.volumes()]
+    rows: dict[Pos, Any] = {(bid, idx): d for bid, by_idx in _digests_by_book(db, vol_ids).items()
+                            for idx, d in by_idx.items()}
+    note_rows = (db.query(AIEntityNote).filter(AIEntityNote.book_id.in_(vol_ids))
+                 .order_by(AIEntityNote.id).all()) if vol_ids else []
+    notes: dict[Pos, list[AIEntityNote]] = {}
+    for n in note_rows:
+        notes.setdefault((n.book_id, n.chapter_idx), []).append(n)
+    entities = _entities_for(db, scope.book, digests, note_rows)
+    by_name = _by_name_kind(entities)
+
+    def known(pos: tuple[Any, Any], ce: int | None) -> bool:
+        return _known(pos, ce, window, book_id, upto, rows)
+
+    def follow(e: Any) -> bool:
+        return known(_merge_pos(e), e.merged_context_end)
+
+    out: dict[str, Profile] = {}
+    own_identity: dict[int, str] = {}
+    merged_identity: dict[int, str] = {}
+    line_identity: dict[str, str] = {}
+
+    def for_entity(eid: int) -> Profile:
+        e = entities[eid]
+        key = f"e{eid}"
+        if key not in out:
+            out[key] = Profile(
+                entity_id=e.id, name=e.name, kind=e.kind,
+                aliases=[a["name"] for a in entity_aliases(e) if known(_alias_pos(a), _alias_ce(a))])
+        return out[key]
+
+    for d in digests:
+        where = (int(d.book_id), int(d.chapter_idx))
+        ns = notes.get(where)
+        if ns:
+            for n in ns:
+                origin = n.origin_entity_id or n.entity_id
+                if origin not in entities:
+                    continue
+                target = _resolve(entities, origin, follow)
+                p = for_entity(target)
+                try:
+                    facts = json.loads(n.facts_json or "{}")
+                except ValueError:
+                    facts = {}
+                ident = " ".join((n.identity or "").split())
+                if ident:
+                    (own_identity if origin == target else merged_identity).setdefault(target, ident)
+                p._add(where, n.line, {k: v for k, v in facts.items()
+                                       if k in FACT_FIELDS and isinstance(v, str) and v}
+                       if isinstance(facts, dict) else {})
+            continue
+        for item in digest_entries(d):
+            if not isinstance(item, dict):
+                continue
+            name = " ".join(str(item.get("name", "")).split())
+            nkey = normalize_name(name)
+            if not nkey:
+                continue
+            line = str(item.get("line") or "")
+            ent = _entity_for_item(item, entities, by_name, follow)
+            if ent is not None:
+                p = for_entity(ent.id)
+                line_identity.setdefault(f"e{ent.id}", line)
+            else:
+                p = out.get("n:" + nkey)
+                if p is None:
+                    kind = item.get("kind") if item.get("kind") in KINDS else "term"
+                    p = out["n:" + nkey] = Profile(entity_id=None, name=name, kind=kind)
+                p.identity = p.identity or line
+            p._add(where, line, {})
+    for key, p in out.items():
+        if p.entity_id is None:
+            continue
+        eid = p.entity_id
+        p.identity = (own_identity.get(eid)
+                      or _identity_known(entities[eid], window, rows, book_id, upto)
+                      or merged_identity.get(eid)
+                      or line_identity.get(key, ""))
+    return list(out.values())
+
+
 # ── units: how the missing chapters are grouped into calls ──────────────────
 
 @dataclass(frozen=True)
@@ -858,43 +1640,110 @@ def get_digest(db: Session, book_id: int, idx: int) -> AIChapterDigest | None:
     )
 
 
-def model_state(prior: list[AIChapterDigest], book_id: int) -> list[dict[str, str]]:
-    """The glossary state sent with a digest call: ``[{name, kind}]``, no
-    descriptions.
+@dataclass
+class SeenEntity:
+    """One line of the state sent to the model: an entity (``id``), or a
+    name from a digest row written before entities with no entity of that
+    name and kind (``id`` 0). ``*_first``/``*_last`` are (digest, item)
+    ranks in ``prior`` (None: not seen there)."""
+    key: str
+    id: int
+    name: str
+    kind: str
+    identity: str
+    earlier_first: tuple[int, int] | None = None
+    earlier_last: tuple[int, int] | None = None
+    current_first: tuple[int, int] | None = None
 
-    ``prior`` is ``_prior_digests`` (reading order). Sent: the
-    ``GLOSSARY_STATE_MAX`` entries of the earlier volumes seen most recently
-    in them (in their first-seen order), then every entry seen in this
-    volume's chapters so far, in order of its first appearance in this
-    volume (a name from an earlier volume that comes back here is listed
-    there when it was not among the earlier ones). Each name keeps its
-    spelling and kind from where it is listed, so the list only grows at the
-    end from one chapter of a volume to the next, and its stable prefix is
-    cached (``state_blocks``)."""
-    rank = {(int(d.book_id), int(d.chapter_idx)): i for i, d in enumerate(prior)}
-    earlier = fold_entries(d for d in prior if d.book_id != book_id)
-    top = sorted(earlier, key=lambda e: rank.get(e.last_seen, -1))[-GLOSSARY_STATE_MAX:]
-    listed = {e.key for e in top}
-    state = [{"name": e.name, "kind": e.kind} for e in earlier if e.key in listed]
-    spelling = {e.key: e.name for e in earlier}
-    for d in prior:
-        if d.book_id != book_id:
-            continue
-        for e in digest_entries(d):
-            if not isinstance(e, dict):
+    def line(self) -> dict[str, Any]:
+        return {"id": self.id, "name": self.name, "kind": self.kind, "identity": self.identity}
+
+
+def seen_entities(prior: list[Any], book_id: int,
+                  entities: dict[int, Any] | None = None,
+                  upto: int | None = None) -> list[SeenEntity]:
+    """What ``prior`` (``_prior_digests``, reading order) says about who has
+    been seen and where, for ``model_state``. Pure.
+
+    ``upto`` is the chapter of ``book_id`` the call digests (its first one);
+    None: the chapter after the last of ``book_id`` in ``prior``. An entry
+    carrying ``entity_id`` stands for that entity, followed through the
+    merges proven inside ``prior`` by a call that read nothing at or past
+    ``upto`` (``_known``; a merge in a later chapter is not known yet). An
+    entry without one (a row written before entities) stands for the entity
+    of the same normalised name and kind when there is one, else for its
+    name (id 0). An entity's ``identity`` is sent only when its first
+    chapter is inside ``prior`` and the row there (and the call that wrote
+    the identity) read nothing at or past ``upto`` (``_identity_known``)."""
+    entities = entities or {}
+    rows = {(int(d.book_id), int(d.chapter_idx)): d for d in prior}
+    keys = set(rows)
+    if upto is None:
+        cur = [int(d.chapter_idx) for d in prior if int(d.book_id) == book_id]
+        upto = max(cur) + 1 if cur else 0
+
+    def follow(e: Any) -> bool:
+        return _known(_merge_pos(e), e.merged_context_end, keys, book_id, upto, rows)
+
+    by_name = _by_name_kind(entities)
+    out: dict[str, SeenEntity] = {}
+    for i, d in enumerate(prior):
+        earlier = int(d.book_id) != book_id
+        for j, item in enumerate(digest_entries(d)):
+            rank = (i, j)
+            if not isinstance(item, dict):
                 continue
-            name = " ".join(str(e.get("name", "")).split())
-            key = normalize_name(name)
-            if not key or key in listed:
+            name = " ".join(str(item.get("name", "")).split())
+            nkey = normalize_name(name)
+            if not nkey:
                 continue
-            listed.add(key)
-            state.append({"name": spelling.get(key, name),
-                          "kind": e.get("kind") if e.get("kind") in KINDS else "term"})
+            kind = item.get("kind") if item.get("kind") in KINDS else "term"
+            ent = _entity_for_item(item, entities, by_name, follow)
+            if ent is not None:
+                key = f"e{ent.id}"
+                cur = out.get(key)
+                if cur is None:
+                    cur = out[key] = SeenEntity(key=key, id=ent.id, name=ent.name, kind=ent.kind,
+                                                identity=_identity_known(ent, keys, rows, book_id, upto))
+            else:
+                key = "n:" + nkey
+                cur = out.get(key)
+                if cur is None:
+                    cur = out[key] = SeenEntity(key=key, id=0, name=name, kind=kind, identity="")
+            if earlier:
+                if cur.earlier_first is None:
+                    cur.earlier_first = rank
+                cur.earlier_last = rank
+            elif cur.current_first is None:
+                cur.current_first = rank
+    return list(out.values())
+
+
+def model_state(seen: list[SeenEntity]) -> list[dict[str, Any]]:
+    """The glossary state sent with a digest call: one
+    ``{id, name, kind, identity}`` per entity (``seen_entities``), no
+    situational lines.
+
+    Sent: the ``GLOSSARY_STATE_MAX`` entities of the earlier volumes seen
+    most recently in them (in their first-seen order), then every entity
+    seen in this volume's chapters so far, in order of its first appearance
+    in this volume (one from an earlier volume that comes back here is
+    listed there when it was not among the earlier ones). ``identity`` is
+    stable, so the list only grows at the end from one chapter of a volume
+    to the next, and its stable prefix is cached (``state_blocks``)."""
+    earlier = sorted((s for s in seen if s.earlier_first is not None), key=lambda s: s.earlier_first)
+    top = sorted(earlier, key=lambda s: s.earlier_last)[-GLOSSARY_STATE_MAX:] if GLOSSARY_STATE_MAX else []
+    listed = {s.key for s in top}
+    state = [s.line() for s in earlier if s.key in listed]
+    for s in sorted((s for s in seen if s.current_first is not None), key=lambda s: s.current_first):
+        if s.key not in listed:
+            listed.add(s.key)
+            state.append(s.line())
     return state
 
 
-STATE_HEADER = ("Glossary so far: every name, place and term from the chapters before, "
-                "in order of first appearance, one JSON object per line.")
+STATE_HEADER = ("Glossary so far: every person, place and term from the chapters before, "
+                "in order of first appearance, one JSON object per line (id 0: no id yet).")
 
 
 def state_blocks(state: list[dict[str, str]]) -> list[dict[str, Any]]:
@@ -972,25 +1821,58 @@ _ROW_FIELDS = ("model", "summary", "entries_json", "input_tokens", "output_token
                "context_end_idx")
 
 
-def _store(db: Session, row: AIChapterDigest) -> AIChapterDigest:
+# Units of different volumes of one series run on parallel workers; the
+# entity writes of a series are serialised (load, resolve, commit) so two
+# workers never both create the same name. Single process, like the job.
+_series_locks: dict[str, threading.Lock] = {}
+_series_locks_guard = threading.Lock()
+
+
+def _series_lock(key: str) -> threading.Lock:
+    with _series_locks_guard:
+        return _series_locks.setdefault(key, threading.Lock())
+
+
+def _write_then_commit(db: Session, row: AIChapterDigest,
+                       write: Callable[[AIChapterDigest], None] | None, lock_key: str) -> None:
+    """Run ``write`` (the chapter's entities and notes, ``_EntityWriter``)
+    and commit it together with ``row``: one transaction, so a failure
+    leaves neither. Held under the series' lock (``_series_lock``)."""
+    lock = _series_lock(lock_key) if write is not None else None
+    try:
+        if lock is not None:
+            with lock:
+                write(row)
+                db.commit()
+        else:
+            db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _store(db: Session, row: AIChapterDigest,
+           write: Callable[[AIChapterDigest], None] | None = None,
+           lock_key: str = "") -> AIChapterDigest:
     """Insert ``row``; when the chapter is stored already, keep that row,
     except that a row written by a call that saw later chapters
     (``saw_later_chapters``) is overwritten by one that did not: a
-    single-chapter digest is valid for every reader."""
+    single-chapter digest is valid for every reader. ``write`` runs only
+    when ``row`` is stored (or overwrites), in the same transaction."""
     existing = get_digest(db, row.book_id, row.chapter_idx)
     if existing is not None:
         if saw_later_chapters(existing) and not saw_later_chapters(row):
             for name in _ROW_FIELDS:
                 setattr(existing, name, getattr(row, name))
             existing.created_at = datetime.utcnow()
-            db.commit()
+            _write_then_commit(db, existing, write, lock_key)
         return existing
     db.add(row)
     try:
-        db.commit()
+        _write_then_commit(db, row, write, lock_key)
     except IntegrityError:
-        # Another job stored this chapter between our check and the insert.
-        db.rollback()
+        # Another job stored this chapter between our check and the insert
+        # (``_write_then_commit`` has rolled back, entities and notes too).
         existing = get_digest(db, row.book_id, row.chapter_idx)
         if existing is None:
             raise
@@ -1073,7 +1955,8 @@ def _digest_unit(db: Session, user: User, book: Book, chapter_count: int,
     without a billed answer (outage, rate limit, no key) store nothing."""
     multi = len(sent) > 1
     prior = _prior_digests(db, book, sent[0].chapter.idx)
-    state = model_state(prior, book.id)
+    state = model_state(seen_entities(prior, book.id, _entities_for(db, book, prior),
+                                      upto=sent[0].chapter.idx))
     known = {e.key: e.line for e in fold_entries(d for d in prior if d.book_id == book.id)}
     context_end = sent[-1].chapter.idx if multi else None
     if multi:
@@ -1115,15 +1998,21 @@ def _digest_unit(db: Session, user: User, book: Book, chapter_count: int,
     ins, outs = (apportion(t, [s.words for s, _ in answered]) for t in _billed(result))
     rows: list[AIChapterDigest] = []
     for (s, answer), i, o in zip(answered, ins, outs):
-        entries = check_entries(answer.get("entries"), s.text, known)
-        for e in entries:
+        checked = _checked(answer.get("entries"), s.text, known)
+        for e, _ in checked:
             known[normalize_name(e["name"])] = e["line"]
+
+        def write(row: AIChapterDigest, s: _Sent = s, checked=checked, answer=answer) -> None:
+            entries = _EntityWriter(db, book).write_chapter(
+                s.chapter.idx, s.text, checked, answer.get("same_as"), context_end)
+            row.entries_json = json.dumps(entries, ensure_ascii=False)
+
         rows.append(_store(db, AIChapterDigest(
             book_id=book.id, chapter_idx=s.chapter.idx, model=result.model,
             summary=_str(answer.get("summary"), _SUMMARY_MAX),
-            entries_json=json.dumps(entries, ensure_ascii=False),
+            entries_json=json.dumps([e for e, _ in checked], ensure_ascii=False),
             input_tokens=i, output_tokens=o, context_end_idx=context_end,
-        )))
+        ), write, series_key(book)))
     return rows
 
 

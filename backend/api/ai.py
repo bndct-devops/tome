@@ -30,6 +30,7 @@ from backend.services import book_text
 from backend.services.ai import (
     budget, companion, digest, digest_job, fix_book, identify, jobs_view, recall as ai_recall,
     recap as ai_recap, registry, series_cleanup, settings as ai_settings, usage,
+    volume_recap,
 )
 from backend.services.ai.provider import AIError, AIKeyInvalid, AIProviderError
 from backend.services.audit import audit
@@ -542,12 +543,16 @@ def get_companion(
         "available": False, "reason": None, "features": feats, "position": None,
         "chapters": len(chapters), "coverage": None, "job": None, "last_job": None,
         "recap_cached": False, "glossary_count": 0, "previously": None, "scope": None,
+        "series_recaps": False, "ask_cost_hint_usd": None,
     }
     if (not ai_settings.ai_enabled(db) or not ai_settings.feature_enabled(db, digest.FEATURE)
             or not (ai_settings.feature_enabled(db, ai_recap.FEATURE)
                     or ai_settings.feature_enabled(db, ai_recall.FEATURE))):
         out["reason"] = companion.FEATURE_OFF
         return out
+    # The volume list (GET .../recap/volumes) needs no key and no position.
+    out["series_recaps"] = (ai_settings.feature_enabled(db, ai_recap.FEATURE)
+                            and volume_recap.has_series_recaps(db, current_user, book))
     out["job"] = digest_job.active_for(current_user.id, book.id)
     if out["job"] is None:
         # The latest ended job, so the page can offer "Continue" after a
@@ -557,7 +562,9 @@ def get_companion(
                   .order_by(AIJob.created_at.desc()).first())
         out["last_job"] = digest_job.get(latest[0], db) if latest else None
     pos = companion.reader_position(db, current_user, book)
-    pos_k = companion.position_chapter(book, pos.word_pct, db) if pos and chapters else None
+    finished = bool(chapters) and companion.is_read(db, current_user, book)
+    pos_k = (len(chapters) if finished else companion.position_chapter(book, pos.word_pct, db)) \
+        if pos and chapters else None
     if feats["recap"] and (pos is None or not pos_k):
         prev = ai_recap.previously_for(db, current_user, book)
         if prev is not None:
@@ -574,11 +581,16 @@ def get_companion(
         return out
     window = _web_window(db, current_user, book, None)
     scope = digest.user_scope(db, current_user, book)
+    if feats["ask"]:
+        from backend.services.ai import ask as ai_ask
+        out["ask_cost_hint_usd"] = ai_ask.cost_hint_usd(db)
     out.update({
         "available": True,
+        # ``finished``: the user marked the book read; the window is the
+        # whole book (``chapter_idx`` = chapter count, no chapter title).
         "position": {
             "pct": pos.pct, "chapter_idx": window.chapter_idx, "chapter_title": window.chapter_title,
-            "source": pos.source, "updated_at": _iso(pos.updated_at),
+            "source": pos.source, "updated_at": _iso(pos.updated_at), "finished": window.finished,
         },
         "coverage": digest.coverage(db, scope, window.chapter_idx),
         "recap_cached": ai_recap.cached_for(db, current_user, book, window, scope) is not None,
@@ -633,20 +645,122 @@ def delete_recap(
             "chapter_idx": window.chapter_idx}
 
 
-@router.get("/books/{book_id}/glossary")
-def get_glossary(
+# Recap as volumes: one recap per read earlier volume of the open book, from
+# that volume's chapter summaries (backend/services/ai/volume_recap.py).
+
+@router.get("/books/{book_id}/recap/volumes")
+def get_recap_volumes(
     book_id: int,
-    chapter: int | None = Query(default=None, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_user),
 ) -> dict[str, Any]:
+    """``{can_write, volumes: [{book_id, title, series_index, chapters,
+    status: ready|partial|missing, digested, needed, text, created_at,
+    missing_chapters}], current: {book_id, title, series_index, has_position,
+    recap_cached}}``. Read-only, never queues; works without a position."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    ai.check_feature_available(db, digest.FEATURE)
+    return volume_recap.volumes_payload(db, current_user, book)
+
+
+class VolumeRecapBody(BaseModel):
+    # Write from the summaries that exist even when chapters are undigested.
+    force: bool = False
+    # "Ask again": clear the volume's failed placeholders and rewrite its
+    # own-scope row in place (a call even when nothing new was digested).
+    again: bool = False
+
+
+def _volume_of(db: Session, user: User, book: Book, vol_id: int) -> Book:
+    vol = volume_recap.find_volume(db, user, book, vol_id)
+    if vol is None:
+        raise HTTPException(status_code=404, detail="Not a read earlier volume of this book")
+    return vol
+
+
+@router.post("/books/{book_id}/recap/volumes/{vol_id}")
+def post_recap_volume(
+    book_id: int,
+    vol_id: int,
+    body: VolumeRecapBody | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> Any:
+    """200 with the volume item (written now, or the row when nothing was
+    digested since it was written), or 202 ``{needs_digest: true, estimate,
+    coverage}`` when the volume has undigested chapters and not ``force``.
+    Nothing is queued: start the digest with POST /books/{vol_id}/digest
+    {scope: "book"}. ``again`` is "Ask again" (clears failed placeholders,
+    rewrites in place). 409 ``already_running`` while one is in flight."""
+    body = body or VolumeRecapBody()
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    ai.check_feature_available(db, digest.FEATURE)
+    vol = _volume_of(db, current_user, book, vol_id)
+    status, payload = volume_recap.request_volume(db, current_user, vol, force=body.force,
+                                                  again=body.again)
+    return JSONResponse(status_code=status, content=payload)
+
+
+@router.delete("/books/{book_id}/recap/volumes/{vol_id}")
+def delete_recap_volume(
+    book_id: int,
+    vol_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Delete the volume's own-scope recap: ``{deleted}``. 409 without a
+    key. The user-scope row of the finished-book hook stays. "Ask again" is
+    POST with ``{again: true}``."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    vol = _volume_of(db, current_user, book, vol_id)
+    return {"deleted": volume_recap.clear_volume(db, current_user, vol)}
+
+
+@router.get("/books/{book_id}/glossary")
+def get_glossary(
+    book_id: int,
+    request: Request,
+    chapter: int | None = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> Any:
     """The glossary up to the position chapter (from storage, no model call).
     Read-only: never queues work; ``job`` is the active digest job for the
     book, if any. Digests are started with POST /books/{id}/digest."""
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, digest.FEATURE)
     window = _web_window(db, current_user, book, chapter)
-    return companion.glossary_payload(db, current_user, book, window)
+    return companion.json_response(companion.glossary_payload(db, current_user, book, window),
+                                   request.headers.get("accept-encoding"))
+
+
+@router.get("/books/{book_id}/glossary/entry")
+def get_glossary_entry(
+    book_id: int,
+    entity_id: int | None = Query(default=None),
+    name: str | None = Query(default=None, max_length=200),
+    kind: str | None = Query(default=None, max_length=20),
+    chapter: int | None = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """``{entry}``: one glossary entry of the window in the full v2 shape
+    (facts and timeline places with ``chapter_title``, the timeline's last
+    200 lines), by ``entity_id`` or by ``name`` (+ ``kind``). 404 when the
+    window has no such entry."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, digest.FEATURE)
+    if entity_id is None and not (name or "").strip():
+        raise HTTPException(status_code=422, detail="Give an entity_id or a name.")
+    window = _web_window(db, current_user, book, chapter)
+    entry = companion.glossary_entry(db, current_user, book, window, entity_id=entity_id,
+                                     name=name, kind=kind)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="No such entry up to your position")
+    return {"entry": entry}
 
 
 @router.get("/books/{book_id}/digest/estimate")
@@ -710,6 +824,34 @@ def post_recall(
     try:
         return ai_recall.recall(db, current_user, book, window, body.term)
     except ai_recall.BadTerm as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post("/books/{book_id}/ask")
+def post_ask(
+    book_id: int,
+    # ``{question}``, validated in the route: a bad body is a 422 whose
+    # ``detail`` is a plain message, never pydantic's error list.
+    body: Any = Depends(companion.loose_json_body),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """``{answer, found, quotes, chapters_read, chapter_idx, chapter_title}``:
+    a question answered from the text before the reader's position."""
+    from backend.services.ai import ask as ai_ask
+
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_ask.FEATURE)
+    ai.check_feature_available(db, digest.FEATURE)
+    question = body.get("question") if isinstance(body, dict) else None
+    question = question if isinstance(question, str) else ""
+    if not question.strip() or len(question) > ai_ask.MAX_QUESTION_CHARS:
+        raise HTTPException(status_code=422,
+                            detail=f"Type a question of up to {ai_ask.MAX_QUESTION_CHARS} characters.")
+    window = _web_window(db, current_user, book, None)
+    try:
+        return ai_ask.ask(db, current_user, book, window, question)
+    except ai_ask.BadQuestion as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
 

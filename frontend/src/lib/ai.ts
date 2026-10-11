@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export type AiFeatureKey =
   | 'bindery_identify' | 'fix_book' | 'series_cleanup'
-  | 'reading_digest' | 'recap' | 'recall'
+  | 'reading_digest' | 'recap' | 'recall' | 'ask'
 export type AiKeySource = 'user' | 'instance'
 
 export interface AiFeatureInfo {
@@ -129,6 +129,10 @@ const FEATURE_COPY: Record<AiFeatureKey, { label: MessageDescriptor; description
   recall: {
     label: msg`Recall`,
     description: msg`Tells you who or what a name is, using only the pages before your position.`,
+  },
+  ask: {
+    label: msg`Ask about what you have read`,
+    description: msg`Answers a question from the chapters you have read, with a quote for every claim. Nothing after your position.`,
   },
 }
 
@@ -435,6 +439,9 @@ export interface CompanionPosition {
   chapter_title: string | null
   source: 'device' | 'web'
   updated_at: string | null
+  /** True when the book is marked read: the window is the whole book and
+   *  there is no "up to" chapter. Optional until every server sends it. */
+  finished?: boolean
 }
 
 export interface CompanionCoverage {
@@ -540,7 +547,7 @@ export interface DigestStart {
 export interface Companion {
   available: boolean
   reason: CompanionReason | null
-  features: { recap: boolean; recall: boolean; glossary: boolean }
+  features: { recap: boolean; recall: boolean; glossary: boolean; ask?: boolean }
   position: CompanionPosition | null
   chapters: number
   coverage: CompanionCoverage | null
@@ -551,6 +558,13 @@ export interface Companion {
   glossary_count: number
   previously: { book_id: number; title: string } | null
   scope: CompanionScope | null
+  /** True when the user has read earlier volumes in this book's window and
+   *  recap + digests are on. Also set when `available` is false with reason
+   *  `no_position`. Optional until every server sends it. */
+  series_recaps?: boolean
+  /** Upper-bound cost in USD of one Ask question on the current model.
+   *  Optional until every server sends it. */
+  ask_cost_hint_usd?: number
 }
 
 export interface Recap {
@@ -613,7 +627,57 @@ export interface GlossaryEntry {
   last_seen: GlossaryPlace
   /** Distinct chapters that listed the name (first sight plus updates). */
   chapters?: number
+  // Entity glossary (v2). All optional: an older server sends none of them.
+  entity_id?: number | null
+  /** Other spellings and names learned along the way. */
+  aliases?: string[]
+  /** One stable line: who or what this is, never situational. */
+  identity?: string
+  status?: string | null
+  /** Latest value per field inside the window, with where it was set. */
+  facts?: Partial<Record<GlossaryFactField, GlossaryFact>>
+  /** What they did, chapter by chapter, oldest first (capped). */
+  timeline?: GlossaryTimelineItem[]
+  /** True when earlier timeline lines were cut off by the cap. */
+  timeline_truncated?: boolean
 }
+
+export type GlossaryFactField =
+  'appearance' | 'powers_rank' | 'affiliations' | 'relationships' | 'status' | 'location'
+
+/** A place in the series: the shape facts, timeline lines and Ask quotes share. */
+export interface SeriesPlace {
+  book_id: number
+  series_index: number | null
+  chapter_idx: number
+  /** Absent on glossary facts and on list timeline lines. */
+  chapter_title?: string | null
+}
+
+export interface GlossaryFact extends SeriesPlace {
+  value: string
+}
+
+export interface GlossaryTimelineItem extends SeriesPlace {
+  line: string
+}
+
+export interface AskQuote extends SeriesPlace {
+  text: string
+}
+
+export interface AskResult {
+  answer: string
+  /** False: `answer` is the server's own "nothing found" wording. */
+  found: boolean
+  quotes: AskQuote[]
+  chapters_read: number
+  chapter_idx: number
+  chapter_title: string | null
+}
+
+/** Longest question the server accepts (422 above it). */
+export const ASK_MAX_CHARS = 300
 
 export interface Glossary {
   book_id: number
@@ -684,6 +748,24 @@ export function getDigestEstimate(bookId: number): Promise<DigestEstimates> {
   return api.get<DigestEstimates>(`/ai/books/${bookId}/digest/estimate`)
 }
 
+/** One glossary entry in full (timeline up to 200 lines, titled places).
+ *  By entity id, or by name and kind when the entry has no entity id. */
+export function getGlossaryEntry(
+  bookId: number,
+  key: { entity_id: number } | { name: string; kind: GlossaryEntry['kind'] },
+): Promise<{ entry: GlossaryEntry }> {
+  const qs = 'entity_id' in key
+    ? `entity_id=${key.entity_id}`
+    : `name=${encodeURIComponent(key.name)}&kind=${encodeURIComponent(key.kind)}`
+  return api.get<{ entry: GlossaryEntry }>(`/ai/books/${bookId}/glossary/entry?${qs}`)
+}
+
+/** True for the 409 the server sends while a question or volume recap is
+ *  already in flight for that book (the error message is its `detail`). */
+export function isAlreadyRunning(e: unknown): boolean {
+  return e instanceof Error && /already (running|being)/i.test(e.message)
+}
+
 /** Start reading the missing chapters before the position. Rejects with the
  *  server's message when over a monthly limit (409) or without a key. */
 export function startDigest(bookId: number, scope: DigestScope): Promise<DigestStart> {
@@ -695,9 +777,76 @@ export function recallTerm(bookId: number, term: string, chapter?: number): Prom
   return api.post<RecallResult>(`/ai/books/${bookId}/recall`, chapter != null ? { term, chapter } : { term })
 }
 
+/** One question about what was read, inside the window. One paid call each;
+ *  rejects with the server's message (409 over a monthly limit, 422 empty or
+ *  too long). */
+export function askBook(bookId: number, question: string): Promise<AskResult> {
+  return api.post<AskResult>(`/ai/books/${bookId}/ask`, { question })
+}
+
 /** The previous volume's whole-book recap. Rejects (404) when there is none. */
 export function getPreviously(bookId: number): Promise<Previously> {
   return api.get<Previously>(`/ai/books/${bookId}/previously`)
+}
+
+// ── recap per volume ─────────────────────────────────────────────────────────
+// One recap per earlier volume in the reader's window, written from that
+// volume's chapter summaries only. User-independent like the digests.
+
+export interface VolumeRecap {
+  book_id: number
+  title: string
+  series_index: number | null
+  chapters: number
+  /** ready: written from every chapter; partial: written while some chapters
+   *  were unread; missing: not written yet. */
+  status: 'ready' | 'partial' | 'missing'
+  digested: number
+  needed: number
+  text: string | null
+  created_at: string | null
+  /** Chapters of this volume with no digest yet. */
+  missing_chapters: number
+}
+
+export interface RecapVolumes {
+  /** False when this user may not start writes (no key, feature off). */
+  can_write: boolean
+  /** Earlier volumes in reading order; the open book is `current`. */
+  volumes: VolumeRecap[]
+  current: {
+    book_id: number
+    title: string
+    series_index: number | null
+    has_position: boolean
+    recap_cached: boolean
+  }
+}
+
+/** 202: the volume still has unread chapters. Nothing is queued: start them
+ *  with startDigest(volumeId, 'book'), then ask for the recap again. */
+export interface VolumeRecapPending {
+  needs_digest: true
+  /** One scope, for that volume. */
+  estimate: DigestEstimate
+  coverage: CompanionCoverage
+}
+
+export function isVolumeRecapPending(r: VolumeRecap | VolumeRecapPending): r is VolumeRecapPending {
+  return 'needs_digest' in r && r.needs_digest === true
+}
+
+/** The earlier volumes' recaps, from storage. Never writes. */
+export function getRecapVolumes(bookId: number): Promise<RecapVolumes> {
+  return api.get<RecapVolumes>(`/ai/books/${bookId}/recap/volumes`)
+}
+
+/** Write one volume's recap (force: rewrite a partial one; again: rewrite a
+ *  complete one in place, "Ask again"). */
+export function requestVolumeRecap(
+  bookId: number, volumeId: number, opts: { force?: boolean; again?: boolean } = {},
+): Promise<VolumeRecap | VolumeRecapPending> {
+  return api.post<VolumeRecap | VolumeRecapPending>(`/ai/books/${bookId}/recap/volumes/${volumeId}`, opts)
 }
 
 export function getDigestJob(jobId: string): Promise<DigestJob> {

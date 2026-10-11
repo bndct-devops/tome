@@ -51,47 +51,77 @@ All notable changes to Tome are documented here. Format loosely follows
   and the apply is recorded in the audit log with its counts.
 - **Reading companion, with your own key.** An EPUB you are reading, in the
   web reader or in KOReader, now has a Reading companion on its book page once
-  the book has a chapter map. "Recap to here" writes the story so far and ends
-  where you stopped. "Glossary so far" lists the people, places and terms met
-  up to your position, people first with the most-mentioned at the top, then
-  places, then terms, each with a one-line description, a fuller note and
-  where it first appeared ("vol 1, ch 12") and the chapter its line is as
-  of, with a search box that lists name matches before mentions. Names with
-  brackets, such as "Vane Estate (Hedge Maze)", are kept whole. A recap
-  written while some volumes were still unread says so under its text
-  ("Written without: vol 2 (12 of 40 chapters unread)"). Recall looks up a
-  name the glossary does not have, and answers "Nothing about that before this page."
-  rather than guess. Only the chapters before your position and the current
-  chapter up to your position are ever sent to Anthropic, and every glossary
-  line must quote the chapter it came from or it is dropped (a short quote
-  such as "Enter ROMEO" counts when it holds the whole name). For a series,
-  earlier volumes count once you have marked them read, and the companion
-  says which ones it left out. When you mark a volume of a series read, Tome
-  writes a recap of the whole book, and the next volume shows it as
-  "Previously on" until you are past its first chapter; marking many volumes
-  read at once starts at most five of these a day. Recaps are cached, so
-  reopening one is free, and "Ask again" writes a new one. The companion is
-  built from a short digest of each finished chapter, made once and shared by
-  everyone reading the same book. Chapters are read in groups of up to 12 per
-  call, several volumes at once, and the glossary so far goes along as names
-  only, which keeps the cost per chapter low. Nothing reads chapters on its
+  the book has a chapter map. The Recap is a list of volumes: one row per
+  earlier volume of the series you have marked read, each with its own recap,
+  and the open book last with "Recap to here", the story so far ending where
+  you stopped. A volume's recap is written once from that volume's chapter
+  notes and shared by everyone who has read it. A row expands to its text,
+  "Write it" writes one that is missing (with the usual confirmation first
+  when some of the volume's chapters still need reading) and "Ask again"
+  writes it anew. The list shows even before you have a position in the open
+  book, whose row then says "Open the book to get a recap up to your page."
+  Names from the glossary are links in the recap text and open their entry.
+  A recap written while some volumes were still unread says so under its
+  text ("Written without: vol 2 (12 of 40 chapters unread)"). There is no
+  separate "Previously on" any more: at the start of a volume, the list
+  simply ends with the one before. "Glossary so far" lists the people,
+  places and terms met up to your position, people first with the
+  most-mentioned at the top, then places, then terms. Each row shows the
+  name, the other names it goes by and one line on who or what it is. Expand
+  it for the profile: the status, appearance, powers and rank, affiliations,
+  relationships and location, each with the chapter it is as of, a timeline
+  of what they did chapter by chapter, the quote, where they first appeared
+  ("vol 1, ch 12") and the chapter the profile is as of. One person stays one
+  entry when the text calls them by different names (a title, a nickname, a
+  disguise): the model decides that from context, never from the spelling
+  alone, and a name or a merge learned past your position is never folded
+  in. The search box lists name and alias matches before mentions. Names
+  with brackets, such as "Vane Estate (Hedge Maze)", are kept whole. Recall
+  looks up a name the glossary does not have, and answers "Nothing about
+  that before this page." rather than guess. Only the chapters before your
+  position and the current chapter up to your position are ever sent to
+  Anthropic, and every glossary line must quote the chapter it came from or
+  it is dropped (a short quote such as "Enter ROMEO" counts when it holds
+  the whole name). For a series, earlier volumes count once you have marked
+  them read, and the companion says which ones it left out. A volume you
+  marked read is read to its last chapter, even when the position your
+  device synced stopped a few pages short. Recaps are cached, so reopening
+  one is free. The companion is built from short notes on each finished
+  chapter, made once and shared by everyone reading the same book. Chapters
+  are read in groups of up to 12 per call, several volumes at once, and the
+  glossary so far goes along as names with their one-line identities only,
+  which keeps the cost per chapter low. Chapter notes written before the
+  profiles existed still show the simpler entries (one line and a fuller
+  note) until those chapters are read again. Nothing reads chapters on its
   own when you look: opening the glossary only shows what is there, and
-  Recap, "Read the missing chapters" and Continue start the reading. The one
-  background start is a position sync, and only when between three and
-  twenty finished chapters of that book are missing and the feature is on;
-  a larger backlog waits for you to start it. When more than 20 chapters
-  need reading, a dialog asks first, with "This book only" or "Whole
-  series", the chapters, the time and the cost of each, and what is left of
-  your monthly AI budget. Marking a volume read digests that volume only.
-  The book page shows one progress line ("Reading chapters: 3 of 12"). Stop
-  answers at once and keeps the chapters already
-  read, and after a Stop nothing restarts until you start it again; Continue
-  picks up a stopped run, or one a server restart interrupted. A recap you
-  asked for keeps waiting through a page reload. Settings lists the three new
-  features ("Build the glossary as you read", "Recap to here" and "Recall"),
-  each with its own switch and model, and the spend meter shows their calls.
-  Switching off "Build the glossary as you read" stops the background calls
-  and hides the companion.
+  Recap, "Write it", "Read the missing chapters" and Continue start the
+  reading. The one background start is a position sync, and only when
+  between three and twenty finished chapters of that book are missing and
+  the feature is on; a larger backlog waits for you to start it. When more
+  than 20 chapters need reading, a dialog asks first, with "This book only"
+  or "Whole series", the chapters, the time and the cost of each, and what
+  is left of your monthly AI budget. Marking a volume read reads that
+  volume only and writes its recap, at most five a day. The book page shows
+  one progress line ("Reading chapters: 3 of 12"). Stop answers at once and keeps the
+  chapters already read, and after a Stop nothing restarts until you start
+  it again; Continue picks up a stopped run, or one a server restart
+  interrupted. A recap you asked for keeps waiting through a page reload.
+  Settings lists the new features ("Build the glossary as you read", "Recap
+  to here", "Recall" and "Ask about what you have read"), each with its own
+  switch and model, and the spend meter shows their calls. Switching off
+  "Build the glossary as you read" stops the background calls and hides the
+  companion.
+- **Ask about what you have read.** A box under the glossary search takes a
+  question about the book, such as "who taught her to read the stars?". Tome
+  finds the chapters that fit the question inside what
+  you have read, by the words of the question and the chapter summaries,
+  reads up to eight of them and answers in a few sentences with a quote for
+  every claim and the chapter it came from, or says "Nothing in the chapters
+  you have read answers that." A quote that does not occur in the chapter it
+  names is dropped. It never reads past your position. The box says what a
+  question can cost at most on the current model (around 10 to 30 cents on
+  Sonnet 5.5), and Ask has its own switch and model in Settings > AI.
+  Answers are not stored.
 - **Monthly AI spend limits.** Settings > AI has a monthly limit in USD, with
   a bar showing what is spent of it. Everyone can set their own; admins can
   also cap everything charged to the instance key and set a limit for each

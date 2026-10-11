@@ -17,7 +17,7 @@ from backend.models.library import Library
 from backend.models.tome_sync import ApiKey, TomeSyncPosition
 from backend.models.user import User
 from backend.services import ai, book_text
-from backend.services.ai import companion, digest, digest_job, recap, settings as ai_settings
+from backend.services.ai import companion, digest, digest_job, recap, settings as ai_settings, volume_recap
 from tests.ai_fake import FakeProvider
 from tests.test_ai_digest import (
     _entry, _epub_book, _headers, _make_user, _read, _store_digest, echo_digest, make_epub,
@@ -437,7 +437,7 @@ def test_companion_payload(client, db, make_book, tmp_path):
     assert c["chapters"] == 4
     assert c["coverage"] == {"digested": 1, "needed": 2, "failed": 0}
     assert c["glossary_count"] == 1 and c["recap_cached"] is False
-    assert c["features"] == {"recap": True, "recall": True, "glossary": True}
+    assert c["features"] == {"recap": True, "recall": True, "glossary": True, "ask": True}
     assert c["job"] is None                         # GET companion never queues work
     assert c["last_job"] is None
 
@@ -767,11 +767,11 @@ def test_plugin_status_and_auth(db, make_book, tmp_path, plugin):
     db.commit()
 
     assert c.get("/api/tome-sync/ai/status", headers=hm).json() == {
-        "recap": True, "recall": True, "glossary": True}
+        "recap": True, "recall": True, "glossary": True, "ask": True}
     assert c.get("/api/tome-sync/ai/status", headers=hg).json() == {
-        "recap": False, "recall": False, "glossary": False}
+        "recap": False, "recall": False, "glossary": False, "ask": False}
     assert c.get("/api/tome-sync/ai/status", headers=hk).json() == {
-        "recap": False, "recall": False, "glossary": True}
+        "recap": False, "recall": False, "glossary": True, "ask": False}
     assert c.get("/api/tome-sync/ai/status").status_code == 422          # no header
     assert c.get("/api/tome-sync/ai/status",
                  headers={"Authorization": "Bearer tk_nope"}).status_code == 401
@@ -905,3 +905,851 @@ def test_recap_cache_key_includes_the_scope(db, make_book, tmp_path):
     assert db.query(AIRecap).filter_by(book_id=v2.id).count() == 2
     assert f"Summary {v1.id}:0" in _all_text(fake.calls[0])
     assert f"Summary {v1.id}:0" not in _all_text(fake.calls[1])
+
+
+# ── recap as volumes ─────────────────────────────────────────────────────────
+
+VOLUME_TEXT = {"paragraphs": ["Mara sailed out.", "The storm passed.", "Tobin stayed.",
+                              "The bell was rung — at last."]}
+
+
+def _volume_series(db, make_book, tmp_path, user, name: str):
+    """Vols 1 and 2 read, reader on vol 3 (no position)."""
+    vols = [_epub_book(db, make_book, tmp_path, f"{name} {i}", series=name, index=i) for i in (1, 2, 3)]
+    _read(db, user, vols[0])
+    _read(db, user, vols[1])
+    return vols
+
+
+def test_recap_volumes_list_statuses_and_no_position(client, db, make_book, tmp_path):
+    user = _make_user(db, "vols", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Reef")
+    own = lambda v: digest.Scope(book=v).scope_hash
+    # vol 1: ready (all digested, full row); vol 2: partial row.
+    _digest_all(db, v1, 4)
+    db.add(AIRecap(book_id=v1.id, chapter_idx=4, scope_hash=own(v1), position_fraction=1.0,
+                   text="Vol one recap.", model="m", digested=4, needed=4))
+    _digest_all(db, v2, 2)
+    db.add(AIRecap(book_id=v2.id, chapter_idx=4, scope_hash=own(v2), position_fraction=1.0,
+                   text="Vol two partial.", model="m", digested=2, needed=4))
+    db.commit()
+    digest_job.reset()   # the setup's _read queued finished-book jobs
+    fake = FakeProvider(responses=[])
+    ai.set_provider_override(fake)
+
+    r = client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=_headers(user))
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["can_write"] is True
+    assert [v["book_id"] for v in out["volumes"]] == [v1.id, v2.id]
+    a, b = out["volumes"]
+    assert a["status"] == "ready" and a["text"] == "Vol one recap." and a["missing_chapters"] == 0
+    assert a["chapters"] == 4 and a["series_index"] == 1 and a["created_at"]
+    assert b["status"] == "partial" and b["digested"] == 2 and b["missing_chapters"] == 2
+    assert out["current"] == {"book_id": v3.id, "title": "Reef 3", "series_index": 3,
+                              "has_position": False, "recap_cached": False}
+    assert fake.calls == [] and digest_job.active_for(user.id, v1.id) is None
+
+    # Remove vol 1's row: missing, text null.
+    db.query(AIRecap).filter_by(book_id=v1.id).delete()
+    db.commit()
+    a = client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=_headers(user)).json()["volumes"][0]
+    assert a["status"] == "missing" and a["text"] is None and a["created_at"] is None
+    assert a["digested"] == 4 and a["needed"] == 4 and a["missing_chapters"] == 0
+
+    # With a position on vol 3, current reports it.
+    _position(db, user, v3, _mid(v3, db, 1))
+    db.commit()
+    cur = client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=_headers(user)).json()["current"]
+    assert cur["has_position"] is True and cur["recap_cached"] is False
+
+
+def test_recap_volume_post_writes_from_summaries_and_caches(client, db, make_book, tmp_path):
+    user = _make_user(db, "volpost", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Cove")
+    _digest_all(db, v1, 4)
+    db.commit()
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    h = _headers(user)
+
+    r = client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", json={}, headers=h)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["status"] == "ready" and out["book_id"] == v1.id
+    assert out["text"].endswith("The bell was rung - at last.")
+    [call] = fake.calls
+    assert call["feature"] == "recap" and call["system"] == volume_recap.VOLUME_PROMPT
+    sent = _all_text(call)
+    assert all(f"Summary {v1.id}:{i}" in sent for i in range(4))
+    assert not any(f"Mark{i}end" in sent for i in range(4))     # summaries only
+    assert f"Summary {v2.id}" not in sent
+    usage_row = db.query(AIUsage).order_by(AIUsage.id.desc()).first()
+    assert usage_row.feature == "recap" and usage_row.book_id == v1.id
+    row = db.query(AIRecap).filter_by(book_id=v1.id).one()
+    assert row.chapter_idx == 4 and row.position_fraction == 1.0
+    assert row.scope_hash == digest.Scope(book=v1).scope_hash
+
+    g = client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=h).json()
+    assert g["volumes"][0]["status"] == "ready"
+    # Second POST: served, no call.
+    assert client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", json={}, headers=h).status_code == 200
+    assert len(fake.calls) == 1
+
+    # DELETE ("Ask again"), then it is missing.
+    r = client.delete(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", headers=h)
+    assert r.json() == {"deleted": True}
+    assert client.delete(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", headers=h).json() == {"deleted": False}
+    g = client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=h).json()
+    assert g["volumes"][0]["status"] == "missing"
+
+
+def test_recap_volume_202_when_undigested_then_force_partial(client, db, make_book, tmp_path):
+    user = _make_user(db, "volpart", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Spit")
+    _digest_all(db, v2, 2)
+    db.commit()
+    digest_job.reset()   # the setup's _read queued finished-book jobs
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    h = _headers(user)
+
+    r = client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v2.id}", json={}, headers=h)
+    assert r.status_code == 202, r.text
+    out = r.json()
+    assert out["needs_digest"] is True
+    assert out["coverage"]["digested"] == 2 and out["coverage"]["needed"] == 4
+    assert out["estimate"]["scope"] == "book" and out["estimate"]["chapters"] == 2
+    assert fake.calls == [] and digest_job.active_for(user.id, v2.id) is None
+
+    r = client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v2.id}", json={"force": True}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "partial" and r.json()["digested"] == 2 and r.json()["missing_chapters"] == 2
+    assert len(fake.calls) == 1
+
+    # Not an included earlier volume: 404 (vol 3 itself, and an unread vol).
+    assert client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v3.id}", json={}, headers=h).status_code == 404
+    assert client.post(f"/api/ai/books/{v2.id}/recap/volumes/{v2.id}", json={}, headers=h).status_code == 404
+
+
+def test_recap_volumes_permissions_and_keyless(client, db, admin_user, make_book, tmp_path):
+    user = _make_user(db, "volperm", "member")
+    keyless = _make_user(db, "volnokey", "member", key=False)
+    guest = _make_user(db, "volguest", "guest", key=False)
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Sand")
+    _read(db, keyless, v1)
+    hidden = _epub_book(db, make_book, tmp_path, "Sand Hidden")
+    lib = Library(name="Private", is_public=False, owner_id=admin_user[0].id)
+    lib.books.append(hidden)
+    db.add(lib)
+    _digest_all(db, v1, 4)
+    db.commit()
+    ai.set_provider_override(FakeProvider(responses=[]))
+
+    for method, url, kw in [
+        ("get", f"/api/ai/books/{v3.id}/recap/volumes", {}),
+        ("post", f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", {"json": {}}),
+        ("delete", f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", {}),
+    ]:
+        assert getattr(client, method)(url, headers=_headers(guest), **kw).status_code == 403
+    assert client.get(f"/api/ai/books/{hidden.id}/recap/volumes", headers=_headers(user)).status_code == 404
+
+    # No key: listed read-only, writing is a 409.
+    r = client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=_headers(keyless))
+    assert r.status_code == 200 and r.json()["can_write"] is False
+    assert [v["book_id"] for v in r.json()["volumes"]] == [v1.id]
+    assert client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", json={},
+                       headers=_headers(keyless)).status_code == 409
+
+    ai_settings.set_feature_enabled(db, "recap", False)
+    db.commit()
+    assert client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=_headers(user)).status_code == 404
+    ai_settings.set_feature_enabled(db, "recap", True)
+    ai_settings.set_feature_enabled(db, "reading_digest", False)
+    db.commit()
+    assert client.get(f"/api/ai/books/{v3.id}/recap/volumes", headers=_headers(user)).status_code == 404
+
+
+def test_companion_series_recaps_flag(client, db, make_book, tmp_path):
+    user = _make_user(db, "volflag", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Dune")
+    db.commit()
+    h = _headers(user)
+    c = client.get(f"/api/ai/books/{v3.id}/companion", headers=h).json()
+    assert c["reason"] == "no_position" and c["series_recaps"] is True
+    assert client.get(f"/api/ai/books/{v1.id}/companion", headers=h).json()["series_recaps"] is False
+    _position(db, user, v3, _mid(v3, db, 1))
+    db.commit()
+    c = client.get(f"/api/ai/books/{v3.id}/companion", headers=h).json()
+    assert c["available"] is True and c["series_recaps"] is True
+    ai_settings.set_feature_enabled(db, "recap", False)
+    db.commit()
+    assert client.get(f"/api/ai/books/{v3.id}/companion", headers=h).json()["series_recaps"] is False
+
+
+def test_finished_book_hook_recap_shows_as_ready_volume(client, db, make_book, tmp_path):
+    user = _make_user(db, "volhook", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Marsh One", series="Marsh", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Marsh Two", series="Marsh", index=2)
+    db.commit()
+    h = _headers(user)
+    assert client.put(f"/api/books/{v1.id}/status", json={"status": "read"}, headers=h).status_code == 200
+    fake = FakeProvider(responses=mixed)
+    ai.set_provider_override(fake)
+    digest_job.run_pending()
+    assert [c["feature"] for c in fake.calls] == ["reading_digest", "recap"]
+
+    out = client.get(f"/api/ai/books/{v2.id}/recap/volumes", headers=h).json()
+    [vol] = out["volumes"]
+    assert vol["book_id"] == v1.id and vol["status"] == "ready" and vol["text"].startswith("Mara walked")
+    # POST serves it without another call.
+    r = client.post(f"/api/ai/books/{v2.id}/recap/volumes/{v1.id}", json={}, headers=h)
+    assert r.status_code == 200 and len(fake.calls) == 2
+
+
+def test_plugin_recap_volumes_mirror(db, admin_user, make_book, tmp_path, plugin):
+    c, key_for = plugin
+    user = _make_user(db, "volplug", "member")
+    guest = _make_user(db, "volplugg", "guest", key=False)
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Fjord")
+    hidden = _epub_book(db, make_book, tmp_path, "Fjord Hidden")
+    lib = Library(name="Private", is_public=False, owner_id=admin_user[0].id)
+    lib.books.append(hidden)
+    db.add(lib)
+    _digest_all(db, v1, 4)
+    h, hg = key_for(user), key_for(guest)
+    db.commit()
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    base = f"/api/tome-sync/ai/books/{v3.id}/recap/volumes"
+
+    r = c.get(base, headers=h)
+    assert r.status_code == 200, r.text
+    assert [(v["book_id"], v["status"]) for v in r.json()["volumes"]] == [(v1.id, "missing"), (v2.id, "missing")]
+    assert c.get(base, headers=hg).status_code == 403
+    assert c.get(f"/api/tome-sync/ai/books/{hidden.id}/recap/volumes", headers=h).status_code == 404
+    assert c.post(f"{base}/{v2.id}", json={}, headers=h).status_code == 202
+    r = c.post(f"{base}/{v1.id}", json={}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "ready"
+    assert c.post(f"{base}/{v1.id}", headers=h).status_code == 200      # no body
+    assert len(fake.calls) == 1
+    assert c.delete(f"{base}/{v1.id}", headers=h).json() == {"deleted": True}
+
+
+def test_a_finished_book_is_digested_to_its_last_chapter(client, db, make_book, tmp_path):
+    """A device can leave a finished book's position short of the end (97%),
+    and the chapter the position is in is never digested. Marked read, an
+    explicit start and its estimate cover every chapter."""
+    user = _make_user(db, "finisher", "member")
+    book = _epub_book(db, make_book, tmp_path, "Finished Short")
+    chapters = book_text.book_chapters(book, db)
+    _position(db, user, book, (chapters[-1].start_fraction + 1.0) / 2)   # inside the last chapter
+    db.commit()
+    h = _headers(user)
+    est = client.get(f"/api/ai/books/{book.id}/digest/estimate", headers=h).json()
+    assert est["book"]["chapters"] == len(chapters) - 1                 # not read: the last one waits
+    _read(db, user, book)
+    db.commit()
+    est = client.get(f"/api/ai/books/{book.id}/digest/estimate", headers=h).json()
+    assert est["book"]["chapters"] == len(chapters)
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={"scope": "book"}, headers=h)
+    assert r.status_code == 202, r.text
+    assert r.json()["job"]["upto_chapter"] == len(chapters)
+    assert r.json()["coverage"]["needed"] == len(chapters)
+
+
+# ── glossary v2: entity profiles ─────────────────────────────────────────────
+
+def _entity_book(db, make_book, tmp_path, user, title="Profiles"):
+    """An eight-chapter standalone with the entity Mara Vell (notes in
+    chapters 0, 1, 2 and 5) and an old-style row for Tobin Ash in chapter 1
+    (no notes). The reader is in chapter 4: chapters 0..3 are the window."""
+    import json as _json
+
+    from backend.models.ai_entity import AIEntity, AIEntityNote
+    from tests.test_ai_digest import EIGHT
+
+    book = _epub_book(db, make_book, tmp_path, title, chapters=EIGHT)
+    mara = AIEntity(series_key=digest.series_key(book), kind="person", name="Mara Vell",
+                    aliases_json=_json.dumps([{"name": "The Pilot", "book_id": book.id, "chapter_idx": 1},
+                                              {"name": "Vell the Dead", "book_id": book.id, "chapter_idx": 5}]),
+                    identity="A ferry pilot from the harbour.", first_book_id=book.id, first_chapter_idx=0)
+    db.add(mara)
+    db.flush()
+    ref = {"entity_id": mara.id}
+    _store_digest(db, book, 0, [{**_entry("Mara Vell", "Walks to the harbour."), **ref}])
+    _store_digest(db, book, 1, [{**_entry("The Pilot", "Hears the bell."), **ref},
+                                _entry("Tobin Ash", "Rings the bell.")])
+    _store_digest(db, book, 2, [{**_entry("Mara Vell", "Takes the ferry out."), **ref}])
+    _store_digest(db, book, 3, [])
+    _store_digest(db, book, 5, [{**_entry("Mara Vell", "Drowns."), **ref}])
+    for idx, line, facts in ((0, "Walks to the harbour.", {"status": "alive", "location": "the harbour"}),
+                             (1, "Hears the bell.", {"location": "the bell tower"}),
+                             (2, "Takes the ferry out.", {"location": "the ferry", "appearance": "grey coat"}),
+                             (5, "Drowns.", {"status": "dead", "location": "the sea"})):
+        db.add(AIEntityNote(entity_id=mara.id, book_id=book.id, chapter_idx=idx, line=line,
+                            facts_json=_json.dumps(facts), evidence="Mara Vell walked"))
+    _position(db, user, book, _mid(book, db, 4))
+    db.flush()
+    return book, mara
+
+
+def test_glossary_v2_fields_on_web_and_plugin(client, db, make_book, tmp_path, plugin):
+    user = _make_user(db, "profweb", "member")
+    book, mara = _entity_book(db, make_book, tmp_path, user)
+    c, key_for = plugin
+    hp = key_for(user)
+    db.commit()
+    web = client.get(f"/api/ai/books/{book.id}/glossary", headers=_headers(user)).json()
+    plug = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary", headers=hp).json()
+    assert web["entries"] == plug["entries"] and web["rev"] == plug["rev"]
+    assert web["chapter_idx"] == 4
+    assert [e["name"] for e in web["entries"]] == ["Mara Vell", "Tobin Ash"]
+    assert web["count"] == 2
+    m = web["entries"][0]
+    v1_keys = {"name", "kind", "line", "more", "evidence", "first_seen", "last_seen", "chapters"}
+    v2_keys = {"entity_id", "aliases", "identity", "status", "facts", "timeline", "timeline_truncated"}
+    assert v1_keys | v2_keys <= set(m)
+    assert m["entity_id"] == mara.id and m["kind"] == "person"
+    assert m["identity"] == m["more"] == "A ferry pilot from the harbour."
+    assert m["line"] == "Takes the ferry out."              # the latest line inside the window
+    assert m["aliases"] == ["The Pilot"]                    # the chapter-5 alias is past the reader
+    assert m["first_seen"]["chapter_idx"] == 0 and m["first_seen"]["book_title"] == "Profiles"
+    assert m["last_seen"]["chapter_idx"] == 2 and m["chapters"] == 3
+    assert m["evidence"] == "x"
+    # Facts: latest value inside the window wins; chapter 5 never leaks.
+    assert m["status"] == "alive"
+    # The list carries no title strings in facts and timeline (payload size).
+    assert m["facts"]["location"] == {"value": "the ferry", "book_id": book.id, "series_index": None,
+                                      "chapter_idx": 2}
+    assert m["facts"]["status"]["chapter_idx"] == 0
+    assert m["facts"]["appearance"]["value"] == "grey coat"
+    assert "dead" not in str(web) and "the sea" not in str(web) and "Drowns" not in str(web)
+    # Timeline: oldest first, resolved places.
+    assert [t["line"] for t in m["timeline"]] == [
+        "Walks to the harbour.", "Hears the bell.", "Takes the ferry out."]
+    assert m["timeline"][1] == {"book_id": book.id, "series_index": None, "chapter_idx": 1,
+                                "line": "Hears the bell."}
+    assert m["timeline_truncated"] is False
+
+    # The opened entry: titled places, same window, web and plugin alike.
+    for e in (client.get(f"/api/ai/books/{book.id}/glossary/entry?entity_id={mara.id}",
+                         headers=_headers(user)).json()["entry"],
+              c.get(f"/api/tome-sync/ai/books/{book.id}/glossary/entry?entity_id={mara.id}",
+                    headers=hp).json()["entry"]):
+        assert e["facts"]["location"] == {"value": "the ferry", "book_id": book.id, "series_index": None,
+                                          "chapter_idx": 2, "chapter_title": "Part 3"}
+        assert e["timeline"][1] == {"book_id": book.id, "series_index": None, "chapter_idx": 1,
+                                    "chapter_title": "Part 2", "line": "Hears the bell."}
+        assert "Drowns" not in str(e) and "the sea" not in str(e)
+    # The old-style row (no notes): identity is its line, no facts.
+    t = web["entries"][1]
+    assert t["entity_id"] is None and t["identity"] == t["line"] == "Rings the bell."
+    assert t["facts"] == {} and t["status"] is None and t["aliases"] == []
+    assert [x["line"] for x in t["timeline"]] == ["Rings the bell."]
+
+    # An earlier explicit chapter (web): the window shrinks, facts follow it.
+    g1 = client.get(f"/api/ai/books/{book.id}/glossary?chapter=1", headers=_headers(user)).json()
+    [m1] = g1["entries"]
+    assert m1["facts"] == {"status": {"value": "alive", "book_id": book.id, "series_index": None,
+                                      "chapter_idx": 0},
+                           "location": {"value": "the harbour", "book_id": book.id, "series_index": None,
+                                        "chapter_idx": 0}}
+    assert m1["aliases"] == [] and m1["line"] == "Walks to the harbour."
+
+
+def test_glossary_v2_timeline_cap(db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "profcap", "member")
+    book, _mara = _entity_book(db, make_book, tmp_path, user)
+    monkeypatch.setattr(companion, "TIMELINE_CAP", 2)
+    window = companion.web_window(db, user, book, None)
+    m = companion.glossary_payload(db, user, book, window)["entries"][0]
+    assert [t["line"] for t in m["timeline"]] == ["Hears the bell.", "Takes the ferry out."]
+    assert m["timeline_truncated"] is True
+    assert m["chapters"] == 3 and m["first_seen"]["chapter_idx"] == 0
+
+
+def test_glossary_v2_without_profiles_keeps_the_shape(db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "profshim", "member")
+    book, _mara = _entity_book(db, make_book, tmp_path, user)
+    monkeypatch.delattr(digest, "profiles", raising=False)
+    window = companion.web_window(db, user, book, None)
+    entries = companion.glossary_payload(db, user, book, window)["entries"]
+    assert [e["name"] for e in entries] == ["Mara Vell", "The Pilot", "Tobin Ash"]   # the plain fold
+    for e in entries:
+        assert e["entity_id"] is None and e["facts"] == {} and e["identity"] == e["line"]
+        assert e["timeline_truncated"] is False
+
+
+def test_glossary_rev_changes_when_a_note_is_added(db, make_book, tmp_path, plugin):
+    from backend.models.ai_entity import AIEntity, AIEntityNote
+
+    user = _make_user(db, "profrev", "member")
+    book, _mara = _entity_book(db, make_book, tmp_path, user)
+    c, key_for = plugin
+    h = key_for(user)
+    db.commit()
+    pct = _mid(book, db, 4)
+    g1 = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary?pct={pct}", headers=h).json()
+    assert c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": pct},
+                 headers=h).json()["glossary_rev"] == g1["rev"]
+
+    tobin = AIEntity(series_key=digest.series_key(book), kind="person", name="Tobin Ash",
+                     identity="The bell ringer.", first_book_id=book.id, first_chapter_idx=3)
+    db.add(tobin)
+    db.flush()
+    db.add(AIEntityNote(entity_id=tobin.id, book_id=book.id, chapter_idx=3, line="Rings again.",
+                        facts_json="{}", evidence="Tobin Ash rang"))
+    db.commit()
+    g2 = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary?pct={pct}", headers=h).json()
+    assert g2["rev"] != g1["rev"]
+    assert c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": pct},
+                 headers=h).json()["glossary_rev"] == g2["rev"]
+    [t] = [e for e in g2["entries"] if e["name"] == "Tobin Ash"]
+    assert t["entity_id"] == tobin.id and t["line"] == "Rings again."
+    assert t["timeline"][-1]["chapter_idx"] == 3
+    assert t["first_seen"]["chapter_idx"] == 1       # the old row still counts for first seen
+
+    # A note past the window does not change it.
+    db.add(AIEntityNote(entity_id=tobin.id, book_id=book.id, chapter_idx=5, line="Leaves.",
+                        facts_json="{}", evidence="Tobin Ash left"))
+    db.commit()
+    assert c.get(f"/api/tome-sync/ai/books/{book.id}/glossary?pct={pct}",
+                 headers=h).json()["rev"] == g2["rev"]
+
+
+# ── run 2d review: a finished book is the whole book ────────────────────────
+
+def _multi_digests(db, book, n: int) -> None:
+    """Every chapter digested by one multi-chapter call that read 0..n-1
+    (``context_end_idx`` = the last chapter): unusable for a reader inside
+    that range, usable for one past it."""
+    for i in range(n):
+        row = _store_digest(db, book, i, [_entry(f"Name{i} Person", f"Line {i}.")])
+        row.context_end_idx = n - 1
+    db.flush()
+
+
+def test_finished_book_with_a_position_in_the_last_chapter_is_the_whole_book(
+        client, db, make_book, tmp_path, plugin):
+    """The smoke defect: marked read, device position at 100% inside the last
+    chapter. The page shows the whole book: full coverage, every glossary
+    entry, nothing left to digest, the whole-book recap (the volume list's
+    row), and Ask reads every chapter."""
+    user = _make_user(db, "finished", "member")
+    book = _epub_book(db, make_book, tmp_path, "Finished Whole")
+    n = len(book_text.book_chapters(book, db))
+    _multi_digests(db, book, n)
+    _read(db, user, book)
+    _position(db, user, book, 1.0)
+    c, key_for = plugin
+    hp = key_for(user)
+    db.commit()
+    digest_job.reset()
+    h = _headers(user)
+    # The rows of one multi-chapter call are usable at the whole book.
+    assert all(digest.row_usable(d, n) for d in db.query(digest.AIChapterDigest).filter_by(book_id=book.id))
+    assert not digest.row_usable(db.query(digest.AIChapterDigest).filter_by(book_id=book.id,
+                                                                           chapter_idx=0).one(), n - 1)
+
+    window = companion.web_window(db, user, book, None)
+    assert window.finished and window.chapter_idx == n and window.chapter is None
+    assert companion.window_text(book, window, db) == ""
+    assert companion.digest_upto(db, user, book, window) == n
+    # The plugin's fraction for a read book: the whole book too.
+    pw = companion.pct_window(db, book, 1.0, user=user)
+    assert pw.finished and pw.chapter_idx == n
+    assert companion.pct_window(db, book, 1.0).chapter_idx == n - 1     # without the user: the chapter
+
+    comp = client.get(f"/api/ai/books/{book.id}/companion", headers=h).json()
+    assert comp["available"] is True
+    assert comp["position"]["finished"] is True and comp["position"]["chapter_idx"] == n
+    assert comp["position"]["chapter_title"] is None
+    assert comp["coverage"] == {"digested": n, "needed": n, "failed": 0}
+    assert comp["glossary_count"] == n
+
+    g = client.get(f"/api/ai/books/{book.id}/glossary", headers=h).json()
+    assert [e["name"] for e in g["entries"]] == [f"Name{i} Person" for i in range(n)]
+    gp = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary?pct=1.0", headers=hp).json()
+    assert gp["entries"] == g["entries"] and gp["rev"] == g["rev"]
+    assert c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": 1.0},
+                 headers=hp).json()["glossary_rev"] == g["rev"]
+
+    est = client.get(f"/api/ai/books/{book.id}/digest/estimate", headers=h).json()
+    assert est["book"]["chapters"] == 0 and est["chapter_idx"] == n
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={"scope": "book"}, headers=h)
+    assert r.status_code == 200 and r.json()["coverage"] == {"digested": n, "needed": n, "failed": 0}
+
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["whole_book"] is True and out["chapter_idx"] == n and out["partial"] is False
+    [call] = fake.calls
+    assert call["system"] == volume_recap.VOLUME_PROMPT
+    sent = _all_text(call)
+    assert all(f"Summary {book.id}:{i}" in sent for i in range(n)) and "Mark0end" not in sent
+    [row] = db.query(AIRecap).filter_by(book_id=book.id).all()
+    assert row.chapter_idx == n and row.scope_hash == digest.Scope(book=book).scope_hash
+    # Served again without a call; the companion says cached.
+    again = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h).json()
+    assert again["cached"] is True and again["text"] == out["text"] and len(fake.calls) == 1
+    assert client.get(f"/api/ai/books/{book.id}/companion", headers=h).json()["recap_cached"] is True
+    # Plugin recap at 100% for the read book: the same row.
+    rp = c.post(f"/api/tome-sync/ai/books/{book.id}/recap", json={"pct": 1.0}, headers=hp)
+    assert rp.status_code == 200 and rp.json()["cached"] is True and len(fake.calls) == 1
+
+    # Recall: no current-chapter text, a hit is served from the fold.
+    rc = client.post(f"/api/ai/books/{book.id}/recall", json={"term": f"Name{n - 1} Person"}, headers=h)
+    assert rc.status_code == 200 and rc.json()["found"] is True and rc.json()["live"] is False
+    miss = client.post(f"/api/ai/books/{book.id}/recall", json={"term": "lighthouse"}, headers=h).json()
+    assert miss["found"] is False and len(fake.calls) == 1
+
+
+def test_finished_book_whole_recap_is_the_volume_row(client, db, make_book, tmp_path):
+    """The finished book's own page and the next volume's list share one row:
+    written on either side, served on the other without a call."""
+    user = _make_user(db, "shared", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Shared")
+    _digest_all(db, v1, 4)
+    _position(db, user, v1, 1.0)
+    db.commit()
+    digest_job.reset()
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    h = _headers(user)
+    r = client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", json={}, headers=h)
+    assert r.status_code == 200 and len(fake.calls) == 1
+    own = client.post(f"/api/ai/books/{v1.id}/recap", json={}, headers=h).json()
+    assert own["cached"] is True and own["whole_book"] is True and own["text"] == r.json()["text"]
+    assert len(fake.calls) == 1
+
+
+# ── run 2d review: volume recap writes once ─────────────────────────────────
+
+def test_volume_recap_with_a_failed_placeholder_is_written_once(client, db, make_book, tmp_path):
+    from backend.models.ai_chapter_digest import AIChapterDigest
+
+    user = _make_user(db, "volfail", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Fail")
+    _digest_all(db, v1, 3)
+    db.add(AIChapterDigest(book_id=v1.id, chapter_idx=3, model=digest.FAILED_MODEL, summary="",
+                           entries_json="[]"))
+    db.commit()
+    digest_job.reset()
+    fake = FakeProvider(responses=[VOLUME_TEXT] * 5)
+    ai.set_provider_override(fake)
+    h = _headers(user)
+    url = f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}"
+    for _ in range(3):
+        r = client.post(url, json={}, headers=h)
+        assert r.status_code == 200 and r.json()["status"] == "partial"
+    assert len(fake.calls) == 1
+    # force does not rewrite when nothing new was digested either.
+    assert client.post(url, json={"force": True}, headers=h).status_code == 200
+    assert len(fake.calls) == 1
+    row_id = db.query(AIRecap).filter_by(book_id=v1.id).one().id
+
+    # "Ask again": the placeholder goes, the row stays until a new one is written.
+    r = client.post(url, json={"again": True}, headers=h)
+    assert r.status_code == 202 and r.json()["needs_digest"] is True
+    assert r.json()["coverage"] == {"digested": 3, "needed": 4, "failed": 0}
+    assert len(fake.calls) == 1
+    db.expire_all()
+    assert db.query(AIRecap).filter_by(book_id=v1.id).one().id == row_id
+    # The chapter is read now: usable grew, so the next POST rewrites in place.
+    _store_digest(db, v1, 3, [])
+    db.commit()
+    r = client.post(url, json={}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "ready" and len(fake.calls) == 2
+    db.expire_all()
+    [row] = db.query(AIRecap).filter_by(book_id=v1.id).all()
+    assert row.id == row_id and row.digested == 4
+    # Again on a ready row with nothing failed: one more call, same row.
+    assert client.post(url, json={"again": True}, headers=h).status_code == 200
+    assert len(fake.calls) == 3
+    db.expire_all()
+    assert [r.id for r in db.query(AIRecap).filter_by(book_id=v1.id)] == [row_id]
+
+
+def test_volume_ask_again_keeps_the_previously_on_row(client, db, make_book, tmp_path):
+    user = _make_user(db, "volprev", "member")
+    keyless = _make_user(db, "volprevnokey", "member", key=False)
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Prev")
+    _read(db, keyless, v1)
+    _read(db, keyless, v2)
+    _digest_all(db, v1, 4)
+    _digest_all(db, v2, 4)
+    user_hash = digest.user_scope(db, user, v2).scope_hash
+    assert user_hash != digest.Scope(book=v2).scope_hash
+    db.add(AIRecap(book_id=v2.id, chapter_idx=4, scope_hash=user_hash, position_fraction=1.0,
+                   text="Hook recap.", model="m", digested=8, needed=8))
+    db.commit()
+    digest_job.reset()
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    h = _headers(user)
+    url = f"/api/ai/books/{v3.id}/recap/volumes/{v2.id}"
+    assert recap.previously_for(db, user, v3)[1].text == "Hook recap."
+
+    # DELETE: only the own-scope row (there is none); a keyless user gets 409.
+    assert client.delete(url, headers=h).json() == {"deleted": False}
+    assert client.delete(url, headers=_headers(keyless)).status_code == 409
+    item = client.post(url, json={}, headers=h).json()
+    assert item["text"] == "Hook recap." and fake.calls == []
+    # Ask again writes the own-scope row; the hook's row stays for "Previously on".
+    r = client.post(url, json={"again": True}, headers=h)
+    assert r.status_code == 200 and r.json()["text"].startswith("Mara sailed out.")
+    assert len(fake.calls) == 1
+    db.expire_all()
+    assert db.query(AIRecap).filter_by(book_id=v2.id, scope_hash=user_hash).one().text == "Hook recap."
+    assert recap.previously_for(db, user, v3)[1].text == "Hook recap."
+    # DELETE now removes the own-scope row only.
+    assert client.delete(url, headers=h).json() == {"deleted": True}
+    db.expire_all()
+    assert db.query(AIRecap).filter_by(book_id=v2.id).count() == 1
+
+
+def test_volume_recap_in_flight_is_a_409(client, db, make_book, tmp_path, plugin):
+    user = _make_user(db, "volbusy", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Busy")
+    _digest_all(db, v1, 4)
+    c, key_for = plugin
+    hp = key_for(user)
+    db.commit()
+    digest_job.reset()
+    fake = FakeProvider(responses=[VOLUME_TEXT])
+    ai.set_provider_override(fake)
+    with companion.in_flight("volume_recap", user.id, v1.id, "busy"):
+        r = client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", json={}, headers=_headers(user))
+        assert r.status_code == 409 and r.json()["reason"] == "already_running"
+        r = c.post(f"/api/tome-sync/ai/books/{v3.id}/recap/volumes/{v1.id}", json={}, headers=hp)
+        assert r.status_code == 409
+    assert fake.calls == []
+    assert client.post(f"/api/ai/books/{v3.id}/recap/volumes/{v1.id}", json={},
+                       headers=_headers(user)).status_code == 200
+
+
+# ── run 2d review: spend-limit guesses ──────────────────────────────────────
+
+def test_reading_guesses_price_max_tokens_and_cache_writes(db, make_book, tmp_path, monkeypatch):
+    from backend.services.ai import estimate, usage
+
+    opus, sonnet = "claude-opus-5-5", "claude-sonnet-5-5"
+    tpw = estimate.TOKENS_PER_WORD
+    # A reading feature with max_tokens: output priced at max_tokens.
+    assert estimate.call_cost_guess("recap", opus, 1000, max_tokens=16_000) == pytest.approx(
+        usage.cost_usd(opus, int(1000 * tpw) + estimate.PROMPT_TOKENS, 16_000))
+    # Cached words at the cache-write rate.
+    assert estimate.call_cost_guess("recap", opus, 1000, max_tokens=100, cached_words=600) == pytest.approx(
+        usage.cost_usd(opus, int(400 * tpw) + estimate.PROMPT_TOKENS, 100,
+                       cache_write_tokens=int(600 * tpw)))
+    blocks = [{"type": "text", "text": "a " * 500, "cache_control": {"type": "ephemeral"}},
+              {"type": "text", "text": "b " * 100}]
+    assert estimate.content_cost_guess("ask", sonnet, blocks, 8000) == pytest.approx(
+        estimate.call_cost_guess("ask", sonnet, 600, max_tokens=8000, cached_words=500))
+    assert volume_recap.MAX_TOKENS == recap.MAX_TOKENS == 16_000
+
+    # The calls pass their own guesses: recap caches its summaries block, the
+    # volume recap caches nothing.
+    seen: list[dict] = []
+    real = ai.run_feature
+
+    def spy(db_, user_, feature, **kw):
+        seen.append({"feature": feature, **kw})
+        return real(db_, user_, feature, **kw)
+
+    monkeypatch.setattr(ai, "run_feature", spy)
+    user = _make_user(db, "guess", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Guess")
+    _digest_all(db, v1, 4)
+    db.commit()
+    digest_job.reset()
+    ai.set_provider_override(FakeProvider(responses=[VOLUME_TEXT, RECAP_TEXT]))
+    volume_recap.generate_volume(db, user, v1)
+    _store_digest(db, v3, 0, [])
+    recap.generate(db, user, v3, companion.pct_window(db, v3, _mid(v3, db, 1)), partial=True)
+    vol_call, recap_call = seen
+    assert all("cache_control" not in b for b in vol_call["user_content"])
+    model = ai_settings.effective_model(db, "recap")
+    assert vol_call["cost_guess"] == pytest.approx(
+        estimate.content_cost_guess("recap", model, vol_call["user_content"], 16_000))
+    assert recap_call["user_content"][0]["cache_control"] == {"type": "ephemeral"}
+    assert recap_call["cost_guess"] == pytest.approx(
+        estimate.content_cost_guess("recap", model, recap_call["user_content"], 16_000))
+    assert recap_call["cost_guess"] > estimate.call_cost_guess(
+        "recap", model, sum(len(b["text"].split()) for b in recap_call["user_content"]),
+        max_tokens=16_000, cached_words=0)
+
+
+def test_companion_ask_cost_hint(client, db, make_book, tmp_path):
+    from backend.services.ai import ask, estimate
+
+    user = _make_user(db, "hint", "member")
+    book = _epub_book(db, make_book, tmp_path, "Hint")
+    _position(db, user, book, _mid(book, db, 2))
+    db.commit()
+    c = client.get(f"/api/ai/books/{book.id}/companion", headers=_headers(user)).json()
+    model = ai_settings.effective_model(db, "ask")
+    want = round(estimate.call_cost_guess("ask", model, ask.ASK_MAX_WORDS,
+                                          max_tokens=ask.ANSWER_MAX_TOKENS, cached_words=0), 2)
+    assert c["ask_cost_hint_usd"] == want > 0
+    assert c["position"]["finished"] is False
+    ai_settings.set_feature_enabled(db, "ask", False)
+    db.commit()
+    assert client.get(f"/api/ai/books/{book.id}/companion",
+                      headers=_headers(user)).json()["ask_cost_hint_usd"] is None
+
+
+# ── run 2d review: glossary payload size + entry endpoint ───────────────────
+
+def _big_series_glossary(db, make_book, tmp_path, user, tiers):
+    """A standalone with 40 chapters and a cast in ``tiers``: ``[(count,
+    notes_each, facts_each, fact_chars)]``. Lines run about 15 words (the
+    digest allows 25), identities about 12. The reader finished the book."""
+    import json as _json
+    import random
+
+    from backend.models.ai_entity import AIEntity, AIEntityNote
+    from tests.test_ai_digest import EIGHT
+
+    rng = random.Random(7)
+    vocab = [("".join(rng.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(rng.randint(2, 9))))
+             for _ in range(4000)]
+
+    def words(k: int) -> str:     # varied prose, so the gzip figure is not flattered
+        return " ".join(rng.choice(vocab) for _ in range(k))
+
+    book = _epub_book(db, make_book, tmp_path, "Big Cast", chapters=EIGHT * 5)
+    n = len(book_text.book_chapters(book, db))
+    for i in range(n):
+        _store_digest(db, book, i, [])
+    key = digest.series_key(book)
+    ents, notes = [], []
+    for count, notes_each, facts_each, fact_chars in tiers:
+        tier = [AIEntity(series_key=key, kind="person", name=f"Person Number{len(ents) + i}",
+                         aliases_json="[]", identity=words(12),
+                         first_book_id=book.id, first_chapter_idx=0) for i in range(count)]
+        db.add_all(tier)
+        db.flush()
+        for e in tier:
+            for c in range(notes_each):
+                facts = {f: words(max(1, fact_chars // 6)) for f in list(digest.FACT_FIELDS)[:facts_each]}
+                notes.append(AIEntityNote(entity_id=e.id, book_id=book.id, chapter_idx=c % n,
+                                          line=words(15), facts_json=_json.dumps(facts),
+                                          evidence="Person Number walked"))
+        ents.extend(tier)
+    db.add_all(notes)
+    _read(db, user, book)
+    db.flush()
+    return book, ents
+
+
+# A 1300-entry series: a main cast with long timelines and every fact, a
+# secondary cast, and many people seen once or twice.
+REALISTIC_CAST = [(50, 40, 6, 40), (250, 5, 3, 25), (1000, 2, 1, 15)]
+
+
+def test_glossary_list_is_small_and_the_entry_is_full(client, db, make_book, tmp_path, plugin):
+    user = _make_user(db, "bigcast", "member")
+    book, ents = _big_series_glossary(db, make_book, tmp_path, user, REALISTIC_CAST)
+    c, key_for = plugin
+    hp = key_for(user)
+    db.commit()
+    digest_job.reset()
+    r = client.get(f"/api/ai/books/{book.id}/glossary", headers=_headers(user))
+    assert r.status_code == 200
+    g = r.json()
+    size = len(r.content)
+    assert r.headers["content-encoding"] == "gzip"
+    with client.stream("GET", f"/api/ai/books/{book.id}/glossary", headers=_headers(user)) as s:
+        wire = len(b"".join(s.iter_raw()))
+    plain = client.get(f"/api/ai/books/{book.id}/glossary",
+                       headers={**_headers(user), "Accept-Encoding": "identity"})
+    assert "content-encoding" not in plain.headers and plain.json() == g
+    print(f"glossary list payload: {g['count']} entries, {size} bytes JSON, {wire} bytes gzipped")
+    assert g["count"] == 1300 and size < 1_600_000 and wire < 500_000
+    e = g["entries"][0]
+    assert len(e["timeline"]) == companion.TIMELINE_CAP == 3 and e["timeline_truncated"] is True
+    assert all("chapter_title" not in t for t in e["timeline"])
+    assert all(set(f) == {"value", "book_id", "series_index", "chapter_idx"} for f in e["facts"].values())
+    assert e["first_seen"]["chapter_title"] == "Part 1"          # v1 places keep their titles
+    rp = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary", headers=hp)
+    assert rp.headers["content-encoding"] == "gzip" and rp.json()["entries"] == g["entries"]
+
+    # The opened entry: titled, the long timeline (cap 200), web and plugin alike.
+    eid = ents[5].id
+    full = client.get(f"/api/ai/books/{book.id}/glossary/entry?entity_id={eid}",
+                      headers=_headers(user)).json()["entry"]
+    assert full["entity_id"] == eid and len(full["timeline"]) == 40   # one line per chapter
+    assert full["timeline_truncated"] is False
+    assert full["timeline"][0]["chapter_title"] == "Part 1"
+    assert all("chapter_title" in f for f in full["facts"].values())
+    assert set(full) >= {"name", "kind", "line", "more", "evidence", "first_seen", "last_seen", "chapters",
+                         "entity_id", "aliases", "identity", "status", "facts", "timeline",
+                         "timeline_truncated"}
+    by_name = client.get(f"/api/ai/books/{book.id}/glossary/entry",
+                         params={"name": "person  number5", "kind": "person"},
+                         headers=_headers(user)).json()["entry"]
+    assert by_name == full
+    plug = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary/entry?entity_id={eid}", headers=hp)
+    assert plug.status_code == 200 and plug.json()["entry"] == full
+    assert client.get(f"/api/ai/books/{book.id}/glossary/entry?entity_id=999999",
+                      headers=_headers(user)).status_code == 404
+    assert client.get(f"/api/ai/books/{book.id}/glossary/entry?name=Person%20Number5&kind=place",
+                      headers=_headers(user)).status_code == 404
+    r = client.get(f"/api/ai/books/{book.id}/glossary/entry", headers=_headers(user))
+    assert r.status_code == 422 and isinstance(r.json()["detail"], str)
+
+
+def test_glossary_entry_timeline_cap_and_window(client, db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "entrycap", "member")
+    book, mara = _entity_book(db, make_book, tmp_path, user)
+    db.commit()
+    monkeypatch.setattr(companion, "ENTRY_TIMELINE_CAP", 2)
+    e = client.get(f"/api/ai/books/{book.id}/glossary/entry?entity_id={mara.id}",
+                   headers=_headers(user)).json()["entry"]
+    assert [t["line"] for t in e["timeline"]] == ["Hears the bell.", "Takes the ferry out."]
+    assert e["timeline_truncated"] is True
+    assert "Drowns" not in str(e)                               # chapter 5 is past the reader
+    # By alias, inside the window only.
+    assert client.get(f"/api/ai/books/{book.id}/glossary/entry?name=The%20Pilot",
+                      headers=_headers(user)).json()["entry"]["entity_id"] == mara.id
+    assert client.get(f"/api/ai/books/{book.id}/glossary/entry?name=Vell%20the%20Dead",
+                      headers=_headers(user)).status_code == 404
+
+
+def test_plain_fold_entry_merges_only_into_a_profile_of_the_same_kind(db, make_book, tmp_path):
+    user = _make_user(db, "kinds", "member")
+    book, mara = _entity_book(db, make_book, tmp_path, user)
+    # An old-style row naming a PLACE "Mara Vell" (a ship, say): its own entry.
+    row = db.query(digest.AIChapterDigest).filter_by(book_id=book.id, chapter_idx=3).one()
+    import json as _json
+    row.entries_json = _json.dumps([{"name": "Mara Vell", "kind": "place", "line": "A ship.",
+                                     "more": "", "evidence": "x"}])
+    db.flush()
+    window = companion.web_window(db, user, book, None)
+    entries = companion.glossary_payload(db, user, book, window)["entries"]
+    named = [(e["name"], e["kind"], e["entity_id"]) for e in entries if e["name"] == "Mara Vell"]
+    assert ("Mara Vell", "person", mara.id) in named
+    assert ("Mara Vell", "place", None) in named
+    [person] = [e for e in entries if e["kind"] == "person" and e["name"] == "Mara Vell"]
+    assert person["line"] == "Takes the ferry out." and "A ship." not in str(person)
+
+
+def test_window_note_stamp_counts_notes_in_the_window(db, make_book, tmp_path):
+    from backend.models.ai_entity import AIEntityNote
+
+    user = _make_user(db, "stamp", "member")
+    book, mara = _entity_book(db, make_book, tmp_path, user)
+    scope = digest.user_scope(db, user, book)
+    # Notes in chapters 0, 1, 2 (inside upto=4); chapter 5 is outside.
+    s4 = companion._window_note_stamp(db, scope, 4)
+    assert s4.startswith("3:")
+    assert companion._window_note_stamp(db, scope, 6).startswith("4:")
+    assert companion._window_note_stamp(db, scope, 0) == ""
+    db.add(AIEntityNote(entity_id=mara.id, book_id=book.id, chapter_idx=3, line="More.",
+                        facts_json="{}", evidence="Mara Vell walked"))
+    db.flush()
+    assert companion._window_note_stamp(db, scope, 4) != s4

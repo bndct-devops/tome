@@ -66,28 +66,58 @@ TIME_SCALE_BOUNDS = (0.5, 4.0)  # how far history may bend the time defaults
 _HISTORY_MIN_OUT = 50         # calls below this are front matter, not a sample
 
 # Conservative output guesses for the spend-limit check (generous on purpose:
-# the check runs before the call and must not let a call pass a limit).
+# the check runs before the call and must not let a call pass a limit). A
+# reading feature (recap, recall, ask) is priced at its call's ``max_tokens``
+# when the caller passes it: the most the call can be billed for.
 METADATA_CALL_GUESS = 0.05
-_GUESS_OUT = {"reading_digest": 700, "recap": 3000, "recall": 800}
+_GUESS_OUT = {"reading_digest": 700, "recap": 3000, "recall": 800, "ask": 1500}
 _GUESS_OUT_DEFAULT = 2000
+# Features whose chapter text is always sent marked for caching (written to
+# the cache at the cache-write rate) when the caller does not say how much is.
+_CACHES_TEXT = frozenset({"recall"})
 
 
 def call_cost_guess(feature: str, model: str, words: int, chapters: int = 1,
-                    max_tokens: int | None = None) -> float:
+                    max_tokens: int | None = None, cached_words: int | None = None) -> float:
     """A conservative USD figure for one call of ``feature`` on ``model``
     sending ``words`` words (``chapters`` chapters for a digest call). A
-    metadata feature is a fixed ``METADATA_CALL_GUESS``. A digest call with
-    ``max_tokens`` takes that as its output: the most it can be billed for,
-    so calls running side by side cannot together pass a limit."""
+    metadata feature is a fixed ``METADATA_CALL_GUESS``. With ``max_tokens``
+    a digest call or a reading feature takes that as its output: the most it
+    can be billed for, so calls running side by side cannot together pass a
+    limit. ``cached_words`` of the ``words`` are sent marked for caching and
+    priced at the cache-write rate (None: all of them for a feature in
+    ``_CACHES_TEXT``, else none)."""
     f = registry.get_feature(feature)
     if f is None or f.kind == "metadata":
         return METADATA_CALL_GUESS
     per = _GUESS_OUT.get(feature, _GUESS_OUT_DEFAULT)
     out = per * max(1, chapters) + (500 if feature == "reading_digest" else 0)
-    if feature == "reading_digest" and max_tokens:
+    if max_tokens and (feature == "reading_digest" or f.kind == "reading"):
         out = max_tokens
-    inp = int(words * TOKENS_PER_WORD) + PROMPT_TOKENS
-    return usage.cost_usd(model, inp, out)
+    if cached_words is None:
+        cached_words = words if feature in _CACHES_TEXT else 0
+    cached_words = max(0, min(int(cached_words), int(words)))
+    inp = int((words - cached_words) * TOKENS_PER_WORD) + PROMPT_TOKENS
+    return usage.cost_usd(model, inp, out, cache_write_tokens=int(cached_words * TOKENS_PER_WORD))
+
+
+def content_cost_guess(feature: str, model: str, user_content: list[dict[str, Any]] | str,
+                       max_tokens: int) -> float:
+    """``call_cost_guess`` for the blocks a call will send: the words of the
+    blocks marked ``cache_control`` priced at the cache-write rate, the
+    output at ``max_tokens``."""
+    if isinstance(user_content, str):
+        return call_cost_guess(feature, model, len(user_content.split()), max_tokens=max_tokens,
+                               cached_words=0)
+    words = cached = 0
+    for b in user_content:
+        if not isinstance(b, dict):
+            continue
+        n = len(str(b.get("text", "")).split())
+        words += n
+        if b.get("cache_control"):
+            cached += n
+    return call_cost_guess(feature, model, words, max_tokens=max_tokens, cached_words=cached)
 
 
 # ── history ──────────────────────────────────────────────────────────────────

@@ -752,8 +752,12 @@ msgid "{digested} of {needed} chapters before your position are read so far."
 msgstr ""
 
 #: src/components/AiActivity.tsx
-msgid "{directCalls, plural, one {# other call (recap, Recall, fixes)} other {# other calls (recap, Recall, fixes)}}"
+msgid "{directCalls, plural, one {# other call (recap, Recall, Ask, fixes)} other {# other calls (recap, Recall, Ask, fixes)}}"
 msgstr ""
+
+#: src/components/AiActivity.tsx
+#~ msgid "{directCalls, plural, one {# other call (recap, Recall, fixes)} other {# other calls (recap, Recall, fixes)}}"
+#~ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
@@ -1148,6 +1152,10 @@ msgstr ""
 msgid "{sessions} sessions · {time}"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "{short} · {title}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{shown, plural, one {# book} other {# books}}"
 msgstr ""
@@ -1198,6 +1206,18 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "{unread, plural, one {# chapter unread} other {# chapters unread}}"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "{unread, plural, one {Not written yet. # chapter needs to be read first.} other {Not written yet. # chapters need to be read first.}}"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "{unread, plural, one {Written with # chapter unread, so it may skip parts.} other {Written with # chapters unread, so it may skip parts.}}"
 msgstr ""
 
 #: src/components/stats/widgets/library.tsx
@@ -1359,6 +1379,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "A newer release is available — the link opens the release notes. Update by pulling the new image and restarting the container."
+msgstr ""
+
+#: src/components/AskBox.tsx
+msgid "A question is already being answered. Try again in a moment."
 msgstr ""
 
 #: src/components/ShareShelfModal.tsx
@@ -1601,6 +1625,10 @@ msgstr ""
 msgid "Admin access required."
 msgstr ""
 
+#: src/components/GlossaryEntry.tsx
+msgid "Affiliations"
+msgstr ""
+
 #: src/components/AiBadge.tsx
 #: src/pages/SettingsPage.tsx
 msgid "AI"
@@ -1743,6 +1771,10 @@ msgstr ""
 msgid "All-time hours, pages, books, streak"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "Already being written. Check back in a minute."
+msgstr ""
+
 #: src/components/WordCount.tsx
 msgid "Already counted"
 msgstr ""
@@ -1768,6 +1800,10 @@ msgstr ""
 msgid "another volume"
 msgstr ""
 
+#: src/lib/ai.ts
+msgid "Answers a question from the chapters you have read, with a quote for every claim. Nothing after your position."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Any"
 msgstr ""
@@ -1784,6 +1820,7 @@ msgstr ""
 msgid "App-specific PINs"
 msgstr ""
 
+#: src/components/GlossaryEntry.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Appearance"
 msgstr ""
@@ -1895,12 +1932,26 @@ msgstr ""
 msgid "Are you getting faster?"
 msgstr ""
 
-#: src/components/ReadingCompanion.tsx
+#: src/components/GlossaryEntry.tsx
+msgid "as of {statusAt}"
+msgstr ""
+
+#: src/components/GlossaryEntry.tsx
 msgid "As of: {lastSeen}"
+msgstr ""
+
+#: src/components/AskBox.tsx
+msgid "Ask"
+msgstr ""
+
+#: src/components/AskBox.tsx
+#: src/lib/ai.ts
+msgid "Ask about what you have read"
 msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Ask again"
 msgstr ""
 
@@ -1910,6 +1961,10 @@ msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "Asking Anthropic about this series. This can take a minute."
+msgstr ""
+
+#: src/components/AskBox.tsx
+msgid "Asking…"
 msgstr ""
 
 #: src/components/MetadataManager.tsx
@@ -2426,6 +2481,7 @@ msgstr ""
 msgid "Clean up with AI"
 msgstr ""
 
+#: src/components/AskBox.tsx
 #: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -2681,6 +2737,10 @@ msgstr ""
 msgid "Cost"
 msgstr ""
 
+#: src/components/AskBox.tsx
+msgid "Could not answer that"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Could not apply the sync code"
 msgstr ""
@@ -2707,6 +2767,10 @@ msgstr ""
 
 #: src/components/AiActivity.tsx
 msgid "Could not load the calls."
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Could not load the earlier volumes"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
@@ -2766,6 +2830,7 @@ msgid "Could not set match"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Could not start reading the chapters"
 msgstr ""
 
@@ -2791,6 +2856,7 @@ msgid "Could not update the goal."
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Could not write the recap"
 msgstr ""
 
@@ -3310,6 +3376,10 @@ msgstr ""
 
 #: src/components/stats/widgets/overview.tsx
 msgid "Each row is one reading session."
+msgstr ""
+
+#: src/components/GlossaryEntry.tsx
+msgid "Earlier lines not shown."
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -3856,6 +3926,10 @@ msgctxt "series"
 msgid "Finished"
 msgstr "已完结"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Finished · {fromLine}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Finished · 30d"
 msgstr ""
@@ -3885,7 +3959,7 @@ msgstr ""
 msgid "First read"
 msgstr ""
 
-#: src/components/ReadingCompanion.tsx
+#: src/components/GlossaryEntry.tsx
 msgid "First seen: {firstSeen}"
 msgstr ""
 
@@ -4049,6 +4123,7 @@ msgstr ""
 
 #: src/components/AiActivity.tsx
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Getting ready to read the chapters…"
 msgstr ""
 
@@ -4388,6 +4463,7 @@ msgid "Interrupted"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Interrupted by a server restart after {done} of {total} chapters."
 msgstr ""
 
@@ -4688,6 +4764,10 @@ msgstr ""
 msgid "Loading books…"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "Loading the earlier volumes…"
+msgstr ""
+
 #: src/components/ReadingCompanion.tsx
 msgid "Loading the glossary…"
 msgstr ""
@@ -4720,6 +4800,10 @@ msgstr ""
 #: src/pages/SharePage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Loading…"
+msgstr ""
+
+#: src/components/GlossaryEntry.tsx
+msgid "Location"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5660,6 +5744,14 @@ msgstr ""
 msgid "Not used"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "not written yet"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Not written yet."
+msgstr ""
+
 #: src/components/WishlistModal.tsx
 msgid "Note"
 msgstr ""
@@ -5866,6 +5958,10 @@ msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Open the book to get a recap up to your page."
 msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
@@ -6153,6 +6249,10 @@ msgstr ""
 msgid "position kept, newer here"
 msgstr ""
 
+#: src/components/GlossaryEntry.tsx
+msgid "Powers and rank"
+msgstr ""
+
 #: src/lib/ai.ts
 msgid "Pre-fills title, author, series, volume, type and tags for new files from the filename, embedded metadata and the first pages."
 msgstr ""
@@ -6206,8 +6306,8 @@ msgid "Previous page"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
-msgid "Previously on {previouslyTitle}"
-msgstr ""
+#~ msgid "Previously on {previouslyTitle}"
+#~ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Private — only assigned users can access"
@@ -6537,6 +6637,7 @@ msgstr ""
 
 #: src/components/AiActivity.tsx
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Reading chapters: {done} of {total}…"
 msgstr ""
 
@@ -6638,6 +6739,18 @@ msgstr ""
 msgid "Reads each chapter you have finished once and notes who and what appears in it. Recap and the glossary are built from these notes."
 msgstr ""
 
+#: src/components/AskBox.tsx
+#~ msgid "Reads the chapters it needs, about 10 to 15 cents a question. Never past your position."
+#~ msgstr ""
+
+#: src/components/AskBox.tsx
+msgid "Reads the chapters it needs, around 10 to 30 cents a question. Never past your position."
+msgstr ""
+
+#: src/components/AskBox.tsx
+msgid "Reads the chapters it needs, up to about {hint} a question. Never past your position."
+msgstr ""
+
 #: src/lib/ai.ts
 msgid "Recall"
 msgstr ""
@@ -6703,6 +6816,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Reject imported book"
+msgstr ""
+
+#: src/components/GlossaryEntry.tsx
+msgid "Relationships"
 msgstr ""
 
 #: src/components/AiSettings.tsx
@@ -7279,6 +7396,10 @@ msgstr ""
 msgid "Sending…"
 msgstr ""
 
+#: src/components/AskBox.tsx
+msgid "Sends the chapters it needs, all before your position, to Anthropic"
+msgstr ""
+
 #: src/components/ReadingCompanion.tsx
 msgid "Sends the summaries of the chapters before your position and the current chapter up to it to Anthropic"
 msgstr ""
@@ -7550,6 +7671,10 @@ msgstr ""
 msgid "Show details"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "Show in the glossary"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Show individual volumes"
@@ -7665,7 +7790,11 @@ msgid "Some chapters could not be read, so this recap may skip parts."
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
-msgid "Some chapters of that volume could not be read, so this may skip parts."
+#~ msgid "Some chapters of that volume could not be read, so this may skip parts."
+#~ msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Some chapters of this volume are still unread."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -7794,12 +7923,17 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
+#: src/components/GlossaryEntry.tsx
+msgid "Status:"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Status: {filterStatusLabel}"
 msgstr ""
 
 #: src/components/AiActivity.tsx
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 #: src/components/WordCount.tsx
 msgid "Stop"
 msgstr ""
@@ -7817,6 +7951,7 @@ msgid "Stopped"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Stopped after {done} of {total} chapters."
 msgstr ""
 
@@ -7830,6 +7965,7 @@ msgstr ""
 
 #: src/components/AiActivity.tsx
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Stopping after the current chapters…"
 msgstr ""
 
@@ -8106,6 +8242,7 @@ msgid "This board is empty."
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/RecapVolumes.tsx
 msgid "This book"
 msgstr ""
 
@@ -8683,6 +8820,10 @@ msgstr ""
 msgid "Vol {idx} · {dur}"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "vol {idx} · {title}"
+msgstr ""
+
 #: src/components/SeriesReadingStats.tsx
 msgid "Vol {lastIdx}"
 msgstr ""
@@ -8949,11 +9090,20 @@ msgstr ""
 msgid "Words Read"
 msgstr ""
 
+#: src/components/RecapVolumes.tsx
+msgid "Write again"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Write it"
+msgstr ""
+
 #: src/lib/ai.ts
 msgid "Writes a short recap of the story up to where you are, from the chapter notes and the current chapter. Never reads past your position."
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
 msgid "Writing the recap. This can take up to a minute."
 msgstr ""
 
@@ -8963,6 +9113,10 @@ msgstr ""
 
 #: src/components/ReadingCompanion.tsx
 msgid "Written for the whole book · cached, free to reopen"
+msgstr ""
+
+#: src/components/RecapVolumes.tsx
+msgid "Written for the whole volume · cached, free to reopen"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
