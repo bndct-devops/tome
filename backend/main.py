@@ -60,6 +60,8 @@ from backend.models.notification import Notification  # noqa: F401
 from backend.models.reading_goal import ReadingGoal  # noqa: F401
 from backend.models.book import BookChapter  # noqa: F401
 from backend.models.ai_usage import AIUsage  # noqa: F401
+from backend.models.ai_chapter_digest import AIChapterDigest  # noqa: F401
+from backend.models.ai_recap import AIRecap  # noqa: F401
 
 
 @asynccontextmanager

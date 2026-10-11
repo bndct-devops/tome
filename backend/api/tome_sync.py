@@ -13,8 +13,8 @@ from typing import Optional
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel as PydanticBaseModel, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.urls import public_base_url
-from backend.core.permissions import book_visibility_filter, user_can_see_book
+from backend.core.permissions import book_visibility_filter, require_role, user_can_see_book
 from backend.core.ratings import validate_rating
 from backend.core.security import get_current_user
 from backend.models.user import User
@@ -36,6 +36,11 @@ from backend.services.book_progress import (
     apply_progress_to_status, upsert_position, restart_reading, reset_hardcover_read_state,
 )
 from backend.services.hardcover_sync import nudge as hardcover_nudge
+from backend.services import ai as ai_service
+from backend.services.ai import (
+    companion as ai_companion, digest as ai_digest, digest_job as ai_digest_job,
+    recall as ai_recall, recap as ai_recap,
+)
 from backend.services.session_hygiene import is_suspect, notify_suspect_session
 from backend.services.audit import audit
 
@@ -408,7 +413,28 @@ def put_position(
     )
 
     db.commit()
-    return {"ok": True, "timestamp": datetime.utcnow().isoformat() + "Z"}
+    # Reading companion: digest the chapters just finished (fire-and-forget,
+    # never raises; a no-op without AI access or a chapter map).
+    ai_digest.on_position_advanced(db, user, book, pct, body.progress)
+    return {"ok": True, "timestamp": datetime.utcnow().isoformat() + "Z",
+            "glossary_rev": _glossary_rev(db, user, book, pct, body.progress)}
+
+
+def _glossary_rev(db: Session, user: User, book: Book, pct: float,
+                  progress: Optional[str]) -> Optional[str]:
+    """``rev`` of the reading-companion glossary at this position, so the
+    plugin knows when to fetch a new snapshot. None when the glossary is off
+    for this user (or AI is), the book has no chapter map, or on any error:
+    a position sync never fails because of it."""
+    if not settings.ai_enabled:
+        return None
+    try:
+        if not user_can_see_book(db, user, book):
+            return None
+        return ai_companion.glossary_rev(db, user, book, pct, progress)
+    except Exception:  # noqa: BLE001
+        logger.exception("glossary_rev failed for user %s book %s", user.id, book.id)
+        return None
 
 
 # ── Rating endpoints ──────────────────────────────────────────────────────────
@@ -1434,6 +1460,131 @@ def get_series_books(
         "book_type": book_type_slug,
         "books": [_book_entry(b, smap) for b in books],
     }
+
+
+# ── Reading companion (AI) ────────────────────────────────────────────────────
+# The plugin's side of recap, glossary and Recall (run 2b is Lua only). Same
+# rules as /api/ai: members and admins (guests 403), TOME_AI_ENABLED=false is
+# a 404, every book goes through user_can_see_book. The device sends its
+# percentage and, in ``progress``, its xpointer: the percentage counts pages,
+# so the server places the reader by the xpointer (without one it backs the
+# percentage off by a margin), rounds down to the chapter and never reads
+# past it (backend/services/ai/companion.py). The key never leaves the server.
+
+def _ai_plugin_user(user: User = Depends(_get_api_key_user)) -> User:
+    if not settings.ai_enabled:
+        raise HTTPException(status_code=404, detail="AI features are disabled")
+    require_role(user, "member")
+    return user
+
+
+def _ai_book(db: Session, user: User, book_id: int) -> Book:
+    book = db.get(Book, book_id)
+    if not book or book.status != "active" or not user_can_see_book(db, user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
+def _ai_window(db: Session, user: User, book: Book, *, pct: Optional[float] = None,
+               progress: Optional[str] = None,
+               chapter: Optional[int] = None) -> "ai_companion.Window":
+    try:
+        if pct is not None:
+            return ai_companion.pct_window(db, book, pct, progress)
+        return ai_companion.web_window(db, user, book, chapter)
+    except ai_companion.WindowError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+
+@router.get("/tome-sync/ai/status")
+def ai_plugin_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """``{recap, recall, glossary}``: which companion entries the plugin
+    shows for this user. All false for guests or with AI off; never a 404, so
+    an old server or a disabled one just hides the entries."""
+    if not settings.ai_enabled:
+        return {"recap": False, "recall": False, "glossary": False}
+    return ai_companion.features_for(db, user)
+
+
+@router.get("/tome-sync/ai/books/{book_id}/glossary")
+def ai_plugin_glossary(
+    book_id: int,
+    pct: Optional[float] = Query(default=None, ge=0.0, le=1.0),
+    progress: Optional[str] = Query(default=None, max_length=2048),
+    chapter: Optional[int] = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """The glossary snapshot at ``pct`` + ``progress`` (the xpointer), or at
+    ``chapter``, or at the stored position, with ``rev`` (changes when a
+    digest is added) so the plugin can skip an unchanged snapshot. Same shape
+    as GET /api/ai/books/{id}/glossary."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    window = _ai_window(db, user, book, pct=pct, progress=progress, chapter=chapter)
+    return ai_companion.glossary_payload(db, user, book, window)
+
+
+class AiRecapRequest(PydanticBaseModel):
+    pct: float
+    progress: Optional[str] = None      # the xpointer at pct (places the reader exactly)
+    partial: bool = False
+
+
+@router.post("/tome-sync/ai/books/{book_id}/recap")
+def ai_plugin_recap(
+    book_id: int,
+    body: AiRecapRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """200 with the recap up to ``pct``, or 202 ``{job, ...}`` while the
+    chapters before it are digested (poll GET /tome-sync/ai/jobs/{id})."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_recap.FEATURE)
+    window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
+    status, payload = ai_recap.request_recap(db, user, book, window, partial=body.partial)
+    return JSONResponse(status_code=status, content=payload)
+
+
+class AiRecallRequest(PydanticBaseModel):
+    term: str
+    pct: float
+    progress: Optional[str] = None      # the xpointer at pct
+
+
+@router.post("/tome-sync/ai/books/{book_id}/recall")
+def ai_plugin_recall(
+    book_id: int,
+    body: AiRecallRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """``{found, live, entry?, message?, term, chapter_idx, chapter_title}``."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_recall.FEATURE)
+    if not body.term or len(body.term) > 200:
+        raise HTTPException(status_code=422, detail="Select a name, place or term to look up.")
+    window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
+    try:
+        return ai_recall.recall(db, user, book, window, body.term)
+    except ai_recall.BadTerm as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/tome-sync/ai/jobs/{job_id}")
+def ai_plugin_job(
+    job_id: str,
+    user: User = Depends(_ai_plugin_user),
+):
+    """Progress of this user's digest job (same snapshot as /api/ai/digest-jobs/{id})."""
+    job = ai_digest_job.get(job_id)
+    if job is None or job["user_id"] != user.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 # ── Send-to-KOReader inbox (beta) ─────────────────────────────────────────────

@@ -19,10 +19,9 @@ import logging
 import posixpath
 import re
 import zipfile
-import xml.etree.ElementTree as ET
 from pathlib import Path
-from urllib.parse import unquote
 
+from backend.services.epub_package import read_package
 from backend.services.metadata import _html_to_text
 
 logger = logging.getLogger(__name__)
@@ -40,58 +39,33 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(text)).strip()
 
 
-def _local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
-
-
 def _epub_spine(zf: zipfile.ZipFile) -> list[tuple[str, bool]]:
     """Spine documents in reading order as (zip member name, looks_like_cover).
 
     Falls back to every (X)HTML member in name order when the package cannot
     be read."""
     names = set(zf.namelist())
-    try:
-        container = ET.fromstring(zf.read("META-INF/container.xml"))
-        rootfile = next(el for el in container.iter() if _local(el.tag) == "rootfile")
-        opf_path = rootfile.attrib["full-path"]
-        opf = ET.fromstring(zf.read(opf_path))
-    except Exception:  # noqa: BLE001 - malformed package: use the fallback
+    pkg = read_package(zf)
+    if pkg is None:
         return [(n, "cover" in n.lower()) for n in sorted(names)
                 if n.lower().endswith((".xhtml", ".html", ".htm"))]
 
-    base = posixpath.dirname(opf_path)
-    manifest: dict[str, tuple[str, str, str]] = {}
-    cover_ids: set[str] = set()
-    for el in opf.iter():
-        tag = _local(el.tag)
-        if tag == "item":
-            item_id = el.attrib.get("id", "")
-            href = el.attrib.get("href", "")
-            manifest[item_id] = (href, el.attrib.get("media-type", ""), el.attrib.get("properties", ""))
-        elif tag == "meta" and el.attrib.get("name") == "cover":
-            cover_ids.add(el.attrib.get("content", ""))
-        elif tag == "reference" and el.attrib.get("type", "").lower() == "cover":
-            cover_ids.add(el.attrib.get("href", "").split("#")[0])
-
     out: list[tuple[str, bool]] = []
-    for el in opf.iter():
-        if _local(el.tag) != "itemref":
-            continue
-        idref = el.attrib.get("idref", "")
-        entry = manifest.get(idref)
+    for idref in pkg.spine:
+        entry = pkg.manifest.get(idref)
         if not entry:
             continue
-        href, media_type, _props = entry
+        href, media_type = entry.href, entry.media_type
         if media_type and media_type not in _HTML_TYPES:
             continue
-        member = posixpath.normpath(posixpath.join(base, unquote(href.split("#")[0])))
+        member = pkg.member(href)
         if member not in names:
             continue
         is_cover = (
             "cover" in idref.lower()
             or "cover" in posixpath.basename(href).lower()
-            or idref in cover_ids
-            or href in cover_ids
+            or idref in pkg.cover_ids
+            or href in pkg.cover_ids
         )
         out.append((member, is_cover))
     return out

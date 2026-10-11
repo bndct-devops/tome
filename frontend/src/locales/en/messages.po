@@ -720,6 +720,10 @@ msgstr "{diffHrs}h ago"
 msgid "{diffMins}m ago"
 msgstr "{diffMins}m ago"
 
+#: src/components/ReadingCompanion.tsx
+msgid "{digested} of {needed} chapters before your position are read so far."
+msgstr "{digested} of {needed} chapters before your position are read so far."
+
 #: src/pages/AdminPage.tsx
 msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
 msgstr "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
@@ -976,6 +980,18 @@ msgstr "{name} copy"
 msgid "{name} errored"
 msgstr "{name} errored"
 
+#: src/components/ReadingCompanion.tsx
+msgid "{name} has no chapter map yet, so it is left out. The word-count job in Admin adds one."
+msgstr "{name} has no chapter map yet, so it is left out. The word-count job in Admin adds one."
+
+#: src/components/ReadingCompanion.tsx
+msgid "{name} is not an EPUB, so it is left out."
+msgstr "{name} is not an EPUB, so it is left out."
+
+#: src/components/ReadingCompanion.tsx
+msgid "{name} is not marked read, so it is left out."
+msgstr "{name} is not marked read, so it is left out."
+
 #: src/components/MetadataFetchModal.tsx
 msgid "{name} is rate-limited — try again in a minute"
 msgstr "{name} is rate-limited — try again in a minute"
@@ -1124,6 +1140,10 @@ msgstr "{totalCount, plural, one {# result for \"{search}\"} other {# results fo
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
 msgstr "{v}m"
+
+#: src/components/ReadingCompanion.tsx
+msgid "{volume}, {chapter}"
+msgstr "{volume}, {chapter}"
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{w}w"
@@ -1791,6 +1811,7 @@ msgid "Are you getting faster?"
 msgstr "Are you getting faster?"
 
 #: src/components/ManageSeriesModal.tsx
+#: src/components/ReadingCompanion.tsx
 msgid "Ask again"
 msgstr "Ask again"
 
@@ -2159,6 +2180,10 @@ msgstr "Browse library"
 msgid "Browse your library"
 msgstr "Browse your library"
 
+#: src/lib/ai.ts
+msgid "Build the glossary as you read"
+msgstr "Build the glossary as you read"
+
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 msgid "Calendar"
@@ -2243,6 +2268,10 @@ msgstr "chapter"
 msgid "Chapter"
 msgstr "Chapter"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Chapter {number}"
+msgstr "Chapter {number}"
+
 #: src/pages/DashboardPage.tsx
 msgid "Chapters"
 msgstr "Chapters"
@@ -2255,6 +2284,10 @@ msgstr "Chart type"
 #: src/pages/BookDetailPage.tsx
 msgid "Checking…"
 msgstr "Checking…"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Checks the glossary and the current chapter up to your position; sends that chapter to Anthropic when needed"
+msgstr "Checks the glossary and the current chapter up to your position; sends that chapter to Anthropic when needed"
 
 #: src/components/WishlistModal.tsx
 msgid "Choose a different book"
@@ -2309,6 +2342,7 @@ msgstr "Clear imported history — remove this book's KOReader page data"
 
 #: src/components/AppHeader.tsx
 #: src/components/KeyboardShortcutsModal.tsx
+#: src/components/ReadingCompanion.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Clear search"
 msgstr "Clear search"
@@ -2552,6 +2586,10 @@ msgstr "Could not link Hardcover account"
 msgid "Could not link SSO. Please try again."
 msgstr "Could not link SSO. Please try again."
 
+#: src/components/ReadingCompanion.tsx
+msgid "Could not load the glossary"
+msgstr "Could not load the glossary"
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "Could not load this scope."
 msgstr "Could not load this scope."
@@ -2563,6 +2601,10 @@ msgstr "Could not load usage."
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Could not load your reading calendar."
 msgstr "Could not load your reading calendar."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Could not look that up"
+msgstr "Could not look that up"
 
 #: src/components/WordCount.tsx
 msgid "Could not parse ({n})"
@@ -2616,6 +2658,10 @@ msgstr "Could not update sync setting"
 #: src/components/stats/GoalWidget.tsx
 msgid "Could not update the goal."
 msgstr "Could not update the goal."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Could not write the recap"
+msgstr "Could not write the recap"
 
 #: src/pages/StatsPage.tsx
 msgid "Couldn’t load stats."
@@ -3121,6 +3167,10 @@ msgstr "e.g. Novel"
 #: src/pages/SettingsPage.tsx
 msgid "e.g. scribe-laptop"
 msgstr "e.g. scribe-laptop"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Each chapter is read once. Later recaps and the glossary reuse it."
+msgstr "Each chapter is read once. Later recaps and the glossary reuse it."
 
 #: src/components/stats/widgets/overview.tsx
 msgid "Each row is one reading session."
@@ -3686,6 +3736,10 @@ msgstr "finished a book"
 msgid "First read"
 msgstr "First read"
 
+#: src/components/ReadingCompanion.tsx
+msgid "First seen: {firstSeen}"
+msgstr "First seen: {firstSeen}"
+
 #: src/pages/ReaderPage.tsx
 msgid "Fit page height (W)"
 msgstr "Fit page height (W)"
@@ -3767,9 +3821,25 @@ msgstr "From"
 msgid "from TOME_ANTHROPIC_API_KEY"
 msgstr "from TOME_ANTHROPIC_API_KEY"
 
+#: src/components/ReadingCompanion.tsx
+msgid "from your device"
+msgstr "from your device"
+
+#: src/components/ReadingCompanion.tsx
+msgid "from your device {when}"
+msgstr "from your device {when}"
+
 #: src/pages/DashboardPage.tsx
 msgid "From your highlights"
 msgstr "From your highlights"
+
+#: src/components/ReadingCompanion.tsx
+msgid "from your web reader"
+msgstr "from your web reader"
+
+#: src/components/ReadingCompanion.tsx
+msgid "from your web reader {when}"
+msgstr "from your web reader {when}"
 
 #: src/pages/AdminPage.tsx
 msgid "Fulfill"
@@ -3827,6 +3897,14 @@ msgstr "Get notified when a new volume of a followed series is released."
 #: src/components/HardcoverSync.tsx
 msgid "Get token"
 msgstr "Get token"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Getting ready to read the chapters…"
+msgstr "Getting ready to read the chapters…"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Glossary"
+msgstr "Glossary"
 
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/pages/AdminPage.tsx
@@ -4432,6 +4510,14 @@ msgstr "Load more ({left} left)"
 msgid "Loading books…"
 msgstr "Loading books…"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Loading the glossary…"
+msgstr "Loading the glossary…"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Loading the recap…"
+msgstr "Loading the recap…"
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Loading your reading life…"
 msgstr "Loading your reading life…"
@@ -4518,6 +4604,10 @@ msgstr "Longest: {d}d"
 #: src/pages/StatsPage.tsx
 #~ msgid "Longest: {d}d · Weekly: {w}w"
 #~ msgstr "Longest: {d}d · Weekly: {w}w"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Looking…"
+msgstr "Looking…"
 
 #: src/components/CoverAudit.tsx
 msgid "Low resolution"
@@ -5011,6 +5101,10 @@ msgstr "No files in the bindery"
 msgid "No fulfilled wishes."
 msgstr "No fulfilled wishes."
 
+#: src/components/ReadingCompanion.tsx
+msgid "No glossary entry for \"{term}\"."
+msgstr "No glossary entry for \"{term}\"."
+
 #: src/pages/HardcoverPage.tsx
 msgid "No Hardcover account linked yet."
 msgstr "No Hardcover account linked yet."
@@ -5299,6 +5393,10 @@ msgstr "No widgets on this board yet."
 msgid "No word counts yet."
 msgstr "No word counts yet."
 
+#: src/components/ReadingCompanion.tsx
+msgid "Nobody and nothing worth noting yet. Names show up here once the chapters before your position mention them."
+msgstr "Nobody and nothing worth noting yet. Names show up here once the chapters before your position mention them."
+
 #: src/components/MetadataManager.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -5383,6 +5481,10 @@ msgstr "Note saved — syncs to your devices"
 #: src/pages/HighlightsPage.tsx
 msgid "Note: {note}"
 msgstr "Note: {note}"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Nothing about that before this page."
+msgstr "Nothing about that before this page."
 
 #: src/components/stats/widgets/overview.tsx
 msgid "Nothing finished in this range."
@@ -5523,6 +5625,10 @@ msgstr "Only highlights that carry one of your notes"
 #: src/pages/HighlightsPage.tsx
 msgid "Only notes"
 msgstr "Only notes"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Only the pages before your position are sent. For well-known books the model may still know more than it is given."
+msgstr "Only the pages before your position are sent. For well-known books the model may still know more than it is given."
 
 #: src/pages/SettingsPage.tsx
 msgid "OPDS Catalog"
@@ -5755,6 +5861,10 @@ msgstr "Per-file details"
 msgid "Period Comparison"
 msgstr "Period Comparison"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Person"
+msgstr "Person"
+
 #: src/pages/StatsPage.tsx
 msgid "Personal Records"
 msgstr "Personal Records"
@@ -5802,6 +5912,10 @@ msgstr "Picks the right metadata match for one book and proposes a diff to confi
 #: src/pages/SettingsPage.tsx
 msgid "PIN created — copy it now, it won't be shown again."
 msgstr "PIN created — copy it now, it won't be shown again."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Place"
+msgstr "Place"
 
 #: src/components/WishlistModal.tsx
 msgid "Please pick a result or use the manual form."
@@ -5874,6 +5988,10 @@ msgstr "Previous month (Shift with either arrow)"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Previous page"
 msgstr "Previous page"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Previously on {previouslyTitle}"
+msgstr "Previously on {previouslyTitle}"
 
 #: src/components/Sidebar.tsx
 msgid "Private — only assigned users can access"
@@ -6193,9 +6311,17 @@ msgstr "Reading by Weekday"
 #~ msgid "Reading Calendar"
 #~ msgstr "Reading Calendar"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Reading chapter {current} of {total}…"
+msgstr "Reading chapter {current} of {total}…"
+
 #: src/pages/StatsPage.tsx
 msgid "Reading Clock"
 msgstr "Reading Clock"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Reading companion"
+msgstr "Reading companion"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Reading days"
@@ -6282,6 +6408,27 @@ msgstr "Reading time split by language"
 #: src/pages/StatsPage.tsx
 msgid "Reading Timeline"
 msgstr "Reading Timeline"
+
+#: src/lib/ai.ts
+msgid "Reads each chapter you have finished once and notes who and what appears in it. Recap and the glossary are built from these notes."
+msgstr "Reads each chapter you have finished once and notes who and what appears in it. Recap and the glossary are built from these notes."
+
+#: src/lib/ai.ts
+msgid "Recall"
+msgstr "Recall"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Recall \"{term}\""
+msgstr "Recall \"{term}\""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Recap"
+msgstr "Recap"
+
+#: src/components/ReadingCompanion.tsx
+#: src/lib/ai.ts
+msgid "Recap to here"
+msgstr "Recap to here"
 
 #: src/pages/StatsPage.tsx
 msgid "Recent Sessions"
@@ -6773,9 +6920,17 @@ msgstr "Search manually"
 msgid "Search manually instead"
 msgstr "Search manually instead"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Search names, places, terms"
+msgstr "Search names, places, terms"
+
 #: src/pages/BinderyPage.tsx
 msgid "Search query..."
 msgstr "Search query..."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Search the glossary"
+msgstr "Search the glossary"
 
 #: src/components/MetadataManager.tsx
 msgid "Search title, author…"
@@ -6894,6 +7049,10 @@ msgstr "Sending"
 #: src/pages/AdminPage.tsx
 msgid "Sending…"
 msgstr "Sending…"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Sends the summaries of the chapters before your position and the current chapter up to it to Anthropic"
+msgstr "Sends the summaries of the chapters before your position and the current chapter up to it to Anthropic"
 
 #: src/components/ManageSeriesModal.tsx
 msgid "Sends the titles, volume numbers and file names of the books you can see in this series to Anthropic, which proposes fixes for you to check"
@@ -7264,6 +7423,18 @@ msgstr "Some books had no usable candidate or failed to apply — open them and 
 msgid "Some changes failed to apply."
 msgstr "Some changes failed to apply."
 
+#: src/components/ReadingCompanion.tsx
+msgid "Some chapters could not be read, so names from them are missing."
+msgstr "Some chapters could not be read, so names from them are missing."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Some chapters could not be read, so this recap may skip parts."
+msgstr "Some chapters could not be read, so this recap may skip parts."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Some chapters of that volume could not be read, so this may skip parts."
+msgstr "Some chapters of that volume could not be read, so this may skip parts."
+
 #: src/pages/AdminPage.tsx
 msgid "Sort Order"
 msgstr "Sort Order"
@@ -7394,6 +7565,7 @@ msgstr "Status"
 msgid "Status: {filterStatusLabel}"
 msgstr "Status: {filterStatusLabel}"
 
+#: src/components/ReadingCompanion.tsx
 #: src/components/WordCount.tsx
 msgid "Stop"
 msgstr "Stop"
@@ -7572,9 +7744,17 @@ msgstr "Taste"
 msgid "Taste by Genre"
 msgstr "Taste by Genre"
 
+#: src/lib/ai.ts
+msgid "Tells you who or what a name is, using only the pages before your position."
+msgstr "Tells you who or what a name is, using only the pages before your position."
+
 #: src/components/ForcePasswordChange.tsx
 msgid "Temporary password"
 msgstr "Temporary password"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Term"
+msgstr "Term"
 
 #: src/pages/AdminPage.tsx
 msgid "Test"
@@ -7628,6 +7808,14 @@ msgstr "The device clock is off by {offset}; times were corrected."
 #: src/components/ScanSyncCodeModal.tsx
 #~ msgid "The device clock is off by {offsetMinutes} min; times were corrected."
 #~ msgstr "The device clock is off by {offsetMinutes} min; times were corrected."
+
+#: src/components/ReadingCompanion.tsx
+msgid "The glossary fills in as each chapter is read."
+msgstr "The glossary fills in as each chapter is read."
+
+#: src/components/ReadingCompanion.tsx
+msgid "The story so far, from the pages before your position. Nothing after it is read."
+msgstr "The story so far, from the pages before your position. Nothing after it is read."
 
 #: src/pages/SettingsPage.tsx
 msgid "the sync password set above"
@@ -8054,6 +8242,10 @@ msgstr "Up next"
 msgid "Up past midnight with {mainTitle}."
 msgstr "Up past midnight with {mainTitle}."
 
+#: src/components/ReadingCompanion.tsx
+msgid "Up to {upTo} · {pct}% · {fromLine}"
+msgstr "Up to {upTo} · {pct}% · {fromLine}"
+
 #: src/components/UpcomingReleases.tsx
 msgid "Upcoming releases"
 msgstr "Upcoming releases"
@@ -8227,6 +8419,10 @@ msgstr "Volume"
 #: src/components/ManageSeriesModal.tsx
 msgid "Volume {curVol}"
 msgstr "Volume {curVol}"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Volume {idx}"
+msgstr "Volume {idx}"
 
 #: src/components/SeriesCoverageStrip.tsx
 msgid "Volume {n} — not in the library"
@@ -8431,6 +8627,22 @@ msgstr "Words found"
 #: src/pages/StatsPage.tsx
 msgid "Words Read"
 msgstr "Words Read"
+
+#: src/lib/ai.ts
+msgid "Writes a short recap of the story up to where you are, from the chapter notes and the current chapter. Never reads past your position."
+msgstr "Writes a short recap of the story up to where you are, from the chapter notes and the current chapter. Never reads past your position."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Writing the recap. This can take up to a minute."
+msgstr "Writing the recap. This can take up to a minute."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Written for {recapFor} · cached, free to reopen"
+msgstr "Written for {recapFor} · cached, free to reopen"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Written for the whole book · cached, free to reopen"
+msgstr "Written for the whole book · cached, free to reopen"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx

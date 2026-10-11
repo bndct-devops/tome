@@ -27,7 +27,10 @@ class Feature:
     description: str
     default_model: str
     effort: str
-    kind: str  # "metadata" (proposes metadata changes, never writes them)
+    # "metadata": proposes metadata changes, never writes them.
+    # "reading": the reading companion (digests, recap, Recall); text up to
+    # the reader's position only. Nothing switches on it yet.
+    kind: str
 
 
 FEATURES: dict[str, Feature] = {
@@ -57,6 +60,33 @@ FEATURES: dict[str, Feature] = {
             default_model=OPUS,
             effort="high",
             kind="metadata",
+        ),
+        Feature(
+            key="reading_digest",
+            label="Build the glossary as you read",
+            description="Reads each finished chapter once and keeps a short summary and the "
+                        "names, places and terms it introduces, for the recap and the glossary.",
+            default_model=SONNET,
+            effort="medium",
+            kind="reading",
+        ),
+        Feature(
+            key="recap",
+            label="Recap to here",
+            description="A few paragraphs on the story so far, from the chapter summaries up to "
+                        "your position. Nothing after it.",
+            default_model=OPUS,
+            effort="high",
+            kind="reading",
+        ),
+        Feature(
+            key="recall",
+            label="Recall",
+            description="One line on a name, place or term, from the glossary or the current "
+                        "chapter up to your position.",
+            default_model=OPUS,
+            effort="medium",
+            kind="reading",
         ),
     )
 }

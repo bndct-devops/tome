@@ -142,15 +142,18 @@ For each request Tome uses your own key first, then the instance key if you are 
 
 ### What is sent, and when
 
-Nothing is sent to Anthropic until you click an AI button. Each feature sends only what it needs:
+The metadata features send nothing to Anthropic until you click their button. The reading companion is the one exception: while **Build the glossary as you read** is on, it sends chapters you have finished as your reading position advances (see [Reading companion](#reading-companion)). Each feature sends only what it needs:
 
 | Feature | Sent to Anthropic |
 |---|---|
 | **Identify with AI** (Bindery) | File name and folder, embedded metadata, roughly the first 3000 characters of text (EPUB and PDF; comics send their ComicInfo fields instead), the matching series already in your library with a few of its titles, the top metadata-source matches, and your book type names |
 | **AI fix** (book page) | The book's current metadata, its file names, roughly the first 2000 characters of text, a few titles from the same series, and up to eight metadata-source matches |
 | **Clean up with AI** (series view) | Title, author, volume number, year and file names of the books in the series you can see, plus the series status and arcs |
+| **Build the glossary as you read** (in the background) | The text of one finished chapter at a time (up to its first 30,000 words), the book and series title, the chapter's number and title, and the glossary built from the chapters before it |
+| **Recap to here** (book page) | The book and series title, the digest summaries of the chapters before your position, and the current chapter up to your position (its last 6000 words) |
+| **Recall** (book page) | The term you looked up, the book and series title, the glossary so far, and the current chapter up to your position (its last 6000 words). Not sent at all when the term is already in the glossary or does not occur in that text |
 
-No cover images, reading history or other users' data are sent.
+No cover images, reading sessions or other users' data are sent. Your reading position decides which chapters the reading companion may send, but is not itself sent.
 
 ### Identify with AI
 
@@ -166,11 +169,35 @@ On a book page, **AI fix** sits next to **Fetch Metadata**. The model picks the 
 
 In a series view, **Manage > Clean up with AI** proposes one diff for the whole series: a canonical series name, corrected volume titles and numbers, the publication status, and a non-overlapping arc list. Each change comes with a sentence of evidence and is a checkbox; **Apply selected** writes only the checked rows, in one go, through the same paths as the manual editors. A rename moves every book in the series and carries the status and arcs along. Status and arcs can only be changed by admins.
 
+### Reading companion
+
+On the book page of an EPUB you are reading, a **Reading companion** section sits below the description. It appears once the book has a chapter map (the admin word-count job adds one to older books) and you have a reading position, from the web reader or synced from KOReader. Its heading says where you are: the chapter, the percentage, and whether the position came from your device or the web reader.
+
+- **Recap to here** writes a few paragraphs on the story so far and ends exactly where you stopped. It is built from short digests of the chapters before your position plus the current chapter up to your position, never from anything after it.
+- **Glossary** lists the people, places and terms met up to your position, in order of first appearance. Each row has a kind tag and one line; expand it for a fuller note, the quote it was taken from and where it first appeared. A search box filters the list.
+- **Recall** looks up a name the glossary does not have. Tome checks the current chapter up to your position and answers with a quoted line, or says "Nothing about that before this page." rather than guess. A name already in the glossary is answered from it, with no call.
+
+**The spoiler window.** Only the chapters before your position (rounded down to the last chapter start) and the current chapter cut at your position are ever sent. When Tome cannot place your exact page, it backs off by about 3% of the book rather than risk reading ahead. Every glossary line must carry a short quote (3 to 20 words) that occurs in the chapter it came from and names the entry, or it is dropped before it is stored; Recall answers go through the same check. For very well-known books the model may still know more than it is given, which the companion says under its heading.
+
+**Chapter digests.** All three surfaces are built from one digest per chapter: a short summary and the names, places and terms that chapter introduces. A digest is made once per chapter and shared by everyone reading the same book. They are made in the background:
+
+- when your position moves past a chapter (a KOReader sync or the web reader), for the finished chapters of that book;
+- when you open the Glossary or ask for a recap and some chapters before your position are still missing, with progress shown ("Reading chapter 3 of 12...") and a Stop button;
+- when you mark a volume of a series read, for the whole book, followed by its "Previously on" recap. Marking many books read at once starts at most three of these per save and five per day.
+
+A chapter the model could not read (for example a refusal) is noted and not sent again; the recap and glossary then say that some chapters are missing, and **Ask again** retries them once.
+
+**Series.** For a book in a series, the earlier volumes you have marked read count too: their chapters come first in the glossary and the recap. Volumes you have not marked read are left out, and the companion lists them with the reason. When you mark a volume read, the next volume shows its whole-book recap as **Previously on** until you are past its first chapter.
+
+**Caching.** A recap is stored per book, chapter and set of included volumes, so reopening it is free and readers at the same spot share it. **Ask again** deletes it and writes a new one. Recall answers are not stored.
+
+**Settings and cost.** **Settings > AI** lists three features, each with its own switch and model: **Build the glossary as you read** (the digests, Sonnet 5.5 by default), **Recap to here** and **Recall** (Opus 5.5 by default). The whole companion is built on the digests, so switching **Build the glossary as you read** off stops all background calls and hides the companion. Each call shows in the spend meter under its feature, never on the book page. There are no new environment variables; `TOME_AI_ENABLED` and the key settings above apply as for every AI feature. Guests never see the companion.
+
 ### Review, threshold and audit
 
 The model never writes metadata on its own. Every proposal is shown to you first and applied only when you accept it. Accepts that came from an AI proposal are marked as AI-assisted in the audit log.
 
-The **confidence threshold** (default 85%) is set by admins under **Settings > AI**. It colours the confidence marks and decides which Bindery rows **Accept the obvious** takes. Admins can also switch each feature on or off and pick its model (Claude Opus 5.5 by default, or Sonnet 5.5 / Haiku 5.5).
+The **confidence threshold** (default 85%) is set by admins under **Settings > AI**. It colours the confidence marks and decides which Bindery rows **Accept the obvious** takes. Admins can also switch each feature on or off and pick its model: Opus 5.5, Sonnet 5.5 or Haiku 5.5 (Opus 5.5 by default, except Sonnet 5.5 for the reading companion's chapter digests).
 
 ### Spend meter
 

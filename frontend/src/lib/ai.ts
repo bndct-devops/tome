@@ -9,12 +9,16 @@ import { api } from '@/lib/api'
 import type { MetadataCandidate, SeriesStatus } from '@/lib/books'
 import { useAuth } from '@/contexts/AuthContext'
 
-export type AiFeatureKey = 'bindery_identify' | 'fix_book' | 'series_cleanup'
+export type AiFeatureKey =
+  | 'bindery_identify' | 'fix_book' | 'series_cleanup'
+  | 'reading_digest' | 'recap' | 'recall'
 export type AiKeySource = 'user' | 'instance'
 
 export interface AiFeatureInfo {
   label: string
   description: string
+  /** "reading" for the reading-companion features; absent or other for the rest. */
+  kind?: string
   enabled: boolean
   /** Admin override, or null when the shipped default applies. */
   model: string | null
@@ -89,6 +93,18 @@ const FEATURE_COPY: Record<AiFeatureKey, { label: MessageDescriptor; description
   series_cleanup: {
     label: msg`Clean up this series`,
     description: msg`Proposes one diff for a series: name, volume titles and numbers, status and arcs.`,
+  },
+  reading_digest: {
+    label: msg`Build the glossary as you read`,
+    description: msg`Reads each chapter you have finished once and notes who and what appears in it. Recap and the glossary are built from these notes.`,
+  },
+  recap: {
+    label: msg`Recap to here`,
+    description: msg`Writes a short recap of the story up to where you are, from the chapter notes and the current chapter. Never reads past your position.`,
+  },
+  recall: {
+    label: msg`Recall`,
+    description: msg`Tells you who or what a name is, using only the pages before your position.`,
   },
 }
 
@@ -297,6 +313,206 @@ export function proposeSeriesCleanup(name: string): Promise<SeriesCleanupProposa
 /** Apply the checked parts of a cleanup proposal in one transaction. */
 export function applySeriesCleanup(name: string, body: SeriesCleanupApply): Promise<SeriesCleanupResult> {
   return api.post<SeriesCleanupResult>(`/ai/series/${encodeURIComponent(name)}/cleanup/apply`, body)
+}
+
+// ── reading companion: recap, glossary, Recall ──────────────────────────────
+// Everything is cut at the reader's position: the server only uses the
+// chapters before the position chapter plus that chapter up to the position.
+
+export type CompanionReason =
+  | 'feature_off' | 'not_epub' | 'no_chapters' | 'no_key' | 'no_position'
+
+export interface CompanionPosition {
+  /** 0..1 book fraction. */
+  pct: number
+  chapter_idx: number
+  chapter_title: string | null
+  source: 'device' | 'web'
+  updated_at: string | null
+}
+
+export interface CompanionCoverage {
+  /** Chapters done, including those the model could not read (never re-sent). */
+  digested: number
+  needed: number
+  /** Of the digested chapters, how many the model could not read. */
+  failed?: number
+}
+
+export interface CompanionVolume {
+  book_id: number
+  title: string
+  series_index: number | null
+}
+
+export interface CompanionScope {
+  included_volumes: CompanionVolume[]
+  excluded_volumes: (CompanionVolume & { reason: 'not_read' | 'no_chapters' | 'not_epub' })[]
+  scope_hash: string
+}
+
+export type DigestJobStatus = 'queued' | 'running' | 'done' | 'cancelled' | 'stopped' | 'error'
+
+export interface DigestJob {
+  id: string
+  kind: 'digest'
+  status: DigestJobStatus
+  user_id: number
+  book_id: number
+  upto_chapter: number
+  /** Chapters processed so far, failed ones included. */
+  done: number
+  total: number
+  failed: number
+  current: { book_id: number; title: string; chapter_idx: number; chapter_title: string | null } | null
+  errors: { book_id: number; chapter_idx: number; message: string }[]
+  stop_reason: string | null
+  followups: { name: string; status: 'pending' | 'done' | 'skipped' | 'failed'; message?: string }[]
+  created_at: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+export const DIGEST_JOB_ACTIVE: DigestJobStatus[] = ['queued', 'running']
+
+export interface Companion {
+  available: boolean
+  reason: CompanionReason | null
+  features: { recap: boolean; recall: boolean; glossary: boolean }
+  position: CompanionPosition | null
+  chapters: number
+  coverage: CompanionCoverage | null
+  job: DigestJob | null
+  recap_cached: boolean
+  glossary_count: number
+  previously: { book_id: number; title: string } | null
+  scope: CompanionScope | null
+}
+
+export interface Recap {
+  /** Paragraphs separated by a blank line. */
+  text: string
+  chapter_idx: number
+  /** null for a whole-book recap. */
+  chapter_title: string | null
+  whole_book: boolean
+  cached: boolean
+  /** Written while some chapters had no digest. */
+  partial: boolean
+  created_at: string | null
+  scope: CompanionScope
+}
+
+/** 202: the chapters before the position are being read first. */
+export interface RecapPending {
+  job: DigestJob
+  coverage: CompanionCoverage
+  chapter_idx: number
+  chapter_title: string | null
+}
+
+export interface GlossaryPlace {
+  book_id: number
+  book_title: string
+  chapter_idx: number
+  chapter_title: string | null
+}
+
+export interface GlossaryEntry {
+  name: string
+  kind: 'person' | 'place' | 'term'
+  line: string
+  more: string
+  /** Verbatim quote from the chapter the entry came from. */
+  evidence: string
+  first_seen: GlossaryPlace
+  last_seen: GlossaryPlace
+}
+
+export interface Glossary {
+  book_id: number
+  chapter_idx: number
+  chapter_title: string | null
+  /** In order of first appearance. */
+  entries: GlossaryEntry[]
+  count: number
+  scope: CompanionScope
+  coverage: CompanionCoverage
+  job: DigestJob | null
+  rev: string
+}
+
+export interface RecallResult {
+  term: string
+  chapter_idx: number
+  chapter_title: string | null
+  found: boolean
+  /** True when the answer came from a live call on the current chapter. */
+  live: boolean
+  entry?: GlossaryEntry
+  message?: string
+}
+
+export interface Previously {
+  book_id: number
+  title: string
+  series_index: number | null
+  text: string
+  chapter_idx: number
+  partial: boolean
+  created_at: string | null
+}
+
+/** What the book page needs to show the companion. Never queues work. */
+export function getCompanion(bookId: number): Promise<Companion> {
+  return api.get<Companion>(`/ai/books/${bookId}/companion`)
+}
+
+export function isRecapPending(r: Recap | RecapPending): r is RecapPending {
+  return !('text' in r)
+}
+
+/** The recap up to the position (or an earlier chapter). Cached ones are free;
+ *  otherwise the server either writes it now or answers with a digest job. */
+export function requestRecap(
+  bookId: number,
+  opts: { chapter?: number; partial?: boolean } = {},
+): Promise<Recap | RecapPending> {
+  return api.post<Recap | RecapPending>(`/ai/books/${bookId}/recap`, opts)
+}
+
+/** Drop the cached recap ("Ask again"). */
+export function clearRecap(bookId: number, chapter?: number): Promise<{ deleted: boolean; chapter_idx: number }> {
+  const qs = chapter != null ? `?chapter=${chapter}` : ''
+  return api.delete<{ deleted: boolean; chapter_idx: number }>(`/ai/books/${bookId}/recap${qs}`)
+}
+
+/** The glossary up to the position, from storage. Queues the missing digests
+ *  unless queue is false (a refresh after a job, so failures are not retried). */
+export function getGlossary(bookId: number, opts: { chapter?: number; queue?: boolean } = {}): Promise<Glossary> {
+  const q = new URLSearchParams()
+  if (opts.chapter != null) q.set('chapter', String(opts.chapter))
+  if (opts.queue === false) q.set('queue', 'false')
+  const qs = q.toString()
+  return api.get<Glossary>(`/ai/books/${bookId}/glossary${qs ? `?${qs}` : ''}`)
+}
+
+/** One term: from the glossary when it is there, else one live call. */
+export function recallTerm(bookId: number, term: string, chapter?: number): Promise<RecallResult> {
+  return api.post<RecallResult>(`/ai/books/${bookId}/recall`, chapter != null ? { term, chapter } : { term })
+}
+
+/** The previous volume's whole-book recap. Rejects (404) when there is none. */
+export function getPreviously(bookId: number): Promise<Previously> {
+  return api.get<Previously>(`/ai/books/${bookId}/previously`)
+}
+
+export function getDigestJob(jobId: string): Promise<DigestJob> {
+  return api.get<DigestJob>(`/ai/digest-jobs/${jobId}`)
+}
+
+export function cancelDigestJob(jobId: string): Promise<DigestJob> {
+  return api.post<DigestJob>(`/ai/digest-jobs/${jobId}/cancel`, {})
 }
 
 // ── shared status cache ──────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import { t, plural } from '@lingui/core/macro'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal, type AiProposal } from '@/components/MetadataFetchModal'
 import { AiBadge } from '@/components/AiBadge'
+import { ReadingCompanion } from '@/components/ReadingCompanion'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
 import { PositionHistoryModal } from '@/components/PositionHistoryModal'
 import { ShareModal } from '@/components/ShareShelfModal'
@@ -1524,7 +1525,9 @@ export function BookDetailPage() {
               </div>
             )}
           </div>
-          {/* Right column: title → status → description → stats → details grid → highlights.
+          {/* Right column: title → status → description → reading companion (recap,
+              glossary; renders nothing unless AI is set up for this book) → stats →
+              details grid → highlights.
               Description before stats: the page leads with what the book IS;
               the telemetry tower (hero + intensity + chapters) comes after and
               collapses as one. */}
@@ -1533,6 +1536,7 @@ export function BookDetailPage() {
             {statusProgressBlock}
             {ratingBlock}
             {descriptionBlock}
+            {!editing && <ReadingCompanion key={book.id} bookId={book.id} />}
             {statsFull}
             {metadataGridFull}
             {highlightsBlock}

@@ -208,27 +208,121 @@ def _flatten_ebooklib_toc(raw) -> list[tuple[str, str]]:
     return entries
 
 
-def _extract_epub_chapters(book) -> list[dict]:
-    """TOC → chapter boundaries, from an already-open ebooklib book."""
+def _ebooklib_spine_docs(book) -> tuple[list[str], list[str]]:
+    """Spine documents of an already-open ebooklib book, in reading order, as
+    (doc names, decoded HTML). These are exactly the inputs the chapter map
+    counts; the reading companion's chapter text reuses them so its chapter
+    boundaries line up with the stored fractions. An unreadable item yields
+    "" (zero words)."""
     import ebooklib
 
     id_to_item = {item.get_id(): item for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT)}
     spine_ids = [sid for sid, _linear in book.spine if sid in id_to_item]
-    if not spine_ids:
-        return []
-
     doc_names: list[str] = []
-    counts: list[int] = []
+    htmls: list[str] = []
     for sid in spine_ids:
         item = id_to_item[sid]
         doc_names.append(item.get_name())
         try:
-            raw = item.get_content()
-            counts.append(count_words_text(_html_to_text(raw.decode("utf-8", "ignore"))))
+            htmls.append(item.get_content().decode("utf-8", "ignore"))
         except Exception:  # noqa: BLE001 — unreadable spine item contributes no words
-            counts.append(0)
+            htmls.append("")
+    return doc_names, htmls
 
+
+def _extract_epub_chapters(book) -> list[dict]:
+    """TOC → chapter boundaries, from an already-open ebooklib book."""
+    doc_names, htmls = _ebooklib_spine_docs(book)
+    if not doc_names:
+        return []
+    counts = [count_words_text(_html_to_text(h)) for h in htmls]
     return _build_chapter_map(doc_names, counts, _flatten_ebooklib_toc(book.toc))
+
+
+def _zip_chapter_inputs(path: Path) -> Optional[tuple[list[str], list[str], list[tuple[str, str]]]]:
+    """Read the chapter-map inputs straight from the EPUB zip: spine document
+    names (OPF-relative hrefs), their decoded HTML ("" when unreadable), and
+    the TOC entries as (title, href), from the NCX (navPoints) or, failing
+    that, the EPUB3 nav document's toc list. None when the package cannot be
+    read at all."""
+    import posixpath
+    import xml.etree.ElementTree as ET
+
+    from backend.services.epub_package import read_package
+
+    NS = {
+        "ncx": "http://www.daisy.org/z3986/2005/ncx/",
+        "xhtml": "http://www.w3.org/1999/xhtml",
+    }
+    with zipfile.ZipFile(path) as zf:
+        pkg = read_package(zf)
+        if pkg is None:
+            return None
+        opf_dir = pkg.opf_dir
+
+        def from_opf_dir(href: str) -> str:
+            return posixpath.normpath(posixpath.join(opf_dir, href)) if opf_dir else href
+
+        doc_names: list[str] = []
+        htmls: list[str] = []
+        for idref in pkg.spine:
+            item = pkg.manifest.get(idref)
+            href, media = (item.href, item.media_type) if item else ("", "")
+            if not href or "xml" not in media and "html" not in media:
+                continue
+            member = from_opf_dir(href)
+            doc_names.append(href)   # TOC hrefs are OPF-relative, like these
+            try:
+                htmls.append(zf.read(member).decode("utf-8", "ignore"))
+            except Exception:  # noqa: BLE001
+                htmls.append("")
+
+        # TOC source 1: the NCX (spine@toc, or any manifest ncx item)
+        toc_entries: list[tuple[str, str]] = []
+        ncx_id = pkg.spine_toc
+        ncx_href = None
+        if ncx_id and ncx_id in pkg.manifest:
+            ncx_href = pkg.manifest[ncx_id].href
+        else:
+            for item in pkg.manifest.values():
+                if item.media_type == "application/x-dtbncx+xml":
+                    ncx_href = item.href
+                    break
+        if ncx_href:
+            try:
+                ncx = ET.fromstring(zf.read(from_opf_dir(ncx_href)))
+                for np in ncx.findall("./ncx:navMap/ncx:navPoint", NS):
+                    label = np.find("./ncx:navLabel/ncx:text", NS)
+                    content = np.find("./ncx:content", NS)
+                    if content is not None and content.get("src"):
+                        toc_entries.append((
+                            (label.text or "") if label is not None else "",
+                            content.get("src", ""),
+                        ))
+            except Exception:  # noqa: BLE001 — fall through to the nav
+                toc_entries = []
+
+        # TOC source 2: the EPUB3 nav document
+        if not toc_entries:
+            nav_href = None
+            for item in pkg.manifest.values():
+                if "nav" in (item.properties or "").split():
+                    nav_href = item.href
+                    break
+            if nav_href:
+                try:
+                    nav = ET.fromstring(zf.read(from_opf_dir(nav_href)))
+                    nav_dir = posixpath.dirname(nav_href)
+                    for a in nav.findall(".//xhtml:nav//xhtml:li/xhtml:a", NS):
+                        href = a.get("href")
+                        if href:
+                            # nav hrefs are nav-relative; rebase to OPF-relative
+                            rebased = posixpath.normpath(posixpath.join(nav_dir, href)) if nav_dir else href
+                            toc_entries.append(("".join(a.itertext()), rebased))
+                except Exception:  # noqa: BLE001
+                    toc_entries = []
+
+    return doc_names, htmls, toc_entries
 
 
 def _chapters_from_zip(path: Path) -> list[dict]:
@@ -240,96 +334,13 @@ def _chapters_from_zip(path: Path) -> list[dict]:
     takes TOC entries from the NCX (navPoints) or, failing that, the EPUB3 nav
     document's toc list. Same fraction math as the ebooklib path.
     """
-    import posixpath
-    import xml.etree.ElementTree as ET
-
-    NS = {
-        "cnt": "urn:oasis:names:tc:opendocument:xmlns:container",
-        "opf": "http://www.idpf.org/2007/opf",
-        "ncx": "http://www.daisy.org/z3986/2005/ncx/",
-        "xhtml": "http://www.w3.org/1999/xhtml",
-        "ops": "http://www.idpf.org/2007/ops",
-    }
     try:
-        with zipfile.ZipFile(path) as zf:
-            container = ET.fromstring(zf.read("META-INF/container.xml"))
-            rootfile = container.find(".//cnt:rootfile", NS)
-            if rootfile is None:
-                return []
-            opf_path = rootfile.get("full-path", "")
-            opf_dir = posixpath.dirname(opf_path)
-            opf = ET.fromstring(zf.read(opf_path))
-
-            def from_opf_dir(href: str) -> str:
-                return posixpath.normpath(posixpath.join(opf_dir, href)) if opf_dir else href
-
-            manifest: dict[str, tuple[str, str]] = {}   # id -> (href, media-type)
-            for item in opf.findall(".//opf:manifest/opf:item", NS):
-                manifest[item.get("id", "")] = (item.get("href", ""), item.get("media-type", ""))
-
-            spine = opf.find(".//opf:spine", NS)
-            if spine is None:
-                return []
-            doc_names: list[str] = []
-            counts: list[int] = []
-            for ref in spine.findall("opf:itemref", NS):
-                href, media = manifest.get(ref.get("idref", ""), ("", ""))
-                if not href or "xml" not in media and "html" not in media:
-                    continue
-                member = from_opf_dir(href)
-                doc_names.append(href)   # TOC hrefs are OPF-relative, like these
-                try:
-                    counts.append(count_words_text(
-                        _html_to_text(zf.read(member).decode("utf-8", "ignore"))))
-                except Exception:  # noqa: BLE001
-                    counts.append(0)
-
-            # TOC source 1: the NCX (spine@toc, or any manifest ncx item)
-            toc_entries: list[tuple[str, str]] = []
-            ncx_id = spine.get("toc")
-            ncx_href = None
-            if ncx_id and ncx_id in manifest:
-                ncx_href = manifest[ncx_id][0]
-            else:
-                for href, media in manifest.values():
-                    if media == "application/x-dtbncx+xml":
-                        ncx_href = href
-                        break
-            if ncx_href:
-                try:
-                    ncx = ET.fromstring(zf.read(from_opf_dir(ncx_href)))
-                    for np in ncx.findall("./ncx:navMap/ncx:navPoint", NS):
-                        label = np.find("./ncx:navLabel/ncx:text", NS)
-                        content = np.find("./ncx:content", NS)
-                        if content is not None and content.get("src"):
-                            toc_entries.append((
-                                (label.text or "") if label is not None else "",
-                                content.get("src", ""),
-                            ))
-                except Exception:  # noqa: BLE001 — fall through to the nav
-                    toc_entries = []
-
-            # TOC source 2: the EPUB3 nav document
-            if not toc_entries:
-                nav_href = None
-                for item in opf.findall(".//opf:manifest/opf:item", NS):
-                    if "nav" in (item.get("properties") or "").split():
-                        nav_href = item.get("href")
-                        break
-                if nav_href:
-                    try:
-                        nav = ET.fromstring(zf.read(from_opf_dir(nav_href)))
-                        nav_dir = posixpath.dirname(nav_href)
-                        for a in nav.findall(".//xhtml:nav//xhtml:li/xhtml:a", NS):
-                            href = a.get("href")
-                            if href:
-                                # nav hrefs are nav-relative; rebase to OPF-relative
-                                rebased = posixpath.normpath(posixpath.join(nav_dir, href)) if nav_dir else href
-                                toc_entries.append(("".join(a.itertext()), rebased))
-                    except Exception:  # noqa: BLE001
-                        toc_entries = []
-
-            return _build_chapter_map(doc_names, counts, toc_entries)
+        inputs = _zip_chapter_inputs(path)
+        if inputs is None:
+            return []
+        doc_names, htmls, toc_entries = inputs
+        counts = [count_words_text(_html_to_text(h)) for h in htmls]
+        return _build_chapter_map(doc_names, counts, toc_entries)
     except Exception as e:  # noqa: BLE001 — no chapters is always a valid outcome
         logger.info("zip-level chapter extraction failed for %s: %s", path, e)
         return []
@@ -362,26 +373,46 @@ def count_pages_fixed_layout(path: Path) -> Optional[int]:
     return None
 
 
-def extract_chapters_epub(path: Path) -> list[dict]:
-    """Open an EPUB from disk and extract its chapter map. Used by the backfill
-    job and as the ingest fallback.
+def epub_chapter_documents(path: Path) -> tuple[list[str], list[dict]]:
+    """The chapter map of an EPUB together with the spine documents (decoded
+    HTML, reading order) it was computed from: ``(htmls, chapters)``.
 
     ebooklib first (fast, and consistent with the rest of this module); when
     it yields nothing — or refuses the file entirely — the zip-level parser
     takes over. That second path is what rescues EPUB2 books whose TOC lives
     only in the NCX, files whose empty nav shadows a good NCX, and the
-    malformed-nav EPUBs read_epub crashes on."""
-    chapters: list[dict] = []
+    malformed-nav EPUBs read_epub crashes on. ``chapters`` is [] (and
+    ``htmls`` whatever was readable) when neither path finds a usable TOC."""
+    htmls: list[str] = []
     try:
         from ebooklib import epub
 
         book = epub.read_epub(str(path), options={"ignore_ncx": True})
-        chapters = _extract_epub_chapters(book)
+        doc_names, htmls = _ebooklib_spine_docs(book)
+        chapters: list[dict] = []
+        if doc_names:
+            counts = [count_words_text(_html_to_text(h)) for h in htmls]
+            chapters = _build_chapter_map(doc_names, counts, _flatten_ebooklib_toc(book.toc))
+        if chapters:
+            return htmls, chapters
     except Exception as e:  # noqa: BLE001 — the zip path gets its turn
         logger.info("ebooklib chapter extraction failed for %s: %s", path, e)
-    if chapters:
-        return chapters
-    return _chapters_from_zip(path)
+    try:
+        inputs = _zip_chapter_inputs(path)
+    except Exception as e:  # noqa: BLE001 — no chapters is always a valid outcome
+        logger.info("zip-level chapter extraction failed for %s: %s", path, e)
+        inputs = None
+    if inputs is None:
+        return htmls, []
+    doc_names, zip_htmls, toc_entries = inputs
+    counts = [count_words_text(_html_to_text(h)) for h in zip_htmls]
+    return zip_htmls, _build_chapter_map(doc_names, counts, toc_entries)
+
+
+def extract_chapters_epub(path: Path) -> list[dict]:
+    """Open an EPUB from disk and extract its chapter map. Used by the backfill
+    job and as the ingest fallback. See ``epub_chapter_documents``."""
+    return epub_chapter_documents(path)[1]
 
 
 def _opf_meta_by_name(book, name: str) -> Optional[str]:

@@ -16,3 +16,5 @@ from backend.models.ko_stats import PageStat, StatsImport, KoStatsBookMatch, KoH
 from backend.models.download_event import DownloadEvent  # noqa: F401
 from backend.models.instance_setting import InstanceSetting  # noqa: F401
 from backend.models.ai_usage import AIUsage  # noqa: F401
+from backend.models.ai_chapter_digest import AIChapterDigest  # noqa: F401
+from backend.models.ai_recap import AIRecap  # noqa: F401

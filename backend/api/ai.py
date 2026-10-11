@@ -25,7 +25,11 @@ from backend.core.security import get_current_user
 from backend.models.book import Book
 from backend.models.user import User
 from backend.services import ai
-from backend.services.ai import fix_book, identify, registry, series_cleanup, settings as ai_settings, usage
+from backend.services import book_text
+from backend.services.ai import (
+    companion, digest, digest_job, fix_book, identify, recall as ai_recall, recap as ai_recap,
+    registry, series_cleanup, settings as ai_settings, usage,
+)
 from backend.services.ai.provider import AIError, AIKeyInvalid, AIProviderError
 from backend.services.audit import audit
 
@@ -329,6 +333,218 @@ def apply_series_cleanup(
               "arcs_set": result["arcs_set"],
           }, ip=_ip(request))
     return result
+
+
+# ── reading companion: digest jobs ───────────────────────────────────────────
+# Jobs are in memory (backend/services/ai/digest_job.py). A job is visible to
+# the user it runs for and to admins; anyone else gets 404.
+
+def _visible_job(job_id: str, user: User) -> dict[str, Any]:
+    job = digest_job.get(job_id)
+    if job is None or (job["user_id"] != user.id and not is_admin(user)):
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.get("/digest-jobs/{job_id}")
+def get_digest_job(
+    job_id: str,
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Progress of a digest job: ``{id, status, done, total, current, ...}``."""
+    return _visible_job(job_id, current_user)
+
+
+@router.post("/digest-jobs/{job_id}/cancel")
+def cancel_digest_job(
+    job_id: str,
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Cancel a queued job, or a running one before its next chapter. The
+    chapters already digested stay stored."""
+    _visible_job(job_id, current_user)
+    job = digest_job.cancel(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+# ── reading companion: recap, glossary, Recall ───────────────────────────────
+# Spoiler window: everything is built from the digests of the chapters before
+# the reader's position chapter plus that chapter's text up to the position
+# (backend/services/ai/companion.py). An explicit ?chapter= may not be past
+# the position chapter.
+
+def _visible_book(db: Session, user: User, book_id: int) -> Book:
+    book = db.get(Book, book_id)
+    if book is None or book.status != "active" or not user_can_see_book(db, user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
+def _web_window(db: Session, user: User, book: Book, chapter: int | None) -> companion.Window:
+    try:
+        return companion.web_window(db, user, book, chapter)
+    except companion.WindowError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+
+def _iso(dt: Any) -> str | None:
+    return dt.isoformat() + "Z" if dt is not None else None
+
+
+@router.get("/books/{book_id}/companion")
+def get_companion(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """What the book page needs to decide whether to show the reading
+    companion, and its header line. Never calls a model or queues work."""
+    book = _visible_book(db, current_user, book_id)
+    feats = companion.features_for(db, current_user)
+    chapters = book_text.book_chapters(book, db)
+    out: dict[str, Any] = {
+        "available": False, "reason": None, "features": feats, "position": None,
+        "chapters": len(chapters), "coverage": None, "job": None, "recap_cached": False,
+        "glossary_count": 0, "previously": None, "scope": None,
+    }
+    if (not ai_settings.ai_enabled(db) or not ai_settings.feature_enabled(db, digest.FEATURE)
+            or not (ai_settings.feature_enabled(db, ai_recap.FEATURE)
+                    or ai_settings.feature_enabled(db, ai_recall.FEATURE))):
+        out["reason"] = companion.FEATURE_OFF
+        return out
+    out["job"] = digest_job.active_for(current_user.id, book.id)
+    pos = companion.reader_position(db, current_user, book)
+    pos_k = companion.position_chapter(book, pos.word_pct, db) if pos and chapters else None
+    if feats["recap"] and (pos is None or not pos_k):
+        prev = ai_recap.previously_for(db, current_user, book)
+        if prev is not None:
+            out["previously"] = {"book_id": prev[0].id, "title": prev[0].title}
+    reason = book_text.unavailable_reason(book, db)
+    if reason:
+        out["reason"] = reason
+        return out
+    if ai_settings.resolve_key(db, current_user) is None:
+        out["reason"] = companion.NO_KEY
+        return out
+    if pos is None:
+        out["reason"] = companion.NO_POSITION
+        return out
+    window = _web_window(db, current_user, book, None)
+    scope = digest.user_scope(db, current_user, book)
+    out.update({
+        "available": True,
+        "position": {
+            "pct": pos.pct, "chapter_idx": window.chapter_idx, "chapter_title": window.chapter_title,
+            "source": pos.source, "updated_at": _iso(pos.updated_at),
+        },
+        "coverage": digest.coverage(db, scope, window.chapter_idx),
+        "recap_cached": ai_recap.cached_for(db, current_user, book, window, scope) is not None,
+        "glossary_count": len(digest.glossary_state(db, current_user, book, window.chapter_idx,
+                                                     scope=scope)),
+        "scope": scope.to_dict(),
+    })
+    return out
+
+
+class RecapBody(BaseModel):
+    # The chapter the recap ends in; default (and maximum) the position chapter.
+    chapter: int | None = Field(default=None, ge=0)
+    # Write the recap from the digests that exist even when some are missing
+    # (after a digest job that could not read every chapter).
+    partial: bool = False
+
+
+@router.post("/books/{book_id}/recap")
+def post_recap(
+    book_id: int,
+    body: RecapBody | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> Any:
+    """200 ``{text, chapter_idx, chapter_title, whole_book, cached, partial,
+    created_at, scope}``, or 202 ``{job, coverage, chapter_idx,
+    chapter_title}`` while the chapters before the position are digested."""
+    body = body or RecapBody()
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    window = _web_window(db, current_user, book, body.chapter)
+    status, payload = ai_recap.request_recap(db, current_user, book, window, partial=body.partial)
+    return JSONResponse(status_code=status, content=payload)
+
+
+@router.delete("/books/{book_id}/recap")
+def delete_recap(
+    book_id: int,
+    chapter: int | None = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Clear the cached recap at this chapter ("Ask again"); the next POST
+    writes a new one."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    window = _web_window(db, current_user, book, chapter)
+    return {"deleted": ai_recap.clear(db, current_user, book, window.chapter_idx),
+            "chapter_idx": window.chapter_idx}
+
+
+@router.get("/books/{book_id}/glossary")
+def get_glossary(
+    book_id: int,
+    chapter: int | None = Query(default=None, ge=0),
+    queue: bool = Query(default=True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """The glossary up to the position chapter (from storage, no model call).
+    Queues the missing digests when the user has a key; ``job`` carries the
+    progress. ``queue=false`` only reads: the web UI refreshes with it after a
+    job ends, so a chapter that cannot be read is not retried in a loop."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, digest.FEATURE)
+    window = _web_window(db, current_user, book, chapter)
+    return companion.glossary_payload(db, current_user, book, window, enqueue=queue)
+
+
+class RecallBody(BaseModel):
+    term: str = Field(min_length=1, max_length=200)
+    chapter: int | None = Field(default=None, ge=0)
+
+
+@router.post("/books/{book_id}/recall")
+def post_recall(
+    book_id: int,
+    body: RecallBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """``{found, live, entry?, message?, term, chapter_idx, chapter_title}``."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recall.FEATURE)
+    window = _web_window(db, current_user, book, body.chapter)
+    try:
+        return ai_recall.recall(db, current_user, book, window, body.term)
+    except ai_recall.BadTerm as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/books/{book_id}/previously")
+def get_previously(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """The whole-book recap of the previous volume ("Previously on"), written
+    when that volume was marked read. 404 when there is no earlier volume the
+    user read, or nothing was written."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, ai_recap.FEATURE)
+    prev = ai_recap.previously_for(db, current_user, book)
+    if prev is None:
+        raise HTTPException(status_code=404, detail="No recap of an earlier volume")
+    return ai_recap.previously_dict(*prev)
 
 
 # ── error mapping ────────────────────────────────────────────────────────────

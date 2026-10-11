@@ -13,7 +13,11 @@ class UserBookStatus(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     book_id: Mapped[int] = mapped_column(Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(16), default="unread", nullable=False)
+    # active_history: a change to "read" is detected by an ORM flush hook
+    # (backend/services/ai/digest.py) that needs the previous value even when
+    # the row was expired by a commit before the write.
+    status: Mapped[str] = mapped_column(String(16), default="unread", nullable=False,
+                                        active_history=True)
     progress_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cfi: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     # Per-user rating in half-star steps (1.0–5.0) + optional free-text review.

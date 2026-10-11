@@ -13,9 +13,11 @@ All notable changes to Tome are documented here. Format loosely follows
   four characters again. Admins can set an instance key (or provide one with
   `TOME_ANTHROPIC_API_KEY`), let members use it, set the confidence threshold
   that "Accept the obvious" uses, and switch each AI feature on or off or pick
-  its model. Nothing is sent to Anthropic until someone clicks an AI button,
-  every AI button carries an "AI" label, and every AI surface stays hidden
-  while no key is available or when `TOME_AI_ENABLED=false`. Each call is
+  its model. The metadata features send nothing to Anthropic until someone
+  clicks their button; the reading companion (below) builds its chapter
+  digests as your reading position advances, while that feature is on. Every
+  AI button carries an "AI" label, and every AI surface stays hidden while no
+  key is available or when `TOME_AI_ENABLED=false`. Each call is
   recorded with its tokens and its cost at list price, and a "This month"
   meter in the same section shows the spend per feature (and per user, for
   admins). Setting or removing a key and changing the AI settings are written
@@ -47,6 +49,31 @@ All notable changes to Tome are documented here. Format loosely follows
   selected" writes only the checked rows, in one go, through the same paths
   as the manual editors. A rename carries the series' status and arcs along,
   and the apply is recorded in the audit log with its counts.
+- **Reading companion, with your own key.** An EPUB you are reading, in the
+  web reader or in KOReader, now has a Reading companion on its book page once
+  the book has a chapter map. "Recap to here" writes the story so far and ends
+  where you stopped. "Glossary so far" lists the people, places and terms met
+  up to your position, each with a one-line description, a fuller note and
+  where it first appeared, with a search box. Recall looks up a name the
+  glossary does not have, and answers "Nothing about that before this page."
+  rather than guess. Only the chapters before your position and the current
+  chapter up to your position are ever sent to Anthropic, and every glossary
+  line must quote the chapter it came from or it is dropped. For a series,
+  earlier volumes count once you have marked them read, and the companion
+  says which ones it left out. When you mark a volume of a series read, Tome
+  writes a recap of the whole book, and the next volume shows it as
+  "Previously on" until you are past its first chapter; marking many volumes
+  read at once starts at most five of these a day. Recaps are cached, so
+  reopening one is free, and "Ask again" writes a new one. The companion is
+  built from a short digest of each chapter you have finished, made as you
+  read: when your position moves past a chapter, Tome sends that book's
+  finished chapters to Anthropic in the background, once per chapter, and the
+  digests are shared by everyone reading the same book. So some calls happen
+  on a position sync, not on a click. Settings lists the three new features
+  ("Build the glossary as you read", "Recap to here" and "Recall"), each with
+  its own switch and model, and the spend meter shows their calls. Switching
+  off "Build the glossary as you read" stops the background calls and hides
+  the companion.
 
 ### Changed
 - **Settings has a jump list.** A sticky list of the page's sections sits on

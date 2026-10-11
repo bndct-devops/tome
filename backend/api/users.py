@@ -20,6 +20,7 @@ from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.services.audit import audit
+from backend.services.ai import digest as ai_digest
 
 router = APIRouter()
 
@@ -193,6 +194,10 @@ def set_book_status(
             percentage=pct, progress=cfi, device="web",
         )
         db.commit()
+        # Reading companion: digest the chapters just finished (fire-and-
+        # forget, never raises; a no-op without AI access or a chapter map).
+        if body.progress_pct is not None:
+            ai_digest.on_position_advanced(db, current_user, book, pct, cfi)
 
     # ── Web reader session tracking ──────────────────────────────────────────
     _track_web_reading_session(

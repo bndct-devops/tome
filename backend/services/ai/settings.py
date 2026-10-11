@@ -230,6 +230,7 @@ def status_payload(db: Session, user: User) -> dict[str, Any]:
             "enabled": feature_enabled(db, key),
             "model": feature_model_override(db, key),
             "default_model": f.default_model,
+            "kind": f.kind,
         }
     payload: dict[str, Any] = {
         "enabled": enabled,

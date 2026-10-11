@@ -66,9 +66,15 @@ def test_status_guest_sees_no_key_and_no_admin_fields(client: TestClient, guest)
     assert body["key_source"] is None
     assert body["instance_key_available"] is False
     assert "instance_key_set" not in body
-    assert set(body["features"]) == {"bindery_identify", "fix_book", "series_cleanup"}
+    assert set(body["features"]) == {"bindery_identify", "fix_book", "series_cleanup",
+                                     "reading_digest", "recap", "recall"}
     f = body["features"]["fix_book"]
     assert f["default_model"] == "claude-opus-5-5" and f["model"] is None and f["enabled"] is True
+    assert f["kind"] == "metadata"
+    d = body["features"]["reading_digest"]
+    assert d["default_model"] == "claude-sonnet-5-5" and d["kind"] == "reading"
+    assert body["features"]["recap"]["kind"] == "reading"
+    assert body["features"]["recall"]["kind"] == "reading"
 
 
 def test_status_member_without_key(client: TestClient, member):
