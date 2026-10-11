@@ -6,6 +6,15 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **Google Books 503s no longer fail the fetch outright.** Google answers in
+  bursts of "503 Service Unavailable", and Tome gave up on the first one, so
+  the search had to be clicked again by hand. A 5xx from any metadata source
+  now gets the same single retry after a short pause that a rate limit
+  already got, and only then reports the source as errored. The warning
+  logged on a failed fetch also no longer includes the request URL, which
+  for Google Books carried the configured API key. (#247)
+
 ### Changed
 - **Settings has a jump list.** A sticky list of the page's sections sits on
   the left at desktop width, and a row of chips under the header on phones.
