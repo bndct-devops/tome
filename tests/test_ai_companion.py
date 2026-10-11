@@ -4,6 +4,7 @@ cache, "Ask again", Previously on), glossary, Recall, the web endpoints on
 books and names are made up."""
 from __future__ import annotations
 
+from collections import deque
 from contextlib import contextmanager
 
 import pytest
@@ -29,7 +30,7 @@ RECAP_TEXT = {"paragraphs": ["Mara walked to the harbour.", "Tobin rang the bell
 def _jobs_inline(db: Session, monkeypatch):
     @contextmanager
     def same_session():
-        s = Session(bind=db.connection(), join_transaction_mode="create_savepoint", autoflush=False)
+        s = Session(bind=db.get_bind(), join_transaction_mode="create_savepoint", autoflush=False)
         try:
             yield s
         finally:
@@ -203,6 +204,7 @@ def test_endpoint_permissions(client: TestClient, db: Session, admin_user, make_
         ("post", f"/api/ai/books/{book.id}/recall", {"term": "Mara"}),
         ("get", f"/api/ai/books/{book.id}/previously", None),
         ("delete", f"/api/ai/books/{book.id}/recap", None),
+        ("post", f"/api/ai/books/{book.id}/digest", {}),
     ]
     for method, url, body in urls:
         kw = {"json": body} if body is not None else {}
@@ -231,7 +233,19 @@ def test_endpoint_permissions(client: TestClient, db: Session, admin_user, make_
     # No key: 409 before anything is queued.
     r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=_headers(keyless))
     assert r.status_code == 409
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={}, headers=_headers(keyless))
+    assert r.status_code == 409
     assert digest_job.active_for(keyless.id, book.id) is None
+
+    # Digests off: the explicit start is a 404 as well.
+    ai_settings.set_feature_enabled(db, "reading_digest", False)
+    db.commit()
+    assert client.post(f"/api/ai/books/{book.id}/digest", json={},
+                       headers=_headers(member)).status_code == 404
+    ai_settings.set_feature_enabled(db, "reading_digest", True)
+    db.commit()
+    assert client.post(f"/api/ai/books/{book.id}/digest", json={"scope": "everything"},
+                       headers=_headers(member)).status_code == 422
 
     # A chapter past the position: 422.
     r = client.post(f"/api/ai/books/{book.id}/recap", json={"chapter": 3}, headers=_headers(member))
@@ -250,12 +264,38 @@ def test_recap_202_then_200_then_cached_then_ask_again(client, db, make_book, tm
     r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h)
     assert r.status_code == 202, r.text
     body = r.json()
-    assert body["coverage"] == {"digested": 0, "needed": 2, "failed": 0}
-    assert body["job"]["upto_chapter"] == 2 and body["chapter_idx"] == 2
-    assert fake.calls == []
+    # Nothing is queued: the reader is told digests are needed, with the
+    # estimate for the confirmation, and starts them explicitly.
+    est = body.pop("estimate")
+    assert body == {"needs_digest": True,
+                    "coverage": {"digested": 0, "needed": 2, "failed": 0}, "job": None,
+                    "chapter_idx": 2, "chapter_title": "The Lighthouse"}
+    assert est["series"] is None                      # no read earlier volume
+    assert est["book"]["chapters"] == 2 and est["book"]["calls"] == 1
+    assert est["book"]["est_cost_usd"] > 0 and est["book"]["over_budget"] is False
+    assert est["book"]["volumes"] == [{"book_id": book.id, "title": "Flow", "chapters": 2}]
+    assert digest_job.active_for(user.id, book.id) is None and fake.calls == []
+
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={"scope": "book"}, headers=h)
+    assert r.status_code == 202, r.text
+    started = r.json()
+    assert started["job"]["upto_chapter"] == 2 and started["job"]["scope"] == "book"
+    assert started["scope"] == "book" and started["chapter_idx"] == 2
+    assert started["coverage"] == {"digested": 0, "needed": 2, "failed": 0}
+    # The worker has not planned the job yet, so the response's job carries
+    # the estimate's figures rather than "0 of 0".
+    assert started["job"]["total"] == 2 and started["job"]["est_chapters"] == 2
+    assert started["job"]["est_cost_usd"] == started["estimate"]["est_cost_usd"]
+    assert started["job"]["est_seconds"] == started["estimate"]["est_seconds"]
+    # While it runs, the recap says so and points at the job.
+    r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h)
+    assert r.status_code == 202 and r.json()["job"]["id"] == started["job"]["id"]
 
     digest_job.run_pending()
-    assert len(fake.calls) == 2 and {c["feature"] for c in fake.calls} == {"reading_digest"}
+    assert len(fake.calls) == 1 and fake.calls[0]["feature"] == "reading_digest"   # one unit
+    # Nothing left to read: the start is a 200 without a job.
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={}, headers=h)
+    assert r.status_code == 200 and r.json()["job"] is None
 
     r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h)
     assert r.status_code == 200, r.text
@@ -264,11 +304,11 @@ def test_recap_202_then_200_then_cached_then_ask_again(client, db, make_book, tm
     assert out["chapter_title"] == "The Lighthouse" and out["whole_book"] is False
     assert out["text"].startswith("Mara walked")
     assert out["scope"]["excluded_volumes"] == []
-    assert len(fake.calls) == 3
+    assert len(fake.calls) == 2
 
     r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h)
     assert r.status_code == 200 and r.json()["cached"] is True
-    assert len(fake.calls) == 3
+    assert len(fake.calls) == 2
 
     c = client.get(f"/api/ai/books/{book.id}/companion", headers=h).json()
     assert c["recap_cached"] is True
@@ -278,9 +318,9 @@ def test_recap_202_then_200_then_cached_then_ask_again(client, db, make_book, tm
     assert db.query(AIRecap).filter_by(book_id=book.id).count() == 0
     r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=h)
     assert r.status_code == 200 and r.json()["cached"] is False
-    assert len(fake.calls) == 4
+    assert len(fake.calls) == 3
     usage = db.query(AIUsage).filter_by(user_id=user.id).all()
-    assert sorted(u.feature for u in usage) == ["reading_digest", "reading_digest", "recap", "recap"]
+    assert sorted(u.feature for u in usage) == ["reading_digest", "recap", "recap"]
 
 
 def test_recap_partial_after_a_failed_chapter(client, db, make_book, tmp_path):
@@ -326,6 +366,21 @@ def test_companion_payload(client, db, make_book, tmp_path):
     assert c["glossary_count"] == 1 and c["recap_cached"] is False
     assert c["features"] == {"recap": True, "recall": True, "glossary": True}
     assert c["job"] is None                         # GET companion never queues work
+    assert c["last_job"] is None
+
+    # The latest ended job comes back as last_job (the page offers Continue).
+    from datetime import datetime, timedelta
+    from backend.models.ai_job import AIJob
+    now = datetime.utcnow()
+    db.add(AIJob(id="older0000001", user_id=user.id, book_id=book.id, status="done",
+                 scope="book", kind="digest", created_at=now - timedelta(hours=2)))
+    db.add(AIJob(id="latest000001", user_id=user.id, book_id=book.id, status="cancelled",
+                 scope="series", kind="digest", total=10, done=4, created_at=now - timedelta(hours=1)))
+    db.commit()
+    c = client.get(f"/api/ai/books/{book.id}/companion", headers=h).json()
+    assert c["job"] is None
+    assert c["last_job"]["id"] == "latest000001"
+    assert c["last_job"]["status"] == "cancelled" and c["last_job"]["scope"] == "series"
 
     ai_settings.set_feature_enabled(db, "reading_digest", False)
     db.commit()
@@ -357,7 +412,8 @@ def test_glossary_endpoint(client, db, make_book, tmp_path):
     assert g["scope"]["excluded_volumes"] == [
         {"book_id": v2.id, "title": "Cove Two", "series_index": 2.0, "reason": "not_read"}]
     assert g["coverage"] == {"digested": 5, "needed": 6, "failed": 0}    # v3 chapter 1 missing
-    assert g["job"] is not None and g["job"]["upto_chapter"] == 2
+    assert g["job"] is None                       # reading the glossary never queues
+    assert digest_job.active_for(user.id, v3.id) is None
     assert g["rev"]
 
     # An explicit earlier chapter: fold before it only.
@@ -366,19 +422,30 @@ def test_glossary_endpoint(client, db, make_book, tmp_path):
     assert g0["entries"][0]["line"] == "A ferry pilot."
 
 
-def test_glossary_queue_false_only_reads(client, db, make_book, tmp_path):
+def test_glossary_get_never_queues(client, db, make_book, tmp_path, plugin):
     user = _make_user(db, "glossread", "member")
     book = _epub_book(db, make_book, tmp_path, "Read Only")
     _store_digest(db, book, 0, [_entry("Mara Vell", "A ferry pilot.")])
-    _position(db, user, book, _mid(book, db, 2))
+    _position(db, user, book, _mid(book, db, 3))
+    c, key_for = plugin
+    hp = key_for(user)
     db.commit()
-    g = client.get(f"/api/ai/books/{book.id}/glossary?queue=false", headers=_headers(user)).json()
-    assert g["coverage"] == {"digested": 1, "needed": 2, "failed": 0}
-    assert g["job"] is None and digest_job.active_for(user.id, book.id) is None
-    assert [e["name"] for e in g["entries"]] == ["Mara Vell"]
-    # The default still queues the missing chapter.
+    fake = FakeProvider(responses=echo_digest)
+    ai.set_provider_override(fake)
+    # Web (the old ?queue=true is ignored) and plugin: read-only.
+    for url, h in ((f"/api/ai/books/{book.id}/glossary", _headers(user)),
+                   (f"/api/ai/books/{book.id}/glossary?queue=true", _headers(user)),
+                   (f"/api/tome-sync/ai/books/{book.id}/glossary", hp)):
+        g = (c if "tome-sync" in url else client).get(url, headers=h).json()
+        assert g["coverage"] == {"digested": 1, "needed": 3, "failed": 0}, url
+        assert g["job"] is None, url
+        assert [e["name"] for e in g["entries"]] == ["Mara Vell"]
+    assert digest_job.active_for(user.id, book.id) is None and digest_job._queue == deque()
+    assert fake.calls == []
+    # A job the reader started shows up in the payload.
+    started = client.post(f"/api/ai/books/{book.id}/digest", json={}, headers=_headers(user)).json()
     g = client.get(f"/api/ai/books/{book.id}/glossary", headers=_headers(user)).json()
-    assert g["job"] is not None and g["job"]["upto_chapter"] == 2
+    assert g["job"]["id"] == started["job"]["id"]
 
 
 # ── Recall ───────────────────────────────────────────────────────────────────
@@ -503,7 +570,7 @@ def test_finishing_a_volume_writes_previously_on(client, db, make_book, tmp_path
     fake = FakeProvider(responses=mixed)
     ai.set_provider_override(fake)
     digest_job.run_pending()
-    assert [c["feature"] for c in fake.calls] == ["reading_digest"] * 4 + ["recap"]
+    assert [c["feature"] for c in fake.calls] == ["reading_digest", "recap"]   # one unit of 4
     assert "Mark3end" not in _all_text(fake.calls[-1])   # summaries only
 
     r = client.get(f"/api/ai/books/{v2.id}/previously", headers=h)
@@ -659,11 +726,13 @@ def test_plugin_endpoints_404_on_a_hidden_book_and_403_for_guest(db, admin_user,
     assert c.get(f"{base}/glossary?pct=0.5", headers=hm).status_code == 404
     assert c.post(f"{base}/recap", json={"pct": 0.5}, headers=hm).status_code == 404
     assert c.post(f"{base}/recall", json={"term": "Mara", "pct": 0.5}, headers=hm).status_code == 404
+    assert c.post(f"{base}/digest", json={"pct": 0.5}, headers=hm).status_code == 404
     assert fake.calls == [] and digest_job.active_for(member.id, hidden.id) is None
 
     base = f"/api/tome-sync/ai/books/{book.id}"
     assert c.post(f"{base}/recap", json={"pct": 0.5}, headers=hg).status_code == 403
     assert c.post(f"{base}/recall", json={"term": "Mara", "pct": 0.5}, headers=hg).status_code == 403
+    assert c.post(f"{base}/digest", json={"pct": 0.5}, headers=hg).status_code == 403
     assert fake.calls == []
 
 
@@ -713,8 +782,11 @@ def test_plugin_recap_and_recall_by_pct(db, make_book, tmp_path, plugin):
 
     r = c.post(f"/api/tome-sync/ai/books/{book.id}/recap", json={"pct": pct}, headers=h)
     assert r.status_code == 202, r.text
+    assert r.json()["needs_digest"] is True and r.json()["job"] is None
+    r = c.post(f"/api/tome-sync/ai/books/{book.id}/digest", json={"pct": pct}, headers=h)
+    assert r.status_code == 202, r.text
     job = r.json()["job"]
-    assert job["upto_chapter"] == 1
+    assert job["upto_chapter"] == 1 and job["scope"] == "book"
     assert c.get(f"/api/tome-sync/ai/jobs/{job['id']}", headers=h).json()["status"] == "queued"
     other = key_for(_make_user(db, "nosy", "member"))
     db.commit()

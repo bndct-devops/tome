@@ -120,7 +120,10 @@ def recall(db: Session, user: User, book: Book, window: companion.Window, term: 
                             "chapter_title": window.chapter_title}
 
     scope = digest.user_scope(db, user, book)
-    entries = digest.glossary_state(db, user, book, window.chapter_idx, scope=scope)
+    digests = digest.scoped_digests(db, scope, window.chapter_idx)
+    entries = digest.fold_entries(digests)
+    # Reading order, as ``digest.model_state`` ranks it: (book_id, idx) is not.
+    rank = {(int(d.book_id), int(d.chapter_idx)): i for i, d in enumerate(digests)}
     hit = find_entry(entries, term)
     if hit is not None:
         [entry] = companion.entries_to_dicts(db, scope, [hit])
@@ -131,7 +134,7 @@ def recall(db: Session, user: User, book: Book, window: companion.Window, term: 
         return {**base, "found": False, "live": False, "message": NOT_FOUND_MESSAGE}
 
     state = [{"name": e.name, "kind": e.kind, "line": e.line}
-             for e in sorted(entries, key=lambda e: e.last_seen)[-digest.GLOSSARY_STATE_MAX:]]
+             for e in sorted(entries, key=lambda e: rank.get(e.last_seen, -1))[-digest.GLOSSARY_STATE_MAX:]]
     context = {
         "term": term,
         "book": book.title,
@@ -151,7 +154,7 @@ def recall(db: Session, user: User, book: Book, window: companion.Window, term: 
                                  + json.dumps(context, ensure_ascii=False, indent=1)},
     ]
     result = ai.run_feature(db, user, FEATURE, system=SYSTEM_PROMPT, user_content=content,
-                            schema=build_schema(), max_tokens=MAX_TOKENS)
+                            schema=build_schema(), max_tokens=MAX_TOKENS, book_id=book.id)
     parsed = result.parsed or {}
     checked = digest.check_entries([{
         "name": parsed.get("name") or term, "kind": parsed.get("kind"),

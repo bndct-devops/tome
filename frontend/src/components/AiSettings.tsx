@@ -11,10 +11,11 @@ import { AlertTriangle, ExternalLink, Key, Loader2, Server, Sparkles } from 'luc
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
 import {
-  aiFeatureDescription, aiFeatureLabel, getUsage, removeKey, setKey, updateInstance,
+  aiFeatureDescription, aiFeatureLabel, getUsage, removeKey, setKey, setOwnLimit, setUserLimit, updateInstance,
   type AiFeatureKey, type AiInstanceUpdate, type AiStatus, type AiUsageSummary, type AiUsageTotals,
 } from '@/lib/ai'
 import { AiBadge } from '@/components/AiBadge'
+import { AiActivity } from '@/components/AiActivity'
 
 const KEY_CONSOLE_URL = 'https://console.anthropic.com/settings/keys'
 const DISCUSSIONS_URL = 'https://github.com/bndct-devops/tome/discussions'
@@ -23,6 +24,8 @@ export function AiSettings({ status, isAdmin, keyOnly = false }: { status: AiSta
   const { t } = useLingui()
   const { toast } = useToast()
   const provider = status.provider_label
+  // Bumped when a job ends, so the spend meter reloads.
+  const [usageRev, setUsageRev] = useState(0)
 
   if (keyOnly) {
     return (
@@ -125,7 +128,10 @@ export function AiSettings({ status, isAdmin, keyOnly = false }: { status: AiSta
         )}
 
         {/* This month */}
-        <UsageBlock isAdmin={isAdmin} provider={provider} />
+        <UsageBlock isAdmin={isAdmin} provider={provider} status={status} rev={usageRev} />
+
+        {/* Activity: digest jobs and what they cost */}
+        <AiActivity isAdmin={isAdmin} onSettled={() => setUsageRev(r => r + 1)} />
       </div>
 
       <p className="text-xs text-muted-foreground mt-3">
@@ -444,11 +450,18 @@ function InstanceSettings({
 
 // ── this month's spend ───────────────────────────────────────────────────────
 
-function UsageBlock({ isAdmin, provider }: { isAdmin: boolean; provider: string }) {
+function UsageBlock({ isAdmin, provider, status, rev }: {
+  isAdmin: boolean
+  provider: string
+  status: AiStatus
+  rev: number
+}) {
   const { t, i18n } = useLingui()
+  const { toast } = useToast()
   const [allUsers, setAllUsers] = useState(false)
   const [data, setData] = useState<AiUsageSummary | null>(null)
   const [failed, setFailed] = useState(false)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -456,7 +469,7 @@ function UsageBlock({ isAdmin, provider }: { isAdmin: boolean; provider: string 
       .then(d => { if (!cancelled) { setData(d); setFailed(false) } })
       .catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
-  }, [isAdmin, allUsers])
+  }, [isAdmin, allUsers, rev, reload])
 
   const money = (n: number) => new Intl.NumberFormat(i18n.locale, {
     style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 1 ? 3 : 2,
@@ -468,6 +481,39 @@ function UsageBlock({ isAdmin, provider }: { isAdmin: boolean; provider: string 
   })() : null
 
   const empty = !!data && data.total.calls === 0
+  const limits = data?.limits
+
+  async function saveOwn(v: number | null) {
+    try {
+      const r = await setOwnLimit(v)
+      setData(d => (d ? { ...d, limits: r.limits } : d))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`Could not save the limit`)
+      throw err
+    }
+  }
+
+  async function saveInstanceLimit(v: number | null) {
+    try {
+      await updateInstance({ budget_instance_monthly_usd: v })
+      setReload(r => r + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`Could not save the limit`)
+      throw err
+    }
+  }
+
+  async function saveMember(userId: number, v: number | null) {
+    try {
+      await setUserLimit(userId, v)
+      setReload(r => r + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`Could not save the limit`)
+      throw err
+    }
+  }
+
+  const spentByUser = new Map((data?.by_user ?? []).map(r => [r.user_id, r.cost_usd]))
 
   return (
     <div className="p-5 space-y-3">
@@ -504,43 +550,210 @@ function UsageBlock({ isAdmin, provider }: { isAdmin: boolean; provider: string 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> <Trans>Loading…</Trans>
         </div>
-      ) : empty ? (
-        <p className="text-xs text-muted-foreground"><Trans>No usage this month</Trans></p>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-baseline gap-3">
-            <span className="text-2xl font-display text-foreground tabular-nums">{money(data.total.cost_usd)}</span>
-            <span className="text-xs text-muted-foreground">
-              <Plural value={data.total.calls} one="# call" other="# calls" />
-              {' · '}
-              {(() => { const tokens = num(data.total.input_tokens + data.total.output_tokens); return <Trans>{tokens} tokens</Trans> })()}
-            </span>
-          </div>
-          <p className="text-[11px] text-muted-foreground/70">
-            <Trans>Estimated from list prices. Your {provider} invoice is the source of truth.</Trans>
-          </p>
+          {empty ? (
+            <p className="text-xs text-muted-foreground"><Trans>No usage this month</Trans></p>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-3">
+                <span className="text-2xl font-display text-foreground tabular-nums">{money(data.total.cost_usd)}</span>
+                <span className="text-xs text-muted-foreground">
+                  <Plural value={data.total.calls} one="# call" other="# calls" />
+                  {' · '}
+                  {(() => { const tokens = num(data.total.input_tokens + data.total.output_tokens); return <Trans>{tokens} tokens</Trans> })()}
+                </span>
+              </div>
+            </>
+          )}
 
-          <UsageTable
-            heading={t`Feature`}
-            rows={data.by_feature.map(r => ({ id: r.feature, name: aiFeatureLabel(r.feature, r.label), ...r }))}
-            money={money}
-            num={num}
-          />
-
-          {data.scope === 'all' && data.by_user && data.by_user.length > 0 && (
-            <UsageTable
-              heading={t`User`}
-              rows={data.by_user.map(r => ({
-                id: String(r.user_id ?? 'deleted'),
-                name: r.username ?? t`Deleted user`,
-                ...r,
-              }))}
+          {limits && (limits.effective_monthly_usd ?? limits.user_monthly_usd) != null && (
+            <SpendBar
+              label={t`Your monthly limit`}
+              spent={limits.user_spent_usd}
+              limit={(limits.effective_monthly_usd ?? limits.user_monthly_usd) as number}
               money={money}
-              num={num}
             />
           )}
+          {limits && limits.instance_monthly_usd != null && limits.instance_spent_usd != null && (
+            <SpendBar
+              label={t`Instance key, all users`}
+              spent={limits.instance_spent_usd}
+              limit={limits.instance_monthly_usd}
+              money={money}
+            />
+          )}
+
+          {!empty && (
+            <>
+              <p className="text-[11px] text-muted-foreground/70">
+                <Trans>Estimated from list prices. Your {provider} invoice is the source of truth.</Trans>
+              </p>
+
+              <UsageTable
+                heading={t`Feature`}
+                rows={data.by_feature.map(r => ({ id: r.feature, name: aiFeatureLabel(r.feature, r.label), ...r }))}
+                money={money}
+                num={num}
+              />
+
+              {data.scope === 'all' && data.by_user && data.by_user.length > 0 && (
+                <UsageTable
+                  heading={t`User`}
+                  rows={data.by_user.map(r => ({
+                    id: String(r.user_id ?? 'deleted'),
+                    name: r.username ?? t`Deleted user`,
+                    ...r,
+                  }))}
+                  money={money}
+                  num={num}
+                />
+              )}
+            </>
+          )}
+
+          {/* Limits */}
+          <div className="space-y-3 pt-1">
+            <SettingRow
+              title={t`Your monthly limit`}
+              description={t`AI calls stop for you once this month's spend reaches it, background reading included. Empty means no limit.`}
+            >
+              <div className="flex flex-col items-end gap-1">
+                <LimitInput
+                  value={limits?.user_monthly_usd ?? null}
+                  label={t`Your monthly limit`}
+                  onSave={saveOwn}
+                />
+                {limits?.admin_monthly_usd != null
+                  && (limits.user_monthly_usd == null || limits.admin_monthly_usd < limits.user_monthly_usd) && (
+                  (() => { const cap = money(limits.admin_monthly_usd); return (
+                    <span className="text-[11px] text-muted-foreground"><Trans>Capped at {cap} by an admin</Trans></span>
+                  ) })()
+                )}
+              </div>
+            </SettingRow>
+            {isAdmin && (
+              <SettingRow
+                title={t`Instance key monthly limit`}
+                description={t`Caps everything charged to the instance key this month, for all users. Empty means no limit.`}
+              >
+                <LimitInput
+                  value={status.budget_instance_monthly_usd ?? null}
+                  label={t`Instance key monthly limit`}
+                  onSave={saveInstanceLimit}
+                />
+              </SettingRow>
+            )}
+            {isAdmin && allUsers && data.members && data.members.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground"><Trans>Limits per user</Trans></p>
+                <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  {data.members.map(m => { const name = m.username; return (
+                    <div key={m.user_id} className="flex items-center gap-3 px-3 py-2">
+                      <span className="text-foreground truncate flex-1 min-w-0">{m.username}</span>
+                      <span className="text-muted-foreground tabular-nums shrink-0">{money(spentByUser.get(m.user_id) ?? 0)}</span>
+                      <LimitInput
+                        value={m.admin_limit_usd ?? null}
+                        label={t`Monthly limit for ${name}`}
+                        onSave={v => saveMember(m.user_id, v)}
+                      />
+                    </div>
+                  ) })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** "12.40 of 30.00" with a thin bar; amber from 80 %, red at the limit. */
+function SpendBar({ label, spent, limit, money }: {
+  label: string
+  spent: number
+  limit: number
+  money: (n: number) => string
+}) {
+  const ratio = limit > 0 ? spent / limit : 1
+  const pct = Math.min(100, Math.max(0, Math.round(ratio * 100)))
+  const s = money(spent)
+  const l = money(limit)
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="tabular-nums text-foreground"><Trans>{s} of {l}</Trans></span>
+      </div>
+      <div
+        className="h-1.5 rounded-full bg-muted overflow-hidden"
+        role="meter"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-valuenow={Math.min(spent, limit)}
+      >
+        <div
+          className={cn('h-full rounded-full', ratio >= 1 ? 'bg-destructive' : ratio >= 0.8 ? 'bg-warning' : 'bg-primary')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** A USD amount saved on blur or Enter; empty removes the limit. */
+function LimitInput({ value, label, onSave }: {
+  value: number | null
+  label: string
+  onSave: (v: number | null) => Promise<void>
+}) {
+  const { t } = useLingui()
+  const shown = value == null ? '' : String(value)
+  const [text, setText] = useState(shown)
+  const [synced, setSynced] = useState(shown)
+  const [busy, setBusy] = useState(false)
+  // Follow the saved value when it changes underneath us (render-time sync).
+  if (synced !== shown) {
+    setSynced(shown)
+    setText(shown)
+  }
+
+  async function commit() {
+    const raw = text.trim().replace(',', '.')
+    const next = raw === '' ? null : Number(raw)
+    if (next != null && (!Number.isFinite(next) || next < 0)) { setText(shown); return }
+    const rounded = next == null ? null : Math.round(next * 100) / 100
+    if (rounded === value) { setText(shown); return }
+    setBusy(true)
+    try {
+      await onSave(rounded)
+    } catch {
+      setText(shown)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={e => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          if (e.key === 'Escape') { setText(shown); (e.target as HTMLInputElement).blur() }
+        }}
+        disabled={busy}
+        placeholder={t`No limit`}
+        aria-label={label}
+        className="w-20 h-8 rounded-md border border-border bg-background px-2 text-sm text-right tabular-nums placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+      />
+      <span className="text-xs text-muted-foreground w-7">USD</span>
     </div>
   )
 }

@@ -8,6 +8,9 @@ Instance settings live in the generic ``instance_settings`` key/value table:
     ai.confidence_threshold     float 0..1         default 0.85
     ai.feature.<key>.enabled    "1" | "0"          default on
     ai.feature.<key>.model      model id           default unset (registry default)
+    ai.budget.instance_monthly_usd  float USD      default unset (no limit)
+
+Per-user spend limit: ``User.ai_monthly_limit_usd`` (None = no limit).
 
 Env: TOME_AI_ENABLED=false hides everything regardless of the above;
 TOME_ANTHROPIC_API_KEY acts as the instance key when no DB key is stored.
@@ -37,6 +40,7 @@ KEY_ENABLED = "ai.enabled"
 KEY_INSTANCE_KEY = "ai.instance_key"
 KEY_SHARE = "ai.share_instance_key"
 KEY_THRESHOLD = "ai.confidence_threshold"
+KEY_BUDGET_INSTANCE = "ai.budget.instance_monthly_usd"
 
 DEFAULT_THRESHOLD = 0.85
 
@@ -121,6 +125,34 @@ def confidence_threshold(db: Session) -> float:
 
 def set_confidence_threshold(db: Session, value: float) -> None:
     _set(db, KEY_THRESHOLD, repr(float(value)))
+
+
+def instance_monthly_budget(db: Session) -> float | None:
+    """Cap on everything charged to the instance key in the current UTC
+    month, in USD. None = no limit."""
+    raw = _get(db, KEY_BUDGET_INSTANCE)
+    if raw is None:
+        return None
+    try:
+        val = float(raw)
+    except ValueError:
+        return None
+    return max(0.0, val)
+
+
+def set_instance_monthly_budget(db: Session, value: float | None) -> None:
+    if value is None:
+        _delete(db, KEY_BUDGET_INSTANCE)
+    else:
+        _set(db, KEY_BUDGET_INSTANCE, repr(max(0.0, float(value))))
+
+
+def user_monthly_limit(user: User) -> float | None:
+    return user.ai_monthly_limit_usd
+
+
+def set_user_monthly_limit(user: User, value: float | None) -> None:
+    user.ai_monthly_limit_usd = None if value is None else max(0.0, float(value))
 
 
 def feature_enabled(db: Session, feature: str) -> bool:
@@ -254,5 +286,6 @@ def status_payload(db: Session, user: User) -> dict[str, Any]:
             "instance_key_source": inst_src,
             "instance_key_suffix": mask(inst_key),
             "share_instance_key": share_instance_key(db),
+            "budget_instance_monthly_usd": instance_monthly_budget(db),
         })
     return payload

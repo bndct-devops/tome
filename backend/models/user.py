@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import List, TYPE_CHECKING
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -60,6 +60,12 @@ class User(Base):
     # responses carry has_key and a masked suffix only.
     ai_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_key_set_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Monthly AI spend limit in USD (all key sources, calendar month UTC).
+    # None = no limit. Set by the user in Settings > AI, or by an admin.
+    ai_monthly_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # A cap an admin sets on this user, kept apart from the user's own limit so
+    # the user cannot clear it. The effective limit is the lower of the two.
+    ai_admin_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

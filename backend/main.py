@@ -62,6 +62,7 @@ from backend.models.book import BookChapter  # noqa: F401
 from backend.models.ai_usage import AIUsage  # noqa: F401
 from backend.models.ai_chapter_digest import AIChapterDigest  # noqa: F401
 from backend.models.ai_recap import AIRecap  # noqa: F401
+from backend.models.ai_job import AIJob  # noqa: F401
 
 
 @asynccontextmanager
@@ -318,6 +319,40 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE users ADD COLUMN ai_api_key TEXT"))
             conn.execute(text("ALTER TABLE users ADD COLUMN ai_key_set_at DATETIME"))
             conn.commit()
+        # AI spend limit per user (run 2c). Nullable: no limit.
+        if "ai_monthly_limit_usd" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN ai_monthly_limit_usd FLOAT"))
+            conn.commit()
+        # An admin's cap on a user, apart from the user's own limit.
+        if "ai_admin_limit_usd" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN ai_admin_limit_usd FLOAT"))
+            conn.commit()
+        # AI usage rows name their job and book, and how long the call took
+        # (run 2c: jobs view, per-book spend, the digest time estimate).
+        au_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(ai_usage)")).fetchall()}
+        if au_cols and "job_id" not in au_cols:
+            conn.execute(text("ALTER TABLE ai_usage ADD COLUMN job_id VARCHAR(12)"))
+            conn.commit()
+        if au_cols and "book_id" not in au_cols:
+            conn.execute(text(
+                "ALTER TABLE ai_usage ADD COLUMN book_id INTEGER REFERENCES books(id) ON DELETE SET NULL"))
+            conn.commit()
+        if au_cols and "duration_ms" not in au_cols:
+            conn.execute(text("ALTER TABLE ai_usage ADD COLUMN duration_ms INTEGER"))
+            conn.commit()
+        if au_cols and "words_sent" not in au_cols:
+            conn.execute(text("ALTER TABLE ai_usage ADD COLUMN words_sent INTEGER"))
+            conn.execute(text("ALTER TABLE ai_usage ADD COLUMN chapters INTEGER"))
+            conn.commit()
+        if au_cols:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_usage_job_id ON ai_usage (job_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_usage_book_id ON ai_usage (book_id)"))
+            conn.commit()
+        # A multi-chapter digest records the last chapter its call saw.
+        acd_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(ai_chapter_digests)")).fetchall()}
+        if acd_cols and "context_end_idx" not in acd_cols:
+            conn.execute(text("ALTER TABLE ai_chapter_digests ADD COLUMN context_end_idx INTEGER"))
+            conn.commit()
         if "hardcover_book_id" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_book_id INTEGER"))
             conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_edition_id INTEGER"))
@@ -364,6 +399,18 @@ async def lifespan(app: FastAPI):
     from backend.services.book_types import seed_book_types
     with SessionLocal() as db:
         seed_book_types(db)
+
+    # AI digest jobs live in memory: any left queued/running/stopping by the
+    # last process are over. Mark them interrupted (the UI offers Continue;
+    # nothing resumes on its own).
+    from backend.services.ai import digest_job as _digest_job
+    try:
+        with SessionLocal() as db:
+            _n = _digest_job.mark_interrupted(db)
+        if _n:
+            logger.info("Marked %d AI job(s) interrupted by the restart", _n)
+    except Exception:
+        logger.exception("Marking interrupted AI jobs failed (continuing startup)")
 
     # Repair collateral from the first 2.2.0 build's Hardcover shelf mirror
     # (wrongly-dismissed follows/wishes; see repair_shelf_sync_collateral).

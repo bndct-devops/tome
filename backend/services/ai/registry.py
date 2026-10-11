@@ -67,7 +67,10 @@ FEATURES: dict[str, Feature] = {
             description="Reads each finished chapter once and keeps a short summary and the "
                         "names, places and terms it introduces, for the recap and the glossary.",
             default_model=SONNET,
-            effort="medium",
+            # Low: a chapter digest is extraction, not reasoning, and runs
+            # hundreds of times per series (medium thinking cost ~5k output
+            # tokens a chapter on the first real run).
+            effort="low",
             kind="reading",
         ),
         Feature(

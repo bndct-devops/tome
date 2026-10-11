@@ -47,6 +47,8 @@ class AIError(Exception):
     """
 
     status_code = 500
+    # Machine-readable reason added to the error body when set ("budget").
+    reason: str | None = None
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -63,6 +65,22 @@ class AINotConfigured(AIError):
     """No key resolves for this user."""
 
     status_code = 409
+
+
+class AIBudgetExceeded(AIError):
+    """A monthly spend limit (the user's own, or the instance key's) would be
+    passed by this call or job. Nothing is sent. ``which`` is "user" or
+    "instance"; ``spent`` and ``limit`` are USD for the current UTC month."""
+
+    status_code = 409
+    reason = "budget"
+
+    def __init__(self, message: str, *, which: str = "user", spent: float = 0.0,
+                 limit: float = 0.0) -> None:
+        super().__init__(message)
+        self.which = which
+        self.spent = spent
+        self.limit = limit
 
 
 class AIKeyInvalid(AIError):

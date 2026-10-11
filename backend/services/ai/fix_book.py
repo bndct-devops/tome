@@ -326,6 +326,7 @@ def fix_book(db: Session, user: User, book: Book, *, query: str | None = None) -
         system=SYSTEM_PROMPT,
         user_content=build_user_content(book, candidates, _text_sample(book), siblings),
         schema=build_schema(),
+        book_id=book.id,
     )
     raw = result.parsed if isinstance(result.parsed, dict) else {}
 

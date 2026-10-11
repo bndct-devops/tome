@@ -14,8 +14,8 @@ All notable changes to Tome are documented here. Format loosely follows
   `TOME_ANTHROPIC_API_KEY`), let members use it, set the confidence threshold
   that "Accept the obvious" uses, and switch each AI feature on or off or pick
   its model. The metadata features send nothing to Anthropic until someone
-  clicks their button; the reading companion (below) builds its chapter
-  digests as your reading position advances, while that feature is on. Every
+  clicks their button; the reading companion (below) can also read finished
+  chapters after a reading position sync, while that feature is on. Every
   AI button carries an "AI" label, and every AI surface stays hidden while no
   key is available or when `TOME_AI_ENABLED=false`. Each call is
   recorded with its tokens and its cost at list price, and a "This month"
@@ -53,27 +53,56 @@ All notable changes to Tome are documented here. Format loosely follows
   web reader or in KOReader, now has a Reading companion on its book page once
   the book has a chapter map. "Recap to here" writes the story so far and ends
   where you stopped. "Glossary so far" lists the people, places and terms met
-  up to your position, each with a one-line description, a fuller note and
-  where it first appeared, with a search box. Recall looks up a name the
+  up to your position, people first with the most-mentioned at the top, then
+  places, then terms, each with a one-line description, a fuller note and
+  where it first appeared, with a search box. Names with brackets, such as
+  "Vane Estate (Hedge Maze)", are kept whole. Recall looks up a name the
   glossary does not have, and answers "Nothing about that before this page."
   rather than guess. Only the chapters before your position and the current
   chapter up to your position are ever sent to Anthropic, and every glossary
-  line must quote the chapter it came from or it is dropped. For a series,
+  line must quote the chapter it came from or it is dropped (a short quote
+  such as "Enter ROMEO" counts when it holds the whole name). For a series,
   earlier volumes count once you have marked them read, and the companion
   says which ones it left out. When you mark a volume of a series read, Tome
   writes a recap of the whole book, and the next volume shows it as
   "Previously on" until you are past its first chapter; marking many volumes
   read at once starts at most five of these a day. Recaps are cached, so
   reopening one is free, and "Ask again" writes a new one. The companion is
-  built from a short digest of each chapter you have finished, made as you
-  read: when your position moves past a chapter, Tome sends that book's
-  finished chapters to Anthropic in the background, once per chapter, and the
-  digests are shared by everyone reading the same book. So some calls happen
-  on a position sync, not on a click. Settings lists the three new features
-  ("Build the glossary as you read", "Recap to here" and "Recall"), each with
-  its own switch and model, and the spend meter shows their calls. Switching
-  off "Build the glossary as you read" stops the background calls and hides
-  the companion.
+  built from a short digest of each finished chapter, made once and shared by
+  everyone reading the same book. Chapters are read in groups of up to 12 per
+  call, several volumes at once, and the glossary so far goes along as names
+  only, which keeps the cost per chapter low. Nothing reads chapters on its
+  own when you look: opening the glossary only shows what is there, and
+  Recap, "Read the missing chapters" and Continue start the reading. The one
+  background start is a position sync, and only when between three and
+  twenty finished chapters of that book are missing and the feature is on;
+  a larger backlog waits for you to start it. When more than 20 chapters
+  need reading, a dialog asks first, with "This book only" or "Whole
+  series", the chapters, the time and the cost of each, and what is left of
+  your monthly AI budget. Marking a volume read digests that volume only.
+  The book page shows one progress line ("Reading chapters: 3 of 12"). Stop
+  answers at once and keeps the chapters already
+  read, and after a Stop nothing restarts until you start it again; Continue
+  picks up a stopped run, or one a server restart interrupted. A recap you
+  asked for keeps waiting through a page reload. Settings lists the three new
+  features ("Build the glossary as you read", "Recap to here" and "Recall"),
+  each with its own switch and model, and the spend meter shows their calls.
+  Switching off "Build the glossary as you read" stops the background calls
+  and hides the companion.
+- **Monthly AI spend limits.** Settings > AI has a monthly limit in USD, with
+  a bar showing what is spent of it. Everyone can set their own; admins can
+  also cap everything charged to the instance key and set a limit for each
+  member. Every call is checked against the limits before it is sent. When a
+  limit is reached, background chapter reading stops with a message saying
+  which limit and how to raise it, and position syncs stop queueing new
+  work. Every change to a limit is written to the audit log
+  (`ai.budget_changed`, with the old and new value).
+- **AI Activity.** Under the spend meter in Settings > AI, a new Activity view
+  lists the reading jobs that are running, each with Stop, then the last 30
+  days grouped by book with the spend per book. Each job shows its estimate
+  next to its actual cost and time, and expands to every model call it made,
+  with its tokens and price. Admins see everyone's jobs and can filter by
+  user.
 
 ### Changed
 - **Settings has a jump list.** A sticky list of the page's sections sits on

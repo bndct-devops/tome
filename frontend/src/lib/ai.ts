@@ -49,6 +49,8 @@ export interface AiStatus {
   instance_key_source?: 'db' | 'env' | null
   instance_key_suffix?: string | null
   share_instance_key?: boolean
+  /** USD per calendar month (UTC) charged to the instance key; null = no limit. */
+  budget_instance_monthly_usd?: number | null
 }
 
 export interface AiInstanceUpdate {
@@ -59,6 +61,8 @@ export interface AiInstanceUpdate {
   confidence_threshold?: number
   /** model: an id from AiStatus.models, or "default" to clear the override. */
   features?: Partial<Record<AiFeatureKey, { enabled?: boolean; model?: string }>>
+  /** null removes the instance limit; leave the field out to keep it. */
+  budget_instance_monthly_usd?: number | null
 }
 
 export interface AiUsageTotals {
@@ -68,13 +72,33 @@ export interface AiUsageTotals {
   cost_usd: number
 }
 
+/** This month's spend against the limits (current UTC month). */
+export interface AiLimits {
+  /** The caller's own monthly limit in USD, null = none. */
+  user_monthly_usd: number | null
+  /** A cap an admin set on the caller (the caller cannot change it), null = none. */
+  admin_monthly_usd?: number | null
+  /** The lower of the two: the limit that applies. */
+  effective_monthly_usd?: number | null
+  user_spent_usd: number
+  /** Only for admins and members who can use the instance key. */
+  instance_monthly_usd: number | null
+  instance_spent_usd: number | null
+  /** What is left before a limit stops calls, null when no limit applies. */
+  remaining_usd: number | null
+}
+
 export interface AiUsageSummary {
   month: string
   scope: 'self' | 'all'
   total: AiUsageTotals
   by_feature: (AiUsageTotals & { feature: string; label: string })[]
   /** Only with all=true (admins). user_id/username are null for deleted users. */
-  by_user?: (AiUsageTotals & { user_id: number | null; username: string | null })[]
+  by_user?: (AiUsageTotals & { user_id: number | null; username: string | null; monthly_limit_usd?: number | null; admin_limit_usd?: number | null; effective_limit_usd?: number | null })[]
+  /** Only with all=true (admins): every member and admin, to set limits for.
+   *  monthly_limit_usd is the user's own; admin_limit_usd the cap an admin set. */
+  members?: { user_id: number; username: string; monthly_limit_usd: number | null; admin_limit_usd?: number | null; effective_limit_usd?: number | null }[]
+  limits: AiLimits
 }
 
 // ── feature copy ─────────────────────────────────────────────────────────────
@@ -152,6 +176,88 @@ export function getUsage(month?: string, all = false): Promise<AiUsageSummary> {
   if (all) q.set('all', 'true')
   const qs = q.toString()
   return api.get<AiUsageSummary>(`/ai/usage${qs ? `?${qs}` : ''}`)
+}
+
+/** Set (or with null, remove) your own monthly spend limit in USD. */
+export function setOwnLimit(usd: number | null): Promise<{ limits: AiLimits }> {
+  return api.put<{ limits: AiLimits }>('/ai/limits', { user_monthly_usd: usd })
+}
+
+/** Admins: set (or with null, remove) the cap kept on a member's monthly
+ *  spend in USD (separate from the member's own limit; the lower applies). */
+export function setUserLimit(
+  userId: number, usd: number | null,
+): Promise<{ user_id: number; username: string; monthly_limit_usd: number | null; admin_limit_usd?: number | null; effective_limit_usd?: number | null }> {
+  return api.put(`/ai/users/${userId}/limit`, { user_monthly_usd: usd })
+}
+
+// ── activity: digest jobs and their calls ────────────────────────────────────
+
+/** A job in the history (from its ai_jobs row, live values while it runs). */
+export interface AiJobSummary {
+  id: string
+  user_id: number
+  /** Admin view only. */
+  username?: string | null
+  scope: DigestScope
+  status: DigestJobStatus
+  total: number
+  done: number
+  failed: number
+  calls: number
+  cost_usd: number
+  est_cost_usd: number | null
+  est_seconds: number | null
+  actual_seconds: number | null
+  created_at: string | null
+  finished_at: string | null
+  stop_reason: string | null
+}
+
+export interface AiJobBook {
+  book_id: number
+  title: string | null
+  series: string | null
+  series_index: number | null
+  /** Its jobs plus the direct calls (recap, Recall, fixes) on the book. */
+  cost_usd: number
+  calls: number
+  chapters_digested: number
+  last_activity: string | null
+  jobs: AiJobSummary[]
+}
+
+export interface AiJobsList {
+  days: number
+  running: (DigestJob & { book_title: string | null; username?: string | null })[]
+  books: AiJobBook[]
+}
+
+export interface AiJobCall {
+  id: number
+  created_at: string | null
+  model: string
+  feature: string
+  /** The volume the call read (a series job reads several). */
+  book_id: number | null
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  cache_write_tokens: number
+  duration_ms: number | null
+  cost_usd: number
+}
+
+/** Running jobs, then the last `days` days grouped by book. Admins see
+ *  everyone, or one user with userId; members see their own. */
+export function getAiJobs(days = 30, userId?: number | null): Promise<AiJobsList> {
+  const q = new URLSearchParams({ days: String(days) })
+  if (userId != null) q.set('user_id', String(userId))
+  return api.get<AiJobsList>(`/ai/jobs?${q.toString()}`)
+}
+
+export function getAiJobCalls(jobId: string): Promise<{ job_id: string; calls: AiJobCall[] }> {
+  return api.get<{ job_id: string; calls: AiJobCall[] }>(`/ai/jobs/${jobId}/calls`)
 }
 
 // ── Bindery identify ─────────────────────────────────────────────────────────
@@ -351,12 +457,19 @@ export interface CompanionScope {
   scope_hash: string
 }
 
-export type DigestJobStatus = 'queued' | 'running' | 'done' | 'cancelled' | 'stopped' | 'error'
+export type DigestJobStatus =
+  | 'queued' | 'running' | 'stopping'
+  | 'done' | 'cancelled' | 'stopped' | 'error' | 'interrupted'
+
+/** "book": this book's chapters before the position; "series": the read
+ *  earlier volumes too. */
+export type DigestScope = 'book' | 'series'
 
 export interface DigestJob {
   id: string
   kind: 'digest'
   status: DigestJobStatus
+  scope: DigestScope
   user_id: number
   book_id: number
   upto_chapter: number
@@ -364,7 +477,17 @@ export interface DigestJob {
   done: number
   total: number
   failed: number
-  current: { book_id: number; title: string; chapter_idx: number; chapter_title: string | null } | null
+  /** Model calls made (one per unit of chapters). */
+  calls: number
+  cost_usd: number
+  est_seconds: number | null
+  est_cost_usd: number | null
+  est_chapters: number | null
+  /** The first unit in flight; `chapters` is how many chapters it holds. */
+  current: {
+    book_id: number; title: string; chapter_idx: number; chapter_title: string | null; chapters?: number
+  } | null
+  in_flight?: number
   errors: { book_id: number; chapter_idx: number; message: string }[]
   stop_reason: string | null
   followups: { name: string; status: 'pending' | 'done' | 'skipped' | 'failed'; message?: string }[]
@@ -373,7 +496,46 @@ export interface DigestJob {
   finished_at: string | null
 }
 
-export const DIGEST_JOB_ACTIVE: DigestJobStatus[] = ['queued', 'running']
+/** Still working: polls continue, and the page shows the progress line. */
+export const DIGEST_JOB_ACTIVE: DigestJobStatus[] = ['queued', 'running', 'stopping']
+/** Ended before every chapter was read: the page offers "Continue". */
+export const DIGEST_JOB_RESUMABLE: DigestJobStatus[] = ['cancelled', 'stopped', 'interrupted']
+
+/** Up to this many chapters start without the confirmation dialog. */
+export const CONFIRM_THRESHOLD = 20
+
+/** What reading the missing chapters before the position costs and takes. */
+export interface DigestEstimate {
+  scope: DigestScope
+  chapters: number
+  calls: number
+  words: number
+  est_seconds: number
+  est_cost_usd: number
+  model: string
+  /** null when no monthly limit applies. */
+  remaining_budget_usd: number | null
+  over_budget: boolean
+  volumes: { book_id: number; title: string; chapters: number }[]
+}
+
+export interface DigestEstimates {
+  book: DigestEstimate
+  /** null when no earlier volume is marked read. */
+  series: DigestEstimate | null
+  chapter_idx: number
+  chapter_title: string | null
+}
+
+export interface DigestStart {
+  /** null (200) when nothing before the position is missing. */
+  job: DigestJob | null
+  estimate: DigestEstimate | null
+  coverage: CompanionCoverage
+  scope: DigestScope
+  chapter_idx: number
+  chapter_title: string | null
+}
 
 export interface Companion {
   available: boolean
@@ -383,6 +545,8 @@ export interface Companion {
   chapters: number
   coverage: CompanionCoverage | null
   job: DigestJob | null
+  /** The latest job for this book when none is active (for "Continue"). */
+  last_job: DigestJob | null
   recap_cached: boolean
   glossary_count: number
   previously: { book_id: number; title: string } | null
@@ -403,10 +567,14 @@ export interface Recap {
   scope: CompanionScope
 }
 
-/** 202: the chapters before the position are being read first. */
+/** 202: chapters before the position are not read yet. Nothing is queued:
+ *  start them with startDigest (asking first over CONFIRM_THRESHOLD). */
 export interface RecapPending {
-  job: DigestJob
+  needs_digest: true
+  estimate: { book: DigestEstimate; series: DigestEstimate | null }
   coverage: CompanionCoverage
+  /** The active job for this book, if one is already running. */
+  job: DigestJob | null
   chapter_idx: number
   chapter_title: string | null
 }
@@ -427,6 +595,8 @@ export interface GlossaryEntry {
   evidence: string
   first_seen: GlossaryPlace
   last_seen: GlossaryPlace
+  /** Distinct chapters that listed the name (first sight plus updates). */
+  chapters?: number
 }
 
 export interface Glossary {
@@ -487,14 +657,21 @@ export function clearRecap(bookId: number, chapter?: number): Promise<{ deleted:
   return api.delete<{ deleted: boolean; chapter_idx: number }>(`/ai/books/${bookId}/recap${qs}`)
 }
 
-/** The glossary up to the position, from storage. Queues the missing digests
- *  unless queue is false (a refresh after a job, so failures are not retried). */
-export function getGlossary(bookId: number, opts: { chapter?: number; queue?: boolean } = {}): Promise<Glossary> {
-  const q = new URLSearchParams()
-  if (opts.chapter != null) q.set('chapter', String(opts.chapter))
-  if (opts.queue === false) q.set('queue', 'false')
-  const qs = q.toString()
-  return api.get<Glossary>(`/ai/books/${bookId}/glossary${qs ? `?${qs}` : ''}`)
+/** The glossary up to the position, from storage. Read-only: never queues. */
+export function getGlossary(bookId: number, opts: { chapter?: number } = {}): Promise<Glossary> {
+  const qs = opts.chapter != null ? `?chapter=${opts.chapter}` : ''
+  return api.get<Glossary>(`/ai/books/${bookId}/glossary${qs}`)
+}
+
+/** Both scopes' estimate for the missing chapters. Never calls a model. */
+export function getDigestEstimate(bookId: number): Promise<DigestEstimates> {
+  return api.get<DigestEstimates>(`/ai/books/${bookId}/digest/estimate`)
+}
+
+/** Start reading the missing chapters before the position. Rejects with the
+ *  server's message when over a monthly limit (409) or without a key. */
+export function startDigest(bookId: number, scope: DigestScope): Promise<DigestStart> {
+  return api.post<DigestStart>(`/ai/books/${bookId}/digest`, { scope })
 }
 
 /** One term: from the glossary when it is there, else one live call. */

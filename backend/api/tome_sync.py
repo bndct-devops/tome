@@ -9,13 +9,13 @@ import json
 import logging
 import zipfile
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel as PydanticBaseModel, field_validator
+from pydantic import BaseModel as PydanticBaseModel, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -1521,7 +1521,7 @@ def ai_plugin_glossary(
     """The glossary snapshot at ``pct`` + ``progress`` (the xpointer), or at
     ``chapter``, or at the stored position, with ``rev`` (changes when a
     digest is added) so the plugin can skip an unchanged snapshot. Same shape
-    as GET /api/ai/books/{id}/glossary."""
+    as GET /api/ai/books/{id}/glossary; read-only, never queues work."""
     book = _ai_book(db, user, book_id)
     ai_service.check_feature_available(db, ai_digest.FEATURE)
     window = _ai_window(db, user, book, pct=pct, progress=progress, chapter=chapter)
@@ -1541,12 +1541,54 @@ def ai_plugin_recap(
     db: Session = Depends(get_db),
     user: User = Depends(_ai_plugin_user),
 ):
-    """200 with the recap up to ``pct``, or 202 ``{job, ...}`` while the
-    chapters before it are digested (poll GET /tome-sync/ai/jobs/{id})."""
+    """200 with the recap up to ``pct``, or 202 ``{needs_digest: true,
+    estimate, coverage, job, ...}`` when chapters before it are not digested
+    yet. Nothing is queued: start them with POST .../digest, poll GET
+    /tome-sync/ai/jobs/{id}, then ask again."""
     book = _ai_book(db, user, book_id)
     ai_service.check_feature_available(db, ai_recap.FEATURE)
     window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
     status, payload = ai_recap.request_recap(db, user, book, window, partial=body.partial)
+    return JSONResponse(status_code=status, content=payload)
+
+
+@router.get("/tome-sync/ai/books/{book_id}/digest/estimate")
+def ai_plugin_digest_estimate(
+    book_id: int,
+    pct: Optional[float] = Query(default=None, ge=0.0, le=1.0),
+    progress: Optional[str] = Query(default=None, max_length=2048),
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """What reading the missing chapters before ``pct`` (+ ``progress``, the
+    xpointer; the stored position without ``pct``) would cost and take:
+    same shape as GET /api/ai/books/{id}/digest/estimate."""
+    book = _ai_book(db, user, book_id)
+    window = _ai_window(db, user, book, pct=pct, progress=progress)
+    return ai_companion.digest_estimates(db, user, book, window)
+
+
+class AiDigestRequest(PydanticBaseModel):
+    pct: Optional[float] = Field(default=None, ge=0.0, le=1.0)   # None: the stored position
+    progress: Optional[str] = Field(default=None, max_length=2048)  # the xpointer at pct
+    scope: Literal["book", "series"] = "book"
+
+
+@router.post("/tome-sync/ai/books/{book_id}/digest")
+def ai_plugin_digest(
+    book_id: int,
+    body: AiDigestRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Start digesting the chapters before ``pct``: same as POST
+    /api/ai/books/{id}/digest (202 ``{job, estimate, ...}``, 200 when
+    nothing is missing, 409 without a key or, with ``reason: "budget"``,
+    over a monthly spend limit)."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
+    status, payload = ai_companion.start_digest(db, user, book, window, body.scope)
     return JSONResponse(status_code=status, content=payload)
 
 
@@ -1578,11 +1620,30 @@ def ai_plugin_recall(
 @router.get("/tome-sync/ai/jobs/{job_id}")
 def ai_plugin_job(
     job_id: str,
+    db: Session = Depends(get_db),
     user: User = Depends(_ai_plugin_user),
 ):
     """Progress of this user's digest job (same snapshot as /api/ai/digest-jobs/{id})."""
-    job = ai_digest_job.get(job_id)
+    job = ai_digest_job.get(job_id, db)
     if job is None or job["user_id"] != user.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post("/tome-sync/ai/jobs/{job_id}/cancel")
+def ai_plugin_job_cancel(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Stop this user's digest job (same as POST /api/ai/digest-jobs/{id}/cancel).
+    Returns the snapshot: ``stopping`` while calls in flight finish, then
+    ``cancelled``."""
+    job = ai_digest_job.get(job_id, db)
+    if job is None or job["user_id"] != user.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job = ai_digest_job.cancel(job_id, db)
+    if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 

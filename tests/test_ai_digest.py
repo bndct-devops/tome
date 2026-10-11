@@ -4,6 +4,7 @@ triggers. FakeProvider only; books and names are made up."""
 from __future__ import annotations
 
 import json
+import re
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,6 +23,10 @@ from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.services import ai, book_text
 from backend.services.ai import companion, digest, digest_job, settings as ai_settings
+# Imported here so previously_recap is registered before the fixtures copy the
+# follow-up registry (imported first inside a test, it lands in that test's
+# copy and is gone for the rest of the file).
+from backend.services.ai import recap as _recap  # noqa: F401
 from backend.services.ai.provider import AIProviderError, AIRefused, AIResult
 from backend.services.chapters import replace_book_chapters
 from backend.services.metadata import _WORD_RE, _html_to_text, epub_chapter_documents, extract_chapters_epub
@@ -137,13 +142,44 @@ def _entry(name: str, line: str, kind: str = "person", evidence: str = "x") -> d
     return {"name": name, "kind": kind, "line": line, "more": f"More on {name}.", "evidence": evidence}
 
 
-def echo_digest(feature, user_content, schema):
-    """Answers with one entry per call, quoting the chapter's first six words."""
-    text = user_content[-1]["text"]
+_HEADING_RE = re.compile(r"^=== \[c(\d+)\](?: [^\n]*)? ===\n\n", re.S)
+
+
+def chapter_blocks(user_content) -> list[tuple[int, str]]:
+    """(chapter number, text) of each chapter block of a multi-chapter call."""
+    out = []
+    for b in user_content:
+        m = _HEADING_RE.match(b["text"])
+        if m:
+            out.append((int(m.group(1)), b["text"][m.end():]))
+    return out
+
+
+def _echo_one(text: str) -> dict:
     words = text.split()
     return {"summary": "Something happened.",
             "entries": [{"name": words[0], "kind": "term", "line": "A word.", "more": "",
                          "evidence": " ".join(words[:6])}]}
+
+
+def echo_digest(feature, user_content, schema):
+    """Answers with one entry per chapter, quoting the chapter's first six
+    words: ``{summary, entries}`` for one chapter, ``{chapters: [...]}`` for
+    a multi-chapter call."""
+    if schema is not None and "chapters" in schema.get("properties", {}):
+        return {"chapters": [{"chapter": n, **_echo_one(text)} for n, text in chapter_blocks(user_content)]}
+    return _echo_one(user_content[-1]["text"])
+
+
+def sent_text(call: dict) -> str:
+    """Every text block of a call, joined."""
+    return "\n".join(b["text"] for b in call["user_content"])
+
+
+@pytest.fixture()
+def one_chapter_units(monkeypatch):
+    """Each unit is one chapter, for tests about per-chapter failure handling."""
+    monkeypatch.setattr(digest, "CHUNK_CHAPTERS", 1)
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +190,7 @@ def _jobs_inline(db: Session, monkeypatch):
     failed chapter does not discard the test's fixtures."""
     @contextmanager
     def same_session():
-        s = Session(bind=db.connection(), join_transaction_mode="create_savepoint", autoflush=False)
+        s = Session(bind=db.get_bind(), join_transaction_mode="create_savepoint", autoflush=False)
         try:
             yield s
         finally:
@@ -399,16 +435,18 @@ def test_locator_mid_chapter_cuts_at_the_paragraph(db, make_book, tmp_path):
 def test_device_position_digests_only_finished_chapters(db, make_book, tmp_path, plugin_client):
     c, user, h = plugin_client
     book = _illustrated_book(db, make_book, tmp_path, "Device Digest")
-    pct, xp, _ = device_position(book, 1, PARAS - 1)
+    # The top of the page is the last paragraph of chapter 3; the page
+    # fraction alone would put the reader at the end of the book.
+    pct, xp, _ = device_position(book, 3, PARAS - 1)
     r = c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": pct, "progress": xp}, headers=h)
     assert r.status_code == 200, r.text
     [job] = _queued()
-    assert job["upto_chapter"] == 1                 # chapter 0 only: the reader is still in 1
+    assert job["upto_chapter"] == 3                 # chapters 0-2: the reader is still in 3
     fake = FakeProvider(responses=echo_digest)
     ai.set_provider_override(fake)
     digest_job.run_pending()
     sent = json.dumps([call["user_content"] for call in fake.calls])
-    assert "S0_" in sent and "S1_" not in sent and "S2_" not in sent
+    assert "S0_" in sent and "S2_" in sent and "S3_" not in sent
 
 
 def test_plugin_recap_and_recall_use_the_xpointer(db, make_book, tmp_path, plugin_client):
@@ -463,8 +501,11 @@ def test_citation_check_needs_a_quote_that_names_the_entry():
                evidence="Two households, both alike in dignity"),
         # A mid-word fragment of the text is not a quote.
         _entry("Mab", "A fairy queen.", evidence="in d"),
-        # Too short to be a quote.
+        # Under three words, but it holds the whole name: kept (see
+        # test_a_short_quote_that_is_the_whole_name_keeps_a_main_character).
         _entry("Verona", "A city.", kind="place", evidence="fair Verona"),
+        # Under three words and only a part of the name: not a quote.
+        _entry("Queen Mab", "A fairy queen.", evidence="our scene"),
         # One part of the name is enough.
         _entry("Juliet Capulet", "A young woman.", evidence="Juliet, come hither"),
         # Case and whitespace differ, the name is there.
@@ -472,7 +513,7 @@ def test_citation_check_needs_a_quote_that_names_the_entry():
         # A title alone does not tie a quote to a name.
         _entry("Lord Capulet", "Juliet's father.", evidence="Juliet, come hither"),
     ], text)
-    assert [e["name"] for e in entries] == ["Juliet Capulet", "Romeo"]
+    assert [e["name"] for e in entries] == ["Verona", "Juliet Capulet", "Romeo"]
     assert digest.names_entry("Tybalt", "Tybalt's sword is out")
     assert not digest.names_entry("Mab", "Mabel came in")
 
@@ -495,6 +536,10 @@ def test_fold_later_line_wins_first_seen_kept_names_merge():
     assert mara.first_seen == (1, 0) and mara.last_seen == (2, 0)
     assert folded[1].kind == "place"
     assert mara.to_dict()["first_seen"] == {"book_id": 1, "chapter_idx": 0}
+    # chapters: distinct chapters that listed the name (the book page sorts
+    # people by it); Tobin and the Harbour were listed once.
+    assert [e.chapters for e in folded] == [3, 1, 1]
+    assert mara.to_dict()["chapters"] == 3
 
 
 def test_series_order_puts_volume_one_first(db, make_book, tmp_path):
@@ -566,6 +611,7 @@ def test_digest_chapter_sends_exactly_chapter_k(db, make_book, tmp_path):
     [call] = fake.calls
     assert call["feature"] == "reading_digest"
     assert call["model"] == "claude-sonnet-5-5"
+    assert call["effort"] == "low" and call["max_tokens"] == digest.MAX_TOKENS == 6000
     blocks = call["user_content"]
     assert blocks[-1]["text"] == book_text.chapter_text(book, 1, db)
     sent = json.dumps(blocks) + call["system"]
@@ -573,8 +619,12 @@ def test_digest_chapter_sends_exactly_chapter_k(db, make_book, tmp_path):
         assert f"Mark{later}end" not in sent
     assert "Oren Pike" not in sent            # first named in chapter 2
     assert "LATER-SPOILER" not in sent        # a later digest never feeds an earlier one
-    context = json.loads(blocks[0]["text"].split("\n\n", 1)[1].rsplit("\n\nThe chapter text", 1)[0])
-    assert [e["name"] for e in context["glossary_so_far"]] == ["Mara Vell"]
+    # The state block comes first: names and kinds only, no descriptions.
+    assert blocks[0]["text"].startswith(digest.STATE_HEADER)
+    assert blocks[0]["text"].split("\n")[1:] == ['{"name": "Mara Vell", "kind": "person"}']
+    assert "Walked to the harbour." not in sent
+    context = json.loads(blocks[1]["text"].split("\n\n", 1)[1].rsplit("\n\nThe chapter text", 1)[0])
+    assert context["chapter"] == {"number": 2, "of": 4, "title": "The Bell"}
 
     assert row.chapter_idx == 1 and row.summary == "Tobin rang the bell."
     assert [e["name"] for e in json.loads(row.entries_json)] == ["Tobin Ash"]
@@ -614,10 +664,12 @@ def test_job_digests_missing_chapters_only_one_usage_row_each(db, make_book, tmp
     job = digest_job.get(snap["id"])
     assert job["status"] == "done"
     assert job["total"] == 3 and job["done"] == 3 and job["failed"] == 0
-    assert len(fake.calls) == 3
+    # Chapter 1 is stored, so the gap splits the work into two units: [0] and [2, 3].
+    assert len(fake.calls) == 2
+    assert [len(chapter_blocks(c["user_content"])) for c in fake.calls] == [0, 2]
     assert {r.chapter_idx for r in db.query(AIChapterDigest).filter_by(book_id=book.id)} == {0, 1, 2, 3}
     rows = db.query(AIUsage).filter_by(user_id=user.id, feature="reading_digest").all()
-    assert len(rows) == 3 and all(r.key_source == "user" for r in rows)
+    assert len(rows) == 2 and all(r.key_source == "user" for r in rows)
 
 
 def test_job_scope_covers_read_earlier_volumes_first(db, make_book, tmp_path):
@@ -647,7 +699,7 @@ def test_job_enqueue_coalesces(db, make_book, tmp_path):
     assert digest_job.enqueue(user_id=other.id, book_id=book.id, upto=1)["id"] != a["id"]
 
 
-def test_job_continues_past_a_failing_chapter(db, make_book, tmp_path):
+def test_job_continues_past_a_failing_chapter(db, make_book, tmp_path, one_chapter_units):
     user = _make_user(db, "flaky", "member")
     book = _epub_book(db, make_book, tmp_path, "Flaky")
 
@@ -680,7 +732,7 @@ def test_job_stops_on_not_configured(db, make_book, tmp_path):
     assert job["done"] == 0 and fake.calls == []
 
 
-def test_job_stops_after_three_consecutive_failures(db, make_book, tmp_path):
+def test_job_stops_after_three_consecutive_failures(db, make_book, tmp_path, one_chapter_units):
     user = _make_user(db, "refused", "member")
     book = _epub_book(db, make_book, tmp_path, "Refused")
     fake = FakeProvider(refuse=True)
@@ -711,7 +763,8 @@ def test_job_stops_when_reading_digest_is_switched_off(db, make_book, tmp_path):
     db.commit()
 
 
-def test_a_refused_chapter_is_billed_once_and_never_resent(client, db, make_book, tmp_path):
+def test_a_refused_chapter_is_billed_once_and_never_resent(client, db, make_book, tmp_path,
+                                                          one_chapter_units):
     user = _make_user(db, "grim", "member")
     book = _epub_book(db, make_book, tmp_path, "Grim")
 
@@ -740,6 +793,9 @@ def test_a_refused_chapter_is_billed_once_and_never_resent(client, db, make_book
                             percentage=book_text.book_chapters(book, db)[3].start_fraction + 0.1))
     db.commit()
     digest.on_position_advanced(db, user, book, 1.0 - 1e-6)
+    assert _queued() == []                              # one chapter missing: below PENDING_MIN
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={}, headers=_headers(user))
+    assert r.status_code == 202, r.text
     digest_job.run_pending()
     g = client.get(f"/api/ai/books/{book.id}/glossary", headers=_headers(user)).json()
     assert g["coverage"]["failed"] == 1 and g["coverage"]["digested"] == g["coverage"]["needed"]
@@ -750,11 +806,15 @@ def test_a_refused_chapter_is_billed_once_and_never_resent(client, db, make_book
     assert sent_chapter_1() == 1
     assert db.query(AIUsage).filter_by(user_id=user.id, feature="reading_digest").count() == usage + 1
 
-    # "Ask again" is the explicit retry: the placeholder goes, chapter 1 is tried once more.
+    # "Ask again" is the explicit retry: the placeholder goes, chapter 1 is tried once more
+    # when the reader starts the digest (the recap only says it is needed).
     assert client.delete(f"/api/ai/books/{book.id}/recap", headers=_headers(user)).status_code == 200
     assert digest.get_digest(db, book.id, 1) is None
     r = client.post(f"/api/ai/books/{book.id}/recap", json={}, headers=_headers(user))
-    assert r.status_code == 202
+    assert r.status_code == 202 and r.json()["needs_digest"] is True
+    assert _queued() == []
+    r = client.post(f"/api/ai/books/{book.id}/digest", json={}, headers=_headers(user))
+    assert r.status_code == 202, r.text
     digest_job.run_pending()
     assert sent_chapter_1() == 2
 
@@ -779,7 +839,7 @@ def test_prior_glossary_is_the_series_order_not_the_users_scope(db, make_book, t
     fake = FakeProvider(responses=echo_digest)
     ai.set_provider_override(fake)
     digest.digest_chapter(db, newcomer, v2, 0)
-    assert "A ferry pilot from volume one." in fake.calls[0]["user_content"][0]["text"]
+    assert '{"name": "Mara Vell", "kind": "person"}' in fake.calls[0]["user_content"][0]["text"]
 
 
 def test_job_cancel_and_followups(db, make_book, tmp_path):
@@ -837,6 +897,7 @@ def test_position_put_crossing_a_boundary_enqueues_once(db, make_book, tmp_path,
     chapters = book_text.book_chapters(book, db)
     inside_0 = chapters[1].start_fraction / 2
     inside_2 = (chapters[2].start_fraction + chapters[3].start_fraction) / 2
+    inside_3 = (chapters[3].start_fraction + 1.0) / 2
 
     r = c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": inside_0}, headers=h)
     assert r.status_code == 200, r.text
@@ -844,16 +905,22 @@ def test_position_put_crossing_a_boundary_enqueues_once(db, make_book, tmp_path,
 
     r = c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": inside_2}, headers=h)
     assert r.status_code == 200
-    [job] = _queued()
-    assert job["book_id"] == book.id and job["user_id"] == user.id
-    assert job["upto_chapter"] == 2             # chapters 0 and 1 only, never the current one
+    assert _queued() == []                      # two finished chapters: fewer than PENDING_MIN
 
-    c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": inside_2 + 0.001}, headers=h)
+    r = c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": inside_3}, headers=h)
+    assert r.status_code == 200
+    [job] = _queued()
+    assert job["book_id"] == book.id and job["user_id"] == user.id and job["scope"] == "book"
+    assert job["upto_chapter"] == 3             # chapters 0-2 only, never the current one
+
+    c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": inside_3 + 0.001}, headers=h)
     assert len(_queued()) == 1                  # same chapter again: no second job
 
-    ai.set_provider_override(FakeProvider(responses=echo_digest))
+    fake = FakeProvider(responses=echo_digest)
+    ai.set_provider_override(fake)
     digest_job.run_pending()
-    assert {r.chapter_idx for r in db.query(AIChapterDigest).filter_by(book_id=book.id)} == {0, 1}
+    assert len(fake.calls) == 1                 # the three chapters in one call
+    assert {r.chapter_idx for r in db.query(AIChapterDigest).filter_by(book_id=book.id)} == {0, 1, 2}
 
 
 def test_position_trigger_digests_the_current_book_only(db, make_book, tmp_path, plugin_client):
@@ -864,17 +931,23 @@ def test_position_trigger_digests_the_current_book_only(db, make_book, tmp_path,
     db.commit()
     digest_job.reset()                          # marking v1 read queued its own job
     chapters = book_text.book_chapters(v2, db)
-    pct = (chapters[2].start_fraction + chapters[3].start_fraction) / 2
+    pct = (chapters[3].start_fraction + 1.0) / 2
     r = c.put(f"/api/tome-sync/position/{v2.id}", json={"percentage": pct}, headers=h)
     assert r.status_code == 200
     ai.set_provider_override(FakeProvider(responses=echo_digest))
     digest_job.run_pending()
     rows = {(r.book_id, r.chapter_idx) for r in db.query(AIChapterDigest)}
-    assert rows == {(v2.id, 0), (v2.id, 1)}     # volume 1 waits for an on-demand recap or glossary
+    assert rows == {(v2.id, 0), (v2.id, 1), (v2.id, 2)}   # volume 1 waits for an explicit start
 
-    # The on-demand glossary widens it to the read earlier volume.
+    # Opening the glossary only reads.
     g = c.get(f"/api/tome-sync/ai/books/{v2.id}/glossary?pct={pct}", headers=h).json()
-    assert g["job"] is not None
+    assert g["job"] is None and _queued() == []
+    assert g["coverage"]["digested"] < g["coverage"]["needed"]
+
+    # The explicit series start widens it to the read earlier volume.
+    r = c.post(f"/api/tome-sync/ai/books/{v2.id}/digest", json={"pct": pct, "scope": "series"}, headers=h)
+    assert r.status_code == 202, r.text
+    assert r.json()["job"]["scope"] == "series" and r.json()["scope"] == "series"
     digest_job.run_pending()
     assert {(r.book_id, r.chapter_idx) for r in db.query(AIChapterDigest)} >= {(v1.id, i) for i in range(4)}
 
@@ -885,7 +958,7 @@ def test_web_status_put_with_a_cfi_places_the_reader(db, make_book, tmp_path):
 
     user = _make_user(db, "webcfi", "member")
     book = _illustrated_book(db, make_book, tmp_path, "Web Cfi")
-    pct, _, cfi = device_position(book, 1, PARAS - 1)
+    pct, _, cfi = device_position(book, 3, PARAS - 1)
     app = create_app()
     app.dependency_overrides[get_db] = lambda: (yield db)
     with TestClient(app) as c:
@@ -893,7 +966,7 @@ def test_web_status_put_with_a_cfi_places_the_reader(db, make_book, tmp_path):
                   json={"status": "reading", "progress_pct": pct, "cfi": cfi}, headers=_headers(user))
         assert r.status_code == 200, r.text
     [job] = _queued()
-    assert job["upto_chapter"] == 1
+    assert job["upto_chapter"] == 3
 
 
 def test_position_trigger_needs_a_key_and_the_feature(db, make_book, tmp_path, plugin_client):
@@ -920,7 +993,7 @@ def test_web_status_put_triggers_digest(db, make_book, tmp_path):
     user = _make_user(db, "webreader", "member")
     book = _epub_book(db, make_book, tmp_path, "Web Read")
     chapters = book_text.book_chapters(book, db)
-    pct = (chapters[2].start_fraction + chapters[3].start_fraction) / 2
+    pct = (chapters[3].start_fraction + 1.0) / 2
     app = create_app()
     app.dependency_overrides[get_db] = lambda: (yield db)
     with TestClient(app) as c:
@@ -928,7 +1001,7 @@ def test_web_status_put_triggers_digest(db, make_book, tmp_path):
                   headers=_headers(user))
         assert r.status_code == 200, r.text
     [job] = _queued()
-    assert job["upto_chapter"] == 2 and job["followups"] == []
+    assert job["upto_chapter"] == 3 and job["followups"] == []
 
 
 def test_marking_a_series_book_read_enqueues_previously_on(db, make_book, tmp_path):
@@ -948,7 +1021,7 @@ def test_marking_a_series_book_read_enqueues_previously_on(db, make_book, tmp_pa
         r = c.put(f"/api/books/{v1.id}/status", json={"status": "read"}, headers=_headers(user))
         assert r.status_code == 200
     [job] = _queued()
-    assert job["book_id"] == v1.id and job["upto_chapter"] == 4
+    assert job["book_id"] == v1.id and job["upto_chapter"] == 4 and job["scope"] == "book"
     assert job["followups"] == [{"name": "previously_recap", "status": "pending"}]
 
 
@@ -1025,3 +1098,841 @@ def test_job_endpoints_permissions_and_cancel(client: TestClient, db: Session, m
 
     r = client.post(f"/api/ai/digest-jobs/{snap['id']}/cancel", headers=_headers(owner))
     assert r.status_code == 200 and r.json()["status"] == "cancelled"
+
+
+# ── run 2c: cost per call ────────────────────────────────────────────────────
+
+class _D:
+    def __init__(self, book_id, idx, entries):
+        self.book_id, self.chapter_idx, self.entries_json = book_id, idx, json.dumps(entries)
+
+
+def _names(state) -> list[str]:
+    return [s["name"] for s in state]
+
+
+def test_model_state_is_names_only_capped_and_append_ordered(monkeypatch):
+    monkeypatch.setattr(digest, "GLOSSARY_STATE_MAX", 3)
+    earlier = [
+        _D(1, 0, [_entry("Ada", "One."), _entry("Bram", "Two.")]),
+        _D(1, 1, [_entry("Cora", "Three.", kind="place"), _entry("Dov", "Four.")]),
+        _D(1, 2, [_entry("ada", "One, later.")]),
+    ]
+    current = [
+        _D(2, 0, [_entry("Eli", "Five."), _entry("Bram", "Back again.")]),
+        _D(2, 1, [_entry("Fen", "Six.", kind="term"), _entry("Ada", "Seen here too.")]),
+    ]
+    after_0 = digest.model_state(earlier + current[:1], 2)
+    after_1 = digest.model_state(earlier + current, 2)
+    # The 3 entries seen most recently in earlier volumes (Bram, seen only in
+    # chapter 0, is out), in first-seen order; then this volume's names in
+    # order of first appearance here (Bram comes back, Ada was listed).
+    assert _names(after_0) == ["Ada", "Cora", "Dov", "Eli", "Bram"]
+    assert _names(after_1) == ["Ada", "Cora", "Dov", "Eli", "Bram", "Fen"]
+    assert after_1[:len(after_0)] == after_0                   # append-only
+    assert all(set(s) == {"name", "kind"} for s in after_1)    # no lines, no more
+    assert after_1[1] == {"name": "Cora", "kind": "place"}
+    assert digest.GLOSSARY_STATE_MAX == 3 and digest.model_state([], 2) == []
+
+
+def test_state_blocks_come_first_and_cache_the_stable_prefix(monkeypatch):
+    monkeypatch.setattr(digest, "STATE_CHUNK", 2)
+    five = [{"name": f"N{i}", "kind": "person"} for i in range(5)]
+    six = five + [{"name": "N5", "kind": "term"}]
+    b5, b6 = digest.state_blocks(five), digest.state_blocks(six)
+    assert b5[0]["text"].startswith(digest.STATE_HEADER)
+    assert [len(b["text"].split("\n")) for b in b5] == [3, 2, 1]
+    # The last FULL block is marked; full blocks are byte-identical as the list grows.
+    assert [("cache_control" in b) for b in b5] == [False, True, False]
+    assert [("cache_control" in b) for b in b6] == [False, False, True]
+    assert b5[0] == b6[0] and b5[1]["text"] == b6[1]["text"]
+    assert b6[2]["cache_control"] == {"type": "ephemeral"}
+    assert digest.state_blocks([]) == [{"type": "text", "text": digest.STATE_HEADER + "\n(none yet)"}]
+
+
+def test_digest_call_sends_the_cached_state_first_and_the_text_uncached(db, make_book, tmp_path, monkeypatch):
+    monkeypatch.setattr(digest, "STATE_CHUNK", 1)
+    user = _make_user(db, "cachedstate", "member")
+    book = _epub_book(db, make_book, tmp_path, "Cached State")
+    _store_digest(db, book, 0, [_entry("Mara Vell", "A walker."), _entry("The Harbour", "A dock.", kind="place")])
+    fake = FakeProvider(responses=echo_digest)
+    ai.set_provider_override(fake)
+    digest.digest_chapter(db, user, book, 1)
+    blocks = fake.calls[0]["user_content"]
+    assert blocks[0]["text"] == digest.STATE_HEADER + '\n{"name": "Mara Vell", "kind": "person"}'
+    assert blocks[1] == {"type": "text", "text": '{"name": "The Harbour", "kind": "place"}',
+                         "cache_control": {"type": "ephemeral"}}
+    assert all("cache_control" not in b for b in blocks[2:])
+    assert blocks[-1]["text"] == book_text.chapter_text(book, 1, db)
+
+
+def test_known_names_keep_their_more_and_unchanged_lines_are_dropped(db, make_book, tmp_path):
+    user = _make_user(db, "updates", "member")
+    book = _epub_book(db, make_book, tmp_path, "Updates")
+    _store_digest(db, book, 0, [_entry("Mara Vell", "Walked to the harbour.")])
+    ai.set_provider_override(FakeProvider(responses=[
+        {"summary": "Tobin rang the bell.", "entries": [
+            _entry("Tobin Ash", "Rings the ferry bell.", evidence="Tobin Ash rang the ferry bell twice"),
+            {**_entry("MARA VELL", "Heard the bell from the lighthouse.",
+                      evidence="Mara Vell heard it from the lighthouse"), "more": "Later context."},
+        ]},
+        {"summary": "Oren kept a ledger.", "entries": [
+            # Same line as now: not an update, dropped.
+            _entry("Mara Vell", "Heard the bell from the lighthouse.", evidence="Mara Vell read it by lamplight"),
+            _entry("Oren Pike", "The keeper.", evidence="The keeper, Oren Pike, kept a ledger"),
+        ]},
+    ]))
+    row1 = digest.digest_chapter(db, user, book, 1)
+    e1 = {e["name"]: e for e in json.loads(row1.entries_json)}
+    assert e1["Tobin Ash"]["more"] == "More on Tobin Ash."       # new: keeps its more
+    assert e1["MARA VELL"]["more"] == "Later context."           # stored as given
+    row2 = digest.digest_chapter(db, user, book, 2)
+    assert [e["name"] for e in json.loads(row2.entries_json)] == ["Oren Pike"]
+    mara = digest.glossary_state(db, user, book, upto=3)[0]
+    assert mara.name == "Mara Vell" and mara.line == "Heard the bell from the lighthouse."
+    assert mara.more == "More on Mara Vell."                     # the fold keeps the first more
+
+
+def test_check_entries_caps_entries_per_chapter():
+    text = " ".join(f"Name{i} walked down the road." for i in range(40))
+    raw = [_entry(f"Name{i}", "Walks.", evidence=f"Name{i} walked down the road") for i in range(40)]
+    assert len(digest.check_entries(raw, text)) == digest.MAX_ENTRIES_PER_CHAPTER == 25
+
+
+def test_names_keep_their_brackets():
+    assert digest.clean_name("Vane Estate (Hedge Maze)") == "Vane Estate (Hedge Maze)"
+    assert digest.clean_name(" Vane Estate (Hedge Maze).  ") == "Vane Estate (Hedge Maze)"
+    assert digest.clean_name("Vane Estate)") == "Vane Estate"
+    assert digest.clean_name("(Hedge Maze") == "Hedge Maze"
+    assert digest.clean_name("Sir Ash [the Elder]") == "Sir Ash [the Elder]"
+    assert digest.clean_name('"The Hound"') == '"The Hound"'
+    assert digest.clean_name("Mara Vell!?") == "Mara Vell"
+    text = "They walked into the Vane Estate (Hedge Maze) at dusk and got lost."
+    [e] = digest.check_entries([_entry("Vane Estate (Hedge Maze)", "A maze.", kind="place",
+                                       evidence="into the Vane Estate (Hedge Maze) at dusk")], text)
+    assert e["name"] == "Vane Estate (Hedge Maze)"
+
+
+# ── run 2c: multi-chapter calls ──────────────────────────────────────────────
+
+def test_digest_chapters_one_call_checks_each_chapter_and_splits_tokens(db, make_book, tmp_path):
+    user = _make_user(db, "multi", "member")
+    book = _epub_book(db, make_book, tmp_path, "Multi")
+
+    def responder(feature, user_content, schema):
+        assert "chapters" in schema["properties"]
+        return {"chapters": [
+            {"chapter": 1, "summary": "Mara walked.", "entries": [
+                _entry("Mara Vell", "Walks at dawn.", evidence="Mara Vell walked down to the harbour"),
+                # A sentence of chapter 2 attributed to chapter 1: dropped.
+                _entry("Tobin Ash", "Rings the bell.", evidence="Tobin Ash rang the ferry bell twice"),
+            ]},
+            {"chapter": 2, "summary": "Tobin rang.", "entries": [
+                _entry("Tobin Ash", "Rings the bell.", evidence="Tobin Ash rang the ferry bell twice"),
+                _entry("Mara Vell", "Heard the bell.", evidence="Mara Vell heard it from the lighthouse"),
+            ]},
+            # chapter 3 is left out
+        ]}
+
+    fake = FakeProvider(responses=responder, input_tokens=1001, cache_read_tokens=500, output_tokens=333)
+    ai.set_provider_override(fake)
+    rows = digest.digest_chapters(db, user, book, [2, 0, 1])
+
+    [call] = fake.calls
+    assert call["system"] == digest.SYSTEM_PROMPT_MANY
+    assert call["max_tokens"] == digest.multi_max_tokens(3) == 9000
+    assert digest.multi_max_tokens(100) == 32_000
+    # A full unit (CHUNK_CHAPTERS) gets about 2500 tokens a chapter: a 3-act
+    # unit of Romeo and Juliet needed 3600 on Haiku and was cut off at 700 a
+    # chapter (stored as failed, billed).
+    assert digest.multi_max_tokens(digest.CHUNK_CHAPTERS) >= 2500 * digest.CHUNK_CHAPTERS
+    blocks = chapter_blocks(call["user_content"])
+    assert [n for n, _ in blocks] == [1, 2, 3]
+    assert call["user_content"][-3]["text"].startswith("=== [c1] ")
+    assert blocks[1][1] == book_text.chapter_text(book, 1, db)   # the heading is outside the text
+    assert "Mark3end" not in sent_text(call)
+
+    assert [r.chapter_idx for r in rows] == [0, 1]
+    assert digest.get_digest(db, book.id, 2) is None             # left out: still undigested
+    r0, r1 = rows
+    assert [e["name"] for e in json.loads(r0.entries_json)] == ["Mara Vell"]
+    e1 = {e["name"]: e for e in json.loads(r1.entries_json)}
+    assert set(e1) == {"Tobin Ash", "Mara Vell"} and r1.summary == "Tobin rang."
+    assert e1["Tobin Ash"]["more"] == "More on Tobin Ash."
+    assert e1["Mara Vell"]["more"] == "More on Mara Vell."       # kept; the fold keeps the first
+    # Both rows were written by a call that also saw chapter 3 (idx 2).
+    assert r0.context_end_idx == 2 and r1.context_end_idx == 2
+    # The call's tokens, split over the stored chapters by words sent.
+    assert r0.input_tokens + r1.input_tokens == 1501
+    assert r0.output_tokens + r1.output_tokens == 333
+    assert db.query(AIUsage).filter_by(user_id=user.id, feature="reading_digest").count() == 1
+
+
+def test_apportion_sums_to_the_total():
+    assert digest.apportion(10, [1, 1, 1]) == [4, 3, 3]
+    assert sum(digest.apportion(333, [5000, 120, 7])) == 333
+    assert digest.apportion(5, []) == []
+    assert digest.apportion(0, [3, 4]) == [0, 0]
+
+
+def test_multi_chapter_refusal_stores_nothing_and_splits(db, make_book, tmp_path):
+    user = _make_user(db, "multirefuse", "member")
+    book = _epub_book(db, make_book, tmp_path, "Multi Refused")
+    ai.set_provider_override(FakeProvider(refuse=True, input_tokens=1000, output_tokens=10))
+    with pytest.raises(digest.UnitSplit) as exc:
+        digest.digest_chapters(db, user, book, [0, 1, 2])
+    assert [u.idxs for u in exc.value.units] == [(0,), (1,), (2,)]
+    assert db.query(AIChapterDigest).filter_by(book_id=book.id).count() == 0
+    # The billed answer is still on the ledger, once.
+    assert db.query(AIUsage).filter_by(user_id=user.id, feature="reading_digest").count() == 1
+    # One chapter refused on its own: stored as a placeholder (never re-sent).
+    with pytest.raises(AIRefused):
+        digest.digest_chapter(db, user, book, 0)
+    [row] = db.query(AIChapterDigest).filter_by(book_id=book.id).all()
+    assert row.model == digest.FAILED_MODEL and row.input_tokens == 1000 and row.output_tokens == 10
+
+
+def test_job_records_a_left_out_chapter_and_reads_it_next_time(db, make_book, tmp_path):
+    user = _make_user(db, "leftout", "member")
+    book = _epub_book(db, make_book, tmp_path, "Left Out")
+
+    def responder(feature, user_content, schema):
+        out = echo_digest(feature, user_content, schema)
+        if "chapters" in out:
+            out["chapters"] = [c for c in out["chapters"] if c["chapter"] != 2]
+        return out
+
+    fake = FakeProvider(responses=responder)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4)
+    digest_job.run_pending()
+    job = digest_job.get(snap["id"])
+    assert job["status"] == "done" and job["total"] == 4 and job["done"] == 4 and job["failed"] == 1
+    assert [(e["chapter_idx"], "left this chapter out" in e["message"]) for e in job["errors"]] == [(1, True)]
+    assert {r.chapter_idx for r in db.query(AIChapterDigest).filter_by(book_id=book.id)} == {0, 2, 3}
+
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4)
+    digest_job.run_pending()
+    assert digest_job.get(snap["id"])["total"] == 1 and len(fake.calls) == 2
+    assert digest.get_digest(db, book.id, 1) is not None
+
+
+def test_plan_units_boundaries(db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "planner", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Plan One", series="Plan", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Plan Two", series="Plan", index=2)
+    _read(db, user, v1)
+    _store_digest(db, v2, 1, [])                                   # a gap in volume 2
+    counts = {0: 100, 1: 100, 2: 100, 3: 500}
+    monkeypatch.setattr(book_text, "chapter_word_counts", lambda b, db=None: dict(counts))
+    monkeypatch.setattr(digest, "CHUNK_WORDS", 250)
+    monkeypatch.setattr(digest, "MAX_CHAPTER_WORDS", 400)
+    scope = digest.user_scope(db, user, v2)
+
+    units = digest.plan_units(db, scope, 4)
+    assert [(u.book_id, u.idxs, u.words) for u in units] == [
+        (v1.id, (0, 1), 200),          # a third chapter would pass CHUNK_WORDS
+        (v1.id, (2,), 100),
+        (v1.id, (3,), 400),            # over CHUNK_WORDS: on its own, truncated when sent
+        (v2.id, (0,), 100),            # chapter 1 is stored: the gap ends the unit
+        (v2.id, (2,), 100),
+        (v2.id, (3,), 400),
+    ]
+    monkeypatch.setattr(digest, "CHUNK_WORDS", 10_000)
+    monkeypatch.setattr(digest, "CHUNK_CHAPTERS", 3)
+    units = digest.plan_units(db, scope, 4)
+    assert [(u.book_id, u.idxs) for u in units] == [
+        (v1.id, (0, 1, 2)), (v1.id, (3,)), (v2.id, (0,)), (v2.id, (2, 3))]
+    # The current book only, up to the reader's chapter.
+    assert [(u.book_id, u.idxs) for u in digest.plan_units(db, digest.Scope(book=v2), 3)] == [
+        (v2.id, (0,)), (v2.id, (2,))]
+
+
+def test_chapter_word_counts(db, make_book, tmp_path):
+    book = _epub_book(db, make_book, tmp_path, "Counted")
+    counts = book_text.chapter_word_counts(book, db)
+    docs = book_text.load_book_docs(book_text.epub_path(book))
+    assert sorted(counts) == [0, 1, 2, 3] and sum(counts.values()) == docs.total
+    for i in range(4):
+        assert counts[i] == book_text.count_words(book_text.chapter_text(book, i, db))
+    book.word_count = 1000
+    chapters = book_text.book_chapters(book, db)
+    assert book_text.chapter_word_counts(book, db)[2] == round(
+        (chapters[2].end_fraction - chapters[2].start_fraction) * 1000)
+
+
+# ── run 2c: triggers ─────────────────────────────────────────────────────────
+
+EIGHT = [(f"Part {i + 1}", body) for i, (_t, body) in enumerate(CHAPTERS + CHAPTERS)]
+
+
+def _mid_of(book: Book, db: Session, idx: int) -> float:
+    ch = book_text.book_chapters(book, db)[idx]
+    return (ch.start_fraction + ch.end_fraction) / 2
+
+
+def test_position_trigger_waits_for_pending_min_past_an_active_job(db, make_book, tmp_path):
+    user = _make_user(db, "pending", "member")
+    book = _epub_book(db, make_book, tmp_path, "Pending", chapters=EIGHT)
+    assert digest.PENDING_MIN == 3
+    assert digest.on_position_advanced(db, user, book, _mid_of(book, db, 2)) is None   # 2 finished
+    job = digest.on_position_advanced(db, user, book, _mid_of(book, db, 3))
+    assert job is not None and job["upto_chapter"] == 3
+    # Chapters 0-2 are covered by the queued job: one more is not enough.
+    assert digest.on_position_advanced(db, user, book, _mid_of(book, db, 4)) is None
+    assert digest_job.get(job["id"])["upto_chapter"] == 3
+    # Three past it: the queued job grows instead of a new one.
+    again = digest.on_position_advanced(db, user, book, _mid_of(book, db, 6))
+    assert again["id"] == job["id"] and again["upto_chapter"] == 6
+    assert len(_queued()) == 1
+
+
+def test_no_automatic_enqueue_after_a_cancel_until_the_user_starts_one(db, make_book, tmp_path, plugin_client):
+    c, user, h = plugin_client
+    book = _epub_book(db, make_book, tmp_path, "Stopped", chapters=EIGHT, series="Stopped", index=1)
+    db.commit()
+    r = c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": _mid_of(book, db, 3)}, headers=h)
+    assert r.status_code == 200
+    [job] = _queued()
+    r = c.post(f"/api/ai/digest-jobs/{job['id']}/cancel", headers=_headers(user))
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    assert digest_job.last_cancelled(db, user.id, book.id)
+
+    # Position syncs and finishing the book do not start it again.
+    c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": _mid_of(book, db, 6)}, headers=h)
+    assert _queued() == []
+    r = c.put(f"/api/books/{book.id}/status", json={"status": "read"}, headers=_headers(user))
+    assert r.status_code == 200 and _queued() == []
+    # Neither does opening the glossary.
+    g = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary", headers=h).json()
+    assert g["job"] is None and _queued() == []
+
+    # The user starts it: that job is the latest, so the triggers act again.
+    r = c.post(f"/api/ai/books/{book.id}/digest", json={"scope": "book"}, headers=_headers(user))
+    assert r.status_code == 202, r.text
+    assert r.json()["job"]["upto_chapter"] == 6
+    assert not digest_job.last_cancelled(db, user.id, book.id)
+
+
+def test_last_cancelled_sees_a_running_job_being_cancelled(db, make_book, tmp_path):
+    user = _make_user(db, "runningcancel", "member")
+    book = _epub_book(db, make_book, tmp_path, "Running Cancel")
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4)
+    assert not digest_job.last_cancelled(db, user.id, book.id)
+    job = digest_job._jobs[snap["id"]]
+    job.status = "running"
+    digest_job.cancel(snap["id"])
+    assert digest_job.last_cancelled(db, user.id, book.id)
+    assert not digest_job.last_cancelled(db, user.id, book.id + 1)
+
+
+# ── run 2c: the worker pool, Stop, persistence ──────────────────────────────
+
+@pytest.fixture()
+def pool(tmp_path, monkeypatch):
+    """Real worker threads on a file-backed SQLite database: each worker
+    session gets its own connection, as in production (the in-memory test
+    connection cannot be shared between threads)."""
+    from sqlalchemy import create_engine, event
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import NullPool
+
+    from backend.core.database import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'pool.db'}",
+                           connect_args={"check_same_thread": False}, poolclass=NullPool)
+
+    def _pragmas(conn, _record):
+        cur = conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.execute("PRAGMA busy_timeout=10000")
+        cur.close()
+
+    event.listen(engine, "connect", _pragmas)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False)
+    monkeypatch.setattr(digest_job, "_session_factory", factory)
+    monkeypatch.setattr(digest_job, "_spawn_worker", digest_job._start_thread)
+    yield factory
+    for t in list(digest_job._threads):
+        t.join(timeout=15)
+    engine.dispose()
+
+
+def _pool_series(factory, tmp_path: Path, volumes: int, chapters=CHAPTERS) -> tuple[int, list[int]]:
+    """A member reading the last of ``volumes`` volumes, the earlier ones
+    marked read (before the key is set, so the finished hook stays quiet)."""
+    from backend.models.book import BookFile
+
+    with factory() as s:
+        user = User(username="pooler", email="pooler@example.com", hashed_password="x",
+                    is_active=True, is_admin=False, role="member", must_change_password=False)
+        s.add(user)
+        s.flush()
+        ids = []
+        for i in range(1, volumes + 1):
+            path = make_epub(tmp_path / f"Pool_{i}.epub", chapters)
+            b = Book(title=f"Pool {i}", series="Pool", series_index=i, status="active")
+            s.add(b)
+            s.flush()
+            s.add(BookFile(book_id=b.id, file_path=str(path), format="epub",
+                           file_size=path.stat().st_size))
+            replace_book_chapters(s, b.id, extract_chapters_epub(path))
+            ids.append(b.id)
+        for bid in ids[:-1]:
+            s.add(UserBookStatus(user_id=user.id, book_id=bid, status="read", progress_pct=1.0))
+        s.commit()
+        ai_settings.set_user_key(s, user, KEY)
+        s.commit()
+        return user.id, ids
+
+
+def _wait_finished(job_id: str, timeout: float = 30.0) -> dict:
+    import time as _time
+    deadline = _time.monotonic() + timeout
+    while _time.monotonic() < deadline:
+        snap = digest_job.get(job_id)
+        if snap is not None and snap["status"] not in digest_job.ACTIVE:
+            return snap
+        _time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not finish: {digest_job.get(job_id)}")
+
+
+_BOOK_RE = re.compile(r'"book": "([^"]+)"')
+
+
+def test_four_workers_run_units_of_different_volumes_concurrently(pool, tmp_path, monkeypatch):
+    import itertools
+    import threading
+    import time as _time
+
+    from backend.models.ai_job import AIJob
+
+    monkeypatch.setattr(digest, "CHUNK_CHAPTERS", 2)          # two units per volume
+    user_id, ids = _pool_series(pool, tmp_path, 5)
+    barrier = threading.Barrier(digest_job.WORKERS, timeout=15)
+    order = itertools.count()
+    spans: list[tuple[str, float, float]] = []
+    lock = threading.Lock()
+
+    def on_call(call):
+        title = _BOOK_RE.search(sent_text(call)).group(1)
+        start = _time.monotonic()
+        if next(order) < digest_job.WORKERS:
+            barrier.wait()          # passes only when four calls are in flight at once
+        else:
+            _time.sleep(0.02)
+        with lock:
+            spans.append((title, start, _time.monotonic()))
+
+    fake = FakeProvider(responses=echo_digest, on_call=on_call)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user_id, book_id=ids[-1], upto=0)   # vol 5 at its start
+    job = _wait_finished(snap["id"])
+
+    assert not barrier.broken
+    assert job["status"] == "done", job
+    assert job["total"] == 16 and job["done"] == 16 and job["failed"] == 0
+    assert len(fake.calls) == 8 and job["calls"] == 8
+    # The first four calls were one unit of each of the four read volumes.
+    first = sorted(spans, key=lambda s: s[1])[: digest_job.WORKERS]
+    assert sorted(t for t, _, _ in first) == ["Pool 1", "Pool 2", "Pool 3", "Pool 4"]
+    # The units of one volume never overlapped (each builds on the one before).
+    for title in {t for t, _, _ in spans}:
+        mine = sorted((s for s in spans if s[0] == title), key=lambda s: s[1])
+        assert all(b[1] >= a[2] for a, b in zip(mine, mine[1:])), title
+    with pool() as s:
+        assert s.query(AIChapterDigest).count() == 16
+        rows = s.query(AIUsage).all()
+        assert len(rows) == 8 and {r.job_id for r in rows} == {snap["id"]}
+        assert {r.book_id for r in rows} == set(ids[:4])
+        row = s.get(AIJob, snap["id"])
+        assert row.status == "done" and row.done == 16 and row.calls == 8
+        assert row.cost_usd == pytest.approx(sum(r.cost_usd for r in rows))
+
+
+def test_stop_is_stopping_at_once_then_cancelled_after_the_unit_in_flight(pool, tmp_path, monkeypatch):
+    import threading
+
+    from backend.models.ai_job import AIJob
+
+    monkeypatch.setattr(digest, "CHUNK_CHAPTERS", 2)
+    user_id, [book_id] = _pool_series(pool, tmp_path, 1)
+    started, release = threading.Event(), threading.Event()
+
+    def on_call(call):
+        started.set()
+        assert release.wait(15)
+
+    fake = FakeProvider(responses=echo_digest, on_call=on_call)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user_id, book_id=book_id, upto=4, current_book_only=True)
+    assert started.wait(15)
+
+    stopping = digest_job.cancel(snap["id"])
+    assert stopping["status"] == "stopping"
+    assert digest_job.get(snap["id"])["status"] == "stopping"
+    with pool() as s:
+        assert s.get(AIJob, snap["id"]).status == "stopping"
+        assert digest_job.last_cancelled(s, user_id, book_id)
+    release.set()
+    job = _wait_finished(snap["id"])
+    assert job["status"] == "cancelled"
+    assert len(fake.calls) == 1                     # the second unit was dropped
+    with pool() as s:
+        # The unit in flight finished and stored its chapters.
+        assert sorted(r.chapter_idx for r in s.query(AIChapterDigest)) == [0, 1]
+        row = s.get(AIJob, snap["id"])
+        assert row.status == "cancelled" and row.done == 2 and row.calls == 1
+        assert digest_job.last_cancelled(s, user_id, book_id)
+
+
+def test_job_row_mirrors_the_snapshot_and_usage_rows_carry_job_and_book(db, make_book, tmp_path):
+    from backend.models.ai_job import AIJob
+
+    user = _make_user(db, "mirrored", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Mirror One", series="Mirror", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Mirror Two", series="Mirror", index=2)
+    _read(db, user, v1)
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+
+    snap = digest_job.enqueue(user_id=user.id, book_id=v2.id, upto=2)
+    row = db.get(AIJob, snap["id"])
+    assert row is not None and row.status == "queued" and row.scope == "series"
+    assert row.user_id == user.id and row.book_id == v2.id and row.upto_chapter == 2
+
+    digest_job.run_pending()
+    job = digest_job.get(snap["id"])
+    db.expire_all()
+    row = db.get(AIJob, snap["id"])
+    for name in ("status", "scope", "total", "done", "failed", "calls", "est_seconds",
+                 "est_cost_usd", "est_chapters", "stop_reason"):
+        assert getattr(row, name) == job[name], name
+    assert row.cost_usd == pytest.approx(job["cost_usd"])
+    assert job["status"] == "done" and job["total"] == 6 and job["calls"] == 2
+    assert job["est_chapters"] == 6 and job["est_cost_usd"] > 0 and job["est_seconds"] > 0
+    assert row.started_at is not None and row.finished_at is not None
+    usage_rows = db.query(AIUsage).filter_by(user_id=user.id).all()
+    assert {(r.job_id, r.book_id) for r in usage_rows} == {(snap["id"], v1.id), (snap["id"], v2.id)}
+    assert all(r.duration_ms is not None for r in usage_rows)
+    assert job["cost_usd"] == pytest.approx(sum(r.cost_usd for r in usage_rows))
+
+
+def test_followup_calls_are_billed_to_the_job(db, make_book, tmp_path):
+    from backend.services.ai import recap  # noqa: F401 - registers previously_recap
+
+    user = _make_user(db, "followbill", "member")
+    book = _epub_book(db, make_book, tmp_path, "Follow Bill", series="Follow Bill", index=1)
+
+    def responder(feature, user_content, schema):
+        if feature == "recap":
+            return {"paragraphs": ["Mara walked to the harbour."]}
+        return echo_digest(feature, user_content, schema)
+
+    ai.set_provider_override(FakeProvider(responses=responder))
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4,
+                              followups=[digest_job.FOLLOWUP_PREVIOUSLY])
+    digest_job.run_pending()
+    job = digest_job.get(snap["id"])
+    assert job["followups"] == [{"name": "previously_recap", "status": "done"}]
+    rows = db.query(AIUsage).filter_by(job_id=snap["id"]).all()
+    assert sorted(r.feature for r in rows) == ["reading_digest", "recap"]
+    assert all(r.book_id == book.id for r in rows) and job["calls"] == 2
+
+
+def test_cancel_of_a_running_job_between_units_is_cancelled_at_once(db, make_book, tmp_path):
+    user = _make_user(db, "between", "member")
+    book = _epub_book(db, make_book, tmp_path, "Between")
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4)
+    job = digest_job._jobs[snap["id"]]
+    with digest_job._lock:                          # started, nothing in flight
+        digest_job._queue.remove(job)
+        job.status = "running"
+    assert digest_job.cancel(snap["id"])["status"] == "cancelled"
+    assert digest_job.active_for(user.id, book.id) is None
+
+
+def test_job_snapshot_falls_back_to_the_row(client, db, make_book, tmp_path):
+    user = _make_user(db, "fallback", "member")
+    book = _epub_book(db, make_book, tmp_path, "Fallback")
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4)
+    digest_job.run_pending()
+    digest_job.reset()                              # as after a restart
+    assert digest_job.get(snap["id"]) is None
+    r = client.get(f"/api/ai/digest-jobs/{snap['id']}", headers=_headers(user))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "done" and body["done"] == 4 and body["calls"] == 1
+    assert body["current"] is None and body["errors"] == []
+    r = client.post(f"/api/ai/digest-jobs/{snap['id']}/cancel", headers=_headers(user))
+    assert r.status_code == 200 and r.json()["status"] == "done"
+
+
+def test_prompts_ask_for_evidence_that_names_the_entry():
+    """The citation check drops evidence that does not name its entry. On the
+    first real run of the run 2c prompt ("a quote ... that mentions the
+    entry") the model quoted a line each character speaks, so 14 of 19 Act I
+    entries of Romeo and Juliet (Romeo, Juliet, Benvolio...) were dropped.
+    Both prompts must ask for a quote that contains the name."""
+    for prompt in (digest.SYSTEM_PROMPT, digest.SYSTEM_PROMPT_MANY):
+        flat = " ".join(prompt.split())
+        assert "contains the entry's name" in flat
+        assert "does not count unless the name is in it" in flat
+        # The check needs at least MIN_EVIDENCE_WORDS words ("Enter ROMEO" is two).
+        assert f"quote of {digest.MIN_EVIDENCE_WORDS} to {digest.MAX_EVIDENCE_WORDS} words" in flat
+    # The rule the prompt describes is the one check_entries applies.
+    text = "Enter ROMEO and BENVOLIO. Is she a Capulet? O dear account!"
+    raw = [{"name": "Romeo", "kind": "person", "line": "A Montague.", "more": "",
+            "evidence": "Is she a Capulet?"},
+           {"name": "Benvolio", "kind": "person", "line": "Romeo's cousin.", "more": "",
+            "evidence": "Enter ROMEO and BENVOLIO"}]
+    assert [e["name"] for e in digest.check_entries(raw, text)] == ["Benvolio"]
+
+
+def test_a_short_quote_that_is_the_whole_name_keeps_a_main_character():
+    """On the smoke, Sonnet cited "Enter ROMEO" (two words) for Romeo and
+    the three-word minimum dropped the protagonist. A quote under the
+    minimum passes when it holds the entry's whole name as whole words and
+    occurs in the chapter; a fragment or a part of a name still does not."""
+    text = "Enter ROMEO and BENVOLIO. Is she a Capulet? Enter the Nurse. Lady Capulet calls."
+    def kept(name, evidence):
+        raw = [{"name": name, "kind": "person", "line": "Someone.", "more": "", "evidence": evidence}]
+        return bool(digest.check_entries(raw, text))
+    assert kept("Romeo", "Enter ROMEO")
+    assert kept("Romeo", "ROMEO")
+    assert kept("Lady Capulet", "Lady Capulet calls")
+    assert not kept("Lady Capulet", "Lady")             # part of a name, not the name
+    assert not kept("Romeo", "Enter JULIET")            # names someone else
+    assert not kept("Romeo", "Romeo Montague")          # not in the chapter
+    assert not kept("Nurse", "the nurse of")            # fragment the chapter does not hold
+    assert not kept("Al", "Al")                         # too short to mean anything
+
+
+# ── review fixes: chapter numbers, split units, context end, more, evidence ──
+
+def _billed_refusal() -> AIRefused:
+    return AIRefused(category="general_harms", result=AIResult(
+        text=None, parsed=None, model="claude-sonnet-5-5", input_tokens=100, output_tokens=5,
+        cache_read_tokens=0, cache_write_tokens=0))
+
+
+def _numbered_by_position(feature, user_content, schema):
+    """A model numbering the chapters by their place in the request (1..n)."""
+    if "chapters" not in schema["properties"]:
+        return echo_digest(feature, user_content, schema)
+    return {"chapters": [{"chapter": i + 1, "summary": f"Heading {n}", "entries": []}
+                         for i, (n, _t) in enumerate(chapter_blocks(user_content))]}
+
+
+def test_heading_numbers_are_bracketed_and_the_schema_says_so(db, make_book, tmp_path):
+    book = _epub_book(db, make_book, tmp_path, "Headings")
+    ch = book_text.book_chapters(book, db)[2]
+    assert digest.chapter_heading(ch) == "=== [c3] The Lighthouse ==="
+    item = digest.build_multi_schema()["properties"]["chapters"]["items"]["properties"]["chapter"]
+    assert "number in brackets" in item["description"]
+    assert "number in brackets" in digest.SYSTEM_PROMPT_MANY
+
+
+@pytest.mark.parametrize("bad", ["shifted", "duplicate", "unknown", "not_an_object"])
+def test_unplaceable_chapter_numbers_reject_the_whole_answer(db, make_book, tmp_path, bad):
+    user = _make_user(db, f"numbers{bad}", "member")
+    book = _epub_book(db, make_book, tmp_path, f"Numbers {bad}")
+
+    def answer(feature, user_content, schema):
+        if bad == "shifted":                  # chapters 2..4 sent, answered as 1..3
+            return _numbered_by_position(feature, user_content, schema)
+        items = [{"chapter": n, "summary": f"Heading {n}", "entries": []}
+                 for n, _t in chapter_blocks(user_content)]
+        if bad == "duplicate":
+            items.append({**items[0], "summary": "again"})
+        elif bad == "unknown":
+            items.append({"chapter": 40, "summary": "not sent", "entries": []})
+        else:
+            items.append("chapter 2")
+        return {"chapters": items}
+
+    ai.set_provider_override(FakeProvider(responses=answer))
+    with pytest.raises(digest.UnitSplit) as exc:
+        digest.digest_chapters(db, user, book, [1, 2, 3])
+    assert [u.idxs for u in exc.value.units] == [(1,), (2,), (3,)]
+    assert db.query(AIChapterDigest).filter_by(book_id=book.id).count() == 0
+
+
+def test_job_reads_a_rejected_unit_again_one_chapter_at_a_time(db, make_book, tmp_path):
+    user = _make_user(db, "rejected", "member")
+    book = _epub_book(db, make_book, tmp_path, "Rejected")
+    _store_digest(db, book, 0, [])
+    fake = FakeProvider(responses=_numbered_by_position)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4, current_book_only=True)
+    digest_job.run_pending()
+    job = digest_job.get(snap["id"])
+    assert job["status"] == "done" and job["total"] == 3 and job["done"] == 3 and job["failed"] == 0
+    assert job["calls"] == 4                                     # the rejected call + three singles
+    assert [len(chapter_blocks(c["user_content"])) for c in fake.calls] == [3, 0, 0, 0]
+    # The singles ran in order, each with only its own chapter.
+    assert [i for c in fake.calls[1:] for i in range(4) if f"Mark{i}end" in sent_text(c)] == [1, 2, 3]
+    rows = {r.chapter_idx: r for r in db.query(AIChapterDigest).filter_by(book_id=book.id)}
+    assert set(rows) == {0, 1, 2, 3}
+    assert all(r.context_end_idx is None and r.model != digest.FAILED_MODEL for r in rows.values())
+
+
+def test_job_splits_a_refused_unit_and_a_split_is_not_a_failure(db, make_book, tmp_path):
+    user = _make_user(db, "splitter", "member")
+    book = _epub_book(db, make_book, tmp_path, "Splitter")
+
+    def refuse_multi(feature, user_content, schema):
+        if "chapters" in schema["properties"]:
+            raise _billed_refusal()
+        return echo_digest(feature, user_content, schema)
+
+    fake = FakeProvider(responses=refuse_multi)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=4)
+    digest_job.run_pending()
+    job = digest_job.get(snap["id"])
+    assert job["status"] == "done" and job["total"] == 4 and job["done"] == 4 and job["failed"] == 0
+    assert len(fake.calls) == 5
+    rows = db.query(AIChapterDigest).filter_by(book_id=book.id).all()
+    assert len(rows) == 4 and all(r.model != digest.FAILED_MODEL for r in rows)
+
+    # Everything refused: the split itself is not a failure, so the job stops
+    # after three single-chapter refusals (three placeholders), not two.
+    book2 = _epub_book(db, make_book, tmp_path, "Splitter Two")
+    fake = FakeProvider(refuse=True)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user.id, book_id=book2.id, upto=4)
+    digest_job.run_pending()
+    job = digest_job.get(snap["id"])
+    assert job["status"] == "stopped" and job["stop_reason"] == digest_job.REPEATED_FAILURES
+    assert len(fake.calls) == 4 and job["failed"] == 3
+    failed = db.query(AIChapterDigest).filter_by(book_id=book2.id).all()
+    assert sorted(r.chapter_idx for r in failed) == [0, 1, 2]
+    assert all(r.model == digest.FAILED_MODEL for r in failed)
+
+
+def test_a_reader_behind_the_context_end_does_not_get_that_digest(db, make_book, tmp_path):
+    user = _make_user(db, "behind", "member")
+    book = _epub_book(db, make_book, tmp_path, "Behind")
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+    digest.digest_chapters(db, user, book, [0, 1, 2])            # one call that saw chapters 0..2
+    old = {r.chapter_idx: r.id for r in db.query(AIChapterDigest).filter_by(book_id=book.id)}
+    assert all(r.context_end_idx == 2 for r in db.query(AIChapterDigest).filter_by(book_id=book.id))
+    scope = digest.Scope(book=book)
+
+    # A reader in chapter 2 (idx 2) must not get rows 0 and 1: their call read idx 2.
+    assert [c.idx for _, c in digest.missing_chapters(db, scope, 2)] == [0, 1]
+    assert digest.scoped_digests(db, scope, 2) == []
+    assert digest.coverage(db, scope, 2)["digested"] == 0
+    assert digest.glossary_state(db, user, book, 2) == []
+    assert [(u.idxs, u.replace) for u in digest.plan_units(db, scope, 2)] == [((0,), True), ((1,), True)]
+    # The reader who triggered it (past chapter idx 2) and anyone further on use it.
+    assert digest.missing_chapters(db, scope, 3) == []
+    for upto in (3, 4):
+        assert len(digest.scoped_digests(db, scope, upto)) == 3
+        assert digest.glossary_state(db, user, book, upto) != []
+    assert [c.idx for _, c in digest.missing_chapters(db, scope, 4)] == [3]
+
+    # The reader behind gets them re-read singly; the rows are overwritten in place.
+    fake = FakeProvider(responses=echo_digest)
+    ai.set_provider_override(fake)
+    snap = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=2, current_book_only=True)
+    digest_job.run_pending()
+    assert digest_job.get(snap["id"])["status"] == "done"
+    assert len(fake.calls) == 2 and all(chapter_blocks(c["user_content"]) == [] for c in fake.calls)
+    rows = {r.chapter_idx: r for r in db.query(AIChapterDigest).filter_by(book_id=book.id)}
+    assert rows[0].id == old[0] and rows[1].id == old[1]
+    assert rows[0].context_end_idx is None and rows[1].context_end_idx is None
+    assert rows[2].context_end_idx == 2
+    assert len(digest.scoped_digests(db, scope, 2)) == 2 and digest.missing_chapters(db, scope, 2) == []
+    # A single-chapter digest is valid for every reader.
+    assert len(digest.scoped_digests(db, scope, 3)) == 3
+
+
+def test_more_survives_for_a_reader_without_the_earlier_volume(db, make_book, tmp_path):
+    user = _make_user(db, "volumes", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Tide One", series="Tide", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Tide Two", series="Tide", index=2)
+    _store_digest(db, v1, 0, [{**_entry("Mara Vell", "A walker.",
+                                        evidence="Mara Vell walked down to the harbour"),
+                               "more": "Introduced in volume one."}])
+    # Volume 2 lists her with the same line: kept (known only from another volume), more kept.
+    ai.set_provider_override(FakeProvider(responses=[{"summary": "Back.", "entries": [
+        {**_entry("Mara Vell", "A walker.", evidence="Mara Vell walked down to the harbour"),
+         "more": "Back in volume two."}]}]))
+    row = digest.digest_chapter(db, user, v2, 0)
+    [e] = json.loads(row.entries_json)
+    assert e["more"] == "Back in volume two."
+
+    newcomer = _make_user(db, "newcomer2", "member")             # never read volume 1
+    [mara] = digest.glossary_state(db, newcomer, v2, 1)
+    assert mara.more == "Back in volume two."
+    _read(db, user, v1)                                          # read it: the first more wins
+    [mara] = digest.glossary_state(db, user, v2, 1)
+    assert mara.more == "Introduced in volume one."
+
+
+def test_check_entries_widens_a_bare_name_quote():
+    play = ("Enter ROMEO. BENVOLIO. Good morrow, cousin. ROMEO. Is the day so young? "
+            "BENVOLIO. But new struck nine. Exeunt all but ROMEO")
+    [e] = digest.check_entries([_entry("Romeo", "A young man.", evidence="Enter ROMEO")], play)
+    assert e["evidence"] == "Enter ROMEO. BENVOLIO"
+    assert digest.evidence_in_text(e["evidence"], digest.normalize_text(play))
+    [e] = digest.check_entries([_entry("Romeo", "A young man.", evidence="romeo")], play)
+    assert e["evidence"] == "ROMEO. BENVOLIO. Good morrow, cousin"   # first occurrence, verbatim case
+    # At the chapter's end the preceding words fill it up.
+    assert digest.widen_evidence("Romeo", "but ROMEO", "Exeunt all but ROMEO") == "all but ROMEO"
+    # Whitespace and typographic quotes in the text are tolerated; the slice is verbatim.
+    text = "They sat down.\n  Tom’s   boat drifted out past the reef that night."
+    [e] = digest.check_entries([_entry("Tom", "A sailor.", kind="person", evidence="Tom's")], text)
+    assert e["evidence"] == "Tom’s boat drifted out past the reef that night"
+    # A two-letter Latin name never carries an entry on its own; a two-character CJK name does.
+    assert digest.check_entries([_entry("Al", "A man.", evidence="Al")], "Al went home early today.") == []
+    cjk = "王林走进了房间。他坐下了。"
+    [e] = digest.check_entries([_entry("王林", "一个人。", evidence="王林")], cjk)
+    assert e["evidence"] == "王林走进了房间"
+
+
+def test_finishing_a_volume_digests_only_that_volume(db, make_book, tmp_path):
+    user = _make_user(db, "onlythis", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Reef One", series="Reef", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Reef Two", series="Reef", index=2)
+    _read(db, user, v1)                                          # read earlier, never digested
+    db.commit()
+    digest_job.reset()
+    digest.reset_triggers()
+
+    def answer(feature, user_content, schema):
+        out = echo_digest(feature, user_content, schema)
+        if "chapters" in out:                                    # leave chapter 2 out
+            out["chapters"] = [c for c in out["chapters"] if c["chapter"] != 2]
+        return out
+
+    fake = FakeProvider(responses=answer)
+    ai.set_provider_override(fake)
+    db.add(UserBookStatus(user_id=user.id, book_id=v2.id, status="read", progress_pct=1.0))
+    db.commit()
+    [job] = _queued()
+    assert job["book_id"] == v2.id and job["scope"] == "book"
+    digest_job.run_pending()
+    assert db.query(AIChapterDigest).filter_by(book_id=v1.id).count() == 0
+    assert {u.book_id for u in db.query(AIUsage).filter_by(feature="reading_digest")} == {v2.id}
+    # Its own digests are incomplete: "Previously on" is skipped, never billed.
+    done = digest_job.get(job["id"])
+    assert done["followups"] == [{"name": "previously_recap", "status": "skipped",
+                                  "message": digest_job.BOOK_INCOMPLETE}]
+    assert [c["feature"] for c in fake.calls] == ["reading_digest"]
+
+
+def test_position_trigger_leaves_a_large_backlog_to_the_explicit_start(db, make_book, tmp_path, monkeypatch):
+    assert digest.CONFIRM_THRESHOLD == 20
+    monkeypatch.setattr(digest, "CONFIRM_THRESHOLD", 4)
+    user = _make_user(db, "backlog", "member")
+    book = _epub_book(db, make_book, tmp_path, "Backlog", chapters=EIGHT)
+    assert digest.on_position_advanced(db, user, book, _mid_of(book, db, 5)) is None   # 5 > 4
+    assert _queued() == []
+    other = _make_user(db, "backlog2", "member")
+    job = digest.on_position_advanced(db, other, book, _mid_of(book, db, 4))           # 4 <= 4
+    assert job is not None and job["upto_chapter"] == 4 and job["scope"] == "book"

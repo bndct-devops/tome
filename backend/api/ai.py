@@ -11,7 +11,7 @@ TOME_AI_ENABLED=false makes everything except ``GET /status`` a 404.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -20,15 +20,16 @@ from sqlalchemy.orm import Session
 
 from backend.api.bindery import SUPPORTED_EXTENSIONS as BINDERY_EXTENSIONS, _require_bindery, _safe_resolve
 from backend.core.database import get_db
-from backend.core.permissions import is_admin, require_role, user_can_see_book
+from backend.core.permissions import is_admin, is_member_or_above, require_role, user_can_see_book
 from backend.core.security import get_current_user
+from backend.models.ai_job import AIJob
 from backend.models.book import Book
 from backend.models.user import User
 from backend.services import ai
 from backend.services import book_text
 from backend.services.ai import (
-    companion, digest, digest_job, fix_book, identify, recall as ai_recall, recap as ai_recap,
-    registry, series_cleanup, settings as ai_settings, usage,
+    budget, companion, digest, digest_job, fix_book, identify, jobs_view, recall as ai_recall,
+    recap as ai_recap, registry, series_cleanup, settings as ai_settings, usage,
 )
 from backend.services.ai.provider import AIError, AIKeyInvalid, AIProviderError
 from backend.services.audit import audit
@@ -129,6 +130,9 @@ class InstanceBody(BaseModel):
     share_instance_key: bool | None = None
     confidence_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     features: dict[str, FeatureSettings] | None = None
+    # Monthly cap (USD) on spend charged to the instance key. Sending null
+    # removes the cap; leaving the field out keeps it.
+    budget_instance_monthly_usd: float | None = Field(default=None, ge=0.0, le=1_000_000.0)
 
 
 @router.put("/instance")
@@ -178,6 +182,13 @@ def update_instance(
             if model != ai_settings.feature_model_override(db, key):
                 ai_settings.set_feature_model(db, key, model)
                 changed.append(f"features.{key}.model")
+    budget_change: tuple[float | None, float | None] | None = None
+    if "budget_instance_monthly_usd" in body.model_fields_set:
+        old = ai_settings.instance_monthly_budget(db)
+        new = body.budget_instance_monthly_usd
+        if old != new:
+            ai_settings.set_instance_monthly_budget(db, new)
+            budget_change = (old, new)
     db.commit()
 
     if changed:
@@ -185,6 +196,11 @@ def update_instance(
         audit(db, "ai.instance_settings_changed", user_id=current_user.id,
               username=current_user.username, resource_type="instance",
               details={"fields": changed}, ip=_ip(request))
+    if budget_change is not None:
+        audit(db, "ai.budget_changed", user_id=current_user.id, username=current_user.username,
+              resource_type="instance",
+              details={"limit": "instance", "old": budget_change[0], "new": budget_change[1]},
+              ip=_ip(request))
     return ai_settings.status_payload(db, current_user)
 
 
@@ -197,12 +213,124 @@ def get_usage(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_user),
 ) -> dict[str, Any]:
+    """The month's totals, plus ``limits``: ``{user_monthly_usd (own),
+    admin_monthly_usd (an admin's cap), effective_monthly_usd (the lower),
+    user_spent_usd, instance_monthly_usd, instance_spent_usd,
+    remaining_usd}`` for the current UTC month (instance figures only for
+    users whose calls can be charged to the instance key). With ``all``
+    (admins), ``by_user`` rows and ``members`` (every member and admin)
+    carry ``monthly_limit_usd`` (the user's own), ``admin_limit_usd`` (the
+    cap an admin set, which the per-user input edits) and
+    ``effective_limit_usd``."""
     if all_users and not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Admin access required")
     try:
-        return usage.month_summary(db, month=month, user_id=current_user.id, all_users=all_users)
+        out = usage.month_summary(db, month=month, user_id=current_user.id, all_users=all_users)
     except ValueError:
         raise HTTPException(status_code=422, detail="month must be YYYY-MM")
+    out["limits"] = budget.limits_payload(db, current_user)
+    if all_users:
+        members = [u for u in db.query(User).order_by(User.username.asc()).all()
+                   if is_member_or_above(u)]
+        limits = {u.id: _limit_fields(u) for u in members}
+        empty = {"monthly_limit_usd": None, "admin_limit_usd": None, "effective_limit_usd": None}
+        for row in out.get("by_user", []):
+            row.update(limits.get(row["user_id"], empty))
+        out["members"] = [{"user_id": u.id, "username": u.username, **limits[u.id]} for u in members]
+    return out
+
+
+def _limit_fields(u: User) -> dict[str, float | None]:
+    return {"monthly_limit_usd": u.ai_monthly_limit_usd, "admin_limit_usd": u.ai_admin_limit_usd,
+            "effective_limit_usd": budget.effective_user_limit(u)}
+
+
+class LimitBody(BaseModel):
+    # USD per calendar month (UTC), all key sources. null removes the limit.
+    user_monthly_usd: float | None = Field(default=None, ge=0.0, le=1_000_000.0)
+
+
+def _set_user_limit(db: Session, target: User, value: float | None, actor: User,
+                    request: Request, *, admin_cap: bool = False) -> None:
+    """Set the user's own limit, or with ``admin_cap`` the cap an admin
+    keeps on them (a separate column the user cannot change)."""
+    old = target.ai_admin_limit_usd if admin_cap else target.ai_monthly_limit_usd
+    if old == value:
+        return
+    if admin_cap:
+        target.ai_admin_limit_usd = None if value is None else max(0.0, float(value))
+    else:
+        ai_settings.set_user_monthly_limit(target, value)
+    db.commit()
+    audit(db, "ai.budget_changed", user_id=actor.id, username=actor.username,
+          resource_type="user", resource_id=target.id, resource_title=target.username,
+          details={"limit": "admin" if admin_cap else "user", "user_id": target.id,
+                   "old": old, "new": value},
+          ip=_ip(request))
+
+
+@router.put("/limits")
+def set_own_limit(
+    body: LimitBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Set (or with null, remove) the caller's own monthly AI spend limit.
+    Returns ``{limits}`` as in GET /usage."""
+    _set_user_limit(db, current_user, body.user_monthly_usd, current_user, request)
+    return {"limits": budget.limits_payload(db, current_user)}
+
+
+@router.put("/users/{user_id}/limit")
+def set_user_limit(
+    user_id: int,
+    body: LimitBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Admins: set (or with null, remove) the cap kept on any user's
+    monthly AI spend (``User.ai_admin_limit_usd``; the user's own limit is
+    theirs, and the lower of the two applies). ``{user_id, username,
+    monthly_limit_usd, admin_limit_usd, effective_limit_usd}``."""
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    _set_user_limit(db, target, body.user_monthly_usd, current_user, request, admin_cap=True)
+    return {"user_id": target.id, "username": target.username, **_limit_fields(target)}
+
+
+# ── activity: jobs and their calls ───────────────────────────────────────────
+
+@router.get("/jobs")
+def list_ai_jobs(
+    days: int = Query(default=30, ge=1, le=366),
+    user_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Running jobs, then the last ``days`` days of jobs grouped by book with
+    spend (``backend/services/ai/jobs_view.py``). Members see their own;
+    admins everyone's, or one user's with ``user_id``."""
+    if is_admin(current_user):
+        return jobs_view.list_jobs(db, user_id=user_id, days=days, with_usernames=True)
+    if user_id is not None and user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return jobs_view.list_jobs(db, user_id=current_user.id, days=days)
+
+
+@router.get("/jobs/{job_id}/calls")
+def list_ai_job_calls(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """The job's model calls with their tokens and price."""
+    job = _visible_job(job_id, current_user, db)
+    return {"job_id": job["id"], "calls": jobs_view.job_calls(db, job_id)}
 
 
 # ── bindery identify ─────────────────────────────────────────────────────────
@@ -339,8 +467,8 @@ def apply_series_cleanup(
 # Jobs are in memory (backend/services/ai/digest_job.py). A job is visible to
 # the user it runs for and to admins; anyone else gets 404.
 
-def _visible_job(job_id: str, user: User) -> dict[str, Any]:
-    job = digest_job.get(job_id)
+def _visible_job(job_id: str, user: User, db: Session) -> dict[str, Any]:
+    job = digest_job.get(job_id, db)
     if job is None or (job["user_id"] != user.id and not is_admin(user)):
         raise HTTPException(status_code=404, detail="Job not found")
     return job
@@ -349,21 +477,27 @@ def _visible_job(job_id: str, user: User) -> dict[str, Any]:
 @router.get("/digest-jobs/{job_id}")
 def get_digest_job(
     job_id: str,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_user),
 ) -> dict[str, Any]:
-    """Progress of a digest job: ``{id, status, done, total, current, ...}``."""
-    return _visible_job(job_id, current_user)
+    """Progress of a digest job: ``{id, status, scope, done, total, calls,
+    cost_usd, est_seconds, est_cost_usd, current, ...}``. A job this
+    process no longer holds is served from its ``ai_jobs`` row."""
+    return _visible_job(job_id, current_user, db)
 
 
 @router.post("/digest-jobs/{job_id}/cancel")
 def cancel_digest_job(
     job_id: str,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_user),
 ) -> dict[str, Any]:
-    """Cancel a queued job, or a running one before its next chapter. The
-    chapters already digested stay stored."""
-    _visible_job(job_id, current_user)
-    job = digest_job.cancel(job_id)
+    """Stop a job: a queued one is cancelled at once; a running one turns
+    ``stopping`` at once, its units in flight finish and store their
+    chapters, then ``cancelled``. The chapters already digested stay
+    stored."""
+    _visible_job(job_id, current_user, db)
+    job = digest_job.cancel(job_id, db)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
@@ -406,8 +540,8 @@ def get_companion(
     chapters = book_text.book_chapters(book, db)
     out: dict[str, Any] = {
         "available": False, "reason": None, "features": feats, "position": None,
-        "chapters": len(chapters), "coverage": None, "job": None, "recap_cached": False,
-        "glossary_count": 0, "previously": None, "scope": None,
+        "chapters": len(chapters), "coverage": None, "job": None, "last_job": None,
+        "recap_cached": False, "glossary_count": 0, "previously": None, "scope": None,
     }
     if (not ai_settings.ai_enabled(db) or not ai_settings.feature_enabled(db, digest.FEATURE)
             or not (ai_settings.feature_enabled(db, ai_recap.FEATURE)
@@ -415,6 +549,13 @@ def get_companion(
         out["reason"] = companion.FEATURE_OFF
         return out
     out["job"] = digest_job.active_for(current_user.id, book.id)
+    if out["job"] is None:
+        # The latest ended job, so the page can offer "Continue" after a
+        # stop, cancel or restart (it never queues on its own).
+        latest = (db.query(AIJob.id)
+                  .filter(AIJob.user_id == current_user.id, AIJob.book_id == book.id)
+                  .order_by(AIJob.created_at.desc()).first())
+        out["last_job"] = digest_job.get(latest[0], db) if latest else None
     pos = companion.reader_position(db, current_user, book)
     pos_k = companion.position_chapter(book, pos.word_pct, db) if pos and chapters else None
     if feats["recap"] and (pos is None or not pos_k):
@@ -464,8 +605,10 @@ def post_recap(
     current_user: User = Depends(require_ai_user),
 ) -> Any:
     """200 ``{text, chapter_idx, chapter_title, whole_book, cached, partial,
-    created_at, scope}``, or 202 ``{job, coverage, chapter_idx,
-    chapter_title}`` while the chapters before the position are digested."""
+    created_at, scope}``, or 202 ``{needs_digest: true, estimate, coverage,
+    job, chapter_idx, chapter_title}`` when chapters before the position are
+    not digested yet. The 202 queues nothing: start the digests with POST
+    /books/{id}/digest, then ask again."""
     body = body or RecapBody()
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, ai_recap.FEATURE)
@@ -494,18 +637,58 @@ def delete_recap(
 def get_glossary(
     book_id: int,
     chapter: int | None = Query(default=None, ge=0),
-    queue: bool = Query(default=True),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_user),
 ) -> dict[str, Any]:
     """The glossary up to the position chapter (from storage, no model call).
-    Queues the missing digests when the user has a key; ``job`` carries the
-    progress. ``queue=false`` only reads: the web UI refreshes with it after a
-    job ends, so a chapter that cannot be read is not retried in a loop."""
+    Read-only: never queues work; ``job`` is the active digest job for the
+    book, if any. Digests are started with POST /books/{id}/digest."""
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, digest.FEATURE)
     window = _web_window(db, current_user, book, chapter)
-    return companion.glossary_payload(db, current_user, book, window, enqueue=queue)
+    return companion.glossary_payload(db, current_user, book, window)
+
+
+@router.get("/books/{book_id}/digest/estimate")
+def get_digest_estimate(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """What reading the missing chapters before the position would cost and
+    take: ``{book: {...}, series: {...} | null, chapter_idx,
+    chapter_title}``, each scope ``{scope, chapters, calls, words,
+    est_seconds, est_cost_usd, model, remaining_budget_usd, over_budget,
+    volumes: [{book_id, title, chapters}]}``. Never calls a model."""
+    book = _visible_book(db, current_user, book_id)
+    window = _web_window(db, current_user, book, None)
+    return companion.digest_estimates(db, current_user, book, window)
+
+
+class DigestBody(BaseModel):
+    # "book": this book's chapters before the position; "series": also every
+    # chapter of the earlier volumes the user marked read.
+    scope: Literal["book", "series"] = "book"
+
+
+@router.post("/books/{book_id}/digest")
+def post_digest(
+    book_id: int,
+    body: DigestBody | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> Any:
+    """Start digesting the chapters before the position: 202 ``{job,
+    estimate, coverage, scope, chapter_idx, chapter_title}``, or 200 with
+    ``job`` null (or the active job) when nothing is missing. 409 without a
+    key, 409 ``reason: "budget"`` when the estimate is over what is left of
+    a monthly spend limit. The only on-demand way to queue digest work."""
+    body = body or DigestBody()
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, digest.FEATURE)
+    window = _web_window(db, current_user, book, None)
+    status, payload = companion.start_digest(db, current_user, book, window, body.scope)
+    return JSONResponse(status_code=status, content=payload)
 
 
 class RecallBody(BaseModel):
@@ -551,7 +734,10 @@ def get_previously(
 
 def _ai_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AIError)
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+    content: dict[str, Any] = {"detail": exc.message}
+    if exc.reason:
+        content["reason"] = exc.reason
+    return JSONResponse(status_code=exc.status_code, content=content)
 
 
 def register_exception_handlers(app: FastAPI) -> None:

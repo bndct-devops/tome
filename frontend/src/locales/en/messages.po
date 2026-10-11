@@ -232,6 +232,10 @@ msgstr "\"Accept the obvious\" applies every proposal at or above this confidenc
 msgid "({a} vs {b} pages/min)"
 msgstr "({a} vs {b} pages/min)"
 
+#: src/components/AiActivity.tsx
+msgid "({cached} cached)"
+msgstr "({cached} cached)"
+
 #: src/components/AiSettings.tsx
 msgid "(admins only)"
 msgstr "(admins only)"
@@ -331,7 +335,9 @@ msgstr "{0, plural, one {# book, none estimated yet.} other {# books, none estim
 msgid "{0, plural, one {# book} other {# books}}"
 msgstr "{0, plural, one {# book} other {# books}}"
 
+#. placeholder {0}: book.calls
 #. placeholder {0}: data.total.calls
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 msgid "{0, plural, one {# call} other {# calls}}"
 msgstr "{0, plural, one {# call} other {# calls}}"
@@ -644,6 +650,14 @@ msgstr "{bt} — {st} to {en} ({dur})"
 msgid "{changes, plural, one {# change proposed. Check it before applying.} other {# changes proposed. Check them before applying.}}"
 msgstr "{changes, plural, one {# change proposed. Check it before applying.} other {# changes proposed. Check them before applying.}}"
 
+#: src/components/AiActivity.tsx
+msgid "{chapters, plural, one {# chapter read} other {# chapters read}}"
+msgstr "{chapters, plural, one {# chapter read} other {# chapters read}}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{chapters, plural, one {# chapter} other {# chapters}}"
+msgstr "{chapters, plural, one {# chapter} other {# chapters}}"
+
 #: src/pages/AdminPage.tsx
 msgid "{clearResult} covers deleted."
 msgstr "{clearResult} covers deleted."
@@ -724,9 +738,17 @@ msgstr "{diffMins}m ago"
 msgid "{digested} of {needed} chapters before your position are read so far."
 msgstr "{digested} of {needed} chapters before your position are read so far."
 
+#: src/components/AiActivity.tsx
+msgid "{directCalls, plural, one {# other call (recap, Recall, fixes)} other {# other calls (recap, Recall, fixes)}}"
+msgstr "{directCalls, plural, one {# other call (recap, Recall, fixes)} other {# other calls (recap, Recall, fixes)}}"
+
 #: src/pages/AdminPage.tsx
 msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
 msgstr "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
+
+#: src/components/AiActivity.tsx
+msgid "{done} of {total} chapters"
+msgstr "{done} of {total} chapters"
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{dur} · {books} books — your only language"
@@ -743,6 +765,10 @@ msgstr "{dur} on device"
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{dur} with {mainTitle}."
 msgstr "{dur} with {mainTitle}."
+
+#: src/components/AiActivity.tsx
+msgid "{f} could not be read"
+msgstr "{f} could not be read"
 
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
@@ -884,6 +910,10 @@ msgstr "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 msgid "{mins}m ago"
 msgstr "{mins}m ago"
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "{minutes, plural, one {about # minute} other {about # minutes}}"
+msgstr "{minutes, plural, one {about # minute} other {about # minutes}}"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "{minutes} min"
 msgstr "{minutes} min"
@@ -916,6 +946,14 @@ msgstr "{n, plural, one {Accepted # volume} other {Accepted # volumes}}"
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
 msgstr "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{n, plural, one {Read # chapter first?} other {Read # chapters first?}}"
+msgstr "{n, plural, one {Read # chapter first?} other {Read # chapters first?}}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{n, plural, one {Read # chapter} other {Read # chapters}}"
+msgstr "{n, plural, one {Read # chapter} other {Read # chapters}}"
 
 #: src/components/AppShell.tsx
 #: src/components/MetadataManager.tsx
@@ -1069,6 +1107,14 @@ msgstr "{readN} read · {unreadN} unread"
 msgid "{recent} in the last 7 days vs {prior} the week before"
 msgstr "{recent} in the last 7 days vs {prior} the week before"
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "{remainingText} left of your monthly AI budget."
+msgstr "{remainingText} left of your monthly AI budget."
+
+#: src/components/AiSettings.tsx
+msgid "{s} of {l}"
+msgstr "{s} of {l}"
+
 #: src/components/WordCount.tsx
 msgid "{s}s"
 msgstr "{s}s"
@@ -1140,6 +1186,10 @@ msgstr "{totalCount, plural, one {# result for \"{search}\"} other {# results fo
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
 msgstr "{v}m"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{vc, plural, one {# chapter} other {# chapters}}"
+msgstr "{vc, plural, one {# chapter} other {# chapters}}"
 
 #: src/components/ReadingCompanion.tsx
 msgid "{volume}, {chapter}"
@@ -1327,6 +1377,14 @@ msgstr "A year of reading, heatmap"
 msgid "About"
 msgstr "About"
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "about {cost}"
+msgstr "about {cost}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "about {h} hours"
+msgstr "about {h} hours"
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "about <0>{d}</0> at your pace"
 msgstr "about <0>{d}</0> at your pace"
@@ -1383,6 +1441,7 @@ msgstr "Active"
 msgid "Active Days"
 msgstr "Active Days"
 
+#: src/components/AiActivity.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Activity"
 msgstr "Activity"
@@ -1530,6 +1589,10 @@ msgstr "Admin access required."
 msgid "AI"
 msgstr "AI"
 
+#: src/components/AiSettings.tsx
+msgid "AI calls stop for you once this month's spend reaches it, background reading included. Empty means no limit."
+msgstr "AI calls stop for you once this month's spend reaches it, background reading included. Empty means no limit."
+
 #: src/components/ManageSeriesModal.tsx
 msgid "AI cleanup failed"
 msgstr "AI cleanup failed"
@@ -1648,6 +1711,7 @@ msgstr "All series"
 msgid "All types"
 msgstr "All types"
 
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -2184,6 +2248,10 @@ msgstr "Browse your library"
 msgid "Build the glossary as you read"
 msgstr "Build the glossary as you read"
 
+#: src/components/AiActivity.tsx
+msgid "Cached"
+msgstr "Cached"
+
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 msgid "Calendar"
@@ -2226,6 +2294,14 @@ msgstr "Cancel"
 #: src/components/InstanceBackup.tsx
 msgid "Cancel restore"
 msgstr "Cancel restore"
+
+#: src/components/AiSettings.tsx
+msgid "Capped at {cap} by an admin"
+msgstr "Capped at {cap} by an admin"
+
+#: src/components/AiSettings.tsx
+msgid "Caps everything charged to the instance key this month, for all users. Empty means no limit."
+msgstr "Caps everything charged to the instance key this month, for all users. Empty means no limit."
 
 #: src/pages/StatsPage.tsx
 msgid "Category Breakdown"
@@ -2369,6 +2445,7 @@ msgstr "Click for details"
 
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/ConnectPhoneModal.tsx
+#: src/components/DigestConfirmDialog.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/ScanSyncCodeModal.tsx
@@ -2516,6 +2593,10 @@ msgstr "Content Type"
 msgid "Contents"
 msgstr "Contents"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Continue"
+msgstr "Continue"
+
 #: src/components/home/FocusMode.tsx
 msgid "Continue reading"
 msgstr "Continue reading"
@@ -2562,6 +2643,7 @@ msgstr "Copy token"
 msgid "Core"
 msgstr "Core"
 
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 msgid "Cost"
 msgstr "Cost"
@@ -2585,6 +2667,14 @@ msgstr "Could not link Hardcover account"
 #: src/pages/SettingsPage.tsx
 msgid "Could not link SSO. Please try again."
 msgstr "Could not link SSO. Please try again."
+
+#: src/components/AiActivity.tsx
+msgid "Could not load the activity."
+msgstr "Could not load the activity."
+
+#: src/components/AiActivity.tsx
+msgid "Could not load the calls."
+msgstr "Could not load the calls."
 
 #: src/components/ReadingCompanion.tsx
 msgid "Could not load the glossary"
@@ -2634,9 +2724,17 @@ msgstr "Could not save AI settings"
 msgid "Could not save the key"
 msgstr "Could not save the key"
 
+#: src/components/AiSettings.tsx
+msgid "Could not save the limit"
+msgstr "Could not save the limit"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Could not set match"
 msgstr "Could not set match"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Could not start reading the chapters"
+msgstr "Could not start reading the chapters"
 
 #: src/pages/SettingsPage.tsx
 msgid "Could not start SSO linking."
@@ -2932,6 +3030,10 @@ msgstr "Delete this imported sitting"
 msgid "Deleted board “{name}”"
 msgstr "Deleted board “{name}”"
 
+#: src/components/AiActivity.tsx
+msgid "Deleted book"
+msgstr "Deleted book"
+
 #: src/components/AiSettings.tsx
 msgid "Deleted user"
 msgstr "Deleted user"
@@ -3035,6 +3137,7 @@ msgstr "Docs"
 #~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
 #~ msgstr "Don't have it yet? Tome Reader is in open beta for iPhone."
 
+#: src/components/AiActivity.tsx
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/WordCount.tsx
 #: src/pages/DashboardPage.tsx
@@ -3284,9 +3387,21 @@ msgstr "Est. read time"
 msgid "Est. remaining"
 msgstr "Est. remaining"
 
+#: src/components/AiActivity.tsx
+msgid "estimate {est}"
+msgstr "estimate {est}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Estimated for {model} from list prices and earlier runs on this server. Stop it any time; the chapters read so far are kept."
+msgstr "Estimated for {model} from list prices and earlier runs on this server. Stop it any time; the chapters read so far are kept."
+
 #: src/components/AiSettings.tsx
 msgid "Estimated from list prices. Your {provider} invoice is the source of truth."
 msgstr "Estimated from list prices. Your {provider} invoice is the source of truth."
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Every chapter of this book before your position is read already."
+msgstr "Every chapter of this book before your position is read already."
 
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "Every day you read, and what it looked like."
@@ -3394,6 +3509,7 @@ msgstr "Exporting..."
 msgid "failed"
 msgstr "failed"
 
+#: src/components/AiActivity.tsx
 #: src/components/WordCount.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -3898,6 +4014,7 @@ msgstr "Get notified when a new volume of a followed series is released."
 msgid "Get token"
 msgstr "Get token"
 
+#: src/components/AiActivity.tsx
 #: src/components/ReadingCompanion.tsx
 msgid "Getting ready to read the chapters…"
 msgstr "Getting ready to read the chapters…"
@@ -4175,6 +4292,10 @@ msgstr "Imported board"
 msgid "Importing…"
 msgstr "Importing…"
 
+#: src/components/AiActivity.tsx
+msgid "in"
+msgstr "in"
+
 #: src/pages/SettingsPage.tsx
 msgid "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
 msgstr "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
@@ -4218,8 +4339,24 @@ msgid "Instance key"
 msgstr "Instance key"
 
 #: src/components/AiSettings.tsx
+msgid "Instance key monthly limit"
+msgstr "Instance key monthly limit"
+
+#: src/components/AiSettings.tsx
+msgid "Instance key, all users"
+msgstr "Instance key, all users"
+
+#: src/components/AiSettings.tsx
 msgid "Instance settings"
 msgstr "Instance settings"
+
+#: src/components/AiActivity.tsx
+msgid "Interrupted"
+msgstr "Interrupted"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Interrupted by a server restart after {done} of {total} chapters."
+msgstr "Interrupted by a server restart after {done} of {total} chapters."
 
 #: src/pages/AdminPage.tsx
 msgid "IP:"
@@ -4342,6 +4479,10 @@ msgstr "Language"
 msgid "Language: {filterLanguageLabel}"
 msgstr "Language: {filterLanguageLabel}"
 
+#: src/components/AiActivity.tsx
+msgid "last 30 days"
+msgstr "last 30 days"
+
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Last read"
@@ -4454,6 +4595,10 @@ msgstr "Lifetime words read, by year"
 msgid "Light"
 msgstr "Light"
 
+#: src/components/AiSettings.tsx
+msgid "Limits per user"
+msgstr "Limits per user"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Link"
 msgstr "Link"
@@ -4527,6 +4672,7 @@ msgstr "Loading your reading life…"
 #~ msgid "Loading..."
 #~ msgstr "Loading..."
 
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
@@ -4760,6 +4906,7 @@ msgstr "missing: {missingList}"
 msgid "Mo"
 msgstr "Mo"
 
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 msgid "Model"
 msgstr "Model"
@@ -4777,6 +4924,10 @@ msgstr "Mon"
 msgid "Monthly goal"
 msgstr "Monthly goal"
 
+#: src/components/AiSettings.tsx
+msgid "Monthly limit for {name}"
+msgstr "Monthly limit for {name}"
+
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "More"
@@ -4785,6 +4936,10 @@ msgstr "More"
 #: src/components/SendButton.tsx
 msgid "More send options"
 msgstr "More send options"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "More than what is left of the monthly AI budget."
+msgstr "More than what is left of the monthly AI budget."
 
 #: src/pages/StatsPage.tsx
 msgid "Morning vs evening reader?"
@@ -5129,6 +5284,10 @@ msgstr "No libraries"
 msgid "No library growth data."
 msgstr "No library growth data."
 
+#: src/components/AiSettings.tsx
+msgid "No limit"
+msgstr "No limit"
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "No match found"
 msgstr "No match found"
@@ -5148,6 +5307,10 @@ msgstr "No matching volumes in the library yet."
 #: src/pages/BinderyPage.tsx
 msgid "No metadata found"
 msgstr "No metadata found"
+
+#: src/components/AiActivity.tsx
+msgid "No model calls."
+msgstr "No model calls."
 
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "no new fields"
@@ -5436,6 +5599,10 @@ msgstr "Not in your library ({n})"
 msgid "Not matched"
 msgstr "Not matched"
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "Not now"
+msgstr "Not now"
+
 #: src/pages/StatsPage.tsx
 msgid "Not on board"
 msgstr "Not on board"
@@ -5518,6 +5685,10 @@ msgstr "Nothing shared yet. Use the share icon on a shelf, a series page, or a b
 #: src/components/LibraryHealth.tsx
 msgid "Nothing to remove."
 msgstr "Nothing to remove."
+
+#: src/components/AiActivity.tsx
+msgid "Nothing yet. When the recap or the glossary reads chapters of a book, the job shows up here with what it cost."
+msgstr "Nothing yet. When the recap or the glossary reads chapters of a book, the job shows up here with what it cost."
 
 #: src/components/NotificationBell.tsx
 #: src/pages/SettingsPage.tsx
@@ -5708,6 +5879,10 @@ msgstr "Other providers"
 msgid "Other volumes"
 msgstr "Other volumes"
 
+#: src/components/AiActivity.tsx
+msgid "out"
+msgstr "out"
+
 #: src/pages/StatsPage.tsx
 msgid "over {days} days"
 msgstr "over {days} days"
@@ -5853,6 +6028,10 @@ msgstr "Paused, the report changed in this version. Review it to resume."
 msgid "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
 msgstr "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
 
+#: src/components/ReadingCompanion.tsx
+msgid "People"
+msgstr "People"
+
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
 msgstr "Per-file details"
@@ -5916,6 +6095,10 @@ msgstr "PIN created — copy it now, it won't be shown again."
 #: src/components/ReadingCompanion.tsx
 msgid "Place"
 msgstr "Place"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Places"
+msgstr "Places"
 
 #: src/components/WishlistModal.tsx
 msgid "Please pick a result or use the manual form."
@@ -6264,6 +6447,10 @@ msgstr "Read book"
 msgid "Read on the web"
 msgstr "Read on the web"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Read the missing chapters"
+msgstr "Read the missing chapters"
+
 #: src/pages/SettingsPage.tsx
 msgid "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
 msgstr "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
@@ -6312,8 +6499,13 @@ msgstr "Reading by Weekday"
 #~ msgstr "Reading Calendar"
 
 #: src/components/ReadingCompanion.tsx
-msgid "Reading chapter {current} of {total}…"
-msgstr "Reading chapter {current} of {total}…"
+#~ msgid "Reading chapter {current} of {total}…"
+#~ msgstr "Reading chapter {current} of {total}…"
+
+#: src/components/AiActivity.tsx
+#: src/components/ReadingCompanion.tsx
+msgid "Reading chapters: {done} of {total}…"
+msgstr "Reading chapters: {done} of {total}…"
 
 #: src/pages/StatsPage.tsx
 msgid "Reading Clock"
@@ -6702,6 +6894,10 @@ msgstr "Role"
 #: src/pages/AdminPage.tsx
 msgid "Roles guide"
 msgstr "Roles guide"
+
+#: src/components/AiActivity.tsx
+msgid "Running"
+msgstr "Running"
 
 #: src/pages/StatsPage.tsx
 msgid "Sa"
@@ -7305,6 +7501,10 @@ msgstr "Shelves"
 msgid "Short app-specific passwords for OPDS — easier to type on an e-reader than your full password."
 msgstr "Short app-specific passwords for OPDS — easier to type on an e-reader than your full password."
 
+#: src/components/AiActivity.tsx
+msgid "Show activity for"
+msgstr "Show activity for"
+
 #: src/components/stats/widgets/library.tsx
 msgid "Show all ({n} books)"
 msgstr "Show all ({n} books)"
@@ -7565,6 +7765,7 @@ msgstr "Status"
 msgid "Status: {filterStatusLabel}"
 msgstr "Status: {filterStatusLabel}"
 
+#: src/components/AiActivity.tsx
 #: src/components/ReadingCompanion.tsx
 #: src/components/WordCount.tsx
 msgid "Stop"
@@ -7577,6 +7778,27 @@ msgstr "Stop following this series"
 #: src/components/TelemetryConsentCard.tsx
 msgid "Stop sending"
 msgstr "Stop sending"
+
+#: src/components/AiActivity.tsx
+msgid "Stopped"
+msgstr "Stopped"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Stopped after {done} of {total} chapters."
+msgstr "Stopped after {done} of {total} chapters."
+
+#: src/components/AiActivity.tsx
+msgid "Stopped by you"
+msgstr "Stopped by you"
+
+#: src/components/AiActivity.tsx
+msgid "Stopping"
+msgstr "Stopping"
+
+#: src/components/AiActivity.tsx
+#: src/components/ReadingCompanion.tsx
+msgid "Stopping after the current chapters…"
+msgstr "Stopping after the current chapters…"
 
 #: src/pages/StatsPage.tsx
 msgid "Streak"
@@ -7756,6 +7978,10 @@ msgstr "Temporary password"
 msgid "Term"
 msgstr "Term"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Terms"
+msgstr "Terms"
+
 #: src/pages/AdminPage.tsx
 msgid "Test"
 msgstr "Test"
@@ -7813,6 +8039,10 @@ msgstr "The device clock is off by {offset}; times were corrected."
 msgid "The glossary fills in as each chapter is read."
 msgstr "The glossary fills in as each chapter is read."
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards."
+msgstr "The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards."
+
 #: src/components/ReadingCompanion.tsx
 msgid "The story so far, from the pages before your position. Nothing after it is read."
 msgstr "The story so far, from the pages before your position. Nothing after it is read."
@@ -7841,6 +8071,14 @@ msgstr "Theme name is required"
 #: src/pages/StatsPage.tsx
 msgid "This board is empty."
 msgstr "This board is empty."
+
+#: src/components/AiActivity.tsx
+msgid "This book"
+msgstr "This book"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "This book only"
+msgstr "This book only"
 
 #: src/components/ConnectPhoneModal.tsx
 msgid "This code has expired."
@@ -7923,6 +8161,7 @@ msgstr "This wish covers the whole series and stays open as new volumes arrive."
 msgid "Thu"
 msgstr "Thu"
 
+#: src/components/AiActivity.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
@@ -8037,10 +8276,12 @@ msgstr "Toggle theme"
 msgid "Token name"
 msgstr "Token name"
 
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 msgid "Tokens in"
 msgstr "Tokens in"
 
+#: src/components/AiActivity.tsx
 #: src/components/AiSettings.tsx
 msgid "Tokens out"
 msgstr "Tokens out"
@@ -8062,9 +8303,21 @@ msgstr "TomeSync and KOSync can both be active. TomeSync tracks full reading ses
 msgid "TomeSync Plugin"
 msgstr "TomeSync Plugin"
 
+#: src/components/AiActivity.tsx
+msgid "Took"
+msgstr "Took"
+
 #: src/components/WordCount.tsx
 msgid "Took {dur}"
 msgstr "Took {dur}"
+
+#: src/components/AiActivity.tsx
+msgid "took {took}"
+msgstr "took {took}"
+
+#: src/components/AiActivity.tsx
+msgid "took {took}, estimate {estTime}"
+msgstr "took {took}, estimate {estTime}"
 
 #: src/pages/StatsPage.tsx
 msgid "Top Authors by Reading Time"
@@ -8163,9 +8416,17 @@ msgstr "Types"
 msgid "Unassigned"
 msgstr "Unassigned"
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "under {min}"
+msgstr "under {min}"
+
 #: src/lib/backlog.ts
 msgid "under a day"
 msgstr "under a day"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "under a minute"
+msgstr "under a minute"
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
@@ -8432,6 +8693,7 @@ msgstr "Volume {n} — not in the library"
 msgid "Volume <0>{v}</0>"
 msgstr "Volume <0>{v}</0>"
 
+#: src/components/DigestConfirmDialog.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Volumes"
@@ -8440,6 +8702,10 @@ msgstr "Volumes"
 msgid "Volumes {range}"
 msgstr "Volumes {range}"
 
+#: src/components/AiActivity.tsx
+msgid "Waiting"
+msgstr "Waiting"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Waiting for a code…"
 msgstr "Waiting for a code…"
@@ -8447,6 +8713,10 @@ msgstr "Waiting for a code…"
 #: src/pages/LoginPage.tsx
 msgid "Waiting for authorization…"
 msgstr "Waiting for authorization…"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Waiting for the chapters to be read. The recap is written right after."
+msgstr "Waiting for the chapters to be read. The recap is written right after."
 
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."
@@ -8527,6 +8797,10 @@ msgstr "What do these mean? — read the stats docs"
 msgid "What is this?"
 msgstr "What is this?"
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "What to read"
+msgstr "What to read"
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "What you read"
 msgstr "What you read"
@@ -8559,6 +8833,8 @@ msgstr "Where you read"
 msgid "Which weekday you read most"
 msgstr "Which weekday you read most"
 
+#: src/components/AiActivity.tsx
+#: src/components/DigestConfirmDialog.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -8738,6 +9014,10 @@ msgstr "Your Library"
 #: src/pages/DashboardPage.tsx
 msgid "Your library is empty"
 msgstr "Your library is empty"
+
+#: src/components/AiSettings.tsx
+msgid "Your monthly limit"
+msgstr "Your monthly limit"
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx

@@ -13,6 +13,7 @@ chapter with too little text to digest (no model call, no usage row).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -34,4 +35,9 @@ class AIChapterDigest(Base):
     entries_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The last chapter the call that wrote this row saw (a multi-chapter call:
+    # its last chapter). NULL or == chapter_idx: the call saw nothing later.
+    # A reader whose position chapter is <= this value must not use the row
+    # (``digest.row_usable``); it is re-read singly for them and overwritten.
+    context_end_idx: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

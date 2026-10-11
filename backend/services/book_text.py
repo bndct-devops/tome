@@ -266,6 +266,33 @@ def chapter_texts(book: Book, db: Session | None = None) -> list[str] | None:
     return [docs.text_between(*_bounds(docs, ch)) for ch in chapters]
 
 
+def chapter_word_counts(book: Book, db: Session | None = None) -> dict[int, int]:
+    """Words per chapter ``idx``: the chapter map's fractions times
+    ``book.word_count`` when it is stored (no file read), else counted from
+    the file (parsed once per file version, see ``load_book_docs``). Empty
+    without a chapter map or a readable EPUB."""
+    chapters = book_chapters(book, db)
+    if not chapters:
+        return {}
+    if book.word_count:
+        total = int(book.word_count)
+        return {c.idx: max(0, int(round((c.end_fraction - c.start_fraction) * total)))
+                for c in chapters}
+    path = epub_path(book)
+    if path is None:
+        return {}
+    try:
+        docs = load_book_docs(path)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("book_text: could not read book %s (%s)", book.id, exc)
+        return {}
+    out: dict[int, int] = {}
+    for c in chapters:
+        start, end = _bounds(docs, c)
+        out[c.idx] = max(0, end - start)
+    return out
+
+
 def count_words(text: str) -> int:
     """Words as the chapter map counts them."""
     return count_words_text(text)

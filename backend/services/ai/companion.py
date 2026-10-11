@@ -33,8 +33,9 @@ from backend.models.book import Book, BookChapter
 from backend.models.tome_sync import TomeSyncPosition
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
-from backend.services import book_text
+from backend.services import ai, book_text
 from backend.services.ai import digest, digest_job, settings as ai_settings
+from backend.services.ai.provider import AIBudgetExceeded, AINotConfigured
 
 RECAP = "recap"
 RECALL = "recall"
@@ -218,19 +219,6 @@ def _chapter_titles(db: Session, book_ids: list[int]) -> dict[tuple[int, int], s
     return {(b, i): t for b, i, t in rows}
 
 
-def maybe_enqueue(db: Session, user: User, book: Book, scope: digest.Scope, upto: int) -> dict | None:
-    """Enqueue the missing digests for this window when the user can pay for
-    them (AI and digests on, key resolves); else None. An active job for the
-    book is returned as is when it already covers the window."""
-    if not digest.missing_chapters(db, scope, upto):
-        return None
-    if not ai_settings.ai_enabled(db) or not ai_settings.feature_enabled(db, DIGEST):
-        return None
-    if ai_settings.resolve_key(db, user) is None:
-        return None
-    return digest_job.enqueue(user_id=user.id, book_id=book.id, upto=upto)
-
-
 def entries_to_dicts(db: Session, scope: digest.Scope, entries: list[digest.Entry]) -> list[dict[str, Any]]:
     """``Entry.to_dict()`` with ``first_seen``/``last_seen`` as ``{book_id,
     book_title, chapter_idx, chapter_title}``."""
@@ -251,9 +239,9 @@ def entries_to_dicts(db: Session, scope: digest.Scope, entries: list[digest.Entr
     return out
 
 
-def glossary_payload(db: Session, user: User, book: Book, window: Window, *,
-                     enqueue: bool = True) -> dict[str, Any]:
-    """The fold for ``window`` with scope, coverage, job progress and ``rev``.
+def glossary_payload(db: Session, user: User, book: Book, window: Window) -> dict[str, Any]:
+    """The fold for ``window`` with scope, coverage, the active job (if any)
+    and ``rev``. Read-only: never queues work (``start_digest`` does).
 
     ``entries`` are in order of first appearance; each carries ``first_seen``
     and ``last_seen`` as ``{book_id, book_title, chapter_idx, chapter_title}``."""
@@ -262,10 +250,6 @@ def glossary_payload(db: Session, user: User, book: Book, window: Window, *,
     digests = digest.scoped_digests(db, scope, upto)
     entries = digest.fold_entries(digests)
     cov = digest.coverage(db, scope, upto)
-    job = None
-    if cov["digested"] < cov["needed"]:
-        job = maybe_enqueue(db, user, book, scope, upto) if enqueue else None
-        job = job or digest_job.active_for(user.id, book.id)
     out = entries_to_dicts(db, scope, entries)
     return {
         "book_id": book.id,
@@ -275,9 +259,100 @@ def glossary_payload(db: Session, user: User, book: Book, window: Window, *,
         "count": len(out),
         "scope": scope.to_dict(),
         "coverage": cov,
-        "job": job,
+        "job": digest_job.active_for(user.id, book.id),
         "rev": digest_rev(digests),
     }
+
+
+# ── starting a digest job (the explicit "read these chapters first") ─────────
+
+DIGEST_SCOPES = ("book", "series")
+
+
+def _live_jobs_pending(user: User, book: Book) -> float:
+    """USD the user's other live jobs are still expected to spend (estimate
+    minus spent so far, floored at 0). A live job on this book is left out:
+    a new start coalesces into it."""
+    total = 0.0
+    for snap in digest_job.running(user.id):
+        if snap.get("book_id") == book.id:
+            continue
+        total += max(0.0, (snap.get("est_cost_usd") or 0.0) - (snap.get("cost_usd") or 0.0))
+    return total
+
+
+def _less_pending(est: dict[str, Any] | None, pending: float) -> dict[str, Any] | None:
+    """``est`` with ``remaining_budget_usd``/``over_budget`` net of what
+    the user's other live jobs will still spend."""
+    if est is None or pending <= 0 or est.get("remaining_budget_usd") is None:
+        return est
+    left = max(0.0, est["remaining_budget_usd"] - pending)
+    return {**est, "remaining_budget_usd": round(left, 4),
+            "over_budget": est["est_cost_usd"] > left + 1e-9}
+
+
+def start_digest(db: Session, user: User, book: Book, window: Window,
+                 scope: str = "book") -> tuple[int, dict[str, Any]]:
+    """(HTTP status, body) for an explicit start: digest the missing chapters
+    before the window's chapter, of this book only (``scope="book"``) or of
+    the read earlier volumes too (``"series"``).
+
+    202 ``{job, estimate, coverage, scope, chapter_idx, chapter_title}``
+    with the queued (or coalesced) job; 200 with ``job`` = the active job or
+    None when nothing in the window is missing. Raises ``AIDisabled``
+    (digests off), ``AINotConfigured`` (no key) and ``AIBudgetExceeded``
+    (409 ``reason: "budget"``: the estimate is over what is left of a
+    monthly limit) before anything is queued. A user-started job becomes
+    the latest for the book, which lets the automatic triggers act again
+    after a cancel."""
+    from backend.services.ai import budget, estimate
+
+    ai.check_feature_available(db, DIGEST)
+    if ai_settings.resolve_key(db, user) is None:
+        raise AINotConfigured("No AI key is configured. Add an Anthropic key in Settings.")
+    if scope not in DIGEST_SCOPES:
+        scope = "book"
+    sc = digest.Scope(book=book) if scope == "book" else digest.user_scope(db, user, book)
+    upto = window.chapter_idx
+    body: dict[str, Any] = {
+        "coverage": digest.coverage(db, sc, upto), "scope": scope,
+        "chapter_idx": upto, "chapter_title": window.chapter_title,
+    }
+    if not digest.missing_chapters(db, sc, upto):
+        return 200, {"job": digest_job.active_for(user.id, book.id), "estimate": None, **body}
+    pending = _live_jobs_pending(user, book)
+    est = _less_pending(estimate.estimate(db, user, book, scope, upto), pending)
+    if est["over_budget"]:
+        b = budget.status(db, user)
+        err = b.exceeded_by(est["est_cost_usd"] + pending)
+        if err is not None:
+            raise AIBudgetExceeded(
+                f"Reading these chapters costs about {est['est_cost_usd']:.2f} USD, more than the "
+                f"{est['remaining_budget_usd']:.2f} USD left of the monthly AI budget "
+                f"({err.limit:.2f} USD). Raise it in Settings > AI.",
+                which=err.which, spent=err.spent, limit=err.limit)
+    job = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=upto,
+                             current_book_only=(scope == "book"))
+    if job.get("expanding") or not job.get("total"):
+        # The worker has not planned the job yet: show the estimate's figures
+        # rather than "0 of 0" until the first poll.
+        job = {**job, "total": est["chapters"], "est_chapters": est["chapters"],
+               "est_cost_usd": est["est_cost_usd"], "est_seconds": est["est_seconds"]}
+    return 202, {"job": job, "estimate": est, **body}
+
+
+def digest_estimates(db: Session, user: User, book: Book, window: Window) -> dict[str, Any]:
+    """``{book, series, chapter_idx, chapter_title}``: what digesting the
+    missing chapters before the window's chapter would cost and take, for
+    this book only and with the read earlier volumes (``series`` None when
+    there are none). See ``estimate.estimates``."""
+    from backend.services.ai import estimate
+
+    ai.check_feature_available(db, DIGEST)
+    both = estimate.estimates(db, user, book, window.chapter_idx)
+    pending = _live_jobs_pending(user, book)
+    return {"book": _less_pending(both["book"], pending), "series": _less_pending(both["series"], pending),
+            "chapter_idx": window.chapter_idx, "chapter_title": window.chapter_title}
 
 
 def glossary_rev(db: Session, user: User, book: Book, pct: float,

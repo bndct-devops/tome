@@ -394,3 +394,75 @@ def test_error_mapping(client: TestClient, db: Session, run_route, fake):
     fake.responses = [{"greeting": "hi"}]
     r = client.post(run_route)
     assert r.status_code == 200 and r.json() == {"greeting": "hi"}
+
+
+# ── spend limits in the usage payload (run 2c) ───────────────────────────────
+
+def test_usage_payload_carries_the_limits(client: TestClient, db: Session, admin_user, member):
+    admin, _ = admin_user
+    mem, h = member
+    now = datetime.utcnow()
+    db.add(AIUsage(user_id=mem.id, feature="fix_book", model="claude-opus-5-5", key_source="user",
+                   input_tokens=1, output_tokens=1, cost_usd=0.30, created_at=now))
+    db.add(AIUsage(user_id=admin.id, feature="fix_book", model="claude-opus-5-5", key_source="instance",
+                   input_tokens=1, output_tokens=1, cost_usd=1.25, created_at=now))
+    mem.ai_monthly_limit_usd = 2.0
+    ai_settings.set_instance_monthly_budget(db, 10.0)
+    db.flush()
+
+    # A member who cannot use the instance key sees only their own figures.
+    limits = client.get("/api/ai/usage", headers=h).json()["limits"]
+    assert limits == {"user_monthly_usd": 2.0, "admin_monthly_usd": None, "effective_monthly_usd": 2.0,
+                      "user_spent_usd": pytest.approx(0.30),
+                      "instance_monthly_usd": None, "instance_spent_usd": None,
+                      "remaining_usd": pytest.approx(1.70)}
+    # With the instance key shared they see it (their own key still pays, so
+    # only their own limit applies to them).
+    ai_settings.set_share_instance_key(db, True)
+    db.flush()
+    limits = client.get("/api/ai/usage", headers=h).json()["limits"]
+    assert limits["instance_monthly_usd"] == 10.0 and limits["instance_spent_usd"] == pytest.approx(1.25)
+
+    # The admin, on the instance key, has no own limit but the instance one.
+    ai_settings.set_instance_key(db, OTHER_KEY)
+    db.flush()
+    body = client.get("/api/ai/usage?all=true").json()
+    assert body["limits"] == {"user_monthly_usd": None, "admin_monthly_usd": None,
+                              "effective_monthly_usd": None, "user_spent_usd": pytest.approx(1.25),
+                              "instance_monthly_usd": 10.0, "instance_spent_usd": pytest.approx(1.25),
+                              "remaining_usd": pytest.approx(8.75)}
+    by_u = {x["username"]: x for x in body["by_user"]}
+    assert by_u["aimember"]["monthly_limit_usd"] == 2.0 and by_u["testadmin"]["monthly_limit_usd"] is None
+    members = {m["username"]: m for m in body["members"]}
+    assert members["aimember"] == {"user_id": mem.id, "username": "aimember", "monthly_limit_usd": 2.0,
+                                   "admin_limit_usd": None, "effective_limit_usd": 2.0}
+    # An admin's cap is reported apart from the member's own limit; the lower applies.
+    mem.ai_admin_limit_usd = 1.0
+    db.flush()
+    limits = client.get("/api/ai/usage", headers=h).json()["limits"]
+    assert limits["user_monthly_usd"] == 2.0 and limits["admin_monthly_usd"] == 1.0
+    assert limits["effective_monthly_usd"] == 1.0 and limits["remaining_usd"] == pytest.approx(0.70)
+    assert "testadmin" in members
+    assert "members" not in client.get("/api/ai/usage", headers=h).json()
+
+
+def test_status_admin_has_the_instance_budget(client: TestClient, db: Session, member):
+    assert client.get("/api/ai/status").json()["budget_instance_monthly_usd"] is None
+    ai_settings.set_instance_monthly_budget(db, 12.5)
+    db.flush()
+    assert client.get("/api/ai/status").json()["budget_instance_monthly_usd"] == 12.5
+    _, h = member
+    assert "budget_instance_monthly_usd" not in client.get("/api/ai/status", headers=h).json()
+
+
+def test_budget_error_maps_to_409_with_reason(client: TestClient, db: Session, run_route, fake,
+                                              admin_user):
+    admin, _ = admin_user
+    ai_settings.set_instance_key(db, OTHER_KEY)
+    admin.ai_monthly_limit_usd = 0.0
+    db.flush()
+    r = client.post(run_route)
+    assert r.status_code == 409
+    assert r.json() == {"detail": "Monthly AI budget reached (0.00 of 0.00 USD). Raise it in Settings > AI.",
+                        "reason": "budget"}
+    assert fake.calls == [] and db.query(AIUsage).count() == 0

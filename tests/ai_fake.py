@@ -8,7 +8,9 @@ Usage:
 ``responses`` is a list consumed in order, or a callable
 ``(feature, user_content, schema) -> dict``. Set ``valid=False`` to make
 ``validate_key`` reject, ``refuse=True`` to return a refusal, or ``error`` to
-raise any AIError from ``complete``.
+raise any AIError from ``complete``. ``on_call(call)`` runs at the start of
+every ``complete`` (in the calling thread), before the answer: a latency or
+barrier hook for tests about concurrent calls.
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ class FakeProvider:
         output_tokens: int = 200,
         cache_read_tokens: int = 0,
         cache_write_tokens: int = 0,
+        on_call: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.responses = responses if responses is not None else []
         self.valid = valid
@@ -43,6 +46,7 @@ class FakeProvider:
         self.output_tokens = output_tokens
         self.cache_read_tokens = cache_read_tokens
         self.cache_write_tokens = cache_write_tokens
+        self.on_call = on_call
         self.calls: list[dict[str, Any]] = []
         self.validate_calls = 0
 
@@ -69,10 +73,13 @@ class FakeProvider:
         schema: dict | None = None,
         max_tokens: int = 4096,
     ) -> AIResult:
-        self.calls.append({
+        call = {
             "feature": feature, "model": model, "effort": effort, "system": system,
             "user_content": user_content, "schema": schema, "max_tokens": max_tokens,
-        })
+        }
+        self.calls.append(call)
+        if self.on_call is not None:
+            self.on_call(call)
         if self.error is not None:
             raise self.error
         if self.refuse:

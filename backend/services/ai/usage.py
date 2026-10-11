@@ -57,9 +57,16 @@ def cost_usd(model: str, input_tokens: int, output_tokens: int,
 
 
 def record_usage(db: Session, *, user_id: int | None, feature: str, key_source: str,
-                 result: AIResult) -> AIUsage:
+                 result: AIResult, job_id: str | None = None, book_id: int | None = None,
+                 duration_ms: int | None = None, words_sent: int | None = None,
+                 chapters: int | None = None) -> AIUsage:
     row = AIUsage(
         user_id=user_id,
+        job_id=job_id,
+        book_id=book_id,
+        duration_ms=duration_ms,
+        words_sent=words_sent,
+        chapters=chapters,
         feature=feature,
         model=result.model,
         key_source=key_source,
@@ -85,6 +92,20 @@ def parse_month(month: str | None) -> tuple[str, datetime, datetime]:
         start = datetime(now.year, now.month, 1)
     end = datetime(start.year + 1, 1, 1) if start.month == 12 else datetime(start.year, start.month + 1, 1)
     return start.strftime("%Y-%m"), start, end
+
+
+def month_spend(db: Session, *, user_id: int | None = None, key_source: str | None = None,
+                now: datetime | None = None) -> float:
+    """USD spent in the current UTC calendar month (``now``'s month), by one
+    user (every key source) and/or on one key source (every user)."""
+    _label, start, end = parse_month((now or datetime.utcnow()).strftime("%Y-%m"))
+    q = db.query(func.sum(AIUsage.cost_usd)).filter(AIUsage.created_at >= start,
+                                                    AIUsage.created_at < end)
+    if user_id is not None:
+        q = q.filter(AIUsage.user_id == user_id)
+    if key_source is not None:
+        q = q.filter(AIUsage.key_source == key_source)
+    return float(q.scalar() or 0.0)
 
 
 def _totals(row: Any) -> dict[str, Any]:

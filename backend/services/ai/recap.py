@@ -255,7 +255,7 @@ def generate(db: Session, user: User, book: Book, window: companion.Window, *,
         raise NothingToRecap()
 
     result = ai.run_feature(db, user, FEATURE, system=SYSTEM_PROMPT, user_content=content,
-                            schema=build_schema(), max_tokens=MAX_TOKENS)
+                            schema=build_schema(), max_tokens=MAX_TOKENS, book_id=book.id)
     recap_text = _clean_paragraphs(result.parsed)
     if not recap_text:
         raise AIProviderError("The model returned an empty recap.")
@@ -376,11 +376,17 @@ def request_recap(db: Session, user: User, book: Book, window: companion.Window,
     """(HTTP status, body) for a recap request.
 
     200 with the recap (cached when fresh, else written now); 202
-    ``{job, coverage, chapter_idx, chapter_title}`` when chapters in the
-    window have no digest yet and ``partial`` is False (the missing digests
-    are enqueued; ask again when the job is done, or with ``partial`` after
-    a job that could not read every chapter). Raises ``AIDisabled`` (recap or
-    digests off), ``AINotConfigured`` (no key) and the other ``AIError``s."""
+    ``{needs_digest: true, estimate, coverage, job, chapter_idx,
+    chapter_title}`` when chapters in the window have no digest yet and
+    ``partial`` is False. Nothing is queued: the caller starts the digests
+    explicitly (``POST .../digest``, after asking when there are many) and
+    asks again when the job is done, or with ``partial`` after a job that
+    could not read every chapter. ``job`` is the active job for the book, if
+    any; ``estimate`` is ``{book, series}`` from ``estimate.estimates`` (the
+    confirmation dialog shows it; series is None without read earlier
+    volumes).
+    Raises ``AIDisabled`` (recap or digests off), ``AINotConfigured`` (no
+    key) and the other ``AIError``s."""
     ai.check_feature_available(db, FEATURE)
     scope = digest.user_scope(db, user, book)
     row = cached_for(db, user, book, window, scope)
@@ -389,11 +395,14 @@ def request_recap(db: Session, user: User, book: Book, window: companion.Window,
     cov = digest.coverage(db, scope, window.chapter_idx)
     if cov["digested"] < cov["needed"] and not partial:
         ai.check_feature_available(db, digest.FEATURE)
-        if ai_settings.resolve_key(db, user) is None:  # 409 before anything is queued
+        if ai_settings.resolve_key(db, user) is None:
             raise AINotConfigured("No AI key is configured. Add an Anthropic key in Settings.")
-        job = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=window.chapter_idx)
-        return 202, {"job": job, "coverage": cov, "chapter_idx": window.chapter_idx,
-                     "chapter_title": window.chapter_title}
+        from backend.services.ai import estimate
+        return 202, {"needs_digest": True,
+                     "estimate": estimate.estimates(db, user, book, window.chapter_idx),
+                     "coverage": cov,
+                     "job": digest_job.active_for(user.id, book.id),
+                     "chapter_idx": window.chapter_idx, "chapter_title": window.chapter_title}
     res = generate(db, user, book, window, partial=partial, scope=scope)
     return 200, to_dict(res, window, scope)
 

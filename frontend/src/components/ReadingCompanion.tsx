@@ -3,20 +3,30 @@
 // position (the server only reads the chapters before it), so nothing here can
 // spoil what comes next. Hidden entirely unless the companion endpoint says
 // it is available: AI on, a key, an EPUB with a chapter map, and a position.
+//
+// Nothing here queues work on its own. Chapters are read only after a click
+// (Recap, "Read the missing chapters", Continue); over CONFIRM_THRESHOLD
+// chapters the confirmation dialog asks first with an estimate. The page
+// never shows money: prices live in that dialog and in Settings > AI.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Loader2, RotateCcw, Search, X } from 'lucide-react'
+import { ChevronDown, Loader2, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { AiBadge } from '@/components/AiBadge'
+import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
 import { cn } from '@/lib/utils'
 import { getActiveLocale } from '@/lib/i18n'
 import {
   useAiStatus, getCompanion, requestRecap, clearRecap, getGlossary, recallTerm,
-  getPreviously, getDigestJob, cancelDigestJob, isRecapPending, DIGEST_JOB_ACTIVE,
-  type Companion, type CompanionScope, type DigestJob, type Glossary, type GlossaryEntry,
-  type GlossaryPlace, type Previously, type Recap, type RecallResult,
+  getPreviously, getDigestJob, cancelDigestJob, isRecapPending, getDigestEstimate, startDigest,
+  DIGEST_JOB_ACTIVE, DIGEST_JOB_RESUMABLE, CONFIRM_THRESHOLD,
+  type Companion, type CompanionScope, type DigestEstimate, type DigestJob, type DigestScope,
+  type Glossary, type GlossaryEntry, type GlossaryPlace, type Previously, type Recap,
+  type RecapPending, type RecallResult,
 } from '@/lib/ai'
 
 const POLL_MS = 2000
+
+type Origin = 'recap' | 'glossary' | 'continue'
 
 function isActive(job: DigestJob | null): job is DigestJob {
   return job != null && DIGEST_JOB_ACTIVE.includes(job.status)
@@ -24,6 +34,24 @@ function isActive(job: DigestJob | null): job is DigestJob {
 
 function paragraphs(text: string): string[] {
   return text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
+}
+
+// "Recap to here" was clicked and the recap waits on a digest job. The job id
+// is kept in localStorage so the waiting state survives a reload. Set only once
+// a job has actually started (never while the confirmation dialog is open), and
+// acted on after a reload only for that same job; cleared when the recap is
+// written or the job ends any other way.
+const waitKey = (bookId: number) => `tome_recap_wait:${bookId}`
+
+function setRecapWait(bookId: number, jobId: string | null) {
+  try {
+    if (jobId) localStorage.setItem(waitKey(bookId), jobId)
+    else localStorage.removeItem(waitKey(bookId))
+  } catch { /* storage blocked: the wait just does not survive a reload */ }
+}
+
+function recapWaitJob(bookId: number): string | null {
+  try { return localStorage.getItem(waitKey(bookId)) } catch { return null }
 }
 
 /** "2 hours ago" in the active locale. */
@@ -40,6 +68,18 @@ function relativeTime(iso: string | null): string | null {
   if (abs < 86400 * 30) return fmt.format(Math.round(secs / 86400), 'day')
   if (abs < 86400 * 365) return fmt.format(Math.round(secs / (86400 * 30)), 'month')
   return fmt.format(Math.round(secs / (86400 * 365)), 'year')
+}
+
+/** People first (most-updated first, then first seen), then places, then
+ *  terms, both by first seen. The API sends first-seen order. */
+function orderEntries(entries: GlossaryEntry[]): GlossaryEntry[] {
+  const indexed = entries.map((e, i) => ({ e, i }))
+  const people = indexed
+    .filter(x => x.e.kind === 'person')
+    .sort((a, b) => (b.e.chapters ?? 1) - (a.e.chapters ?? 1) || a.i - b.i)
+  const places = indexed.filter(x => x.e.kind === 'place')
+  const terms = indexed.filter(x => x.e.kind !== 'person' && x.e.kind !== 'place')
+  return [...people, ...places, ...terms].map(x => x.e)
 }
 
 export function ReadingCompanion({ bookId }: { bookId: number }) {
@@ -66,10 +106,19 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const [recall, setRecall] = useState<RecallResult | null>(null)
   const [recalling, setRecalling] = useState(false)
 
-  // The digest job either section is waiting on, polled every 2 s while active.
+  // The digest job, polled every 2 s while active (queued, running, stopping).
   const [job, setJob] = useState<DigestJob | null>(null)
-  // The last job that ended, kept to say how it went (failures, a stop reason).
+  // The last job that ended, to say how it went and to offer Continue.
   const [endedJob, setEndedJob] = useState<DigestJob | null>(null)
+  // Starting a job: the confirmation dialog, and errors outside it.
+  const [confirm, setConfirm] = useState<{
+    book: DigestEstimate; series: DigestEstimate | null; origin: Origin; scope?: DigestScope
+  } | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [digestError, setDigestError] = useState<string | null>(null)
+
   const recapWaitingRef = useRef(false)
   const alive = useRef(true)
   useEffect(() => {
@@ -78,35 +127,37 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   }, [])
 
   // phase: 'loading' for a recap the companion says is cached, 'writing' when
-  // the server may have to write one (a click, or after the digest job).
-  const loadRecap = useCallback(async (phase: 'loading' | 'writing', opts: { partial?: boolean } = {}) => {
+  // the server may have to write one. Returns the 202 body when chapters are
+  // missing (nothing is queued by the server; the caller decides).
+  const loadRecap = useCallback(async (
+    phase: 'loading' | 'writing', opts: { partial?: boolean } = {},
+  ): Promise<RecapPending | null> => {
     setRecapError(null)
     setRecapState(phase)
     try {
       const res = await requestRecap(bookId, opts)
-      if (!alive.current) return
-      if (isRecapPending(res)) {
-        recapWaitingRef.current = true
-        setJob(res.job)
-        setRecapState('waiting')
-      } else {
-        recapWaitingRef.current = false
-        setRecap(res)
-        setRecapState('idle')
-      }
-    } catch (e) {
-      if (!alive.current) return
+      if (!alive.current) return null
+      if (isRecapPending(res)) return res
       recapWaitingRef.current = false
+      setRecapWait(bookId, null)
+      setRecap(res)
+      setRecapState('idle')
+    } catch (e) {
+      if (!alive.current) return null
+      recapWaitingRef.current = false
+      setRecapWait(bookId, null)
       setRecapState('idle')
       setRecapError(e instanceof Error ? e.message : t`Could not write the recap`)
     }
+    return null
   }, [bookId, t])
 
-  const loadGlossary = useCallback(async (queue: boolean) => {
+  // Read-only: the glossary GET never queues work.
+  const loadGlossary = useCallback(async () => {
     setGlossaryError(null)
     setGlossaryLoading(true)
     try {
-      const g = await getGlossary(bookId, { queue })
+      const g = await getGlossary(bookId)
       if (!alive.current) return
       setGlossary(g)
       if (isActive(g.job)) setJob(prev => (isActive(prev) && prev.id === g.job!.id ? prev : g.job))
@@ -116,6 +167,20 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       if (alive.current) setGlossaryLoading(false)
     }
   }, [bookId, t])
+
+  // A job ended: finish the recap that waited on it, refresh the glossary.
+  const afterJob = useCallback((j: DigestJob) => {
+    setEndedJob(j)
+    if (recapWaitingRef.current) {
+      recapWaitingRef.current = false
+      // partial: write from what exists even when some chapters could not be
+      // read or were left out (a book-only job leaves earlier volumes out).
+      if (j.status === 'done') void loadRecap('writing', { partial: true })
+      else { setRecapWait(bookId, null); setRecapState('idle') }
+    }
+    // Refresh even while the section is closed (its count is in the heading).
+    void loadGlossary()
+  }, [bookId, loadRecap, loadGlossary])
 
   // Companion state. Never queues work; a cached recap is free to load.
   useEffect(() => {
@@ -127,6 +192,29 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         setCompanion(c)
         if (!c.available) return
         if (isActive(c.job)) setJob(c.job)
+        else if (c.last_job) setEndedJob(c.last_job)
+        const waitingFor = recapWaitJob(bookId)
+        if (waitingFor) {
+          // "Recap to here" started a job before a reload. Only that same job
+          // counts; anything else is stale and dropped.
+          if (c.features.recap && isActive(c.job) && c.job.id === waitingFor) {
+            recapWaitingRef.current = true
+            setRecapOpen(true)
+            setRecapState('waiting')
+            return
+          }
+          if (c.features.recap && c.last_job?.id === waitingFor
+            && c.last_job.status === 'done' && !c.recap_cached) {
+            setRecapOpen(true)
+            void loadRecap('writing', { partial: true }).then(pending => {
+              // Still chapters missing: do not start anything without a click.
+              if (pending && alive.current) setRecapState('idle')
+            })
+            setRecapWait(bookId, null)
+            return
+          }
+          setRecapWait(bookId, null)
+        }
         if (c.features.recap && c.previously) {
           getPreviously(bookId)
             .then(p => { if (!cancelled) { setPreviously(p); setRecapOpen(true) } })
@@ -149,33 +237,28 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         .then(j => {
           if (!alive.current) return
           setJob(j)
-          if (DIGEST_JOB_ACTIVE.includes(j.status)) return
-          setEndedJob(j)
-          if (recapWaitingRef.current) {
-            recapWaitingRef.current = false
-            if (j.status === 'done') void loadRecap('writing', { partial: j.failed > 0 })
-            else setRecapState('idle')
-          }
-          // Refresh the glossary (and its count in the heading) even while the
-          // section is closed. queue=false only reads: it never queues work.
-          void loadGlossary(false)
+          if (!isActive(j)) afterJob(j)
         })
         .catch(() => {
           if (!alive.current) return
           setJob(null)
-          if (recapWaitingRef.current) { recapWaitingRef.current = false; setRecapState('idle') }
+          if (recapWaitingRef.current) {
+            recapWaitingRef.current = false
+            setRecapWait(bookId, null)
+            setRecapState('idle')
+          }
         })
     }, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [jobId, loadRecap, loadGlossary])
+  }, [jobId, afterJob, bookId])
 
+  const ordered = useMemo(() => orderEntries(glossary?.entries ?? []), [glossary])
   const filtered = useMemo(() => {
-    const entries = glossary?.entries ?? []
     const q = query.trim().toLocaleLowerCase()
-    if (!q) return entries
-    return entries.filter(e =>
+    if (!q) return ordered
+    return ordered.filter(e =>
       e.name.toLocaleLowerCase().includes(q) || e.line.toLocaleLowerCase().includes(q))
-  }, [glossary, query])
+  }, [ordered, query])
 
   if (!enabled || !companion || !companion.available || !companion.position) return null
 
@@ -191,18 +274,131 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     ? (when ? t`from your device ${when}` : t`from your device`)
     : (when ? t`from your web reader ${when}` : t`from your web reader`)
 
-  const jobLine = (j: DigestJob) => {
-    if (j.status === 'queued' || j.total === 0) return t`Getting ready to read the chapters…`
-    const current = Math.min(j.done + 1, j.total)
-    const total = j.total
-    return t`Reading chapter ${current} of ${total}…`
+  // ── starting work ──────────────────────────────────────────────────────────
+
+  function waitOn(j: DigestJob) {
+    recapWaitingRef.current = true
+    setRecapWait(bookId, j.id)
+    setEndedJob(null)
+    setJob(j)
+    setRecapState('waiting')
+  }
+
+  /** POST digest. Returns an error message, or null when it started (or
+   *  nothing was missing). */
+  async function begin(scope: DigestScope, origin: Origin): Promise<string | null> {
+    setDigestError(null)
+    try {
+      const res = await startDigest(bookId, scope)
+      if (!alive.current) return null
+      if (isActive(res.job)) {
+        if (origin === 'recap') waitOn(res.job)
+        else { setEndedJob(null); setJob(res.job) }
+      } else {
+        // Nothing left to read in that scope.
+        setEndedJob(null)
+        if (origin === 'recap') void loadRecap('writing', { partial: true })
+        else void loadGlossary()
+      }
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : t`Could not start reading the chapters`
+    }
+  }
+
+  function failStart(origin: Origin, message: string) {
+    if (origin === 'recap') {
+      recapWaitingRef.current = false
+      setRecapWait(bookId, null)
+      setRecapState('idle')
+      setRecapError(message)
+    } else {
+      setDigestError(message)
+    }
+  }
+
+  /** Start at once when the work is small, else ask with the estimate.
+   *  `scope` picks the scope to start or preselect (Continue keeps the scope
+   *  of the job it continues); without it the widest scope is used. */
+  function decide(
+    est: { book: DigestEstimate; series: DigestEstimate | null }, origin: Origin, scope?: DigestScope,
+  ) {
+    const chosen = scope === 'book' ? est.book : est.series ?? est.book
+    if (chosen.chapters > 0 && chosen.chapters <= CONFIRM_THRESHOLD && !chosen.over_budget) {
+      void begin(chosen.scope, origin).then(err => { if (err && alive.current) failStart(origin, err) })
+      return
+    }
+    if (origin === 'recap') setRecapState('idle')
+    setConfirmError(null)
+    setConfirm({ book: est.book, series: est.series, origin, scope: chosen.scope })
+  }
+
+  async function confirmStart(scope: DigestScope) {
+    if (!confirm) return
+    setConfirmBusy(true)
+    setConfirmError(null)
+    const err = await begin(scope, confirm.origin)
+    if (!alive.current) return
+    setConfirmBusy(false)
+    if (err) { setConfirmError(err); return }
+    setConfirm(null)
+  }
+
+  function cancelConfirm() {
+    if (confirm?.origin === 'recap') {
+      recapWaitingRef.current = false
+      setRecapWait(bookId, null)
+      setRecapState('idle')
+    }
+    setConfirm(null)
+  }
+
+  async function startRecap() {
+    setRecapOpen(true)
+    setPreviously(null)
+    const pending = await loadRecap('writing')
+    if (!pending || !alive.current) return
+    if (isActive(pending.job)) { waitOn(pending.job); return }
+    decide(pending.estimate, 'recap')
+  }
+
+  async function readMissing() {
+    setDigestError(null)
+    setStarting(true)
+    try {
+      const est = await getDigestEstimate(bookId)
+      if (alive.current) decide(est, 'glossary')
+    } catch (e) {
+      if (alive.current) setDigestError(e instanceof Error ? e.message : t`Could not start reading the chapters`)
+    } finally {
+      if (alive.current) setStarting(false)
+    }
+  }
+
+  /** Same path as a fresh start: the estimate first, and the dialog when the
+   *  rest of the job is big or over budget. */
+  async function continueJob() {
+    if (!endedJob) return
+    const scope = endedJob.scope ?? 'book'
+    setDigestError(null)
+    setStarting(true)
+    try {
+      const est = await getDigestEstimate(bookId)
+      if (alive.current) decide(est, 'continue', scope)
+    } catch (e) {
+      if (alive.current) setDigestError(e instanceof Error ? e.message : t`Could not start reading the chapters`)
+    } finally {
+      if (alive.current) setStarting(false)
+    }
   }
 
   async function stopJob() {
     if (!job) return
     try {
       const j = await cancelDigestJob(job.id)
-      if (alive.current) setJob(j)
+      if (!alive.current) return
+      setJob(j)
+      if (!isActive(j)) afterJob(j)
     } catch { /* the poll picks up the final state */ }
   }
 
@@ -215,19 +411,16 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     setRecap(null)
     // Not partial: "Ask again" retries the chapters that could not be read
     // (clearing the recap clears their placeholders on the server).
-    await loadRecap('writing')
-  }
-
-  function startRecap() {
-    setRecapOpen(true)
-    setPreviously(null)
-    void loadRecap('writing')
+    const pending = await loadRecap('writing')
+    if (!pending || !alive.current) return
+    if (isActive(pending.job)) { waitOn(pending.job); return }
+    decide(pending.estimate, 'recap')
   }
 
   function toggleGlossary() {
     const next = !glossaryOpen
     setGlossaryOpen(next)
-    if (next && !glossary && !glossaryLoading) void loadGlossary(true)
+    if (next && !glossary && !glossaryLoading) void loadGlossary()
   }
 
   function toggleEntry(key: string) {
@@ -277,23 +470,67 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     })
   }
 
-  // ── Recap section ──────────────────────────────────────────────────────────
+  const coverage = glossary?.coverage ?? companion.coverage
+  const incomplete = coverage != null && coverage.digested < coverage.needed
+  const resumable = !isActive(job) && endedJob != null && incomplete
+    && DIGEST_JOB_RESUMABLE.includes(endedJob.status)
 
-  const progress = isActive(job) ? (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-      <span className="flex items-center gap-2">
-        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-        {jobLine(job)}
-      </span>
-      <button type="button" onClick={stopJob} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
-        <Trans>Stop</Trans>
-      </button>
-    </div>
-  ) : null
+  // ── the one progress line, under the heading ──────────────────────────────
 
-  const endedNote = endedJob && endedJob.status !== 'done' && endedJob.status !== 'cancelled' && endedJob.stop_reason
+  const buttonClassName = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-60 shrink-0'
+
+  let progressLine: React.ReactNode = null
+  if (isActive(job)) {
+    const done = job.done
+    const total = job.total
+    const text = job.status === 'stopping'
+      ? t`Stopping after the current chapters…`
+      : job.status === 'queued' || total === 0
+        ? t`Getting ready to read the chapters…`
+        : t`Reading chapters: ${done} of ${total}…`
+    progressLine = (
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
+        <span className="flex items-center gap-2 min-w-0">
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          {text}
+        </span>
+        {job.status !== 'stopping' && (
+          <button type="button" onClick={stopJob} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+            <Trans>Stop</Trans>
+          </button>
+        )}
+      </div>
+    )
+  } else if (resumable && endedJob) {
+    const done = endedJob.done
+    const total = endedJob.total
+    const text = endedJob.status === 'stopped' && endedJob.stop_reason
+      ? endedJob.stop_reason
+      : endedJob.status === 'interrupted'
+        ? t`Interrupted by a server restart after ${done} of ${total} chapters.`
+        : t`Stopped after ${done} of ${total} chapters.`
+    progressLine = (
+      <div className="mt-3 space-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+            <Pause className="w-3.5 h-3.5 shrink-0" />
+            <span className="min-w-0">{text}</span>
+          </p>
+          <button type="button" onClick={continueJob} disabled={starting} className={buttonClassName}>
+            {starting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            <Trans>Continue</Trans>
+          </button>
+        </div>
+        {digestError && <p className="text-xs text-destructive">{digestError}</p>}
+      </div>
+    )
+  }
+
+  const endedNote = endedJob && endedJob.status === 'error' && endedJob.stop_reason
     ? <p className="text-xs text-muted-foreground">{endedJob.stop_reason}</p>
     : null
+
+  // ── Recap section ──────────────────────────────────────────────────────────
 
   const previouslyTitle = previously?.title ?? ''
   const recapFor = recap ? chapterLabel(recap.chapter_title, recap.chapter_idx) : ''
@@ -304,7 +541,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const recapButton = (
     <button
       type="button"
-      onClick={startRecap}
+      onClick={() => void startRecap()}
       title={t`Sends the summaries of the chapters before your position and the current chapter up to it to Anthropic`}
       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200 shrink-0"
     >
@@ -332,7 +569,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             {recapButton}
           </div>
           {recapError && <p className="text-xs text-destructive">{recapError}</p>}
-          {endedNote}
         </div>
       ) : recapOpen ? (
         <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 space-y-3">
@@ -344,12 +580,10 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           )}
           {recapState === 'waiting' && (
             <>
-              {progress ?? (
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <Trans>Getting ready to read the chapters…</Trans>
-                </p>
-              )}
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Trans>Waiting for the chapters to be read. The recap is written right after.</Trans>
+              </p>
               <p className="text-xs text-muted-foreground/70">
                 <Trans>Each chapter is read once. Later recaps and the glossary reuse it.</Trans>
               </p>
@@ -394,7 +628,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
                 </p>
                 <button
                   type="button"
-                  onClick={askAgain}
+                  onClick={() => void askAgain()}
                   className="flex items-center gap-1 pt-2 text-xs font-medium text-primary hover:underline"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -404,7 +638,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             </>
           )}
           {recapState === 'idle' && recapError && <p className="text-xs text-destructive">{recapError}</p>}
-          {recapState === 'idle' && endedNote}
         </div>
       ) : null}
     </div>
@@ -413,13 +646,61 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   // ── Glossary section ───────────────────────────────────────────────────────
 
   const glossaryCount = glossary?.count ?? companion.glossary_count
-  const coverage = glossary?.coverage ?? companion.coverage
-  const incomplete = coverage != null && coverage.digested < coverage.needed
   const digested = coverage?.digested ?? 0
   const needed = coverage?.needed ?? 0
   const lastFailed = endedJob?.failed ?? 0
   const scopeNotes = scopeLines(glossary?.scope ?? companion.scope)
   const term = query.trim()
+  // Kind headings only on the unfiltered list.
+  const grouped = !term
+
+  const entryRow = (e: GlossaryEntry, showKind: boolean) => {
+    const key = `${e.kind}:${e.name}`
+    const open = expanded.has(key)
+    const firstSeen = placeLabel(e.first_seen)
+    return (
+      <li key={key}>
+        <button
+          type="button"
+          onClick={() => toggleEntry(key)}
+          aria-expanded={open}
+          className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
+        >
+          <span className="flex items-baseline gap-2 min-w-0">
+            <span className="text-sm font-medium text-foreground min-w-0 break-words">{e.name}</span>
+            {showKind && (
+              <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
+                {kindLabel(e.kind)}
+              </span>
+            )}
+            <ChevronDown className={cn('ml-auto w-3 h-3 shrink-0 self-center text-muted-foreground/50 transition-transform', !open && '-rotate-90')} />
+          </span>
+          <span className="block text-sm text-muted-foreground leading-snug mt-0.5">{e.line}</span>
+        </button>
+        {open && (
+          <div className="px-3 pb-2.5 -mt-0.5 space-y-1.5">
+            {e.more && <p className="text-sm text-foreground leading-relaxed">{e.more}</p>}
+            {e.evidence && (
+              <p className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-2.5">
+                {e.evidence}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground/70">
+              <Trans>First seen: {firstSeen}</Trans>
+            </p>
+          </div>
+        )}
+      </li>
+    )
+  }
+
+  const groups: { kind: GlossaryEntry['kind']; label: string; entries: GlossaryEntry[] }[] = grouped
+    ? [
+        { kind: 'person' as const, label: t`People`, entries: filtered.filter(e => e.kind === 'person') },
+        { kind: 'place' as const, label: t`Places`, entries: filtered.filter(e => e.kind === 'place') },
+        { kind: 'term' as const, label: t`Terms`, entries: filtered.filter(e => e.kind !== 'person' && e.kind !== 'place') },
+      ].filter(g => g.entries.length > 0)
+    : []
 
   const glossaryBlock = features.glossary ? (
     <div className="mt-4">
@@ -471,45 +752,22 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             </p>
           )}
           {glossary != null && filtered.length > 0 && (
-            <ul className="max-h-[28rem] overflow-y-auto pr-1 divide-y divide-border/60 rounded-lg border border-border bg-muted/40">
-              {filtered.map(e => {
-                const key = `${e.kind}:${e.name}`
-                const open = expanded.has(key)
-                const firstSeen = placeLabel(e.first_seen)
-                return (
-                  <li key={key}>
-                    <button
-                      type="button"
-                      onClick={() => toggleEntry(key)}
-                      aria-expanded={open}
-                      className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
-                    >
-                      <span className="flex items-baseline gap-2 min-w-0">
-                        <span className="text-sm font-medium text-foreground min-w-0 break-words">{e.name}</span>
-                        <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
-                          {kindLabel(e.kind)}
-                        </span>
-                        <ChevronDown className={cn('ml-auto w-3 h-3 shrink-0 self-center text-muted-foreground/50 transition-transform', !open && '-rotate-90')} />
-                      </span>
-                      <span className="block text-sm text-muted-foreground leading-snug mt-0.5">{e.line}</span>
-                    </button>
-                    {open && (
-                      <div className="px-3 pb-2.5 -mt-0.5 space-y-1.5">
-                        {e.more && <p className="text-sm text-foreground leading-relaxed">{e.more}</p>}
-                        {e.evidence && (
-                          <p className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-2.5">
-                            {e.evidence}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground/70">
-                          <Trans>First seen: {firstSeen}</Trans>
-                        </p>
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+            <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-border bg-muted/40">
+              {grouped ? groups.map(g => (
+                <section key={g.kind} aria-label={g.label}>
+                  <h4 className="sticky top-0 z-[1] px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted border-b border-border/60">
+                    {g.label} <span className="font-normal text-muted-foreground/60">{g.entries.length}</span>
+                  </h4>
+                  <ul className="divide-y divide-border/60">
+                    {g.entries.map(e => entryRow(e, false))}
+                  </ul>
+                </section>
+              )) : (
+                <ul className="divide-y divide-border/60">
+                  {filtered.map(e => entryRow(e, true))}
+                </ul>
+              )}
+            </div>
           )}
           {glossary != null && term && filtered.length === 0 && (
             <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 space-y-2">
@@ -554,17 +812,26 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           )}
           {glossaryError && <p className="text-xs text-destructive">{glossaryError}</p>}
           {incomplete && coverage && (
-            <div className="space-y-1">
-              {progress ?? (
-                <p className="text-xs text-muted-foreground">
-                  <Trans>{digested} of {needed} chapters before your position are read so far.</Trans>
-                </p>
+            <div className="space-y-1.5">
+              {isActive(job) ? (
+                <p className="text-xs text-muted-foreground/70"><Trans>The glossary fills in as each chapter is read.</Trans></p>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <p className="text-xs text-muted-foreground min-w-0">
+                    <Trans>{digested} of {needed} chapters before your position are read so far.</Trans>
+                  </p>
+                  {!resumable && (
+                    <button type="button" onClick={() => void readMissing()} disabled={starting} className={buttonClassName}>
+                      {starting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <Trans>Read the missing chapters</Trans>
+                    </button>
+                  )}
+                </div>
               )}
-              {isActive(job)
-                ? <p className="text-xs text-muted-foreground/70"><Trans>The glossary fills in as each chapter is read.</Trans></p>
-                : lastFailed > 0
-                  ? <p className="text-xs text-muted-foreground/70"><Trans>Some chapters could not be read, so names from them are missing.</Trans></p>
-                  : null}
+              {!isActive(job) && lastFailed > 0 && (
+                <p className="text-xs text-muted-foreground/70"><Trans>Some chapters could not be read, so names from them are missing.</Trans></p>
+              )}
+              {!isActive(job) && !resumable && digestError && <p className="text-xs text-destructive">{digestError}</p>}
               {!isActive(job) && endedNote}
             </div>
           )}
@@ -589,8 +856,19 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       <p className="mt-1 text-xs text-muted-foreground/70">
         <Trans>Only the pages before your position are sent. For well-known books the model may still know more than it is given.</Trans>
       </p>
+      {progressLine}
       {recapBlock}
       {glossaryBlock}
+      <DigestConfirmDialog
+        open={confirm != null}
+        book={confirm?.book ?? null}
+        series={confirm?.series ?? null}
+        scope={confirm?.scope}
+        busy={confirmBusy}
+        error={confirmError}
+        onCancel={cancelConfirm}
+        onStart={scope => void confirmStart(scope)}
+      />
     </section>
   )
 }

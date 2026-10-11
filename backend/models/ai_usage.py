@@ -4,6 +4,14 @@ Cost is computed at insert from the price table in
 ``backend/services/ai/usage.py`` so a later price change never rewrites
 history. ``user_id`` is SET NULL on user deletion so instance spend totals
 stay correct after an account is removed.
+
+``job_id`` names the background job a call belonged to (``ai_jobs.id``, no
+FK: the ledger outlives anything), ``book_id`` the book it was about (the
+volume a digest read, the book a recap or Recall was for; SET NULL when the
+book goes). ``duration_ms`` is how long the provider took, for the digest
+time estimate. ``words_sent``/``chapters`` describe a digest call's input
+for the output estimate. All are nullable and were added after run 1
+(startup ALTER TABLE in ``backend/main.py``).
 """
 from __future__ import annotations
 
@@ -37,5 +45,14 @@ class AIUsage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False, index=True
     )
+    job_id: Mapped[Optional[str]] = mapped_column(String(12), nullable=True, index=True)
+    book_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Digest calls: the words of chapter text sent and how many chapters the
+    # call covered (the estimate's output history). NULL for other calls.
+    words_sent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    chapters: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     user: Mapped[Optional["User"]] = relationship("User")
