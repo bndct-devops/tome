@@ -58,6 +58,20 @@ import { withBase } from '../../lib/path'
     Empty or stale entries mean the plugin isn't reaching the server.
   </p>
 
+  <h2>"Who is this?" is missing from KOReader's text-selection bar</h2>
+  <p>
+    The button is part of TomeSync 1.17.0 and later. A plugin that replaces KOReader's selection
+    bar with its own set of buttons drops the ones it does not know. With <strong>Zen UI</strong>,
+    open its reader settings and switch on <strong>Show other items</strong> under the highlight
+    lookup options; the button appears on the next selection. No file on the device needs editing.
+  </p>
+  <p>
+    If the bar is stock and the button is still missing, the book has no snapshot yet: sync the
+    position once while online (open, close or Sync now) after the server's reading companion has
+    read chapters of that book, or use <strong>TomeSync → Reading companion → Refresh glossary
+    now</strong>. Also check that <strong>Settings → Reading companion on this device</strong> is on.
+  </p>
+
   <h2>Series view shows wrong volumes</h2>
   <p>
     Tome groups by the <code>series</code> + <code>series_index</code> on each book. If filename

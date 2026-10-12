@@ -27,6 +27,7 @@ The plugin is pre-configured with your server URL and API key. No manual configu
 - **Metadata sync** -- Tome's title, author, series, tags, description and cover are written into KOReader's custom metadata for the books on your device (opt-in; the book files are never modified)
 - **Reading-history import** -- backfill Tome's Stats with KOReader's own per-page reading history from before TomeSync (reading time and pages only -- never your read/unread status)
 - **Series browser** -- browse your library's series and download entire series to your device in one tap
+- **Reading companion, offline** -- the glossary and recaps Tome's AI reading companion wrote for the open book, kept on the device and readable without a connection; "Who is this?" in the text-selection bar (see [Reading companion](#reading-companion-offline))
 - **Offline-safe** -- everything works seamlessly when your server is unreachable; sessions queue and flush later
 - **Context-aware menu** -- different options when a book is open vs. from the home screen
 
@@ -257,6 +258,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Sync now** | Pushes current position, highlights/notes, and flushes any pending offline sessions. |
 | **Tracking: on / paused** | Pauses automatic session tracking and syncing for the current KOReader run. Resets to on at the next start — it is not a permanent setting. Manual actions (Sync now, downloads) still work while paused. |
 | **Pending sessions (N)** | Shows how many sessions are queued for sync. Tap for details. |
+| **Reading companion** | Glossary so far, Recaps and Refresh glossary now for the open book. Only shown when a snapshot is on the device. See [Reading companion](#reading-companion-offline). |
 
 ### Settings submenu
 
@@ -271,6 +273,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Auto-sync reading history on launch** | Opt-in toggle, off by default. When on, TomeSync pushes new KOReader reading history to Tome shortly after startup (the first run backfills your whole history; chunked and resumable). Reading time and pages only — never your read/unread status. See [Reading-History Import](#reading-history-import). |
 | **Sync on suspend** | Opt-in toggle. When the device goes to sleep, catches up anything still pending (sessions, ratings, reading history if enabled) so your stats are current without waking the device. Only syncs when WiFi is already connected. |
 | **Apply Tome metadata to this device** | Opt-in toggle, off by default. Keeps the metadata KOReader shows for Tome books in step with the Tome library via KOReader's custom metadata (the book files are never modified). Tome is the source of truth: metadata edited on the device is overridden. Runs after launch and when WiFi connects. See [Metadata sync](#metadata-sync-tome---koreader). |
+| **Reading companion on this device** | On by default. Keeps the glossary and recaps for the open book on the device and offers "Who is this?" in the text-selection bar. Needs the reading companion on the server. See [Reading companion](#reading-companion-offline). |
 | **Aggressive sync (turn WiFi on at suspend)** | Opt-in, requires Sync on suspend. Turns WiFi on at suspend to sync, then lets the device power it back down. Uses more battery. |
 | **Idle time cap** | Longest gap between page turns that still counts as reading (default 10 minutes). Time beyond the cap — you fell asleep, the cover did not sleep the device — is not booked to the session. |
 | **Device name** | The label Tome shows for this device in the reading log and stats. Defaults to the device model; set a name if you use several devices of the same kind. |
@@ -385,6 +388,30 @@ sideloaded different copy won't sync its rating.
 
 ---
 
+## Reading companion (offline)
+
+When the server has the AI reading companion switched on (Settings > AI, **Build the glossary as you read**), the plugin keeps a copy of what Tome has written for the open book on the device, so it works on the commute with WiFi off. Nothing on the device calls a model: the snapshot holds only what the server already has, up to the position you last synced, and never anything past it.
+
+**How it gets there.** Every position sync (book open, close, suspend, Sync now) tells the plugin whether the glossary changed. When it did and the device is online, the plugin fetches the new snapshot a couple of seconds later; a sync at suspend or close only notes it and the fetch runs on the next open or wake, so suspend never waits on the network. **Refresh glossary now** in the menu fetches it by hand. Failures only log; you never get a dialog on sync.
+
+**Where it lives.** One file per book, `tome_companion.json`, inside KOReader's own sidecar folder for that document (the `.sdr` folder next to it). It travels with the book, is deleted with it, and is never read for another file. A snapshot for a different Tome book id is ignored and refetched.
+
+**Menu** (TomeSync > Reading companion, in a book with a snapshot):
+
+| Option | Description |
+|---|---|
+| **Glossary so far** | People, places and terms met up to your synced position, with a search box (name and alias matches first). An entry opens as plain text: who or what it is, status, rank, powers and titles, the other facts with the chapter they are as of, the last timeline lines and where it was first seen. |
+| **Recaps** | The recaps of the earlier volumes you have marked read, and the recap to your synced page when one was written on the web. A note says when the snapshot is older than a day. |
+| **Refresh glossary now** | Fetch the snapshot up to this page from Tome. |
+
+**Who is this?** sits in the text-selection button bar next to Dictionary and Wikipedia. Select a name and tap it: the name is looked up in the snapshot (exact first, then as a whole word, then as part of a name; quotes and possessives are ignored). One hit opens the entry, several open a short list, none says "Nothing about that before this page." It never guesses.
+
+**Re-reading.** The snapshot is as of your last synced position. When you page back to an earlier chapter, the plugin hides the entries first seen at or after that chapter and trims the aliases, facts, timeline lines, status and recap that were learned past it, using the chapter table in the snapshot. Reading ahead without a connection shows the snapshot as it is, a few chapters behind.
+
+**Settings > Reading companion on this device** turns all of it off (menu entries and the button). Default on.
+
+Chapter numbers count every chapter in the book's chapter map, front matter included, the same way the web companion counts them.
+
 ## API Keys
 
 The plugin authenticates with an API key (`Authorization: Bearer tk_...`), not your login password. Keys are managed in Tome's settings page:
@@ -486,6 +513,15 @@ The downloaded plugin has your server URL and API key baked in, so there is noth
 **Stats page is empty:**
 - Sessions are recorded when you close the lid or close a book. If you just started using the plugin, read for a while and close the lid to generate your first session.
 - If you were previously using an older version of the plugin that only recorded sessions on book close, re-download the latest version. The new version records a session every time you close the lid.
+
+**"Who is this?" is missing from the text-selection bar:**
+- A plugin that replaces KOReader's selection bar with its own set of buttons drops the ones it does not know. With **Zen UI**, switch on **Show other items** under its reader settings (highlight lookup); the button appears on the next selection. No file change on the device is needed.
+- The button also needs a snapshot on the device (see [Reading companion](#reading-companion-offline)): sync the position once while online, or use **Refresh glossary now**.
+- Check that **Settings > Reading companion on this device** is on.
+
+**Glossary or Recaps are missing from the TomeSync menu:**
+- They only show in a book that has a snapshot. The first one arrives on the next position sync while online (open, close, Sync now) once the server's reading companion has read chapters of that book; **Refresh glossary now** fetches it at once.
+- "The reading companion is not available for this book." means the server has it switched off, the book is not an EPUB, or it has no chapter map yet.
 
 **KOReader froze or became unresponsive:**
 - Older versions of the plugin could freeze KOReader for up to 60 seconds per request when the server was unreachable. Re-download the latest version, which has a 5-second timeout and automatic backoff.

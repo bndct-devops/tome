@@ -294,6 +294,33 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     backfill without restarting KOReader.
   </p>
 
+  <h3 id="reading-companion">Reading companion, offline</h3>
+  <p>
+    When the server's AI reading companion is on (Settings → AI, <strong>Build the glossary as
+    you read</strong>), the plugin keeps a copy of what Tome has written for the open book on the
+    device, so it works with WiFi off. The snapshot is fetched a couple of seconds after a
+    position sync whose glossary changed, or by <strong>Refresh glossary now</strong>; a sync at
+    suspend or close only notes it and the fetch runs on the next open or wake. It lives as
+    <code>tome_companion.json</code> in the book's own <code>.sdr</code> folder, travels and dies
+    with the book, and is never read for another file.
+  </p>
+  <ul>
+    <li><strong>Glossary so far</strong> (TomeSync → Reading companion) — people, places and
+      terms up to your synced position, with search; an entry opens as plain text with identity,
+      status, rank, powers and titles, the other facts with the chapter they are as of, the last
+      timeline lines and where it was first seen.</li>
+    <li><strong>Recaps</strong> — the recaps of earlier volumes you marked read, and the recap to
+      your synced page when one was written on the web.</li>
+    <li><strong>Who is this?</strong> — in the text-selection bar next to Dictionary. Select a
+      name and tap it; one hit opens the entry, several open a list, none says "Nothing about
+      that before this page." It never guesses.</li>
+  </ul>
+  <p>
+    Nothing on the device calls a model, and the snapshot never holds anything past your last
+    synced position. Paging back to an earlier chapter hides what was learned later. The setting
+    <strong>Reading companion on this device</strong> turns all of it off.
+  </p>
+
   <h2>Keeping the plugin updated</h2>
   <p>
     Once installed, TomeSync updates itself from your server — no re-download, no file copying.
@@ -362,6 +389,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <ul>
     <li><strong>"Test connection" fails</strong> — most often the server URL is wrong or the API key was revoked. Fix the address and re-pair under <a href="#changing-servers">Changing servers &amp; switching accounts</a> (or re-download the plugin from Settings on older builds).</li>
     <li><strong>Reading sessions not showing in stats</strong> — sessions flush on next sync. Pull-to-refresh in KOReader's TomeSync menu.</li>
+    <li><strong>"Who is this?" is not in the selection bar</strong> — a selection-bar replacement such as Zen UI hides buttons it does not know; switch on its <strong>Show other items</strong> setting. The button also needs a snapshot on the device: sync once while online or use <strong>Refresh glossary now</strong>.</li>
     <li>See <a href={withBase("/docs/troubleshooting")}>full troubleshooting</a>.</li>
   </ul>
 </DocsLayout>
