@@ -145,11 +145,13 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
 
   <h3>Offline-first</h3>
   <p>
-    When your server is unreachable, sync silently skips with zero delay — no freezing, no error
-    dialogs. Sessions save to disk and flush automatically the next time you open the lid with a
-    working connection. Up to 200 sessions can queue offline, surviving KOReader restarts. After 3
-    consecutive failures, the plugin backs off for the rest of the session to avoid unnecessary
-    timeouts.
+    With no network at all, sync skips instantly — no freezing, no error dialogs. Sessions save
+    to disk and flush automatically the next time you open the lid with a working connection. Up
+    to 200 sessions can queue offline, surviving KOReader restarts. When the device is online but
+    the server does not answer, a request waits up to 5 seconds; from build 49 the plugin backs
+    off after the first miss (1, 2, 4, 8, then 15 minutes between tries) and resets as soon as a
+    request gets through, WiFi reconnects or you start a TomeSync action. Opening a book never
+    waits on the network.
   </p>
 
   <h3 id="sync-code">Sync code: hand offline reading to your phone</h3>
@@ -325,6 +327,11 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
       switch to HTTPS). This is the one case self-update can't fix for you: a device pointing
       at a dead address can't fetch anything from it, so the fix has to happen on the device.
       Clear the field to return to the baked-in address.</li>
+    <li><strong>Fallback server URL</strong> (build 49+) — an optional second address for the
+      same server, tried when the server URL does not answer. Useful when one address only works
+      on some networks, for example a router without hairpin NAT: the LAN address at home, the
+      public or VPN address outside. The plugin tries the address that answered last first, so a
+      network change costs one attempt and nothing after that.</li>
     <li><strong>Sign in with code</strong> — connects the device to an account without typing
       any credentials. The plugin shows a short pairing code; enter it in Tome on any
       signed-in browser under <strong>Settings → Security → Quick Connect</strong>, and the

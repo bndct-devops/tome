@@ -95,7 +95,8 @@ def test_prune_never_touches_pending_queues():
 # ── pull-conflict strategy ────────────────────────────────────────────────────
 
 def test_pull_modes_cover_both_directions_with_compatible_defaults():
-    body = _body(_impl(), "_initSession")
+    # Build 49: the pull runs in _pullPositionAtOpen, scheduled by _initSession.
+    body = _body(_impl(), "_pullPositionAtOpen")
     assert 'readSetting("tomesync_pull_forward") or "silent"' in body
     assert 'readSetting("tomesync_pull_backward") or "never"' in body
     # Backward pull exists and is bounded away from 0%.
@@ -105,7 +106,7 @@ def test_pull_modes_cover_both_directions_with_compatible_defaults():
 def test_prompt_is_deferred_off_the_open_path():
     # A ConfirmBox at open time would eat the Profiles auto-exec dispatch
     # exactly like the InfoMessage layout-reset bug — it must be scheduled.
-    body = _body(_impl(), "_initSession")
+    body = _body(_impl(), "_pullPositionAtOpen")
     prompt_at = body.find('mode == "prompt"')
     sched_at = body.find("UIManager:scheduleIn", prompt_at)
     confirm_at = body.find("ConfirmBox:new", prompt_at)

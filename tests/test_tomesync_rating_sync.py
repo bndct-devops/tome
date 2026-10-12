@@ -112,7 +112,9 @@ def test_baseline_is_persisted():
 
 def test_open_and_leave_hooks_are_wired():
     lua = _impl()
-    assert "self:_pullRatingAtOpen()" in _body(lua, "onReaderReady")
+    # Build 49: onReaderReady hands the per-open sync to _afterOpen.
+    assert "self:_afterOpen()" in _body(lua, "onReaderReady")
+    assert "self:_pullRatingAtOpen()" in _body(lua, "_afterOpen")
     assert "self:_pushRatingOnLeave()" in _body(lua, "onCloseDocument")
     assert "self:_pushRatingOnLeave()" in _body(lua, "onSuspend")
 

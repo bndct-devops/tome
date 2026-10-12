@@ -242,5 +242,8 @@ def test_build_bumped_for_rebake():
     # 1.16.1 / build 47: "Show sync code" ends the sitting in progress so the
     # open book's reading is in the code; the menu count lists unsent items
     # only.
-    assert TOMESYNC_PLUGIN_BUILD >= 47
-    assert TOMESYNC_PLUGIN_SEMVER == "1.16.1"
+    # 1.18.0 / build 49 (issue #249): back-off after the first unanswered
+    # request with doubling waits, book open never waits on the network,
+    # optional fallback server URL.
+    assert TOMESYNC_PLUGIN_BUILD >= 49
+    assert TOMESYNC_PLUGIN_SEMVER == "1.18.0"

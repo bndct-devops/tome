@@ -199,7 +199,7 @@ The plugin is designed to work seamlessly when your server is not reachable -- w
 ### What happens when you are offline
 
 - **No WiFi at all:** Every sync request is skipped instantly. There is zero delay or freezing. You will not notice anything different while reading.
-- **WiFi connected but server unreachable** (e.g. public WiFi without VPN): Requests time out after 5 seconds. After 3 consecutive failures, the plugin stops trying for the rest of the session. No further delays.
+- **WiFi connected but server unreachable** (e.g. public WiFi without VPN, or the server is down): a request times out after 5 seconds, and KOReader holds the screen while it waits. Since build 49 the plugin backs off after the first miss and skips requests for 1 minute, then 2, 4, 8 and at most 15 minutes between tries, so a dead server costs one short pause rather than one on every sync. A request that gets through, WiFi reconnecting, or any TomeSync action you start (Sync now, Test connection, a download) resets it. Opening a book never waits on the network: the book appears first and the position pull runs after. If the server is only reachable at a different address on some networks, set a **Fallback server URL** (see [Moving servers & switching accounts](#moving-servers--switching-accounts)).
 - **Reading sessions are saved locally:** If a session cannot be sent to the server (because you are offline when you close the lid or the book), it is saved to disk and retried automatically the next time you open the lid with a working connection.
 - **Positions are remembered too:** a position that could not be sent is kept per book so a sync code (below) can carry it. Positions are not re-sent on reconnect on purpose: the server keeps the latest write, and a stale device position must not overwrite what your phone did meanwhile. The next time you open or wake the book with WiFi, its current position is pushed as usual.
 
@@ -275,6 +275,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Idle time cap** | Longest gap between page turns that still counts as reading (default 10 minutes). Time beyond the cap — you fell asleep, the cover did not sleep the device — is not booked to the session. |
 | **Device name** | The label Tome shows for this device in the reading log and stats. Defaults to the device model; set a name if you use several devices of the same kind. |
 | **Server URL** | The Tome server this device talks to. Baked in at download time; edit it here if the server has moved (marked "(custom)" when overridden). Clear the field to restore the baked-in default. See [Moving servers & switching accounts](#moving-servers--switching-accounts). |
+| **Fallback server URL** | Optional second address for the same server, tried when the server URL does not answer (build 49+). Typical use: the LAN address at home when the main URL only works from outside. The address that answered last is tried first and marked "(in use)". Clear the field to turn it off. |
 | **Account** | The Tome account this device syncs as. Display-only — it is decided by the API key, so switching accounts goes through **Sign in with code**. |
 | **Sign in with code** | Connects the device to a Tome account without typing any credentials: the plugin shows a short code, you enter it in the Tome web UI (Settings → Security → Quick Connect), and the device receives its own API key. |
 | **Reset connection to baked-in defaults** | Forgets the server URL, API key and account set on the device and returns to what the plugin download baked in. Only enabled when something is overridden. |
@@ -409,6 +410,16 @@ the device would be fetching updates from the old, dead address. If the new
 server does not accept the old API key (a different Tome instance, or the key
 was revoked), follow up with **Sign in with code**.
 
+**Two addresses for one server** (build 49+): if the server URL does not
+work on every network you use - a router without hairpin NAT, so the public
+or VPN address fails at home - put the other address under **TomeSync →
+Settings → Fallback server URL**. The plugin tries the address that answered
+last first and switches when it gets no answer, so it costs one 5 second
+attempt per network change and nothing after that. The cleaner fix, when your
+network allows it, is split DNS: one hostname that your home DNS resolves to
+the LAN address and public DNS to the outside one. Note that Android's
+Private DNS bypasses your home DNS.
+
 **Switching accounts** (or signing in after a server change): use
 **Sign in with code**. The plugin shows a short pairing code; enter it in the
 Tome web UI on any signed-in browser under **Settings → Security → Quick
@@ -474,6 +485,7 @@ The downloaded plugin has your server URL and API key baked in, so there is noth
 - Verify your server is running and reachable from the e-reader's network
 - If you are on a VPN (e.g. Tailscale), make sure it is connected on the e-reader
 - If your server address changed, fix it under **Settings → Server URL** — see [Moving servers & switching accounts](#moving-servers--switching-accounts)
+- If the server is reachable at one address at home and another outside, set the second one as **Settings → Fallback server URL**
 
 **Wrong book matched:**
 - Use "Re-resolve all books" in the plugin menu, then re-open the book
