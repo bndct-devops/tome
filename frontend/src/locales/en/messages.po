@@ -706,6 +706,10 @@ msgid "{checked}, merged {merged}:"
 msgstr "{checked}, merged {merged}:"
 
 #: src/components/ReadingCompanion.tsx
+msgid "{checked}, merged {merged}."
+msgstr "{checked}, merged {merged}."
+
+#: src/components/ReadingCompanion.tsx
 msgid "{checked}, no duplicates found."
 msgstr "{checked}, no duplicates found."
 

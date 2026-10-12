@@ -92,7 +92,7 @@ All notable changes to Tome are documented here. Format loosely follows
   a shared word is not enough to be asked, and a name the text itself used
   for both counts as strong evidence. The button shows its progress where
   it sits, then what it did ("Checked 120 pairs, merged 43: Wren -> Wren
-  Calloway, ..."), also after a refresh. Pairs already judged are
+  Calloway, ..." with the time it ended), also after a refresh. Pairs already judged are
   remembered and not asked again until either side learns something new.
   Admins get "Read again" next to "Read the missing chapters": it shows
   what it deletes (chapter notes, glossary entries, recaps, for everyone)

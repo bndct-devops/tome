@@ -191,7 +191,7 @@ function linkNames(
 }
 
 export function ReadingCompanion({ bookId }: { bookId: number }) {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const { available: aiAvailable } = useAiStatus()
   const { user } = useAuth()
   const admin = isAdmin(user)
@@ -1053,10 +1053,23 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     )
   }
 
+  // When the run ended, so an older result (from before a reload) reads as
+  // history: "· 10:42" today, "· 11 Oct, 10:42" otherwise.
+  const endedAt = (iso: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const sameDay = d.toDateString() === new Date().toDateString()
+    return d.toLocaleString(i18n.locale, sameDay
+      ? { hour: '2-digit', minute: '2-digit' }
+      : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
   let mergeResultLine: React.ReactNode = null
   if (mergeResult && !DIGEST_JOB_ACTIVE.includes(mergeResult.status)) {
     const f = (mergeResult.followups ?? []).find(x => x.name === 'reconcile')
     const mutedClassName = 'text-xs text-muted-foreground'
+    const when = endedAt(mergeResult.finished_at)
+    const stamp = when ? <span className="text-muted-foreground/70"> · {when}</span> : null
     const mergedSoFar = (f?.merged ?? 0) > 0 && (f?.merges ?? []).length > 0
       ? <>{' '}{mergedPairs(f?.merges ?? [])}</>
       : null
@@ -1077,19 +1090,24 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         </p>
       )
     } else if (f == null || f.candidates == null) {
-      mergeResultLine = <p className={mutedClassName}><Trans>Merging finished.</Trans></p>
+      mergeResultLine = <p className={mutedClassName}><Trans>Merging finished.</Trans>{stamp}</p>
     } else if (f.candidates === 0) {
-      mergeResultLine = <p className={mutedClassName}><Trans>No candidate pairs to check.</Trans></p>
+      mergeResultLine = <p className={mutedClassName}><Trans>No candidate pairs to check.</Trans>{stamp}</p>
     } else {
       const checked = plural(f.candidates, { one: 'Checked # pair', other: 'Checked # pairs' })
       const merged = f.merged ?? 0
+      const pairs = f.merges ?? []
       if (merged === 0) {
-        mergeResultLine = <p className={mutedClassName}><Trans>{checked}, no duplicates found.</Trans></p>
+        mergeResultLine = <p className={mutedClassName}><Trans>{checked}, no duplicates found.</Trans>{stamp}</p>
+      } else if (pairs.length === 0) {
+        // A run from before the names were recorded: counts only.
+        mergeResultLine = <p className={mutedClassName}><Trans>{checked}, merged {merged}.</Trans>{stamp}</p>
       } else {
         mergeResultLine = (
           <p className={cn(mutedClassName, 'leading-relaxed')}>
             <Trans>{checked}, merged {merged}:</Trans>{' '}
-            {mergedPairs(f.merges ?? [])}
+            {mergedPairs(pairs)}
+            {stamp}
           </p>
         )
       }
