@@ -6,7 +6,24 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Fallback server URL for the KOReader plugin.** TomeSync > Settings has
+  an optional second address for the same server, tried when the main one
+  does not answer: for example the LAN address at home when the main URL
+  only works from outside (a router without hairpin NAT, a VPN address).
+  Whichever address answered last is tried first, so after a network change
+  the plugin switches once and sticks with it. (#249)
+
 ### Fixed
+- **The KOReader plugin no longer freezes the reader when the server is
+  down.** When the device was online but Tome did not answer, every sync
+  request held the screen for its 5 second timeout, and it took three
+  misses before the plugin backed off, so startup and opening a book each
+  stalled. It now backs off after the first miss, waits 1, 2, 4, 8 and then
+  15 minutes between tries, and goes back to normal as soon as a request
+  gets through, WiFi reconnects or you use a TomeSync action such as Sync
+  now. Opening a book no longer waits on the network at all. Reading
+  offline was never affected. Plugin build 49. (#249)
 - **Google Books 503s no longer fail the fetch outright.** Google answers in
   bursts of "503 Service Unavailable", and Tome gave up on the first one, so
   the search had to be clicked again by hand. A 5xx from any metadata source
