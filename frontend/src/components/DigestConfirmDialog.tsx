@@ -2,6 +2,9 @@
 // chapters. Two cards, this book only and the whole series (when earlier read
 // volumes exist), each with its chapters, time and cost estimate. The book
 // page itself never shows money; this dialog is where the price is decided.
+// With `writeAll` it asks before "Write all" instead: one line for reading the
+// missing chapters of the read earlier volumes, one for merging duplicate
+// glossary entries (when there are any), one for the recaps, a total.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BookOpen, Check, Library as LibraryIcon, Loader2, X } from 'lucide-react'
@@ -10,7 +13,20 @@ import { plural } from '@lingui/core/macro'
 import { ModalShell } from '@/components/ModalShell'
 import { AiBadge } from '@/components/AiBadge'
 import { cn } from '@/lib/utils'
-import type { DigestEstimate, DigestScope } from '@/lib/ai'
+import type { DigestEstimate, DigestScope, WriteAll } from '@/lib/ai'
+
+/** What "Write all" will do, for the dialog's two lines and total. */
+export interface WriteAllConfirm {
+  reading: WriteAll['reading']
+  /** Recaps to write, and their cost. */
+  count: number
+  est_cost_usd: number
+  /** Merging duplicate glossary entries; shown and counted only when
+   *  `pairs` > 0 (older servers leave it out). */
+  merging?: WriteAll['merging'] | null
+  /** null when no monthly limit applies (or the server does not say). */
+  remaining_budget_usd?: number | null
+}
 
 export interface DigestConfirmProps {
   open: boolean
@@ -22,6 +38,9 @@ export interface DigestConfirmProps {
   error?: string | null
   onCancel: () => void
   onStart: (scope: DigestScope) => void
+  /** Ask before "Write all" instead (book and series are ignored); onStart
+   *  is called with 'series'. */
+  writeAll?: WriteAllConfirm | null
 }
 
 /** The scope the dialog opens on: the preferred one when it is usable, else
@@ -37,7 +56,7 @@ function initialScope(
   return 'series'
 }
 
-export function DigestConfirmDialog({ open, book, series, scope: preferredScope, busy = false, error, onCancel, onStart }: DigestConfirmProps) {
+export function DigestConfirmDialog({ open, book, series, scope: preferredScope, busy = false, error, onCancel, onStart, writeAll = null }: DigestConfirmProps) {
   const { t, i18n } = useLingui()
   const [scope, setScope] = useState<DigestScope>(() => initialScope(book, series, preferredScope))
   // Re-pick the scope whenever the dialog opens on new estimates.
@@ -108,10 +127,15 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
     return t`about ${h} hours`
   }
 
-  const chosen = scope === 'series' && series ? series : book
-  const n = chosen?.chapters ?? 0
-  const remaining = (series ?? book)?.remaining_budget_usd ?? null
-  const canStart = chosen != null && chosen.chapters > 0 && !chosen.over_budget && !busy
+  const chosen = writeAll ? null : scope === 'series' && series ? series : book
+  const n = writeAll ? writeAll.reading.chapters : chosen?.chapters ?? 0
+  const remaining = writeAll ? writeAll.remaining_budget_usd ?? null : (series ?? book)?.remaining_budget_usd ?? null
+  const merging = writeAll?.merging != null && writeAll.merging.pairs > 0 ? writeAll.merging : null
+  const writeAllTotal = writeAll ? writeAll.reading.est_cost_usd + (merging?.est_cost_usd ?? 0) + writeAll.est_cost_usd : 0
+  const writeAllOver = writeAll != null && remaining != null && writeAllTotal > remaining
+  const canStart = writeAll
+    ? !writeAllOver && !busy
+    : chosen != null && chosen.chapters > 0 && !chosen.over_budget && !busy
 
   function card(est: DigestEstimate, which: DigestScope) {
     const selected = scope === which
@@ -160,6 +184,61 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
 
   const remainingText = remaining != null ? money(remaining) : ''
 
+  let writeAllBody: React.ReactNode = null
+  if (writeAll) {
+    const chapterCount = writeAll.reading.chapters
+    const chapters = plural(chapterCount, { one: 'Read # chapter', other: 'Read # chapters' })
+    const volumes = writeAll.reading.volumes
+    const readCost = money(writeAll.reading.est_cost_usd)
+    const readTime = duration(writeAll.reading.est_seconds)
+    const mergeCost = merging ? money(merging.est_cost_usd) : ''
+    const recaps = writeAll.count
+    const recapCost = money(writeAll.est_cost_usd)
+    const total = money(writeAllTotal)
+    writeAllBody = (
+      <>
+        <p className="text-sm text-muted-foreground">
+          <Trans>Write all reads the missing chapters of the volumes you have finished, merges duplicate glossary entries, then writes each missing recap. It runs on the server; you can close the page.</Trans>
+        </p>
+        <ul className="rounded-lg border border-border divide-y divide-border/60 text-sm">
+          {chapterCount > 0 && (
+            <li className="flex items-baseline justify-between gap-3 px-3 py-2">
+              <span className="min-w-0 text-foreground">
+                {plural(volumes, {
+                  one: `${chapters} of # volume`,
+                  other: `${chapters} of # volumes`,
+                })}
+                <span className="block text-xs text-muted-foreground">{readTime}</span>
+              </span>
+              <span className="shrink-0 tabular-nums text-foreground"><Trans>about {readCost}</Trans></span>
+            </li>
+          )}
+          {merging && (
+            <li className="flex items-baseline justify-between gap-3 px-3 py-2">
+              <span className="min-w-0 text-foreground"><Trans>Merge duplicate entries</Trans></span>
+              <span className="shrink-0 tabular-nums text-foreground"><Trans>about {mergeCost}</Trans></span>
+            </li>
+          )}
+          <li className="flex items-baseline justify-between gap-3 px-3 py-2">
+            <span className="min-w-0 text-foreground">
+              <Plural value={recaps} one="Write # recap" other="Write # recaps" />
+            </span>
+            <span className="shrink-0 tabular-nums text-foreground"><Trans>about {recapCost}</Trans></span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3 px-3 py-2 bg-muted/40">
+            <span className="min-w-0 font-medium text-foreground"><Trans>Total</Trans></span>
+            <span className="shrink-0 tabular-nums font-medium text-foreground"><Trans>about {total}</Trans></span>
+          </li>
+        </ul>
+        {writeAllOver && (
+          <p className="text-xs text-warning">
+            <Trans>More than what is left of the monthly AI budget.</Trans>
+          </p>
+        )}
+      </>
+    )
+  }
+
   return createPortal(
     <ModalShell open={open} onClose={busy ? undefined : onCancel} className="w-full max-w-lg">
       <div
@@ -171,7 +250,9 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
       >
         <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
           <h2 id="digest-confirm-title" className="font-display text-base text-foreground min-w-0">
-            <Plural value={n} one="Read # chapter first?" other="Read # chapters first?" />
+            {writeAll
+              ? <Trans>Write all recaps?</Trans>
+              : <Plural value={n} one="Read # chapter first?" other="Read # chapters first?" />}
           </h2>
           <AiBadge />
           <button
@@ -186,6 +267,8 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
         </div>
 
         <div className="overflow-y-auto px-5 py-4 space-y-4">
+          {writeAllBody}
+          {!writeAll && (<>
           <p className="text-sm text-muted-foreground">
             <Trans>The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards.</Trans>
           </p>
@@ -208,10 +291,16 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
               })}
             </ul>
           )}
+          </>)}
 
           {remaining != null && (
             <p className="text-xs text-muted-foreground">
               <Trans>{remainingText} left of your monthly AI budget.</Trans>
+            </p>
+          )}
+          {writeAll && (
+            <p className="text-[11px] text-muted-foreground/70">
+              <Trans>Estimated from list prices and earlier runs on this server. Stop it any time; what is done so far is kept.</Trans>
             </p>
           )}
           {chosen && (() => { const model = chosen.model; return (
@@ -234,12 +323,14 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
           <button
             ref={startRef}
             type="button"
-            onClick={() => { if (canStart) onStart(scope) }}
+            onClick={() => { if (canStart) onStart(writeAll ? 'series' : scope) }}
             disabled={!canStart}
             className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity inline-flex items-center gap-2"
           >
             {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            <Plural value={n} one="Read # chapter" other="Read # chapters" />
+            {writeAll
+              ? <Trans>Write all</Trans>
+              : <Plural value={n} one="Read # chapter" other="Read # chapters" />}
           </button>
         </div>
       </div>

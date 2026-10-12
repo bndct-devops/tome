@@ -657,9 +657,12 @@ def get_recap_volumes(
     """``{can_write, volumes: [{book_id, title, series_index, chapters,
     status: ready|partial|missing, digested, needed, text, created_at,
     missing_chapters}], current: {book_id, title, series_index, has_position,
-    recap_cached}, write_all: {count, est_cost_usd, running, last}}``. Read-only, never
-    queues; works without a position. ``write_all``: what "Write all" (POST
-    .../recap/volumes) would write now and a conservative cost for it."""
+    recap_cached}, write_all: {count, est_cost_usd, reading: {chapters, volumes,
+    est_cost_usd, est_seconds}, job, last}}``. Read-only, never queues; works
+    without a position. ``write_all``: what the "Write all" job (POST
+    .../recap/volumes) would read first and write after, with conservative
+    costs; ``job`` = the active job for this book, ``last`` = the newest
+    finished "Write all" job (job snapshots as GET /digest-jobs/{id})."""
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, ai_recap.FEATURE)
     ai.check_feature_available(db, digest.FEATURE)
@@ -672,20 +675,40 @@ def post_recap_volumes_all(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_ai_user),
 ) -> JSONResponse:
-    """"Write all": starts a background run and answers at once with 202
-    ``{started: <volumes it will try>, volumes: <the GET payload>}``. The run
-    writes, one call each, every read earlier volume whose recap is missing or
-    stale and that has no undigested chapter; never queues reading. A spend
-    limit stops it (what was written stays). Poll GET: ``write_all.running``
-    is true while it lasts, ``write_all.last`` holds ``{written: [book_id],
-    skipped: [{book_id, title, series_index, reason: unread|fresh|budget|error,
-    missing_chapters, message?}], finished_at}``. 409 without a key, 409
-    ``already_running`` while one runs for this book. The body is ignored
-    (send ``{}``)."""
+    """"Write all": 202 ``{job}``, a digest job for this book (series scope,
+    up to the position, or chapter 0 without one) whose steps are reading
+    (the missing chapters of the read earlier volumes), merging (duplicate
+    entries) and writing (every missing or stale volume recap, one call
+    each). Poll GET /digest-jobs/{id}. 409 without a key, 409 ``budget``
+    when the reading estimate plus the recaps exceed what is left of a
+    monthly limit, 409 ``already_running`` while a job for this book is
+    active. The body is ignored (send ``{}``)."""
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, ai_recap.FEATURE)
     ai.check_feature_available(db, digest.FEATURE)
     return JSONResponse(status_code=202, content=volume_recap.write_all(db, current_user, book))
+
+
+@router.post("/books/{book_id}/reconcile", status_code=202)
+def post_reconcile(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> JSONResponse:
+    """"Merge duplicates": 202 ``{job}``, a digest job that reads nothing and
+    runs the merging step (duplicate glossary entries of the book's series)
+    only. 409 without a key, 409 ``already_running`` while a job for this
+    book is active."""
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, digest.FEATURE)
+    return JSONResponse(status_code=202, content=volume_recap.start_reconcile(db, current_user, book))
+
+
+def _start_window(db: Session, user: User, book: Book) -> companion.Window:
+    try:
+        return companion.start_window(db, user, book)
+    except companion.WindowError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
 class VolumeRecapBody(BaseModel):
@@ -797,9 +820,10 @@ def get_digest_estimate(
     take: ``{book: {...}, series: {...} | null, chapter_idx,
     chapter_title}``, each scope ``{scope, chapters, calls, words,
     est_seconds, est_cost_usd, model, remaining_budget_usd, over_budget,
-    volumes: [{book_id, title, chapters}]}``. Never calls a model."""
+    volumes: [{book_id, title, chapters}]}``. Never calls a model. Without
+    a position: the read earlier volumes only (chapter 0 of this book)."""
     book = _visible_book(db, current_user, book_id)
-    window = _web_window(db, current_user, book, None)
+    window = _start_window(db, current_user, book)
     return companion.digest_estimates(db, current_user, book, window)
 
 
@@ -820,11 +844,12 @@ def post_digest(
     estimate, coverage, scope, chapter_idx, chapter_title}``, or 200 with
     ``job`` null (or the active job) when nothing is missing. 409 without a
     key, 409 ``reason: "budget"`` when the estimate is over what is left of
-    a monthly spend limit. The only on-demand way to queue digest work."""
+    a monthly spend limit. Without a position the window is chapter 0:
+    nothing of this book, the read earlier volumes in full."""
     body = body or DigestBody()
     book = _visible_book(db, current_user, book_id)
     ai.check_feature_available(db, digest.FEATURE)
-    window = _web_window(db, current_user, book, None)
+    window = _start_window(db, current_user, book)
     status, payload = companion.start_digest(db, current_user, book, window, body.scope)
     return JSONResponse(status_code=status, content=payload)
 

@@ -6,11 +6,12 @@
 // as the page's other digests: when the volume still has unread chapters, the
 // confirmation dialog asks first over CONFIRM_THRESHOLD chapters or over
 // budget, the chapters are read, and the recap is asked for again after.
-// "Write all" writes every missing or stale recap whose chapters are all read,
-// one call each, after showing the count and a conservative cost; it never
-// starts reading chapters (those volumes are left for "Write it"). The run
-// goes on on the server: the list is polled while `write_all.running` is
-// true (also when another tab started it), and the rows stay locked.
+// "Write all" is one background job: it reads the missing chapters of the
+// read earlier volumes, merges duplicate glossary entries, then writes every
+// missing or stale recap. It asks first (both costs and a total) when chapters
+// need reading or the run would pass a limit, else starts at once. The job is
+// polled by id; `write_all.job` on the list reconnects after a reload (also to
+// a run started in another tab), and the rows stay locked while it runs.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, Loader2, Pause, RotateCcw, Sparkles } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -18,29 +19,17 @@ import { plural } from '@lingui/core/macro'
 import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
 import { cn } from '@/lib/utils'
 import {
-  getRecapVolumes, requestVolumeRecap, isVolumeRecapPending, isAlreadyRunning, writeAllVolumeRecaps,
-  startDigest, getDigestJob, cancelDigestJob,
+  getRecapVolumes, requestVolumeRecap, isVolumeRecapPending, isAlreadyRunning, startWriteAll,
+  startDigest, getDigestJob, cancelDigestJob, activeJobLine, isWriteAllJob,
   DIGEST_JOB_ACTIVE, CONFIRM_THRESHOLD,
   type DigestEstimate, type DigestJob, type RecapVolumes as RecapVolumesPayload,
-  type VolumeRecap, type VolumeRecapPending, type VolumeRecapSkip,
+  type VolumeRecap, type VolumeRecapPending, type WriteAll,
 } from '@/lib/ai'
 
 const POLL_MS = 2000
-const WRITE_ALL_POLL_MS = 3000
 const POLL_FAILURES = 15
 
-/** A "Write all" run being watched: how many it set out to write, and the
- *  rows that were already ready when watching began. */
-interface WatchedRun {
-  started: number
-  readyBefore: Set<number>
-}
-
-function readyIds(volumes: VolumeRecap[] | null | undefined): Set<number> {
-  return new Set((volumes ?? []).filter(v => v.status === 'ready').map(v => v.book_id))
-}
-
-function isActive(job: DigestJob | null): job is DigestJob {
+function isActive(job: DigestJob | null | undefined): job is DigestJob {
   return job != null && DIGEST_JOB_ACTIVE.includes(job.status)
 }
 
@@ -64,13 +53,16 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
   const { t, i18n } = useLingui()
   const [volumes, setVolumes] = useState<VolumeRecap[] | null>(null)
   const [canWrite, setCanWrite] = useState(false)
-  const [writeAll, setWriteAll] = useState<RecapVolumesPayload['write_all'] | null>(null)
+  const [writeAll, setWriteAll] = useState<WriteAll | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [run, setRun] = useState<WatchedRun | null>(null)
-  const runRef = useRef(false)
-  const [allSkipped, setAllSkipped] = useState<VolumeRecapSkip[]>([])
+  // The "Write all" job being followed, and how the last one ended.
+  const [allJob, setAllJob] = useState<DigestJob | null>(null)
+  const [allEnded, setAllEnded] = useState<DigestJob | null>(null)
+  const [allStarting, setAllStarting] = useState(false)
   const [allNotice, setAllNotice] = useState<string | null>(null)
   const [allError, setAllError] = useState<string | null>(null)
+  const [confirmAll, setConfirmAll] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
 
   const alive = useRef(true)
   useEffect(() => {
@@ -83,23 +75,27 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
     setCanWrite(r.can_write)
     setWriteAll(r.write_all ?? null)
     setLoadError(null)
-    const wa = r.write_all
-    if (wa?.running) {
-      // Running (started here or in another tab): watch it.
-      runRef.current = true
-      setRun(prev => prev ?? { started: wa.last?.started ?? 0, readyBefore: readyIds(r.volumes) })
-    } else if (runRef.current) {
-      // The watched run ended: show what it left alone.
-      runRef.current = false
-      setRun(null)
-      setAllSkipped(wa?.last?.skipped ?? [])
+    // A Write all run going on (started here before a reload, or in another
+    // tab). Other active jobs for the book (reading, merging) are left to the
+    // companion's own progress line.
+    const running = r.write_all?.job
+    if (isActive(running) && isWriteAllJob(running)) {
+      setAllJob(prev => (isActive(prev) && prev.id === running.id ? prev : running))
+    } else {
+      // How the newest Write all run ended, when nothing newer has run since.
+      const last = r.write_all?.last
+      if (!isActive(running) && last && !isActive(last) && isWriteAllJob(last)) {
+        setAllEnded(prev => prev ?? last)
+      }
     }
   }, [])
 
   const reload = useCallback(() => {
     getRecapVolumes(bookId)
-      .then(apply)
-      .catch(e => setLoadError(e instanceof Error ? e.message : t`Could not load the earlier volumes`))
+      .then(r => { if (alive.current) apply(r) })
+      .catch(e => {
+        if (alive.current) setLoadError(e instanceof Error ? e.message : t`Could not load the earlier volumes`)
+      })
   }, [bookId, apply, t])
 
   useEffect(() => { reload() }, [reload])
@@ -110,52 +106,98 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
     reload()
   }, [reload])
 
-  const watching = run != null
+  const allEndedRun = useCallback((j: DigestJob) => {
+    setAllJob(null)
+    setAllEnded(j)
+    onDigestEnded()
+    reload()
+  }, [onDigestEnded, reload])
+
+  const allJobId = isActive(allJob) ? allJob.id : null
   useEffect(() => {
-    if (!watching) return
+    if (!allJobId) return
     // A failed poll (a timeout, a blip) is not the run ending: keep
     // polling, give up only after POLL_FAILURES in a row.
     let failures = 0
     const timer = window.setInterval(() => {
-      getRecapVolumes(bookId)
-        .then(r => {
+      getDigestJob(allJobId)
+        .then(j => {
           if (!alive.current) return
           failures = 0
-          apply(r)
+          if (isActive(j)) setAllJob(j)
+          else allEndedRun(j)
         })
         .catch(() => {
           if (!alive.current) return
           failures += 1
           if (failures < POLL_FAILURES) return
-          runRef.current = false
-          setRun(null)
+          setAllJob(null)
+          reload()
         })
-    }, WRITE_ALL_POLL_MS)
+    }, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [watching, bookId, apply])
+  }, [allJobId, allEndedRun, reload])
 
-  async function runWriteAll(count: number) {
-    runRef.current = true
-    setRun({ started: count, readyBefore: readyIds(volumes) })
-    setAllSkipped([])
+  /** POST write-all. Returns an error message, or null when it started. */
+  async function beginAll(): Promise<string | null> {
     setAllNotice(null)
     setAllError(null)
+    setAllEnded(null)
     try {
-      const res = await writeAllVolumeRecaps(bookId)
-      if (!alive.current) return
-      setRun(prev => (prev ? { ...prev, started: res.started } : prev))
-      apply(res.volumes)
+      const res = await startWriteAll(bookId)
+      if (!alive.current) return null
+      if (isActive(res.job)) setAllJob(res.job)
+      else allEndedRun(res.job)
+      return null
     } catch (e) {
-      if (!alive.current) return
-      runRef.current = false
-      setRun(null)
+      if (!alive.current) return null
       if (isAlreadyRunning(e)) {
-        setAllNotice(t`Already being written. Check back in a minute.`)
+        setAllNotice(t`Something is already running for this book. Try again when it is done.`)
         reload()
-      } else {
-        setAllError(e instanceof Error ? e.message : t`Could not write the recaps`)
+        return null
       }
+      return e instanceof Error ? e.message : t`Could not write the recaps`
     }
+  }
+
+  const readingChapters = writeAll?.reading?.chapters ?? 0
+  const remaining = writeAll?.remaining_budget_usd ?? null
+  // Merging duplicate entries counts only when there is something to merge.
+  const mergeCost = (writeAll?.merging?.pairs ?? 0) > 0 ? writeAll?.merging?.est_cost_usd ?? 0 : 0
+  const totalCost = (writeAll?.est_cost_usd ?? 0) + (writeAll?.reading?.est_cost_usd ?? 0) + mergeCost
+  const overBudget = remaining != null && totalCost > remaining
+
+  async function clickWriteAll() {
+    if (readingChapters > 0 || overBudget) {
+      setConfirmError(null)
+      setConfirmAll(true)
+      return
+    }
+    setAllStarting(true)
+    const err = await beginAll()
+    if (!alive.current) return
+    setAllStarting(false)
+    if (err) setAllError(err)
+  }
+
+  async function confirmStartAll() {
+    setAllStarting(true)
+    setConfirmError(null)
+    const err = await beginAll()
+    if (!alive.current) return
+    setAllStarting(false)
+    if (err) { setConfirmError(err); return }
+    setConfirmAll(false)
+  }
+
+  async function stopAll() {
+    if (!allJob) return
+    try {
+      const j = await cancelDigestJob(allJob.id)
+      if (!alive.current) return
+      if (isActive(j)) setAllJob(j)
+      else allEndedRun(j)
+    } catch { /* the poll picks up the final state */ }
   }
 
   const money = (n: number) => {
@@ -166,19 +208,46 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
     return fmt(n)
   }
 
-  const unreadCount = allSkipped.filter(s => s.reason === 'unread').length
-  const budgetSkip = allSkipped.find(s => s.reason === 'budget')
-  const errorCount = allSkipped.filter(s => s.reason === 'error').length
+  const running = isActive(allJob)
   const pendingCount = writeAll?.count ?? 0
   const cost = money(writeAll?.est_cost_usd ?? 0)
-  const runTotal = run?.started ?? 0
-  const turnedReady = run
-    ? (volumes ?? []).filter(v => v.status === 'ready' && !run.readyBefore.has(v.book_id)).length
-    : 0
-  const runDone = Math.min(runTotal, Math.max(turnedReady, writeAll?.running ? (writeAll.last?.written.length ?? 0) : 0))
-  const showOffer = canWrite && volumes != null && pendingCount > 0 && run == null
-  const showHeader = showOffer || run != null || unreadCount > 0 || budgetSkip != null
-    || errorCount > 0 || allNotice != null || allError != null
+  const showOffer = canWrite && volumes != null && pendingCount > 0 && !running
+  let offerText = ''
+  if (readingChapters > 0 && writeAll) {
+    const chapters = plural(readingChapters, { one: '# chapter', other: '# chapters' })
+    const readCost = money(writeAll.reading.est_cost_usd)
+    const recaps = plural(pendingCount, {
+      one: `then # recap (about ${cost})`,
+      other: `then # recaps (about ${cost})`,
+    })
+    offerText = plural(writeAll.reading.volumes, {
+      one: `# volume still needs reading (${chapters}, about ${readCost}) · ${recaps}`,
+      other: `# volumes still need reading (${chapters}, about ${readCost}) · ${recaps}`,
+    })
+  } else {
+    // One figure: the recaps plus any merging.
+    const allCost = money((writeAll?.est_cost_usd ?? 0) + mergeCost)
+    offerText = plural(pendingCount, {
+      one: `# volume not written yet · about ${allCost}`,
+      other: `# volumes not written yet · about ${allCost}`,
+    })
+  }
+  const endedLine = allEnded && !running
+    ? allEnded.stop_reason
+      ?? (allEnded.status === 'interrupted'
+        ? t`Interrupted by a server restart. Write all again to go on.`
+        : allEnded.status === 'cancelled'
+          ? t`Stopped. What was done so far is kept.`
+          : null)
+    : null
+  // What the last run's recap step could not do (from its follow-up).
+  const recapsStep = allEnded && !running
+    ? allEnded.followups?.find(f => f.name === 'volume_recaps')
+    : undefined
+  const errorCount = recapsStep?.failed?.length ?? 0
+  const unreadCount = recapsStep?.skipped?.filter(x => x.reason === 'unread').length ?? 0
+  const showHeader = showOffer || running || endedLine != null || errorCount > 0 || unreadCount > 0
+    || allNotice != null || allError != null
 
   return (
     <div className="rounded-lg border border-border bg-muted/40">
@@ -186,26 +255,43 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
         <div className="px-3 py-2 space-y-1.5 border-b border-border/60">
           {showOffer && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-              <p className="text-xs text-muted-foreground min-w-0">
-                {plural(pendingCount, {
-                  one: `# volume not written yet · about ${cost}`,
-                  other: `# volumes not written yet · about ${cost}`,
-                })}
-              </p>
+              <p className="text-xs text-muted-foreground min-w-0">{offerText}</p>
               <button
                 type="button"
-                onClick={() => void runWriteAll(pendingCount)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors shrink-0"
+                onClick={() => void clickWriteAll()}
+                disabled={allStarting}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-60"
               >
-                <Sparkles className="w-3 h-3" />
+                {allStarting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                 <Trans>Write all</Trans>
               </button>
             </div>
           )}
-          {run != null && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-              {runTotal > 0 ? t`Writing volume recaps… ${runDone} of ${runTotal}` : t`Writing volume recaps…`}
+          {running && allJob && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
+              <span className="flex items-center gap-2 min-w-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                {activeJobLine(allJob)}
+              </span>
+              {allJob.status !== 'stopping' && (
+                <button type="button" onClick={() => void stopAll()} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+                  <Trans>Stop</Trans>
+                </button>
+              )}
+            </div>
+          )}
+          {endedLine && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Pause className="w-3 h-3 shrink-0" />
+              <span className="min-w-0">{endedLine}</span>
+            </p>
+          )}
+          {errorCount > 0 && (
+            <p className="text-xs text-destructive">
+              {plural(errorCount, {
+                one: '# recap could not be written. Try Write it on it.',
+                other: '# recaps could not be written. Try Write it on them.',
+              })}
             </p>
           )}
           {unreadCount > 0 && (
@@ -213,15 +299,6 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
               {plural(unreadCount, {
                 one: '# volume still needs its chapters read; use Write it on it.',
                 other: '# volumes still need their chapters read; use Write it on them.',
-              })}
-            </p>
-          )}
-          {budgetSkip?.message && <p className="text-xs text-muted-foreground">{budgetSkip.message}</p>}
-          {errorCount > 0 && (
-            <p className="text-xs text-destructive">
-              {plural(errorCount, {
-                one: '# recap could not be written. Try Write it on it.',
-                other: '# recaps could not be written. Try Write it on them.',
               })}
             </p>
           )}
@@ -243,7 +320,7 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
             bookId={bookId}
             vol={v}
             canWrite={canWrite}
-            locked={run != null}
+            locked={running}
             renderParagraph={renderParagraph}
             onChange={replace}
             onReload={reload}
@@ -256,6 +333,24 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
           {current}
         </li>
       </ul>
+      {writeAll && (
+        <DigestConfirmDialog
+          open={confirmAll}
+          book={null}
+          series={null}
+          writeAll={{
+            reading: writeAll.reading,
+            count: writeAll.count,
+            est_cost_usd: writeAll.est_cost_usd,
+            merging: writeAll.merging ?? null,
+            remaining_budget_usd: remaining,
+          }}
+          busy={allStarting}
+          error={confirmError}
+          onCancel={() => setConfirmAll(false)}
+          onStart={() => void confirmStartAll()}
+        />
+      )}
     </div>
   )
 }
@@ -452,13 +547,7 @@ function VolumeRow({ bookId, vol, canWrite, locked, renderParagraph, onChange, o
       </p>
     )
   } else if (phase === 'waiting') {
-    const done = job?.done ?? 0
-    const total = job?.total ?? 0
-    const text = job?.status === 'stopping'
-      ? t`Stopping after the current chapters…`
-      : job == null || job.status === 'queued' || total === 0
-        ? t`Getting ready to read the chapters…`
-        : t`Reading chapters: ${done} of ${total}…`
+    const text = job == null ? t`Getting ready to read the chapters…` : activeJobLine(job)
     progress = (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
         <span className="flex items-center gap-2 min-w-0">

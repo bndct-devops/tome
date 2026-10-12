@@ -38,16 +38,12 @@ def _jobs_inline(db: Session, monkeypatch):
 
     digest_job.reset()
     digest.reset_triggers()
-    volume_recap.reset()
     monkeypatch.setattr(digest_job, "_spawn_worker", lambda: None)
     monkeypatch.setattr(digest_job, "_session_factory", same_session)
     monkeypatch.setattr(digest_job, "_followups", dict(digest_job._followups))
-    monkeypatch.setattr(volume_recap, "_spawn", lambda: None)
-    monkeypatch.setattr(volume_recap, "_session_factory", same_session)
     yield
     digest_job.reset()
     digest.reset_triggers()
-    volume_recap.reset()
 
 
 def _position(db: Session, user: User, book, pct: float, device: str = "Kindle") -> None:
@@ -63,6 +59,11 @@ def _position(db: Session, user: User, book, pct: float, device: str = "Kindle")
 def _mid(book, db, idx: int, frac: float = 0.5) -> float:
     ch = book_text.book_chapters(book, db)[idx]
     return ch.start_fraction + (ch.end_fraction - ch.start_fraction) * frac
+
+
+def _nohist(fact: dict) -> dict:
+    """A fact without its ``history`` (asserted on its own)."""
+    return {k: v for k, v in fact.items() if k != "history"}
 
 
 def _all_text(call: dict) -> str:
@@ -1164,90 +1165,133 @@ def _write_all_series(db, make_book, tmp_path, user, name: str):
     return vols
 
 
-def test_write_all_writes_missing_and_stale_skips_unread_and_fresh(client, db, make_book, tmp_path):
+@pytest.fixture()
+def reconcile_calls(monkeypatch):
+    """Stub the merging step: records each call, merges nothing."""
+    from backend.services.ai import reconcile
+    calls: list[dict] = []
+
+    def fake_run(db, user, book, *, job_id=None, **kw):
+        calls.append({"book_id": book.id, "job_id": job_id})
+        return reconcile.ReconcileResult(candidates=2, merged=1)
+
+    monkeypatch.setattr(reconcile, "run", fake_run)
+    return calls
+
+
+def write_all_answers(feature, user_content, schema):
+    if feature == "reading_digest":
+        return echo_digest(feature, user_content, schema)
+    if feature == "recap":
+        return VOLUME_TEXT
+    raise AssertionError(feature)
+
+
+def _recap_calls(fake) -> list[dict]:
+    return [c for c in fake.calls if c["system"] == volume_recap.VOLUME_PROMPT]
+
+
+def test_write_all_job_reads_merges_and_writes(client, db, make_book, tmp_path, reconcile_calls):
     user = _make_user(db, "wall", "member")
     v1, v2, v3, v4, v5 = _write_all_series(db, make_book, tmp_path, user, "Isle")
-    fake = FakeProvider(responses=[VOLUME_TEXT, VOLUME_TEXT])
+    fake = FakeProvider(responses=write_all_answers)
     ai.set_provider_override(fake)
     h = _headers(user)
 
     g = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
-    assert g["write_all"]["count"] == 2
-    model = ai_settings.effective_model(db, "recap")
-    from backend.services.ai import estimate
-    want = sum(estimate.call_cost_guess("recap", model, volume_recap._summary_words(db, v, 4),
-                                        max_tokens=volume_recap.MAX_TOKENS, cached_words=0)
-               for v in (v1, v4))
-    assert g["write_all"]["est_cost_usd"] == round(want, 2) and want > 0
+    wa = g["write_all"]
+    # v1 (no row), v3 (two chapters to read first), v4 (stale); v2 is fresh.
+    assert wa["count"] == 3 and wa["est_cost_usd"] > 0
+    assert wa["reading"]["chapters"] == 2 and wa["reading"]["volumes"] == 1
+    assert wa["reading"]["est_cost_usd"] > 0 and wa["reading"]["est_seconds"] > 0
+    assert wa["job"] is None and wa["last"] is None and wa["remaining_budget_usd"] is None
     assert fake.calls == []
 
     r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
     assert r.status_code == 202, r.text
-    out = r.json()
-    assert out["started"] == 2
-    assert out["volumes"]["write_all"]["running"] is True and fake.calls == []
-    # A second "Write all" while this one runs is refused.
+    job = r.json()["job"]
+    assert set(r.json()) == {"job"} and job["scope"] == "series" and job["upto_chapter"] == 0
+    assert [f["name"] for f in job["followups"]] == ["reconcile", "volume_recaps"]
+    assert fake.calls == []
+    # One job per book at a time.
     r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
     assert r.status_code == 409 and r.json()["reason"] == "already_running"
-    volume_recap.run_now(user.id, v5.id)
+    assert client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()["write_all"]["job"]["id"] == job["id"]
+
+    digest_job.run_pending()
+    snap = client.get(f"/api/ai/digest-jobs/{job['id']}", headers=h).json()
+    assert snap["status"] == "done", snap
+    assert (snap["step"], snap["step_done"], snap["step_total"]) == ("writing", 3, 3)
+    assert (snap["done"], snap["total"]) == (2, 2)
+    rec, wr = snap["followups"]
+    assert rec["name"] == "reconcile" and rec["status"] == "done" and rec["merged"] == 1
+    assert wr["name"] == "volume_recaps" and wr["status"] == "done"
+    assert wr["written"] == [v1.id, v3.id, v4.id] and wr["failed"] == []
+    assert [(x["book_id"], x["reason"]) for x in wr["skipped"]] == [(v2.id, "fresh")]
+    assert reconcile_calls == [{"book_id": v5.id, "job_id": job["id"]}]
+    assert len(_recap_calls(fake)) == 3
+    # Reading came before merging and writing; nothing of the open book was read.
+    first_recap = fake.calls.index(_recap_calls(fake)[0])
+    assert all(c["system"] != volume_recap.VOLUME_PROMPT for c in fake.calls[:first_recap])
+    assert digest.get_digest(db, v5.id, 0) is None
 
     vols = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
-    wa = vols["write_all"]
-    assert wa["running"] is False and wa["last"]["finished_at"]
-    assert wa["last"]["written"] == [v1.id, v4.id]
-    assert [(s["book_id"], s["reason"], s["missing_chapters"]) for s in wa["last"]["skipped"]] == [
-        (v2.id, "fresh", 0), (v3.id, "unread", 2)]
-    assert len(fake.calls) == 2 and all(c["system"] == volume_recap.VOLUME_PROMPT for c in fake.calls)
-    assert digest_job.active_for(user.id, v3.id) is None          # never queues reading
     assert [(v["book_id"], v["status"]) for v in vols["volumes"]] == [
-        (v1.id, "ready"), (v2.id, "ready"), (v3.id, "missing"), (v4.id, "ready")]
-    assert (wa["count"], wa["est_cost_usd"]) == (0, 0.0)
+        (v1.id, "ready"), (v2.id, "ready"), (v3.id, "ready"), (v4.id, "ready")]
+    wa = vols["write_all"]
+    assert wa["job"] is None and wa["last"]["id"] == job["id"] and wa["last"]["status"] == "done"
+    assert (wa["count"], wa["est_cost_usd"], wa["reading"]["chapters"]) == (0, 0.0, 0)
     db.expire_all()
     assert db.query(AIRecap).filter_by(book_id=v4.id).one().digested == 4
 
-    # Nothing left to write: no call.
+    # Nothing to read or write: straight to the steps, no recap call.
     r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
-    assert r.status_code == 202 and r.json()["started"] == 0
-    volume_recap.run_now(user.id, v5.id)
-    last = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()["write_all"]["last"]
-    assert last["written"] == [] and len(fake.calls) == 2
+    assert r.status_code == 202
+    digest_job.run_pending()
+    snap = client.get(f"/api/ai/digest-jobs/{r.json()['job']['id']}", headers=h).json()
+    assert snap["status"] == "done" and snap["total"] == 0
+    assert snap["followups"][1]["written"] == [] and snap["step_total"] == 0
+    assert len(_recap_calls(fake)) == 3
 
 
-def test_write_all_stops_on_budget_keeping_earlier_writes(client, db, make_book, tmp_path, monkeypatch):
+def test_write_all_stops_on_budget_keeping_earlier_writes(client, db, make_book, tmp_path, monkeypatch,
+                                                          reconcile_calls):
     from backend.services.ai.provider import AIBudgetExceeded
     user = _make_user(db, "wallbud", "member")
     v1, v2, v3, v4, v5 = _write_all_series(db, make_book, tmp_path, user, "Holm")
-    fake = FakeProvider(responses=[VOLUME_TEXT])
+    fake = FakeProvider(responses=write_all_answers)
     ai.set_provider_override(fake)
     real = ai.run_feature
-    calls = {"n": 0}
+    recaps = {"n": 0}
 
-    def limited(*a, **kw):
-        calls["n"] += 1
-        if calls["n"] > 1:
-            raise AIBudgetExceeded("Monthly AI budget reached (1.00 of 1.00 USD).", spent=1.0, limit=1.0)
-        return real(*a, **kw)
+    def limited(db_, user_, feature, *a, **kw):
+        if feature == "recap":
+            recaps["n"] += 1
+            if recaps["n"] > 1:
+                raise AIBudgetExceeded("Monthly AI budget reached (1.00 of 1.00 USD).", spent=1.0, limit=1.0)
+        return real(db_, user_, feature, *a, **kw)
 
     monkeypatch.setattr(ai, "run_feature", limited)
     h = _headers(user)
     r = client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h)
     assert r.status_code == 202, r.text
-    volume_recap.run_now(user.id, v5.id)
-    vols = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
-    last = vols["write_all"]["last"]
-    assert last["written"] == [v1.id]
-    budget = [s for s in last["skipped"] if s["reason"] == "budget"]
-    assert [s["book_id"] for s in budget] == [v4.id]
-    assert budget[0]["message"].startswith("Monthly AI budget reached")
+    digest_job.run_pending()
+    snap = client.get(f"/api/ai/digest-jobs/{r.json()['job']['id']}", headers=h).json()
+    assert snap["status"] == "stopped" and snap["stop_reason"].startswith("Monthly AI budget reached")
+    wr = snap["followups"][1]
+    assert wr["status"] == "failed" and wr["written"] == [v1.id]
+    assert (snap["step"], snap["step_done"], snap["step_total"]) == ("writing", 1, 3)
     db.expire_all()
     assert db.query(AIRecap).filter_by(book_id=v1.id).count() == 1
+    assert db.query(AIRecap).filter_by(book_id=v3.id).count() == 0
     assert db.query(AIRecap).filter_by(book_id=v4.id).one().text == "Vol four stale."
-    assert vols["write_all"]["count"] == 1
-    # The run released its guard: another one may start.
+    vols = client.get(f"/api/ai/books/{v5.id}/recap/volumes", headers=h).json()
+    assert vols["write_all"]["count"] == 2 and vols["write_all"]["last"]["status"] == "stopped"
+    # The job is over: another one may start.
     assert client.post(f"/api/ai/books/{v5.id}/recap/volumes", json={}, headers=h).status_code == 202
 
 
-def test_write_all_in_flight_guest_and_keyless(client, db, make_book, tmp_path):
+def test_write_all_409s_guest_and_keyless(client, db, make_book, tmp_path):
     user = _make_user(db, "wallrun", "member")
     keyless = _make_user(db, "wallnokey", "member", key=False)
     guest = _make_user(db, "wallguest", "guest", key=False)
@@ -1255,20 +1299,35 @@ def test_write_all_in_flight_guest_and_keyless(client, db, make_book, tmp_path):
     _read(db, keyless, v1)
     _digest_all(db, v1, 4)
     db.commit()
+    digest_job.reset()
     fake = FakeProvider(responses=[])
     ai.set_provider_override(fake)
     url = f"/api/ai/books/{v3.id}/recap/volumes"
 
-    with companion.in_flight("volume_recap_all", user.id, v3.id, "busy"):
-        r = client.post(url, json={}, headers=_headers(user))
+    # Any active job for the book blocks it (and "Merge duplicates").
+    digest_job.enqueue(user_id=user.id, book_id=v3.id, upto=0)
+    r = client.post(url, json={}, headers=_headers(user))
     assert r.status_code == 409 and r.json()["reason"] == "already_running"
+    assert "already running" in r.json()["detail"]
+    r = client.post(f"/api/ai/books/{v3.id}/reconcile", headers=_headers(user))
+    assert r.status_code == 409 and r.json()["reason"] == "already_running"
+    digest_job.reset()
     assert client.post(url, json={}, headers=_headers(guest)).status_code == 403
     r = client.post(url, json={}, headers=_headers(keyless))
     assert r.status_code == 409 and r.json().get("reason") != "already_running"
+
+    # Over a monthly limit: reading (vol 2) + recaps exceed what is left.
+    user.ai_monthly_limit_usd = 0.0001
+    db.commit()
+    wa = client.get(url, headers=_headers(user)).json()["write_all"]
+    assert wa["remaining_budget_usd"] is not None and wa["remaining_budget_usd"] < 0.001
+    r = client.post(url, json={}, headers=_headers(user))
+    assert r.status_code == 409 and r.json()["reason"] == "budget"
+    assert digest_job.active_for(user.id, v3.id) is None
     assert fake.calls == []
 
 
-def test_plugin_write_all_mirror(db, make_book, tmp_path, plugin):
+def test_plugin_write_all_and_reconcile_mirror(db, make_book, tmp_path, plugin, reconcile_calls):
     c, key_for = plugin
     user = _make_user(db, "wallplug", "member")
     guest = _make_user(db, "wallplugg", "guest", key=False)
@@ -1277,23 +1336,31 @@ def test_plugin_write_all_mirror(db, make_book, tmp_path, plugin):
     h, hg = key_for(user), key_for(guest)
     db.commit()
     digest_job.reset()
-    fake = FakeProvider(responses=[VOLUME_TEXT])
+    fake = FakeProvider(responses=write_all_answers)
     ai.set_provider_override(fake)
     base = f"/api/tome-sync/ai/books/{v3.id}/recap/volumes"
 
-    assert c.get(base, headers=h).json()["write_all"]["count"] == 1
+    wa = c.get(base, headers=h).json()["write_all"]
+    assert wa["count"] == 2 and wa["reading"]["chapters"] == 4
     assert c.post(base, headers=hg).status_code == 403
     r = c.post(base, headers=h)
     assert r.status_code == 202, r.text
-    assert r.json()["started"] == 1 and r.json()["volumes"]["write_all"]["running"] is True
+    job_id = r.json()["job"]["id"]
     assert c.post(base, headers=h).status_code == 409
-    volume_recap.run_now(user.id, v3.id)
-    wa = c.get(base, headers=h).json()["write_all"]
-    assert wa["running"] is False
-    assert wa["last"]["written"] == [v1.id]
-    assert [(s["book_id"], s["reason"]) for s in wa["last"]["skipped"]] == [(v2.id, "unread")]
-    assert wa["last"]["skipped"][0]["missing_chapters"] == 4
-    assert len(fake.calls) == 1
+    digest_job.run_pending()
+    snap = c.get(f"/api/tome-sync/ai/jobs/{job_id}", headers=h).json()
+    assert snap["status"] == "done" and snap["step"] == "writing"
+    assert snap["followups"][1]["written"] == [v1.id, v2.id]
+    assert c.get(base, headers=h).json()["write_all"]["last"]["id"] == job_id
+
+    r = c.post(f"/api/tome-sync/ai/books/{v3.id}/reconcile", headers=h)
+    assert r.status_code == 202, r.text
+    assert [f["name"] for f in r.json()["job"]["followups"]] == ["reconcile"]
+    assert c.post(f"/api/tome-sync/ai/books/{v3.id}/reconcile", headers=hg).status_code == 403
+    digest_job.run_pending()
+    snap = c.get(f"/api/tome-sync/ai/jobs/{r.json()['job']['id']}", headers=h).json()
+    assert snap["status"] == "done" and snap["step"] == "merging" and snap["total"] == 0
+    assert len(reconcile_calls) == 2
 
 
 def test_a_finished_book_is_digested_to_its_last_chapter(client, db, make_book, tmp_path):
@@ -1380,8 +1447,14 @@ def test_glossary_v2_fields_on_web_and_plugin(client, db, make_book, tmp_path, p
     # Facts: latest value inside the window wins; chapter 5 never leaks.
     assert m["status"] == "alive"
     # The list carries no title strings in facts and timeline (payload size).
-    assert m["facts"]["location"] == {"value": "the ferry", "book_id": book.id, "series_index": None,
-                                      "chapter_idx": 2}
+    assert _nohist(m["facts"]["location"]) == {"value": "the ferry", "book_id": book.id,
+                                               "series_index": None, "chapter_idx": 2}
+    # The list carries no fact history; the opened entry does (newest first,
+    # never past the window).
+    assert "history" not in m["facts"]["location"]
+    opened = client.get(f"/api/ai/books/{book.id}/glossary/entry?entity_id={mara.id}",
+                        headers=_headers(user)).json()["entry"]
+    assert [h["value"] for h in opened["facts"]["location"]["history"]][:1] == ["the bell tower"]
     assert m["facts"]["status"]["chapter_idx"] == 0
     assert m["facts"]["appearance"]["value"] == "grey coat"
     assert "dead" not in str(web) and "the sea" not in str(web) and "Drowns" not in str(web)
@@ -1397,8 +1470,9 @@ def test_glossary_v2_fields_on_web_and_plugin(client, db, make_book, tmp_path, p
                          headers=_headers(user)).json()["entry"],
               c.get(f"/api/tome-sync/ai/books/{book.id}/glossary/entry?entity_id={mara.id}",
                     headers=hp).json()["entry"]):
-        assert e["facts"]["location"] == {"value": "the ferry", "book_id": book.id, "series_index": None,
-                                          "chapter_idx": 2, "chapter_title": "Part 3"}
+        assert _nohist(e["facts"]["location"]) == {"value": "the ferry", "book_id": book.id,
+                                                   "series_index": None, "chapter_idx": 2,
+                                                   "chapter_title": "Part 3"}
         assert e["timeline"][1] == {"book_id": book.id, "series_index": None, "chapter_idx": 1,
                                     "chapter_title": "Part 2", "line": "Hears the bell."}
         assert "Drowns" not in str(e) and "the sea" not in str(e)
@@ -1411,10 +1485,9 @@ def test_glossary_v2_fields_on_web_and_plugin(client, db, make_book, tmp_path, p
     # An earlier explicit chapter (web): the window shrinks, facts follow it.
     g1 = client.get(f"/api/ai/books/{book.id}/glossary?chapter=1", headers=_headers(user)).json()
     [m1] = g1["entries"]
-    assert m1["facts"] == {"status": {"value": "alive", "book_id": book.id, "series_index": None,
-                                      "chapter_idx": 0},
-                           "location": {"value": "the harbour", "book_id": book.id, "series_index": None,
-                                        "chapter_idx": 0}}
+    assert {k: _nohist(f) for k, f in m1["facts"].items()} == {
+        "status": {"value": "alive", "book_id": book.id, "series_index": None, "chapter_idx": 0},
+        "location": {"value": "the harbour", "book_id": book.id, "series_index": None, "chapter_idx": 0}}
     assert m1["aliases"] == [] and m1["line"] == "Walks to the harbour."
 
 
@@ -1833,7 +1906,8 @@ def test_glossary_list_is_small_and_the_entry_is_full(client, db, make_book, tmp
     e = g["entries"][0]
     assert len(e["timeline"]) == companion.TIMELINE_CAP == 3 and e["timeline_truncated"] is True
     assert all("chapter_title" not in t for t in e["timeline"])
-    assert all(set(f) == {"value", "book_id", "series_index", "chapter_idx"} for f in e["facts"].values())
+    assert all(set(f) == {"value", "book_id", "series_index", "chapter_idx"}
+               for f in e["facts"].values())
     assert e["first_seen"]["chapter_title"] == "Part 1"          # v1 places keep their titles
     rp = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary", headers=hp)
     assert rp.headers["content-encoding"] == "gzip" and rp.json()["entries"] == g["entries"]

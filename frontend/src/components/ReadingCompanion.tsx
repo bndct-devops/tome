@@ -12,7 +12,7 @@
 // shows no prices beyond the Ask note (a fixed per-question range): the rest
 // lives in that dialog and in Settings > AI.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Loader2, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
+import { ChevronDown, Loader2, Merge, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
@@ -24,8 +24,9 @@ import { cn } from '@/lib/utils'
 import { getActiveLocale } from '@/lib/i18n'
 import {
   useAiStatus, getCompanion, requestRecap, clearRecap, getGlossary, recallTerm,
-  getDigestJob, cancelDigestJob, isRecapPending, getDigestEstimate, startDigest,
-  DIGEST_JOB_ACTIVE, DIGEST_JOB_RESUMABLE, CONFIRM_THRESHOLD,
+  getDigestJob, cancelDigestJob, isRecapPending, getDigestEstimate, startDigest, startReconcile,
+  activeJobLine, isAlreadyRunning, isMergeOnlyJob,
+  DIGEST_JOB_ACTIVE, isResumable, CONFIRM_THRESHOLD,
   type Companion, type CompanionScope, type DigestEstimate, type DigestJob, type DigestScope,
   type Glossary, type GlossaryEntry, type GlossaryPlace, type Recap,
   type RecapPending, type RecallResult, type SeriesPlace,
@@ -219,6 +220,10 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [digestError, setDigestError] = useState<string | null>(null)
+  // "Merge duplicates": starting, and what the run said when it ended.
+  const [merging, setMerging] = useState(false)
+  const [mergeNote, setMergeNote] = useState<{ text: string; error: boolean } | null>(null)
+  const mergeJobRef = useRef<string | null>(null)
 
   const recapWaitingRef = useRef(false)
   const glossaryRef = useRef<HTMLDivElement>(null)
@@ -274,7 +279,14 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   // A job ended: finish the recap that waited on it, refresh the glossary.
   const afterJob = useCallback((j: DigestJob) => {
-    setEndedJob(j)
+    // A merge-only job has no chapters to continue: no Continue line, and its
+    // stop reason is printed once, in the merge note.
+    const mergeOnly = isMergeOnlyJob(j)
+    setEndedJob(mergeOnly ? null : j)
+    if (mergeJobRef.current === j.id || mergeOnly) {
+      if (mergeJobRef.current === j.id) mergeJobRef.current = null
+      if (j.stop_reason) setMergeNote({ text: j.stop_reason, error: j.status === 'error' })
+    }
     if (recapWaitingRef.current) {
       recapWaitingRef.current = false
       // partial: write from what exists even when some chapters could not be
@@ -298,7 +310,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         if (c.series_recaps) setRecapOpen(true)
         if (!c.available) return
         if (isActive(c.job)) setJob(c.job)
-        else if (c.last_job) setEndedJob(c.last_job)
+        else if (c.last_job && !isMergeOnlyJob(c.last_job)) setEndedJob(c.last_job)
         const waitingFor = recapWaitJob(bookId)
         if (waitingFor) {
           // "Recap to here" started a job before a reload. Only that same job
@@ -555,6 +567,28 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     } catch { /* the poll picks up the final state */ }
   }
 
+  /** "Merge duplicates": a job with the merging step only, followed like
+   *  any other job (the line under the heading); the glossary reloads after. */
+  async function mergeDuplicates() {
+    setMergeNote(null)
+    setMerging(true)
+    try {
+      const res = await startReconcile(bookId)
+      if (!alive.current) return
+      mergeJobRef.current = res.job.id
+      setEndedJob(null)
+      setJob(res.job)
+      if (!isActive(res.job)) afterJob(res.job)
+    } catch (e) {
+      if (!alive.current) return
+      setMergeNote(isAlreadyRunning(e)
+        ? { text: t`Something is already running for this book. Try again when it is done.`, error: false }
+        : { text: e instanceof Error ? e.message : t`Could not start merging`, error: true })
+    } finally {
+      if (alive.current) setMerging(false)
+    }
+  }
+
   async function askAgain() {
     setRecapError(null)
     setRecapState('writing')
@@ -650,7 +684,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const coverage = glossary?.coverage ?? companion.coverage
   const incomplete = coverage != null && coverage.digested < coverage.needed
   const resumable = !isActive(job) && endedJob != null && incomplete
-    && DIGEST_JOB_RESUMABLE.includes(endedJob.status)
+    && isResumable(endedJob)
 
   // ── the one progress line, under the heading ──────────────────────────────
 
@@ -658,13 +692,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   let progressLine: React.ReactNode = null
   if (isActive(job)) {
-    const done = job.done
-    const total = job.total
-    const text = job.status === 'stopping'
-      ? t`Stopping after the current chapters…`
-      : job.status === 'queued' || total === 0
-        ? t`Getting ready to read the chapters…`
-        : t`Reading chapters: ${done} of ${total}…`
+    const text = activeJobLine(job)
     progressLine = (
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
         <span className="flex items-center gap-2 min-w-0">
@@ -878,9 +906,9 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
         >
           <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-sm font-medium text-foreground min-w-0 break-words">{e.name}</span>
+            <span className="text-sm font-medium text-foreground min-w-0 truncate">{e.name}</span>
             {aliases.length > 0 && (
-              <span className="text-xs text-muted-foreground/70 min-w-0 truncate">{aliases.join(', ')}</span>
+              <span className="text-xs text-muted-foreground/70 flex-1 basis-0 min-w-0 truncate">{aliases.join(', ')}</span>
             )}
             {showKind && (
               <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
@@ -927,7 +955,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             </p>
           )}
           {glossary != null && (glossary.entries.length > 0 || features.recall) && (
-            <div className="relative">
+            <div className="flex items-center gap-3">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
               <input
                 type="text"
@@ -949,6 +978,22 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
                 </button>
               )}
             </div>
+            {glossary.entries.length > 1 && (
+              <button
+                type="button"
+                onClick={() => void mergeDuplicates()}
+                disabled={merging || isActive(job)}
+                title={t`Finds entries that look like the same person, place or term and asks the model to confirm before merging them`}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-60 disabled:no-underline shrink-0"
+              >
+                {merging ? <Loader2 className="w-3 h-3 animate-spin" /> : <Merge className="w-3 h-3" />}
+                <Trans>Merge duplicates</Trans>
+              </button>
+            )}
+            </div>
+          )}
+          {mergeNote && (
+            <p className={cn('text-xs', mergeNote.error ? 'text-destructive' : 'text-muted-foreground')}>{mergeNote.text}</p>
           )}
           {glossary != null && (features.ask ?? false) && (
             <AskBox bookId={bookId} placeLabel={quotePlace} costHintUsd={companion.ask_cost_hint_usd} />
@@ -1001,8 +1046,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
               ) : recall.found && recall.entry ? (
                 <div className="space-y-1">
                   <p className="flex items-baseline gap-2 min-w-0">
-                    <span className="text-sm font-medium text-foreground min-w-0 break-words">{recall.entry.name}</span>
-                    <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span className="text-sm font-medium text-foreground min-w-0 truncate">{recall.entry.name}</span>
+                    <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
                       {kindLabel(recall.entry.kind)}
                     </span>
                   </p>

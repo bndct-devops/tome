@@ -20,21 +20,18 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.core.database import SessionLocal
 from backend.models.ai_recap import AIRecap
 from backend.models.book import Book
 from backend.models.user import User
 from backend.services import ai, book_text
-from backend.services.ai import companion, digest, recap, settings as ai_settings
+from backend.services.ai import companion, digest, digest_job, recap, settings as ai_settings
 from backend.services.ai.provider import (
     AIBudgetExceeded, AIDisabled, AIError, AIKeyInvalid, AINotConfigured, AIProviderError,
 )
@@ -169,7 +166,7 @@ def volumes_payload(db: Session, user: User, book: Book) -> dict[str, Any]:
         "can_write": can_write(db, user),
         "volumes": [item(st) for st in states],
         "current": current,
-        "write_all": {**write_all_figures(db, states), **run_state(user.id, book.id)},
+        "write_all": write_all_state(db, user, book, states),
     }
 
 
@@ -287,14 +284,23 @@ def request_volume(db: Session, user: User, vol: Book, *, force: bool = False,
 
 
 # ── write all ────────────────────────────────────────────────────────────────
+# "Write all" is one digest job (``digest_job``) for the open book, series
+# scope, window = the position (``companion.start_window``: chapter 0 when
+# the open book has no position), with the follow-ups ``reconcile`` (step
+# "merging") and ``volume_recaps`` (step "writing", ``_volume_recaps_followup``).
+# It reads the missing chapters of the read earlier volumes (and of the open
+# book up to the position), merges duplicate entries, then writes every
+# missing or stale volume recap.
 
 UNREAD, FRESH, BUDGET, ERROR = "unread", "fresh", "budget", "error"
+WRITE_ALL_FOLLOWUPS = (digest_job.FOLLOWUP_RECONCILE, digest_job.FOLLOWUP_VOLUME_RECAPS)
+SUMMARY_WORDS_GUESS = 120   # words of one chapter summary, before any exists
 
 
 def skip_reason(st: VolumeState) -> str | None:
-    """Why "Write all" leaves ``st`` alone, or None when it writes it:
+    """Why the writing step leaves ``st`` alone, or None when it writes it:
     ``fresh`` (the shown row is current), ``unread`` (chapters with no digest
-    yet: writing all never queues reading)."""
+    yet, after the job's reading)."""
     if st.row is not None and st.fresh:
         return FRESH
     cov = st.coverage
@@ -303,25 +309,179 @@ def skip_reason(st: VolumeState) -> str | None:
     return None
 
 
+def _needs_write(st: VolumeState) -> bool:
+    """The job would write ``st`` once its chapters are read: no row, a
+    stale row, or chapters still to read (which makes any row stale)."""
+    cov = st.coverage
+    return st.row is None or not st.fresh or cov["digested"] < cov["needed"]
+
+
 def _summary_words(db: Session, vol: Book, n: int) -> int:
     content, _ = build_user_content(db, vol, n)
     return sum(len(str(b.get("text", "")).split()) for b in content)
 
 
+def _expected_summary_words(db: Session, st: VolumeState) -> int:
+    """The words the volume's summaries block will have once every chapter
+    is read: the words there now, scaled up for the chapters still missing
+    (``SUMMARY_WORDS_GUESS`` per chapter when none exists yet)."""
+    have = digest.usable(st.coverage)
+    needed = st.coverage["needed"] or st.chapters
+    if have <= 0:
+        return SUMMARY_WORDS_GUESS * needed
+    words = _summary_words(db, st.vol, st.chapters)
+    return int(words * max(1.0, needed / have))
+
+
 def write_all_figures(db: Session, states: list[VolumeState]) -> dict[str, Any]:
-    """``{count, est_cost_usd}``: how many volumes "Write all" would write now
-    and the sum of one conservative ``recap`` call guess per volume (its
-    summaries block, output at ``MAX_TOKENS``), rounded to cents."""
+    """``{count, est_cost_usd}``: how many volume recaps the "Write all" job
+    would write (after its reading) and the sum of one conservative
+    ``recap`` call guess per volume (its summaries block, output at
+    ``MAX_TOKENS``), rounded to cents."""
     from backend.services.ai import estimate
     model = ai_settings.effective_model(db, FEATURE)
     count, cost = 0, 0.0
     for st in states:
-        if skip_reason(st) is not None:
+        if not _needs_write(st):
             continue
         count += 1
-        cost += estimate.call_cost_guess(FEATURE, model, _summary_words(db, st.vol, st.chapters),
+        cost += estimate.call_cost_guess(FEATURE, model, _expected_summary_words(db, st),
                                          max_tokens=MAX_TOKENS, cached_words=0)
     return {"count": count, "est_cost_usd": round(cost, 2) if count else 0.0}
+
+
+def _reading_upto(db: Session, user: User, book: Book) -> int:
+    """The chapter of the open book a "Write all" job reads up to: always 0.
+    "Write all" is about the earlier volumes (the recaps it writes are
+    theirs); the open book's own chapters are read by "Recap to here" or the
+    position trigger, so the figures shown never count them and the job
+    never touches them."""
+    return 0
+
+
+def reading_figures(db: Session, user: User, book: Book) -> dict[str, Any]:
+    """``{chapters, volumes, est_cost_usd, est_seconds}``: the reading the
+    "Write all" job does first (``volumes`` = how many volumes have chapters
+    to read); zeros when nothing is missing."""
+    from backend.services.ai import estimate
+    est = estimate.estimate(db, user, book, "series", _reading_upto(db, user, book))
+    if not est.get("chapters"):
+        return {"chapters": 0, "volumes": 0, "est_cost_usd": 0.0, "est_seconds": 0.0}
+    return {"chapters": est["chapters"], "volumes": len(est.get("volumes") or []),
+            "est_cost_usd": est["est_cost_usd"], "est_seconds": est["est_seconds"]}
+
+
+MERGE_WORDS_PER_PAIR = 150        # what one pair's context costs in the reconcile call
+
+
+def merging_figures(db: Session, book: Book) -> dict[str, Any]:
+    """``{pairs, calls, est_cost_usd}``: the merging step of "Write all" as
+    things stand now (the reading before it may add pairs): the candidate
+    pairs ``reconcile`` would send (remembered verdicts left out), its calls
+    (``PAIRS_PER_CALL`` pairs each) and one conservative ``reading_digest``
+    call guess per call (output at ``reconcile.MAX_TOKENS``)."""
+    import math
+
+    from backend.services.ai import estimate, reconcile
+    pairs = len(reconcile.candidates(db, book))
+    if not pairs:
+        return {"pairs": 0, "calls": 0, "est_cost_usd": 0.0}
+    calls = math.ceil(pairs / reconcile.PAIRS_PER_CALL)
+    model = ai_settings.effective_model(db, digest.FEATURE)
+    cost = 0.0
+    for i in range(calls):
+        n = min(reconcile.PAIRS_PER_CALL, pairs - i * reconcile.PAIRS_PER_CALL)
+        cost += estimate.call_cost_guess(digest.FEATURE, model, n * MERGE_WORDS_PER_PAIR,
+                                         max_tokens=reconcile.MAX_TOKENS, cached_words=0)
+    return {"pairs": pairs, "calls": calls, "est_cost_usd": round(cost, 2)}
+
+
+def pending_spend(user_id: int) -> float:
+    """What the user's live jobs are still expected to spend: their estimate
+    less what they have spent, summed (never below zero per job)."""
+    return sum(max(0.0, (j.get("est_cost_usd") or 0.0) - (j.get("cost_usd") or 0.0))
+               for j in digest_job.running(user_id))
+
+
+def write_all_state(db: Session, user: User, book: Book,
+                    states: list[VolumeState]) -> dict[str, Any]:
+    """GET's ``write_all``: ``{count, est_cost_usd, reading: {chapters,
+    volumes, est_cost_usd, est_seconds}, merging: {pairs, calls,
+    est_cost_usd}, job, last}``. ``job`` is the active
+    job for (user, book) (any kind: one at a time per book), ``last`` the
+    newest finished job that had the ``volume_recaps`` step; both job
+    snapshots (as GET /digest-jobs/{id}) or null. ``remaining_budget_usd``:
+    what is left of the tightest monthly limit (``budget.remaining``) less
+    what the user's live jobs are still expected to spend
+    (``pending_spend``), null without a limit."""
+    from backend.services.ai import budget
+    left = budget.remaining(db, user)
+    if left is not None:
+        left = round(max(0.0, left - pending_spend(user.id)), 6)
+    return {
+        **write_all_figures(db, states),
+        "reading": reading_figures(db, user, book),
+        "merging": merging_figures(db, book),
+        "job": digest_job.active_for(user.id, book.id),
+        "last": digest_job.latest_with_followup(db, user.id, book.id,
+                                                digest_job.FOLLOWUP_VOLUME_RECAPS),
+        "remaining_budget_usd": left,
+    }
+
+
+def _check_budget(db: Session, user: User, cost: float, what: str) -> None:
+    from backend.services.ai import budget
+    pending = pending_spend(user.id)
+    err = budget.status(db, user).exceeded_by(cost + pending)
+    if err is not None:
+        left = max(0.0, err.limit - err.spent - pending)
+        raise AIBudgetExceeded(
+            f"{what} costs about {cost:.2f} USD, more than the {left:.2f} USD left of the "
+            f"monthly AI budget ({err.limit:.2f} USD). Raise it in Settings > AI.",
+            which=err.which, spent=err.spent, limit=err.limit)
+
+
+def write_all(db: Session, user: User, book: Book) -> dict[str, Any]:
+    """POST .../recap/volumes ("Write all"): queue the job and return
+    ``{job}`` (202). Raises ``AINotConfigured`` without a key,
+    ``AIBudgetExceeded`` (409 ``budget``) when the reading estimate plus the
+    recap cost is over what is left of a monthly limit, and
+    ``companion.AlreadyRunning`` (409 ``already_running``) while a job for
+    the book is active. With nothing to read the job goes straight to
+    merging and writing."""
+    ai.check_feature_available(db, FEATURE)
+    ai.check_feature_available(db, digest.FEATURE)
+    if not can_write(db, user):
+        raise AINotConfigured("No AI key is configured. Add an Anthropic key in Settings.")
+    if digest_job.active_for(user.id, book.id) is not None:
+        raise companion.AlreadyRunning("A job for this book is already running.")
+    states = [state(db, user, v) for v in included_volumes(db, user, book)]
+    figs = write_all_figures(db, states)
+    reading = reading_figures(db, user, book)
+    merging = merging_figures(db, book)
+    total = figs["est_cost_usd"] + reading["est_cost_usd"] + merging["est_cost_usd"]
+    if total > 0:
+        _check_budget(db, user, total, "Reading the chapters and writing the recaps")
+    job = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=_reading_upto(db, user, book),
+                             followups=WRITE_ALL_FOLLOWUPS, current_book_only=False)
+    if not job.get("total") and reading["chapters"]:
+        job = {**job, "total": reading["chapters"], "est_chapters": reading["chapters"],
+               "est_cost_usd": reading["est_cost_usd"], "est_seconds": reading["est_seconds"]}
+    return {"job": job}
+
+
+def start_reconcile(db: Session, user: User, book: Book) -> dict[str, Any]:
+    """POST .../reconcile ("Merge duplicates"): a digest job that reads
+    nothing (``upto`` 0, scope book), step merging only; ``{job}`` (202).
+    409 ``already_running`` while a job for the book is active."""
+    ai.check_feature_available(db, digest.FEATURE)
+    if not can_write(db, user):
+        raise AINotConfigured("No AI key is configured. Add an Anthropic key in Settings.")
+    if digest_job.active_for(user.id, book.id) is not None:
+        raise companion.AlreadyRunning("A job for this book is already running.")
+    job = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=0,
+                             followups=(digest_job.FOLLOWUP_RECONCILE,), current_book_only=True)
+    return {"job": job}
 
 
 def _skip(st: VolumeState, reason: str, message: str | None = None) -> dict[str, Any]:
@@ -334,176 +494,43 @@ def _skip(st: VolumeState, reason: str, message: str | None = None) -> dict[str,
     return out
 
 
-# "Write all" runs in a daemon thread (one Opus call per volume is up to a
-# minute; seven of them outlive any proxy timeout). The run holds the
-# ``volume_recap_all`` in-flight guard for its whole life; its outcome is kept
-# in memory per (user, book) and shown by GET (``write_all.running`` /
-# ``write_all.last``). Single process, like the digest jobs.
-
-_runs_lock = threading.Lock()
-_runs: dict[tuple[int, int], dict[str, Any]] = {}
-# Queued runs not started yet: key -> the entered in-flight guard.
-_pending: dict[tuple[int, int], AbstractContextManager[None]] = {}
-
-# Indirection for tests: the session factory and how a run is started
-# (tests replace ``_spawn`` with ``lambda: None`` and call ``run_now``).
-_session_factory: Callable[[], AbstractContextManager[Session]] = SessionLocal
-
-
-def _start_thread() -> threading.Thread:
-    t = threading.Thread(target=run_pending, name="ai-volume-recaps", daemon=True)
-    t.start()
-    return t
-
-
-_spawn: Callable[[], Optional[threading.Thread]] = _start_thread
-
-
-def reset() -> None:
-    """Forget every run (tests)."""
-    with _runs_lock:
-        pending = list(_pending.values())
-        _pending.clear()
-        _runs.clear()
-    for guard in pending:
-        guard.__exit__(None, None, None)
-
-
-def run_state(user_id: int, book_id: int) -> dict[str, Any]:
-    """``{running, last}`` for GET's ``write_all``: ``last`` is the most
-    recent run for this user and book, ``{started, written: [book_id],
-    skipped, finished_at}`` (``finished_at`` null while it runs; ``written``
-    grows as it goes), or null."""
-    with _runs_lock:
-        run = _runs.get((int(user_id), int(book_id)))
-        if run is None:
-            return {"running": False, "last": None}
-        finished = run["finished_at"]
-        return {"running": bool(run["running"]),
-                "last": {"started": run["started"], "written": list(run["written"]),
-                         "skipped": [dict(s) for s in run["skipped"]],
-                         "finished_at": finished.isoformat() + "Z" if finished else None}}
-
-
-def write_all(db: Session, user: User, book: Book) -> dict[str, Any]:
-    """POST .../recap/volumes ("Write all"): start writing, one after another
-    in a background thread, every included earlier volume whose shown row is
-    missing or stale and that has no undigested chapter, and return at once
-    ``{started: <how many it will try>, volumes: <the GET payload>}`` (202).
-    Never queues reading. A missing key raises here; one request per (user,
-    book) at a time: a second while the run lasts is a 409
-    ``already_running``. See ``_run`` for the loop."""
-    ai.check_feature_available(db, FEATURE)
-    ai.check_feature_available(db, digest.FEATURE)
-    if not can_write(db, user):
-        raise AINotConfigured("No AI key is configured. Add an Anthropic key in Settings.")
-    guard = companion.in_flight("volume_recap_all", user.id, book.id,
-                                "These recaps are already being written.")
-    guard.__enter__()
-    try:
-        states = [state(db, user, v) for v in included_volumes(db, user, book)]
-        started = sum(1 for st in states if skip_reason(st) is None)
-        key = (int(user.id), int(book.id))
-        with _runs_lock:
-            _runs[key] = {"running": True, "started_at": datetime.utcnow(), "finished_at": None,
-                          "started": started, "written": [], "skipped": []}
-            _pending[key] = guard
-    except BaseException:
-        guard.__exit__(None, None, None)
-        raise
-    payload = volumes_payload(db, user, book)
-    _spawn()
-    return {"started": started, "volumes": payload}
-
-
-def run_pending() -> None:
-    """Run every queued "Write all" in this thread (the daemon thread's body)."""
-    while True:
-        with _runs_lock:
-            if not _pending:
-                return
-            key = next(iter(_pending))
-        run_now(*key)
-
-
-def run_now(user_id: int, book_id: int) -> None:
-    """Run the queued "Write all" for (user, book) in the calling thread (the
-    worker, or a test). No-op when none is queued."""
-    key = (int(user_id), int(book_id))
-    with _runs_lock:
-        guard = _pending.pop(key, None)
-    if guard is None:
-        return
-    try:
-        with _session_factory() as db:
-            _run(db, key)
-    except Exception as exc:   # never leave a run "running"
-        log.exception("Write all failed for user %s book %s", *key)
-        _record(key, skipped={"book_id": key[1], "title": "", "series_index": None,
-                              "reason": ERROR, "missing_chapters": 0,
-                              "message": getattr(exc, "message", None) or str(exc)})
-    finally:
-        with _runs_lock:
-            run = _runs.get(key)
-            if run is not None:
-                run["running"] = False
-                run["finished_at"] = datetime.utcnow()
-        guard.__exit__(None, None, None)
-
-
-def _record(key: tuple[int, int], *, written: int | None = None,
-            skipped: dict[str, Any] | None = None) -> None:
-    with _runs_lock:
-        run = _runs.get(key)
-        if run is None:
-            return
-        if written is not None:
-            run["written"].append(written)
-        if skipped is not None:
-            run["skipped"].append(skipped)
-
-
-def _run(db: Session, key: tuple[int, int]) -> None:
-    """The loop. Each write is ``generate_volume`` under the per-volume
-    in-flight guard (budget-checked per call); ``AIBudgetExceeded`` stops it
-    (the volumes written so far stay; the rest are skipped as ``budget`` with
-    the server message); a missing, invalid or disabled key stops it the same
-    way as ``error``; any other model failure skips that volume as ``error``
-    and goes on. A volume being written on its own is skipped as ``error``."""
-    user = db.get(User, key[0])
-    book = db.get(Book, key[1])
-    if user is None or book is None:
-        return
-    stop_reason: str | None = None
-    stop_msg: str | None = None
-    for vol in included_volumes(db, user, book):
-        st = state(db, user, vol)
-        reason = skip_reason(st)
-        if reason is not None:
-            _record(key, skipped=_skip(st, reason))
-            continue
-        if stop_reason is not None:
-            _record(key, skipped=_skip(st, stop_reason, stop_msg))
-            continue
+def _volume_recaps_followup(db: Session, user: User, book: Book) -> dict[str, Any]:
+    """Step "writing" of a "Write all" job: one ``recap`` call each (under
+    the per-volume in-flight guard) for every included earlier volume whose
+    shown row is missing or stale and that has no undigested chapter;
+    ``step_done``/``step_total`` count the recaps. A cancel stops after the
+    current call. ``AIBudgetExceeded`` or a missing / invalid / disabled key
+    stops the step (re-raised: the job ends ``stopped`` with the reason;
+    what was written stays). Any other failure skips that volume. Returns
+    ``{written: [book_id], failed: [{book_id, title, series_index, reason,
+    message}], skipped: [...]}`` for the job's follow-up result."""
+    states = [state(db, user, v) for v in included_volumes(db, user, book)]
+    targets = [st for st in states if skip_reason(st) is None]
+    skipped = [_skip(st, r) for st in states if (r := skip_reason(st)) is not None]
+    written: list[int] = []
+    failed: list[dict[str, Any]] = []
+    digest_job.step_progress(0, len(targets))
+    for i, st in enumerate(targets):
+        if digest_job.cancel_requested():
+            break
         try:
-            with companion.in_flight("volume_recap", user.id, vol.id,
+            with companion.in_flight("volume_recap", user.id, st.vol.id,
                                      "This recap is already being written."):
-                generate_volume(db, user, vol)
-        except AIBudgetExceeded as exc:
+                generate_volume(db, user, st.vol)
+        except (AIBudgetExceeded, AINotConfigured, AIKeyInvalid, AIDisabled) as exc:
             db.rollback()
-            stop_reason, stop_msg = BUDGET, exc.message
-            _record(key, skipped=_skip(st, BUDGET, stop_msg))
-            continue
-        except (AINotConfigured, AIKeyInvalid, AIDisabled) as exc:
+            exc.followup_result = {"written": written, "failed": failed, "skipped": skipped}  # type: ignore[attr-defined]
+            raise
+        except AIError as exc:   # incl. companion.AlreadyRunning, NothingToRecap
             db.rollback()
-            stop_reason, stop_msg = ERROR, getattr(exc, "message", None) or str(exc)
-            _record(key, skipped=_skip(st, ERROR, stop_msg))
-            continue
-        except AIError as exc:   # incl. companion.AlreadyRunning
-            db.rollback()
-            _record(key, skipped=_skip(st, ERROR, getattr(exc, "message", None) or str(exc)))
-            continue
-        _record(key, written=vol.id)
+            failed.append(_skip(st, ERROR, getattr(exc, "message", None) or str(exc)))
+        else:
+            written.append(st.vol.id)
+        digest_job.step_progress(i + 1)
+    return {"written": written, "failed": failed, "skipped": skipped}
+
+
+digest_job.register_followup(digest_job.FOLLOWUP_VOLUME_RECAPS, _volume_recaps_followup)
 
 
 def whole_book(db: Session, user: User, book: Book, *, partial: bool = False,

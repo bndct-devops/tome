@@ -1602,13 +1602,26 @@ def ai_plugin_recap_volumes_all(
     db: Session = Depends(get_db),
     user: User = Depends(_ai_plugin_user),
 ):
-    """Same as POST /api/ai/books/{id}/recap/volumes ("Write all"): starts a
-    background run, 202 ``{started, volumes}``; poll GET for
-    ``write_all.running`` / ``write_all.last``. Never queues reading."""
+    """Same as POST /api/ai/books/{id}/recap/volumes ("Write all"): 202
+    ``{job}`` (reading, merging, writing); poll GET /tome-sync/ai/jobs/{id}.
+    409 ``budget`` / ``already_running`` as on the web."""
     book = _ai_book(db, user, book_id)
     ai_service.check_feature_available(db, ai_recap.FEATURE)
     ai_service.check_feature_available(db, ai_digest.FEATURE)
     return JSONResponse(status_code=202, content=ai_volume_recap.write_all(db, user, book))
+
+
+@router.post("/tome-sync/ai/books/{book_id}/reconcile", status_code=202)
+def ai_plugin_reconcile(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Same as POST /api/ai/books/{id}/reconcile ("Merge duplicates"): 202
+    ``{job}`` with the merging step only; 409 ``already_running``."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    return JSONResponse(status_code=202, content=ai_volume_recap.start_reconcile(db, user, book))
 
 
 class AiVolumeRecapRequest(PydanticBaseModel):
@@ -1688,10 +1701,17 @@ def ai_plugin_digest(
     """Start digesting the chapters before ``pct``: same as POST
     /api/ai/books/{id}/digest (202 ``{job, estimate, ...}``, 200 when
     nothing is missing, 409 without a key or, with ``reason: "budget"``,
-    over a monthly spend limit)."""
+    over a monthly spend limit). Without ``pct`` and without a stored
+    position the window is chapter 0 (the read earlier volumes only)."""
     book = _ai_book(db, user, book_id)
     ai_service.check_feature_available(db, ai_digest.FEATURE)
-    window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
+    if body.pct is None:
+        try:
+            window = ai_companion.start_window(db, user, book)
+        except ai_companion.WindowError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    else:
+        window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
     status, payload = ai_companion.start_digest(db, user, book, window, body.scope)
     return JSONResponse(status_code=status, content=payload)
 

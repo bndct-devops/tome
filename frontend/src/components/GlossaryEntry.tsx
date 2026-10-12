@@ -9,7 +9,7 @@
 // stay.
 import { useEffect, useState } from 'react'
 import { Trans, useLingui } from '@lingui/react/macro'
-import { getGlossaryEntry, type GlossaryEntry, type GlossaryFactField, type SeriesPlace } from '@/lib/ai'
+import { getGlossaryEntry, type GlossaryEntry, type GlossaryFactField, type GlossaryFactHistoryItem, type SeriesPlace } from '@/lib/ai'
 
 /** True when the entry carries any of the entity-glossary fields. */
 function hasEntityFields(e: GlossaryEntry): boolean {
@@ -20,6 +20,18 @@ function hasEntityFields(e: GlossaryEntry): boolean {
     || (e.facts && Object.keys(e.facts).length > 0)
     || (e.timeline && e.timeline.length > 0),
   )
+}
+
+/** The earlier values of a fact (newest first). Read defensively: older
+ *  servers send no `history`. */
+function factHistory(fact: unknown): GlossaryFactHistoryItem[] {
+  const h = (fact as { history?: unknown } | null | undefined)?.history
+  if (!Array.isArray(h)) return []
+  return h.filter((x): x is GlossaryFactHistoryItem =>
+    x != null && typeof x === 'object'
+    && typeof (x as { value?: unknown }).value === 'string'
+    && typeof (x as { book_id?: unknown }).book_id === 'number'
+    && typeof (x as { chapter_idx?: unknown }).chapter_idx === 'number')
 }
 
 type Props = {
@@ -59,11 +71,17 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
     ['location', t`Location`],
   ]
 
-  const statusFact = e.facts?.status
+  // The list's facts have no history; the opened entry's do.
+  const factsSource = full?.facts ?? e.facts
+  const statusFact = factsSource?.status
   const statusText = e.status || statusFact?.value || null
   const statusAt = statusFact ? shortPlace(statusFact) : null
+  // "Silver rank · vol 6, ch 57 · Bronze rank · vol 3, ch 44"
+  const earlierText = (fact: unknown): string =>
+    factHistory(fact).map(h => `${h.value} · ${shortPlace(h)}`).join(' · ')
+  const statusEarlier = earlierText(statusFact)
   const facts = factLabels
-    .map(([field, label]) => ({ field, label, fact: e.facts?.[field] }))
+    .map(([field, label]) => ({ field, label, fact: factsSource?.[field] }))
     .filter(x => x.fact && x.fact.value)
   const fullTimeline = full?.timeline
   const useFull = fullTimeline != null && fullTimeline.length > 0
@@ -79,18 +97,29 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
           {statusAt && (
             <span className="text-xs text-muted-foreground/70"> <Trans>as of {statusAt}</Trans></span>
           )}
+          {statusEarlier && (
+            <span className="block text-xs text-muted-foreground/70">
+              <Trans>earlier: {statusEarlier}</Trans>
+            </span>
+          )}
         </p>
       )}
       {v2 && facts.length > 0 && (
         <dl className="space-y-0.5">
           {facts.map(({ field, label, fact }) => {
             const at = shortPlace(fact!)
+            const earlier = earlierText(fact)
             return (
               <div key={field} className="text-sm leading-snug">
                 <dt className="inline text-muted-foreground">{label}: </dt>
                 <dd className="inline text-foreground">
                   {fact!.value}
                   <span className="text-xs text-muted-foreground/70"> · {at}</span>
+                  {earlier && (
+                    <span className="block text-xs text-muted-foreground/70">
+                      <Trans>earlier: {earlier}</Trans>
+                    </span>
+                  )}
                 </dd>
               </div>
             )

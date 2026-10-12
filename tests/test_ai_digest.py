@@ -1523,7 +1523,40 @@ def _wait_finished(job_id: str, timeout: float = 30.0) -> dict:
 _BOOK_RE = re.compile(r'"book": "([^"]+)"')
 
 
-def test_four_workers_run_units_of_different_volumes_concurrently(pool, tmp_path, monkeypatch):
+def _pool_two_series(factory, tmp_path: Path) -> tuple[int, dict[str, list[int]]]:
+    """One member, two series of three volumes ("Alpha", "Beta"): the first
+    two of each read, the third open (no position)."""
+    from backend.models.book import BookFile
+
+    with factory() as s:
+        user = User(username="twoseries", email="twoseries@example.com", hashed_password="x",
+                    is_active=True, is_admin=False, role="member", must_change_password=False)
+        s.add(user)
+        s.flush()
+        ids: dict[str, list[int]] = {}
+        for name in ("Alpha", "Beta"):
+            for i in (1, 2, 3):
+                path = make_epub(tmp_path / f"{name}_{i}.epub", CHAPTERS)
+                b = Book(title=f"{name} {i}", series=name, series_index=i, status="active")
+                s.add(b)
+                s.flush()
+                s.add(BookFile(book_id=b.id, file_path=str(path), format="epub",
+                               file_size=path.stat().st_size))
+                replace_book_chapters(s, b.id, extract_chapters_epub(path))
+                ids.setdefault(name, []).append(b.id)
+        for name in ids:
+            for bid in ids[name][:2]:
+                s.add(UserBookStatus(user_id=user.id, book_id=bid, status="read", progress_pct=1.0))
+        s.commit()
+        ai_settings.set_user_key(s, user, KEY)
+        s.commit()
+        return user.id, ids
+
+
+def test_workers_run_two_series_at_once_and_one_series_in_order(pool, tmp_path, monkeypatch):
+    """Serial volumes: the two series are read at the same time, but the
+    units of one series never overlap and volume 2 starts only after the
+    last unit of volume 1 ended."""
     import itertools
     import threading
     import time as _time
@@ -1531,8 +1564,8 @@ def test_four_workers_run_units_of_different_volumes_concurrently(pool, tmp_path
     from backend.models.ai_job import AIJob
 
     monkeypatch.setattr(digest, "CHUNK_CHAPTERS", 2)          # two units per volume
-    user_id, ids = _pool_series(pool, tmp_path, 5)
-    barrier = threading.Barrier(digest_job.WORKERS, timeout=15)
+    user_id, ids = _pool_two_series(pool, tmp_path)
+    barrier = threading.Barrier(2, timeout=15)
     order = itertools.count()
     spans: list[tuple[str, float, float]] = []
     lock = threading.Lock()
@@ -1540,8 +1573,8 @@ def test_four_workers_run_units_of_different_volumes_concurrently(pool, tmp_path
     def on_call(call):
         title = _BOOK_RE.search(sent_text(call)).group(1)
         start = _time.monotonic()
-        if next(order) < digest_job.WORKERS:
-            barrier.wait()          # passes only when four calls are in flight at once
+        if next(order) < 2:
+            barrier.wait()          # passes only when two calls are in flight at once
         else:
             _time.sleep(0.02)
         with lock:
@@ -1549,28 +1582,30 @@ def test_four_workers_run_units_of_different_volumes_concurrently(pool, tmp_path
 
     fake = FakeProvider(responses=echo_digest, on_call=on_call)
     ai.set_provider_override(fake)
-    snap = digest_job.enqueue(user_id=user_id, book_id=ids[-1], upto=0)   # vol 5 at its start
-    job = _wait_finished(snap["id"])
+    a = digest_job.enqueue(user_id=user_id, book_id=ids["Alpha"][-1], upto=0)
+    b = digest_job.enqueue(user_id=user_id, book_id=ids["Beta"][-1], upto=0)
+    jobs = [_wait_finished(a["id"]), _wait_finished(b["id"])]
 
     assert not barrier.broken
-    assert job["status"] == "done", job
-    assert job["total"] == 16 and job["done"] == 16 and job["failed"] == 0
-    assert len(fake.calls) == 8 and job["calls"] == 8
-    # The first four calls were one unit of each of the four read volumes.
-    first = sorted(spans, key=lambda s: s[1])[: digest_job.WORKERS]
-    assert sorted(t for t, _, _ in first) == ["Pool 1", "Pool 2", "Pool 3", "Pool 4"]
-    # The units of one volume never overlapped (each builds on the one before).
-    for title in {t for t, _, _ in spans}:
-        mine = sorted((s for s in spans if s[0] == title), key=lambda s: s[1])
-        assert all(b[1] >= a[2] for a, b in zip(mine, mine[1:])), title
+    for job in jobs:
+        assert job["status"] == "done", job
+        assert job["total"] == 8 and job["done"] == 8 and job["failed"] == 0 and job["calls"] == 4
+    # The first two calls were one of each series, volume 1.
+    first = sorted(spans, key=lambda s: s[1])[:2]
+    assert sorted(t for t, _, _ in first) == ["Alpha 1", "Beta 1"]
+    for name in ("Alpha", "Beta"):
+        mine = sorted((s for s in spans if s[0].startswith(name)), key=lambda s: s[1])
+        assert len(mine) == 4
+        # Never two units of one series at once, and volume 1 before volume 2.
+        assert all(nxt[1] >= cur[2] for cur, nxt in zip(mine, mine[1:])), name
+        assert [t for t, _, _ in mine] == [f"{name} 1", f"{name} 1", f"{name} 2", f"{name} 2"]
     with pool() as s:
         assert s.query(AIChapterDigest).count() == 16
         rows = s.query(AIUsage).all()
-        assert len(rows) == 8 and {r.job_id for r in rows} == {snap["id"]}
-        assert {r.book_id for r in rows} == set(ids[:4])
-        row = s.get(AIJob, snap["id"])
-        assert row.status == "done" and row.done == 16 and row.calls == 8
-        assert row.cost_usd == pytest.approx(sum(r.cost_usd for r in rows))
+        assert len(rows) == 8 and {r.job_id for r in rows} == {a["id"], b["id"]}
+        for job_id in (a["id"], b["id"]):
+            row = s.get(AIJob, job_id)
+            assert row.status == "done" and row.done == 8 and row.calls == 4 and row.step == "reading"
 
 
 def test_stop_is_stopping_at_once_then_cancelled_after_the_unit_in_flight(pool, tmp_path, monkeypatch):
@@ -2135,14 +2170,14 @@ def test_one_note_per_entity_and_chapter(db, guild):
     jason, _ = _jason_and_neil(db, user, book)
     _dig(db, user, book, 3,
          _entry("Jason Asano", "Saw his own face.", ref=jason.id, identity="",
-                facts={"status": "shaken"}, evidence="Jason Asano saw his own face"),
+                facts={"status": "alive, shaken"}, evidence="Jason Asano saw his own face"),
          _entry("Jason", "Looked again.", ref=jason.id, identity="",
-                facts={"status": "calm", "location": "the gate"},
+                facts={"status": "alive, calm", "location": "the gate"},
                 evidence="his hood, and Jason Asano saw"))
     notes = _notes(db, jason)
     assert [n.chapter_idx for n in notes] == [0, 3]
     assert notes[1].line == "Saw his own face."
-    assert json.loads(notes[1].facts_json) == {"status": "shaken", "location": "the gate"}
+    assert json.loads(notes[1].facts_json) == {"status": "alive, shaken", "location": "the gate"}
 
 
 def test_same_as_merges_from_that_chapter_on(db, guild):
@@ -2179,6 +2214,36 @@ def test_same_as_merges_from_that_chapter_on(db, guild):
     assert "The Hooded Man" not in after
     assert [t["chapter_idx"] for t in after["Jason Asano"].timeline] == [0, 2, 3]
     assert "The Hooded Man" in after["Jason Asano"].aliases
+
+
+def test_a_re_read_keeps_a_reconcile_merge_and_undoes_a_same_as_one(db, guild):
+    user, book = guild
+    jason, neil = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked.", identity="A stranger.",
+                                   evidence="The Hooded Man stalked the market"))
+    hooded = _entities(db)["The Hooded Man"]
+    # A same_as merge proven in chapter 3.
+    _dig(db, user, book, 3, _entry("Jason Asano", "Saw his face.", ref=jason.id, identity="",
+                                   evidence="Jason Asano saw his own face"),
+         same_as=[[hooded.id, jason.id]])
+    assert hooded.merged_into == jason.id and hooded.merged_by is None
+    # A merge the reconcile pass recorded at the loser's first-seen chapter (0).
+    db.add(AIEntity(series_key=digest.series_key(book), kind="person", name="Neil D.",
+                    first_book_id=book.id, first_chapter_idx=0, merged_into=neil.id,
+                    merged_book_id=book.id, merged_chapter_idx=0, merged_by="reconcile"))
+    db.flush()
+    # "Ask again" on both chapters: their rows go, each is digested again.
+    db.query(AIChapterDigest).filter(AIChapterDigest.book_id == book.id,
+                                     AIChapterDigest.chapter_idx.in_([0, 3])).delete()
+    _dig(db, user, book, 0,
+         _entry("Neil Davone", "Healed a wound.", ref=neil.id, identity="",
+                evidence="Neil Davone healed the wound"))
+    _dig(db, user, book, 3, _entry("Jason Asano", "Saw his face.", ref=jason.id, identity="",
+                                   evidence="Jason Asano saw his own face"))
+    ents = _entities(db)
+    assert ents["Neil D."].merged_into == neil.id and ents["Neil D."].merged_by == "reconcile"
+    assert (ents["Neil D."].merged_book_id, ents["Neil D."].merged_chapter_idx) == (book.id, 0)
+    assert ents["The Hooded Man"].merged_into is None
 
 
 def test_same_as_refused_when_a_name_is_not_in_the_text_or_kinds_differ(db, guild):
@@ -2248,7 +2313,7 @@ def test_profiles_fold_facts_latest_inside_the_window(db, guild):
     user, book = guild
     jason, _ = _jason_and_neil(db, user, book)
     _dig(db, user, book, 1, _entry("Jason", "Bought a blade.", ref=jason.id, identity="",
-                                   facts={"status": "wounded"}, evidence="the smith, sold Jason a blade"))
+                                   facts={"status": "alive, wounded"}, evidence="the smith, sold Jason a blade"))
     _dig(db, user, book, 2, _entry("Jason Asano", "Saw a stranger.", ref=jason.id, identity="",
                                    facts={"status": "dead", "location": "the gate"},
                                    evidence="Jason Asano saw the stranger"))
@@ -2256,10 +2321,11 @@ def test_profiles_fold_facts_latest_inside_the_window(db, guild):
     [_, p] = digest.profiles(db, scope, 2)                       # Neil first, then Jason
     d = p.to_dict()
     assert d["entity_id"] == jason.id and d["identity"] == "A newcomer to the world."
-    assert d["status"] == "wounded"
+    assert d["status"] == "alive, wounded"
     assert d["facts"] == {
-        "status": {"value": "wounded", "book_id": book.id, "chapter_idx": 1},
-        "location": {"value": "the cart", "book_id": book.id, "chapter_idx": 0}}
+        "status": {"value": "alive, wounded", "book_id": book.id, "chapter_idx": 1,
+                   "history": [{"value": "alive", "book_id": book.id, "chapter_idx": 0}]},
+        "location": {"value": "the cart", "book_id": book.id, "chapter_idx": 0, "history": []}}
     assert d["timeline"] == [{"book_id": book.id, "chapter_idx": 0, "line": "Watched from the cart."},
                              {"book_id": book.id, "chapter_idx": 1, "line": "Bought a blade."}]
     assert d["first_seen"] == {"book_id": book.id, "chapter_idx": 0}
@@ -2325,6 +2391,49 @@ def test_prompts_carry_the_entity_rules():
         assert "same_as" in flat and "at most 25" in flat and "at most 3 sentences" in flat
         assert "Front or back matter" in flat and "never use what you know about it" in flat
     assert "refer to it with ref 0 and the same name" in " ".join(digest.SYSTEM_PROMPT_MANY.split())
+
+
+def test_prompts_carry_the_fact_guard_rails():
+    """Run 2e: status was free text ("escaped", "left", "drunk"), appearance
+    recorded a transformation that wore off, powers_rank only the change."""
+    for prompt in (digest.SYSTEM_PROMPT, digest.SYSTEM_PROMPT_MANY):
+        flat = " ".join(prompt.split())
+        assert "status: exactly one of alive, dead, missing, captured, unknown" in flat
+        assert 'optionally followed by a comma and a short condition ("alive, exhausted")' in flat
+        assert 'Never an event or a mood: "escaped", "left" or "drunk" are wrong' in flat
+        assert "captured..." not in flat
+        assert "appearance: lasting looks only (build, hair, eyes, scars, usual dress)" in flat
+        assert "A transformation, a disguise, an outfit for an occasion, an injury" in flat
+        assert "it goes in the line" in flat
+        assert 'the full current rank plus the notable power or title ("Silver rank; title Giant Slayer")' in flat
+        assert "not only what changed this chapter" in flat
+
+
+@pytest.mark.parametrize("value,kept", [
+    ("alive", True), ("Dead", True), ("missing", True), ("captured", True), ("unknown", True),
+    ("alive, exhausted", True), ("captured , in chains", True),
+    ("escaped", False), ("left", False), ("drunk", False), ("wounded", False),
+    ("alive and well", False), ("deadly", False),
+])
+def test_facts_sanitiser_keeps_only_the_status_vocabulary(value, kept):
+    raw = {"status": value, "location": "the gate", "appearance": "tall", "powers_rank": "",
+           "affiliations": 3, "relationships": "Jason's friend"}
+    out = digest._facts(raw)
+    assert ("status" in out) is kept
+    if kept:
+        assert out["status"] == value
+    assert out["location"] == "the gate" and out["appearance"] == "tall"
+    assert out["relationships"] == "Jason's friend"
+    assert "powers_rank" not in out and "affiliations" not in out
+
+
+def test_a_free_text_status_is_not_stored_on_the_note(db, guild):
+    user, book = guild
+    jason, _ = _jason_and_neil(db, user, book)
+    _dig(db, user, book, 2, _entry("Jason Asano", "Slipped away.", ref=jason.id, identity="",
+                                   facts={"status": "escaped", "location": "the market"},
+                                   evidence="Jason Asano saw the stranger"))
+    assert json.loads(_notes(db, jason)[1].facts_json) == {"location": "the market"}
 
 
 def _strict(schema: dict) -> None:
@@ -2518,15 +2627,15 @@ def test_a_later_merge_does_not_conflate_an_earlier_volumes_notes(db, make_book,
          same_as=[[h.id, j.id]])
     assert j.merged_into == h.id
     _dig(db, user, v2, 1,
-         _entry("The Hooded Man", "Argued.", ref=h.id, identity="", facts={"status": "masked"},
+         _entry("The Hooded Man", "Argued.", ref=h.id, identity="", facts={"status": "missing"},
                 evidence="The Hooded Man and Jason Asano argued"),
          _entry("Jason Asano", "Argued back.", ref=j.id, identity="",
-                facts={"location": "the gate", "status": "angry"},
+                facts={"location": "the gate", "status": "captured, angry"},
                 evidence="The Hooded Man and Jason Asano argued"))
     profs = {p.name: p.to_dict() for p in digest.profiles(db, digest.Scope(book=v2), 2)}
-    assert {k: v["value"] for k, v in profs["The Hooded Man"]["facts"].items()} == {"status": "masked"}
+    assert {k: v["value"] for k, v in profs["The Hooded Man"]["facts"].items()} == {"status": "missing"}
     assert {k: v["value"] for k, v in profs["Jason Asano"]["facts"].items()} == {
-        "location": "the gate", "status": "angry"}
+        "location": "the gate", "status": "captured, angry"}
     assert [t["line"] for t in profs["Jason Asano"]["timeline"]] == ["Argued back."]
 
 

@@ -485,6 +485,16 @@ msgstr "{0, plural, one {# suggested match} other {# suggested matches}}"
 msgid "{0, plural, one {# user} other {# users}}"
 msgstr "{0, plural, one {# user} other {# users}}"
 
+#. placeholder {0}: writeAll.reading.volumes
+#: src/components/RecapVolumes.tsx
+#~ msgid "{0, plural, one {# volume still needs reading ({chapters} chapters, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters} chapters, about {readCost}) · {recaps}}}"
+#~ msgstr "{0, plural, one {# volume still needs reading ({chapters} chapters, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters} chapters, about {readCost}) · {recaps}}}"
+
+#. placeholder {0}: writeAll.reading.volumes
+#: src/components/RecapVolumes.tsx
+msgid "{0, plural, one {# volume still needs reading ({chapters}, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters}, about {readCost}) · {recaps}}}"
+msgstr "{0, plural, one {# volume still needs reading ({chapters}, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters}, about {readCost}) · {recaps}}}"
+
 #. placeholder {0}: data.totals.books
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# volume} other {# volumes}}"
@@ -662,6 +672,10 @@ msgstr "{bt} — {st} to {en} ({dur})"
 #: src/components/MetadataFetchModal.tsx
 msgid "{changes, plural, one {# change proposed. Check it before applying.} other {# changes proposed. Check them before applying.}}"
 msgstr "{changes, plural, one {# change proposed. Check it before applying.} other {# changes proposed. Check them before applying.}}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{chapterCount, plural, one {Read # chapter} other {Read # chapters}}"
+msgstr "{chapterCount, plural, one {Read # chapter} other {Read # chapters}}"
 
 #: src/components/AiActivity.tsx
 msgid "{chapters, plural, one {# chapter read} other {# chapters read}}"
@@ -1105,8 +1119,16 @@ msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
 msgstr "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
 
 #: src/components/RecapVolumes.tsx
-msgid "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
-msgstr "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
+msgid "{pendingCount, plural, one {# volume not written yet · about {allCost}} other {# volumes not written yet · about {allCost}}}"
+msgstr "{pendingCount, plural, one {# volume not written yet · about {allCost}} other {# volumes not written yet · about {allCost}}}"
+
+#: src/components/RecapVolumes.tsx
+#~ msgid "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
+#~ msgstr "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
+
+#: src/components/RecapVolumes.tsx
+msgid "{pendingCount, plural, one {then # recap (about {cost})} other {then # recaps (about {cost})}}"
+msgstr "{pendingCount, plural, one {then # recap (about {cost})} other {then # recaps (about {cost})}}"
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{pph} p/h"
@@ -1128,9 +1150,17 @@ msgstr "{read} of {total} read"
 msgid "{readCount} read · {readingCount} reading · {unreadCount} unread"
 msgstr "{readCount} read · {readingCount} reading · {unreadCount} unread"
 
+#: src/components/RecapVolumes.tsx
+msgid "{readingChapters, plural, one {# chapter} other {# chapters}}"
+msgstr "{readingChapters, plural, one {# chapter} other {# chapters}}"
+
 #: src/pages/SharePage.tsx
 msgid "{readN} read · {unreadN} unread"
 msgstr "{readN} read · {unreadN} unread"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{recaps, plural, one {Write # recap} other {Write # recaps}}"
+msgstr "{recaps, plural, one {Write # recap} other {Write # recaps}}"
 
 #: src/pages/BookDetailPage.tsx
 msgid "{recent} in the last 7 days vs {prior} the week before"
@@ -1175,6 +1205,10 @@ msgstr "{shown, plural, one {# title} other {# titles}}"
 #: src/components/UploadModal.tsx
 msgid "{skipped, plural, one {Nothing to upload — # file is already in your library} other {Nothing to upload — # files are already in your library}}"
 msgstr "{skipped, plural, one {Nothing to upload — # file is already in your library} other {Nothing to upload — # files are already in your library}}"
+
+#: src/components/AiActivity.tsx
+msgid "{stepTotal, plural, one {{stepDone} of # recap written} other {{stepDone} of # recaps written}}"
+msgstr "{stepTotal, plural, one {{stepDone} of # recap written} other {{stepDone} of # recaps written}}"
 
 #: src/components/UploadModal.tsx
 msgid "{success, plural, one {# book uploaded} other {# books uploaded}}"
@@ -1243,6 +1277,14 @@ msgstr "{vc, plural, one {# chapter} other {# chapters}}"
 #: src/components/ReadingCompanion.tsx
 #~ msgid "{volume}, {chapter}"
 #~ msgstr "{volume}, {chapter}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{volumes, plural, one {{chapters} of # volume} other {{chapters} of # volumes}}"
+msgstr "{volumes, plural, one {{chapters} of # volume} other {{chapters} of # volumes}}"
+
+#: src/components/DigestConfirmDialog.tsx
+#~ msgid "{volumes, plural, one {Read {chapters} chapters of # volume} other {Read {chapters} chapters of # volumes}}"
+#~ msgstr "{volumes, plural, one {Read {chapters} chapters of # volume} other {Read {chapters} chapters of # volumes}}"
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{w}w"
@@ -1441,6 +1483,22 @@ msgstr "about {cost}"
 #: src/components/DigestConfirmDialog.tsx
 msgid "about {h} hours"
 msgstr "about {h} hours"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "about {mergeCost}"
+msgstr "about {mergeCost}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "about {readCost}"
+msgstr "about {readCost}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "about {recapCost}"
+msgstr "about {recapCost}"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "about {total}"
+msgstr "about {total}"
 
 #: src/components/stats/BacklogEstimate.tsx
 msgid "about <0>{d}</0> at your pace"
@@ -2846,6 +2904,10 @@ msgid "Could not set match"
 msgstr "Could not set match"
 
 #: src/components/ReadingCompanion.tsx
+msgid "Could not start merging"
+msgstr "Could not start merging"
+
+#: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Could not start reading the chapters"
 msgstr "Could not start reading the chapters"
@@ -3402,6 +3464,14 @@ msgstr "Each row is one reading session."
 msgid "Earlier lines not shown."
 msgstr "Earlier lines not shown."
 
+#: src/components/GlossaryEntry.tsx
+msgid "earlier: {earlier}"
+msgstr "earlier: {earlier}"
+
+#: src/components/GlossaryEntry.tsx
+msgid "earlier: {statusEarlier}"
+msgstr "earlier: {statusEarlier}"
+
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -3517,6 +3587,10 @@ msgstr "estimate {est}"
 #: src/components/DigestConfirmDialog.tsx
 msgid "Estimated for {model} from list prices and earlier runs on this server. Stop it any time; the chapters read so far are kept."
 msgstr "Estimated for {model} from list prices and earlier runs on this server. Stop it any time; the chapters read so far are kept."
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Estimated from list prices and earlier runs on this server. Stop it any time; what is done so far is kept."
+msgstr "Estimated from list prices and earlier runs on this server. Stop it any time; what is done so far is kept."
 
 #: src/components/AiSettings.tsx
 msgid "Estimated from list prices. Your {provider} invoice is the source of truth."
@@ -3912,6 +3986,10 @@ msgstr "Filter…"
 msgid "Filters"
 msgstr "Filters"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Finds entries that look like the same person, place or term and asks the model to confirm before merging them"
+msgstr "Finds entries that look like the same person, place or term and asks the model to confirm before merging them"
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "Finish a couple of books of each type so Tome can measure your pace."
 msgstr "Finish a couple of books of each type so Tome can measure your pace."
@@ -4141,11 +4219,14 @@ msgstr "Get notified when a new volume of a followed series is released."
 msgid "Get token"
 msgstr "Get token"
 
-#: src/components/AiActivity.tsx
-#: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
+#: src/lib/ai.ts
 msgid "Getting ready to read the chapters…"
 msgstr "Getting ready to read the chapters…"
+
+#: src/lib/ai.ts
+msgid "Getting ready…"
+msgstr "Getting ready…"
 
 #: src/components/ReadingCompanion.tsx
 msgid "Glossary"
@@ -4486,6 +4567,10 @@ msgstr "Interrupted"
 #: src/components/RecapVolumes.tsx
 msgid "Interrupted by a server restart after {done} of {total} chapters."
 msgstr "Interrupted by a server restart after {done} of {total} chapters."
+
+#: src/components/RecapVolumes.tsx
+msgid "Interrupted by a server restart. Write all again to go on."
+msgstr "Interrupted by a server restart. Write all again to go on."
 
 #: src/pages/AdminPage.tsx
 msgid "IP:"
@@ -4984,6 +5069,22 @@ msgstr "Members without their own key use the instance key, billed to its {provi
 #: src/pages/AdminPage.tsx
 msgid "Merge"
 msgstr "Merge"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Merge duplicate entries"
+msgstr "Merge duplicate entries"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Merge duplicates"
+msgstr "Merge duplicates"
+
+#: src/components/AiActivity.tsx
+msgid "Merged duplicate entries"
+msgstr "Merged duplicate entries"
+
+#: src/lib/ai.ts
+msgid "Merging duplicate entries…"
+msgstr "Merging duplicate entries…"
 
 #: src/pages/AdminPage.tsx
 msgid "Metadata"
@@ -6655,9 +6756,7 @@ msgstr "Reading by Weekday"
 #~ msgid "Reading chapter {current} of {total}…"
 #~ msgstr "Reading chapter {current} of {total}…"
 
-#: src/components/AiActivity.tsx
-#: src/components/ReadingCompanion.tsx
-#: src/components/RecapVolumes.tsx
+#: src/lib/ai.ts
 msgid "Reading chapters: {done} of {total}…"
 msgstr "Reading chapters: {done} of {total}…"
 
@@ -7817,6 +7916,11 @@ msgstr "Some chapters could not be read, so this recap may skip parts."
 msgid "Some chapters of this volume are still unread."
 msgstr "Some chapters of this volume are still unread."
 
+#: src/components/ReadingCompanion.tsx
+#: src/components/RecapVolumes.tsx
+msgid "Something is already running for this book. Try again when it is done."
+msgstr "Something is already running for this book. Try again when it is done."
+
 #: src/pages/AdminPage.tsx
 msgid "Sort Order"
 msgstr "Sort Order"
@@ -7979,13 +8083,19 @@ msgstr "Stopped after {done} of {total} chapters."
 msgid "Stopped by you"
 msgstr "Stopped by you"
 
+#: src/components/RecapVolumes.tsx
+msgid "Stopped. What was done so far is kept."
+msgstr "Stopped. What was done so far is kept."
+
 #: src/components/AiActivity.tsx
 msgid "Stopping"
 msgstr "Stopping"
 
-#: src/components/AiActivity.tsx
-#: src/components/ReadingCompanion.tsx
-#: src/components/RecapVolumes.tsx
+#: src/lib/ai.ts
+msgid "Stopping after the current call…"
+msgstr "Stopping after the current call…"
+
+#: src/lib/ai.ts
 msgid "Stopping after the current chapters…"
 msgstr "Stopping after the current chapters…"
 
@@ -8520,6 +8630,10 @@ msgstr "Top Books by Reading Time"
 #: src/components/stats/widgets/library.tsx
 msgid "Top Genre"
 msgstr "Top Genre"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Total"
+msgstr "Total"
 
 #: src/components/stats/widgets/library.tsx
 msgid "Total Hours"
@@ -9115,9 +9229,18 @@ msgstr "Words Read"
 msgid "Write again"
 msgstr "Write again"
 
+#: src/components/DigestConfirmDialog.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Write all"
 msgstr "Write all"
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Write all reads the missing chapters of the volumes you have finished, merges duplicate glossary entries, then writes each missing recap. It runs on the server; you can close the page."
+msgstr "Write all reads the missing chapters of the volumes you have finished, merges duplicate glossary entries, then writes each missing recap. It runs on the server; you can close the page."
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Write all recaps?"
+msgstr "Write all recaps?"
 
 #: src/components/RecapVolumes.tsx
 msgid "Write it"
@@ -9127,18 +9250,22 @@ msgstr "Write it"
 msgid "Writes a short recap of the story up to where you are, from the chapter notes and the current chapter. Never reads past your position."
 msgstr "Writes a short recap of the story up to where you are, from the chapter notes and the current chapter. Never reads past your position."
 
+#: src/lib/ai.ts
+msgid "Writing recaps: {stepDone} of {stepTotal}…"
+msgstr "Writing recaps: {stepDone} of {stepTotal}…"
+
 #: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Writing the recap. This can take up to a minute."
 msgstr "Writing the recap. This can take up to a minute."
 
 #: src/components/RecapVolumes.tsx
-msgid "Writing volume recaps…"
-msgstr "Writing volume recaps…"
+#~ msgid "Writing volume recaps…"
+#~ msgstr "Writing volume recaps…"
 
 #: src/components/RecapVolumes.tsx
-msgid "Writing volume recaps… {runDone} of {runTotal}"
-msgstr "Writing volume recaps… {runDone} of {runTotal}"
+#~ msgid "Writing volume recaps… {runDone} of {runTotal}"
+#~ msgstr "Writing volume recaps… {runDone} of {runTotal}"
 
 #: src/components/ReadingCompanion.tsx
 msgid "Written for {recapFor} · cached, free to reopen"

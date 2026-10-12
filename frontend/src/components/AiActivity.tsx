@@ -4,10 +4,11 @@
 // Admins see everyone's jobs with a user column and a user filter.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, Plural, useLingui } from '@lingui/react/macro'
+import { plural } from '@lingui/core/macro'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  aiFeatureLabel, cancelDigestJob, getAiJobCalls, getAiJobs,
+  activeJobLine, aiFeatureLabel, cancelDigestJob, digestJobStepLine, getAiJobCalls, getAiJobs, DIGEST_JOB_ACTIVE,
   type AiJobBook, type AiJobCall, type AiJobSummary, type AiJobsList, type DigestJob, type DigestJobStatus,
 } from '@/lib/ai'
 
@@ -96,13 +97,7 @@ export function AiActivity({ isAdmin, onSettled }: {
   }
   const scopeLabel = (s: string) => (s === 'series' ? t`Whole series` : t`This book`)
 
-  const runningLine = (j: DigestJob) => {
-    const done = j.done
-    const total = j.total
-    if (j.status === 'stopping') return t`Stopping after the current chapters…`
-    if (j.status === 'queued' || total === 0) return t`Getting ready to read the chapters…`
-    return t`Reading chapters: ${done} of ${total}…`
-  }
+  const runningLine = (j: DigestJob) => activeJobLine(j)
 
   function toggle<T>(set: Set<T>, value: T): Set<T> {
     const next = new Set(set)
@@ -326,12 +321,25 @@ function JobRow({
   statusLabel: (s: DigestJobStatus) => string
   scopeLabel: (s: string) => string
 }) {
-  const { i18n } = useLingui()
+  const { t, i18n } = useLingui()
   const clock = (iso: string | null) => iso
     ? new Date(iso).toLocaleTimeString(i18n.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : ''
   const done = job.done
   const total = job.total
+  const stepDone = job.step_done ?? 0
+  const stepTotal = job.step_total ?? 0
+  const live = DIGEST_JOB_ACTIVE.includes(job.status)
+  // A run with steps: the step it is on while it runs, what it wrote after.
+  const stepLabel = job.step == null
+    ? null
+    : live
+      ? digestJobStepLine({ step: job.step, done, total, step_done: stepDone, step_total: stepTotal })
+      : job.step === 'writing' && stepTotal > 0
+        ? plural(stepTotal, { one: `${stepDone} of # recap written`, other: `${stepDone} of # recaps written` })
+        : job.step === 'merging' && total === 0 && job.status === 'done'
+          ? t`Merged duplicate entries`
+          : null
   const est = job.est_cost_usd != null ? money(job.est_cost_usd) : null
   const took = duration(job.actual_seconds)
   const estTime = job.est_seconds != null ? duration(job.est_seconds) : null
@@ -354,7 +362,8 @@ function JobRow({
         </span>
         <span className="flex flex-wrap gap-x-2 pl-5 text-muted-foreground">
           <span>{statusLabel(job.status)}</span>
-          <span className="tabular-nums"><Trans>{done} of {total} chapters</Trans></span>
+          {(total > 0 || job.step == null) && <span className="tabular-nums"><Trans>{done} of {total} chapters</Trans></span>}
+          {stepLabel && <span className="tabular-nums">{stepLabel}</span>}
           {job.failed > 0 && (() => { const f = job.failed; return <span className="tabular-nums"><Trans>{f} could not be read</Trans></span> })()}
           {est && <span className="tabular-nums"><Trans>estimate {est}</Trans></span>}
           {took && (estTime

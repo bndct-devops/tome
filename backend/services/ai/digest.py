@@ -185,8 +185,17 @@ title, a short form), as the text writes them; an empty list when none.
   - line: one sentence, at most 25 words, saying what it did or what happened \
 to it in this chapter.
   - facts: appearance, powers_rank, affiliations, relationships, status \
-(alive, dead, missing, captured...) and location, each a short phrase, only \
-when this chapter establishes or changes it; an empty string otherwise.
+and location, each a short phrase, only when this chapter establishes or \
+changes it; an empty string otherwise.
+    - status: exactly one of alive, dead, missing, captured, unknown, \
+optionally followed by a comma and a short condition ("alive, exhausted"). \
+Never an event or a mood: "escaped", "left" or "drunk" are wrong; the line \
+carries those.
+    - appearance: lasting looks only (build, hair, eyes, scars, usual \
+dress). A transformation, a disguise, an outfit for an occasion, an injury or \
+any other state that passes is not appearance; it goes in the line.
+    - powers_rank: the full current rank plus the notable power or title \
+("Silver rank; title Giant Slayer"), not only what changed this chapter.
   - evidence: a quote of 3 to 20 words, copied character for character \
 from this chapter's text, that contains the entry's name (or a distinctive \
 part of it) as the text writes it. A line a character speaks does not count \
@@ -1111,12 +1120,25 @@ def echoes(identity: str, sent: str) -> bool:
     return len(a & b) / len(a | b) >= 0.6
 
 
+STATUS_WORDS = ("alive", "dead", "missing", "captured", "unknown")
+
+
+def status_ok(value: str) -> bool:
+    """A status value is one word of ``STATUS_WORDS``, optionally followed
+    by a comma and a short condition ("alive, exhausted"). An event or mood
+    ("escaped", "left", "drunk") is not a status."""
+    head = value.split(",", 1)[0].strip().lower()
+    return head in STATUS_WORDS
+
+
 def _facts(raw: Any) -> dict[str, str]:
     if not isinstance(raw, dict):
         return {}
     out = {}
     for f in FACT_FIELDS:
         v = _str(raw.get(f), _FACT_MAX)
+        if v and f == "status" and not status_ok(v):
+            continue
         if v:
             out[f] = v
     return out
@@ -1246,6 +1268,9 @@ class _EntityWriter:
                 self._known_point(old, _alias_ce(cur)) <= self._known_point(pos, ce):
             return False
         cur.update({"book_id": pos[0], "chapter_idx": pos[1], "context_end": ce})
+        # Moved to a point this chapter proved: the chapter owns it now, so a
+        # re-read of it may clear it (a reconcile ``by`` would keep it there).
+        cur.pop("by", None)
         return True
 
     def _add_aliases(self, e: AIEntity, names: Iterable[Any], where: Pos, ce: int,
@@ -1266,14 +1291,18 @@ class _EntityWriter:
         """Forget what an earlier write of chapter ``where`` decided: the
         aliases learned there, the merges proven there (notes re-pointed by
         them go back to their origin) and the identity of the entities first
-        seen there. The write that follows re-derives them from its answer."""
+        seen there. The write that follows re-derives them from its answer.
+        A merge the reconcile pass made (``merged_by`` set) is kept: no
+        chapter's answer re-derives it; so are the aliases it wrote (items
+        carrying ``by``)."""
         undone = False
         for e in self.entities.values():
             aliases = entity_aliases(e)
-            keep = [a for a in aliases if tuple(_alias_pos(a)) != where]
+            keep = [a for a in aliases if a.get("by") or tuple(_alias_pos(a)) != where]
             if len(keep) != len(aliases):
                 e.aliases_json = json.dumps(keep, ensure_ascii=False)
-            if e.merged_into is not None and tuple(_merge_pos(e)) == where:
+            if (e.merged_into is not None and e.merged_by is None
+                    and tuple(_merge_pos(e)) == where):
                 e.merged_into = None
                 e.merged_book_id = e.merged_chapter_idx = e.merged_context_end = None
                 undone = True
@@ -1370,6 +1399,7 @@ class _EntityWriter:
             return
         survivor, loser = (a, b) if a.id < b.id else (b, a)
         loser.merged_into = survivor.id
+        loser.merged_by = None
         loser.merged_book_id, loser.merged_chapter_idx = where
         loser.merged_context_end = ce
         aliases = entity_aliases(survivor)
@@ -1403,6 +1433,15 @@ class _EntityWriter:
                     loser.id, survivor.id, where[0], where[1])
 
 
+# Facts keep this many distinct values per field: the current one plus
+# ``FACT_HISTORY - 1`` earlier ones in ``Profile.to_dict``.
+FACT_HISTORY = 3
+
+
+def _fact_key(value: str) -> str:
+    return " ".join(value.lower().split())
+
+
 @dataclass
 class Profile:
     """What a reader's window says about one entity (``profiles``)."""
@@ -1415,10 +1454,31 @@ class Profile:
     timeline: list[dict[str, Any]] = field(default_factory=list)
     first_seen: Pos | None = None
     last_seen: Pos | None = None
+    # Per fact field, the values it took inside the window in chapter order
+    # (newest last), a repeat of the previous value folded into it.
+    # ``facts[k]`` is always the last item's value.
+    history: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
     @property
     def chapters(self) -> int:
         return len({(t["book_id"], t["chapter_idx"]) for t in self.timeline})
+
+    def earlier(self, k: str) -> list[dict[str, Any]]:
+        """The distinct earlier values of fact ``k`` (not the current one),
+        newest first, at most ``FACT_HISTORY`` - 1, each with where it was
+        last set."""
+        cur = self.facts.get(k)
+        seen = {_fact_key(cur["value"])} if cur else set()
+        out: list[dict[str, Any]] = []
+        for h in reversed(self.history.get(k, [])[:-1]):
+            key = _fact_key(h["value"])
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(dict(h))
+            if len(out) >= FACT_HISTORY - 1:
+                break
+        return out
 
     def to_dict(self) -> dict[str, Any]:
         def pos(p: Pos | None) -> dict[str, int] | None:
@@ -1427,7 +1487,7 @@ class Profile:
         return {
             "entity_id": self.entity_id, "name": self.name, "kind": self.kind,
             "aliases": list(self.aliases), "identity": self.identity,
-            "facts": {k: dict(v) for k, v in self.facts.items()},
+            "facts": {k: {**v, "history": self.earlier(k)} for k, v in self.facts.items()},
             "status": status["value"] if status else None,
             "timeline": [dict(t) for t in self.timeline],
             "first_seen": pos(self.first_seen), "last_seen": pos(self.last_seen),
@@ -1445,7 +1505,17 @@ class Profile:
             else:
                 self.timeline.append({"book_id": where[0], "chapter_idx": where[1], "line": line})
         for k, v in facts.items():
-            self.facts[k] = {"value": v, "book_id": where[0], "chapter_idx": where[1]}
+            if k == "status" and not status_ok(v):
+                # Stored before the status vocabulary ("escaped", "left"):
+                # the previous valid status stands.
+                continue
+            item = {"value": v, "book_id": where[0], "chapter_idx": where[1]}
+            self.facts[k] = item
+            hist = self.history.setdefault(k, [])
+            if hist and _fact_key(hist[-1]["value"]) == _fact_key(v):
+                hist[-1] = dict(item)
+            else:
+                hist.append(dict(item))
 
 
 def profiles(db: Session, scope: Scope, upto: int) -> list[Profile]:

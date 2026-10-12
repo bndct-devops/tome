@@ -62,6 +62,10 @@ class AIEntity(Base):
     merged_chapter_idx: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # The last chapter (of ``merged_book_id``) the merging call read.
     merged_context_end: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Who made the merge: None = a chapter's ``same_as`` (undone when that
+    # chapter is digested again, ``digest._EntityWriter._reset_at``),
+    # "reconcile" = the reconcile pass (kept across a re-read).
+    merged_by: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

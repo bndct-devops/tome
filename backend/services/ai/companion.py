@@ -231,6 +231,20 @@ def pct_window(db: Session, book: Book, pct: float, locator: str | None = None,
                   chapters=chapters, position=pos)
 
 
+def start_window(db: Session, user: User, book: Book) -> Window:
+    """The window an explicit start (POST .../digest, "Write all",
+    reconcile) reads up to: the stored position (``web_window``), or, when
+    the book has no position yet (an unstarted next volume), a zero window
+    at chapter 0: nothing of this book is read, the read earlier volumes are
+    read in full. Raises WindowError for a book with no chapters."""
+    try:
+        return web_window(db, user, book, None)
+    except WindowError as exc:
+        if exc.reason != NO_POSITION:
+            raise
+    return Window(chapter_idx=0, until=None, chapters=book_text.book_chapters(book, db), position=None)
+
+
 def _require_chapters(book: Book, db: Session) -> None:
     reason = book_text.unavailable_reason(book, db)
     if reason == NOT_EPUB:
@@ -416,7 +430,9 @@ def _full_entries(db: Session, scope: digest.Scope, upto: int,
             "aliases": list(p.get("aliases") or []),
             "identity": identity,
             "status": p.get("status"),
-            "facts": {k: {"value": f["value"], **place(f["book_id"], f["chapter_idx"])}
+            "facts": {k: {"value": f["value"], **place(f["book_id"], f["chapter_idx"]),
+                          "history": [{"value": h["value"], **place(h["book_id"], h["chapter_idx"])}
+                                      for h in f.get("history") or []]}
                       for k, f in (p.get("facts") or {}).items()},
             "timeline": timeline,
         })
@@ -453,15 +469,18 @@ def glossary_entries(db: Session, scope: digest.Scope, upto: int,
     ``more`` the identity when the entry is an entity with one, else the
     fold's; ``first_seen``/``last_seen`` titled) and adds ``entity_id,
     aliases, identity, status``, ``facts`` (``{field: {value, book_id,
-    series_index, chapter_idx}}``, latest value inside the window, no title
-    strings), ``timeline`` (``[{book_id, series_index, chapter_idx, line}]``
+    series_index, chapter_idx}}``, latest value inside the window, no
+    ``history`` and no title strings), ``timeline`` (``[{book_id, series_index, chapter_idx, line}]``
     oldest first, the last ``TIMELINE_CAP``) and ``timeline_truncated``.
     The opened entry, titled and with the long timeline, is
     ``glossary_entry``."""
     out = []
     for e in _full_entries(db, scope, upto, digests):
         e = _capped(e, TIMELINE_CAP)
-        e["facts"] = {k: _untitled(f) for k, f in e["facts"].items()}
+        # The list is loaded on every page open: no history here (the opened
+        # entry, ``glossary_entry``, carries it).
+        e["facts"] = {k: _untitled({h: v for h, v in f.items() if h != "history"})
+                      for k, f in e["facts"].items()}
         e["timeline"] = [_untitled(t) for t in e["timeline"]]
         out.append(e)
     return out
@@ -616,7 +635,8 @@ def start_digest(db: Session, user: User, book: Book, window: Window,
     (409 ``reason: "budget"``: the estimate is over what is left of a
     monthly limit) before anything is queued. A user-started job becomes
     the latest for the book, which lets the automatic triggers act again
-    after a cancel."""
+    after a cancel. ``window`` may be the zero window of ``start_window``
+    (no position: the read earlier volumes only)."""
     from backend.services.ai import budget, estimate
 
     ai.check_feature_available(db, DIGEST)

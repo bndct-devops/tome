@@ -64,6 +64,7 @@ from backend.models.ai_chapter_digest import AIChapterDigest  # noqa: F401
 from backend.models.ai_entity import AIEntity, AIEntityNote  # noqa: F401
 from backend.models.ai_recap import AIRecap  # noqa: F401
 from backend.models.ai_job import AIJob  # noqa: F401
+from backend.models.ai_reconcile_verdict import AIReconcileVerdict  # noqa: F401
 
 
 @asynccontextmanager
@@ -348,6 +349,18 @@ async def lifespan(app: FastAPI):
         if au_cols:
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_usage_job_id ON ai_usage (job_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_usage_book_id ON ai_usage (book_id)"))
+            conn.commit()
+        # AI jobs report the step they are on (run 2e: reading, merging, writing).
+        aj_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(ai_jobs)")).fetchall()}
+        if aj_cols and "step" not in aj_cols:
+            conn.execute(text("ALTER TABLE ai_jobs ADD COLUMN step VARCHAR(16)"))
+            conn.execute(text("ALTER TABLE ai_jobs ADD COLUMN step_done INTEGER NOT NULL DEFAULT 0"))
+            conn.execute(text("ALTER TABLE ai_jobs ADD COLUMN step_total INTEGER NOT NULL DEFAULT 0"))
+            conn.commit()
+        # Who merged an entity (run 2e): "reconcile" (the reconcile pass), else null.
+        ae_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(ai_entities)")).fetchall()}
+        if ae_cols and "merged_by" not in ae_cols:
+            conn.execute(text("ALTER TABLE ai_entities ADD COLUMN merged_by VARCHAR(16)"))
             conn.commit()
         # A multi-chapter digest records the last chapter its call saw.
         acd_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(ai_chapter_digests)")).fetchall()}

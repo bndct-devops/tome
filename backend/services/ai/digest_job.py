@@ -13,8 +13,12 @@ Execution (in memory, single process, like the bake and word-count jobs):
   its units in order. The units of one volume never run at the same time,
   across all jobs: each unit builds on the glossary of the units before it
   in that volume (and its cached prefix), and two jobs never read the same
-  chapter twice at once. Units of different volumes run in parallel, so a
-  backlog of finished volumes goes four at a time.
+  chapter twice at once. The volumes of one series are read in reading
+  order ("serial"): a unit of volume N may start only when no unit of an
+  earlier volume of the same series (``digest.series_key``, lower
+  ``series_index``) is pending in any runnable job or in flight, so each
+  volume starts from the glossary the earlier ones stored (no duplicate
+  entities from parallel starts). Different series run in parallel.
 - Every model call goes through ``ai.run_feature`` (feature
   ``reading_digest``), one usage row per call, billed to the user who
   started the job, carrying the job id and the volume's book id.
@@ -41,7 +45,19 @@ Execution (in memory, single process, like the bake and word-count jobs):
   cancelled or stopped: ``register_followup(name, fn(db, user, book))``.
   The recap module registers ``previously_recap``; without a handler the
   follow-up is reported as skipped, and so is one whose handler returns a
-  message (str) saying why it did nothing. Their calls carry the job id.
+  message (str) saying why it did nothing; a dict it returns is added to its
+  result. Their calls carry the job id.
+- Steps: ``step`` is ``reading`` while units run (``step_done`` /
+  ``step_total`` = chapters), then each step follow-up sets its own:
+  ``reconcile`` is ``merging`` (``reconcile.run``; ``step_done`` /
+  ``step_total`` = its calls), ``volume_recaps`` is
+  ``writing`` (``step_done``/``step_total`` = recaps). The job stays
+  ``running`` through them and ends ``done`` after the last. A follow-up
+  reads ``current_job_id()``, reports with ``step_progress`` and checks
+  ``cancel_requested()`` between its calls: a cancel stops after the
+  current call. A step follow-up stopped by ``AIBudgetExceeded`` /
+  ``AINotConfigured`` / ``AIDisabled`` records ``stop_reason``, skips the
+  rest and ends the job ``stopped`` (what it wrote stays).
 
 Persistence: every state change (enqueue, start, each unit, stop, finish) is
 mirrored to the job's ``ai_jobs`` row (``backend/models/ai_job.py``), with
@@ -74,12 +90,23 @@ from backend.models.ai_job import LIVE_STATUSES, AIJob
 from backend.models.ai_usage import AIUsage
 from backend.models.book import Book, BookChapter
 from backend.models.user import User
-from backend.services.ai.provider import AIBudgetExceeded, AIDisabled, AIError, AINotConfigured
+from backend.services.ai.provider import (
+    AIBudgetExceeded, AIDisabled, AIError, AIKeyInvalid, AINotConfigured,
+)
 
 log = logging.getLogger(__name__)
 
 WORKERS = 4
+# Volumes of one series are read in reading order (see the module docstring).
+# Tests of the pool's parallelism turn it off.
+SERIAL_VOLUMES = True
 FOLLOWUP_PREVIOUSLY = "previously_recap"
+FOLLOWUP_RECONCILE = "reconcile"
+FOLLOWUP_VOLUME_RECAPS = "volume_recaps"
+
+STEP_READING, STEP_MERGING, STEP_WRITING = "reading", "merging", "writing"
+# The step a follow-up runs as; follow-ups not listed keep the current step.
+FOLLOWUP_STEPS = {FOLLOWUP_RECONCILE: STEP_MERGING, FOLLOWUP_VOLUME_RECAPS: STEP_WRITING}
 
 MAX_CONSECUTIVE_FAILURES = 3
 _MAX_ERRORS = 50
@@ -102,6 +129,11 @@ _jobs: dict[str, "Job"] = {}
 _threads: set[threading.Thread] = set()
 _working = 0                                 # workers holding an item
 _busy_books: set[int] = set()                # volumes with a unit in flight
+# book_id -> (series key, (series_index, book_id)): filled when a job expands;
+# the serial-volumes rule reads it (a standalone or an unnumbered volume never
+# waits). The book id breaks a tie: two volumes with one index read in turn.
+_vol_order: dict[int, tuple[str, Optional[tuple[float, int]]]] = {}
+_local = threading.local()                    # the job whose follow-ups this thread runs
 _followups: dict[str, FollowupFn] = {}
 _seq = itertools.count()
 _tokens = itertools.count()
@@ -171,6 +203,9 @@ class Job:
     version: int = 0
     mirrored: int = -1
     mirror_lock: threading.Lock = field(default_factory=threading.Lock)
+    step: Optional[str] = None                # reading | merging | writing
+    step_done: int = 0
+    step_total: int = 0
 
     @property
     def scope(self) -> str:
@@ -214,6 +249,9 @@ class Job:
             "errors": [dict(e) for e in self.errors],
             "stop_reason": self.stop_reason,
             "followups": self.followups_payload(),
+            "step": self.step,
+            "step_done": self.step_done,
+            "step_total": self.step_total,
             "created_at": _iso(_utc(self.created_at)),
             "started_at": _iso(_utc(self.started_at)),
             "finished_at": _iso(_utc(self.finished_at)),
@@ -228,6 +266,7 @@ class Job:
             "est_seconds": self.est_seconds, "est_cost_usd": self.est_cost_usd,
             "est_chapters": self.est_chapters, "stop_reason": self.stop_reason,
             "followups_json": json.dumps(self.followups_payload()),
+            "step": self.step, "step_done": self.step_done, "step_total": self.step_total,
             "created_at": _utc(self.created_at), "started_at": _utc(self.started_at),
             "finished_at": _utc(self.finished_at),
         }
@@ -251,6 +290,7 @@ def row_snapshot(row: AIJob) -> dict[str, Any]:
         "est_seconds": row.est_seconds, "est_cost_usd": row.est_cost_usd,
         "est_chapters": row.est_chapters, "current": None, "in_flight": 0, "errors": [],
         "stop_reason": row.stop_reason, "followups": followups,
+        "step": row.step, "step_done": row.step_done or 0, "step_total": row.step_total or 0,
         "created_at": _iso(row.created_at), "started_at": _iso(row.started_at),
         "finished_at": _iso(row.finished_at),
     }
@@ -262,6 +302,48 @@ def register_followup(name: str, fn: FollowupFn) -> None:
     """Register what a follow-up name does. ``fn(db, user, book)`` runs in a
     worker thread with its own session after the job's digests."""
     _followups[name] = fn
+
+
+def current_job_id() -> Optional[str]:
+    """The id of the job whose follow-ups this thread is running, else None."""
+    job = getattr(_local, "job", None)
+    return job.id if job is not None else None
+
+
+def cancel_requested(job_id: Optional[str] = None) -> bool:
+    """True when the job (``job_id``, else the one whose follow-ups this
+    thread runs) was cancelled: a follow-up stops after its current call."""
+    with _lock:
+        job = _jobs.get(job_id) if job_id else getattr(_local, "job", None)
+        return bool(job is not None and job.cancel.is_set())
+
+
+def step_progress(done: int, total: Optional[int] = None) -> None:
+    """A follow-up reports its step's progress (no-op outside a follow-up)."""
+    job = getattr(_local, "job", None)
+    if job is None:
+        return
+    with _lock:
+        job.step_done = int(done)
+        if total is not None:
+            job.step_total = int(total)
+        job.version += 1
+    _mirror(job)
+
+
+def latest_with_followup(db: Session, user_id: int, book_id: int, name: str,
+                         finished: bool = True) -> Optional[dict[str, Any]]:
+    """Snapshot of the newest job for (user, book) that had follow-up
+    ``name`` (finished ones only when ``finished``), else None."""
+    q = db.query(AIJob.id).filter(AIJob.user_id == user_id, AIJob.book_id == book_id,
+                                  AIJob.followups_json.like(f'%"{name}"%'))
+    if finished:
+        q = q.filter(AIJob.status.notin_(LIVE_STATUSES))
+    for (job_id,) in q.order_by(AIJob.created_at.desc()).limit(5):
+        snap = get(job_id, db)
+        if snap is not None and (not finished or snap["status"] not in ACTIVE):
+            return snap
+    return None
 
 
 def enqueue(*, user_id: int, book_id: int, upto: int,
@@ -336,17 +418,36 @@ def last_cancelled(db: Session, user_id: int, book_id: int) -> bool:
     cancelled), per its ``ai_jobs`` row. The automatic triggers do not
     enqueue for that book again until the user starts a job themselves
     (which becomes the latest). A job stopped by Tome (budget, key,
-    failures) does not count."""
+    failures) does not count, nor does one whose reading was not what got
+    cancelled: one past its reading step (cancelled while merging or
+    writing), or one with nothing to read (``total`` 0 and a step past
+    reading, or the reads-nothing shape "Merge duplicates" queues: ``upto``
+    0 on the book alone with a step follow-up)."""
     row = (
-        db.query(AIJob.status, AIJob.stop_reason)
+        db.query(AIJob.status, AIJob.stop_reason, AIJob.step, AIJob.total,
+                 AIJob.upto_chapter, AIJob.scope, AIJob.followups_json)
         .filter(AIJob.user_id == user_id, AIJob.book_id == book_id)
         .order_by(AIJob.created_at.desc())
         .first()
     )
     if row is None:
         return False
-    status, reason = row
-    return status == "cancelled" or (status == "stopping" and reason is None)
+    status, reason, step, total, upto, scope, followups_json = row
+    if not (status == "cancelled" or (status == "stopping" and reason is None)):
+        return False
+    if step not in (None, STEP_READING):
+        return False
+    # Not expanded yet (step None, total 0): a reading job unless it is the
+    # reads-nothing shape.
+    if total == 0 and upto == 0 and scope == "book":
+        try:
+            names = {f.get("name") if isinstance(f, dict) else f
+                     for f in json.loads(followups_json or "[]")}
+        except (ValueError, TypeError, AttributeError):
+            names = set()
+        if names & set(FOLLOWUP_STEPS):
+            return False
+    return True
 
 
 def cancel(job_id: str, db: Optional[Session] = None) -> Optional[dict[str, Any]]:
@@ -410,6 +511,7 @@ def reset() -> None:
         _jobs.clear()
         _threads.clear()
         _busy_books.clear()
+        _vol_order.clear()
         _working = 0
 
 
@@ -467,13 +569,48 @@ def _runnable_locked() -> list[Job]:
                   key=lambda j: j.seq)
 
 
+def _series_front_locked(runnable: list[Job]) -> dict[str, tuple[float, int]]:
+    """Per series key, the lowest ``(series_index, book_id)`` with a unit
+    pending (in a runnable job) or in flight: only that volume of the series
+    may run (two volumes sharing an index never run side by side)."""
+    front: dict[str, tuple[float, int]] = {}
+
+    def see(book_id: int) -> None:
+        key, idx = _vol_order.get(book_id, (None, None))
+        if key is None or idx is None:
+            return
+        if key not in front or idx < front[key]:
+            front[key] = idx
+
+    for job in runnable:
+        for unit in job.units:
+            see(unit.book_id)
+    for book_id in _busy_books:
+        see(book_id)
+    return front
+
+
+def _eligible_locked(book_id: int, front: dict[str, tuple[float, int]]) -> bool:
+    """A unit of ``book_id`` may start: no worker is reading that volume and
+    no earlier volume of its series is pending or in flight."""
+    if book_id in _busy_books:
+        return False
+    if not SERIAL_VOLUMES:
+        return True
+    key, idx = _vol_order.get(book_id, (None, None))
+    return key is None or idx is None or key not in front or idx <= front[key]
+
+
 def _take_locked() -> Optional[tuple[str, Job, Any, Optional[int]]]:
     """The next item for a worker: a unit (oldest job first, its units in
-    order, on a volume no other worker is reading), else a queued job to
-    expand, else None."""
-    for job in _runnable_locked():
+    order, on a volume no other worker is reading and with no earlier
+    volume of its series still to read), else a queued job to expand, else
+    None."""
+    runnable = _runnable_locked()
+    front = _series_front_locked(runnable)
+    for job in runnable:
         for i, unit in enumerate(job.units):
-            if unit.book_id in _busy_books:
+            if not _eligible_locked(unit.book_id, front):
                 continue
             del job.units[i]
             _busy_books.add(unit.book_id)
@@ -497,7 +634,10 @@ def _ensure_workers_locked() -> None:
     """Start workers (up to ``WORKERS``) for the work nobody has taken yet."""
     for t in [t for t in _threads if not t.is_alive()]:
         _threads.discard(t)
-    free_volumes = {u.book_id for j in _runnable_locked() for u in j.units} - _busy_books
+    runnable = _runnable_locked()
+    front = _series_front_locked(runnable)
+    free_volumes = {u.book_id for j in runnable for u in j.units
+                    if _eligible_locked(u.book_id, front)}
     available = len(_queue) + len(free_volumes)
     idle = len(_threads) - _working
     while len(_threads) < WORKERS and idle < available:
@@ -597,6 +737,9 @@ def _expand(job: Job) -> None:
             return
         scope = digest.Scope(book=book) if job.current_book_only else digest.user_scope(db, user, book)
         units = digest.plan_units(db, scope, job.upto)
+        vol_order = {v.id: (digest.series_key(v),
+                            (float(v.series_index), v.id) if v.series_index is not None else None)
+                     for v in scope.volumes()}
         model = ai_settings.effective_model(db, digest.FEATURE)
         figs = estimate.units_figures(units, model, estimate.history(db, model))
     with _lock:
@@ -605,6 +748,9 @@ def _expand(job: Job) -> None:
         job.est_chapters = figs["chapters"]
         job.est_cost_usd = figs["est_cost_usd"]
         job.est_seconds = figs["est_seconds"]
+        _vol_order.update(vol_order)
+        if units:
+            job.step, job.step_done, job.step_total = STEP_READING, job.done, job.total
         job.version += 1
         if job.finished:
             pass
@@ -695,6 +841,8 @@ def _run_unit(job: Job, unit: Any, token: int) -> None:
                 job.consecutive = job.consecutive + 1 if unit_failed else 0
                 if job.consecutive >= MAX_CONSECUTIVE_FAILURES and job.final is None:
                     _halt_locked(job, "stopped", REPEATED_FAILURES)
+            if job.step == STEP_READING:
+                job.step_done, job.step_total = job.done, job.total
             job.version += 1
             run_followups = _settle_locked(job)
             if not run_followups:
@@ -725,43 +873,100 @@ def _complete(job: Job) -> None:
     cancelled meanwhile: the rest are skipped)."""
     from backend.services import ai
 
-    with _session_factory() as db:
-        user = db.get(User, job.user_id)
-        book = db.get(Book, job.book_id)
-        with _lock:
-            followups = list(job.followups)
-        for name in followups:
-            if job.cancel.is_set() or user is None or book is None:
-                break
-            fn = _followups.get(name)
-            gate = _followup_gate(db, name, book)
-            if gate is not None:
-                result = {"name": name, "status": "skipped", "message": gate}
-            elif fn is None:
-                result = {"name": name, "status": "skipped", "message": "Not available yet."}
-            else:
-                try:
-                    with ai.job_context(job.id):
-                        skipped = fn(db, user, book)
-                    result = ({"name": name, "status": "skipped", "message": skipped}
-                              if isinstance(skipped, str) else {"name": name, "status": "done"})
-                except (AINotConfigured, AIDisabled, AIError) as exc:
-                    db.rollback()
-                    result = {"name": name, "status": "failed", "message": exc.message}
-                except Exception as exc:  # noqa: BLE001
-                    db.rollback()
-                    log.exception("digest job %s: follow-up %s failed", job.id, name)
-                    result = {"name": name, "status": "failed", "message": type(exc).__name__}
+    stopped: Optional[str] = None
+    _local.job = job
+    try:
+        with _session_factory() as db:
+            user = db.get(User, job.user_id)
+            book = db.get(Book, job.book_id)
             with _lock:
-                job.followup_results.append(result)
-                job.version += 1
-        try:
-            spend = _job_spend(db, job.id)
-        except Exception:  # noqa: BLE001
-            spend = None
+                followups = list(job.followups)
+            for name in followups:
+                if job.cancel.is_set() or user is None or book is None:
+                    break
+                if stopped is not None:
+                    with _lock:
+                        job.followup_results.append(
+                            {"name": name, "status": "skipped", "message": stopped})
+                        job.version += 1
+                    continue
+                result, stop = _run_followup(db, job, name, user, book)
+                if stop is not None:
+                    stopped = stop
+                with _lock:
+                    job.followup_results.append(result)
+                    job.version += 1
+                _mirror(job)
+            try:
+                spend = _job_spend(db, job.id)
+            except Exception:  # noqa: BLE001
+                spend = None
+    finally:
+        _local.job = None
     with _lock:
         if spend is not None:
             job.calls, job.cost_usd = spend
         if not job.finished:
-            _finalize_locked(job, "cancelled" if job.cancel.is_set() else "done")
+            if job.cancel.is_set():
+                _finalize_locked(job, "cancelled")
+            elif stopped is not None:
+                _finalize_locked(job, "stopped", stopped)
+            else:
+                _finalize_locked(job, "done")
     _mirror(job)
+
+
+def _run_followup(db: Session, job: Job, name: str, user: User,
+                  book: Book) -> tuple[dict[str, Any], Optional[str]]:
+    """(result, stop reason) of one follow-up. A step follow-up sets the
+    job's step first; one stopped by the budget or a missing key returns the
+    stop reason (the job ends ``stopped``)."""
+    from backend.services import ai
+
+    step = FOLLOWUP_STEPS.get(name)
+    if step is not None:
+        with _lock:
+            job.step, job.step_done, job.step_total = step, 0, 0
+            job.version += 1
+        _mirror(job)
+    fn = _followups.get(name)
+    gate = _followup_gate(db, name, book)
+    if gate is not None:
+        return {"name": name, "status": "skipped", "message": gate}, None
+    if fn is None:
+        return {"name": name, "status": "skipped", "message": "Not available yet."}, None
+    try:
+        with ai.job_context(job.id):
+            out = fn(db, user, book)
+    except (AINotConfigured, AIKeyInvalid, AIDisabled, AIBudgetExceeded) as exc:
+        db.rollback()
+        partial = getattr(exc, "followup_result", None) or {}
+        return ({**partial, "name": name, "status": "failed", "message": exc.message},
+                exc.message if step is not None else None)
+    except AIError as exc:
+        db.rollback()
+        return {"name": name, "status": "failed", "message": exc.message}, None
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        log.exception("digest job %s: follow-up %s failed", job.id, name)
+        return {"name": name, "status": "failed", "message": type(exc).__name__}, None
+    if isinstance(out, str):
+        return {"name": name, "status": "skipped", "message": out}, None
+    if isinstance(out, dict):
+        return {**out, "name": name, "status": "done"}, None
+    return {"name": name, "status": "done"}, None
+
+
+def _reconcile_followup(db: Session, user: User, book: Book) -> dict[str, Any]:
+    """Step "merging": the reconcile pass over the book's series (code-found
+    candidates, model-confirmed merges). Imported here so a missing module
+    fails only when the step runs."""
+    from backend.services.ai import reconcile
+
+    res = reconcile.run(db, user, book, job_id=current_job_id(),
+                        on_progress=step_progress, should_stop=cancel_requested)
+    return {"candidates": int(getattr(res, "candidates", 0) or 0),
+            "merged": int(getattr(res, "merged", 0) or 0)}
+
+
+register_followup(FOLLOWUP_RECONCILE, _reconcile_followup)

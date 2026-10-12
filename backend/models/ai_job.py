@@ -9,7 +9,9 @@ marked ``interrupted`` at startup and never resumed on their own.
 
 ``cost_usd`` and ``calls`` are the sum and count of the job's ``ai_usage``
 rows (``AIUsage.job_id``). The ``est_*`` fields are the estimate made when
-the job expanded into units, shown next to the actual figures.
+the job expanded into units, shown next to the actual figures. ``step`` /
+``step_done`` / ``step_total`` are the step the job is on (reading chapters,
+merging duplicate entries, writing recaps) and its progress.
 """
 from __future__ import annotations
 
@@ -50,6 +52,12 @@ class AIJob(Base):
     est_chapters: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     stop_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     followups_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    # The step the job is on (run 2e): reading | merging | writing; null before
+    # it starts. ``step_done``/``step_total`` count chapters while reading,
+    # recaps while writing (0/0 while merging).
+    step: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    step_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    step_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False, index=True
     )

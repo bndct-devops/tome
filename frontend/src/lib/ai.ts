@@ -216,6 +216,9 @@ export interface AiJobSummary {
   created_at: string | null
   finished_at: string | null
   stop_reason: string | null
+  step?: DigestJobStep | null
+  step_done?: number
+  step_total?: number
 }
 
 export interface AiJobBook {
@@ -472,6 +475,8 @@ export type DigestJobStatus =
  *  earlier volumes too. */
 export type DigestScope = 'book' | 'series'
 
+export type DigestJobStep = 'reading' | 'merging' | 'writing'
+
 export interface DigestJob {
   id: string
   kind: 'digest'
@@ -497,16 +502,88 @@ export interface DigestJob {
   in_flight?: number
   errors: { book_id: number; chapter_idx: number; message: string }[]
   stop_reason: string | null
-  followups: { name: string; status: 'pending' | 'done' | 'skipped' | 'failed'; message?: string }[]
+  /** The step a multi-step job is on (reading chapters, merging duplicate
+   *  entries, writing recaps); null for a plain reading job. */
+  step: DigestJobStep | null
+  /** Progress within the step (writing: recaps written of how many). */
+  step_done: number
+  step_total: number
+  followups: DigestJobFollowup[]
   created_at: string | null
   started_at: string | null
   finished_at: string | null
+}
+
+/** A follow-up step of a job. The `volume_recaps` follow-up of "Write all"
+ *  also says what it wrote, what failed and what it skipped. */
+export interface DigestJobFollowup {
+  name: string
+  status: 'pending' | 'done' | 'skipped' | 'failed'
+  message?: string
+  written?: number[]
+  failed?: { book_id: number; title: string; series_index: number | null; reason: string; message?: string }[]
+  skipped?: { book_id: number; title: string; series_index: number | null; reason: 'fresh' | 'unread'; missing_chapters: number }[]
+  candidates?: number
+  merged?: number
+}
+
+function hasFollowup(job: Pick<DigestJob, 'followups'>, name: string): boolean {
+  return (job.followups ?? []).some(f => f.name === name)
+}
+
+/** A "Write all" job (it carries the volume_recaps follow-up). */
+export function isWriteAllJob(job: Pick<DigestJob, 'followups'>): boolean {
+  return hasFollowup(job, 'volume_recaps')
+}
+
+/** A "Merge duplicates" job: nothing to read, only the reconcile step. */
+export function isMergeOnlyJob(job: Pick<DigestJob, 'total' | 'followups'>): boolean {
+  return job.total === 0 && hasFollowup(job, 'reconcile')
+}
+
+/** The progress line of an active job by its step, or null when the job has
+ *  no step (the caller keeps its own reading line). Shared by the companion,
+ *  the volume list and Activity. */
+export function digestJobStepLine(job: Pick<DigestJob, 'step' | 'done' | 'total' | 'step_done' | 'step_total'>): string | null {
+  const done = job.done
+  const total = job.total
+  const stepDone = job.step_done
+  const stepTotal = job.step_total
+  switch (job.step) {
+    case 'reading': return i18n._(msg`Reading chapters: ${done} of ${total}…`)
+    case 'merging': return i18n._(msg`Merging duplicate entries…`)
+    case 'writing': return i18n._(msg`Writing recaps: ${stepDone} of ${stepTotal}…`)
+    default: return null
+  }
+}
+
+/** The whole progress line of an active job: stopping, getting ready, or
+ *  its step. */
+export function activeJobLine(job: Pick<DigestJob, 'status' | 'step' | 'done' | 'total' | 'step_done' | 'step_total' | 'followups'>): string {
+  const reading = job.step == null || job.step === 'reading'
+  if (job.status === 'stopping') {
+    return reading ? i18n._(msg`Stopping after the current chapters…`) : i18n._(msg`Stopping after the current call…`)
+  }
+  if (job.step == null && isMergeOnlyJob(job)) return i18n._(msg`Getting ready…`)
+  if (reading && (job.status === 'queued' || job.total === 0)) return i18n._(msg`Getting ready to read the chapters…`)
+  const done = job.done
+  const total = job.total
+  return digestJobStepLine(job) ?? i18n._(msg`Reading chapters: ${done} of ${total}…`)
 }
 
 /** Still working: polls continue, and the page shows the progress line. */
 export const DIGEST_JOB_ACTIVE: DigestJobStatus[] = ['queued', 'running', 'stopping']
 /** Ended before every chapter was read: the page offers "Continue". */
 export const DIGEST_JOB_RESUMABLE: DigestJobStatus[] = ['cancelled', 'stopped', 'interrupted']
+
+/** "Continue" is offered only for a reading job that ended early: a resumable
+ *  status and a step of null or 'reading'. A Write all that ended while
+ *  merging or writing cannot be resumed as such, a merge-only job never. */
+export function isResumable(job: Pick<DigestJob, 'status' | 'step' | 'total' | 'followups'>): boolean {
+  if (!DIGEST_JOB_RESUMABLE.includes(job.status)) return false
+  if (job.step != null && job.step !== 'reading') return false
+  return !isMergeOnlyJob(job)
+}
 
 /** Up to this many chapters start without the confirmation dialog. */
 export const CONFIRM_THRESHOLD = 20
@@ -655,6 +732,12 @@ export interface SeriesPlace {
 }
 
 export interface GlossaryFact extends SeriesPlace {
+  value: string
+  /** Earlier distinct values inside the window, newest first (at most 2); only on the opened entry (getGlossaryEntry), never in the list. */
+  history?: GlossaryFactHistoryItem[]
+}
+
+export interface GlossaryFactHistoryItem extends SeriesPlace {
   value: string
 }
 
@@ -821,25 +904,25 @@ export interface RecapVolumes {
     has_position: boolean
     recap_cached: boolean
   }
-  /** What "Write all" would write now: volumes with a missing or stale recap
-   *  and every chapter read, and a conservative cost for them (0 when none);
-   *  whether a run is going on now, and the most recent run's outcome. */
-  write_all: {
-    count: number
-    est_cost_usd: number
-    running: boolean
-    last: WriteAllRun | null
-  }
+  /** What "Write all" would do now: `count` missing or stale recaps and a
+   *  conservative cost for them; `reading` the chapters of read earlier
+   *  volumes that are read first (0 when none); `job` the active run for this
+   *  book (reconnects after a reload), `last` the most recent one. */
+  write_all: WriteAll
 }
 
-/** The most recent "Write all" run for this user and book. `written` grows
- *  while it runs; `finished_at` is null until it ends. */
-export interface WriteAllRun {
-  /** How many volumes the run set out to write. */
-  started: number
-  written: number[]
-  skipped: VolumeRecapSkip[]
-  finished_at: string | null
+export interface WriteAll {
+  count: number
+  est_cost_usd: number
+  reading: { chapters: number; volumes: number; est_cost_usd: number; est_seconds: number }
+  /** Merging duplicate glossary entries after the reading; `pairs` 0 means
+   *  nothing to merge. Older servers leave it out. */
+  merging?: { pairs: number; calls: number; est_cost_usd: number }
+  job: DigestJob | null
+  last: DigestJob | null
+  /** Left of the user's monthly limit, when the server sends it (the dialog
+   *  then warns before a run that would pass it). */
+  remaining_budget_usd?: number | null
 }
 
 /** 202: the volume still has unread chapters. Nothing is queued: start them
@@ -868,32 +951,18 @@ export function requestVolumeRecap(
   return api.post<VolumeRecap | VolumeRecapPending>(`/ai/books/${bookId}/recap/volumes/${volumeId}`, opts)
 }
 
-/** A volume "Write all" left alone. unread: chapters still need reading
- *  (use "Write it" on it); fresh: its recap is current; budget: a spend limit
- *  stopped the run (`message` says which); error: that one call failed. */
-export interface VolumeRecapSkip {
-  book_id: number
-  title: string
-  series_index: number | null
-  reason: 'unread' | 'fresh' | 'budget' | 'error'
-  missing_chapters: number
-  message?: string
+/** "Write all": one background job that reads the missing chapters of the
+ *  read earlier volumes, merges duplicate glossary entries, then writes every
+ *  missing or stale volume recap. Poll it with getDigestJob. Rejects with 409
+ *  (budget, already running). */
+export function startWriteAll(bookId: number): Promise<{ job: DigestJob }> {
+  return api.post<{ job: DigestJob }>(`/ai/books/${bookId}/recap/volumes`, {})
 }
 
-/** 202: the run started in the background. Poll getRecapVolumes while
- *  `write_all.running` is true; the outcome is in `write_all.last`. */
-export interface WriteAllVolumesResult {
-  /** How many volumes the run will try to write. */
-  started: number
-  /** The list as the run starts, as getRecapVolumes returns it. */
-  volumes: RecapVolumes
-}
-
-/** "Write all": start writing every missing or stale volume recap whose
- *  chapters are all read, one call each, in the background. Never starts
- *  reading chapters. */
-export function writeAllVolumeRecaps(bookId: number): Promise<WriteAllVolumesResult> {
-  return api.post<WriteAllVolumesResult>(`/ai/books/${bookId}/recap/volumes`, {})
+/** "Merge duplicates": a job with the merging step only. Rejects with 409
+ *  while a job for the book is active. */
+export function startReconcile(bookId: number): Promise<{ job: DigestJob }> {
+  return api.post<{ job: DigestJob }>(`/ai/books/${bookId}/reconcile`, {})
 }
 
 export function getDigestJob(jobId: string): Promise<DigestJob> {

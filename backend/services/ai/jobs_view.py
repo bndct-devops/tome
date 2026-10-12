@@ -48,6 +48,8 @@ def _job_entry(snap: dict[str, Any], now: datetime) -> dict[str, Any]:
         "actual_seconds": None if actual is None else round(actual, 1),
         "created_at": snap["created_at"], "finished_at": snap["finished_at"],
         "stop_reason": snap["stop_reason"],
+        "step": snap.get("step"), "step_done": snap.get("step_done", 0),
+        "step_total": snap.get("step_total", 0),
     }
 
 

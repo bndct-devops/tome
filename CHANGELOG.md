@@ -58,8 +58,11 @@ All notable changes to Tome are documented here. Format loosely follows
   notes and shared by everyone who has read it. A row expands to its text,
   "Write it" writes one that is missing (with the usual confirmation first
   when some of the volume's chapters still need reading) and "Ask again"
-  writes it anew. "Write all" writes every missing volume recap in one go,
-  after showing what it will cost. The list shows even before you have a
+  writes it anew. "Write all" does the whole job in one go, also on a volume
+  you have not started yet: it reads the chapters of the volumes you have
+  finished that are still unread, merges duplicate glossary entries and
+  writes every missing volume recap, after one dialog with the chapters, the
+  time and the cost of each part. The list shows even before you have a
   position in the open book, whose row then says "Open the book to get a
   recap up to your page."
   Names from the glossary are links in the recap text and open their entry.
@@ -71,13 +74,23 @@ All notable changes to Tome are documented here. Format loosely follows
   most-mentioned at the top, then places, then terms. Each row shows the
   name, the other names it goes by and one line on who or what it is. Expand
   it for the profile: the status, appearance, powers and rank, affiliations,
-  relationships and location, each with the chapter it is as of, a timeline
+  relationships and location, each with the chapter it is as of and its
+  earlier values beneath ("earlier: Silver rank · vol 6, ch 57"), a timeline
   of what they did chapter by chapter, the quote, where they first appeared
   ("vol 1, ch 12") and the chapter the profile is as of. One person stays one
   entry when the text calls them by different names (a title, a nickname, a
   disguise): the model decides that from context, never from the spelling
   alone, and a name or a merge learned past your position is never folded
-  in. The search box lists name and alias matches before mentions. Names
+  in. "Merge duplicates" next to the search finds entries that look like
+  one person, place or term entered twice (a short and a full name, two
+  spellings) and asks the model to confirm each pair from both profiles
+  before merging them; two people who share a name stay apart. The status
+  is one of alive, dead, missing, captured or unknown, with a short
+  condition when it matters ("alive, exhausted"); an event or a mood is not
+  a status. Appearance is lasting looks only: a transformation, a disguise
+  or an outfit for an occasion goes in the chapter line instead, and the
+  rank line gives the full current rank, not only what changed. The search
+  box lists name and alias matches before mentions. Names
   with brackets, such as "Vane Estate (Hedge Maze)", are kept whole. Recall
   looks up a name the glossary does not have, and answers "Nothing about
   that before this page." rather than guess. Only the chapters before your
@@ -92,7 +105,9 @@ All notable changes to Tome are documented here. Format loosely follows
   chapter, made once and shared by everyone reading the same book. Chapters
   are read in groups of up to 12 per call, several volumes at once, and the
   glossary so far goes along as names with their one-line identities only,
-  which keeps the cost per chapter low. Chapter notes written before the
+  which keeps the cost per chapter low. The volumes of one series are read
+  in reading order, so a later volume always knows the people the earlier
+  ones introduced; different series still read side by side. Chapter notes written before the
   profiles existed still show the simpler entries (one line and a fuller
   note) until those chapters are read again. Nothing reads chapters on its
   own when you look: opening the glossary only shows what is there, and
@@ -107,7 +122,10 @@ All notable changes to Tome are documented here. Format loosely follows
   one progress line ("Reading chapters: 3 of 12"). Stop answers at once and keeps the
   chapters already read, and after a Stop nothing restarts until you start
   it again; Continue picks up a stopped run, or one a server restart
-  interrupted. A recap you asked for keeps waiting through a page reload.
+  interrupted. A run shows its step: "Reading chapters: 3 of 12", then
+  "Merging duplicate entries", then "Writing recaps: 2 of 5", on the book
+  page and in Settings > AI > Activity. A recap you asked for keeps waiting
+  through a page reload.
   Settings lists the new features ("Build the glossary as you read", "Recap
   to here", "Recall" and "Ask about what you have read"), each with its own
   switch and model, and the spend meter shows their calls. Switching off

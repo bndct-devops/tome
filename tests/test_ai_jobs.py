@@ -524,6 +524,7 @@ def test_parallel_digest_calls_stay_within_the_limit(pool, tmp_path, monkeypatch
     from backend.models.user import User
 
     monkeypatch.setattr(digest, "CHUNK_CHAPTERS", 2)
+    monkeypatch.setattr(digest_job, "SERIAL_VOLUMES", False)   # the volumes overlap
     user_id, ids = _pool_series(pool, tmp_path, 5)
     limit = 0.15                            # room for two calls' guesses, not four
     with pool() as s:
@@ -704,3 +705,267 @@ def test_estimate_counts_the_users_other_live_jobs(client, db, make_book, tmp_pa
     assert body["book"]["remaining_budget_usd"] == 0.0 and body["book"]["over_budget"] is True
     r = client.post(f"/api/ai/books/{book.id}/digest", json={"scope": "book"}, headers=_headers(user))
     assert r.status_code == 409 and r.json()["reason"] == "budget"
+
+
+# ── run 2e: serial volumes, steps, zero window, reconcile ────────────────────
+
+def _take():
+    with digest_job._lock:
+        return digest_job._take_locked()
+
+
+def _stub_reconcile(monkeypatch, *, progress=(), cancel=False):
+    """Replace ``reconcile.run``: reports ``progress`` steps, optionally
+    cancels its own job first; records each call with the job's step."""
+    from backend.services.ai import reconcile
+    calls: list[dict] = []
+
+    def fake_run(db, user, book, *, job_id=None, on_progress=None, should_stop=None):
+        snap = digest_job.get(job_id)
+        calls.append({"book_id": book.id, "job_id": job_id, "step": snap["step"]})
+        if cancel:
+            digest_job.cancel(job_id)
+        for done, total in progress:
+            if should_stop is not None and should_stop():
+                break
+            if on_progress is not None:
+                on_progress(done, total)
+        return reconcile.ReconcileResult(candidates=3, merged=1)
+
+    monkeypatch.setattr(reconcile, "run", fake_run)
+    return calls
+
+
+def test_volumes_of_one_series_are_read_in_order(db, make_book, tmp_path):
+    user = _make_user(db, "serial", "member")
+    xs = [_epub_book(db, make_book, tmp_path, f"Serial {i}", series="Serial", index=i) for i in (1, 2, 3)]
+    ys = [_epub_book(db, make_book, tmp_path, f"Other {i}", series="Other", index=i) for i in (1, 2)]
+    for b in (xs[0], xs[1], ys[0]):
+        _read(db, user, b)
+    db.commit()
+    digest_job.reset()
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+
+    a = digest_job.enqueue(user_id=user.id, book_id=xs[2].id, upto=0)
+    b = digest_job.enqueue(user_id=user.id, book_id=ys[1].id, upto=0)
+    kind, job, _unit, _tok = _take()
+    assert (kind, job.id) == ("expand", a["id"])
+    digest_job._expand(job)
+    first = _take()
+    assert first[0] == "unit" and first[2].book_id == xs[0].id
+    # Serial 2 waits for Serial 1 although workers are free: the next item
+    # is the other job, whose series runs in parallel.
+    kind, job, _unit, _tok = _take()
+    assert (kind, job.id) == ("expand", b["id"])
+    digest_job._expand(job)
+    second = _take()
+    assert second[0] == "unit" and second[2].book_id == ys[0].id
+    assert _take() is None
+    with digest_job._lock:
+        runnable = digest_job._runnable_locked()
+        front = digest_job._series_front_locked(runnable)
+        assert not digest_job._eligible_locked(xs[1].id, front)
+    digest_job._run_unit(first[1], first[2], first[3])
+    third = _take()
+    assert third[0] == "unit" and third[2].book_id == xs[1].id
+    digest_job._run_unit(second[1], second[2], second[3])
+    digest_job._run_unit(third[1], third[2], third[3])
+    digest_job.run_pending()
+    assert digest_job.get(a["id"])["status"] == "done" and digest_job.get(a["id"])["done"] == 8
+    assert digest_job.get(b["id"])["status"] == "done" and digest_job.get(b["id"])["done"] == 4
+
+
+def test_a_job_reports_its_steps(client, db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "steps", "member")
+    v1, v2 = (_epub_book(db, make_book, tmp_path, f"Steps {i}", series="Steps", index=i) for i in (1, 2))
+    _read(db, user, v1)
+    db.commit()
+    digest_job.reset()
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+    calls = _stub_reconcile(monkeypatch, progress=[(1, 2), (2, 2)])
+
+    snap = digest_job.enqueue(user_id=user.id, book_id=v2.id, upto=0,
+                              followups=[digest_job.FOLLOWUP_RECONCILE])
+    assert (snap["step"], snap["step_done"], snap["step_total"]) == (None, 0, 0)
+    kind, job, _u, _t = _take()
+    digest_job._expand(job)
+    live = digest_job.get(job.id)
+    assert (live["step"], live["step_done"], live["step_total"]) == ("reading", 0, 4)
+    assert db.get(AIJob, job.id).step == "reading"
+    digest_job.run_pending()
+
+    h = _headers(user)
+    out = client.get(f"/api/ai/digest-jobs/{job.id}", headers=h).json()
+    assert out["status"] == "done"
+    assert (out["step"], out["step_done"], out["step_total"]) == ("merging", 2, 2)
+    assert out["followups"] == [{"name": "reconcile", "status": "done", "candidates": 3, "merged": 1}]
+    assert calls == [{"book_id": v2.id, "job_id": job.id, "step": "merging"}]
+    db.expire_all()
+    row = db.get(AIJob, job.id)
+    assert (row.step, row.step_done, row.step_total) == ("merging", 2, 2)
+    assert digest_job.row_snapshot(row)["step"] == "merging"
+    jobs = client.get("/api/ai/jobs", headers=h).json()["books"][0]["jobs"]
+    assert (jobs[0]["step"], jobs[0]["step_done"], jobs[0]["step_total"]) == ("merging", 2, 2)
+
+
+def test_digest_without_a_position_reads_the_earlier_volumes_only(client, db, make_book, tmp_path):
+    user = _make_user(db, "zerowin", "member")
+    v1, v2, v3 = (_epub_book(db, make_book, tmp_path, f"Zero {i}", series="Zero", index=i) for i in (1, 2, 3))
+    _read(db, user, v1)
+    _read(db, user, v2)
+    db.commit()
+    digest_job.reset()
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+    h = _headers(user)
+
+    est = client.get(f"/api/ai/books/{v3.id}/digest/estimate", headers=h)
+    assert est.status_code == 200, est.text
+    assert est.json()["chapter_idx"] == 0 and est.json()["series"]["chapters"] == 8
+    assert est.json()["book"]["chapters"] == 0
+    r = client.post(f"/api/ai/books/{v3.id}/digest", json={"scope": "book"}, headers=h)
+    assert r.status_code == 200 and r.json()["job"] is None          # nothing of v3 is read
+    r = client.post(f"/api/ai/books/{v3.id}/digest", json={"scope": "series"}, headers=h)
+    assert r.status_code == 202, r.text
+    assert r.json()["chapter_idx"] == 0 and r.json()["job"]["upto_chapter"] == 0
+    digest_job.run_pending()
+    assert digest_job.get(r.json()["job"]["id"])["status"] == "done"
+    rows = db.query(AIChapterDigest).all()
+    assert {d.book_id for d in rows} == {v1.id, v2.id} and len(rows) == 8
+
+
+def test_reconcile_endpoint(client, db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "merger", "member")
+    guest = _make_user(db, "mergerg", "guest", key=False)
+    book = _epub_book(db, make_book, tmp_path, "Merge Me", series="Merge", index=1)
+    db.commit()
+    fake = FakeProvider(responses=[])
+    ai.set_provider_override(fake)
+    calls = _stub_reconcile(monkeypatch, progress=[(1, 1)])
+    h = _headers(user)
+    url = f"/api/ai/books/{book.id}/reconcile"
+
+    assert client.post(url, headers=_headers(guest)).status_code == 403
+    r = client.post(url, headers=h)
+    assert r.status_code == 202, r.text
+    job = r.json()["job"]
+    assert set(r.json()) == {"job"} and [f["name"] for f in job["followups"]] == ["reconcile"]
+    r2 = client.post(url, headers=h)
+    assert r2.status_code == 409 and r2.json()["reason"] == "already_running"
+    digest_job.run_pending()
+    out = client.get(f"/api/ai/digest-jobs/{job['id']}", headers=h).json()
+    assert out["status"] == "done" and out["total"] == 0 and fake.calls == []
+    assert (out["step"], out["step_done"], out["step_total"]) == ("merging", 1, 1)
+    assert calls[-1] == {"book_id": book.id, "job_id": job["id"], "step": "merging"}
+
+    # A cancel during merging stops after the current call: the job ends cancelled.
+    _stub_reconcile(monkeypatch, progress=[(1, 3), (2, 3)], cancel=True)
+    r = client.post(url, headers=h)
+    assert r.status_code == 202
+    digest_job.run_pending()
+    out = client.get(f"/api/ai/digest-jobs/{r.json()['job']['id']}", headers=h).json()
+    assert out["status"] == "cancelled" and out["step_done"] == 0
+
+
+def test_cancelling_a_reconcile_job_does_not_gate_the_triggers(client, db, make_book, tmp_path, monkeypatch):
+    user = _make_user(db, "mergecancel", "member")
+    book = _epub_book(db, make_book, tmp_path, "Merge Cancel", series="MergeCancel", index=1)
+    db.commit()
+    ai.set_provider_override(FakeProvider(responses=[]))
+    h = _headers(user)
+    url = f"/api/ai/books/{book.id}/reconcile"
+
+    # Cancelled while merging.
+    _stub_reconcile(monkeypatch, progress=[(1, 3), (2, 3)], cancel=True)
+    r = client.post(url, headers=h)
+    assert r.status_code == 202
+    digest_job.run_pending()
+    db.expire_all()
+    row = db.get(AIJob, r.json()["job"]["id"])
+    assert (row.status, row.step, row.total) == ("cancelled", "merging", 0)
+    assert not digest_job.last_cancelled(db, user.id, book.id)
+
+    # Cancelled while still queued (never expanded): reads nothing either.
+    r = client.post(url, headers=h)
+    assert r.status_code == 202
+    assert client.post(f"/api/ai/digest-jobs/{r.json()['job']['id']}/cancel", headers=h).status_code == 200
+    db.expire_all()
+    assert db.get(AIJob, r.json()["job"]["id"]).status == "cancelled"
+    assert not digest_job.last_cancelled(db, user.id, book.id)
+
+
+def test_volumes_sharing_an_index_are_read_in_turn(db, make_book, tmp_path):
+    user = _make_user(db, "tieindex", "member")
+    a = _epub_book(db, make_book, tmp_path, "Tie A", series="Tie", index=1)
+    b = _epub_book(db, make_book, tmp_path, "Tie B", series="Tie", index=1)
+    c = _epub_book(db, make_book, tmp_path, "Tie C", series="Tie", index=2)
+    for v in (a, b):
+        _read(db, user, v)
+    db.commit()
+    digest_job.reset()
+    ai.set_provider_override(FakeProvider(responses=echo_digest))
+
+    snap = digest_job.enqueue(user_id=user.id, book_id=c.id, upto=0)
+    kind, job, _u, _t = _take()
+    assert kind == "expand"
+    digest_job._expand(job)
+    assert {u.book_id for u in job.units} == {a.id, b.id}
+    first = _take()
+    assert first[0] == "unit" and first[2].book_id == min(a.id, b.id)
+    assert _take() is None                         # the other index-1 volume waits
+    digest_job._run_unit(first[1], first[2], first[3])
+    second = _take()
+    assert second[0] == "unit" and second[2].book_id == max(a.id, b.id)
+    digest_job._run_unit(second[1], second[2], second[3])
+    digest_job.run_pending()
+    assert digest_job.get(snap["id"])["status"] == "done"
+
+
+def _dup_entities(db: Session, book) -> None:
+    from backend.models.ai_entity import AIEntity
+    key = digest.series_key(book)
+    for name, idx in (("Tamsin Reed", 0), ("Tamsin", 2)):
+        db.add(AIEntity(series_key=key, kind="person", name=name, aliases_json="[]", identity="",
+                        first_book_id=book.id, first_chapter_idx=idx))
+    db.flush()
+
+
+def test_write_all_state_counts_merging_and_live_jobs(db, make_book, tmp_path, monkeypatch):
+    from backend.services.ai import reconcile, volume_recap
+    user = _make_user(db, "mergefigs", "member")
+    book = _epub_book(db, make_book, tmp_path, "Merge Figures", series="MergeFigs", index=1)
+    user.ai_monthly_limit_usd = 1.0
+    db.commit()
+    assert volume_recap.write_all_state(db, user, book, [])["merging"] == {
+        "pairs": 0, "calls": 0, "est_cost_usd": 0.0}
+    _dup_entities(db, book)
+    monkeypatch.setattr(reconcile, "PAIRS_PER_CALL", 1)
+    live = [{"id": "other0000001", "user_id": user.id, "book_id": book.id + 1000,
+             "est_cost_usd": 0.70, "cost_usd": 0.10}]                     # 0.60 still to spend
+    monkeypatch.setattr(digest_job, "running", lambda user_id=None: list(live))
+
+    st = volume_recap.write_all_state(db, user, book, [])
+
+    model = ai_settings.effective_model(db, digest.FEATURE)
+    one = estimate.call_cost_guess(digest.FEATURE, model, volume_recap.MERGE_WORDS_PER_PAIR,
+                                   max_tokens=reconcile.MAX_TOKENS, cached_words=0)
+    assert st["merging"] == {"pairs": 1, "calls": 1, "est_cost_usd": round(one, 2)}
+    assert st["merging"]["est_cost_usd"] > 0
+    assert st["remaining_budget_usd"] == pytest.approx(0.40)
+    assert volume_recap.pending_spend(user.id) == pytest.approx(0.60)
+
+
+def test_write_all_budget_check_includes_merging(db, make_book, tmp_path, monkeypatch):
+    from backend.services.ai import volume_recap
+    user = _make_user(db, "mergebudget", "member")
+    book = _epub_book(db, make_book, tmp_path, "Merge Budget", series="MergeBudget", index=1)
+    _dup_entities(db, book)
+    db.commit()
+    cost = volume_recap.merging_figures(db, book)["est_cost_usd"]
+    assert cost > 0
+    user.ai_monthly_limit_usd = cost / 2
+    db.commit()
+    with pytest.raises(AIBudgetExceeded):
+        volume_recap.write_all(db, user, book)
+    user.ai_monthly_limit_usd = cost * 4
+    db.commit()
+    assert volume_recap.write_all(db, user, book)["job"]["id"]
