@@ -462,7 +462,9 @@ msgstr ""
 msgid "{0, plural, one {# result — pick one to review} other {# results — pick one to review}}"
 msgstr ""
 
+#. placeholder {0}: data.length
 #. placeholder {0}: follows.length
+#: src/components/AiCompanionOverview.tsx
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# series} other {# series}}"
 msgstr ""
@@ -789,6 +791,10 @@ msgstr ""
 msgid "{diffMins}m ago"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "{digested} of {chapters} read"
+msgstr ""
+
 #: src/components/ReadingCompanion.tsx
 msgid "{digested} of {needed} chapters before your position are read so far."
 msgstr ""
@@ -993,6 +999,10 @@ msgstr ""
 msgid "{misplaced} of {total} files need reorganization"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "{missing, plural, one {# missing} other {# missing}}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "{months}mo ago"
@@ -1137,6 +1147,10 @@ msgstr ""
 msgid "{pages} pages in {dur}"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "{partial, plural, one {# partial} other {# partial}}"
+msgstr ""
+
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
 msgid "{pct}% confident"
@@ -1166,6 +1180,14 @@ msgstr ""
 msgid "{pendingCount, plural, one {then # recap (about {cost})} other {then # recaps (about {cost})}}"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "{people, plural, one {# person} other {# people}}"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "{places, plural, one {# place} other {# places}}"
+msgstr ""
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{pph} p/h"
 msgstr ""
@@ -1192,6 +1214,10 @@ msgstr ""
 
 #: src/pages/SharePage.tsx
 msgid "{readN} read · {unreadN} unread"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "{ready, plural, one {# recap ready} other {# recaps ready}}"
 msgstr ""
 
 #: src/components/DigestConfirmDialog.tsx
@@ -1252,6 +1278,10 @@ msgstr ""
 
 #: src/components/UploadModal.tsx
 msgid "{success} uploaded, {failed} failed"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "{terms, plural, one {# term} other {# terms}}"
 msgstr ""
 
 #: src/components/Sidebar.tsx
@@ -2724,6 +2754,10 @@ msgstr ""
 msgid "Command palette — jump to a book, series, author, or page"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "Companion"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Complete"
 msgstr ""
@@ -2883,6 +2917,10 @@ msgstr ""
 msgid "Could not load the calls."
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "Could not load the companion overview."
+msgstr ""
+
 #: src/components/RecapVolumes.tsx
 msgid "Could not load the earlier volumes"
 msgstr ""
@@ -2943,10 +2981,12 @@ msgstr ""
 msgid "Could not set match"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ReadingCompanion.tsx
 msgid "Could not start merging"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Could not start reading the chapters"
@@ -2959,6 +2999,10 @@ msgstr ""
 #: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "Could not start sync"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Could not start writing the recaps"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
@@ -3275,6 +3319,7 @@ msgstr ""
 msgid "Deletes the notes of {chaptersText}, {entitiesText} and {recapsText} for everyone, then reads them again."
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ReadingCompanion.tsx
 msgid "Deletes the stored notes for everyone and reads the chapters again"
 msgstr ""
@@ -3379,6 +3424,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/WordCount.tsx
 #: src/pages/DashboardPage.tsx
@@ -3767,6 +3813,7 @@ msgid "failed"
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 #: src/components/WordCount.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -4183,6 +4230,14 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Format: {filterFormatUpper}"
+msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+#~ msgid "Found the matching edition with the corrected title; description, tags and cover come from it."
+#~ msgstr ""
+
+#: src/components/MetadataFetchModal.tsx
+msgid "Found the matching edition with the corrected title; the fetched fields come from it."
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -4621,6 +4676,7 @@ msgid "Instance settings"
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 msgid "Interrupted"
 msgstr ""
 
@@ -4756,6 +4812,10 @@ msgstr ""
 
 #: src/components/AiActivity.tsx
 msgid "last 30 days"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Last merge {when}: {merged} of {candidates} candidate pairs merged"
 msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
@@ -4952,6 +5012,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 #: src/components/AiSettings.tsx
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
@@ -5127,6 +5188,7 @@ msgstr ""
 msgid "Members without their own key use the instance key, billed to its {provider} account."
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/pages/AdminPage.tsx
 msgid "Merge"
 msgstr ""
@@ -5135,6 +5197,7 @@ msgstr ""
 msgid "Merge duplicate entries"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ReadingCompanion.tsx
 msgid "Merge duplicates"
 msgstr ""
@@ -5514,6 +5577,10 @@ msgstr ""
 msgid "No chapter before your position to read again."
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "No chapter text"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "No comparison data."
 msgstr ""
@@ -5758,6 +5825,10 @@ msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 msgid "No reading-time data yet."
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "No recap"
 msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
@@ -6006,6 +6077,10 @@ msgstr ""
 msgid "Nothing in progress"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "Nothing is missing."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Nothing matched “{search}”"
 msgstr ""
@@ -6018,12 +6093,28 @@ msgstr ""
 msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "Nothing to do."
+msgstr ""
+
 #: src/components/ReadingCompanion.tsx
 msgid "Nothing to read again in this book."
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "Nothing to read again."
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid "Nothing to remove."
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Nothing yet. Series you read or have open show up here with what the reading companion knows about them."
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Nothing yet. When the reading companion reads chapters of a book, its series shows up here."
 msgstr ""
 
 #: src/components/AiActivity.tsx
@@ -6755,12 +6846,9 @@ msgstr ""
 msgid "read"
 msgstr ""
 
-#: src/components/BookCard.tsx
-#: src/pages/BookDetailPage.tsx
-#: src/pages/DashboardPage.tsx
-#: src/pages/SharePage.tsx
-#~ msgid "Read"
-#~ msgstr ""
+#: src/components/AiCompanionOverview.tsx
+msgid "Read"
+msgstr ""
 
 #: src/components/BookCard.tsx
 #: src/pages/BookDetailPage.tsx
@@ -6795,6 +6883,7 @@ msgstr ""
 msgid "read {span}"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/DigestConfirmDialog.tsx
 #: src/components/ReadingCompanion.tsx
 msgid "Read again"
@@ -6812,6 +6901,7 @@ msgstr ""
 msgid "Read on the web"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ReadingCompanion.tsx
 msgid "Read the missing chapters"
 msgstr ""
@@ -6830,6 +6920,10 @@ msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Reader settings"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Readers: {readers}"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -6991,6 +7085,14 @@ msgstr ""
 
 #: src/components/ReadingCompanion.tsx
 msgid "Recap"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Recap partial"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "Recap ready"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
@@ -7276,6 +7378,7 @@ msgid "Roles guide"
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 msgid "Running"
 msgstr ""
 
@@ -8052,6 +8155,10 @@ msgstr ""
 msgid "Speed by book format"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "Spent this month"
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "SSO is misconfigured on the server (redirect URL). Contact your admin."
 msgstr ""
@@ -8167,6 +8274,7 @@ msgid "Status: {filterStatusLabel}"
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 #: src/components/ReadingCompanion.tsx
 #: src/components/RecapVolumes.tsx
 #: src/components/WordCount.tsx
@@ -8182,6 +8290,7 @@ msgid "Stop sending"
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 msgid "Stopped"
 msgstr ""
 
@@ -8191,6 +8300,7 @@ msgid "Stopped after {done} of {total} chapters."
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 msgid "Stopped by you"
 msgstr ""
 
@@ -8199,6 +8309,7 @@ msgid "Stopped. What was done so far is kept."
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 msgid "Stopping"
 msgstr ""
 
@@ -9070,6 +9181,14 @@ msgstr ""
 msgid "vol {idx} · {title}"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
+msgid "vol {idx}: {digested} of {chapters}"
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "vol {idx}: no chapter text"
+msgstr ""
+
 #: src/components/SeriesReadingStats.tsx
 msgid "Vol {lastIdx}"
 msgstr ""
@@ -9135,6 +9254,7 @@ msgid "Volumes {range}"
 msgstr ""
 
 #: src/components/AiActivity.tsx
+#: src/components/AiCompanionOverview.tsx
 msgid "Waiting"
 msgstr ""
 
@@ -9340,6 +9460,7 @@ msgstr ""
 msgid "Write again"
 msgstr ""
 
+#: src/components/AiCompanionOverview.tsx
 #: src/components/DigestConfirmDialog.tsx
 #: src/components/RecapVolumes.tsx
 msgid "Write all"
@@ -9431,6 +9552,10 @@ msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "You can only edit books you uploaded."
+msgstr ""
+
+#: src/components/AiCompanionOverview.tsx
+msgid "You have not read this series; start its jobs from a volume you have read."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx

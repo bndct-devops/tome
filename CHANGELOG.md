@@ -156,6 +156,30 @@ All notable changes to Tome are documented here. Format loosely follows
   question can cost at most on the current model (around 10 to 30 cents on
   Sonnet 5.5), and Ask has its own switch and model in Settings > AI.
   Answers are not stored.
+- **Companion overview.** Settings > AI has a "Companion" section above
+  Activity: one row per series the reading companion knows (a standalone
+  book is its own row) with a coverage strip per volume, the glossary
+  counts, how many volumes have a recap, the last run and this month's
+  spend. A row expands to its volumes, and its links start the same jobs as
+  the book page: Read the missing chapters, Merge duplicates, Write all and,
+  for admins, Read again. Members see the series they read; admins see
+  everything with the readers' names.
+- **Auto-import that does not take a fetch result on faith.** The unattended
+  Bindery import used to apply the first metadata hit it got, which could
+  rename a volume into an unrelated box set. Now a hit is applied only when
+  its title and author agree with what the file itself says, otherwise the
+  book keeps its own data and waits in the unreviewed queue. When an AI key
+  is configured, auto-import first identifies the files the way the Bindery's
+  "Identify with AI" does and applies proposals above the confidence
+  threshold (marked as AI-assisted in the audit log), falling back to the
+  metadata fetch otherwise; an AI failure never blocks the import. Files
+  open in a Bindery review are left alone for half an hour after the last
+  touch, so a review's accept no longer finds them gone.
+- **AI fix finds the matching edition.** When the AI fix corrects a book's
+  title or author, it runs the metadata fetch again with the corrected
+  identity and, when an edition matches, offers its description, tags, ISBN,
+  cover and publisher in the same dialog, so a mislabelled file is fixed in
+  one pass.
 - **Monthly AI spend limits.** Settings > AI has a monthly limit in USD, with
   a bar showing what is spent of it. Everyone can set their own; admins can
   also cap everything charged to the instance key and set a limit for each

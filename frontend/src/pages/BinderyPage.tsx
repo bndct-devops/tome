@@ -20,6 +20,7 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from '@/components/CoverImage'
 import { AiBadge } from '@/components/AiBadge'
 import { useAiStatus, identifyFiles, IDENTIFY_BATCH_SIZE, type IdentifyResult } from '@/lib/ai'
+import { holdBinderyFiles } from '@/lib/bindery'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -943,6 +944,16 @@ export function BinderyPage() {
   // accepted, rejected or rescanned meanwhile are not brought back.
   const liveRef = useRef({ items, view, listLibraryIds })
   useEffect(() => { liveRef.current = { items, view, listLibraryIds } })
+
+  // Keep the files under review held (30 min server-side) so auto-import
+  // does not take them while the review view stays open.
+  useEffect(() => {
+    if (view !== 'review' || reviewItems.length === 0) return
+    const id = setInterval(() => {
+      if (liveRef.current.view === 'review') holdBinderyFiles(reviewItems.map(i => i.path))
+    }, 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [view, reviewItems])
   const isAiIntact = (path: string) => aiFormIntact(aiMarks[path], formData[path])
 
   // ---------------------------------------------------------------------------
@@ -1100,6 +1111,7 @@ export function BinderyPage() {
     const { items: liveItems, listLibraryIds: liveLibraryIds } = liveRef.current
     const toReview = paths.map(p => liveItems.find(i => i.path === p)).filter((i): i is BinderyItem => !!i)
     if (toReview.length === 0) return
+    holdBinderyFiles(toReview.map(i => i.path))
 
     const byPath = new Map((aiResults ?? []).map(r => [r.path, r]))
     const forms: Record<string, ItemForm> = {}
@@ -1150,6 +1162,7 @@ export function BinderyPage() {
 
   async function runIdentify(paths: string[]) {
     if (paths.length === 0) return
+    holdBinderyFiles(paths)
     setIdentifying({ done: 0, total: paths.length })
     const results: IdentifyResult[] = []
     let threshold = aiThreshold

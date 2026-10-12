@@ -15,6 +15,15 @@ Safety rails applied after parsing, whatever the model says:
   candidate; description and cover only copied from the matched candidate;
 - a value equal to the current one becomes ``null`` (no change);
 - an empty tag list becomes ``null`` (applying it would wipe fetched tags).
+
+Re-fetch: when the proposal changes the title or the author and the matched
+candidate (if any) does not agree with the corrected identity, the first
+fetch ran on the wrong book. The service then fetches once more with the
+proposed title + author and, when a candidate agrees with the proposal
+(``identity_match.agrees``), takes description, tags, ISBN, cover, publisher and year from
+it. The candidate-derived fields of the first pass are dropped either way,
+since they belonged to the wrong book. A failed or empty second fetch never
+fails the proposal: ``refetched`` is false and the identity stays proposed.
 """
 from __future__ import annotations
 
@@ -32,6 +41,7 @@ from backend.models.user import User
 from backend.services import ai
 from backend.services.ai import settings as ai_settings
 from backend.services.ai.identify import candidate_to_dict, series_sample_titles
+from backend.services.identity_match import agrees, norm as _norm
 from backend.services.metadata_fetch import MetadataCandidate, fetch_candidates
 from backend.services.text_sample import first_pages_text
 
@@ -228,6 +238,37 @@ def _fetch(book: Book, query: str | None) -> list[MetadataCandidate]:
     return list(result.candidates[:MAX_CANDIDATES])
 
 
+def _fetch_identity(book: Book, title: str, author: str | None) -> list[MetadataCandidate] | None:
+    """The second fetch, on the corrected identity. ``None`` when it failed."""
+    query = " ".join(p for p in (title, author) if p)
+    try:
+        result = asyncio.run(fetch_candidates(
+            title=title,
+            author=author,
+            isbn=None,
+            series=None,
+            series_index=None,
+            query_override=query,
+            year=None,
+            language=book.language,
+            media_hint=book.book_type.slug if book.book_type else None,
+        ))
+    except Exception as exc:  # noqa: BLE001 - the identity proposal stands without it
+        logger.info("fix_book: re-fetch failed for book %s (%s)", book.id, exc)
+        return None
+    return list(result.candidates[:MAX_CANDIDATES])
+
+
+# ── identity agreement ───────────────────────────────────────────────────────
+
+def _agrees(proposal: dict[str, Any], title: str, author: str | None,
+            cand: MetadataCandidate) -> bool:
+    """The shared gate (``identity_match.agrees``) on the corrected identity,
+    with the proposal's volume number when it has one."""
+    return agrees({"title": title, "author": author,
+                   "series_index": proposal.get("series_index")}, cand)
+
+
 # ── proposal ─────────────────────────────────────────────────────────────────
 
 def _str_or_none(v: Any) -> str | None:
@@ -333,6 +374,7 @@ def fix_book(db: Session, user: User, book: Book, *, query: str | None = None) -
     by_id = {f"c{i + 1}": c for i, c in enumerate(candidates)}
     cand = by_id.get(_str_or_none(raw.get("candidate_id")) or "")
     proposal = sanitize(raw, book, candidates, cand)
+    proposal, cand, refetched, refetch_query = _refetch(book, proposal, cand)
 
     return {
         "proposal": proposal,
@@ -343,4 +385,65 @@ def fix_book(db: Session, user: User, book: Book, *, query: str | None = None) -
         "candidate": candidate_to_dict(cand) if cand else None,
         "current": {**current_fields(book), "has_cover": bool(book.cover_path)},
         "threshold": ai_settings.confidence_threshold(db),
+        "refetched": refetched,
+        "refetch_query": refetch_query,
     }
+
+
+def identity_changed(book: Book, proposal: dict[str, Any]) -> bool:
+    """The proposal renames the book or changes its author (normalised)."""
+    return any(
+        proposal.get(key) is not None and _norm(proposal[key]) != _norm(getattr(book, key))
+        for key in ("title", "author")
+    )
+
+
+def fill_from_candidate(proposal: dict[str, Any], book: Book,
+                        cand: MetadataCandidate) -> dict[str, Any]:
+    """Take description, tags and ISBN from ``cand`` (replacing the first
+    pass's), the cover only when the book has none, publisher and year where
+    the proposal has none; a value equal to the current one stays ``None``,
+    an empty tag list stays ``None``."""
+    current = current_fields(book)
+    out = dict(proposal)
+    desc = (cand.description or "").strip()
+    out["description"] = cand.description \
+        if desc and desc != (current["description"] or "").strip() else None
+    isbn = _isbn_digits(cand.isbn)
+    out["isbn"] = cand.isbn if isbn and isbn != _isbn_digits(current["isbn"]) else None
+    out["cover_url"] = (cand.cover_url or None) if not book.cover_path else None
+    tags: list[str] = []
+    for tag in cand.tags or []:
+        if isinstance(tag, str) and tag.strip() and tag.strip().lower() not in {t.lower() for t in tags}:
+            tags.append(tag.strip())
+    out["tags"] = tags if tags and {t.lower() for t in tags} != {t.lower() for t in current["tags"]} \
+        else None
+    if out["publisher"] is None:
+        pub = _str_or_none(cand.publisher)
+        if pub is not None and pub != current["publisher"]:
+            out["publisher"] = pub
+    if out["year"] is None and isinstance(cand.year, int) and 0 < cand.year <= 2100 \
+            and cand.year != current["year"]:
+        out["year"] = cand.year
+    return out
+
+
+def _refetch(book: Book, proposal: dict[str, Any], cand: MetadataCandidate | None
+             ) -> tuple[dict[str, Any], MetadataCandidate | None, bool, str | None]:
+    """The second fetch when the identity changed (see the module docstring).
+    Returns (proposal, matched candidate, refetched, refetch_query)."""
+    if not identity_changed(book, proposal):
+        return proposal, cand, False, None
+    title = proposal["title"] or book.title
+    author = proposal["author"] or book.author
+    if cand is not None and _agrees(proposal, title, author, cand):
+        return proposal, cand, False, None  # the first pass already found this book
+
+    # Whatever came from the first candidates belonged to another book.
+    proposal = {**proposal, "description": None, "tags": None, "isbn": None, "cover_url": None}
+    query = " ".join(p for p in (title, author) if p)
+    found = _fetch_identity(book, title, author)
+    match = next((c for c in found or [] if _agrees(proposal, title, author, c)), None)
+    if match is None:
+        return proposal, None, False, query
+    return fill_from_candidate(proposal, book, match), match, True, query

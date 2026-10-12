@@ -24,6 +24,9 @@ export interface AiProposal {
   confidence: number
   evidence: string
   threshold: number
+  /** The server re-fetched on the corrected title/author and the fetch fields
+   *  come from that matching edition. */
+  refetched?: boolean
 }
 
 interface Props {
@@ -361,7 +364,12 @@ export function MetadataFetchModal({ book, open, onClose, onApplied, aiProposal 
                           : plural(changes, { one: '# change proposed. Check it before applying.', other: '# changes proposed. Check them before applying.' })}
                       </span>
                     </div>
-                    <p className="text-xs text-foreground">{aiMark.evidence}</p>
+                    <p className="text-xs text-foreground">
+                      {aiMark.evidence}
+                      {aiMark.refetched && (
+                        <> <Trans>Found the matching edition with the corrected title; the fetched fields come from it.</Trans></>
+                      )}
+                    </p>
                   </div>
                 )
               })()}

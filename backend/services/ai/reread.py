@@ -332,7 +332,7 @@ def run(db: Session, user: User, book: Book, window: companion.Window,
         # A full read ends with the merge step: duplicates the read may
         # still produce are checked without another click.
         return companion.start_digest(db, user, book, window, scope,
-                                      followups=(digest_job.FOLLOWUP_RECONCILE,))
+                                      followups=(digest_job.FOLLOWUP_RECONCILE,), kind="reread")
     except AIError as e:
         msg = f"{START_FAILED_PREFIX}: {e.message.rstrip()} {START_FAILED_SUFFIX}"
         e.message = msg

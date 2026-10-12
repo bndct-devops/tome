@@ -211,6 +211,7 @@ def test_series_reread_deletes_the_series_and_reads_it_again(client, db, make_bo
     assert out["estimate"]["chapters"] == 10 and out["job"]["scope"] == "series"
     # The read ends with the merge step, so duplicates need no second click.
     assert [f["name"] for f in out["job"]["followups"]] == ["reconcile"]
+    assert out["job"]["kind"] == "reread"
     # Everything of the series is gone before the read starts.
     assert _digests(db, v1) == _digests(db, v2) == _digests(db, v3) == 0
     assert _recaps(db, v1) == _recaps(db, v2) == _recaps(db, v3) == 0

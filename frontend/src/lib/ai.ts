@@ -336,6 +336,12 @@ export interface FixBookResponse {
   candidate: MetadataCandidate | null
   current: FixBookFields & { tags: string[]; has_cover: boolean }
   threshold: number
+  /** True when the proposal changed the title or author and a second fetch on
+   *  the corrected identity found the matching edition; description, tags,
+   *  ISBN, cover, publisher and year then come from it (`candidate`). */
+  refetched: boolean
+  /** The query of that second fetch, or null when none ran. */
+  refetch_query: string | null
 }
 
 /** Ask the model for a metadata diff for one book. Writes nothing. */
@@ -479,7 +485,7 @@ export type DigestJobStep = 'reading' | 'merging' | 'writing'
 
 export interface DigestJob {
   id: string
-  kind: 'digest'
+  kind: 'digest' | 'reread'
   status: DigestJobStatus
   scope: DigestScope
   user_id: number
@@ -1005,6 +1011,53 @@ export function getDigestJob(jobId: string): Promise<DigestJob> {
 
 export function cancelDigestJob(jobId: string): Promise<DigestJob> {
   return api.post<DigestJob>(`/ai/digest-jobs/${jobId}/cancel`, {})
+}
+
+// ── Companion overview (Settings > AI > Companion) ───────────────────────────
+
+/** A volume's recap: "none" when the volume has no chapter text. */
+export type OverviewRecapState = 'ready' | 'partial' | 'missing' | 'none'
+
+export interface OverviewVolume {
+  book_id: number
+  title: string
+  series_index: number | null
+  chapters: number
+  /** Stored digests that feed the glossary (failed placeholders not counted). */
+  digested: number
+  failed: number
+  recap: OverviewRecapState
+  last_digest_at: string | null
+}
+
+export type OverviewJobKind = 'read' | 'merge' | 'reread' | 'write_all'
+
+export interface OverviewSeries {
+  /** The series key; a standalone book is `book:{id}`. */
+  key: string
+  name: string
+  author: string | null
+  /** Admins only: users with a read status or position on a volume. */
+  readers: { id: number; username: string }[]
+  volumes: OverviewVolume[]
+  people: number
+  places: number
+  terms: number
+  last_merge: { finished_at: string | null; candidates: number; merged: number } | null
+  last_job: { id: string; kind: OverviewJobKind; status: DigestJobStatus; finished_at: string | null; cost_usd: number } | null
+  spend_month_usd: number
+  /** The viewer's live job on a volume of the series. */
+  active_job: DigestJob | null
+  /** The volume the row's actions start on. */
+  anchor_book_id: number
+  /** False when the viewer has neither read nor holds a position on any
+   *  volume (an admin seeing someone else's series): actions are hidden.
+   *  Older servers leave it out; treat missing as true. */
+  in_scope?: boolean
+}
+
+export function getCompanionOverview(): Promise<{ series: OverviewSeries[] }> {
+  return api.get<{ series: OverviewSeries[] }>('/ai/companion/overview')
 }
 
 // ── shared status cache ──────────────────────────────────────────────────────

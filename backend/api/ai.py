@@ -323,6 +323,21 @@ def list_ai_jobs(
     return jobs_view.list_jobs(db, user_id=current_user.id, days=days)
 
 
+@router.get("/companion/overview")
+def get_companion_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Settings > AI > Companion: one row per series (a standalone book is
+    its own row) with coverage per volume, glossary counts, recap states,
+    last merge, last job, this month's spend, the viewer's active job and
+    ``anchor_book_id`` (``backend/services/ai/overview.py``). Members: the
+    series they read or hold a position in; admins: every series with a
+    digest, with ``readers``. Never calls a model."""
+    from backend.services.ai import overview
+    return overview.overview(db, current_user)
+
+
 @router.get("/jobs/{job_id}/calls")
 def list_ai_job_calls(
     job_id: str,
@@ -360,6 +375,8 @@ def identify_bindery_files(
         if not full.is_file() or full.suffix.lower() not in BINDERY_EXTENSIONS:
             raise HTTPException(status_code=404, detail=f"File not found: {rel}")
         files.append((rel, full))
+    from backend.services import bindery_review  # auto-import skips files in review
+    bindery_review.touch(seen)
     return identify.identify_files(db, current_user, files)
 
 
@@ -379,7 +396,9 @@ def fix_one_book(
 ) -> dict[str, Any]:
     """Propose a metadata diff for one book. Writes nothing: the book page
     shows the diff and applies through /books/{id}/apply-metadata with
-    ai_assisted=true."""
+    ai_assisted=true. When the proposal corrects the title or author, the
+    metadata fetch runs again on the corrected identity (``refetched``,
+    ``refetch_query``) and a matching edition supplies the fetch fields."""
     book = db.get(Book, book_id)
     if book is None or not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")

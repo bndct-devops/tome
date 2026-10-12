@@ -271,6 +271,7 @@ export function BookDetailPage() {
         confidence: res.confidence,
         evidence: res.evidence,
         threshold: res.threshold,
+        refetched: res.refetched,
       })
       setFetchModalOpen(true)
     } catch (e) {

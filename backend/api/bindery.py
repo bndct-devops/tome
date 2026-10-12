@@ -27,6 +27,7 @@ from backend.core.permissions import require_role, is_admin
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user import User
 from backend.services.audit import audit
+from backend.services import bindery_review
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash
 from backend.services.book_types import assign_book_to_type_library
 from backend.services.filename_parser import parse_filename
@@ -142,6 +143,10 @@ class BinderyAcceptRequest(BaseModel):
 
 
 class RejectRequest(BaseModel):
+    paths: list[str]
+
+
+class HoldRequest(BaseModel):
     paths: list[str]
 
 
@@ -300,6 +305,23 @@ def bindery_groups(
     return out
 
 
+@router.post("/hold")
+def bindery_hold(
+    body: HoldRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Keep auto-import away from files a review has open (a multi-file review
+    calls this while the person works through the group). Refreshes the hold
+    on every path that exists; missing paths are ignored. 400 on traversal."""
+    _require_bindery(current_user)
+    keep: list[str] = []
+    for rel in body.paths:
+        if _safe_resolve(rel).is_file():
+            keep.append(rel)
+    bindery_review.touch(keep)
+    return {"held": len(keep)}
+
+
 @router.post("/preview")
 async def bindery_preview(
     body: PreviewRequest,
@@ -312,6 +334,8 @@ async def bindery_preview(
     full_path = _safe_resolve(body.path)
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
+    # In review: auto-import leaves this file alone for a while.
+    bindery_review.touch([body.path])
 
     meta = extract_metadata(full_path, settings.covers_dir)
 
@@ -394,6 +418,9 @@ def bindery_accept(
 
     accepted: list[dict] = []
     errors: list[dict] = []
+    # Hold every file of the batch while it is processed, so an auto-import
+    # tick cannot move one out from under a slow accept.
+    bindery_review.touch(item.path for item in body.files)
 
     for item in body.files:
         try:
@@ -535,6 +562,7 @@ def bindery_accept(
 
             # Clean up empty directories left behind in bindery
             _cleanup_empty_dirs(full_path.parent)
+            bindery_review.release([item.path])
 
             accepted.append({"book_id": book.id, "title": book.title})
 
@@ -568,6 +596,7 @@ def bindery_reject(
 
             parent = full_path.parent
             full_path.unlink()
+            bindery_review.release([rel_path])
             rejected += 1
 
             # Clean up empty parent directories

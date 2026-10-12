@@ -687,3 +687,124 @@ class TestBinderyPreview:
             json={"path": "not_a_real_file.cbz"},
         )
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Review lock: files in review are held from auto-import
+# ---------------------------------------------------------------------------
+
+class TestBinderyReviewLock:
+    @pytest.fixture(autouse=True)
+    def _clean_lock(self):
+        from backend.services import bindery_review
+        bindery_review.reset()
+        yield
+        bindery_review.reset()
+
+    @staticmethod
+    def _no_fetch(monkeypatch):
+        monkeypatch.setattr("backend.api.bindery.extract_metadata", lambda *a, **kw: {"title": "Faust"})
+
+        async def mock_fetch(**kwargs):
+            return FetchResult(candidates=[], query_used="")
+
+        monkeypatch.setattr("backend.api.bindery.fetch_candidates", mock_fetch)
+
+    def test_preview_touches_the_lock(self, client: TestClient, bindery_dir, monkeypatch):
+        from backend.services import bindery_review
+        self._no_fetch(monkeypatch)
+        assert not bindery_review.is_held("Faust v01.cbz")
+        resp = client.post("/api/bindery/preview", json={"path": "Faust v01.cbz"})
+        assert resp.status_code == 200
+        assert bindery_review.is_held("Faust v01.cbz")
+        assert not bindery_review.is_held("Beowulf/Beowulf v18.cbz")
+
+    def test_preview_of_a_missing_file_holds_nothing(self, client: TestClient, bindery_dir, monkeypatch):
+        from backend.services import bindery_review
+        self._no_fetch(monkeypatch)
+        resp = client.post("/api/bindery/preview", json={"path": "not_a_real_file.cbz"})
+        assert resp.status_code == 404
+        assert bindery_review.held_paths() == []
+
+    def test_hold_expires_after_the_ttl(self, monkeypatch):
+        from backend.services import bindery_review
+        now = [1000.0]
+        monkeypatch.setattr(bindery_review, "_now", lambda: now[0])
+        bindery_review.touch(["a/b.epub"])
+        now[0] += bindery_review.REVIEW_TTL_SECONDS - 1
+        assert bindery_review.is_held("a/b.epub")
+        bindery_review.touch(["a/b.epub"])  # a touch refreshes it
+        now[0] += bindery_review.REVIEW_TTL_SECONDS - 1
+        assert bindery_review.is_held("a/b.epub")
+        now[0] += 2
+        assert not bindery_review.is_held("a/b.epub")
+
+    def test_identify_touches_the_lock(self, client: TestClient, bindery_dir, db: Session,
+                                       admin_user, monkeypatch):
+        from backend.services import ai, bindery_review
+        from backend.services.ai import settings as ai_settings
+        from tests.ai_fake import FakeProvider
+
+        user, _ = admin_user
+        ai_settings.set_user_key(db, user, "sk-ant-test-lock-000000000000Ab12")
+        db.flush()
+
+        async def mock_fetch(**kwargs):
+            return FetchResult(candidates=[], query_used="")
+
+        monkeypatch.setattr("backend.services.ai.identify.fetch_candidates", mock_fetch)
+        ai.set_provider_override(FakeProvider(responses=[{"files": []}]))
+
+        resp = client.post("/api/ai/identify", json={"paths": ["Beowulf/Beowulf v18.cbz"]})
+        assert resp.status_code == 200, resp.text
+        assert bindery_review.is_held("Beowulf/Beowulf v18.cbz")
+        assert not bindery_review.is_held("Faust v01.cbz")
+
+    def test_accept_releases_the_lock(self, client: TestClient, bindery_dir, monkeypatch):
+        from backend.services import bindery_review
+        self._no_fetch(monkeypatch)
+        monkeypatch.setattr("backend.api.bindery.sha256_file", lambda *a: "lockhash1")
+        client.post("/api/bindery/preview", json={"path": "Faust v01.cbz"})
+        client.post("/api/bindery/preview", json={"path": "Beowulf/Beowulf v18.cbz"})
+        resp = client.post("/api/bindery/accept", json={"files": [
+            {"path": "Faust v01.cbz", "title": "Faust", "content_type": "volume"},
+        ]})
+        assert resp.status_code == 200 and len(resp.json()["accepted"]) == 1
+        assert not bindery_review.is_held("Faust v01.cbz")
+        assert bindery_review.is_held("Beowulf/Beowulf v18.cbz")
+
+    def test_failed_accept_keeps_the_hold(self, client: TestClient, bindery_dir, monkeypatch):
+        from backend.services import bindery_review
+        self._no_fetch(monkeypatch)
+        resp = client.post("/api/bindery/accept", json={"files": [
+            {"path": "gone.cbz", "title": "Gone", "content_type": "volume"},
+        ]})
+        assert resp.json()["errors"]
+        # The accept touched it; the review still owns it until it succeeds.
+        assert bindery_review.is_held("gone.cbz")
+
+    def test_hold_touches_existing_paths(self, client: TestClient, bindery_dir):
+        from backend.services import bindery_review
+        resp = client.post("/api/bindery/hold", json={"paths": [
+            "Faust v01.cbz", "Beowulf/Beowulf v18.cbz", "gone.cbz"]})
+        assert resp.status_code == 200 and resp.json() == {"held": 2}
+        assert bindery_review.held_paths() == ["Beowulf/Beowulf v18.cbz", "Faust v01.cbz"]
+
+    def test_hold_rejects_traversal(self, client: TestClient, bindery_dir):
+        from backend.services import bindery_review
+        resp = client.post("/api/bindery/hold", json={"paths": ["../../etc/passwd"]})
+        assert resp.status_code == 400
+        assert bindery_review.held_paths() == []
+
+    def test_hold_needs_bindery_rights(self, client: TestClient, db: Session, bindery_dir):
+        _user, token = _make_non_admin(db, username="holdnoperm", can_approve_bindery=False)
+        resp = client.post("/api/bindery/hold", json={"paths": ["Faust v01.cbz"]},
+                           headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+
+    def test_reject_releases_the_lock(self, client: TestClient, bindery_dir):
+        from backend.services import bindery_review
+        bindery_review.touch(["Faust v01.cbz"])
+        resp = client.post("/api/bindery/reject", json={"paths": ["Faust v01.cbz"]})
+        assert resp.status_code == 200 and resp.json()["rejected"] == 1
+        assert not bindery_review.is_held("Faust v01.cbz")

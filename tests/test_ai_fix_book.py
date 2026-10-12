@@ -15,6 +15,7 @@ from backend.models.book import Book
 from backend.models.library import Library
 from backend.models.user import User
 from backend.services import ai
+from backend.services import identity_match
 from backend.services.ai import fix_book, settings as ai_settings
 from backend.services.metadata_fetch import FetchResult, MetadataCandidate
 from tests.ai_fake import FakeProvider
@@ -370,3 +371,178 @@ def test_apply_without_flag_has_no_ai_marker(client: TestClient, db: Session, me
     assert r.status_code == 200, r.text
     details = _apply_audits(db)
     assert details == [{"fields": ["author", "tags"]}]
+
+
+# ── re-fetch on a corrected identity ─────────────────────────────────────────
+
+WRONG = MetadataCandidate(
+    source="google_books", source_id="gb-wrong", title="Midnight Omnibus Box Set",
+    author="R. Thornbury", description="Three thrillers in one volume.",
+    cover_url="https://covers.example.org/wrong.jpg", publisher="Big House",
+    year=2005, isbn="9782222222222", language="en", tags=["Thriller"],
+    series=None, series_index=None,
+)
+RIGHT = MetadataCandidate(
+    source="hardcover", source_id="hc-77", title="Ember Crown: Volume 3",
+    author="Isla Fenwick", description="The third ember wakes.",
+    cover_url="https://covers.example.org/ember3.jpg", publisher="Kestrel Books",
+    year=2021, isbn="978-0-33-333333-3", language="en", tags=["Fantasy", "Adventure"],
+    series="Ember Crown", series_index=3.0,
+)
+
+
+@pytest.fixture()
+def wrong_book(make_book) -> Book:
+    """Auto-import filed this volume as somebody's box set."""
+    return make_book(title="Midnight Omnibus Box Set", author="R. Thornbury",
+                     year=2005, isbn="9782222222222", publisher="Big House",
+                     description="Three thrillers in one volume.", language="en",
+                     tags=["Thriller"])
+
+
+def _two_pass_sources(monkeypatch, second) -> list[dict]:
+    """First fetch returns the wrong book; the corrected query gets ``second``
+    (a list of candidates, or an exception to raise)."""
+    seen: list[dict] = []
+
+    async def fake_fetch(**kwargs):
+        seen.append(kwargs)
+        if len(seen) == 1:
+            return FetchResult(candidates=[WRONG], query_used=kwargs["title"])
+        if isinstance(second, Exception):
+            raise second
+        return FetchResult(candidates=list(second), query_used=kwargs["query_override"])
+
+    monkeypatch.setattr("backend.services.ai.fix_book.fetch_candidates", fake_fetch)
+    return seen
+
+
+def _corrected(**overrides) -> dict:
+    """The model saw the first pages and corrected the identity; no candidate."""
+    return _answer(title="Ember Crown: Volume 3", author="Isla Fenwick",
+                   series="Ember Crown", series_index=3, confidence=0.45,
+                   evidence="The title page names Ember Crown, volume 3, by Isla Fenwick.",
+                   **overrides)
+
+
+def test_corrected_identity_refetches_and_fills(client: TestClient, admin_with_key,
+                                                wrong_book: Book, monkeypatch):
+    seen = _two_pass_sources(monkeypatch, [WRONG, RIGHT])
+    ai.set_provider_override(FakeProvider(responses=[_corrected()]))
+    r = client.post(f"/api/ai/books/{wrong_book.id}/fix")
+    assert r.status_code == 200, r.text
+    data = r.json()
+
+    assert len(seen) == 2
+    assert seen[1]["query_override"] == "Ember Crown: Volume 3 Isla Fenwick"
+    assert seen[1]["title"] == "Ember Crown: Volume 3" and seen[1]["isbn"] is None
+    assert data["refetched"] is True
+    assert data["refetch_query"] == "Ember Crown: Volume 3 Isla Fenwick"
+
+    p = data["proposal"]
+    assert p["title"] == "Ember Crown: Volume 3" and p["author"] == "Isla Fenwick"
+    assert p["description"] == RIGHT.description
+    assert p["tags"] == ["Fantasy", "Adventure"]
+    assert p["isbn"] == RIGHT.isbn
+    assert p["cover_url"] == RIGHT.cover_url
+    assert p["publisher"] == "Kestrel Books"
+    assert p["year"] == 2021
+    assert data["candidate"]["source_id"] == "hc-77"
+    assert data["candidate_source"] == "hardcover"
+    for key in ("description", "tags", "isbn", "cover_url", "publisher", "year"):
+        assert key in data["changed_fields"]
+
+
+def test_refetch_keeps_the_models_publisher_and_year(client: TestClient, admin_with_key,
+                                                     wrong_book: Book, monkeypatch):
+    _two_pass_sources(monkeypatch, [RIGHT])
+    ai.set_provider_override(FakeProvider(responses=[_corrected(publisher="Kestrel", year=2019)]))
+    data = client.post(f"/api/ai/books/{wrong_book.id}/fix").json()
+    assert data["refetched"] is True
+    assert data["proposal"]["publisher"] == "Kestrel"
+    assert data["proposal"]["year"] == 2019
+    assert data["proposal"]["isbn"] == RIGHT.isbn
+
+
+def test_refetch_keeps_an_existing_cover(client: TestClient, admin_with_key,
+                                        make_book, monkeypatch):
+    book = make_book(title="Midnight Omnibus Box Set", author="R. Thornbury",
+                     cover_path="/data/covers/existing.jpg")
+    _two_pass_sources(monkeypatch, [RIGHT])
+    ai.set_provider_override(FakeProvider(responses=[_corrected()]))
+    data = client.post(f"/api/ai/books/{book.id}/fix").json()
+    assert data["refetched"] is True
+    assert data["proposal"]["description"] == RIGHT.description
+    assert data["proposal"]["cover_url"] is None
+
+
+def test_non_matching_refetch_leaves_fetch_fields_empty(client: TestClient, admin_with_key,
+                                                        wrong_book: Book, monkeypatch):
+    other = MetadataCandidate(source="open_library", source_id="OL9", title="Ember Crown Cookbook",
+                              author="Nobody Else", description="Recipes.", isbn="9784444444444",
+                              cover_url="https://covers.example.org/c.jpg", tags=["Cooking"])
+    seen = _two_pass_sources(monkeypatch, [WRONG, other])
+    # The model also (wrongly) leaned on the first pass's only candidate.
+    ai.set_provider_override(FakeProvider(responses=[_corrected(
+        candidate_id="c1", tags=["Thriller"], use_candidate_description=True,
+        use_candidate_cover=True)]))
+    data = client.post(f"/api/ai/books/{wrong_book.id}/fix").json()
+    assert len(seen) == 2
+    assert data["refetched"] is False
+    assert data["refetch_query"] == "Ember Crown: Volume 3 Isla Fenwick"
+    p = data["proposal"]
+    for key in ("description", "tags", "isbn", "cover_url", "publisher", "year"):
+        assert p[key] is None, key
+    assert p["title"] == "Ember Crown: Volume 3"
+    assert data["candidate"] is None
+
+
+def test_failing_refetch_keeps_the_identity(client: TestClient, admin_with_key,
+                                            wrong_book: Book, monkeypatch):
+    seen = _two_pass_sources(monkeypatch, RuntimeError("sources down"))
+    ai.set_provider_override(FakeProvider(responses=[_corrected()]))
+    r = client.post(f"/api/ai/books/{wrong_book.id}/fix")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert len(seen) == 2
+    assert data["refetched"] is False
+    p = data["proposal"]
+    assert p["title"] == "Ember Crown: Volume 3"
+    assert p["author"] == "Isla Fenwick"
+    assert p["series"] == "Ember Crown" and p["series_index"] == 3.0
+    assert p["description"] is None and p["isbn"] is None
+
+
+def test_unchanged_identity_does_not_refetch(client: TestClient, admin_with_key,
+                                             wrong_book: Book, monkeypatch):
+    seen = _two_pass_sources(monkeypatch, [RIGHT])
+    # Only a case/punctuation difference: normalised, the identity is the same.
+    ai.set_provider_override(FakeProvider(responses=[_answer(
+        title="Midnight Omnibus: Box Set", author="r. thornbury", series="Midnight")]))
+    data = client.post(f"/api/ai/books/{wrong_book.id}/fix").json()
+    assert len(seen) == 1
+    assert data["refetched"] is False and data["refetch_query"] is None
+
+
+def test_first_pass_match_that_agrees_skips_refetch(client: TestClient, admin_with_key,
+                                                    messy_book: Book, sources):
+    ai.set_provider_override(FakeProvider(responses=[_answer(
+        candidate_id="c1", title="The Quiet Harbour", author="M. Vale",
+        use_candidate_description=True)]))
+    data = client.post(f"/api/ai/books/{messy_book.id}/fix").json()
+    assert len(sources) == 1
+    assert data["refetched"] is False
+    assert data["proposal"]["description"] == CANDIDATE.description
+
+
+@pytest.mark.parametrize("title,author,cand_title,cand_author,expected", [
+    ("Ember Crown: Volume 3", "Isla Fenwick", "Ember Crown, Vol. 3", "Isla Fenwick", True),
+    ("Ember Crown", "Isla Fenwick", "Ember Crown: Volume 3", None, True),        # containment
+    ("Ember Crown", None, "Ember Crown", "Someone", True),                     # author missing
+    ("Ember Crown", "Fenwick, Isla", "Ember Crown", "Isla Fenwick", True),     # word order
+    ("Ember Crown", "Isla Fenwick", "Ember Crown", "R. Thornbury", False),
+    ("Ember Crown", "Isla Fenwick", "Midnight Omnibus Box Set", "Isla Fenwick", False),
+])
+def test_agrees(title, author, cand_title, cand_author, expected):
+    cand = MetadataCandidate(source="x", source_id="1", title=cand_title, author=cand_author)
+    assert identity_match.agrees({"title": title, "author": author}, cand) is expected

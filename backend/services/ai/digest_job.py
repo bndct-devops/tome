@@ -176,6 +176,7 @@ class Job:
     upto: int
     followups: list[str] = field(default_factory=list)
     current_book_only: bool = False
+    kind: str = "digest"            # ``ai_jobs.kind``: "digest", or "reread" (Read again)
     status: str = "queued"
     done: int = 0
     total: int = 0
@@ -230,7 +231,7 @@ class Job:
     def snapshot(self) -> dict[str, Any]:
         return {
             "id": self.id,
-            "kind": "digest",
+            "kind": self.kind,
             "status": self.status,
             "scope": self.scope,
             "user_id": self.user_id,
@@ -259,7 +260,7 @@ class Job:
 
     def row_fields(self) -> dict[str, Any]:
         return {
-            "user_id": self.user_id, "book_id": self.book_id, "kind": "digest",
+            "user_id": self.user_id, "book_id": self.book_id, "kind": self.kind,
             "scope": self.scope, "status": self.status, "upto_chapter": self.upto,
             "total": self.total, "done": self.done, "failed": self.failed,
             "calls": self.calls, "cost_usd": round(self.cost_usd, 6),
@@ -348,8 +349,10 @@ def latest_with_followup(db: Session, user_id: int, book_id: int, name: str,
 
 def enqueue(*, user_id: int, book_id: int, upto: int,
             followups: tuple[str, ...] | list[str] = (),
-            current_book_only: bool = False) -> dict[str, Any]:
-    """Queue (or coalesce into) a digest job; returns its snapshot."""
+            current_book_only: bool = False, kind: str = "digest") -> dict[str, Any]:
+    """Queue (or coalesce into) a digest job; returns its snapshot. ``kind``
+    other than "digest" (a Read again passes "reread") also marks a job it
+    coalesces into."""
     target: Optional[Job] = None
     with _lock:
         for job in _jobs.values():
@@ -366,13 +369,15 @@ def enqueue(*, user_id: int, book_id: int, upto: int,
             if new_followups and not can_add_followups:
                 continue
             job.followups.extend(new_followups)
+            if kind != "digest":
+                job.kind = kind
             job.version += 1
             target = job
             break
         if target is None:
             target = Job(id=uuid.uuid4().hex[:12], user_id=user_id, book_id=book_id, upto=upto,
                          followups=list(dict.fromkeys(followups)),
-                         current_book_only=current_book_only)
+                         current_book_only=current_book_only, kind=kind)
             _jobs[target.id] = target
             _queue.append(target)
             _prune_locked()

@@ -16,6 +16,7 @@ import {
 } from '@/lib/ai'
 import { AiBadge } from '@/components/AiBadge'
 import { AiActivity } from '@/components/AiActivity'
+import { AiCompanionOverview } from '@/components/AiCompanionOverview'
 
 const KEY_CONSOLE_URL = 'https://console.anthropic.com/settings/keys'
 const DISCUSSIONS_URL = 'https://github.com/bndct-devops/tome/discussions'
@@ -129,6 +130,9 @@ export function AiSettings({ status, isAdmin, keyOnly = false }: { status: AiSta
 
         {/* This month */}
         <UsageBlock isAdmin={isAdmin} provider={provider} status={status} rev={usageRev} />
+
+        {/* Companion: one row per series the reading companion knows */}
+        <AiCompanionOverview isAdmin={isAdmin} onSettled={() => setUsageRev(r => r + 1)} />
 
         {/* Activity: digest jobs and what they cost */}
         <AiActivity isAdmin={isAdmin} onSettled={() => setUsageRev(r => r + 1)} />
