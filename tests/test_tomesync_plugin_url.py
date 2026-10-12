@@ -242,5 +242,7 @@ def test_build_bumped_for_rebake():
     # 1.16.1 / build 47: "Show sync code" ends the sitting in progress so the
     # open book's reading is in the code; the menu count lists unsent items
     # only.
-    assert TOMESYNC_PLUGIN_BUILD >= 47
-    assert TOMESYNC_PLUGIN_SEMVER == "1.16.1"
+    # 1.17.0 / build 48: the reading companion offline on the device (a
+    # glossary and recap snapshot kept in the book's sidecar folder).
+    assert TOMESYNC_PLUGIN_BUILD >= 48
+    assert TOMESYNC_PLUGIN_SEMVER == "1.17.0"

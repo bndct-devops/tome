@@ -1987,3 +1987,187 @@ def test_window_note_stamp_counts_notes_in_the_window(db, make_book, tmp_path):
                         facts_json="{}", evidence="Mara Vell walked"))
     db.flush()
     assert companion._window_note_stamp(db, scope, 4) != s4
+
+
+# ── plugin snapshot (run 2b: the offline companion on the device) ────────────
+
+def test_plugin_snapshot_shape_and_spoiler_window(db, make_book, tmp_path, plugin):
+    user = _make_user(db, "snap", "member")
+    book, mara = _entity_book(db, make_book, tmp_path, user, title="Snapshot")
+    # Kell Ward appears only in chapter 6, past the reader (chapter 4).
+    _store_digest(db, book, 6, [_entry("Kell Ward", "Arrives late.")])
+    scope = digest.user_scope(db, user, book)
+    cov = digest.coverage(db, scope, 4)
+    db.add(AIRecap(book_id=book.id, chapter_idx=4, scope_hash=scope.scope_hash,
+                   position_fraction=book_text.book_chapters(book, db)[4].start_fraction,
+                   text="So far: Mara went to sea.", model="m",
+                   digested=digest.usable(cov), needed=cov["needed"]))
+    c, key_for = plugin
+    h = key_for(user)
+    db.commit()
+    fake = FakeProvider(responses=[])
+    ai.set_provider_override(fake)
+
+    pct = _mid(book, db, 4)
+    r = c.get(f"/api/tome-sync/ai/books/{book.id}/snapshot?pct={pct}", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("application/json")
+    assert "content-encoding" not in r.headers          # no Accept-Encoding: gzip, plain JSON
+    s = r.json()
+    assert set(s) == {"rev", "as_of", "book", "chapters", "entries", "recaps", "generated_at"}
+    assert s["as_of"] == {"chapter_idx": 4, "pct": pytest.approx(pct)}
+    assert s["book"] == {"id": book.id, "title": "Snapshot", "series": None, "series_index": None,
+                         "series_key": f"book:{book.id}"}
+    chapters = book_text.book_chapters(book, db)
+    assert [ch["idx"] for ch in s["chapters"]] == [ch.idx for ch in chapters]
+    assert set(s["chapters"][0]) == {"idx", "title", "start_fraction", "end_fraction"}
+    assert s["chapters"][3]["end_fraction"] == pytest.approx(chapters[3].end_fraction)
+    gloss = c.get(f"/api/tome-sync/ai/books/{book.id}/glossary?pct={pct}", headers=h).json()
+    assert s["rev"] == gloss["rev"]
+    extra = {"alias_places", "identity_at"}
+    assert [{k: v for k, v in e.items() if k not in extra} for e in s["entries"]] == gloss["entries"]
+    # The position response carries the same rev the snapshot is stamped with.
+    pr = c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": pct}, headers=h)
+    assert pr.json()["glossary_rev"] == s["rev"]
+
+    names = [e["name"] for e in s["entries"]]
+    assert "Mara Vell" in names and "Tobin Ash" in names and "Kell Ward" not in names
+    m = next(e for e in s["entries"] if e["name"] == "Mara Vell")
+    assert m["aliases"] == ["The Pilot"]                 # "Vell the Dead" is learned in chapter 5
+    assert m["status"] == "alive" and m["facts"]["location"]["value"] == "the ferry"
+    assert set(m["facts"]["location"]) == {"value", "book_id", "series_index", "chapter_idx"}
+    assert [t["line"] for t in m["timeline"]] == ["Walks to the harbour.", "Hears the bell.",
+                                                  "Takes the ferry out."]
+    assert all(t["chapter_idx"] < 4 for t in m["timeline"])
+    assert m["first_seen"]["chapter_idx"] == 0 and m["last_seen"]["chapter_idx"] == 2
+    # Where each alias and the identity were learned, cut at the window (the
+    # device hides them on a re-read before those places).
+    assert m["alias_places"] == [{"name": "The Pilot", "book_id": book.id, "series_index": None,
+                                  "chapter_idx": 1}]
+    assert m["identity_at"] == {"book_id": book.id, "series_index": None, "chapter_idx": 0}
+    t = next(e for e in s["entries"] if e["name"] == "Tobin Ash")
+    assert t["alias_places"] == [] and t["identity_at"]["chapter_idx"] == 1
+    assert "Vell the Dead" not in r.text
+    assert "Drowns" not in r.text and "Arrives late" not in r.text and "the sea" not in r.text
+
+    assert s["recaps"]["volumes"] == []
+    cur = s["recaps"]["current"]
+    assert cur["text"] == "So far: Mara went to sea." and cur["chapter_idx"] == 4 and cur["created_at"]
+
+    # Earlier in the book (a re-read): the cached recap at chapter 4 is not served, the
+    # glossary shrinks.
+    early = c.get(f"/api/tome-sync/ai/books/{book.id}/snapshot?pct={_mid(book, db, 1)}",
+                  headers=h).json()
+    assert early["as_of"]["chapter_idx"] == 1 and early["recaps"]["current"] is None
+    assert [e["name"] for e in early["entries"]] == ["Mara Vell"]
+    [em] = early["entries"]
+    assert em["aliases"] == [] and em["alias_places"] == []        # "The Pilot" is chapter 1
+    # Without pct: the stored position (moved back to chapter 2, so it differs
+    # from the pct asked above).
+    back = _mid(book, db, 2)
+    assert c.put(f"/api/tome-sync/position/{book.id}", json={"percentage": back},
+                 headers=h).status_code == 200
+    stored = c.get(f"/api/tome-sync/ai/books/{book.id}/snapshot", headers=h).json()
+    assert stored["as_of"] == {"chapter_idx": 2, "pct": pytest.approx(back)}
+    assert stored["rev"] not in (s["rev"], early["rev"])
+    sm = next(e for e in stored["entries"] if e["name"] == "Mara Vell")
+    assert [t["chapter_idx"] for t in sm["timeline"]] == [0, 1]
+    assert stored["recaps"]["current"] is None
+    assert fake.calls == [] and digest_job.active_for(user.id, book.id) is None
+
+
+def test_plugin_snapshot_finished_book_is_the_whole_window(db, make_book, tmp_path, plugin):
+    user = _make_user(db, "snapdone", "member")
+    book = _epub_book(db, make_book, tmp_path, "Snap Done")
+    n = len(book_text.book_chapters(book, db))
+    _digest_all(db, book, n, {0: [_entry("Mara Vell", "At the harbour.")],
+                              n - 1: [_entry("Kell Ward", "Arrives at the end.")]})
+    db.add(AIRecap(book_id=book.id, chapter_idx=n, scope_hash=digest.Scope(book=book).scope_hash,
+                   position_fraction=1.0, text="The whole book.", model="m", digested=n, needed=n))
+    _read(db, user, book)
+    _position(db, user, book, _mid(book, db, 1))     # a device left mid-book
+    c, key_for = plugin
+    h = key_for(user)
+    db.commit()
+    digest_job.reset()   # _read queued the finished-book job
+    fake = FakeProvider(responses=[])
+    ai.set_provider_override(fake)
+
+    for url in (f"/api/tome-sync/ai/books/{book.id}/snapshot?pct={_mid(book, db, 1)}",
+                f"/api/tome-sync/ai/books/{book.id}/snapshot"):
+        s = c.get(url, headers=h).json()
+        assert s["as_of"]["chapter_idx"] == n == len(s["chapters"])
+        assert [e["name"] for e in s["entries"]] == ["Mara Vell", "Kell Ward"]
+        cur = s["recaps"]["current"]
+        assert cur is not None and cur["text"] == "The whole book." and cur["chapter_idx"] == n
+    assert fake.calls == []
+
+
+def test_plugin_snapshot_volumes_and_zero_window(db, make_book, tmp_path, plugin):
+    user = _make_user(db, "snapvol", "member")
+    v1, v2, v3 = _volume_series(db, make_book, tmp_path, user, "Strand")
+    v4 = _epub_book(db, make_book, tmp_path, "Strand 4", series="Strand", index=4)
+    own = lambda v: digest.Scope(book=v).scope_hash
+    _digest_all(db, v1, 4, {0: [_entry("Mara Vell", "At the harbour.")]})
+    db.add(AIRecap(book_id=v1.id, chapter_idx=4, scope_hash=own(v1), position_fraction=1.0,
+                   text="Vol one recap.", model="m", digested=4, needed=4))
+    _digest_all(db, v2, 2)
+    db.add(AIRecap(book_id=v2.id, chapter_idx=4, scope_hash=own(v2), position_fraction=1.0,
+                   text="Vol two partial.", model="m", digested=2, needed=4))
+    _digest_all(db, v4, 4)      # unread later volume: never in the snapshot
+    db.add(AIRecap(book_id=v4.id, chapter_idx=4, scope_hash=own(v4), position_fraction=1.0,
+                   text="Vol four recap.", model="m", digested=4, needed=4))
+    c, key_for = plugin
+    h = key_for(user)
+    db.commit()
+    digest_job.reset()   # the setup's _read queued finished-book jobs
+    fake = FakeProvider(responses=[])
+    ai.set_provider_override(fake)
+
+    r = c.get(f"/api/tome-sync/ai/books/{v3.id}/snapshot", headers=h)    # no position on vol 3
+    assert r.status_code == 200, r.text
+    s = r.json()
+    assert s["as_of"] == {"chapter_idx": 0, "pct": None}
+    assert s["book"]["series"] == "Strand" and s["book"]["series_index"] == 3
+    assert s["book"]["series_key"] == "strand"
+    assert [v["book_id"] for v in s["recaps"]["volumes"]] == [v1.id]
+    [vol] = s["recaps"]["volumes"]
+    assert set(vol) == {"book_id", "title", "series_index", "text", "created_at"}
+    assert vol["text"] == "Vol one recap." and vol["series_index"] == 1 and vol["created_at"]
+    assert s["recaps"]["current"] is None
+    assert [e["name"] for e in s["entries"]] == ["Mara Vell"]
+    assert s["entries"][0]["first_seen"]["book_id"] == v1.id
+    assert "Vol four" not in r.text and "Vol two partial" not in r.text
+    assert fake.calls == []
+
+
+def test_plugin_snapshot_auth_gzip_and_feature_off(db, admin_user, make_book, tmp_path, plugin,
+                                                   monkeypatch):
+    c, key_for = plugin
+    member = _make_user(db, "snapm", "member")
+    guest = _make_user(db, "snapg", "guest", key=False)
+    book = _epub_book(db, make_book, tmp_path, "Snap Auth")
+    hidden = _epub_book(db, make_book, tmp_path, "Snap Hidden")
+    lib = Library(name="Snap Private", is_public=False, owner_id=admin_user[0].id)
+    lib.books.append(hidden)
+    db.add(lib)
+    _store_digest(db, book, 0, [_entry("Mara Vell", "At the harbour.")])
+    hm, hg = key_for(member), key_for(guest)
+    db.commit()
+    url = f"/api/tome-sync/ai/books/{book.id}/snapshot?pct={_mid(book, db, 2)}"
+
+    assert c.get(url, headers=hg).status_code == 403
+    assert c.get(url).status_code == 422                   # no key header
+    assert c.get(f"/api/tome-sync/ai/books/{hidden.id}/snapshot", headers=hm).status_code == 404
+    assert c.get("/api/tome-sync/ai/books/999999/snapshot", headers=hm).status_code == 404
+
+    monkeypatch.setattr(companion, "GZIP_MIN_BYTES", 0)
+    r = c.get(url, headers={**hm, "Accept-Encoding": "gzip"})
+    assert r.status_code == 200 and r.headers.get("content-encoding") == "gzip"
+    assert r.json()["entries"][0]["name"] == "Mara Vell"   # the client decodes it
+    r = c.get(url, headers={**hm, "Accept-Encoding": "identity"})
+    assert r.status_code == 200 and "content-encoding" not in r.headers
+
+    ai_settings.set_feature_enabled(db, "reading_digest", False)
+    db.commit()
+    assert c.get(url, headers=hm).status_code == 404

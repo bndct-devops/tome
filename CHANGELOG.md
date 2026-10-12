@@ -156,6 +156,23 @@ All notable changes to Tome are documented here. Format loosely follows
   question can cost at most on the current model (around 10 to 30 cents on
   Sonnet 5.5), and Ask has its own switch and model in Settings > AI.
   Answers are not stored.
+- **The reading companion on KOReader, offline (TomeSync 1.17.0 / build 48).**
+  The plugin keeps a snapshot of the book's glossary and the recaps Tome
+  already wrote in the book's own sidecar folder, so they work without a
+  connection. It is pulled on its own after a position sync whose glossary
+  changed (open, close, suspend, Sync now) and by "Refresh glossary now" in
+  the TomeSync menu; it is never read for another book. "Glossary so far"
+  lists people, places and terms with a search; an entry opens as plain
+  text with identity, status, rank, powers and titles, the other facts
+  with the chapter they are as of, the last timeline lines and where it was
+  first seen. "Who is this?" in the text-selection bar looks the selected
+  name up in the snapshot, exact matches first, and says "Nothing about
+  that before this page." rather than guess. "Recaps" shows the earlier
+  volumes' recaps and the recap to the synced page. Re-reading behind the
+  synced position hides what lies past the page. A settings toggle
+  ("Reading companion on this device") turns all of it off. Nothing on the
+  device calls the model; the snapshot is as of the last sync, so nothing
+  past it is ever on the device.
 - **Companion overview.** Settings > AI has a "Companion" section above
   Activity: one row per series the reading companion knows (a standalone
   book is its own row) with a coverage strip per volume, the glossary

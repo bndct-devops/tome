@@ -584,6 +584,100 @@ def glossary_payload(db: Session, user: User, book: Book, window: Window) -> dic
     }
 
 
+def _iso(dt: datetime | None) -> str | None:
+    return dt.isoformat() + "Z" if dt is not None else None
+
+
+def _with_places(db: Session, scope: digest.Scope, book: Book, upto: int,
+                 entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """``entries`` with where each alias and the identity were learned, so a
+    device reading behind the snapshot's position (a re-read) can hide them:
+    ``alias_places`` ``[{name, book_id, series_index, chapter_idx}]`` (one per
+    alias in ``aliases`` whose learning place inside the window is known; the
+    earliest one) and ``identity_at`` ``{book_id, series_index, chapter_idx}``
+    (the entry's ``first_seen``: the identity is written at the first sight)."""
+    from backend.models.ai_entity import AIEntity
+
+    vols = scope.volumes()
+    order = {v.id: n for n, v in enumerate(vols)}
+    indexes = {v.id: v.series_index for v in vols}
+    ids = [e["entity_id"] for e in entries if e.get("entity_id") is not None and e.get("aliases")]
+    ents = {e.id: e for e in db.query(AIEntity).filter(AIEntity.id.in_(ids)).all()} if ids else {}
+
+    def inside(a: dict[str, Any]) -> bool:
+        bid, ci = a.get("book_id"), a.get("chapter_idx")
+        if bid not in order or not isinstance(ci, int) or isinstance(ci, bool):
+            return False
+        return bid != book.id or ci < upto
+
+    out = []
+    for e in entries:
+        places = []
+        ent = ents.get(e.get("entity_id")) if e.get("entity_id") is not None else None
+        if ent is not None:
+            items = [a for a in digest.entity_aliases(ent) if inside(a)]
+            for name in e.get("aliases") or []:
+                key = digest.normalize_name(name)
+                hits = [a for a in items if digest.normalize_name(a["name"]) == key]
+                if not hits:
+                    continue
+                a = min(hits, key=lambda a: (order[a["book_id"]], a["chapter_idx"]))
+                places.append({"name": name, "book_id": a["book_id"],
+                               "series_index": indexes.get(a["book_id"]),
+                               "chapter_idx": a["chapter_idx"]})
+        first = e.get("first_seen")
+        identity_at = ({"book_id": first.get("book_id"), "series_index": first.get("series_index"),
+                        "chapter_idx": first.get("chapter_idx")} if isinstance(first, dict) else None)
+        out.append({**e, "alias_places": places, "identity_at": identity_at})
+    return out
+
+
+def snapshot_payload(db: Session, user: User, book: Book, window: Window) -> dict[str, Any]:
+    """The offline snapshot a device keeps for ``book`` (KOReader, run 2b):
+    the glossary list of ``window`` (``glossary_payload``'s ``entries`` and
+    ``rev``), the chapter table (so the device can place a page fraction and
+    hide what lies past a re-read position), the ready recaps of the user's
+    read earlier volumes and the cached recap at the window when there is a
+    fresh one. Nothing past the window; read-only, never queues work and
+    never calls a model.
+
+    ``{rev, as_of: {chapter_idx, pct}, book: {id, title, series,
+    series_index, series_key}, chapters: [{idx, title, start_fraction,
+    end_fraction}], entries, recaps: {volumes: [{book_id, title,
+    series_index, text, created_at}], current: {text, chapter_idx,
+    created_at} | None}, generated_at}``. ``as_of.pct`` is the position as
+    synced (None for the zero window of a book with no position). Each
+    entry also carries ``alias_places`` and ``identity_at``
+    (``_with_places``)."""
+    from backend.services.ai import recap, volume_recap
+
+    gloss = glossary_payload(db, user, book, window)
+    # Not ``volumes_payload``: that also prices Write all and scans for
+    # reconcile candidates, none of which the device shows.
+    vols = [volume_recap.item(volume_recap.state(db, user, v))
+            for v in volume_recap.included_volumes(db, user, book)]
+    row = recap.cached_for(db, user, book, window)
+    scope = digest.user_scope(db, user, book)
+    entries = _with_places(db, scope, book, gloss["chapter_idx"], gloss["entries"])
+    return {
+        "rev": gloss["rev"],
+        "as_of": {"chapter_idx": gloss["chapter_idx"],
+                  "pct": window.position.pct if window.position is not None else None},
+        "book": {"id": book.id, "title": book.title, "series": book.series,
+                 "series_index": book.series_index, "series_key": digest.series_key(book)},
+        "chapters": [{"idx": c.idx, "title": c.title, "start_fraction": c.start_fraction,
+                      "end_fraction": c.end_fraction} for c in window.chapters],
+        "entries": entries,
+        "recaps": {
+            "volumes": [{k: v[k] for k in ("book_id", "title", "series_index", "text", "created_at")}
+                        for v in vols if v["status"] == volume_recap.READY and v["text"]],
+            "current": {"text": row.text, "chapter_idx": row.chapter_idx,
+                        "created_at": _iso(row.created_at)} if row is not None else None,
+        },
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+
 # ── starting a digest job (the explicit "read these chapters first") ─────────
 
 DIGEST_SCOPES = ("book", "series")

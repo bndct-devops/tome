@@ -112,8 +112,8 @@ logger = logging.getLogger(__name__)
 # read is in the code and not only its position; the menu count "(N)" counts
 # unsent items only (the open book's live position no longer makes it read
 # "(1)" after a full sync).
-TOMESYNC_PLUGIN_BUILD = 47
-TOMESYNC_PLUGIN_SEMVER = "1.16.1"
+TOMESYNC_PLUGIN_BUILD = 48
+TOMESYNC_PLUGIN_SEMVER = "1.17.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1556,6 +1556,29 @@ def ai_plugin_glossary_entry(
     if entry is None:
         raise HTTPException(status_code=404, detail="No such entry up to your position")
     return {"entry": entry}
+
+
+@router.get("/tome-sync/ai/books/{book_id}/snapshot")
+def ai_plugin_snapshot(
+    book_id: int,
+    request: Request,
+    pct: Optional[float] = Query(default=None, ge=0.0, le=1.0),
+    progress: Optional[str] = Query(default=None, max_length=2048),
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """The offline companion snapshot the plugin keeps in the book's sidecar
+    folder: the glossary list, the chapter table and the recaps already
+    written, all as of ``pct`` + ``progress`` (the xpointer), else the
+    stored position, else chapter 0 (the read earlier volumes only). ``rev``
+    is the glossary's, so a sync that returns a different ``glossary_rev``
+    tells the plugin to fetch a new one. Read-only, never queues work or
+    calls a model; gzipped when the client accepts it."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    window = _ai_start_window(db, user, book, pct, progress)
+    return ai_companion.json_response(ai_companion.snapshot_payload(db, user, book, window),
+                                      request.headers.get("accept-encoding"))
 
 
 class AiRecapRequest(PydanticBaseModel):
@@ -3017,6 +3040,10 @@ function TomeSync:onReaderReady()
     if not self.book_id then return end
 
     self:_initSession()
+    -- Reading companion: per-book snapshot state + "Who is this?" button, and
+    -- a snapshot pull the last close/suspend of this book left for later.
+    pcall(function() self:_companionOnOpen() end)
+    pcall(function() self:_companionRunPending() end)
     -- Pull highlights from other devices (and push any local changes). This is the
     -- moment a device picks up annotations made elsewhere. Deferred a tick so the
     -- annotation module is fully settled before we merge into it.
@@ -3035,6 +3062,9 @@ function TomeSync:onPageUpdate(pageno)
         self:_tryResolve()
         if self.book_id then
             self:_initSession()
+            -- Matched late: the companion's open step never ran for this book.
+            pcall(function() self:_companionOnOpen() end)
+            pcall(function() self:_companionRunPending() end)
         end
         return
     end
@@ -3100,7 +3130,12 @@ function TomeSync:onSuspend()
         local duration, session_end = self:_sessionTotals(os.time())
         local dev      = deviceName()
 
-        self:_putPosition(self.book_id, cfi, pct, dev)
+        -- Quiet: a companion snapshot pull is only noted for later here (a
+        -- network fetch must never hold up the device going to sleep).
+        self._companion_quiet = true
+        local pok, perr = pcall(self._putPosition, self, self.book_id, cfi, pct, dev)
+        self._companion_quiet = false
+        if not pok then logger.warn("TomeSync: position push on suspend failed:", perr) end
 
         -- Sync highlights/notes alongside position (bidirectional merge with the server).
         pcall(function() self:_syncAnnotations() end)
@@ -3169,6 +3204,8 @@ function TomeSync:onResume()
 
     -- Push position on wake — catches up after offline periods
     self:_pushPosition()
+    -- A companion snapshot pull the suspend left for later (when online).
+    pcall(function() self:_companionRunPending() end)
 
     -- Flush any pending sessions / ratings from offline periods
     self:_flushPendingSessions()
@@ -3574,6 +3611,8 @@ function TomeSync:_putPosition(book_id, progress, pct, dev)
             self.pending_positions[key] = nil
             self:_saveState("tomesync_pending_positions", self.pending_positions)
         end
+        -- Reading companion: pull a new snapshot when glossary_rev moved.
+        pcall(function() self:_companionAfterPut(book_id, resp, progress, pct) end)
         return true
     end
     -- Only transport failures (offline, backoff, timeout) and server errors
@@ -3915,7 +3954,12 @@ function TomeSync:onCloseDocument()
     local duration, session_end = self:_sessionTotals(os.time())
     local dev      = deviceName()
 
-    self:_putPosition(self.book_id, cfi, pct, dev)
+    -- Quiet: a companion snapshot pull is only noted for the next open of
+    -- this book (no network fetch on the way out of it).
+    self._companion_quiet = true
+    local pok, perr = pcall(self._putPosition, self, self.book_id, cfi, pct, dev)
+    self._companion_quiet = false
+    if not pok then logger.warn("TomeSync: position push on close failed:", perr) end
 
     -- Flush + merge highlights/notes before the book closes.
     pcall(function() self:_syncAnnotations() end)
@@ -3946,6 +3990,7 @@ function TomeSync:onCloseDocument()
     self.progress_start = nil
     self.last_progress  = nil
     last_session_init.book_id = nil
+    self._companion = nil
 end
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
@@ -6485,6 +6530,775 @@ function TomeSync:_editDownloadTemplate()
     dialog:onShowKeyboard()
 end
 
+-- ── Reading companion (offline snapshot, build 48) ──────────────────────────
+-- The glossary and the recaps of the book, as of the last synced position,
+-- kept on the device so they work without a connection. One JSON file per
+-- book in the document's sidecar folder (tome_companion.json): {{book_id,
+-- series_key, rev, fetched_at, snapshot}}. It travels with the book and is
+-- never read for another one (a book_id that is not the document's mapped
+-- Tome id is ignored and refetched). Pulled after a position PUT whose
+-- glossary_rev differs from the stored one; failures only log. No model call
+-- from the device. Everything here is gated on the toggle
+-- "tomesync_companion" (default on) and on a snapshot being present, so a
+-- server without the feature never shows any of it.
+-- All helpers live in one table: the main chunk is close to Lua's limit of
+-- 200 locals.
+local Companion = {{
+    FILE  = "tome_companion.json",
+    DAY   = 86400,
+    KIND_ORDER = {{ person = 1, place = 2, term = 3 }},
+    FACTS = {{
+        {{ "status",        "Status" }},
+        {{ "rank",          "Rank" }},
+        {{ "powers",        "Powers and titles" }},
+        {{ "affiliations",  "Affiliations" }},
+        {{ "relationships", "Relationships" }},
+        {{ "location",      "Location" }},
+        {{ "appearance",    "Appearance" }},
+    }},
+    TIMELINE_SHOWN = 5,
+    -- The server's POSITION_MARGIN: a page fraction can trail the word
+    -- fraction near a chapter boundary, so the trim decision reads ahead by
+    -- this much (never past what the snapshot holds: that is cut server-side).
+    POSITION_MARGIN = 0.03,
+    -- A pull that failed (not 403/404/422) is not retried for the same rev
+    -- before this many seconds.
+    RETRY_SECONDS = 1800,
+    -- Stripped from both ends of a "Who is this?" selection (literal UTF-8).
+    QUOTES = {{ "“", "”", "‘", "’", "«", "»", "—", "–", "…" }},
+    -- doc path -> {{ book_id, rev, pct, progress }}: a pull the suspend or
+    -- close path left for the next open / resume.
+    pending = {{}},
+    -- book id -> {{ rev, at }}: the last failed pull.
+    errors = {{}},
+}}
+
+function Companion.enabled()
+    return G_reader_settings:nilOrTrue("tomesync_companion")
+end
+
+function Companion.str(v)
+    v = jval(v)
+    if type(v) == "string" and v:match("%S") then return v end
+    return nil
+end
+
+function Companion.lower(s)
+    if type(s) ~= "string" then return "" end
+    local ok, U = pcall(require, "ffi/utf8proc")
+    if ok and U and U.lowercase then
+        local ok2, out = pcall(U.lowercase, s)
+        if ok2 and type(out) == "string" then return out end
+    end
+    return s:lower()
+end
+
+-- JSON literal for a string or nil (rapidjson encodes values inside tables).
+function Companion.lit(v)
+    v = jval(v)
+    if type(v) == "number" then return tostring(v) end
+    if type(v) ~= "string" then return "null" end
+    local ok, out = pcall(rapidjson.encode, {{ v }})
+    if not ok or type(out) ~= "string" then return "null" end
+    return out:sub(2, -2)
+end
+
+function Companion.paths(doc_path)
+    if type(doc_path) ~= "string" or doc_path == "" then return nil end
+    local ok, dir = pcall(function()
+        return require("docsettings"):getSidecarDir(doc_path)
+    end)
+    if not ok or type(dir) ~= "string" or dir == "" then return nil end
+    return dir, dir .. "/" .. Companion.FILE
+end
+
+function Companion.load(doc_path, book_id)
+    local _, file = Companion.paths(doc_path)
+    if not file then return nil end
+    local body = readWhole(file)
+    if not body then return nil end
+    local ok, data = pcall(rapidjson.decode, body)
+    if not ok or type(data) ~= "table" or type(data.snapshot) ~= "table" then
+        logger.warn("TomeSync: companion snapshot unreadable, ignoring:", file)
+        return nil
+    end
+    if jval(data.book_id) ~= book_id then
+        logger.info("TomeSync: companion snapshot is for book", tostring(jval(data.book_id)),
+                    "not", tostring(book_id), "- ignoring")
+        return nil
+    end
+    return data
+end
+
+function Companion.remove(doc_path)
+    local _, file = Companion.paths(doc_path)
+    if file and lfs.attributes(file, "mode") == "file" then os.remove(file) end
+end
+
+-- Wraps the raw response body (never re-encoded, so the JSON stays exactly as
+-- the server sent it) and swaps it in atomically: tmp + rename, as the impl
+-- self-update does.
+function Companion.store(doc_path, book_id, body, snap)
+    local dir, file = Companion.paths(doc_path)
+    if not file then return nil, "no sidecar folder" end
+    if lfs.attributes(dir, "mode") ~= "directory" then mkdirp(dir) end
+    if lfs.attributes(dir, "mode") ~= "directory" then return nil, "cannot create " .. dir end
+    local book = type(snap.book) == "table" and snap.book or {{}}
+    local now = os.time()
+    local text = '{{"book_id":' .. tostring(book_id)
+        .. ',"series_key":' .. Companion.lit(book.series_key)
+        .. ',"rev":' .. Companion.lit(snap.rev)
+        .. ',"fetched_at":' .. tostring(now)
+        .. ',"snapshot":' .. body .. "}}"
+    local tmp = file .. ".tmp"
+    if not writeWhole(tmp, text) then
+        os.remove(tmp)
+        return nil, "cannot write " .. tmp
+    end
+    -- writeWhole does not report a short write (a full disk): check the size
+    -- before the swap, so a cut file never replaces a good one.
+    local f = io.open(tmp, "rb")
+    local size = f and f:seek("end") or nil
+    if f then f:close() end
+    if size ~= #text then
+        os.remove(tmp)
+        return nil, string.format("short write to %s (%s of %d bytes)", tmp, tostring(size), #text)
+    end
+    local ok, err = os.rename(tmp, file)
+    if not ok then
+        os.remove(tmp)
+        return nil, tostring(err)
+    end
+    return {{ book_id = book_id, series_key = jval(book.series_key), rev = jval(snap.rev),
+              fetched_at = now, snapshot = snap }}
+end
+
+function Companion.fetch(book_id, pct, progress)
+    local params = {{}}
+    if type(pct) == "number" then
+        table.insert(params, "pct=" .. string.format("%.6f", pct))
+    end
+    if type(progress) == "string" and progress ~= "" then
+        table.insert(params, "progress=" .. urlEncode(progress))
+    end
+    local path = "/tome-sync/ai/books/" .. tostring(book_id) .. "/snapshot"
+    if #params > 0 then path = path .. "?" .. table.concat(params, "&") end
+    return fetchText(path)
+end
+
+-- "vol N, ch M" (chapter_idx is 0-based), "ch M" without a series index.
+function Companion.place(loc)
+    if type(loc) ~= "table" then return nil end
+    local ci = tonumber(jval(loc.chapter_idx))
+    if not ci then return nil end
+    local si = tonumber(jval(loc.series_index))
+    if si then
+        return string.format("vol %s, ch %d", string.format("%g", si), ci + 1)
+    end
+    return string.format("ch %d", ci + 1)
+end
+
+-- The current chapter from the page fraction and the snapshot's chapter
+-- table: the last chapter starting at or before it (rounded down, as the
+-- server does).
+function Companion.currentChapter(snap, pct)
+    local cur = 0
+    if type(snap.chapters) ~= "table" then return cur end
+    for _, ch in ipairs(snap.chapters) do
+        if type(ch) == "table" then
+            local s = tonumber(jval(ch.start_fraction))
+            local idx = tonumber(jval(ch.idx))
+            if s and idx and pct + 1e-9 >= s then cur = idx end
+        end
+    end
+    return cur
+end
+
+-- The snapshot as the reader may see it at `pct`. The server cut it at the
+-- last synced position; reading behind that (a re-read) hides entries first
+-- seen at or past the current chapter of this book and drops the aliases,
+-- identity, facts, timeline lines and the recap past it. Reading ahead
+-- shows it as is, and so does a finished book (the whole-book window,
+-- as_of = chapter count: the reader has read all of it).
+function Companion.view(snap, pct)
+    local book = type(snap.book) == "table" and snap.book or {{}}
+    local this_id = jval(book.id)
+    local as_of = type(snap.as_of) == "table" and tonumber(jval(snap.as_of.chapter_idx)) or nil
+    local nch = type(snap.chapters) == "table" and #snap.chapters or 0
+    -- The margin is for this trim decision only (see POSITION_MARGIN).
+    local cur = Companion.currentChapter(snap, math.min(1, (pct or 0) + Companion.POSITION_MARGIN))
+    local limit = (as_of and as_of < nch and cur < as_of) and cur or nil
+    local function past(loc)
+        if not limit or type(loc) ~= "table" then return false end
+        if jval(loc.book_id) ~= this_id then return false end
+        local ci = tonumber(jval(loc.chapter_idx))
+        return ci ~= nil and ci >= limit
+    end
+    local entries = {{}}
+    for i, e in ipairs(type(snap.entries) == "table" and snap.entries or {{}}) do
+        if type(e) == "table" and Companion.str(e.name) and not past(jval(e.first_seen)) then
+            local v = {{}}
+            for k, val in pairs(e) do v[k] = val end
+            v._order = i
+            v.aliases = Companion.aliases(e)    -- strings, for the dialog and the matching
+            if limit then
+                -- Aliases learned at or past the page go; one without a place stays.
+                local hidden = {{}}
+                if type(e.alias_places) == "table" then
+                    for _, ap in ipairs(e.alias_places) do
+                        local n = type(ap) == "table" and past(ap) and Companion.str(ap.name) or nil
+                        if n then hidden[Companion.lower(n)] = true end
+                    end
+                end
+                local kept = {{}}
+                for _, a in ipairs(v.aliases) do
+                    if not hidden[Companion.lower(a)] then table.insert(kept, a) end
+                end
+                v.aliases = kept
+                -- An identity written past the page: the row and the dialog
+                -- fall back to the trimmed line.
+                if past(jval(e.identity_at)) then v.identity = nil end
+                local facts = {{}}
+                if type(e.facts) == "table" then
+                    for k, f in pairs(e.facts) do
+                        if type(f) == "table" and not past(f) then facts[k] = f end
+                    end
+                end
+                v.facts = facts
+                -- The plain status is the latest one: never show it in place of
+                -- a status fact that lies past the page.
+                if type(e.facts) == "table" and e.facts.status ~= nil and facts.status == nil then
+                    v.status = nil
+                end
+                local tl = {{}}
+                if type(e.timeline) == "table" then
+                    for _, t in ipairs(e.timeline) do
+                        if type(t) == "table" and not past(t) then table.insert(tl, t) end
+                    end
+                end
+                v.timeline = tl
+                v.line = (#tl > 0 and jval(tl[#tl].line)) or nil
+                if past(jval(e.last_seen)) then v.last_seen = nil end
+            end
+            table.insert(entries, v)
+        end
+    end
+    table.sort(entries, function(a, b)
+        local ka = Companion.KIND_ORDER[jval(a.kind)] or 9
+        local kb = Companion.KIND_ORDER[jval(b.kind)] or 9
+        if ka ~= kb then return ka < kb end
+        return a._order < b._order
+    end)
+    local recaps = type(snap.recaps) == "table" and snap.recaps or {{}}
+    local current = jval(recaps.current)
+    if type(current) == "table" and limit then
+        local ci = tonumber(jval(current.chapter_idx))
+        if ci and ci > limit then current = nil end
+    end
+    return {{
+        entries = entries,
+        volumes = type(recaps.volumes) == "table" and recaps.volumes or {{}},
+        current = type(current) == "table" and current or nil,
+        limit   = limit,
+    }}
+end
+
+function Companion.aliases(e)
+    local out = {{}}
+    if type(e.aliases) ~= "table" then return out end
+    for _, a in ipairs(e.aliases) do
+        local name = type(a) == "table" and Companion.str(a.name) or Companion.str(a)
+        if name then table.insert(out, name) end
+    end
+    return out
+end
+
+function Companion.rowText(e)
+    local name = Companion.str(e.name) or "?"
+    local ident = Companion.str(e.identity) or Companion.str(e.line)
+    if ident then
+        ident = ident:gsub("%s+", " ")
+        return name .. " · " .. ident
+    end
+    return name
+end
+
+function Companion.entryText(e)
+    local lines = {{}}
+    local function add(s) table.insert(lines, s) end
+    local ident = Companion.str(e.identity)
+    if ident then add(ident); add("") end
+    local aliases = Companion.aliases(e)
+    if #aliases > 0 then add("Also called: " .. table.concat(aliases, ", ")) end
+    local facts = type(e.facts) == "table" and e.facts or {{}}
+    local any_fact = false
+    for _, ff in ipairs(Companion.FACTS) do
+        local f = jval(facts[ff[1]])
+        local value = type(f) == "table" and Companion.str(f.value) or nil
+        if not value and ff[1] == "status" then value = Companion.str(e.status) end
+        if value then
+            local where = type(f) == "table" and Companion.place(f) or nil
+            add(ff[2] .. ": " .. value .. (where and (" · as of " .. where) or ""))
+            any_fact = true
+        end
+    end
+    if any_fact or #aliases > 0 then add("") end
+    local tl = type(e.timeline) == "table" and e.timeline or {{}}
+    if #tl > 0 then
+        add("Timeline")
+        local from = math.max(1, #tl - Companion.TIMELINE_SHOWN + 1)
+        for i = from, #tl do
+            local t = tl[i]
+            local line = type(t) == "table" and Companion.str(t.line) or nil
+            if line then
+                local where = Companion.place(t)
+                add((where and (where .. " · ") or "") .. line)
+            end
+        end
+        add("")
+    elseif Companion.str(e.line) then
+        add(Companion.str(e.line)); add("")
+    end
+    local first = Companion.place(jval(e.first_seen))
+    if first then add("First seen " .. first) end
+    while #lines > 0 and lines[#lines] == "" do table.remove(lines) end
+    if #lines == 0 then return "Nothing more about this yet." end
+    return table.concat(lines, "\\n")
+end
+
+-- Search: name and alias matches first, then identity text.
+function Companion.search(entries, q)
+    q = Companion.lower(q):match("^%s*(.-)%s*$")
+    if q == "" then return entries end
+    local first, second = {{}}, {{}}
+    for _, e in ipairs(entries) do
+        local hit = Companion.lower(Companion.str(e.name)):find(q, 1, true)
+        if not hit then
+            for _, a in ipairs(Companion.aliases(e)) do
+                if Companion.lower(a):find(q, 1, true) then hit = true; break end
+            end
+        end
+        if hit then
+            table.insert(first, e)
+        elseif Companion.lower(Companion.str(e.identity) or Companion.str(e.line))
+                :find(q, 1, true) then
+            table.insert(second, e)
+        end
+    end
+    for _, e in ipairs(second) do table.insert(first, e) end
+    return first
+end
+
+-- "Who is this?": exact name/alias (case-insensitive) first, then a
+-- whole-word prefix, then containment. The first tier with hits wins.
+function Companion.lookup(entries, text)
+    local sel = Companion.lower(text or ""):gsub("%s+", " ")
+    sel = sel:match("^%s*(.-)%s*$") or ""
+    -- Curly quotes, guillemets, dashes and ellipses (multi-byte, so compared
+    -- as whole sequences, never in a character class) and ASCII punctuation,
+    -- off both ends until nothing changes; then the possessive.
+    local changed = true
+    while changed and sel ~= "" do
+        changed = false
+        for _, q in ipairs(Companion.QUOTES) do
+            if sel:sub(1, #q) == q then sel = sel:sub(#q + 1); changed = true end
+            if #sel >= #q and sel:sub(-#q) == q then sel = sel:sub(1, -#q - 1); changed = true end
+        end
+        local t = sel:gsub("^[%p%s]+", ""):gsub("[%p%s]+$", "")
+        if t ~= sel then sel = t; changed = true end
+    end
+    sel = sel:gsub("'s$", ""):gsub("’s$", "")
+    if sel == "" then return {{}} end
+    local tiers = {{ {{}}, {{}}, {{}} }}
+    for _, e in ipairs(entries) do
+        local best
+        local names = {{ Companion.str(e.name) }}
+        for _, a in ipairs(Companion.aliases(e)) do table.insert(names, a) end
+        for _, n in ipairs(names) do
+            local name = Companion.lower(n)
+            local tier
+            if name == sel then
+                tier = 1
+            elseif name:sub(1, #sel + 1) == sel .. " " or sel:sub(1, #name + 1) == name .. " " then
+                tier = 2
+            elseif (#sel >= 3 and name:find(sel, 1, true))
+                    or (#name >= 3 and sel:find(name, 1, true)) then
+                tier = 3
+            end
+            if tier and (not best or tier < best) then best = tier end
+        end
+        if best then table.insert(tiers[best], e) end
+    end
+    for _, t in ipairs(tiers) do
+        if #t > 0 then return t end
+    end
+    return {{}}
+end
+
+-- Per open document: {{ path, book_id, loaded, data, unavailable, pulling,
+-- failed_rev }}. Reset on open, dropped on close.
+function TomeSync:_companionState()
+    local doc = self.ui and self.ui.document
+    if not doc or not doc.file or not self.book_id then return nil end
+    local c = self._companion
+    if not c or c.path ~= doc.file or c.book_id ~= self.book_id then
+        c = {{ path = doc.file, book_id = self.book_id, loaded = false }}
+        self._companion = c
+    end
+    if not c.loaded then
+        c.loaded = true
+        local ok, data = pcall(Companion.load, c.path, c.book_id)
+        if ok then c.data = data else logger.warn("TomeSync: companion load failed:", data) end
+    end
+    return c
+end
+
+-- The snapshot of the open book, or nil (no snapshot, toggle off, or the
+-- server said the companion is not available for this book).
+function TomeSync:_companionData()
+    if not Companion.enabled() then return nil end
+    local c = self:_companionState()
+    if not c or c.unavailable or not c.data then return nil end
+    return c.data
+end
+
+function TomeSync:_companionView()
+    local data = self:_companionData()
+    if not data then return nil end
+    local ok, view = pcall(Companion.view, data.snapshot, self:_getCurrentPercentage())
+    if not ok then
+        logger.warn("TomeSync: companion view failed:", view)
+        return nil
+    end
+    return view, data
+end
+
+-- Fetch and swap the snapshot of `book_id` (document `doc_path`). Returns
+-- "updated" | "current" | "offline" | "unavailable" | "error", detail.
+-- Touches the in-memory state only when that document is still the open one.
+function TomeSync:_companionPull(doc_path, book_id, pct, progress)
+    local body, code = Companion.fetch(book_id, pct, progress)
+    local doc = self.ui and self.ui.document
+    local c = (doc and doc.file == doc_path and self._companion
+               and self._companion.path == doc_path) and self._companion or nil
+    if not body then
+        -- 404 (no chapters / feature off), 422 (not an epub, no chapter map)
+        -- and 403 all mean: no companion for this book.
+        if code == 404 or code == 422 or code == 403 then
+            Companion.remove(doc_path)
+            if c then c.data = nil; c.unavailable = true; c.loaded = true end
+            logger.info("TomeSync: companion not available for book", book_id)
+            return "unavailable"
+        end
+        if code == "offline" then return "offline" end
+        logger.warn("TomeSync: companion snapshot fetch failed:", tostring(code))
+        return "error", tostring(code)
+    end
+    if body:byte(1) == 0x1f then
+        logger.warn("TomeSync: companion snapshot came compressed, ignoring")
+        return "error", "compressed response"
+    end
+    local ok, snap = pcall(rapidjson.decode, body)
+    if not ok or type(snap) ~= "table" or type(snap.entries) ~= "table" then
+        logger.warn("TomeSync: companion snapshot unparseable")
+        return "error", "bad response"
+    end
+    local old = c and c.data or Companion.load(doc_path, book_id)
+    local function recapSig(s)
+        local r = type(s) == "table" and type(s.recaps) == "table" and s.recaps or {{}}
+        local cur = jval(r.current)
+        return tostring(type(r.volumes) == "table" and #r.volumes or 0) .. "|"
+            .. tostring(type(cur) == "table" and jval(cur.created_at) or "")
+    end
+    local same = old and jval(old.rev) ~= nil and jval(old.rev) == jval(snap.rev)
+        and recapSig(old.snapshot) == recapSig(snap)
+    local stored, err = Companion.store(doc_path, book_id, body, snap)
+    if not stored then
+        logger.warn("TomeSync: companion snapshot not stored:", err)
+        return "error", err
+    end
+    if c then c.data = stored; c.unavailable = false; c.loaded = true end
+    Companion.errors[book_id] = nil
+    logger.info("TomeSync: companion snapshot", same and "unchanged" or "updated",
+                "for book", book_id, "rev", tostring(jval(snap.rev)))
+    return same and "current" or "updated"
+end
+
+-- Schedules a background pull of `rev` (2 s out, on the UI loop) unless one
+-- is running, the server said the book has no companion, or the same rev
+-- failed less than RETRY_SECONDS ago.
+function TomeSync:_companionSchedule(c, book_id, rev, pct, progress)
+    if c.pulling or c.failed_rev == rev then return end
+    local err = Companion.errors[book_id]
+    if err and err.rev == rev and os.time() - err.at < Companion.RETRY_SECONDS then return end
+    c.pulling = true
+    local path = c.path
+    UIManager:scheduleIn(2, function()
+        local ok, res, detail = pcall(self._companionPull, self, path, book_id, pct, progress)
+        c.pulling = false
+        if not ok then
+            Companion.errors[book_id] = {{ rev = rev, at = os.time() }}
+            logger.warn("TomeSync: companion pull crashed:", res)
+        elseif res == "unavailable" then
+            c.failed_rev = rev
+        elseif res == "error" then
+            Companion.errors[book_id] = {{ rev = rev, at = os.time() }}
+            logger.warn("TomeSync: companion pull failed:", detail)
+        end
+    end)
+end
+
+-- Hooked into _putPosition's success path. Schedules a background pull when
+-- the server's glossary_rev differs from the stored one (or none is stored).
+-- From the suspend and close paths (self._companion_quiet) it only notes the
+-- pull for the next open / resume / heartbeat. Never shows anything;
+-- failures only log.
+function TomeSync:_companionAfterPut(book_id, resp, progress, pct)
+    if not Companion.enabled() then return end
+    local rev = type(resp) == "table" and jval(resp.glossary_rev) or nil
+    if type(rev) ~= "string" or rev == "" then return end
+    local c = self:_companionState()
+    if not c or c.book_id ~= book_id then return end
+    if c.data and jval(c.data.rev) == rev then
+        Companion.pending[c.path] = nil
+        return
+    end
+    if self._companion_quiet then
+        Companion.pending[c.path] = {{ book_id = book_id, rev = rev, pct = pct, progress = progress }}
+        return
+    end
+    Companion.pending[c.path] = nil
+    self:_companionSchedule(c, book_id, rev, pct, progress)
+end
+
+-- Runs a pull the suspend or close path noted (open, late match, resume),
+-- when online; offline it stays noted.
+function TomeSync:_companionRunPending()
+    if not Companion.enabled() then return end
+    local c = self:_companionState()
+    if not c then return end
+    local p = Companion.pending[c.path]
+    if not p then return end
+    if p.book_id ~= c.book_id or (c.data and jval(c.data.rev) == p.rev) then
+        Companion.pending[c.path] = nil
+        return
+    end
+    if not NetworkMgr:isConnected() then return end
+    Companion.pending[c.path] = nil
+    self:_companionSchedule(c, p.book_id, p.rev, p.pct, p.progress)
+end
+
+-- Document open (or a late book match): reset the per-book state and offer
+-- "Who is this?" in the selection bar (shown only with a snapshot and the
+-- toggle on). The button is registered once per reader (flag on its
+-- highlight module, which lives as long as the document).
+function TomeSync:_companionOnOpen()
+    self._companion = nil
+    local hl = self.ui and self.ui.highlight
+    if not (hl and hl.addToHighlightDialog) or hl._tomesync_who then return end
+    hl._tomesync_who = true
+    pcall(function()
+        self.ui.highlight:addToHighlightDialog("12_2_tomesync_who", function(this)
+            return {{
+                text = "Who is this?",
+                show_in_highlight_dialog_func = function()
+                    local ok, data = pcall(self._companionData, self)
+                    return ok and data ~= nil
+                end,
+                callback = function()
+                    local text = this.selected_text and this.selected_text.text
+                    pcall(function() self:_companionWho(text) end)
+                    this:onClose()
+                end,
+            }}
+        end)
+    end)
+end
+
+function TomeSync:_companionShowEntry(e)
+    local TextViewer = require("ui/widget/textviewer")
+    UIManager:show(TextViewer:new{{
+        title = Companion.str(e.name) or "Glossary",
+        text  = Companion.entryText(e),
+    }})
+end
+
+function TomeSync:_companionWho(text)
+    local view = self:_companionView()
+    if not view then return end
+    local cleaned = text
+    pcall(function() cleaned = util.cleanupSelectedText(text) end)
+    local hits = Companion.lookup(view.entries, cleaned)
+    if #hits == 0 then
+        UIManager:show(InfoMessage:new{{
+            text = "Nothing about that before this page.",
+            timeout = 3,
+        }})
+    elseif #hits == 1 then
+        self:_companionShowEntry(hits[1])
+    else
+        self:_companionEntryMenu("Who is this?", hits)
+    end
+end
+
+function TomeSync:_companionEntryMenu(title, entries, with_search)
+    local items = {{}}
+    local menu
+    if with_search then
+        table.insert(items, {{
+            text = "Search the glossary",
+            callback = function() self:_companionSearch(entries) end,
+            separator = true,
+        }})
+    end
+    for _, e in ipairs(entries) do
+        table.insert(items, {{
+            text     = Companion.rowText(e),
+            callback = function() self:_companionShowEntry(e) end,
+        }})
+    end
+    menu = Menu:new{{
+        title      = title,
+        item_table = items,
+        width      = Device.screen:getWidth() - 20,
+        height     = Device.screen:getHeight() - 20,
+    }}
+    UIManager:show(menu)
+end
+
+function TomeSync:_companionSearch(entries)
+    local dialog
+    dialog = InputDialog:new{{
+        title = "Search the glossary",
+        input_hint = "name, alias or description",
+        buttons = {{{{
+            {{ text = "Cancel", id = "close",
+              callback = function() UIManager:close(dialog) end }},
+            {{ text = "Search", is_enter_default = true,
+              callback = function()
+                  local q = dialog:getInputText()
+                  if not (q and q:match("%S")) then return end
+                  UIManager:close(dialog)
+                  local hits = Companion.search(entries, q)
+                  if #hits == 0 then
+                      UIManager:show(InfoMessage:new{{
+                          text = "Nothing in the glossary matches \\"" .. q .. "\\".",
+                          timeout = 3,
+                      }})
+                  else
+                      self:_companionEntryMenu("Glossary: " .. q, hits)
+                  end
+              end }},
+        }}}},
+    }}
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function TomeSync:_companionGlossary()
+    local view = self:_companionView()
+    if not view then return end
+    if #view.entries == 0 then
+        UIManager:show(InfoMessage:new{{
+            text = "The glossary has nothing before this page yet.",
+            timeout = 3,
+        }})
+        return
+    end
+    self:_companionEntryMenu("Glossary so far", view.entries, true)
+end
+
+function TomeSync:_companionRecaps()
+    local view, data = self:_companionView()
+    if not view then return end
+    local stale = ""
+    local fetched = tonumber(jval(data.fetched_at))
+    if fetched and os.time() - fetched > Companion.DAY then
+        stale = "\\n\\nWritten on the web; refresh to see newer ones."
+    end
+    local TextViewer = require("ui/widget/textviewer")
+    local function show(title, text)
+        UIManager:show(TextViewer:new{{ title = title, text = text .. stale }})
+    end
+    local items = {{}}
+    for _, v in ipairs(view.volumes) do
+        local text = type(v) == "table" and Companion.str(v.text) or nil
+        if text then
+            local si = tonumber(jval(v.series_index))
+            local title = Companion.str(v.title) or "Earlier volume"
+            local label = si and string.format("Vol %g · %s", si, title) or title
+            table.insert(items, {{ text = label, callback = function() show(label, text) end }})
+        end
+    end
+    local cur = view.current
+    if cur and Companion.str(cur.text) then
+        local ci = tonumber(jval(cur.chapter_idx))
+        local label = ci and string.format("This book, to chapter %d", ci + 1) or "This book so far"
+        table.insert(items, {{ text = label, callback = function() show(label, Companion.str(cur.text)) end }})
+    end
+    if #items == 0 then
+        UIManager:show(InfoMessage:new{{
+            text = "No recaps on this device yet. Write them on the web, then refresh."
+                .. stale,
+            timeout = 4,
+        }})
+        return
+    end
+    UIManager:show(Menu:new{{
+        title      = "Recaps",
+        item_table = items,
+        width      = Device.screen:getWidth() - 20,
+        height     = Device.screen:getHeight() - 20,
+    }})
+end
+
+function TomeSync:_companionRefresh()
+    whenConnected(function()
+        local c = self:_companionState()
+        if not c then return end
+        local pct = self:_getCurrentPercentage()
+        local progress = self:_getCurrentProgress()
+        local ok, res, detail = pcall(self._companionPull, self, c.path, c.book_id, pct, progress)
+        local msg
+        if not ok then
+            logger.warn("TomeSync: companion refresh crashed:", res)
+            msg = "Glossary refresh failed."
+        elseif res == "updated" then
+            msg = "Glossary updated"
+        elseif res == "current" then
+            msg = "Already current"
+        elseif res == "offline" then
+            msg = "Offline"
+        elseif res == "unavailable" then
+            msg = "The reading companion is not available for this book."
+        else
+            msg = "Glossary refresh failed: " .. tostring(detail)
+        end
+        UIManager:show(InfoMessage:new{{ text = msg, timeout = 3 }})
+    end)
+end
+
+-- TomeSync menu entries (in a book, with a snapshot and the toggle on).
+function TomeSync:_companionMenuItems()
+    if not self:_companionData() then return nil end
+    return {{
+        {{
+            text     = "Glossary so far",
+            callback = function() pcall(function() self:_companionGlossary() end) end,
+        }},
+        {{
+            text     = "Recaps",
+            callback = function() pcall(function() self:_companionRecaps() end) end,
+        }},
+        {{
+            text      = "Refresh glossary now",
+            help_text = "Fetch the glossary and recaps up to this page from Tome. "
+                     .. "This also happens on its own after each position sync.",
+            callback  = function() self:_companionRefresh() end,
+        }},
+    }}
+end
+
 function TomeSync:_menuItems()
     local in_book = self.ui and self.ui.document
 
@@ -6501,6 +7315,18 @@ function TomeSync:_menuItems()
         callback     = function()
             G_reader_settings:saveSetting("tomesync_auto_connect",
                 not G_reader_settings:isTrue("tomesync_auto_connect"))
+        end,
+    }})
+    table.insert(settings_items, {{
+        text         = "Reading companion on this device",
+        help_text    = "Keep the glossary and recaps Tome wrote for the open book "
+                       .. "on this device (read offline, refreshed after each "
+                       .. "position sync) and offer \\"Who is this?\\" when you "
+                       .. "select a name. Needs the reading companion on the server.",
+        checked_func = function() return G_reader_settings:nilOrTrue("tomesync_companion") end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_companion",
+                not G_reader_settings:nilOrTrue("tomesync_companion"))
         end,
     }})
     -- Position pull strategy (like stock kosync): what to do when the server
@@ -6915,6 +7741,15 @@ function TomeSync:_menuItems()
                 end)
             end,
         }})
+        -- Reading companion (offline snapshot): only with a snapshot on the
+        -- device and the toggle on.
+        local ok_c, companion_items = pcall(self._companionMenuItems, self)
+        if ok_c and companion_items then
+            table.insert(sub_items, {{
+                text           = "Reading companion",
+                sub_item_table = companion_items,
+            }})
+        end
         table.insert(sub_items, {{
             text = self.enabled and "Tracking: on (tap to pause)"
                 or "Tracking: paused (tap to resume)",
