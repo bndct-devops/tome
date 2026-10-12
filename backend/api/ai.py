@@ -29,7 +29,7 @@ from backend.services import ai
 from backend.services import book_text
 from backend.services.ai import (
     budget, companion, digest, digest_job, fix_book, identify, jobs_view, recall as ai_recall,
-    recap as ai_recap, registry, series_cleanup, settings as ai_settings, usage,
+    recap as ai_recap, registry, reread, series_cleanup, settings as ai_settings, usage,
     volume_recap,
 )
 from backend.services.ai.provider import AIError, AIKeyInvalid, AIProviderError
@@ -851,6 +851,48 @@ def post_digest(
     ai.check_feature_available(db, digest.FEATURE)
     window = _start_window(db, current_user, book)
     status, payload = companion.start_digest(db, current_user, book, window, body.scope)
+    return JSONResponse(status_code=status, content=payload)
+
+
+@router.get("/books/{book_id}/reread/estimate")
+def get_reread_estimate(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """What Read again would cost and delete (admin only, 403 otherwise):
+    ``{book, series, chapter_idx, chapter_title, deletes: {book: {digests,
+    recaps}, series: {volumes, digests, recaps, entities}}}``; the scopes in
+    the /digest/estimate shape, counting every chapter of the scope up to the
+    position (all of them will be missing); ``deletes.series`` counts every
+    volume of the series, not only the read ones. Never calls a model."""
+    book = _visible_book(db, current_user, book_id)
+    window = _start_window(db, current_user, book)
+    return reread.estimate(db, current_user, book, window)
+
+
+@router.post("/books/{book_id}/reread")
+def post_reread(
+    book_id: int,
+    body: DigestBody | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> Any:
+    """Read again (admin only, 403 otherwise): delete the stored notes of
+    the scope (``book``: this book's digests and recaps; ``series``: the
+    digests and recaps of every volume of the series and every entity,
+    entity note and merge verdict of it) and start reading it: 202 like
+    POST /digest. 409 ``already_running`` while a job reads the book or
+    series, 409 ``reason: "budget"`` over a monthly spend limit, 409
+    ``nothing_to_read`` (also a series re-read with no read earlier
+    volume); nothing is deleted on any of these. A start that fails after
+    the delete keeps its status and says the notes are gone. Audited as
+    ``ai.reread``."""
+    body = body or DigestBody()
+    book = _visible_book(db, current_user, book_id)
+    ai.check_feature_available(db, digest.FEATURE)
+    window = _start_window(db, current_user, book)
+    status, payload = reread.run(db, current_user, book, window, body.scope)
     return JSONResponse(status_code=status, content=payload)
 
 

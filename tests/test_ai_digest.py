@@ -2077,7 +2077,8 @@ def test_new_entries_create_entities_and_the_state_carries_identity(db, guild):
                                              identity="", evidence="Neil Davone frowned at the price"))
     assert _state_lines(call) == [
         {"id": neil.id, "name": "Neil Davone", "kind": "person", "identity": "Jason's teammate, a healer."},
-        {"id": jason.id, "name": "Jason Asano", "kind": "person", "identity": "A newcomer to the world."}]
+        {"id": jason.id, "name": "Jason Asano", "kind": "person", "identity": "A newcomer to the world.",
+         "status": "alive"}]
     # Append-only: the next chapter's state starts with this one.
     _, call2 = _dig(db, user, book, 2, _entry("The Hooded Man", "Stalked the market.",
                                               evidence="The Hooded Man stalked the market"))
@@ -2395,7 +2396,8 @@ def test_prompts_carry_the_entity_rules():
 
 def test_prompts_carry_the_fact_guard_rails():
     """Run 2e: status was free text ("escaped", "left", "drunk"), appearance
-    recorded a transformation that wore off, powers_rank only the change."""
+    recorded a transformation that wore off; run 2f split powers_rank into rank
+    (a tier, only on change) and powers (abilities and titles)."""
     for prompt in (digest.SYSTEM_PROMPT, digest.SYSTEM_PROMPT_MANY):
         flat = " ".join(prompt.split())
         assert "status: exactly one of alive, dead, missing, captured, unknown" in flat
@@ -2405,8 +2407,13 @@ def test_prompts_carry_the_fact_guard_rails():
         assert "appearance: lasting looks only (build, hair, eyes, scars, usual dress)" in flat
         assert "A transformation, a disguise, an outfit for an occasion, an injury" in flat
         assert "it goes in the line" in flat
-        assert 'the full current rank plus the notable power or title ("Silver rank; title Giant Slayer")' in flat
-        assert "not only what changed this chapter" in flat
+        assert ("rank: the power tier the text names for this entity, as a short label as the "
+                "text writes it, only when it changes; never a title, an ability, an item or a "
+                "condition.") in flat
+        assert ("powers: notable abilities, titles and powers this chapter establishes or "
+                "changes, as a short phrase.") in flat
+        assert "A glossary line's rank and status are that entity's current values" in flat
+        assert "powers_rank" not in flat and "Silver" not in flat and "Giant Slayer" not in flat
 
 
 @pytest.mark.parametrize("value,kept", [
@@ -2424,7 +2431,18 @@ def test_facts_sanitiser_keeps_only_the_status_vocabulary(value, kept):
         assert out["status"] == value
     assert out["location"] == "the gate" and out["appearance"] == "tall"
     assert out["relationships"] == "Jason's friend"
-    assert "powers_rank" not in out and "affiliations" not in out
+    assert "powers_rank" not in out and "powers" not in out and "affiliations" not in out
+
+
+def test_facts_sanitiser_takes_rank_and_maps_a_legacy_powers_rank():
+    assert digest.FACT_FIELDS == ("appearance", "rank", "powers", "affiliations", "relationships",
+                                  "status", "location")
+    out = digest._facts({"rank": " Third  Circle ", "powers_rank": "Stone skin"})
+    assert out == {"rank": "Third Circle", "powers": "Stone skin"}
+    assert digest._facts({"powers": "Ember sight", "powers_rank": "old"}) == {"powers": "Ember sight"}
+    props = digest.build_schema()
+    flat = json.dumps(props)
+    assert '"rank"' in flat and '"powers"' in flat and "powers_rank" not in flat
 
 
 def test_a_free_text_status_is_not_stored_on_the_note(db, guild):

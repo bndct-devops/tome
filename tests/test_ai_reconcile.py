@@ -165,9 +165,9 @@ def test_profiles_keep_the_window(db, user, vols):
 def test_same_name_different_people_stay_apart(db, user, vols):
     v1, v2 = vols
     a = _entity(db, v1, 0, "Sela Wexmoor", identity="A net mender.")
-    b = _entity(db, v2, 1, "Ivo Wexmoor", identity="Sela's brother, a smuggler.")
+    b = _entity(db, v2, 1, "Sela", identity="A girl from the inland farms.")
     _note(db, a, v1, 0, "Sela mends nets.")
-    _note(db, b, v2, 1, "Ivo argues with his sister Sela.")
+    _note(db, b, v2, 1, "Sela, a farm girl, meets Sela Wexmoor at the market.")
     fake = FakeProvider(responses=_answer({frozenset((a.id, b.id)): (False, 0.97)}))
     ai.set_provider_override(fake)
 
@@ -197,6 +197,14 @@ def test_no_candidates_no_call(db, user, vols):
     _entity(db, v2, 0, "Oren Pike")
     _entity(db, v2, 1, "The Old King")                      # stopwords only
     _entity(db, v2, 2, "Old King Tam")
+    _entity(db, v1, 2, "Orla Wexmoor")                      # family name only
+    _entity(db, v2, 3, "Ivo Wexmoor")
+    _entity(db, v1, 3, "Dark Essence", kind="term")         # one shared word
+    _entity(db, v2, 3, "Water Essence", kind="term")
+    _entity(db, v1, 1, "Lesser Spirit Coin", kind="term")
+    _entity(db, v2, 2, "Lesser Earth Elemental", kind="term")
+    _entity(db, v1, 3, "Duke Arlen", kind="person")         # words differ: no containment
+    _entity(db, v2, 3, "Duke of Arlen", kind="person")
     fake = FakeProvider(responses=_answer({}))
     ai.set_provider_override(fake)
 
@@ -286,9 +294,9 @@ def test_batches_and_stop(db, user, vols, monkeypatch):
 def test_rejected_pair_is_not_sent_again(db, user, vols):
     v1, v2 = vols
     a = _entity(db, v1, 0, "Sela Wexmoor", identity="A net mender.")
-    b = _entity(db, v2, 1, "Ivo Wexmoor", identity="Sela's brother.")
+    b = _entity(db, v2, 1, "Sela", identity="A farm girl.")
     _note(db, a, v1, 0, "Sela mends nets.")
-    _note(db, b, v2, 1, "Ivo argues with his sister Sela.")
+    _note(db, b, v2, 1, "Sela, a farm girl, meets Sela Wexmoor.")
     fake = FakeProvider(responses=_answer({frozenset((a.id, b.id)): (False, 0.95)}))
     ai.set_provider_override(fake)
     reconcile.run(db, user, v2)
@@ -307,14 +315,14 @@ def test_rejected_pair_is_not_sent_again(db, user, vols):
 def test_a_new_note_reopens_a_rejected_pair(db, user, vols):
     v1, v2 = vols
     a = _entity(db, v1, 0, "Sela Wexmoor")
-    b = _entity(db, v2, 1, "Ivo Wexmoor")
+    b = _entity(db, v2, 1, "Sela")
     _note(db, a, v1, 0, "Sela mends nets.")
     fake = FakeProvider(responses=_answer({}))
     ai.set_provider_override(fake)
     reconcile.run(db, user, v2)
     assert reconcile.candidates(db, v2) == []
 
-    _note(db, b, v2, 3, "Ivo sails for the cape.")
+    _note(db, b, v2, 3, "Sela sails for the cape.")
 
     res = reconcile.run(db, user, v2)
     assert (res.candidates, res.calls) == (1, 1)
@@ -325,7 +333,7 @@ def test_a_new_note_reopens_a_rejected_pair(db, user, vols):
 def test_cap_does_not_starve_a_pair_behind_rejected_ones(db, user, vols, monkeypatch):
     v1, v2 = vols
     x1 = _entity(db, v1, 0, "Tamsin Reed")
-    x2 = _entity(db, v2, 0, "Tamsin Vale")
+    x2 = _entity(db, v2, 0, "Tamsin")
     y1 = _entity(db, v1, 1, "Corvin Hask")
     y2 = _entity(db, v2, 1, "Corvin")
     monkeypatch.setattr(reconcile, "MAX_PAIRS", 1)
@@ -382,3 +390,103 @@ def test_reconcile_aliases_survive_a_re_read(db, user, vols):
     assert set(aliases) == {"Brannoc", "the Ferryman"}
     assert aliases["Brannoc"]["by"] == "reconcile"
     assert loser.merged_into == survivor.id
+
+
+# ── run 2f: the candidate rule, alias evidence, merge names ──────────────────
+
+def test_containment_is_a_candidate_shared_words_are_not(db, user, vols):
+    v1, v2 = vols
+    a = _entity(db, v1, 0, "Perrin Vasko")
+    b = _entity(db, v2, 1, "Perrin")
+    _entity(db, v1, 1, "Mila Vasko")                         # shares only the family name
+    _entity(db, v1, 2, "Storm Essence", kind="term")         # shares only "Essence"
+    _entity(db, v2, 2, "Ember Essence", kind="term")
+    _entity(db, v2, 3, "Perrine")                            # not whole words
+    pairs = reconcile.candidates(db, v2)
+    assert [(x.id, y.id) for x, y in pairs] == [(a.id, b.id)]
+
+
+def test_alias_hit_first_then_longer_containment(db, user, vols):
+    v1, v2 = vols
+    short_a = _entity(db, v1, 0, "Tobin Marsh")
+    short_b = _entity(db, v2, 0, "Tobin")
+    long_a = _entity(db, v1, 1, "Ysolde Carrow Fenn")
+    long_b = _entity(db, v2, 1, "Ysolde Carrow")
+    alias_a = _entity(db, v1, 2, "Wren Daley")
+    alias_b = _entity(db, v2, 2, "the Gull", aliases=[{"name": "Wren Daley", "book_id": v2.id,
+                                                       "chapter_idx": 2, "context_end": 2}])
+    pairs = [(x.id, y.id) for x, y in reconcile.candidates(db, v2)]
+    assert pairs == [(alias_a.id, alias_b.id), (long_a.id, long_b.id), (short_a.id, short_b.id)]
+
+
+def test_alias_hit_with_contradictory_identities_is_sent(db, user, vols):
+    v1, v2 = vols
+    a = _entity(db, v1, 0, "Neric", identity="A dockhand.")
+    b = _entity(db, v2, 1, "Neric Daventh", identity="A young lord of the high city.",
+                aliases=[{"name": "Neric", "book_id": v2.id, "chapter_idx": 1, "context_end": 1}])
+    _note(db, a, v1, 0, "Neric hauls crates.")
+    _note(db, b, v2, 1, "Neric Daventh returns to his family's estate.")
+    fake = FakeProvider(responses=_answer({frozenset((a.id, b.id)): (True, 0.85)}))
+    ai.set_provider_override(fake)
+
+    res = reconcile.run(db, user, v2)
+
+    assert _pairs_sent(fake.calls[0]) == [(a.id, b.id)]
+    sent = fake.calls[0]["user_content"][0]["text"]
+    assert '"aliases"' in sent and '"Neric Daventh"' in sent
+    assert res.merges == [("Neric Daventh", "Neric")]
+    assert res.merged == 1
+
+
+def test_prompt_carries_the_alias_evidence_rule():
+    p = reconcile.SYSTEM_PROMPT
+    assert "called that entity by both names" in p and "strong evidence" in p
+    assert "plainly contradict" in p
+    assert "disguise" in p
+    assert reconcile.NOTE_LINES == 3
+
+
+def test_note_lines_first_and_last_three(db, user, vols):
+    v1, v2 = vols
+    a = _entity(db, v1, 0, "Halric Moor")
+    for i in range(CHAPTERS):
+        _note(db, a, v1, i, f"Line one-{i}.")
+        _note(db, a, v2, i, f"Line two-{i}.")
+    lines = reconcile._note_lines(db, a, {}, reconcile._Order(db))
+    assert [ln.split(": ")[1] for ln in lines] == ["Line one-0.", "Line one-1.", "Line one-2.",
+                                                   "Line two-1.", "Line two-2.", "Line two-3."]
+
+
+def test_merges_come_back_through_the_followup(db, user, vols):
+    from backend.services.ai import digest_job
+    survivor, loser = _split_pair(db, vols)
+    ai.set_provider_override(FakeProvider(responses=_answer({frozenset((survivor.id, loser.id)): (True, 0.9)})))
+
+    out = digest_job._reconcile_followup(db, user, vols[1])
+
+    assert out == {"candidates": 1, "merged": 1, "calls": 1,
+                   "merges": [{"from": "Brannoc", "into": "Brannoc Hale"}]}
+
+
+def test_generic_one_word_name_does_not_fill_the_cap(db, user, vols):
+    v1, v2 = vols
+    generic = _entity(db, v1, 0, "Essence", kind="term")
+    many = [_entity(db, v2, i % CHAPTERS, f"{w} Essence", kind="term")
+            for i, w in enumerate(("Storm", "Ember", "Tide", "Frost", "Dusk", "Iron", "Glass"))]
+    assert len(many) > reconcile.MAX_CONTAINMENT_PER_NAME
+    a = _entity(db, v1, 1, "Perrin Vasko")
+    b = _entity(db, v2, 1, "Perrin")
+    # An alias hit on the generic name still counts.
+    alias = _entity(db, v2, 3, "the Source", kind="term",
+                    aliases=[{"name": "Essence", "book_id": v2.id, "chapter_idx": 3, "context_end": 3}])
+    pairs = {(x.id, y.id) for x, y in reconcile.candidates(db, v2)}
+    assert pairs == {(a.id, b.id), (generic.id, alias.id)}
+
+
+def test_name_inside_few_names_stays_a_candidate(db, user, vols):
+    v1, v2 = vols
+    generic = _entity(db, v1, 0, "Essence", kind="term")
+    many = [_entity(db, v2, i % CHAPTERS, f"{w} Essence", kind="term")
+            for i, w in enumerate(("Storm", "Ember", "Tide"))]
+    pairs = {(x.id, y.id) for x, y in reconcile.candidates(db, v2)}
+    assert pairs == {(generic.id, m.id) for m in many}

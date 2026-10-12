@@ -352,6 +352,12 @@ msgstr ""
 msgid "{0, plural, one {# candidate — click to select} other {# candidates — click to select}}"
 msgstr ""
 
+#. placeholder {0}: d.digests
+#. placeholder {0}: est.chapters
+#: src/components/DigestConfirmDialog.tsx
+msgid "{0, plural, one {# chapter} other {# chapters}}"
+msgstr ""
+
 #. placeholder {0}: candidates.length
 #: src/components/CoverPickerModal.tsx
 msgid "{0, plural, one {# cover found — click to apply} other {# covers found — click to apply}}"
@@ -434,6 +440,11 @@ msgstr ""
 #. placeholder {0}: aggregate.total_sessions
 #: src/pages/BookDetailPage.tsx
 msgid "{0, plural, one {# reading day} other {# reading days}}"
+msgstr ""
+
+#. placeholder {0}: d.recaps
+#: src/components/DigestConfirmDialog.tsx
+msgid "{0, plural, one {# recap} other {# recaps}}"
 msgstr ""
 
 #. placeholder {0}: records.length
@@ -555,6 +566,11 @@ msgstr ""
 #. placeholder {0}: s.longest_days
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {Best streak # day} other {Best streak # days}}"
+msgstr ""
+
+#. placeholder {0}: f.candidates
+#: src/components/ReadingCompanion.tsx
+msgid "{0, plural, one {Checked # pair} other {Checked # pairs}}"
 msgstr ""
 
 #. placeholder {0}: healthData.missing.length
@@ -685,6 +701,14 @@ msgstr ""
 msgid "{chapters, plural, one {# chapter} other {# chapters}}"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "{checked}, merged {merged}:"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "{checked}, no duplicates found."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{clearResult} covers deleted."
 msgstr ""
@@ -795,6 +819,10 @@ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{dur} with {mainTitle}."
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{entities, plural, one {# glossary entry} other {# glossary entries}}"
 msgstr ""
 
 #: src/components/RecapVolumes.tsx
@@ -980,6 +1008,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "{n, plural, one {Read # chapter again?} other {Read # chapters again?}}"
 msgstr ""
 
 #: src/components/DigestConfirmDialog.tsx
@@ -1864,6 +1896,10 @@ msgstr ""
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
 msgid "Amber"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "and {more} more"
 msgstr ""
 
 #: src/components/TelemetryConsentCard.tsx
@@ -3219,6 +3255,26 @@ msgstr ""
 msgid "Deleted user"
 msgstr ""
 
+#: src/components/DigestConfirmDialog.tsx
+msgid "Deletes the notes of {chaptersText} and {recapsText} for everyone, then reads {readText} again."
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Deletes the notes of {chaptersText} and {recapsText} for everyone, then reads them again."
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Deletes the notes of {chaptersText}, {entitiesText} and {recapsText} for everyone, then reads {readText} again."
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Deletes the notes of {chaptersText}, {entitiesText} and {recapsText} for everyone, then reads them again."
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Deletes the stored notes for everyone and reads the chapters again"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 #~ msgid "Deleting..."
 #~ msgstr ""
@@ -4224,6 +4280,7 @@ msgstr ""
 msgid "Getting ready to read the chapters…"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
 #: src/lib/ai.ts
 msgid "Getting ready…"
 msgstr ""
@@ -5082,8 +5139,29 @@ msgstr ""
 msgid "Merged duplicate entries"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "merged into"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Merging duplicate entries: {stepDone} of {stepTotal}…"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
 #: src/lib/ai.ts
 msgid "Merging duplicate entries…"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Merging failed."
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Merging finished."
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Merging stopped before it finished."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5408,6 +5486,10 @@ msgstr ""
 msgid "No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead."
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "No candidate pairs to check."
+msgstr ""
+
 #: src/components/MetadataManager.tsx
 msgid "No candidates found."
 msgstr ""
@@ -5422,6 +5504,10 @@ msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "No changes proposed. This series looks consistent."
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "No chapter before your position to read again."
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -5928,6 +6014,10 @@ msgstr ""
 msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "Nothing to read again in this book."
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid "Nothing to remove."
 msgstr ""
@@ -6371,7 +6461,11 @@ msgid "position kept, newer here"
 msgstr ""
 
 #: src/components/GlossaryEntry.tsx
-msgid "Powers and rank"
+#~ msgid "Powers and rank"
+#~ msgstr ""
+
+#: src/components/GlossaryEntry.tsx
+msgid "Powers and titles"
 msgstr ""
 
 #: src/lib/ai.ts
@@ -6575,6 +6669,10 @@ msgstr ""
 msgid "Range follows the page's range picker; days show the newest slice of it."
 msgstr ""
 
+#: src/components/GlossaryEntry.tsx
+msgid "Rank"
+msgstr ""
+
 #: src/components/stats/widgets/taste.tsx
 msgid "Rate a few books to see a trend."
 msgstr ""
@@ -6691,6 +6789,15 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "read {span}"
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+#: src/components/ReadingCompanion.tsx
+msgid "Read again"
+msgstr ""
+
+#: src/components/DigestConfirmDialog.tsx
+msgid "Read again throws away the stored notes of the chosen scope, then reads every chapter of it once more. Use it after the reading itself has improved."
 msgstr ""
 
 #: src/components/BookCard.tsx

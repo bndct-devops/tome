@@ -730,7 +730,8 @@ def _stub_reconcile(monkeypatch, *, progress=(), cancel=False):
                 break
             if on_progress is not None:
                 on_progress(done, total)
-        return reconcile.ReconcileResult(candidates=3, merged=1)
+        return reconcile.ReconcileResult(candidates=3, merged=1, calls=2,
+                                         merges=[("Tamsin", "Tamsin Reed")])
 
     monkeypatch.setattr(reconcile, "run", fake_run)
     return calls
@@ -798,7 +799,8 @@ def test_a_job_reports_its_steps(client, db, make_book, tmp_path, monkeypatch):
     out = client.get(f"/api/ai/digest-jobs/{job.id}", headers=h).json()
     assert out["status"] == "done"
     assert (out["step"], out["step_done"], out["step_total"]) == ("merging", 2, 2)
-    assert out["followups"] == [{"name": "reconcile", "status": "done", "candidates": 3, "merged": 1}]
+    assert out["followups"] == [{"name": "reconcile", "status": "done", "candidates": 3, "merged": 1,
+                                 "calls": 2, "merges": [{"from": "Tamsin", "into": "Tamsin Reed"}]}]
     assert calls == [{"book_id": v2.id, "job_id": job.id, "step": "merging"}]
     db.expire_all()
     row = db.get(AIJob, job.id)

@@ -39,7 +39,7 @@ from backend.services.hardcover_sync import nudge as hardcover_nudge
 from backend.services import ai as ai_service
 from backend.services.ai import (
     companion as ai_companion, digest as ai_digest, digest_job as ai_digest_job,
-    recall as ai_recall, recap as ai_recap, volume_recap as ai_volume_recap,
+    recall as ai_recall, recap as ai_recap, reread as ai_reread, volume_recap as ai_volume_recap,
 )
 from backend.services.session_hygiene import is_suspect, notify_suspect_session
 from backend.services.audit import audit
@@ -1713,6 +1713,51 @@ def ai_plugin_digest(
     else:
         window = _ai_window(db, user, book, pct=body.pct, progress=body.progress)
     status, payload = ai_companion.start_digest(db, user, book, window, body.scope)
+    return JSONResponse(status_code=status, content=payload)
+
+
+def _ai_start_window(db: Session, user: User, book: Book, pct: Optional[float],
+                     progress: Optional[str]) -> "ai_companion.Window":
+    """The window of an explicit start: ``pct`` (+ the xpointer) when sent,
+    else the stored position, else chapter 0 (the read earlier volumes)."""
+    if pct is not None:
+        return _ai_window(db, user, book, pct=pct, progress=progress)
+    try:
+        return ai_companion.start_window(db, user, book)
+    except ai_companion.WindowError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+
+@router.get("/tome-sync/ai/books/{book_id}/reread/estimate")
+def ai_plugin_reread_estimate(
+    book_id: int,
+    pct: Optional[float] = Query(default=None, ge=0.0, le=1.0),
+    progress: Optional[str] = Query(default=None, max_length=2048),
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """What Read again would cost and delete (admin only, 403 otherwise):
+    same shape as GET /api/ai/books/{id}/reread/estimate. Without ``pct``
+    the stored position, else chapter 0."""
+    book = _ai_book(db, user, book_id)
+    return ai_reread.estimate(db, user, book, _ai_start_window(db, user, book, pct, progress))
+
+
+@router.post("/tome-sync/ai/books/{book_id}/reread")
+def ai_plugin_reread(
+    book_id: int,
+    body: AiDigestRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_ai_plugin_user),
+):
+    """Read again (admin only, 403 otherwise): same as POST
+    /api/ai/books/{id}/reread (deletes the scope's stored notes, 202 like
+    /digest, 409 ``already_running`` / ``budget`` / ``nothing_to_read``
+    with nothing deleted). Window as POST .../digest."""
+    book = _ai_book(db, user, book_id)
+    ai_service.check_feature_available(db, ai_digest.FEATURE)
+    window = _ai_start_window(db, user, book, body.pct, body.progress)
+    status, payload = ai_reread.run(db, user, book, window, body.scope)
     return JSONResponse(status_code=status, content=payload)
 
 

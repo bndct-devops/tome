@@ -63,20 +63,24 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
     return () => { live = false }
   }, [bookId, entityId, name, kind, v2, fetchKey])
 
+  // A server before the rank/powers split sends `powers_rank` instead of
+  // `powers`; it shows under "Powers and titles" only when `powers` is absent.
+  const factsSource = full?.facts ?? e.facts
+  const powersField: GlossaryFactField = factsSource?.powers?.value ? 'powers' : 'powers_rank'
   const factLabels: [Exclude<GlossaryFactField, 'status'>, string][] = [
     ['appearance', t`Appearance`],
-    ['powers_rank', t`Powers and rank`],
+    ['rank', t`Rank`],
+    [powersField, t`Powers and titles`],
     ['affiliations', t`Affiliations`],
     ['relationships', t`Relationships`],
     ['location', t`Location`],
   ]
 
   // The list's facts have no history; the opened entry's do.
-  const factsSource = full?.facts ?? e.facts
   const statusFact = factsSource?.status
   const statusText = e.status || statusFact?.value || null
   const statusAt = statusFact ? shortPlace(statusFact) : null
-  // "Silver rank · vol 6, ch 57 · Bronze rank · vol 3, ch 44"
+  // "Tier two · vol 6, ch 57 · Tier one · vol 3, ch 44"
   const earlierText = (fact: unknown): string =>
     factHistory(fact).map(h => `${h.value} · ${shortPlace(h)}`).join(' · ')
   const statusEarlier = earlierText(statusFact)

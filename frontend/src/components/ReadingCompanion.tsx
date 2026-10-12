@@ -12,7 +12,7 @@
 // shows no prices beyond the Ask note (a fixed per-question range): the rest
 // lives in that dialog and in Settings > AI.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Loader2, Merge, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Loader2, Merge, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
@@ -22,13 +22,15 @@ import { GlossaryEntryDetail } from '@/components/GlossaryEntry'
 import { AskBox } from '@/components/AskBox'
 import { cn } from '@/lib/utils'
 import { getActiveLocale } from '@/lib/i18n'
+import { isAdmin, useAuth } from '@/contexts/AuthContext'
 import {
   useAiStatus, getCompanion, requestRecap, clearRecap, getGlossary, recallTerm,
   getDigestJob, cancelDigestJob, isRecapPending, getDigestEstimate, startDigest, startReconcile,
+  getRereadEstimate, startReread,
   activeJobLine, isAlreadyRunning, isMergeOnlyJob,
   DIGEST_JOB_ACTIVE, isResumable, CONFIRM_THRESHOLD,
   type Companion, type CompanionScope, type DigestEstimate, type DigestJob, type DigestScope,
-  type Glossary, type GlossaryEntry, type GlossaryPlace, type Recap,
+  type Glossary, type GlossaryEntry, type GlossaryPlace, type Recap, type RereadEstimate,
   type RecapPending, type RecallResult, type SeriesPlace,
 } from '@/lib/ai'
 
@@ -36,7 +38,10 @@ const POLL_MS = 2000
 // Consecutive failed polls before the page stops following a job.
 const POLL_FAILURES = 15
 
-type Origin = 'recap' | 'glossary' | 'continue'
+type Origin = 'recap' | 'glossary' | 'continue' | 'reread'
+
+// At most this many merged pairs are named in the merge result line.
+const MERGES_SHOWN = 8
 
 function isActive(job: DigestJob | null): job is DigestJob {
   return job != null && DIGEST_JOB_ACTIVE.includes(job.status)
@@ -188,6 +193,8 @@ function linkNames(
 export function ReadingCompanion({ bookId }: { bookId: number }) {
   const { t } = useLingui()
   const { available: aiAvailable } = useAiStatus()
+  const { user } = useAuth()
+  const admin = isAdmin(user)
   const enabled = aiAvailable('reading_digest') && (aiAvailable('recap') || aiAvailable('recall'))
 
   const [companion, setCompanion] = useState<Companion | null>(null)
@@ -214,16 +221,27 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const [endedJob, setEndedJob] = useState<DigestJob | null>(null)
   // Starting a job: the confirmation dialog, and errors outside it.
   const [confirm, setConfirm] = useState<{
-    book: DigestEstimate; series: DigestEstimate | null; origin: Origin; scope?: DigestScope
+    book: DigestEstimate | null; series: DigestEstimate | null; origin: Origin; scope?: DigestScope
+    /** "Read again": what each scope deletes first. */
+    deletes?: RereadEstimate['deletes']
   } | null>(null)
   const [confirmBusy, setConfirmBusy] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
+  // "Read again" fetching its estimate (its own spinner).
+  const [rereadStarting, setRereadStarting] = useState(false)
   const [digestError, setDigestError] = useState<string | null>(null)
   // "Merge duplicates": starting, and what the run said when it ended.
   const [merging, setMerging] = useState(false)
   const [mergeNote, setMergeNote] = useState<{ text: string; error: boolean } | null>(null)
   const mergeJobRef = useRef<string | null>(null)
+  // The last merge-only job that ended (this session or the companion's
+  // last_job after a refresh): its result line stays until a newer job.
+  const [mergeResult, setMergeResult] = useState<DigestJob | null>(null)
+  // "Read again": the job it started, so its end reloads the recaps too.
+  const rereadJobRef = useRef<string | null>(null)
+  // Bumped to remount the volume recap list after a reread deleted recaps.
+  const [recapsRev, setRecapsRev] = useState(0)
 
   const recapWaitingRef = useRef(false)
   const glossaryRef = useRef<HTMLDivElement>(null)
@@ -269,7 +287,12 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       const g = await getGlossary(bookId)
       if (!alive.current) return
       setGlossary(g)
-      if (isActive(g.job)) setJob(prev => (isActive(prev) && prev.id === g.job!.id ? prev : g.job))
+      if (isActive(g.job)) {
+        const active = g.job
+        setJob(prev => (isActive(prev) && prev.id === active.id ? prev : active))
+        // A job is running: an older merge result no longer applies.
+        setMergeResult(null)
+      }
     } catch (e) {
       if (alive.current) setGlossaryError(e instanceof Error ? e.message : t`Could not load the glossary`)
     } finally {
@@ -283,9 +306,21 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     // stop reason is printed once, in the merge note.
     const mergeOnly = isMergeOnlyJob(j)
     setEndedJob(mergeOnly ? null : j)
-    if (mergeJobRef.current === j.id || mergeOnly) {
+    // A Write all that merged reports its merge outcome the same way.
+    const merged = (j.followups ?? []).some(f => f.name === 'reconcile' && f.candidates != null)
+    if (mergeJobRef.current === j.id || mergeOnly || merged) {
       if (mergeJobRef.current === j.id) mergeJobRef.current = null
-      if (j.stop_reason) setMergeNote({ text: j.stop_reason, error: j.status === 'error' })
+      setMergeNote(null)
+      setMergeResult(j)
+    } else {
+      setMergeResult(null)
+    }
+    if (rereadJobRef.current === j.id) {
+      // The recaps of the scope were deleted when it started: show what is
+      // there now.
+      rereadJobRef.current = null
+      setRecap(null)
+      setRecapsRev(r => r + 1)
     }
     if (recapWaitingRef.current) {
       recapWaitingRef.current = false
@@ -309,8 +344,9 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         // The volume list is compact (rows collapsed): open the section.
         if (c.series_recaps) setRecapOpen(true)
         if (!c.available) return
-        if (isActive(c.job)) setJob(c.job)
-        else if (c.last_job && !isMergeOnlyJob(c.last_job)) setEndedJob(c.last_job)
+        if (isActive(c.job)) { setJob(c.job); setMergeResult(null) }
+        else if (c.last_job && isMergeOnlyJob(c.last_job)) setMergeResult(c.last_job)
+        else if (c.last_job) setEndedJob(c.last_job)
         const waitingFor = recapWaitJob(bookId)
         if (waitingFor) {
           // "Recap to here" started a job before a reload. Only that same job
@@ -446,6 +482,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     recapWaitingRef.current = true
     setRecapWait(bookId, j.id)
     setEndedJob(null)
+    setMergeResult(null)
     setJob(j)
     setRecapState('waiting')
   }
@@ -455,8 +492,17 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   async function begin(scope: DigestScope, origin: Origin): Promise<string | null> {
     setDigestError(null)
     try {
-      const res = await startDigest(bookId, scope)
+      const res = origin === 'reread' ? await startReread(bookId, scope) : await startDigest(bookId, scope)
       if (!alive.current) return null
+      setMergeResult(null)
+      if (origin === 'reread') {
+        // The notes and recaps of the scope are gone already.
+        setRecap(null)
+        setRecapsRev(r => r + 1)
+        if (isActive(res.job)) rereadJobRef.current = res.job.id
+        // Its glossary entries are gone too, and the coverage dropped.
+        void loadGlossary()
+      }
       if (isActive(res.job)) {
         if (origin === 'recap') waitOn(res.job)
         else { setEndedJob(null); setJob(res.job) }
@@ -464,7 +510,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         // Nothing left to read in that scope.
         setEndedJob(null)
         if (origin === 'recap') void loadRecap('writing', { partial: true })
-        else void loadGlossary()
+        else if (origin !== 'reread') void loadGlossary()
       }
       return null
     } catch (e) {
@@ -540,6 +586,32 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     }
   }
 
+  /** "Read again" (admins): always asks, with what each scope deletes. The
+   *  job it starts is followed like "Read the missing chapters". */
+  async function readAgain() {
+    setDigestError(null)
+    setRereadStarting(true)
+    try {
+      const est = await getRereadEstimate(bookId)
+      if (!alive.current) return
+      const bookChapters = est.book?.chapters ?? 0
+      const seriesChapters = est.series?.chapters ?? 0
+      if (bookChapters === 0 && seriesChapters === 0) {
+        setDigestError(t`Nothing to read again in this book.`)
+        return
+      }
+      setConfirmError(null)
+      setConfirm({
+        book: est.book, series: est.series, origin: 'reread',
+        scope: bookChapters > 0 ? 'book' : 'series', deletes: est.deletes,
+      })
+    } catch (e) {
+      if (alive.current) setDigestError(e instanceof Error ? e.message : t`Could not start reading the chapters`)
+    } finally {
+      if (alive.current) setRereadStarting(false)
+    }
+  }
+
   /** Same path as a fresh start: the estimate first, and the dialog when the
    *  rest of the job is big or over budget. */
   async function continueJob() {
@@ -571,6 +643,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
    *  any other job (the line under the heading); the glossary reloads after. */
   async function mergeDuplicates() {
     setMergeNote(null)
+    setMergeResult(null)
     setMerging(true)
     try {
       const res = await startReconcile(bookId)
@@ -690,8 +763,30 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   const buttonClassName = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-60 shrink-0'
 
+  // ── merge duplicates: progress where the button is ───────────────────────
+
+  const mergeActive = isActive(job) && isMergeOnlyJob(job)
+  let mergeProgress: string | null = null
+  if (mergeActive) {
+    const stepDone = job.step_done
+    const stepTotal = job.step_total
+    if (job.status === 'stopping' || (job.step != null && job.step !== 'merging')) {
+      mergeProgress = activeJobLine(job)
+    } else if (job.step === 'merging') {
+      mergeProgress = stepTotal > 0
+        ? t`Merging duplicate entries: ${stepDone} of ${stepTotal}…`
+        : t`Merging duplicate entries…`
+    } else {
+      mergeProgress = t`Getting ready…`
+    }
+  }
+  // The in-place line shows only where the search row renders; when it is
+  // hidden (glossary closed or not loaded), the heading line stays.
+  const mergeInPlace = mergeActive && glossaryOn && glossaryOpen && glossary != null
+    && (glossary.entries.length > 0 || features.recall)
+
   let progressLine: React.ReactNode = null
-  if (isActive(job)) {
+  if (isActive(job) && !mergeInPlace) {
     const text = activeJobLine(job)
     progressLine = (
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
@@ -865,6 +960,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       {recapHeading}
       {recapOpen && (
         <RecapVolumes
+          key={recapsRev}
           bookId={bookId}
           renderParagraph={renderParagraph}
           current={currentRow}
@@ -934,6 +1030,87 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
       ].filter(g => g.entries.length > 0)
     : []
 
+  // ── merge duplicates: the result line ────────────────────────────────────
+
+  // "a -> b, c -> d and 3 more": the pairs a merge run merged.
+  const mergedPairs = (merges: { from: string; into: string }[]) => {
+    const shown = merges.slice(0, MERGES_SHOWN)
+    const more = merges.length - shown.length
+    return (
+      <>
+        {shown.map((m, i) => (
+          <span key={i}>
+            {i > 0 && ', '}
+            <span className="whitespace-nowrap">
+              {m.from}
+              <ArrowRight className="inline w-3 h-3 mx-0.5 align-[-2px]" aria-label={t`merged into`} />
+            </span>
+            {m.into}
+          </span>
+        ))}
+        {more > 0 && <> <Trans>and {more} more</Trans></>}
+      </>
+    )
+  }
+
+  let mergeResultLine: React.ReactNode = null
+  if (mergeResult && !DIGEST_JOB_ACTIVE.includes(mergeResult.status)) {
+    const f = (mergeResult.followups ?? []).find(x => x.name === 'reconcile')
+    const mutedClassName = 'text-xs text-muted-foreground'
+    const mergedSoFar = (f?.merged ?? 0) > 0 && (f?.merges ?? []).length > 0
+      ? <>{' '}{mergedPairs(f?.merges ?? [])}</>
+      : null
+    if (mergeResult.stop_reason) {
+      mergeResultLine = (
+        <p className={cn('text-xs leading-relaxed', mergeResult.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
+          {mergeResult.stop_reason}
+          {mergedSoFar}
+        </p>
+      )
+    } else if (mergeResult.status === 'error' || f?.status === 'failed') {
+      mergeResultLine = <p className="text-xs text-destructive">{f?.message || t`Merging failed.`}</p>
+    } else if (mergeResult.status === 'cancelled' || mergeResult.status === 'interrupted') {
+      mergeResultLine = (
+        <p className={cn(mutedClassName, 'leading-relaxed')}>
+          <Trans>Merging stopped before it finished.</Trans>
+          {mergedSoFar}
+        </p>
+      )
+    } else if (f == null || f.candidates == null) {
+      mergeResultLine = <p className={mutedClassName}><Trans>Merging finished.</Trans></p>
+    } else if (f.candidates === 0) {
+      mergeResultLine = <p className={mutedClassName}><Trans>No candidate pairs to check.</Trans></p>
+    } else {
+      const checked = plural(f.candidates, { one: 'Checked # pair', other: 'Checked # pairs' })
+      const merged = f.merged ?? 0
+      if (merged === 0) {
+        mergeResultLine = <p className={mutedClassName}><Trans>{checked}, no duplicates found.</Trans></p>
+      } else {
+        mergeResultLine = (
+          <p className={cn(mutedClassName, 'leading-relaxed')}>
+            <Trans>{checked}, merged {merged}:</Trans>{' '}
+            {mergedPairs(f.merges ?? [])}
+          </p>
+        )
+      }
+    }
+  }
+
+  // "Read again" (admins): deletes the stored notes of a scope and reads it
+  // again, after the confirmation dialog.
+  const readAgainButton = (
+    <button
+      type="button"
+      onClick={() => void readAgain()}
+      disabled={rereadStarting || starting || isActive(job)}
+      title={t`Deletes the stored notes for everyone and reads the chapters again`}
+      className="flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-60 disabled:no-underline shrink-0"
+    >
+      {rereadStarting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+      <Trans>Read again</Trans>
+    </button>
+  )
+
   const glossaryBlock = glossaryOn ? (
     <div className="mt-4 scroll-mt-4" ref={glossaryRef}>
       <button
@@ -978,7 +1155,17 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
                 </button>
               )}
             </div>
-            {glossary.entries.length > 1 && (
+            {mergeActive ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0" role="status">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                {mergeProgress}
+                {job.status !== 'stopping' && (
+                  <button type="button" onClick={stopJob} className="ml-1.5 hover:text-foreground underline-offset-2 hover:underline">
+                    <Trans>Stop</Trans>
+                  </button>
+                )}
+              </span>
+            ) : glossary.entries.length > 1 && (
               <button
                 type="button"
                 onClick={() => void mergeDuplicates()}
@@ -992,9 +1179,9 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             )}
             </div>
           )}
-          {mergeNote && (
+          {mergeNote ? (
             <p className={cn('text-xs', mergeNote.error ? 'text-destructive' : 'text-muted-foreground')}>{mergeNote.text}</p>
-          )}
+          ) : !mergeActive && mergeResultLine}
           {glossary != null && (features.ask ?? false) && (
             <AskBox bookId={bookId} placeLabel={quotePlace} costHintUsd={companion.ask_cost_hint_usd} />
           )}
@@ -1072,11 +1259,16 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
                   <p className="text-xs text-muted-foreground min-w-0">
                     <Trans>{digested} of {needed} chapters before your position are read so far.</Trans>
                   </p>
-                  {!resumable && (
-                    <button type="button" onClick={() => void readMissing()} disabled={starting} className={buttonClassName}>
-                      {starting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      <Trans>Read the missing chapters</Trans>
-                    </button>
+                  {(!resumable || admin) && (
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      {admin && readAgainButton}
+                      {!resumable && (
+                        <button type="button" onClick={() => void readMissing()} disabled={starting || rereadStarting} className={buttonClassName}>
+                          {starting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          <Trans>Read the missing chapters</Trans>
+                        </button>
+                      )}
+                    </span>
                   )}
                 </div>
               )}
@@ -1085,6 +1277,12 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
               )}
               {!isActive(job) && !resumable && digestError && <p className="text-xs text-destructive">{digestError}</p>}
               {!isActive(job) && endedNote}
+            </div>
+          )}
+          {admin && !incomplete && glossary != null && (
+            <div className="space-y-1">
+              <div className="flex justify-end">{readAgainButton}</div>
+              {!isActive(job) && digestError && <p className="text-xs text-destructive">{digestError}</p>}
             </div>
           )}
           {scopeNotes.length > 0 && (
@@ -1118,6 +1316,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         error={confirmError}
         onCancel={cancelConfirm}
         onStart={scope => void confirmStart(scope)}
+        reread={confirm?.origin === 'reread' ? confirm.deletes ?? null : null}
       />
     </section>
   )

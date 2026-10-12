@@ -5,6 +5,8 @@
 // With `writeAll` it asks before "Write all" instead: one line for reading the
 // missing chapters of the read earlier volumes, one for merging duplicate
 // glossary entries (when there are any), one for the recaps, a total.
+// With `reread` it asks before "Read again" (admins): the same two cards, each
+// with what it deletes first, and every chapter of the scope counted.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BookOpen, Check, Library as LibraryIcon, Loader2, X } from 'lucide-react'
@@ -13,7 +15,7 @@ import { plural } from '@lingui/core/macro'
 import { ModalShell } from '@/components/ModalShell'
 import { AiBadge } from '@/components/AiBadge'
 import { cn } from '@/lib/utils'
-import type { DigestEstimate, DigestScope, WriteAll } from '@/lib/ai'
+import type { DigestEstimate, DigestScope, RereadEstimate, WriteAll } from '@/lib/ai'
 
 /** What "Write all" will do, for the dialog's two lines and total. */
 export interface WriteAllConfirm {
@@ -41,6 +43,8 @@ export interface DigestConfirmProps {
   /** Ask before "Write all" instead (book and series are ignored); onStart
    *  is called with 'series'. */
   writeAll?: WriteAllConfirm | null
+  /** Ask before "Read again" instead: what each scope deletes first. */
+  reread?: RereadEstimate['deletes'] | null
 }
 
 /** The scope the dialog opens on: the preferred one when it is usable, else
@@ -56,7 +60,7 @@ function initialScope(
   return 'series'
 }
 
-export function DigestConfirmDialog({ open, book, series, scope: preferredScope, busy = false, error, onCancel, onStart, writeAll = null }: DigestConfirmProps) {
+export function DigestConfirmDialog({ open, book, series, scope: preferredScope, busy = false, error, onCancel, onStart, writeAll = null, reread = null }: DigestConfirmProps) {
   const { t, i18n } = useLingui()
   const [scope, setScope] = useState<DigestScope>(() => initialScope(book, series, preferredScope))
   // Re-pick the scope whenever the dialog opens on new estimates.
@@ -169,9 +173,14 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
         <span className="mt-0.5 block text-sm text-foreground tabular-nums">
           <Trans>about {cost}</Trans>
         </span>
+        {reread && est.chapters > 0 && (
+          <span className="mt-2 block text-xs text-warning">{deletesLine(which, est)}</span>
+        )}
         {est.chapters === 0 ? (
           <span className="mt-2 block text-xs text-muted-foreground">
-            <Trans>Every chapter of this book before your position is read already.</Trans>
+            {reread
+              ? <Trans>No chapter before your position to read again.</Trans>
+              : <Trans>Every chapter of this book before your position is read already.</Trans>}
           </span>
         ) : est.over_budget ? (
           <span className="mt-2 block text-xs text-warning">
@@ -180,6 +189,28 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
         ) : null}
       </button>
     )
+  }
+
+  /** "Deletes the notes of 12 chapters, 40 glossary entries and 2 recaps
+   *  for everyone, then reads them again." When the chapters with notes are
+   *  not the chapters read again, both counts are named. */
+  function deletesLine(which: DigestScope, est: DigestEstimate): string {
+    if (!reread) return ''
+    const d = which === 'series' ? reread.series : reread.book
+    const chaptersText = plural(d.digests, { one: '# chapter', other: '# chapters' })
+    const recapsText = plural(d.recaps, { one: '# recap', other: '# recaps' })
+    const entities = which === 'series' ? reread.series.entities : 0
+    const same = d.digests === est.chapters
+    const readText = plural(est.chapters, { one: '# chapter', other: '# chapters' })
+    if (entities > 0) {
+      const entitiesText = plural(entities, { one: '# glossary entry', other: '# glossary entries' })
+      return same
+        ? t`Deletes the notes of ${chaptersText}, ${entitiesText} and ${recapsText} for everyone, then reads them again.`
+        : t`Deletes the notes of ${chaptersText}, ${entitiesText} and ${recapsText} for everyone, then reads ${readText} again.`
+    }
+    return same
+      ? t`Deletes the notes of ${chaptersText} and ${recapsText} for everyone, then reads them again.`
+      : t`Deletes the notes of ${chaptersText} and ${recapsText} for everyone, then reads ${readText} again.`
   }
 
   const remainingText = remaining != null ? money(remaining) : ''
@@ -252,7 +283,9 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
           <h2 id="digest-confirm-title" className="font-display text-base text-foreground min-w-0">
             {writeAll
               ? <Trans>Write all recaps?</Trans>
-              : <Plural value={n} one="Read # chapter first?" other="Read # chapters first?" />}
+              : reread
+                ? <Plural value={n} one="Read # chapter again?" other="Read # chapters again?" />
+                : <Plural value={n} one="Read # chapter first?" other="Read # chapters first?" />}
           </h2>
           <AiBadge />
           <button
@@ -270,7 +303,9 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
           {writeAllBody}
           {!writeAll && (<>
           <p className="text-sm text-muted-foreground">
-            <Trans>The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards.</Trans>
+            {reread
+              ? <Trans>Read again throws away the stored notes of the chosen scope, then reads every chapter of it once more. Use it after the reading itself has improved.</Trans>
+              : <Trans>The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards.</Trans>}
           </p>
 
           <div role="radiogroup" aria-label={t`What to read`} className={cn('grid gap-3', series && 'sm:grid-cols-2')}>
@@ -330,7 +365,9 @@ export function DigestConfirmDialog({ open, book, series, scope: preferredScope,
             {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {writeAll
               ? <Trans>Write all</Trans>
-              : <Plural value={n} one="Read # chapter" other="Read # chapters" />}
+              : reread
+                ? <Trans>Read again</Trans>
+                : <Plural value={n} one="Read # chapter" other="Read # chapters" />}
           </button>
         </div>
       </div>

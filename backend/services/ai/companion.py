@@ -623,7 +623,8 @@ def digest_upto(db: Session, user: User, book: Book, window: Window) -> int:
 
 
 def start_digest(db: Session, user: User, book: Book, window: Window,
-                 scope: str = "book") -> tuple[int, dict[str, Any]]:
+                 scope: str = "book",
+                 followups: tuple[str, ...] = ()) -> tuple[int, dict[str, Any]]:
     """(HTTP status, body) for an explicit start: digest the missing chapters
     before the window's chapter, of this book only (``scope="book"``) or of
     the read earlier volumes too (``"series"``).
@@ -636,7 +637,9 @@ def start_digest(db: Session, user: User, book: Book, window: Window,
     monthly limit) before anything is queued. A user-started job becomes
     the latest for the book, which lets the automatic triggers act again
     after a cancel. ``window`` may be the zero window of ``start_window``
-    (no position: the read earlier volumes only)."""
+    (no position: the read earlier volumes only). ``followups`` are the
+    job's steps after reading (``digest_job`` follow-up names; Read again
+    passes the merge step)."""
     from backend.services.ai import budget, estimate
 
     ai.check_feature_available(db, DIGEST)
@@ -664,7 +667,7 @@ def start_digest(db: Session, user: User, book: Book, window: Window,
                 f"({err.limit:.2f} USD). Raise it in Settings > AI.",
                 which=err.which, spent=err.spent, limit=err.limit)
     job = digest_job.enqueue(user_id=user.id, book_id=book.id, upto=upto,
-                             current_book_only=(scope == "book"))
+                             current_book_only=(scope == "book"), followups=followups)
     if job.get("expanding") or not job.get("total"):
         # The worker has not planned the job yet: show the estimate's figures
         # rather than "0 of 0" until the first poll.

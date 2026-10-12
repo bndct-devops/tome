@@ -966,7 +966,9 @@ def _reconcile_followup(db: Session, user: User, book: Book) -> dict[str, Any]:
     res = reconcile.run(db, user, book, job_id=current_job_id(),
                         on_progress=step_progress, should_stop=cancel_requested)
     return {"candidates": int(getattr(res, "candidates", 0) or 0),
-            "merged": int(getattr(res, "merged", 0) or 0)}
+            "merged": int(getattr(res, "merged", 0) or 0),
+            "calls": int(getattr(res, "calls", 0) or 0),
+            "merges": [{"from": a, "into": b} for a, b in getattr(res, "merges", None) or []]}
 
 
 register_followup(FOLLOWUP_RECONCILE, _reconcile_followup)

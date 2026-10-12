@@ -38,7 +38,8 @@ Entities. Each entry also resolves to an ``AIEntity`` of the series
 (``series_key``) and gets one ``AIEntityNote`` per chapter (line, facts,
 evidence), written in the digest row's transaction (``_EntityWriter``): the
 model names an entity by ``ref`` (its id in the state, which lists
-``{id, name, kind, identity}``, ``seen_entities`` / ``model_state``), the
+``{id, name, kind, identity}`` plus the current ``rank`` and ``status`` when
+known, ``seen_entities`` / ``model_state``), the
 server accepts a ref only when the quote names that entity, attaches a new
 entry to the entity of the same name and kind, learns aliases only from the
 chapter text and merges two entities (``same_as``) only when both names are
@@ -84,7 +85,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Iterable
 
-from sqlalchemy import event, inspect as sa_inspect
+from sqlalchemy import and_, event, inspect as sa_inspect, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -164,7 +165,10 @@ brackets of the block this answer is for (for "=== [c7] ... ===" that is 7), \
 never a count of the blocks and never a number from the chapter's own title. \
 For each:"""
 
-FACT_FIELDS = ("appearance", "powers_rank", "affiliations", "relationships", "status", "location")
+FACT_FIELDS = ("appearance", "rank", "powers", "affiliations", "relationships", "status", "location")
+# The single field before the rank/powers split: notes stored with it (and a
+# model answer that still uses it) are read as ``powers``.
+LEGACY_POWERS = "powers_rank"
 
 _PROMPT_FIELDS = """
 - summary: at most 3 sentences on what happens in this chapter, in the past \
@@ -184,9 +188,11 @@ relation to others. Never what it did or what happened to it.
 title, a short form), as the text writes them; an empty list when none.
   - line: one sentence, at most 25 words, saying what it did or what happened \
 to it in this chapter.
-  - facts: appearance, powers_rank, affiliations, relationships, status \
+  - facts: appearance, rank, powers, affiliations, relationships, status \
 and location, each a short phrase, only when this chapter establishes or \
-changes it; an empty string otherwise.
+changes it; an empty string otherwise. A glossary line's rank and status are \
+that entity's current values: compare with them and leave a field empty when \
+it did not change.
     - status: exactly one of alive, dead, missing, captured, unknown, \
 optionally followed by a comma and a short condition ("alive, exhausted"). \
 Never an event or a mood: "escaped", "left" or "drunk" are wrong; the line \
@@ -194,8 +200,11 @@ carries those.
     - appearance: lasting looks only (build, hair, eyes, scars, usual \
 dress). A transformation, a disguise, an outfit for an occasion, an injury or \
 any other state that passes is not appearance; it goes in the line.
-    - powers_rank: the full current rank plus the notable power or title \
-("Silver rank; title Giant Slayer"), not only what changed this chapter.
+    - rank: the power tier the text names for this entity, as a short label \
+as the text writes it, only when it changes; never a title, an ability, an \
+item or a condition.
+    - powers: notable abilities, titles and powers this chapter establishes \
+or changes, as a short phrase.
   - evidence: a quote of 3 to 20 words, copied character for character \
 from this chapter's text, that contains the entry's name (or a distinctive \
 part of it) as the text writes it. A line a character speaks does not count \
@@ -935,6 +944,29 @@ def _prior_digests(db: Session, book: Book, idx: int) -> list[AIChapterDigest]:
     return out
 
 
+def _notes_for(db: Session, prior: list[Any], current_book_id: int | None = None) -> list[AIEntityNote]:
+    """The entity notes at the chapters of ``prior`` (in id order), for the
+    rank and status on the state lines (``seen_entities``).
+
+    Filtered in SQL first: every note of the earlier books, and the current
+    book's (``current_book_id``) notes up to the highest of its chapters in
+    ``prior``; then exactly the chapters of ``prior``."""
+    keys = {(int(d.book_id), int(d.chapter_idx)) for d in prior}
+    book_ids = sorted({k[0] for k in keys})
+    if not book_ids:
+        return []
+    earlier = [b for b in book_ids if b != current_book_id]
+    conds = []
+    if earlier:
+        conds.append(AIEntityNote.book_id.in_(earlier))
+    if current_book_id is not None and current_book_id in book_ids:
+        top = max(c for b, c in keys if b == current_book_id)
+        conds.append(and_(AIEntityNote.book_id == current_book_id, AIEntityNote.chapter_idx <= top))
+    rows = (db.query(AIEntityNote).filter(or_(*conds))
+            .order_by(AIEntityNote.id).all())
+    return [n for n in rows if (n.book_id, n.chapter_idx) in keys]
+
+
 # ── entities: who and what, across a series ─────────────────────────────────
 
 MAX_ALIASES = 30
@@ -1137,6 +1169,8 @@ def _facts(raw: Any) -> dict[str, str]:
     out = {}
     for f in FACT_FIELDS:
         v = _str(raw.get(f), _FACT_MAX)
+        if not v and f == "powers":
+            v = _str(raw.get(LEGACY_POWERS), _FACT_MAX)
         if v and f == "status" and not status_ok(v):
             continue
         if v:
@@ -1434,12 +1468,34 @@ class _EntityWriter:
 
 
 # Facts keep this many distinct values per field: the current one plus
-# ``FACT_HISTORY - 1`` earlier ones in ``Profile.to_dict``.
+# ``FACT_HISTORY - 1`` earlier ones in ``Profile.to_dict``. ``powers`` is
+# additive (each chapter names what it establishes, not the whole set), so it
+# keeps up to ``POWERS_HISTORY`` earlier distinct values.
 FACT_HISTORY = 3
+POWERS_HISTORY = 5
 
 
 def _fact_key(value: str) -> str:
     return " ".join(value.lower().split())
+
+
+def note_facts(raw: Any) -> dict[str, str]:
+    """The facts of a stored note (``facts_json``): the ``FACT_FIELDS`` with
+    a non-empty string value; a legacy ``powers_rank`` (every note written
+    before the rank/powers split) is read as ``powers`` when ``powers`` is
+    not set."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or "{}")
+        except ValueError:
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+    out = {k: v for k, v in raw.items() if k in FACT_FIELDS and isinstance(v, str) and v}
+    legacy = raw.get(LEGACY_POWERS)
+    if "powers" not in out and isinstance(legacy, str) and legacy:
+        out["powers"] = legacy
+    return out
 
 
 @dataclass
@@ -1465,8 +1521,9 @@ class Profile:
 
     def earlier(self, k: str) -> list[dict[str, Any]]:
         """The distinct earlier values of fact ``k`` (not the current one),
-        newest first, at most ``FACT_HISTORY`` - 1, each with where it was
-        last set."""
+        newest first, at most ``FACT_HISTORY`` - 1 (``POWERS_HISTORY`` for
+        ``powers``), each with where it was last set."""
+        cap = POWERS_HISTORY if k == "powers" else FACT_HISTORY - 1
         cur = self.facts.get(k)
         seen = {_fact_key(cur["value"])} if cur else set()
         out: list[dict[str, Any]] = []
@@ -1476,7 +1533,7 @@ class Profile:
                 continue
             seen.add(key)
             out.append(dict(h))
-            if len(out) >= FACT_HISTORY - 1:
+            if len(out) >= cap:
                 break
         return out
 
@@ -1588,16 +1645,10 @@ def profiles(db: Session, scope: Scope, upto: int) -> list[Profile]:
                     continue
                 target = _resolve(entities, origin, follow)
                 p = for_entity(target)
-                try:
-                    facts = json.loads(n.facts_json or "{}")
-                except ValueError:
-                    facts = {}
                 ident = " ".join((n.identity or "").split())
                 if ident:
                     (own_identity if origin == target else merged_identity).setdefault(target, ident)
-                p._add(where, n.line, {k: v for k, v in facts.items()
-                                       if k in FACT_FIELDS and isinstance(v, str) and v}
-                       if isinstance(facts, dict) else {})
+                p._add(where, n.line, note_facts(n.facts_json))
             continue
         for item in digest_entries(d):
             if not isinstance(item, dict):
@@ -1715,7 +1766,10 @@ class SeenEntity:
     """One line of the state sent to the model: an entity (``id``), or a
     name from a digest row written before entities with no entity of that
     name and kind (``id`` 0). ``*_first``/``*_last`` are (digest, item)
-    ranks in ``prior`` (None: not seen there)."""
+    ranks in ``prior`` (None: not seen there). ``start`` holds the
+    ``STATE_FACTS`` as of the start of the current volume (folded from the
+    earlier volumes' notes), ``now`` as of the call (every note it may
+    know, ``seen_entities``)."""
     key: str
     id: int
     name: str
@@ -1724,14 +1778,30 @@ class SeenEntity:
     earlier_first: tuple[int, int] | None = None
     earlier_last: tuple[int, int] | None = None
     current_first: tuple[int, int] | None = None
+    start: dict[str, str] = field(default_factory=dict)
+    now: dict[str, str] = field(default_factory=dict)
 
-    def line(self) -> dict[str, Any]:
-        return {"id": self.id, "name": self.name, "kind": self.kind, "identity": self.identity}
+    def line(self, at_start: bool = False) -> dict[str, Any]:
+        """``{id, name, kind, identity}`` plus ``rank`` and ``status`` when
+        the entity has them: as of the volume start (``at_start``) or now."""
+        out: dict[str, Any] = {"id": self.id, "name": self.name, "kind": self.kind,
+                               "identity": self.identity}
+        vals = self.start if at_start else self.now
+        for f in STATE_FACTS:
+            if vals.get(f):
+                out[f] = vals[f]
+        return out
+
+
+# The facts a state line carries, so "only when it changes" has something to
+# compare with.
+STATE_FACTS = ("rank", "status")
 
 
 def seen_entities(prior: list[Any], book_id: int,
                   entities: dict[int, Any] | None = None,
-                  upto: int | None = None) -> list[SeenEntity]:
+                  upto: int | None = None,
+                  notes: Iterable[Any] = ()) -> list[SeenEntity]:
     """What ``prior`` (``_prior_digests``, reading order) says about who has
     been seen and where, for ``model_state``. Pure.
 
@@ -1744,7 +1814,16 @@ def seen_entities(prior: list[Any], book_id: int,
     of the same normalised name and kind when there is one, else for its
     name (id 0). An entity's ``identity`` is sent only when its first
     chapter is inside ``prior`` and the row there (and the call that wrote
-    the identity) read nothing at or past ``upto`` (``_identity_known``)."""
+    the identity) read nothing at or past ``upto`` (``_identity_known``).
+
+    ``notes`` (``AIEntityNote`` rows; any extra are ignored) give each
+    entity's ``STATE_FACTS``: only a note at a chapter of ``prior`` whose row
+    the call may know (``_known`` with that row's ``context_end_idx``: in
+    the current book, a row whose call read a chapter at or past ``upto`` is
+    not), folded in reading order onto the entity it resolves to through the
+    known merges; a status outside the vocabulary is skipped
+    (``status_ok``). ``now`` folds all of those, ``start`` only the notes of
+    the earlier volumes."""
     entities = entities or {}
     rows = {(int(d.book_id), int(d.chapter_idx)): d for d in prior}
     keys = set(rows)
@@ -1786,34 +1865,77 @@ def seen_entities(prior: list[Any], book_id: int,
                 cur.earlier_last = rank
             elif cur.current_first is None:
                 cur.current_first = rank
+    order = {pos: i for i, pos in enumerate(rows)}
+    known_notes = []
+    for n in notes:
+        pos = (getattr(n, "book_id", None), getattr(n, "chapter_idx", None))
+        row = rows.get(pos)  # type: ignore[arg-type]
+        if row is None or not _known(pos, getattr(row, "context_end_idx", None),
+                                     keys, book_id, upto, rows):
+            continue
+        known_notes.append((order[pos], getattr(n, "id", 0) or 0, pos, n))
+    known_notes.sort(key=lambda t: (t[0], t[1]))
+    for _, _, pos, n in known_notes:
+        origin = getattr(n, "origin_entity_id", None) or n.entity_id
+        if origin not in entities:
+            continue
+        s = out.get(f"e{_resolve(entities, origin, follow)}")
+        if s is None:
+            continue
+        facts = note_facts(getattr(n, "facts_json", None))
+        for f in STATE_FACTS:
+            v = facts.get(f)
+            if not v or (f == "status" and not status_ok(v)):
+                continue
+            s.now[f] = v
+            if pos[0] != book_id:
+                s.start[f] = v
     return list(out.values())
 
 
 def model_state(seen: list[SeenEntity]) -> list[dict[str, Any]]:
     """The glossary state sent with a digest call: one
-    ``{id, name, kind, identity}`` per entity (``seen_entities``), no
+    ``{id, name, kind, identity}`` per entity (``seen_entities``) plus its
+    ``rank`` and ``status`` when it has them (``SeenEntity.line``), no
     situational lines.
 
     Sent: the ``GLOSSARY_STATE_MAX`` entities of the earlier volumes seen
     most recently in them (in their first-seen order), then every entity
     seen in this volume's chapters so far, in order of its first appearance
     in this volume (one from an earlier volume that comes back here is
-    listed there when it was not among the earlier ones). ``identity`` is
-    stable, so the list only grows at the end from one chapter of a volume
-    to the next, and its stable prefix is cached (``state_blocks``)."""
+    listed there when it was not among the earlier ones).
+
+    Caching: the earlier-volume part carries rank and status AS OF THE START
+    OF THIS VOLUME (``line(at_start=True)``), so it is byte-identical for
+    every call of a volume and its blocks stay cached (``state_blocks``). An
+    earlier-volume entity whose rank or status changed in this volume is
+    listed once more in the current-volume part (at its first appearance
+    here) with the current values; the header says a later line for the
+    same id is newer. That re-listed line is INSERTED at the entity's first
+    current-volume appearance, not appended, so every line after it shifts
+    and the cache from that block on is written again once, by the next
+    call; when the value returns to its start value the line is removed
+    again, with the same rewrite. Current-volume lines carry the current
+    values, so a rank or status change in this volume rewrites that line
+    the same way. Changes are rare next to new names, and the earlier part
+    (the bulk) is never touched."""
     earlier = sorted((s for s in seen if s.earlier_first is not None), key=lambda s: s.earlier_first)
     top = sorted(earlier, key=lambda s: s.earlier_last)[-GLOSSARY_STATE_MAX:] if GLOSSARY_STATE_MAX else []
     listed = {s.key for s in top}
-    state = [s.line() for s in earlier if s.key in listed]
+    state = [s.line(at_start=True) for s in earlier if s.key in listed]
     for s in sorted((s for s in seen if s.current_first is not None), key=lambda s: s.current_first):
         if s.key not in listed:
             listed.add(s.key)
+            state.append(s.line())
+        elif any(s.now.get(f) != s.start.get(f) for f in STATE_FACTS):
             state.append(s.line())
     return state
 
 
 STATE_HEADER = ("Glossary so far: every person, place and term from the chapters before, "
-                "in order of first appearance, one JSON object per line (id 0: no id yet).")
+                "in order of first appearance, one JSON object per line (id 0: no id yet). "
+                "rank and status, when present, are the entity's current values; a later "
+                "line with the same id is newer.")
 
 
 def state_blocks(state: list[dict[str, str]]) -> list[dict[str, Any]]:
@@ -2025,8 +2147,9 @@ def _digest_unit(db: Session, user: User, book: Book, chapter_count: int,
     without a billed answer (outage, rate limit, no key) store nothing."""
     multi = len(sent) > 1
     prior = _prior_digests(db, book, sent[0].chapter.idx)
-    state = model_state(seen_entities(prior, book.id, _entities_for(db, book, prior),
-                                      upto=sent[0].chapter.idx))
+    prior_notes = _notes_for(db, prior, book.id)
+    state = model_state(seen_entities(prior, book.id, _entities_for(db, book, prior, prior_notes),
+                                      upto=sent[0].chapter.idx, notes=prior_notes))
     known = {e.key: e.line for e in fold_entries(d for d in prior if d.book_id == book.id)}
     context_end = sent[-1].chapter.idx if multi else None
     if multi:

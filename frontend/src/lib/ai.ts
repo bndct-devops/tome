@@ -523,8 +523,12 @@ export interface DigestJobFollowup {
   written?: number[]
   failed?: { book_id: number; title: string; series_index: number | null; reason: string; message?: string }[]
   skipped?: { book_id: number; title: string; series_index: number | null; reason: 'fresh' | 'unread'; missing_chapters: number }[]
+  /** reconcile: candidate pairs checked, pairs merged, model calls, and
+   *  which entry (by name) went into which. */
   candidates?: number
   merged?: number
+  calls?: number
+  merges?: { from: string; into: string }[]
 }
 
 function hasFollowup(job: Pick<DigestJob, 'followups'>, name: string): boolean {
@@ -536,9 +540,10 @@ export function isWriteAllJob(job: Pick<DigestJob, 'followups'>): boolean {
   return hasFollowup(job, 'volume_recaps')
 }
 
-/** A "Merge duplicates" job: nothing to read, only the reconcile step. */
+/** A "Merge duplicates" job: nothing to read, only the reconcile step (a
+ *  Write all with nothing to read also has total 0 and a reconcile step). */
 export function isMergeOnlyJob(job: Pick<DigestJob, 'total' | 'followups'>): boolean {
-  return job.total === 0 && hasFollowup(job, 'reconcile')
+  return job.total === 0 && hasFollowup(job, 'reconcile') && !isWriteAllJob(job)
 }
 
 /** The progress line of an active job by its step, or null when the job has
@@ -719,8 +724,11 @@ export interface GlossaryEntry {
   timeline_truncated?: boolean
 }
 
+/** `powers_rank` is the legacy single field (servers before the rank/powers
+ *  split); read as powers when `powers` is absent. */
 export type GlossaryFactField =
-  'appearance' | 'powers_rank' | 'affiliations' | 'relationships' | 'status' | 'location'
+  'appearance' | 'rank' | 'powers' | 'affiliations' | 'relationships' | 'status' | 'location'
+  | 'powers_rank'
 
 /** A place in the series: the shape facts, timeline lines and Ask quotes share. */
 export interface SeriesPlace {
@@ -733,7 +741,7 @@ export interface SeriesPlace {
 
 export interface GlossaryFact extends SeriesPlace {
   value: string
-  /** Earlier distinct values inside the window, newest first (at most 2); only on the opened entry (getGlossaryEntry), never in the list. */
+  /** Earlier distinct values inside the window, newest first (at most 2; at most 5 for `powers`); only on the opened entry (getGlossaryEntry), never in the list. */
   history?: GlossaryFactHistoryItem[]
 }
 
@@ -853,6 +861,32 @@ export function isAlreadyRunning(e: unknown): boolean {
  *  server's message when over a monthly limit (409) or without a key. */
 export function startDigest(bookId: number, scope: DigestScope): Promise<DigestStart> {
   return api.post<DigestStart>(`/ai/books/${bookId}/digest`, { scope })
+}
+
+/** "Read again" (admins): what reading every chapter of each scope again
+ *  costs, and what it deletes first (for everyone). Each scope counts every
+ *  chapter, since all of them will be missing. */
+export interface RereadEstimate {
+  book: DigestEstimate | null
+  series: DigestEstimate | null
+  chapter_idx: number
+  chapter_title: string | null
+  deletes: {
+    book: { digests: number; recaps: number }
+    /** Counted over the whole series, not only the volumes in your scope. */
+    series: { volumes: number; digests: number; entities: number; recaps: number }
+  }
+}
+
+export function getRereadEstimate(bookId: number): Promise<RereadEstimate> {
+  return api.get<RereadEstimate>(`/ai/books/${bookId}/reread/estimate`)
+}
+
+/** Delete the stored notes of the scope and read it again; the 202 body is
+ *  startDigest's. Rejects with 403 (not an admin) or 409 (budget, already
+ *  running); the budget is checked before anything is deleted. */
+export function startReread(bookId: number, scope: DigestScope): Promise<DigestStart> {
+  return api.post<DigestStart>(`/ai/books/${bookId}/reread`, { scope })
 }
 
 /** One term: from the glossary when it is there, else one live call. */

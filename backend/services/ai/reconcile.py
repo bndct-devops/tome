@@ -6,10 +6,13 @@ not use a ``ref``) can leave one character as two entities: "Humphrey" and
 in code and lets the model confirm each one; only confirmed pairs merge.
 
 1. Candidates, no model: two live entities (``merged_into`` None) of one
-   series key and one kind whose names share a name token (3+ letters, not a
-   ``digest._NAME_STOPWORDS`` word) across canonical name + aliases, or where
-   one's canonical name is among the other's aliases. Strongest first,
-   at most ``MAX_PAIRS`` per run, ``PAIRS_PER_CALL`` per call.
+   series key and one kind where one's canonical name is among the other's
+   names (an alias the text gave it), or one canonical name occurs in the
+   other as whole words ("Neil" in "Neil Davone"; a name made only of
+   ``digest._NAME_STOPWORDS`` words does not count). Sharing a word is not
+   enough ("Dark Essence" / "Water Essence", two relatives). Alias hits
+   first, then the longer contained name, then the earlier first sight; at
+   most ``MAX_PAIRS`` per run, ``PAIRS_PER_CALL`` per call.
 2. One ``reading_digest`` call per batch (billed like the digest, under the
    caller's ``job_id``): per pair both ids, names, aliases, identity, first
    seen and up to the first and last ``NOTE_LINES`` note lines of each. The
@@ -37,7 +40,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from sqlalchemy import func
@@ -56,7 +59,8 @@ logger = logging.getLogger(__name__)
 FEATURE = digest.FEATURE          # reading_digest (Sonnet)
 PAIRS_PER_CALL = 40
 MAX_PAIRS = 200                   # per run: bounds one run's cost
-NOTE_LINES = 2                    # first and last note lines per entity
+MAX_CONTAINMENT_PER_NAME = 6      # a one-word name inside more names than this is generic
+NOTE_LINES = 3                    # first and last note lines per entity
 MIN_CONFIDENCE = 0.8
 MAX_TOKENS = 6000
 _NOTE_LINE_MAX = 240
@@ -76,6 +80,10 @@ For each pair, judge from this context alone whether the two entries are one \
 and the same entity:
 - Two different people can share a name: a first name, a family name, a \
 title. Relatives share a family name. Shared words alone prove nothing.
+- When one entry's name is among the other's other names, the text itself \
+called that entity by both names: strong evidence that they are one. In that \
+case answer same: false only when the lines plainly contradict it (two people \
+in one scene, roles that cannot belong to one person).
 - Answer same: true only for a duplicate entry: one entity entered twice. \
 If the context shows that two characters who seem different turn out to be \
 one (a disguise, a secret identity, a reveal), answer false.
@@ -94,6 +102,8 @@ class ReconcileResult:
     merged: int = 0
     calls: int = 0
     cost_usd: float = 0.0
+    # (loser name, survivor name) per merge made in this run, in order.
+    merges: list[tuple[str, str]] = field(default_factory=list)
 
 
 def answer_schema() -> dict[str, Any]:
@@ -166,11 +176,15 @@ def _names(e: AIEntity) -> list[str]:
     return [e.name] + [a["name"] for a in digest.entity_aliases(e)]
 
 
-def name_tokens(name: str) -> set[str]:
-    """The name's words that can tie two entries together: 3+ letters, not a
-    title or particle (``digest._NAME_STOPWORDS``)."""
-    return {t for t in book_text._WORD_RE.findall(digest.normalize_text(name))
-            if len(t) >= 3 and t not in digest._NAME_STOPWORDS}
+def _contains(longer: str, shorter: str) -> bool:
+    """``shorter`` (normalised) occurs in ``longer`` as whole words, and has a
+    word that is not a title or particle (``digest._NAME_STOPWORDS``)."""
+    if not shorter or len(shorter) >= len(longer) or shorter not in longer:
+        return False
+    words = book_text._WORD_RE.findall(shorter)
+    if words and all(w in digest._NAME_STOPWORDS for w in words):
+        return False
+    return digest._find_word(shorter, longer)
 
 
 def _live_entities(db: Session, key: str) -> list[AIEntity]:
@@ -242,56 +256,54 @@ def clear_verdicts(db: Session, series_key: str) -> int:
 # ── candidates ───────────────────────────────────────────────────────────────
 
 def candidates(db: Session, book: Book, order: _Order | None = None) -> list[tuple[AIEntity, AIEntity]]:
-    """Pairs of live entities of ``book``'s series that may be one, strongest
-    first: a canonical name among the other's names, then more shared
-    tokens, then the earlier first sight. A pair with a remembered verdict
-    at its current stamp is left out (before the cap). At most
-    ``MAX_PAIRS``."""
+    """Pairs of live entities of one kind in ``book``'s series that may be
+    one: one's canonical name among the other's names (an alias hit), or one
+    canonical name inside the other as whole words. Alias hits first, then
+    the longer contained name, then the earlier first sight. A pair with a
+    remembered verdict at its current stamp is left out (before the cap). At
+    most ``MAX_PAIRS``.
+
+    A one-word canonical name contained in more than
+    ``MAX_CONTAINMENT_PER_NAME`` other canonical names of its kind is generic
+    ("Essence", "Guard") and would fill the cap: its containment pairs are
+    dropped. Alias hits are kept."""
     order = order or _Order(db)
     key = digest.series_key(book)
     ents = _live_entities(db, key)
     stamp = stamps(db, key, ents)
     judged = {p: v.stamp for p, v in _verdicts(db, key).items()}
+    canon = {e.id: digest.normalize_name(e.name) for e in ents}
     names = {e.id: {digest.normalize_name(n) for n in _names(e)} for e in ents}
-    toks = {e.id: set().union(*(name_tokens(n) for n in _names(e))) for e in ents}
-    by_token: dict[tuple[str, str], list[AIEntity]] = {}
+    by_kind: dict[str, list[AIEntity]] = {}
     for e in ents:
-        for t in toks[e.id]:
-            by_token.setdefault((e.kind, t), []).append(e)
-    seen: set[tuple[int, int]] = set()
+        by_kind.setdefault(e.kind, []).append(e)
     scored: list[tuple[tuple[Any, ...], AIEntity, AIEntity]] = []
-
-    def consider(a: AIEntity, b: AIEntity) -> None:
-        if a.id == b.id or a.kind != b.kind:
-            return
-        pair = (min(a.id, b.id), max(a.id, b.id))
-        if pair in seen:
-            return
-        if judged.get(pair) == stamp[a.id] + stamp[b.id]:
-            seen.add(pair)
-            return
-        alias_hit = (digest.normalize_name(a.name) in names[b.id]
-                     or digest.normalize_name(b.name) in names[a.id])
-        shared = len(toks[a.id] & toks[b.id])
-        if not alias_hit and not shared:
-            return
-        seen.add(pair)
-        x, y = sorted((a, b), key=order.first_key)
-        scored.append(((not alias_hit, -shared, order.first_key(x), order.first_key(y)), x, y))
-
-    for group in by_token.values():
+    for group in by_kind.values():
+        generic: set[int] = set()
+        for a in group:
+            ca = canon[a.id]
+            if not ca or len(book_text._WORD_RE.findall(ca)) != 1:
+                continue
+            inside = sum(1 for b in group if b.id != a.id and _contains(canon[b.id], ca))
+            if inside > MAX_CONTAINMENT_PER_NAME:
+                generic.add(a.id)
         for i, a in enumerate(group):
             for b in group[i + 1:]:
-                consider(a, b)
-    # A canonical name among the other's aliases with no 3-letter token
-    # (a short or CJK name): matched by name, not token.
-    by_name: dict[tuple[str, str], list[AIEntity]] = {}
-    for e in ents:
-        for n in names[e.id]:
-            by_name.setdefault((e.kind, n), []).append(e)
-    for e in ents:
-        for other in by_name.get((e.kind, digest.normalize_name(e.name)), []):
-            consider(e, other)
+                ca, cb = canon[a.id], canon[b.id]
+                alias_hit = ca in names[b.id] or cb in names[a.id]
+                contained = 0
+                if not alias_hit:
+                    if _contains(cb, ca) and a.id not in generic:
+                        contained = len(ca)
+                    elif _contains(ca, cb) and b.id not in generic:
+                        contained = len(cb)
+                    else:
+                        continue
+                pair = _pair(a.id, b.id)
+                if judged.get(pair) == stamp[a.id] + stamp[b.id]:
+                    continue
+                x, y = sorted((a, b), key=order.first_key)
+                scored.append(((not alias_hit, -contained, order.first_key(x), order.first_key(y)), x, y))
     scored.sort(key=lambda s: s[0])
     return [(x, y) for _, x, y in scored[:MAX_PAIRS]]
 
@@ -457,11 +469,12 @@ def merge(db: Session, survivor: AIEntity, loser: AIEntity, order: _Order,
     return True
 
 
-def _apply(db: Session, key: str, pairs: list[tuple[int, int]], order: _Order) -> int:
-    """Merge the confirmed pairs on fresh rows under the series lock."""
+def _apply(db: Session, key: str, pairs: list[tuple[int, int]], order: _Order) -> list[tuple[str, str]]:
+    """Merge the confirmed pairs on fresh rows under the series lock. Returns
+    (loser name, survivor name) per merge made, in order."""
     if not pairs:
-        return 0
-    merged = 0
+        return []
+    merged: list[tuple[str, str]] = []
     with digest._series_lock(key):
         try:
             db.expire_all()
@@ -472,7 +485,7 @@ def _apply(db: Session, key: str, pairs: list[tuple[int, int]], order: _Order) -
                     continue
                 survivor, loser = sorted((a, b), key=order.first_key)
                 if merge(db, survivor, loser, order, entities):
-                    merged += 1
+                    merged.append((loser.name, survivor.name))
             db.commit()
         except Exception:
             db.rollback()
@@ -518,7 +531,9 @@ def run(db: Session, user: User, book: Book, *, job_id: str | None = None,
                                                   res.cache_read_tokens, res.cache_write_tokens)
                 _record(db, key, res.parsed, sent)
                 db.commit()
-                result.merged += _apply(db, key, _confirmed(res.parsed, set(sent)), order)
+                done = _apply(db, key, _confirmed(res.parsed, set(sent)), order)
+                result.merged += len(done)
+                result.merges.extend(done)
             if on_progress is not None:
                 on_progress(n + 1, len(batches))
     finally:

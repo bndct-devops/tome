@@ -75,16 +75,30 @@ All notable changes to Tome are documented here. Format loosely follows
   name, the other names it goes by and one line on who or what it is. Expand
   it for the profile: the status, appearance, powers and rank, affiliations,
   relationships and location, each with the chapter it is as of and its
-  earlier values beneath ("earlier: Silver rank · vol 6, ch 57"), a timeline
+  earlier values beneath ("earlier: Third Circle · vol 6, ch 57"). Rank is
+  its own line, the tier the text names and nothing else, and "Powers and
+  titles" collects the abilities and titles as they come (up to six). The
+  model is sent each entity's current rank and status with its name, so it
+  writes a fact only when the chapter changes it. Then a timeline
   of what they did chapter by chapter, the quote, where they first appeared
   ("vol 1, ch 12") and the chapter the profile is as of. One person stays one
   entry when the text calls them by different names (a title, a nickname, a
   disguise): the model decides that from context, never from the spelling
   alone, and a name or a merge learned past your position is never folded
   in. "Merge duplicates" next to the search finds entries that look like
-  one person, place or term entered twice (a short and a full name, two
-  spellings) and asks the model to confirm each pair from both profiles
-  before merging them; two people who share a name stay apart. The status
+  one person, place or term entered twice (a name inside a longer one, or a
+  name the text used for the other entry) and asks the model to confirm
+  each pair from both profiles before merging them; a shared family name or
+  a shared word is not enough to be asked, and a name the text itself used
+  for both counts as strong evidence. The button shows its progress where
+  it sits, then what it did ("Checked 120 pairs, merged 43: Wren -> Wren
+  Calloway, ..."), also after a refresh. Pairs already judged are
+  remembered and not asked again until either side learns something new.
+  Admins get "Read again" next to "Read the missing chapters": it shows
+  what it deletes (chapter notes, glossary entries, recaps, for everyone)
+  and what the read costs, then throws the notes of this book or of the
+  whole series away, reads them again and ends with the duplicate check, so
+  a full re-read needs no second click. The status
   is one of alive, dead, missing, captured or unknown, with a short
   condition when it matters ("alive, exhausted"); an event or a mood is not
   a status. Appearance is lasting looks only: a transformation, a disguise
