@@ -215,6 +215,25 @@ def test_sort_by_title(client: TestClient, make_book):
     assert titles == sorted(titles)
 
 
+def test_sort_by_series_then_volume_then_standalones(client: TestClient, make_book):
+    """sort=series: series in name order, each in volume order (2 before 10),
+    books without a series after them by title; desc reverses the series and
+    volume order but keeps standalones last."""
+    make_book(title="Lone Tale")
+    make_book(title="Brine Vol. 10", series="Brine", series_index=10)
+    make_book(title="Brine Vol. 2", series="Brine", series_index=2)
+    make_book(title="Ash Vol. 1", series="Ash", series_index=1)
+    make_book(title="Another Lone Tale")
+
+    resp = client.get("/api/books", params={"sort": "series", "order": "asc", "limit": 500})
+    assert resp.status_code == 200
+    titles = _titles(resp)
+    assert titles == ["Ash Vol. 1", "Brine Vol. 2", "Brine Vol. 10", "Another Lone Tale", "Lone Tale"]
+
+    resp = client.get("/api/books", params={"sort": "series", "order": "desc", "limit": 500})
+    assert _titles(resp) == ["Brine Vol. 10", "Brine Vol. 2", "Ash Vol. 1", "Another Lone Tale", "Lone Tale"]
+
+
 # ── Group by series ───────────────────────────────────────────────────────────
 
 def test_group_by_series_collapses_volumes(client: TestClient, make_book):

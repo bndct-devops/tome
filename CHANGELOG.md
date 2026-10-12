@@ -6,6 +6,9 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **Sort books by series.** `GET /api/books` accepts `sort=series`: series in name order, each in volume order, books without a series after them by title. Used by the iOS app's Library sort.
+
 ### Added
 - **AI features, with your own key.** Settings has a new AI section. Members
   and admins can add their own Anthropic API key; Tome checks it with

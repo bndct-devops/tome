@@ -303,7 +303,7 @@ def list_books(
     q: Optional[str] = Query(None, description="Full-text search across title/author/series/tags"),
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
-    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating)$"),
+    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating|series)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Filter to books the current user rated at least this many stars"),
     series: Optional[str] = Query(None, description="Exact series name filter"),
@@ -376,6 +376,15 @@ def list_books(
     # When filtering by a specific series, always sort by series_index
     if series:
         query = query.order_by(Book.series_index.asc().nullslast(), Book.title.asc())
+    elif sort == "series":
+        # Series first, each in volume order; standalones (no series) after
+        # them, by title, in both directions.
+        if order == "asc":
+            query = query.order_by(Book.series.asc().nullslast(),
+                                   Book.series_index.asc().nullslast(), Book.title.asc())
+        else:
+            query = query.order_by(Book.series.desc().nullslast(),
+                                   Book.series_index.desc().nullslast(), Book.title.asc())
     elif sort == "rating":
         # Highest-rated first by default; unrated books sort last either way.
         rating_sort = eff_rating.desc() if order == "desc" else eff_rating.asc()
