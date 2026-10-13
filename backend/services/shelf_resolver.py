@@ -16,7 +16,8 @@ from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 
 SHELF_SUPPORTED = {"q", "series", "no_series", "author", "tag", "format",
-                   "language", "library_id", "reading_status", "min_rating"}
+                   "language", "library_id", "reading_status", "min_rating",
+                   "on_device", "not_on_device"}
 
 
 def shelf_query(db: Session, user: User, params: dict):
@@ -73,6 +74,13 @@ def shelf_query(db: Session, user: User, params: dict):
             (UserBookStatus.status != "unread")
         )
         query = query.filter(~subq)
+    # The shelf owner's device ("Not on Kindle, unread" browsed on the Kindle).
+    if params.get("on_device") or params.get("not_on_device"):
+        from backend.services import device_inventory
+        query = device_inventory.apply_filters(
+            query, user,
+            on_device=str(params.get("on_device") or ""),
+            not_on_device=str(params.get("not_on_device") or ""))
     if params.get("min_rating"):
         try:
             query = query.join(

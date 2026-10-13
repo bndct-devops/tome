@@ -167,6 +167,10 @@ Admin accounts are never restricted.
 
 The dashboard filter bar narrows the grid by **Series**, **Author**, **Tag**, **Format**, and **Language**, plus reading status, rating, and (for admins) uploader. Filters combine, show as removable chips, and live in the URL — so a filtered view is shareable and can be saved as a Shelf.
 
+### On a device
+
+With TomeSync plugin build 50 or newer, each KOReader device reports which Tome books are on it, and the filters get one row per device: **On Kindle** / **Not on Kindle** (the row is named after the device, see TomeSync > Settings > Device name). The filter is always about that one device of yours, never "any device". Combined with the Unread status, "Not on Kindle" is the "what do I load next" list. A shelf saved with a device filter also works in the plugin's shelf browser, so its books can be downloaded from the device itself. Books on a device show an "On ..." pill on cards and the book page, and a series page shows how many volumes each device holds. See [KOReader plugin: Books on the device](koreader-plugin.md#books-on-the-device).
+
 ### Language
 
 The **Language** dropdown appears whenever your catalogue holds more than one language. There is no language *detection* — Tome never inspects the book's text. It reads the language each file *declares* in its embedded metadata (an EPUB's `<dc:language>`, a CBZ's `LanguageISO`, etc.), captured at scan/upload time. A book whose file declares nothing has no language and simply doesn't appear in the dropdown.

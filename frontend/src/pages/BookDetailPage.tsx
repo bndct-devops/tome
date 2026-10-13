@@ -18,6 +18,7 @@ import { CoverPickerModal } from '@/components/CoverPickerModal'
 import { PositionHistoryModal } from '@/components/PositionHistoryModal'
 import { ShareModal } from '@/components/ShareShelfModal'
 import { SendButton } from '@/components/SendButton'
+import { DevicePills } from '@/components/DevicePills'
 import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
 import { CoverImage } from '@/components/CoverImage'
@@ -692,6 +693,7 @@ export function BookDetailPage() {
           )}
         </div>
       )}
+      {!editing && <DevicePills bookId={book.id} className="flex mt-2" />}
     </>
   )
 

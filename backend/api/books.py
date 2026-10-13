@@ -126,6 +126,8 @@ def _filtered_books_query(
     content_type: Optional[str] = None,
     added_by: Optional[int] = None,
     ownership: Optional[str] = None,
+    on_device: Optional[str] = None,
+    not_on_device: Optional[str] = None,
     with_rating_join: bool = False,
 ):
     """Build the filtered books query shared by the list and ids endpoints.
@@ -192,6 +194,14 @@ def _filtered_books_query(
             (UserBookStatus.status != "unread")
         )
         query = query.filter(~subq)
+
+    # ── Device inventory (KOReader plugin build 50+) ────────────────────────
+    # The current user's devices, comma-separated: on all of on_device, on
+    # none of not_on_device.
+    if on_device or not_on_device:
+        from backend.services import device_inventory
+        query = device_inventory.apply_filters(
+            query, current_user, on_device=on_device, not_on_device=not_on_device)
 
     # ── Rating filter / sort prep ────────────────────────────────────────────
     # Effective rating = the user's own volume rating, else the inherited series
@@ -274,6 +284,8 @@ def list_book_ids(
     content_type: Optional[str] = Query(None),
     added_by: Optional[int] = Query(None),
     ownership: Optional[str] = Query(None),
+    on_device: Optional[str] = Query(None),
+    not_on_device: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -289,6 +301,7 @@ def list_book_ids(
         format=format, language=language, library_id=library_id,
         reading_status=reading_status, min_rating=min_rating, missing=missing,
         content_type=content_type, added_by=added_by, ownership=ownership,
+        on_device=on_device, not_on_device=not_on_device,
     )
     ids = [row[0] for row in query.with_entities(Book.id).distinct().all()]
     return {"ids": ids}
@@ -315,6 +328,8 @@ def list_books(
     content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
     added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
     ownership: Optional[str] = Query(None, description="Ownership filter: 'mine' or 'shared' (member only)"),
+    on_device: Optional[str] = Query(None, description="Only books on these KOReader devices of the current user (device names, comma-separated; all must hold the book)"),
+    not_on_device: Optional[str] = Query(None, description="Only books on none of these KOReader devices of the current user (device names, comma-separated)"),
     group_by_series: Optional[bool] = Query(None, description="Collapse series into one representative book each, annotated with series_count"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -325,6 +340,7 @@ def list_books(
         format=format, language=language, library_id=library_id,
         reading_status=reading_status, min_rating=min_rating, missing=missing,
         content_type=content_type, added_by=added_by, ownership=ownership,
+        on_device=on_device, not_on_device=not_on_device,
         with_rating_join=(sort == "rating"),
     )
 

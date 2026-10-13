@@ -245,5 +245,7 @@ def test_build_bumped_for_rebake():
     # 1.18.0 / build 49 (issue #249): back-off after the first unanswered
     # request with doubling waits, book open never waits on the network,
     # optional fallback server URL.
-    assert TOMESYNC_PLUGIN_BUILD >= 49
-    assert TOMESYNC_PLUGIN_SEMVER == "1.18.0"
+    # 1.19.0 / build 50: device inventory (the books on the device, for
+    # "On <device>" pills and filters).
+    assert TOMESYNC_PLUGIN_BUILD >= 50
+    assert TOMESYNC_PLUGIN_SEMVER == "1.19.0"

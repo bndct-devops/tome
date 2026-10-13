@@ -13,6 +13,17 @@ All notable changes to Tome are documented here. Format loosely follows
   only works from outside (a router without hairpin NAT, a VPN address).
   Whichever address answered last is tried first, so after a network change
   the plugin switches once and sticks with it. (#249)
+- **See which books are on your e-reader.** The KOReader plugin now tells
+  Tome which of its books are on the device, and books show an "On Kindle"
+  pill (named after the device) on cards and the book page. The filters get
+  a row per device with "On Kindle" and "Not on Kindle", which can be saved
+  as a shelf and also work in shelves browsed on the device; series pages
+  show how many volumes each device holds and mark them on the covers.
+  The list is sent on launch, wake, WiFi up, Sync now and after downloads,
+  and replaces the previous one, so books deleted on the device drop out on
+  the next sync. A device that has not synced in a few days is shown muted
+  with its age, and Settings > KOReader lists your devices with a way to
+  forget one. Only your own devices are ever shown. Plugin build 50.
 
 ### Fixed
 - **The KOReader plugin no longer freezes the reader when the server is

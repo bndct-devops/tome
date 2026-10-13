@@ -634,6 +634,10 @@ msgstr ""
 msgid "{color} highlight"
 msgstr ""
 
+#: src/components/DeviceInventoryList.tsx
+msgid "{count, plural, one {# book} other {# books}}"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "{count} sittings · {from} – {to}"
 msgstr ""
@@ -664,6 +668,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -810,6 +815,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr ""
@@ -854,6 +860,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr ""
@@ -2016,6 +2023,10 @@ msgstr ""
 msgid "Books in progress, with covers"
 msgstr ""
 
+#: src/components/DeviceInventoryList.tsx
+msgid "Books on your devices"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Books Started"
 msgstr ""
@@ -2202,6 +2213,18 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Click for details"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Click: {name} does not matter"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Click: only books not on {name}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Click: only books on {name}"
 msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
@@ -2405,6 +2428,10 @@ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
 msgid "Could not create the goal — it may already exist."
+msgstr ""
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Could not forget {name}"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
@@ -2791,6 +2818,10 @@ msgstr ""
 msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Devices"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Directories"
 msgstr ""
@@ -2959,6 +2990,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "e.g. scribe-laptop"
+msgstr ""
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Each device sends the list of Tome books on it when it syncs. Books show an \"On ...\" pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync."
 msgstr ""
 
 #: src/components/stats/widgets/overview.tsx
@@ -3558,6 +3593,18 @@ msgstr ""
 msgid "For precise series tracking, use the <0>Series</0> tab instead."
 msgstr ""
 
+#: src/components/DeviceInventoryList.tsx
+msgid "Forget"
+msgstr ""
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Forget {name}"
+msgstr ""
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Forgot {name}"
+msgstr ""
+
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -3966,6 +4013,7 @@ msgid "Just started"
 msgstr ""
 
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 msgid "Just synced"
 msgstr ""
 
@@ -4517,6 +4565,7 @@ msgid "Native KOReader plugin — tracks reading sessions and syncs by book ID. 
 msgstr ""
 
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/SettingsPage.tsx
 msgid "Never"
 msgstr ""
@@ -5084,6 +5133,18 @@ msgstr ""
 msgid "Not matched"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+#~ msgid "Not on {filterNotOnDevice}"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Not on {name}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Not on {names}"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Not on board"
 msgstr ""
@@ -5190,6 +5251,26 @@ msgstr ""
 
 #: src/components/TelemetryConsentCard.tsx
 msgid "Off, you have not opted in."
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "On {filterOnDevice}"
+#~ msgstr ""
+
+#: src/components/DevicePills.tsx
+msgid "On {name}"
+msgstr ""
+
+#: src/components/DevicePills.tsx
+msgid "On {name} as of the last sync ({ago})"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "On {name}: <0>{n}</0> of {total}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "On {names}"
 msgstr ""
 
 #: src/pages/LoginPage.tsx
@@ -7164,6 +7245,10 @@ msgstr ""
 msgid "Synced"
 msgstr ""
 
+#: src/components/DeviceInventoryList.tsx
+msgid "synced {ago}"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Synced document"
 msgstr ""
@@ -8081,6 +8166,7 @@ msgid "Year in Review"
 msgstr ""
 
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/WishlistPage.tsx
