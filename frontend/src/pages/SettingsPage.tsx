@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
 import { ScanSyncCodeModal } from '@/components/ScanSyncCodeModal'
+import { DeviceInventoryList } from '@/components/DeviceInventoryList'
 import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
 import { DOCS, docsLink } from '@/lib/docs'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -1426,6 +1427,8 @@ export function SettingsPage() {
                   <p className="text-xs text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
                 )}
               </div>
+
+              <DeviceInventoryList />
             </div>
 
           </div>

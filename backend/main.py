@@ -42,6 +42,7 @@ from backend.api import oidc as oidc_api
 from backend.api import goals as goals_api
 from backend.api import annotations as annotations_api
 from backend.api import sync_code as sync_code_api
+from backend.api import device_books as device_books_api
 from backend.api import hardcover as hardcover_api
 from backend.api import ai as ai_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
@@ -628,6 +629,7 @@ def create_app() -> FastAPI:
     app.include_router(share_api.router, prefix="/api")
     app.include_router(annotations_api.router, prefix="/api")
     app.include_router(sync_code_api.router, prefix="/api")
+    app.include_router(device_books_api.router, prefix="/api")
     app.include_router(ai_api.router, prefix="/api")
     # Every AI failure (refusal, provider down, no key, feature off) is a typed
     # exception from backend/services/ai; one handler maps them to status codes

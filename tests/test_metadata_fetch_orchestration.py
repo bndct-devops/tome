@@ -124,6 +124,50 @@ async def test_rate_limit_retry_succeeds(monkeypatch):
 
 
 @respx.mock
+async def test_server_error_retried_once(monkeypatch):
+    """Google 503 then 200 → one retry lands the results, status ok (#247)."""
+    async def _no_sleep(_): return None
+    monkeypatch.setattr(mf.asyncio, "sleep", _no_sleep)
+
+    respx.post(HC).mock(return_value=httpx.Response(200, json={"data": {"search": {"ids": [], "results": {"hits": []}}}}))
+    gb = respx.get(GB).mock(side_effect=[
+        httpx.Response(503),
+        httpx.Response(200, json=_gb_payload("Network Effect")),
+    ])
+    respx.get(OL).mock(return_value=httpx.Response(200, json=_empty_ol()))
+
+    result = await mf.fetch_candidates("Network Effect")
+    assert gb.call_count == 2
+    assert result.sources["google_books"] == "ok"
+    assert result.candidates and result.candidates[0].title == "Network Effect"
+
+
+@respx.mock
+async def test_server_error_twice_is_error_not_loop(monkeypatch, caplog):
+    """503 twice → exactly two attempts, status error, other sources still
+    deliver, and the warning never carries the request URL (the key lives
+    in its query string)."""
+    async def _no_sleep(_): return None
+    monkeypatch.setattr(mf.asyncio, "sleep", _no_sleep)
+    monkeypatch.setattr(settings, "google_books_key", "sekrit-key")
+
+    respx.post(HC).mock(return_value=httpx.Response(200, json={"data": {"search": {"ids": [], "results": {"hits": []}}}}))
+    gb = respx.get(GB).mock(return_value=httpx.Response(503))
+    respx.get(OL).mock(return_value=httpx.Response(200, json={"docs": [{
+        "key": "/works/OL1W", "title": "Network Effect", "author_name": ["Martha Wells"],
+    }]}))
+
+    with caplog.at_level("WARNING"):
+        result = await mf.fetch_candidates("Network Effect")
+    assert gb.call_count == 2
+    assert result.sources["google_books"] == "error"
+    assert result.sources["open_library"] == "ok"
+    assert "sekrit-key" not in caplog.text
+    assert "googleapis.com" not in caplog.text
+    assert "google_books metadata fetch failed: HTTP 503" in caplog.text
+
+
+@respx.mock
 async def test_hardcover_disabled_without_token(monkeypatch):
     monkeypatch.setattr(settings, "hardcover_token", None)
     respx.get(GB).mock(return_value=httpx.Response(200, json=_empty_gb()))

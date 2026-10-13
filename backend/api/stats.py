@@ -1059,6 +1059,7 @@ def get_stats(
 _SHELF_FILTER_KEYS = {
     "q", "series", "author", "tag", "format", "language", "library_id",
     "reading_status", "min_rating", "missing", "content_type", "added_by", "ownership",
+    "on_device", "not_on_device",
 }
 
 

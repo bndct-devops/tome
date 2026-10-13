@@ -500,11 +500,6 @@ msgstr "{0, plural, one {# user} other {# users}}"
 
 #. placeholder {0}: writeAll.reading.volumes
 #: src/components/RecapVolumes.tsx
-#~ msgid "{0, plural, one {# volume still needs reading ({chapters} chapters, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters} chapters, about {readCost}) · {recaps}}}"
-#~ msgstr "{0, plural, one {# volume still needs reading ({chapters} chapters, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters} chapters, about {readCost}) · {recaps}}}"
-
-#. placeholder {0}: writeAll.reading.volumes
-#: src/components/RecapVolumes.tsx
 msgid "{0, plural, one {# volume still needs reading ({chapters}, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters}, about {readCost}) · {recaps}}}"
 msgstr "{0, plural, one {# volume still needs reading ({chapters}, about {readCost}) · {recaps}} other {# volumes still need reading ({chapters}, about {readCost}) · {recaps}}}"
 
@@ -723,6 +718,10 @@ msgstr "{clearResult} covers deleted."
 msgid "{color} highlight"
 msgstr "{color} highlight"
 
+#: src/components/DeviceInventoryList.tsx
+msgid "{count, plural, one {# book} other {# books}}"
+msgstr "{count, plural, one {# book} other {# books}}"
+
 #: src/pages/BookDetailPage.tsx
 msgid "{count} sittings · {from} – {to}"
 msgstr "{count} sittings · {from} – {to}"
@@ -753,6 +752,7 @@ msgstr "{days, plural, one {across # reading day in {monthName}} other {across #
 
 #: src/components/NotificationBell.tsx
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -802,10 +802,6 @@ msgstr "{digested} of {needed} chapters before your position are read so far."
 #: src/components/AiActivity.tsx
 msgid "{directCalls, plural, one {# other call (recap, Recall, Ask, fixes)} other {# other calls (recap, Recall, Ask, fixes)}}"
 msgstr "{directCalls, plural, one {# other call (recap, Recall, Ask, fixes)} other {# other calls (recap, Recall, Ask, fixes)}}"
-
-#: src/components/AiActivity.tsx
-#~ msgid "{directCalls, plural, one {# other call (recap, Recall, fixes)} other {# other calls (recap, Recall, fixes)}}"
-#~ msgstr "{directCalls, plural, one {# other call (recap, Recall, fixes)} other {# other calls (recap, Recall, fixes)}}"
 
 #: src/pages/AdminPage.tsx
 msgid "{dismissCount, plural, one {dismiss # group} other {dismiss # groups}}"
@@ -935,6 +931,7 @@ msgstr "{hours}h ago"
 
 #: src/components/NotificationBell.tsx
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr "{hrs}h ago"
@@ -979,6 +976,7 @@ msgstr "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 
 #: src/components/NotificationBell.tsx
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr "{mins}m ago"
@@ -1007,6 +1005,10 @@ msgstr "{missing, plural, one {# missing} other {# missing}}"
 #: src/pages/WishlistPage.tsx
 msgid "{months}mo ago"
 msgstr "{months}mo ago"
+
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {# book} other {# books}}"
+msgstr "{n, plural, one {# book} other {# books}}"
 
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
@@ -1041,6 +1043,10 @@ msgstr "{n, plural, one {Read # chapter} other {Read # chapters}}"
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
 msgstr "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
+
+#: src/pages/DashboardPage.tsx
+msgid "{n} books · {r} read"
+msgstr "{n} books · {r} read"
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{n} chapters of {mainTitle}."
@@ -1171,10 +1177,6 @@ msgstr "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
 #: src/components/RecapVolumes.tsx
 msgid "{pendingCount, plural, one {# volume not written yet · about {allCost}} other {# volumes not written yet · about {allCost}}}"
 msgstr "{pendingCount, plural, one {# volume not written yet · about {allCost}} other {# volumes not written yet · about {allCost}}}"
-
-#: src/components/RecapVolumes.tsx
-#~ msgid "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
-#~ msgstr "{pendingCount, plural, one {# volume not written yet · about {cost}} other {# volumes not written yet · about {cost}}}"
 
 #: src/components/RecapVolumes.tsx
 msgid "{pendingCount, plural, one {then # recap (about {cost})} other {then # recaps (about {cost})}}"
@@ -1340,17 +1342,9 @@ msgstr "{v}m"
 msgid "{vc, plural, one {# chapter} other {# chapters}}"
 msgstr "{vc, plural, one {# chapter} other {# chapters}}"
 
-#: src/components/ReadingCompanion.tsx
-#~ msgid "{volume}, {chapter}"
-#~ msgstr "{volume}, {chapter}"
-
 #: src/components/DigestConfirmDialog.tsx
 msgid "{volumes, plural, one {{chapters} of # volume} other {{chapters} of # volumes}}"
 msgstr "{volumes, plural, one {{chapters} of # volume} other {{chapters} of # volumes}}"
-
-#: src/components/DigestConfirmDialog.tsx
-#~ msgid "{volumes, plural, one {Read {chapters} chapters of # volume} other {Read {chapters} chapters of # volumes}}"
-#~ msgstr "{volumes, plural, one {Read {chapters} chapters of # volume} other {Read {chapters} chapters of # volumes}}"
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{w}w"
@@ -1359,10 +1353,6 @@ msgstr "{w}w"
 #: src/pages/BookDetailPage.tsx
 msgid "{words} words"
 msgstr "{words} words"
-
-#: src/components/RecapVolumes.tsx
-#~ msgid "{writingAll, plural, one {Writing # volume recap…} other {Writing # volume recaps…}}"
-#~ msgstr "{writingAll, plural, one {Writing # volume recap…} other {Writing # volume recaps…}}"
 
 #: src/components/stats/GoalWidget.tsx
 msgid "{y} Challenge"
@@ -2432,6 +2422,10 @@ msgstr "Books Finished"
 msgid "Books in progress, with covers"
 msgstr "Books in progress, with covers"
 
+#: src/components/DeviceInventoryList.tsx
+msgid "Books on your devices"
+msgstr "Books on your devices"
+
 #: src/pages/StatsPage.tsx
 msgid "Books Started"
 msgstr "Books Started"
@@ -2676,6 +2670,18 @@ msgstr "Click \"Download plugin ZIP\" above. An API key is automatically created
 msgid "Click for details"
 msgstr "Click for details"
 
+#: src/pages/DashboardPage.tsx
+msgid "Click: {name} does not matter"
+msgstr "Click: {name} does not matter"
+
+#: src/pages/DashboardPage.tsx
+msgid "Click: only books not on {name}"
+msgstr "Click: only books not on {name}"
+
+#: src/pages/DashboardPage.tsx
+msgid "Click: only books on {name}"
+msgstr "Click: only books on {name}"
+
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/DigestConfirmDialog.tsx
@@ -2900,6 +2906,10 @@ msgstr "Could not create a code"
 #: src/components/stats/GoalWidget.tsx
 msgid "Could not create the goal — it may already exist."
 msgstr "Could not create the goal — it may already exist."
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Could not forget {name}"
+msgstr "Could not forget {name}"
 
 #: src/components/HardcoverSync.tsx
 msgid "Could not link Hardcover account"
@@ -3386,6 +3396,10 @@ msgstr "Device offline but your phone is not? \"Show sync code\" in the plugin t
 msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 
+#: src/pages/DashboardPage.tsx
+msgid "Devices"
+msgstr "Devices"
+
 #: src/pages/AdminPage.tsx
 msgid "Directories"
 msgstr "Directories"
@@ -3561,6 +3575,10 @@ msgstr "e.g. scribe-laptop"
 #: src/components/ReadingCompanion.tsx
 msgid "Each chapter is read once. Later recaps and the glossary reuse it."
 msgstr "Each chapter is read once. Later recaps and the glossary reuse it."
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Each device sends the list of Tome books on it when it syncs. Books show an \"On ...\" pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync."
+msgstr "Each device sends the list of Tome books on it when it syncs. Books show an \"On ...\" pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync."
 
 #: src/components/stats/widgets/overview.tsx
 msgid "Each row is one reading session."
@@ -4221,6 +4239,18 @@ msgstr "for {targetLabel} — click a file to switch"
 msgid "For precise series tracking, use the <0>Series</0> tab instead."
 msgstr "For precise series tracking, use the <0>Series</0> tab instead."
 
+#: src/components/DeviceInventoryList.tsx
+msgid "Forget"
+msgstr "Forget"
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Forget {name}"
+msgstr "Forget {name}"
+
+#: src/components/DeviceInventoryList.tsx
+msgid "Forgot {name}"
+msgstr "Forgot {name}"
+
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -4231,10 +4261,6 @@ msgstr "Format"
 #: src/pages/DashboardPage.tsx
 msgid "Format: {filterFormatUpper}"
 msgstr "Format: {filterFormatUpper}"
-
-#: src/components/MetadataFetchModal.tsx
-#~ msgid "Found the matching edition with the corrected title; description, tags and cover come from it."
-#~ msgstr "Found the matching edition with the corrected title; description, tags and cover come from it."
 
 #: src/components/MetadataFetchModal.tsx
 msgid "Found the matching edition with the corrected title; the fetched fields come from it."
@@ -4733,6 +4759,7 @@ msgid "Just started"
 msgstr "Just started"
 
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 msgid "Just synced"
 msgstr "Just synced"
 
@@ -5383,6 +5410,7 @@ msgid "Native KOReader plugin — tracks reading sessions and syncs by book ID. 
 msgstr "Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync."
 
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/SettingsPage.tsx
 msgid "Never"
 msgstr "Never"
@@ -6002,6 +6030,18 @@ msgstr "Not matched"
 msgid "Not now"
 msgstr "Not now"
 
+#: src/pages/DashboardPage.tsx
+#~ msgid "Not on {filterNotOnDevice}"
+#~ msgstr "Not on {filterNotOnDevice}"
+
+#: src/pages/DashboardPage.tsx
+msgid "Not on {name}"
+msgstr "Not on {name}"
+
+#: src/pages/DashboardPage.tsx
+msgid "Not on {names}"
+msgstr "Not on {names}"
+
 #: src/pages/StatsPage.tsx
 msgid "Not on board"
 msgstr "Not on board"
@@ -6157,6 +6197,26 @@ msgstr "Off, you have not opted in."
 #: src/components/AiSettings.tsx
 msgid "On"
 msgstr "On"
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "On {filterOnDevice}"
+#~ msgstr "On {filterOnDevice}"
+
+#: src/components/DevicePills.tsx
+msgid "On {name}"
+msgstr "On {name}"
+
+#: src/components/DevicePills.tsx
+msgid "On {name} as of the last sync ({ago})"
+msgstr "On {name} as of the last sync ({ago})"
+
+#: src/pages/DashboardPage.tsx
+msgid "On {name}: <0>{n}</0> of {total}"
+msgstr "On {name}: <0>{n}</0> of {total}"
+
+#: src/pages/DashboardPage.tsx
+msgid "On {names}"
+msgstr "On {names}"
 
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
@@ -6556,10 +6616,6 @@ msgid "position kept, newer here"
 msgstr "position kept, newer here"
 
 #: src/components/GlossaryEntry.tsx
-#~ msgid "Powers and rank"
-#~ msgstr "Powers and rank"
-
-#: src/components/GlossaryEntry.tsx
 msgid "Powers and titles"
 msgstr "Powers and titles"
 
@@ -6614,10 +6670,6 @@ msgstr "Previous month (Shift with either arrow)"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Previous page"
 msgstr "Previous page"
-
-#: src/components/ReadingCompanion.tsx
-#~ msgid "Previously on {previouslyTitle}"
-#~ msgstr "Previously on {previouslyTitle}"
 
 #: src/components/Sidebar.tsx
 msgid "Private — only assigned users can access"
@@ -6957,10 +7009,6 @@ msgstr "Reading by Weekday"
 #~ msgid "Reading Calendar"
 #~ msgstr "Reading Calendar"
 
-#: src/components/ReadingCompanion.tsx
-#~ msgid "Reading chapter {current} of {total}…"
-#~ msgstr "Reading chapter {current} of {total}…"
-
 #: src/lib/ai.ts
 msgid "Reading chapters: {done} of {total}…"
 msgstr "Reading chapters: {done} of {total}…"
@@ -7062,10 +7110,6 @@ msgstr "Reading Timeline"
 #: src/lib/ai.ts
 msgid "Reads each chapter you have finished once and notes who and what appears in it. Recap and the glossary are built from these notes."
 msgstr "Reads each chapter you have finished once and notes who and what appears in it. Recap and the glossary are built from these notes."
-
-#: src/components/AskBox.tsx
-#~ msgid "Reads the chapters it needs, about 10 to 15 cents a question. Never past your position."
-#~ msgstr "Reads the chapters it needs, about 10 to 15 cents a question. Never past your position."
 
 #: src/components/AskBox.tsx
 msgid "Reads the chapters it needs, around 10 to 30 cents a question. Never past your position."
@@ -8122,10 +8166,6 @@ msgstr "Some chapters could not be read, so names from them are missing."
 msgid "Some chapters could not be read, so this recap may skip parts."
 msgstr "Some chapters could not be read, so this recap may skip parts."
 
-#: src/components/ReadingCompanion.tsx
-#~ msgid "Some chapters of that volume could not be read, so this may skip parts."
-#~ msgstr "Some chapters of that volume could not be read, so this may skip parts."
-
 #: src/components/RecapVolumes.tsx
 msgid "Some chapters of this volume are still unread."
 msgstr "Some chapters of this volume are still unread."
@@ -8403,6 +8443,10 @@ msgstr "Sync Status"
 #: src/pages/HardcoverPage.tsx
 msgid "Synced"
 msgstr "Synced"
+
+#: src/components/DeviceInventoryList.tsx
+msgid "synced {ago}"
+msgstr "synced {ago}"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Synced document"
@@ -9491,14 +9535,6 @@ msgstr "Writing recaps: {stepDone} of {stepTotal}…"
 msgid "Writing the recap. This can take up to a minute."
 msgstr "Writing the recap. This can take up to a minute."
 
-#: src/components/RecapVolumes.tsx
-#~ msgid "Writing volume recaps…"
-#~ msgstr "Writing volume recaps…"
-
-#: src/components/RecapVolumes.tsx
-#~ msgid "Writing volume recaps… {runDone} of {runTotal}"
-#~ msgstr "Writing volume recaps… {runDone} of {runTotal}"
-
 #: src/components/ReadingCompanion.tsx
 msgid "Written for {recapFor} · cached, free to reopen"
 msgstr "Written for {recapFor} · cached, free to reopen"
@@ -9532,6 +9568,7 @@ msgid "Year in Review"
 msgstr "Year in Review"
 
 #: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/WishlistPage.tsx

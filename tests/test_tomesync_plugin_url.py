@@ -244,5 +244,11 @@ def test_build_bumped_for_rebake():
     # only.
     # 1.17.0 / build 48: the reading companion offline on the device (a
     # glossary and recap snapshot kept in the book's sidecar folder).
-    assert TOMESYNC_PLUGIN_BUILD >= 48
-    assert TOMESYNC_PLUGIN_SEMVER == "1.17.0"
+    # 1.18.0 / build 49 (issue #249): back-off after the first unanswered
+    # request with doubling waits, book open never waits on the network,
+    # optional fallback server URL.
+    # 1.19.0 / build 50: device inventory (the books on the device, for
+    # "On <device>" pills and filters).
+    # 1.20.0 / build 51: the AI branch (48) merged with main's 49 and 50.
+    assert TOMESYNC_PLUGIN_BUILD >= 51
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.0"

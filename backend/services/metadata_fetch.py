@@ -91,7 +91,7 @@ _inflight: dict[tuple, "asyncio.Future"] = {}
 
 
 async def _attempt_source(name: str, factory) -> tuple[list[MetadataCandidate], str]:
-    """One source, one retry on rate-limit/timeout; never raises (except
+    """One source, one retry on rate-limit/timeout/5xx; never raises (except
     cancellation) — failures degrade to ([], honest_status)."""
     for attempt in (1, 2):
         try:
@@ -111,10 +111,16 @@ async def _attempt_source(name: str, factory) -> tuple[list[MetadataCandidate], 
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+            if status is not None and status >= 500 and attempt == 1:
+                # Transient upstream trouble (Google Books answers 503 in
+                # bursts, #247): same one-retry treatment as a rate limit.
+                await asyncio.sleep(1.5)
+                continue
             # Never log str(exc): an httpx error's text carries the request URL,
             # and Google Books puts TOME_GOOGLE_BOOKS_KEY in the query string.
-            if isinstance(exc, httpx.HTTPStatusError):
-                logger.warning("%s metadata fetch failed: HTTP %s", name, exc.response.status_code)
+            if status is not None:
+                logger.warning("%s metadata fetch failed: HTTP %s", name, status)
             else:
                 logger.warning("%s metadata fetch failed: %s", name, type(exc).__name__)
             return [], "error"

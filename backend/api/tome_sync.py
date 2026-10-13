@@ -112,8 +112,25 @@ logger = logging.getLogger(__name__)
 # read is in the code and not only its position; the menu count "(N)" counts
 # unsent items only (the open book's live position no longer makes it read
 # "(1)" after a full sync).
-TOMESYNC_PLUGIN_BUILD = 48
-TOMESYNC_PLUGIN_SEMVER = "1.17.0"
+# BUILD 49 (48 is taken by an unmerged branch already on devices): network
+# resilience (issue #249). Every request runs on KOReader's UI thread, so an
+# online-but-unreachable server froze the screen for the connect timeout.
+# The back-off now starts after the FIRST request with no answer (was three)
+# and doubles 1, 2, 4, 8 min up to 15 (was a flat 60 s); interactive actions
+# clear it. Opening a book no longer waits on the network (resolve and
+# position pull run once the book is on screen). Optional fallback server
+# URL (tomesync_fallback_url) tried when the main one does not answer; the
+# address that answered last is tried first (tomesync_active_url).
+# BUILD 50: device inventory. The plugin sends the Tome ids of the books on
+# the device (book map, files that still exist) to PUT
+# /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
+# seconds after the book map changes; the server replaces the device's list,
+# so deletes drop out on the next push. Powers "On <device>" in web and app.
+# BUILD 51: feat/ai-provider (build 48, reading companion offline) merged with
+# main's 49 (network resilience) and 50 (device inventory): one build newer
+# than both lines, so devices on 48 and on 49/50 all see it as an update.
+TOMESYNC_PLUGIN_BUILD = 51
+TOMESYNC_PLUGIN_SEMVER = "1.20.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -655,13 +672,49 @@ def rename_ko_stats_device(
     """Carry a device's imported history + sync watermark over to the name it
     now reports (plugin build 40 moved every device off the literal "KOReader";
     Settings > Device name renames later). See `ko_stats_import.rename_device`."""
+    from backend.services import device_inventory
     from backend.services.ko_stats_import import rename_device
+    # The inventory moves in the same transaction (rename_device commits).
+    inventory_moved = device_inventory.rename(
+        db, user, from_device=body.from_device, to_device=body.to_device)
     result = rename_device(db, user, from_device=body.from_device, to_device=body.to_device)
-    if result["rows_relabelled"] or result["watermark_moved"]:
+    result["inventory_moved"] = inventory_moved
+    if result["rows_relabelled"] or result["watermark_moved"] or inventory_moved:
         audit(db, "ko_stats.device_renamed", user_id=user.id, username=user.username,
               resource_type="ko_page_stats", resource_id=user.id,
               details={"from": body.from_device, "to": body.to_device, **result})
     return result
+
+
+class DeviceBooksRequest(PydanticBaseModel):
+    device: str
+    book_ids: list[int] = []
+    plugin_build: Optional[int] = None
+
+    # KOReader's Lua rapidjson encodes an empty table as a JSON object.
+    @field_validator("book_ids", mode="before")
+    @classmethod
+    def _empty_obj_to_list(cls, v):
+        return [] if v in (None, {}) else v
+
+
+@router.put("/tome-sync/device-books")
+def put_device_books(
+    body: DeviceBooksRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """The complete list of Tome books on the calling device (plugin build 50+).
+    Replaces what was stored for the device, so books deleted on the device
+    drop out with the next sync. Powers the "On <device>" pills and filters."""
+    from backend.services import device_inventory
+    device = device_inventory.clean_device(body.device)
+    if not device:
+        raise HTTPException(422, "device is required")
+    if len(body.book_ids) > device_inventory.MAX_BOOK_IDS:
+        raise HTTPException(413, "too many book ids")
+    return device_inventory.replace(
+        db, user, device=device, book_ids=body.book_ids, plugin_build=body.plugin_build)
 
 
 # ── Annotation endpoints ──────────────────────────────────────────────────────
@@ -2361,27 +2414,119 @@ end
 -- API key and username are never typed: "Sign in with code" (Quick Connect
 -- pairing) writes both, and the username is only ever the server's answer to
 -- "who does this key belong to" — the key alone decides the account.
-local function serverURL()     return liveSetting("tomesync_server_url", DEFAULT_SERVER_URL) end
 local function apiKey()        return liveSetting("tomesync_api_key",    DEFAULT_API_KEY) end
 local function username()      return liveSetting("tomesync_username",   DEFAULT_USERNAME) end
 local function hasOverrides()
     return G_reader_settings:readSetting("tomesync_server_url") ~= nil
+        or G_reader_settings:readSetting("tomesync_fallback_url") ~= nil
         or G_reader_settings:readSetting("tomesync_api_key") ~= nil
         or G_reader_settings:readSetting("tomesync_username") ~= nil
 end
 
--- Short timeout so unreachable server doesn't freeze the UI
+-- TOMESYNC_NET_BEGIN (uses only liveSetting, DEFAULT_SERVER_URL,
+-- G_reader_settings, socketutil, http, ltn12 and logger — extracted and run
+-- under luajit by the backend test suite with fakes for those)
+--
+-- Every request runs on KOReader's UI thread, so a server that does not
+-- answer while the device is online freezes the screen for the whole connect
+-- timeout (issue #249). Offline costs nothing (apiRequest returns before
+-- touching the network); "online but Tome unreachable" is what this guards.
+--
+-- Back-off: after ONE request that got no answer, requests are skipped for a
+-- while, and the wait doubles with each further miss (1, 2, 4, 8 min, capped
+-- at 15). Time-based, never a latch: once the window passes the next request
+-- goes through as the probe. A success, WiFi reconnecting, or any interactive
+-- action (whenConnected) clears it. Builds before 49 waited for three misses
+-- with a flat 60 s window, so a dead server froze the reader about once a
+-- minute and up to three times in a row on book open.
+local BACKOFF_BASE  = 60    -- seconds after the first miss
+local BACKOFF_MAX   = 900   -- cap: one probe every 15 minutes at most
+local net_failures  = 0     -- requests in a row that got no answer
+local backoff_until = 0     -- os.time() before which requests are skipped
 
--- Track consecutive failures for backoff. Time-based so it self-heals:
--- once we hit the threshold we go quiet for BACKOFF_COOLDOWN seconds, then
--- let a single probe through. A success clears the latch; a failure re-arms
--- it. Without the time window this was a one-way latch — three failures while
--- the device slept (no WiFi) wedged it permanently until a KOReader restart,
--- because the only reset path (a successful request) was gated behind the latch.
-local consecutive_failures = 0
-local MAX_BACKOFF_FAILURES = 3
-local BACKOFF_COOLDOWN     = 60   -- seconds to stay quiet before re-probing
-local backoff_until        = 0    -- os.time() before which requests are skipped
+local function backoffSeconds(failures)
+    return math.min(BACKOFF_BASE * 2 ^ (failures - 1), BACKOFF_MAX)
+end
+local function noteNetFailure()
+    net_failures = net_failures + 1
+    backoff_until = os.time() + backoffSeconds(net_failures)
+end
+local function resetBackoff()
+    net_failures = 0
+    backoff_until = 0
+end
+local function inBackoff()
+    return net_failures > 0 and os.time() < backoff_until
+end
+
+-- Server addresses. The main URL is user-editable in Settings so a device
+-- whose baked address went stale can be repointed without reinstalling (it
+-- cannot self-update its way out — updates come from the old, dead URL). An
+-- optional fallback URL covers networks where the main one does not answer:
+-- a router without hairpin NAT, a VPN address only reachable from outside
+-- (issue #249). The address that last answered is tried first and remembered
+-- across restarts (tomesync_active_url), so a device on one network pays for
+-- the dead address once per network switch, not on every request.
+local function primaryURL() return liveSetting("tomesync_server_url", DEFAULT_SERVER_URL) end
+local function fallbackURL()
+    local v = G_reader_settings:readSetting("tomesync_fallback_url")
+    if v == nil or v == "" or v == primaryURL() then return nil end
+    return v
+end
+-- Addresses in the order to try them: the one that last answered first.
+local function serverURLs()
+    local primary, fallback = primaryURL(), fallbackURL()
+    if not fallback then return {{ primary }} end
+    if G_reader_settings:readSetting("tomesync_active_url") == fallback then
+        return {{ fallback, primary }}
+    end
+    return {{ primary, fallback }}
+end
+-- The address requests go to right now (also what the menus show).
+local function serverURL() return serverURLs()[1] end
+local function rememberURL(base)
+    local v = (base ~= primaryURL()) and base or nil
+    if G_reader_settings:readSetting("tomesync_active_url") ~= v then
+        if v then
+            G_reader_settings:saveSetting("tomesync_active_url", v)
+        else
+            G_reader_settings:delSetting("tomesync_active_url")
+        end
+    end
+end
+
+-- One HTTP exchange with Tome, trying each address in turn while there is
+-- no answer at all (an HTTP error status IS an answer and is returned as-is).
+-- spec: method, path (e.g. "/api/health"), headers, body (string or nil),
+-- sink (a function returning a fresh ltn12 sink per attempt — a failed
+-- attempt may have written into the previous one), block / total timeouts.
+-- Returns ok, code exactly like http.request. Does not check the back-off
+-- window: background callers do that (apiRequest), interactive ones do not.
+local function serverRequest(spec)
+    local ok, code
+    for _, base in ipairs(serverURLs()) do
+        socketutil:set_timeout(spec.block, spec.total)
+        ok, code = http.request({{
+            url     = base .. spec.path,
+            method  = spec.method,
+            headers = spec.headers,
+            source  = spec.body and ltn12.source.string(spec.body) or nil,
+            sink    = spec.sink(),
+        }})
+        socketutil:reset_timeout()
+        if ok then
+            rememberURL(base)
+            resetBackoff()
+            return ok, code
+        end
+        logger.warn("TomeSync: no answer from", base, tostring(code))
+    end
+    noteNetFailure()
+    logger.warn("TomeSync: server unreachable, next try in",
+                backoffSeconds(net_failures), "s (miss " .. net_failures .. ")")
+    return ok, code
+end
+-- TOMESYNC_NET_END
 
 -- Chunk-local (shared across plugin instances): dedupes _initSession when the
 -- ReaderReady event reaches more than one live TomeSync instance for the same
@@ -2394,6 +2539,10 @@ local sweep_running = false
 local meta_sync_running = false
 local meta_sync_launched = false
 local meta_last_auto = 0     -- os.time() of the last automatic run (debounce)
+-- Device inventory (build 50): one launch push per process, one pending
+-- debounced push shared by every TomeSync instance (file manager + reader).
+local inventory_launched = false
+local inventory_task = nil
 local SWEEP_EXTS = {{ epub = true, pdf = true, cbz = true, cbr = true, mobi = true, azw3 = true }}
 
 -- ── HTTP client ──────────────────────────────────────────────────────────────
@@ -2455,17 +2604,15 @@ local function apiRequest(method, path, body, opts)
         return nil, "offline"
     end
 
-    -- Skip requests while the backoff window is open. Once it expires we fall
-    -- through and let one probe attempt the request, so connectivity recovery
-    -- is detected automatically rather than only on a KOReader restart.
-    if consecutive_failures >= MAX_BACKOFF_FAILURES and os.time() < backoff_until then
-        logger.warn("TomeSync: skipping request (server unreachable, backing off)")
+    -- Skip requests while the back-off window is open (see TOMESYNC_NET).
+    -- Once it expires the next request goes through as the probe.
+    if inBackoff() then
+        logger.dbg("TomeSync: skipping request (server unreachable, backing off)")
         return nil, "backoff"
     end
 
-    local url = serverURL() .. "/api" .. path
     local req_body = body and rapidjson.encode(body) or nil
-    local resp_chunks = {{}}
+    local resp_chunks
 
     local headers = {{
         ["Authorization"] = "Bearer " .. ((opts and opts.token) or apiKey()),
@@ -2480,27 +2627,19 @@ local function apiRequest(method, path, body, opts)
     -- http.TIMEOUT mutation. Block 5s catches a dead route fast; the total is
     -- deliberately generous: annotation-sync responses can be large and slow
     -- device wifi through an HTTPS proxy must not get truncated mid-body.
-    socketutil:set_timeout(5, 45)
-    local ok, code = http.request({{
-        url     = url,
+    local ok, code = serverRequest({{
         method  = method,
+        path    = "/api" .. path,
         headers = headers,
-        source  = req_body and ltn12.source.string(req_body) or nil,
-        sink    = ltn12.sink.table(resp_chunks),
+        body    = req_body,
+        sink    = function()
+            resp_chunks = {{}}
+            return ltn12.sink.table(resp_chunks)
+        end,
+        block   = 5,
+        total   = 45,
     }})
-    socketutil:reset_timeout()
-
-    if not ok then
-        consecutive_failures = consecutive_failures + 1
-        backoff_until = os.time() + BACKOFF_COOLDOWN
-        logger.warn("TomeSync: request failed:", tostring(code),
-                     "(" .. consecutive_failures .. "/" .. MAX_BACKOFF_FAILURES .. ")")
-        return nil, code
-    end
-
-    -- Server reachable — clear the backoff latch
-    consecutive_failures = 0
-    backoff_until = 0
+    if not ok then return nil, code end
 
     local resp_body = table.concat(resp_chunks)
     if code == 404 then return nil, 404 end
@@ -2533,23 +2672,20 @@ local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb
         return false, "offline"
     end
 
-    local url = serverURL() .. "/api/tome-sync/download/" .. book_id .. "/" .. file_id
-    local fh = io.open(dest_path, "wb")
-    if not fh then
-        return false, "cannot open file for writing"
-    end
-
-    -- Generous total budget for large files; the block timeout still catches
-    -- a stalled connection quickly (no global http.TIMEOUT mutation).
-    socketutil:set_timeout(15, 900)
-
-    -- Count bytes as they stream to disk; repaint at most every 5% (known
-    -- size) or 256 KB (unknown) so e-ink isn't flooded — a 300 MB CBZ used
-    -- to sit mute for minutes with no sign of life.
-    local sink = ltn12.sink.file(fh)
-    if progress_cb then
+    -- Opened per attempt ("wb" truncates), so bytes from an attempt that
+    -- broke off on one address never end up in front of the next one's.
+    local fh
+    local function makeSink()
+        if fh then pcall(fh.close, fh) end
+        fh = io.open(dest_path, "wb")
+        if not fh then error("cannot open file for writing") end
+        -- Count bytes as they stream to disk; repaint at most every 5% (known
+        -- size) or 256 KB (unknown) so e-ink isn't flooded — a 300 MB CBZ
+        -- used to sit mute for minutes with no sign of life.
+        local sink = ltn12.sink.file(fh)
+        if not progress_cb then return sink end
         local base_sink, received, last_bucket = sink, 0, 0
-        sink = function(chunk, err)
+        return function(chunk, err)
             if chunk then
                 received = received + #chunk
                 local bucket
@@ -2567,16 +2703,24 @@ local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb
         end
     end
 
-    local ok, code = http.request({{
-        url     = url,
+    -- Generous total budget for large files; the block timeout still catches
+    -- a stalled connection quickly (no global http.TIMEOUT mutation).
+    local rok, ok, code = pcall(serverRequest, {{
         method  = "GET",
-        headers = {{
-            ["Authorization"] = "Bearer " .. apiKey(),
-        }},
-        sink = sink,
+        path    = "/api/tome-sync/download/" .. book_id .. "/" .. file_id,
+        headers = {{ ["Authorization"] = "Bearer " .. apiKey() }},
+        sink    = makeSink,
+        block   = 15,
+        total   = 900,
     }})
-
-    socketutil:reset_timeout()
+    -- ltn12 closes the file when a body completes; an attempt that got no
+    -- answer leaves it open. pcall: closing a closed file raises.
+    if fh then pcall(fh.close, fh) end
+    if not rok then
+        socketutil:reset_timeout()
+        os.remove(dest_path)
+        return false, tostring(ok)
+    end
 
     if not ok or (type(code) == "number" and code >= 300) then
         os.remove(dest_path)
@@ -2685,6 +2829,10 @@ local FLAT_TEMPLATE = "{{series}} - {{volume:00}} - {{title}}"
 -- runs the action once connected — devices like PocketBook aggressively sleep
 -- the radio, which otherwise leaves every action failing with "offline".
 local function whenConnected(fn)
+    -- Something the user asked for always really tries: it clears the
+    -- back-off window (issue #249), so "Sync now" right after the server
+    -- comes back does not wait out the background retry timer.
+    resetBackoff()
     if G_reader_settings:isTrue("tomesync_auto_connect")
             and not NetworkMgr:isConnected() then
         NetworkMgr:runWhenConnected(fn)
@@ -2716,15 +2864,18 @@ end
 -- Raw (non-JSON) authenticated GET, used to fetch the new impl text.
 local function fetchText(path)
     if not NetworkMgr:isConnected() then return nil, "offline" end
-    local chunks = {{}}
-    socketutil:set_timeout(10, 60)
-    local ok, code = http.request({{
-        url     = serverURL() .. "/api" .. path,
+    local chunks
+    local ok, code = serverRequest({{
         method  = "GET",
+        path    = "/api" .. path,
         headers = {{ ["Authorization"] = "Bearer " .. apiKey() }},
-        sink    = ltn12.sink.table(chunks),
+        sink    = function()
+            chunks = {{}}
+            return ltn12.sink.table(chunks)
+        end,
+        block   = 10,
+        total   = 60,
     }})
-    socketutil:reset_timeout()
     if not ok then return nil, code end
     if type(code) == "number" and code >= 300 then return nil, code end
     return table.concat(chunks), code
@@ -2838,6 +2989,12 @@ function TomeSync:init()
     -- Metadata sync (Tome -> device): opt-in, deferred, once per KOReader
     -- process (init runs again for every ReaderUI, so a chunk-local latch
     -- keeps a book open from re-running the whole library pass).
+    -- Device inventory: once per process, after the launch-time requests.
+    if not inventory_launched then
+        inventory_launched = true
+        UIManager:scheduleIn(15, function() pcall(function() self:_pushDeviceBooks(false) end) end)
+    end
+
     if not meta_sync_launched and G_reader_settings:isTrue("tomesync_meta_sync") then
         meta_sync_launched = true
         UIManager:scheduleIn(20, function() pcall(function() self:_syncMetadata(false) end) end)
@@ -2860,6 +3017,9 @@ function TomeSync:_saveState(key, value)
     -- sites are already at meaningful boundaries (sync done, queue changed), so
     -- write-through is the right durability trade for a file this small.
     self.state:flush()
+    -- Every way a book lands on the device (download, inbox, resolve on open,
+    -- library sweep) goes through a book_map save: tell Tome a little later.
+    if key == "tomesync_book_map" then self:_scheduleDeviceBooks() end
 end
 
 function TomeSync:_migrateState()
@@ -3030,15 +3190,33 @@ function TomeSync:onReaderReady()
     local doc = self.ui and self.ui.document
     if not doc then return end
 
+    self._reader_ready = true
     self.book_id = self.book_map[doc.file]
 
-    -- If no cached mapping, try to resolve by filename
-    if not self.book_id then
-        self:_tryResolve()
+    if self.book_id then
+        self:_afterOpen()
+        return
     end
 
-    if not self.book_id then return end
+    -- No cached mapping: resolve by filename. Deferred so the book is on
+    -- screen first — the lookup is a network call on the UI thread, and an
+    -- online-but-unreachable server would hold the open for the whole connect
+    -- timeout (issue #249).
+    local file = doc.file
+    UIManager:scheduleIn(1, function()
+        pcall(function()
+            if not (self.ui and self.ui.document and self.ui.document.file == file) then
+                return
+            end
+            if not self.book_id then self:_tryResolve() end
+            if self.book_id then self:_afterOpen() end
+        end)
+    end)
+end
 
+-- The per-open sync once the book is known. Only local state is set here;
+-- every network call is scheduled, so opening a book never waits on Tome.
+function TomeSync:_afterOpen()
     self:_initSession()
     -- Reading companion: per-book snapshot state + "Who is this?" button, and
     -- a snapshot pull the last close/suspend of this book left for later.
@@ -3057,8 +3235,14 @@ function TomeSync:onPageUpdate(pageno)
     if not self.enabled then return end
     if pageno == false then return end
 
-    -- Retry resolve if book wasn't matched on open (e.g. WiFi was not ready)
+    -- Retry resolve if book wasn't matched on open (e.g. WiFi was not ready).
+    -- Not before ReaderReady: KOReader sends the first PageUpdate while the
+    -- book is still opening, before onReaderReady has looked up the cached
+    -- mapping, so this used to fire a resolve request (and wait out the
+    -- connect timeout on a dead server) on every open, mapped books included
+    -- (issue #249).
     if not self.book_id then
+        if not self._reader_ready then return end
         self:_tryResolve()
         if self.book_id then
             self:_initSession()
@@ -3192,6 +3376,9 @@ function TomeSync:_suspendSync()
 end
 
 function TomeSync:onResume()
+    -- Device inventory catches deletes made while the device slept (or in the
+    -- file manager); runs for the file manager instance too, no book needed.
+    if self.enabled then self:_scheduleDeviceBooks() end
     if not self.enabled or not self.book_id then return end
 
     -- Start a fresh session (lid open = new session)
@@ -3212,18 +3399,18 @@ function TomeSync:onResume()
     self:_flushPendingRatings()
 end
 
--- WiFi just came back: drop the backoff latch immediately so we don't sit out
--- the cooldown, then catch up anything queued while we were offline. The latch
+-- WiFi just came back: clear the back-off immediately so we don't sit out
+-- the window, then catch up anything queued while we were offline. The state
 -- is chunk-local, so clearing it here unblocks every TomeSync instance at once.
 function TomeSync:onNetworkConnected()
-    consecutive_failures = 0
-    backoff_until = 0
+    resetBackoff()
     -- No book_id guard: pending sessions/ratings and the history import are
     -- device-level, and WiFi often comes up in the file manager (morning
     -- catch-up) before any book is opened.
     if not self.enabled then return end
     self:_flushPendingSessions()
     self:_flushPendingRatings()
+    self:_scheduleDeviceBooks()
     -- Catch the reading-history backfill up too — previously launch-only, so
     -- turning WiFi on without restarting KOReader left stats stale (issue #128).
     -- Deferred so it doesn't contend with whatever brought the network up.
@@ -3301,7 +3488,10 @@ function TomeSync:_editDeviceName()
                 text             = "Save",
                 is_enter_default = true,
                 callback         = function()
-                    local name = dialog:getInputText():gsub("^%s+", ""):gsub("%s+$", "")
+                    -- No commas: Tome's device filters list several devices
+                    -- comma-separated (on_device=Kindle,Boox).
+                    local name = dialog:getInputText():gsub(",", " ")
+                        :gsub("^%s+", ""):gsub("%s+$", "")
                     if name == "" then
                         G_reader_settings:delSetting("tomesync_device_name")
                     else
@@ -3321,7 +3511,9 @@ function TomeSync:_editDeviceName()
     dialog:onShowKeyboard()
 end
 
-function TomeSync:_editStringSetting(key, title, hint, description)
+-- cleared_text: what the confirmation shows when the field is saved empty
+-- (defaults to the hint, which for the server URL is the baked-in default).
+function TomeSync:_editStringSetting(key, title, hint, description, cleared_text)
     local current = G_reader_settings:readSetting(key) or ""
     local dialog
     dialog = InputDialog:new{{
@@ -3347,7 +3539,8 @@ function TomeSync:_editStringSetting(key, title, hint, description)
                     end
                     UIManager:close(dialog)
                     UIManager:show(InfoMessage:new{{
-                        text = title .. ": " .. (v ~= "" and v or hint), timeout = 2 }})
+                        text = title .. ": " .. (v ~= "" and v or cleared_text or hint),
+                        timeout = 2 }})
                 end,
             }},
         }}}},
@@ -3365,6 +3558,7 @@ function TomeSync:_signInWithCode()
         UIManager:show(InfoMessage:new{{ text = "Connect to WiFi first.", timeout = 3 }})
         return
     end
+    resetBackoff()
     local resp = apiRequest("POST", "/auth/quick-connect/initiate", {{}})
     if type(resp) ~= "table" or not resp.code or not resp.poll_token then
         UIManager:show(InfoMessage:new{{
@@ -4037,8 +4231,24 @@ function TomeSync:_initSession()
     self.page_count     = 0
     self.active_seconds = 0
     self.last_activity  = self.session_start
+    -- The device position is the baseline until (and unless) the server's
+    -- answer moves it; the pull itself runs once the book is on screen.
+    self.progress_start = self:_getCurrentPercentage()
+    self.last_progress  = self.progress_start
 
-    local ok, pos, code = pcall(apiRequest, "GET", "/tome-sync/position/" .. self.book_id)
+    local book_id = self.book_id
+    UIManager:scheduleIn(0.5, function()
+        pcall(function() self:_pullPositionAtOpen(book_id) end)
+    end)
+end
+
+-- Book-open position pull, scheduled by _initSession so the open never waits
+-- on the network (issue #249: a dead server used to hold the book closed for
+-- the full connect timeout).
+function TomeSync:_pullPositionAtOpen(book_id)
+    if self.book_id ~= book_id or not (self.ui and self.ui.document) then return end
+    local ok, pos, code = pcall(apiRequest, "GET", "/tome-sync/position/" .. book_id)
+    if self.book_id ~= book_id or not (self.ui and self.ui.document) then return end
     if ok and pos and code == 200 then
         local server_pct = pos.percentage or 0
         local local_pct  = self:_getCurrentPercentage()
@@ -4053,6 +4263,7 @@ function TomeSync:_initSession()
         end
         if mode == "silent" then
             self.progress_start = server_pct
+            self.last_progress  = server_pct
             -- Must be a toast (Notification), not an InfoMessage: this shows
             -- right when Profiles auto-exec ("on book opening") dispatches its
             -- actions, and UIManager:sendEvent drops events at the topmost
@@ -4067,7 +4278,6 @@ function TomeSync:_initSession()
             }})
             self:_gotoServerPosition(pos, server_pct)
         elseif mode == "prompt" then
-            self.progress_start = local_pct
             -- Deferred: a ConfirmBox is a non-toast window, and showing one at
             -- open time would eat the Profiles auto-exec dispatch exactly like
             -- the InfoMessage bug above. 1.5s lets the open settle first.
@@ -4085,13 +4295,9 @@ function TomeSync:_initSession()
                     end,
                 }})
             end)
-        else
-            self.progress_start = local_pct
         end
-    else
-        self.progress_start = self:_getCurrentPercentage()
+        -- Otherwise the open-time baseline set by _initSession stands.
     end
-    self.last_progress = self.progress_start
 end
 
 function TomeSync:_gotoServerPosition(pos, server_pct)
@@ -5456,6 +5662,61 @@ function TomeSync:_downloadCurrentBookSeriesImpl(rest_only)
     self:_downloadSeriesBooks(data.series_name, data.books, min_index, data.book_type)
 end
 
+-- ── Device inventory (build 50) ──────────────────────────────────────────────
+-- Tells Tome which of its books are on this device, so the web and the app
+-- can show "On <device name>" and filter by it. The list is the book map
+-- (every download, inbox delivery, resolved open and sweep match lands there)
+-- minus files that no longer exist, and each upload REPLACES the device's
+-- list on the server: KOReader raises no event when a file is deleted, so a
+-- delete is picked up by the next push. Ids only, never paths or filenames.
+-- Sent on launch, resume, WiFi up, Sync now and a few seconds after the book
+-- map changes; an unchanged list is re-sent at most every INVENTORY_REFRESH
+-- so the server's "last synced" stays meaningful.
+local INVENTORY_REFRESH = 6 * 3600
+
+function TomeSync:_deviceBookIds()
+    local seen, ids = {{}}, {{}}
+    for path, id in pairs(self.book_map) do
+        if type(id) == "number" and not seen[id]
+                and lfs.attributes(path, "mode") == "file" then
+            seen[id] = true
+            table.insert(ids, id)
+        end
+    end
+    table.sort(ids)
+    return ids
+end
+
+function TomeSync:_pushDeviceBooks(force)
+    if not NetworkMgr:isConnected() then return end
+    local ids = self:_deviceBookIds()
+    local sig = deviceName() .. "|" .. table.concat(ids, ",")
+    local ok_sha, sha2 = pcall(require, "ffi/sha2")
+    if ok_sha and sha2 and sha2.md5 then sig = sha2.md5(sig) end
+    local last = self.state:readSetting("tomesync_inventory_sent") or {{}}
+    if not force and last.sig == sig and os.time() - (last.at or 0) < INVENTORY_REFRESH then
+        return
+    end
+    local ok, _, code = pcall(apiRequest, "PUT", "/tome-sync/device-books",
+        {{ device = deviceName(), book_ids = ids, plugin_build = BUILD }})
+    if ok and type(code) == "number" and code >= 200 and code < 300 then
+        self.state:saveSetting("tomesync_inventory_sent", {{ sig = sig, at = os.time() }})
+        self.state:flush()
+        logger.dbg("TomeSync: device inventory sent,", #ids, "book(s)")
+    end
+end
+
+-- Debounced: a series download saves the map once per batch, a sweep once
+-- per chunk; one push a few seconds after the last change covers them all.
+function TomeSync:_scheduleDeviceBooks()
+    if inventory_task then UIManager:unschedule(inventory_task) end
+    inventory_task = function()
+        inventory_task = nil
+        pcall(function() self:_pushDeviceBooks(false) end)
+    end
+    UIManager:scheduleIn(5, inventory_task)
+end
+
 -- ── Library sweep: adopt closed books (build 34) ─────────────────────────────
 -- Walks the device library for books TomeSync has NEVER synced (pre-Tome
 -- history, other launchers, sideloads), resolves them by partial-MD5 in
@@ -5823,14 +6084,20 @@ local function fetchToFile(api_path, dest)
     if not NetworkMgr:isConnected() then return false, "offline" end
     local fh = io.open(dest, "wb")
     if not fh then return false, "cannot open temp file" end
-    socketutil:set_timeout(10, 60)
-    local ok, code = http.request({{
-        url     = serverURL() .. "/api" .. api_path,
+    local ok, code = serverRequest({{
         method  = "GET",
+        path    = "/api" .. api_path,
         headers = {{ ["Authorization"] = "Bearer " .. apiKey() }},
-        sink    = ltn12.sink.file(fh),
+        -- Reopened per attempt so a broken-off attempt leaves no bytes behind.
+        sink    = function()
+            pcall(fh.close, fh)
+            fh = io.open(dest, "wb")
+            return ltn12.sink.file(fh)
+        end,
+        block   = 10,
+        total   = 60,
     }})
-    socketutil:reset_timeout()
+    if fh then pcall(fh.close, fh) end
     if not ok or (type(code) == "number" and code >= 300) then
         os.remove(dest)
         return false, tostring(code or "request failed")
@@ -7635,7 +7902,7 @@ function TomeSync:_menuItems()
     table.insert(settings_items, {{
         text_func      = function()
             local custom = G_reader_settings:readSetting("tomesync_server_url")
-            return "Server URL: " .. serverURL() .. (custom and " (custom)" or "")
+            return "Server URL: " .. primaryURL() .. (custom and " (custom)" or "")
         end,
         help_text      = "The address of your Tome server, e.g. "
                        .. "http://192.168.1.10:8080 or "
@@ -7646,6 +7913,28 @@ function TomeSync:_menuItems()
         callback       = function()
             self:_editStringSetting("tomesync_server_url", "Server URL",
                 DEFAULT_SERVER_URL, "Your Tome instance address.")
+        end,
+    }})
+    table.insert(settings_items, {{
+        text_func      = function()
+            local fb = fallbackURL()
+            if not fb then return "Fallback server URL: none" end
+            local active = serverURL() == fb
+            return "Fallback server URL: " .. fb .. (active and " (in use)" or "")
+        end,
+        help_text      = "A second address for the same Tome server, tried "
+                       .. "when the server URL does not answer - for example "
+                       .. "the LAN address at home when the main URL only "
+                       .. "works from outside (a router without hairpin NAT, "
+                       .. "a VPN address). Whichever address answered last "
+                       .. "is tried first, so after a network change the "
+                       .. "plugin switches once and sticks with it. Leave "
+                       .. "empty if you only use one address.",
+        keep_menu_open = true,
+        callback       = function()
+            self:_editStringSetting("tomesync_fallback_url", "Fallback server URL",
+                "e.g. http://192.168.1.10:8080",
+                "Optional. Tried when the server URL does not answer.", "none")
         end,
     }})
     table.insert(settings_items, {{
@@ -7678,18 +7967,20 @@ function TomeSync:_menuItems()
     }})
     table.insert(settings_items, {{
         text           = "Reset connection to baked-in defaults",
-        help_text      = "Forget the server URL, API key and account set on "
+        help_text      = "Forget the server URLs, API key and account set on "
                        .. "this device and go back to what was baked in when "
                        .. "the plugin was downloaded.",
         enabled_func   = function() return hasOverrides() end,
         keep_menu_open = true,
         callback       = function()
             UIManager:show(ConfirmBox:new{{
-                text = "Reset server URL, API key and account to the baked-in "
+                text = "Reset server URLs, API key and account to the baked-in "
                        .. "defaults?",
                 ok_text = "Reset",
                 ok_callback = function()
                     G_reader_settings:delSetting("tomesync_server_url")
+                    G_reader_settings:delSetting("tomesync_fallback_url")
+                    G_reader_settings:delSetting("tomesync_active_url")
                     G_reader_settings:delSetting("tomesync_api_key")
                     G_reader_settings:delSetting("tomesync_username")
                     UIManager:show(InfoMessage:new{{
@@ -7723,6 +8014,7 @@ function TomeSync:_menuItems()
                     end
                     self:_flushPendingSessions()
                     self:_flushPendingRatings()
+                    self:_pushDeviceBooks(true)
                     local pending = #self.pending_sessions
                     local msg
                     if self.book_id then

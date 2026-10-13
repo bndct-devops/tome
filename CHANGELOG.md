@@ -6,10 +6,29 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
-### Changed
-- **Sort books by series.** `GET /api/books` accepts `sort=series`: series in name order, each in volume order, books without a series after them by title. Used by the iOS app's Library sort.
-
 ### Added
+- **Searching for a series shows the series.** When a search matches a
+  series name ("good guys" finds The Good Guys), the series appear as cards
+  in a row above the matching books, with author, volume count and reading
+  progress, and open the series page on click. Each word of the search only
+  has to start a word of the name, so a half-typed search already finds it.
+- **Fallback server URL for the KOReader plugin.** TomeSync > Settings has
+  an optional second address for the same server, tried when the main one
+  does not answer: for example the LAN address at home when the main URL
+  only works from outside (a router without hairpin NAT, a VPN address).
+  Whichever address answered last is tried first, so after a network change
+  the plugin switches once and sticks with it. (#249)
+- **See which books are on your e-reader.** The KOReader plugin now tells
+  Tome which of its books are on the device, and books show an "On Kindle"
+  pill (named after the device) on cards and the book page. The filters get
+  a row per device with "On Kindle" and "Not on Kindle", which can be saved
+  as a shelf and also work in shelves browsed on the device; series pages
+  show how many volumes each device holds and mark them on the covers.
+  The list is sent on launch, wake, WiFi up, Sync now and after downloads,
+  and replaces the previous one, so books deleted on the device drop out on
+  the next sync. A device that has not synced in a few days is shown muted
+  with its age, and Settings > KOReader lists your devices with a way to
+  forget one. Only your own devices are ever shown. Plugin build 50.
 - **AI features, with your own key.** Settings has a new AI section. Members
   and admins can add their own Anthropic API key; Tome checks it with
   Anthropic before saving, stores it encrypted and only ever shows the last
@@ -216,6 +235,7 @@ All notable changes to Tome are documented here. Format loosely follows
   user.
 
 ### Changed
+- **Sort books by series.** `GET /api/books` accepts `sort=series`: series in name order, each in volume order, books without a series after them by title. Used by the iOS app's Library sort.
 - **Settings has a jump list.** A sticky list of the page's sections sits on
   the left at desktop width, and a row of chips under the header on phones.
   It follows your scroll position and jumps to a section on click, so a
@@ -225,6 +245,25 @@ All notable changes to Tome are documented here. Format loosely follows
   AI-assisted when the change came from AI fix).
 
 ### Fixed
+- **The Filters button no longer shows a "0" badge during a search.** A
+  search on its own counted as "filters active" but has no filter chip, so
+  the badge read 0; it now only appears when a filter is actually set.
+- **The KOReader plugin no longer freezes the reader when the server is
+  down.** When the device was online but Tome did not answer, every sync
+  request held the screen for its 5 second timeout, and it took three
+  misses before the plugin backed off, so startup and opening a book each
+  stalled. It now backs off after the first miss, waits 1, 2, 4, 8 and then
+  15 minutes between tries, and goes back to normal as soon as a request
+  gets through, WiFi reconnects or you use a TomeSync action such as Sync
+  now. Opening a book no longer waits on the network at all. Reading
+  offline was never affected. Plugin build 49. (#249)
+- **Google Books 503s no longer fail the fetch outright.** Google answers in
+  bursts of "503 Service Unavailable", and Tome gave up on the first one, so
+  the search had to be clicked again by hand. A 5xx from any metadata source
+  now gets the same single retry after a short pause that a rate limit
+  already got, and only then reports the source as errored. The warning
+  logged on a failed fetch also no longer includes the request URL, which
+  for Google Books carried the configured API key. (#247)
 - A Google Books server error no longer writes your `TOME_GOOGLE_BOOKS_KEY`
   into the server log. The failed-fetch log line printed the full request
   URL, key included; it now names only the source and the HTTP status.
