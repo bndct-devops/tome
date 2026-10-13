@@ -882,6 +882,10 @@ msgstr "{misplaced} of {total} files need reorganization"
 msgid "{months}mo ago"
 msgstr "{months}mo ago"
 
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {# book} other {# books}}"
+msgstr "{n, plural, one {# book} other {# books}}"
+
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
 msgstr "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
@@ -903,6 +907,10 @@ msgstr "{n, plural, one {Confirm — apply # decision} other {Confirm — apply 
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
 msgstr "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
+
+#: src/pages/DashboardPage.tsx
+msgid "{n} books · {r} read"
+msgstr "{n} books · {r} read"
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{n} chapters of {mainTitle}."

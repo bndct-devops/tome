@@ -882,6 +882,10 @@ msgstr ""
 msgid "{months}mo ago"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {# book} other {# books}}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
 msgstr ""
@@ -902,6 +906,10 @@ msgstr ""
 #: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{n} books · {r} read"
 msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx

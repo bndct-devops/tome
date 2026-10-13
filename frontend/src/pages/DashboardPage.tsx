@@ -62,6 +62,13 @@ interface SeriesItem {
   rating: number | null
 }
 
+/** Lower-case, accents and punctuation folded to spaces: "Good-Guys!" and
+ *  "good guys" match. */
+function normalizeForMatch(s: string): string {
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+}
+
 interface SeriesDetailBook {
   id: number
   title: string
@@ -557,6 +564,43 @@ export function DashboardPage() {
   // Grouping is bypassed while drilling into a specific series — the user
   // explicitly asked for that series' volumes, so a single stack is useless.
   const groupActive = groupBySeries && !filterSeries
+
+  // ── Series matching the search ───────────────────────────────────────────
+  // A search that names a series ("good guys") shows the series themselves in
+  // a row above the volumes. Matched on the series name only. The list comes from /books/series (visible
+  // series only), fetched once per page and reused while typing. Each query
+  // word must start a word of the name, so a half-typed "goo" already finds
+  // "The Good Guys" but "the" does not hit "Brother".
+  const allSeriesRef = useRef<SeriesItem[] | null>(null)
+  const [searchSeries, setSearchSeries] = useState<SeriesItem[]>([])
+  useEffect(() => {
+    const words = normalizeForMatch(search).split(' ').filter(Boolean)
+    if (tab !== 'books' || words.length === 0) { setSearchSeries([]); return }
+    let cancelled = false
+    const pick = (list: SeriesItem[]) => {
+      const query = words.join(' ')
+      const hits = list
+        .filter(s => s.name !== '__unserialized__')
+        .map(s => ({ s, name: normalizeForMatch(s.name) }))
+        .filter(({ name }) => {
+          const nameWords = name.split(' ')
+          return words.every(w => nameWords.some(nw => nw.startsWith(w)))
+        })
+        // Names starting with the query first, then bigger series.
+        .sort((a, b) => Number(b.name.startsWith(query)) - Number(a.name.startsWith(query))
+          || b.s.book_count - a.s.book_count)
+        .slice(0, 12)
+        .map(({ s }) => s)
+      if (!cancelled) setSearchSeries(hits)
+    }
+    if (allSeriesRef.current) pick(allSeriesRef.current)
+    else {
+      api.get<SeriesItem[]>('/books/series')
+        .then(list => { allSeriesRef.current = list; pick(list) })
+        .catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [search, tab])
 
   // ── Debounced search ──────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState(search)
@@ -1949,7 +1993,9 @@ export function DashboardPage() {
               )}>
               <SlidersHorizontal className="w-3.5 h-3.5" />
               <Trans>Filters</Trans>
-              {hasFilters && (
+              {/* Counts filter chips only: a search alone (hasFilters) is not
+                  a filter and used to show a "0" badge. */}
+              {activeFilterChips.length > 0 && (
                 <span className="ml-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold">
                   {activeFilterChips.length}
                 </span>
@@ -2323,6 +2369,51 @@ export function DashboardPage() {
                 <Trans>Done</Trans>
               </button>
             </div>
+          )}
+
+          {/* ── Series matching the search ───────────────────────────────── */}
+          {search && !groupActive && searchSeries.length > 0 && (
+            <section className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                <Trans>Series</Trans>
+              </p>
+              <HScrollRow className="gap-3 pb-1">
+                {searchSeries.map(s => {
+                  const name = s.name
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(name)}`)}
+                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-150"
+                    >
+                      <div className="relative w-12 aspect-[2/3] shrink-0 rounded-md overflow-hidden bg-muted">
+                        <CoverImage
+                          src={s.cover_book_id ? `/api/books/${s.cover_book_id}/cover` : null}
+                          alt={name}
+                          iconClassName="w-4 h-4"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                        <span className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">{name}</span>
+                        {s.author && <span className="text-xs text-muted-foreground truncate">{s.author}</span>}
+                        <span className="text-[11px] text-muted-foreground">
+                          {(() => { const n = s.book_count; const r = s.read_count; return r > 0
+                            ? <Trans>{n} books &middot; {r} read</Trans>
+                            : <Plural value={n} one="# book" other="# books" /> })()}
+                        </span>
+                        {s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
+                          <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden flex">
+                            <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
+                            <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </HScrollRow>
+            </section>
           )}
 
           {/* ── Search result count ───────────────────────────────────────── */}
