@@ -116,8 +116,13 @@ logger = logging.getLogger(__name__)
 # position pull run once the book is on screen). Optional fallback server
 # URL (tomesync_fallback_url) tried when the main one does not answer; the
 # address that answered last is tried first (tomesync_active_url).
-TOMESYNC_PLUGIN_BUILD = 49
-TOMESYNC_PLUGIN_SEMVER = "1.18.0"
+# BUILD 50: device inventory. The plugin sends the Tome ids of the books on
+# the device (book map, files that still exist) to PUT
+# /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
+# seconds after the book map changes; the server replaces the device's list,
+# so deletes drop out on the next push. Powers "On <device>" in web and app.
+TOMESYNC_PLUGIN_BUILD = 50
+TOMESYNC_PLUGIN_SEMVER = "1.19.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -638,13 +643,49 @@ def rename_ko_stats_device(
     """Carry a device's imported history + sync watermark over to the name it
     now reports (plugin build 40 moved every device off the literal "KOReader";
     Settings > Device name renames later). See `ko_stats_import.rename_device`."""
+    from backend.services import device_inventory
     from backend.services.ko_stats_import import rename_device
+    # The inventory moves in the same transaction (rename_device commits).
+    inventory_moved = device_inventory.rename(
+        db, user, from_device=body.from_device, to_device=body.to_device)
     result = rename_device(db, user, from_device=body.from_device, to_device=body.to_device)
-    if result["rows_relabelled"] or result["watermark_moved"]:
+    result["inventory_moved"] = inventory_moved
+    if result["rows_relabelled"] or result["watermark_moved"] or inventory_moved:
         audit(db, "ko_stats.device_renamed", user_id=user.id, username=user.username,
               resource_type="ko_page_stats", resource_id=user.id,
               details={"from": body.from_device, "to": body.to_device, **result})
     return result
+
+
+class DeviceBooksRequest(PydanticBaseModel):
+    device: str
+    book_ids: list[int] = []
+    plugin_build: Optional[int] = None
+
+    # KOReader's Lua rapidjson encodes an empty table as a JSON object.
+    @field_validator("book_ids", mode="before")
+    @classmethod
+    def _empty_obj_to_list(cls, v):
+        return [] if v in (None, {}) else v
+
+
+@router.put("/tome-sync/device-books")
+def put_device_books(
+    body: DeviceBooksRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """The complete list of Tome books on the calling device (plugin build 50+).
+    Replaces what was stored for the device, so books deleted on the device
+    drop out with the next sync. Powers the "On <device>" pills and filters."""
+    from backend.services import device_inventory
+    device = device_inventory.clean_device(body.device)
+    if not device:
+        raise HTTPException(422, "device is required")
+    if len(body.book_ids) > device_inventory.MAX_BOOK_IDS:
+        raise HTTPException(413, "too many book ids")
+    return device_inventory.replace(
+        db, user, device=device, book_ids=body.book_ids, plugin_build=body.plugin_build)
 
 
 # ── Annotation endpoints ──────────────────────────────────────────────────────
@@ -2056,6 +2097,10 @@ local sweep_running = false
 local meta_sync_running = false
 local meta_sync_launched = false
 local meta_last_auto = 0     -- os.time() of the last automatic run (debounce)
+-- Device inventory (build 50): one launch push per process, one pending
+-- debounced push shared by every TomeSync instance (file manager + reader).
+local inventory_launched = false
+local inventory_task = nil
 local SWEEP_EXTS = {{ epub = true, pdf = true, cbz = true, cbr = true, mobi = true, azw3 = true }}
 
 -- ── HTTP client ──────────────────────────────────────────────────────────────
@@ -2502,6 +2547,12 @@ function TomeSync:init()
     -- Metadata sync (Tome -> device): opt-in, deferred, once per KOReader
     -- process (init runs again for every ReaderUI, so a chunk-local latch
     -- keeps a book open from re-running the whole library pass).
+    -- Device inventory: once per process, after the launch-time requests.
+    if not inventory_launched then
+        inventory_launched = true
+        UIManager:scheduleIn(15, function() pcall(function() self:_pushDeviceBooks(false) end) end)
+    end
+
     if not meta_sync_launched and G_reader_settings:isTrue("tomesync_meta_sync") then
         meta_sync_launched = true
         UIManager:scheduleIn(20, function() pcall(function() self:_syncMetadata(false) end) end)
@@ -2524,6 +2575,9 @@ function TomeSync:_saveState(key, value)
     -- sites are already at meaningful boundaries (sync done, queue changed), so
     -- write-through is the right durability trade for a file this small.
     self.state:flush()
+    -- Every way a book lands on the device (download, inbox, resolve on open,
+    -- library sweep) goes through a book_map save: tell Tome a little later.
+    if key == "tomesync_book_map" then self:_scheduleDeviceBooks() end
 end
 
 function TomeSync:_migrateState()
@@ -2868,6 +2922,9 @@ function TomeSync:_suspendSync()
 end
 
 function TomeSync:onResume()
+    -- Device inventory catches deletes made while the device slept (or in the
+    -- file manager); runs for the file manager instance too, no book needed.
+    if self.enabled then self:_scheduleDeviceBooks() end
     if not self.enabled or not self.book_id then return end
 
     -- Start a fresh session (lid open = new session)
@@ -2897,6 +2954,7 @@ function TomeSync:onNetworkConnected()
     if not self.enabled then return end
     self:_flushPendingSessions()
     self:_flushPendingRatings()
+    self:_scheduleDeviceBooks()
     -- Catch the reading-history backfill up too — previously launch-only, so
     -- turning WiFi on without restarting KOReader left stats stale (issue #128).
     -- Deferred so it doesn't contend with whatever brought the network up.
@@ -2974,7 +3032,10 @@ function TomeSync:_editDeviceName()
                 text             = "Save",
                 is_enter_default = true,
                 callback         = function()
-                    local name = dialog:getInputText():gsub("^%s+", ""):gsub("%s+$", "")
+                    -- No commas: Tome's device filters list several devices
+                    -- comma-separated (on_device=Kindle,Boox).
+                    local name = dialog:getInputText():gsub(",", " ")
+                        :gsub("^%s+", ""):gsub("%s+$", "")
                     if name == "" then
                         G_reader_settings:delSetting("tomesync_device_name")
                     else
@@ -5137,6 +5198,61 @@ function TomeSync:_downloadCurrentBookSeriesImpl(rest_only)
     self:_downloadSeriesBooks(data.series_name, data.books, min_index, data.book_type)
 end
 
+-- ── Device inventory (build 50) ──────────────────────────────────────────────
+-- Tells Tome which of its books are on this device, so the web and the app
+-- can show "On <device name>" and filter by it. The list is the book map
+-- (every download, inbox delivery, resolved open and sweep match lands there)
+-- minus files that no longer exist, and each upload REPLACES the device's
+-- list on the server: KOReader raises no event when a file is deleted, so a
+-- delete is picked up by the next push. Ids only, never paths or filenames.
+-- Sent on launch, resume, WiFi up, Sync now and a few seconds after the book
+-- map changes; an unchanged list is re-sent at most every INVENTORY_REFRESH
+-- so the server's "last synced" stays meaningful.
+local INVENTORY_REFRESH = 6 * 3600
+
+function TomeSync:_deviceBookIds()
+    local seen, ids = {{}}, {{}}
+    for path, id in pairs(self.book_map) do
+        if type(id) == "number" and not seen[id]
+                and lfs.attributes(path, "mode") == "file" then
+            seen[id] = true
+            table.insert(ids, id)
+        end
+    end
+    table.sort(ids)
+    return ids
+end
+
+function TomeSync:_pushDeviceBooks(force)
+    if not NetworkMgr:isConnected() then return end
+    local ids = self:_deviceBookIds()
+    local sig = deviceName() .. "|" .. table.concat(ids, ",")
+    local ok_sha, sha2 = pcall(require, "ffi/sha2")
+    if ok_sha and sha2 and sha2.md5 then sig = sha2.md5(sig) end
+    local last = self.state:readSetting("tomesync_inventory_sent") or {{}}
+    if not force and last.sig == sig and os.time() - (last.at or 0) < INVENTORY_REFRESH then
+        return
+    end
+    local ok, _, code = pcall(apiRequest, "PUT", "/tome-sync/device-books",
+        {{ device = deviceName(), book_ids = ids, plugin_build = BUILD }})
+    if ok and type(code) == "number" and code >= 200 and code < 300 then
+        self.state:saveSetting("tomesync_inventory_sent", {{ sig = sig, at = os.time() }})
+        self.state:flush()
+        logger.dbg("TomeSync: device inventory sent,", #ids, "book(s)")
+    end
+end
+
+-- Debounced: a series download saves the map once per batch, a sweep once
+-- per chunk; one push a few seconds after the last change covers them all.
+function TomeSync:_scheduleDeviceBooks()
+    if inventory_task then UIManager:unschedule(inventory_task) end
+    inventory_task = function()
+        inventory_task = nil
+        pcall(function() self:_pushDeviceBooks(false) end)
+    end
+    UIManager:scheduleIn(5, inventory_task)
+end
+
 -- ── Library sweep: adopt closed books (build 34) ─────────────────────────────
 -- Walks the device library for books TomeSync has NEVER synced (pre-Tome
 -- history, other launchers, sideloads), resolves them by partial-MD5 in
@@ -6653,6 +6769,7 @@ function TomeSync:_menuItems()
                     end
                     self:_flushPendingSessions()
                     self:_flushPendingRatings()
+                    self:_pushDeviceBooks(true)
                     local pending = #self.pending_sessions
                     local msg
                     if self.book_id then

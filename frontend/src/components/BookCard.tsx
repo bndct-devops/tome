@@ -6,6 +6,7 @@ import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
+import { DevicePills } from '@/components/DevicePills'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
@@ -151,6 +152,7 @@ export function BookCard({
                 {bookType.label}
               </span>
             )}
+            <DevicePills bookId={book.id} size="xs" />
           </div>
         </div>
         {/* Series stays in list view — earns its space there */}
@@ -332,6 +334,7 @@ export function BookCard({
           </button>
         )}
         {rating ? <RatingStars rating={rating} size={view === 'large' ? 12 : 10} /> : null}
+        <DevicePills bookId={book.id} size="xs" className="mt-0.5" />
       </div>
     </div>
   )

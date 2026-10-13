@@ -154,6 +154,15 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     waits on the network.
   </p>
 
+  <h3 id="on-device">Books on the device</h3>
+  <p>
+    From build 50 the plugin tells Tome which of its books are on the device, so books show an
+    <strong>On Kindle</strong> pill (named after the device) and the library filters get a row per
+    device with <strong>On Kindle</strong> and <strong>Not on Kindle</strong>. Only Tome book ids are
+    sent, never file names. The list goes up on launch, wake, WiFi up, Sync now and after downloads,
+    and replaces the previous one, so a book you delete drops out on the next sync.
+  </p>
+
   <h3 id="sync-code">Sync code: hand offline reading to your phone</h3>
   <p>
     Travelling, hotel WiFi with a captive portal, a device that never sees the home network: when

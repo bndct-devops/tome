@@ -364,6 +364,30 @@ older server the action reports that metadata sync is not supported.
 
 ---
 
+## Books on the device
+
+From build 50 (1.19.0) the plugin tells Tome which of its books are on the
+device, so the web and the app can show an **On Kindle** pill and filter the
+library by device (named after **Settings → Device name**).
+
+- **What is sent:** the Tome ids of the books the plugin knows on this
+  device whose files still exist: everything downloaded through TomeSync or
+  the inbox, every book opened while connected, and every match from
+  **Library sweep**. Ids only, never file names or paths. A book copied to
+  the device another way shows up once it is opened or swept.
+- **When:** shortly after launch, on wake, when WiFi comes up, on **Sync
+  now**, and a few seconds after a download. An unchanged list is re-sent at
+  most every 6 hours, so Tome knows the list is still current.
+- **Deletes:** KOReader has no event for a deleted file, so each upload
+  replaces the device's list on the server. A book you delete (in KOReader,
+  over USB, with Calibre) drops out on the next sync.
+- **Stale lists:** a device that has not synced for 3 days is shown muted,
+  with when it last synced. **Settings → KOReader → Books on your devices**
+  in the web UI lists your devices and can forget one you no longer use.
+- **Renaming** the device moves its list to the new name.
+
+---
+
 ## Ratings & reviews sync
 
 KOReader has its own **Book status** screen with a 1–5 star rating and a review

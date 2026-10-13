@@ -7,6 +7,7 @@ import {
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
   Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon, Shuffle, Share2,
+  Tablet,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { ModalShell } from '@/components/ModalShell'
@@ -43,6 +44,7 @@ import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { cn } from '@/lib/utils'
+import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 
@@ -496,6 +498,13 @@ export function DashboardPage() {
   const filterMissing = searchParams.get('missing') ?? ''
   const filterOwnership = searchParams.get('ownership') ?? ''
   const filterAddedBy = searchParams.get('added_by') ? Number(searchParams.get('added_by')) : null
+  // The user's KOReader devices, comma-separated: books on all of
+  // on_device and on none of not_on_device.
+  const filterOnDevice = searchParams.get('on_device') ?? ''
+  const filterNotOnDevice = searchParams.get('not_on_device') ?? ''
+  const onDevices = filterOnDevice.split(',').filter(Boolean)
+  const notOnDevices = filterNotOnDevice.split(',').filter(Boolean)
+  const devices = useDeviceInventories()
 
   // ── User list for admin uploader filter ──────────────────────────────────
   interface SimpleUser { id: number; username: string; role: string }
@@ -517,6 +526,23 @@ export function DashboardPage() {
     }, { replace })
   }
 
+  // A device pill cycles off -> on -> not on -> off.
+  function cycleDeviceFilter(device: string) {
+    const on = onDevices.filter(d => d !== device)
+    const not = notOnDevices.filter(d => d !== device)
+    if (onDevices.includes(device)) not.push(device)
+    else if (!notOnDevices.includes(device)) on.push(device)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('saved_filter')
+      if (on.length) next.set('on_device', on.join(','))
+      else next.delete('on_device')
+      if (not.length) next.set('not_on_device', not.join(','))
+      else next.delete('not_on_device')
+      return next
+    })
+  }
+
   function clearFilters() {
     setSearchParams(prev => {
       const next = new URLSearchParams()
@@ -526,7 +552,7 @@ export function DashboardPage() {
     })
   }
 
-  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy)
+  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice)
 
   // Grouping is bypassed while drilling into a specific series — the user
   // explicitly asked for that series' volumes, so a single stack is useless.
@@ -761,6 +787,8 @@ export function DashboardPage() {
     if (contentType) params.set('content_type', contentType)
     if (filterOwnership) params.set('ownership', filterOwnership)
     if (filterAddedBy) params.set('added_by', String(filterAddedBy))
+    if (filterOnDevice) params.set('on_device', filterOnDevice)
+    if (filterNotOnDevice) params.set('not_on_device', filterNotOnDevice)
     return params
   }
 
@@ -836,7 +864,7 @@ export function DashboardPage() {
           setLoadingMore(false)
         }
       })
-  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, groupActive])
+  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
   useEffect(() => { loadBooks() }, [loadBooks])
 
@@ -993,6 +1021,8 @@ export function DashboardPage() {
     ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
     ...(filterOwnership === 'mine' ? [{ label: t`My Books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared Library`, key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
+    ...(onDevices.length ? [{ label: (() => { const names = onDevices.join(', '); return t`On ${names}` })(), key: 'on_device' }] : []),
+    ...(notOnDevices.length ? [{ label: (() => { const names = notOnDevices.join(', '); return t`Not on ${names}` })(), key: 'not_on_device' }] : []),
   ]
 
   // Params to pass to SaveFilterButton (excludes library_id — that belongs in sidebar)
@@ -1003,6 +1033,8 @@ export function DashboardPage() {
   if (filterTag) saveableParams.tag = filterTag
   if (filterFormat) saveableParams.format = filterFormat
   if (filterLanguage) saveableParams.language = filterLanguage
+  if (filterOnDevice) saveableParams.on_device = filterOnDevice
+  if (filterNotOnDevice) saveableParams.not_on_device = filterNotOnDevice
 
   // Grid columns flow from the spring-smoothed cover size; card typography
   // follows the slider value. view-fade covers the grid/list switch.
@@ -1650,6 +1682,17 @@ export function DashboardPage() {
                                       {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
                                     </p>
                                   )}
+                                  {devices.map(d => {
+                                    const n = seriesDetail.books.filter(b => devicesFor([d], b.id).length > 0).length
+                                    if (n === 0) return null
+                                    const name = d.name
+                                    return (
+                                      <p key={d.name} className="text-[10px] text-muted-foreground mb-1.5 inline-flex items-center gap-1 mr-3">
+                                        <Tablet className="w-3 h-3" />
+                                        <Trans>On {name}: <span className="text-foreground font-medium tabular-nums">{n}</span> of {total}</Trans>
+                                      </p>
+                                    )
+                                  })}
                                   <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                                     <div className="h-full bg-primary transition-all" style={{ width: `${readPct}%` }} />
                                     <div className="h-full bg-primary/50 transition-all" style={{ width: `${readingPct}%` }} />
@@ -1774,16 +1817,25 @@ export function DashboardPage() {
                                               vol.reading_status === 'read' ? 'bg-primary' : 'bg-primary/60'
                                             )} />
                                           )}
-                                          {/* Volume number overlay */}
-                                          {vol.series_index != null && (
-                                            <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5">
-                                              {(() => { const idx = vol.series_index; return (
-                                              <span className="text-[9px] font-bold text-white leading-none">
-                                                <Trans>Vol. {idx}</Trans>
-                                              </span>
-                                              ) })()}
-                                            </div>
-                                          )}
+                                          {/* Volume bar: number left, on-device glyph right */}
+                                          {(() => {
+                                            const idx = vol.series_index
+                                            const on = devicesFor(devices, vol.id)
+                                            if (idx == null && on.length === 0) return null
+                                            const names = on.map(d => d.name).join(', ')
+                                            return (
+                                              <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 flex items-center justify-between gap-1">
+                                                <span className="text-[9px] font-bold text-white leading-none">
+                                                  {idx != null && <Trans>Vol. {idx}</Trans>}
+                                                </span>
+                                                {on.length > 0 && (
+                                                  <span title={t`On ${names}`} aria-label={t`On ${names}`}>
+                                                    <Tablet className="w-2.5 h-2.5 text-white" />
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )
+                                          })()}
                                         </div>
                                       </div>
                                     ))}
@@ -2119,6 +2171,34 @@ export function DashboardPage() {
                   </button>
                 ))}
               </div>
+              {/* Device filter: one pill per device, click cycles off / on / not on */}
+              {devices.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Devices</Trans></span>
+                  {devices.map(d => {
+                    const name = d.name
+                    const state = onDevices.includes(name) ? 'on' : notOnDevices.includes(name) ? 'not' : 'off'
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => cycleDeviceFilter(name)}
+                        title={state === 'off' ? t`Click: only books on ${name}`
+                          : state === 'on' ? t`Click: only books not on ${name}`
+                          : t`Click: ${name} does not matter`}
+                        className={cn(
+                          'px-3 py-1 rounded-lg text-xs font-medium border transition-all inline-flex items-center gap-1',
+                          state === 'on' && 'bg-primary text-primary-foreground border-primary',
+                          state === 'not' && 'bg-destructive/10 text-destructive border-destructive/40',
+                          state === 'off' && 'border-border bg-card text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <Tablet className="w-3 h-3" />
+                        {state === 'not' ? t`Not on ${name}` : name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
               {/* Ownership filter — members only (not admin) */}
               {isMember(user) && !isAdmin(user) && (
                 <div className="flex items-center gap-2 flex-wrap">
