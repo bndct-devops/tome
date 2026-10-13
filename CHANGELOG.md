@@ -7,6 +7,11 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **Searching for a series shows the series.** When a search matches a
+  series name ("good guys" finds The Good Guys), the series appear as cards
+  in a row above the matching books, with author, volume count and reading
+  progress, and open the series page on click. Each word of the search only
+  has to start a word of the name, so a half-typed search already finds it.
 - **Fallback server URL for the KOReader plugin.** TomeSync > Settings has
   an optional second address for the same server, tried when the main one
   does not answer: for example the LAN address at home when the main URL
@@ -26,6 +31,9 @@ All notable changes to Tome are documented here. Format loosely follows
   forget one. Only your own devices are ever shown. Plugin build 50.
 
 ### Fixed
+- **The Filters button no longer shows a "0" badge during a search.** A
+  search on its own counted as "filters active" but has no filter chip, so
+  the badge read 0; it now only appears when a filter is actually set.
 - **The KOReader plugin no longer freezes the reader when the server is
   down.** When the device was online but Tome did not answer, every sync
   request held the screen for its 5 second timeout, and it took three
