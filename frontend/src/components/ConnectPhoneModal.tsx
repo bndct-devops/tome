@@ -19,11 +19,34 @@ interface Issued { code: string; poll_token: string; expires_at: string }
     so a build without a link shipped yet simply does not mention one. */
 const APP_BETA_URL = 'https://testflight.apple.com/join/JrHyntNU'
 
+/** localhost, 127.x and ::1. A page opened at one of these would hand the
+    phone an address that, on the phone, is the phone itself. */
+function isLoopback(host: string): boolean {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, '')
+  return h === 'localhost' || h.endsWith('.localhost') || h === '::1' || h.startsWith('127.')
+}
+
+/** The address typed in place of a loopback origin, as an origin, or null
+    while it is not one the phone could use. */
+function originFrom(typed: string): string | null {
+  const raw = typed.trim()
+  if (!raw) return null
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `http://${raw}`)
+    return isLoopback(url.hostname) ? null : url.origin
+  } catch {
+    return null
+  }
+}
+
+const ADDRESS_KEY = 'tome.connectPhone.address'
+
 /** Deep link the app understands. Server = the origin this page is served
-    from, which is the address the phone can reach too. */
-function payloadFor(issued: Issued): string {
+    from, which is the address the phone can reach too — unless that is
+    localhost, in which case the user types the computer's network address. */
+function payloadFor(issued: Issued, server: string): string {
   const params = new URLSearchParams({
-    server: window.location.origin,
+    server,
     code: issued.code,
     token: issued.poll_token,
   })
@@ -42,6 +65,12 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
   const [secondsLeft, setSecondsLeft] = useState(0)
   const [connected, setConnected] = useState(false)
   const live = useRef<Issued | null>(null)
+  const host = window.location.host
+  const loopback = isLoopback(window.location.hostname)
+  const [address, setAddress] = useState(() => {
+    try { return localStorage.getItem(ADDRESS_KEY) ?? '' } catch { return '' }
+  })
+  const server = loopback ? originFrom(address) : window.location.origin
 
   const cancel = useCallback(async (code: string) => {
     try { await api.delete(`/auth/quick-connect/${code}`) } catch { /* already consumed or expired */ }
@@ -55,15 +84,8 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
     if (previous) void cancel(previous.code)
     try {
       const data = await api.post<Issued>('/auth/quick-connect/issue')
-      const png = await QRCode.toDataURL(payloadFor(data), {
-        margin: 1,
-        width: 512,
-        errorCorrectionLevel: 'M',
-        color: { dark: '#000000', light: '#ffffff' },
-      })
       live.current = data
       setIssued(data)
-      setQr(png)
       setError(null)
       setConnected(false)
     } catch (e) {
@@ -77,6 +99,24 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
     setError(null)
     setConnected(false)
     void issue()
+  }
+
+  // The QR follows the code and the server address (typed, on localhost).
+  useEffect(() => {
+    if (!issued || !server) return
+    let stale = false
+    void QRCode.toDataURL(payloadFor(issued, server), {
+      margin: 1,
+      width: 512,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#000000', light: '#ffffff' },
+    }).then(png => { if (!stale) setQr(png) })
+    return () => { stale = true }
+  }, [issued, server])
+
+  const updateAddress = (value: string) => {
+    setAddress(value)
+    try { localStorage.setItem(ADDRESS_KEY, value) } catch { /* private window */ }
   }
 
   // Kick off the first code. Deferred to a microtask so the effect body itself
@@ -148,6 +188,22 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
             </p>
           )}
 
+          {loopback && !connected && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs leading-relaxed text-warning">
+                <Trans>This page is open at {host}, which your phone cannot reach: on the phone, localhost is the phone itself. Type the address your phone can reach this computer at, or open Tome at that address instead.</Trans>
+              </p>
+              <input
+                value={address}
+                onChange={e => updateAddress(e.target.value)}
+                placeholder="http://192.168.1.20:8080"
+                autoFocus
+                spellCheck={false}
+                className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          )}
+
           {connected ? (
             <div className="flex flex-col items-center gap-2 py-8 text-sm text-success">
               <CheckCircle className="h-8 w-8" />
@@ -160,7 +216,7 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
                 <RefreshCw className="h-3.5 w-3.5" /> <Trans>Try again</Trans>
               </button>
             </div>
-          ) : !qr || !issued ? (
+          ) : loopback && !server ? null : !qr || !issued ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> <Trans>Loading…</Trans>
             </div>
@@ -181,7 +237,7 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
               )}
               {onPhone && !expired && (
                 <a
-                  href={payloadFor(issued)}
+                  href={payloadFor(issued, server ?? window.location.origin)}
                   className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
                 >
                   <Smartphone className="h-3.5 w-3.5" /> <Trans>Open in the Tome app</Trans>
