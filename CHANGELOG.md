@@ -31,6 +31,13 @@ All notable changes to Tome are documented here. Format loosely follows
   forget one. Only your own devices are ever shown. Plugin build 50.
 
 ### Fixed
+- **"Connect a phone" works when Tome is open at localhost.** The QR code
+  carried the address the page was opened at, so from `localhost` it told
+  the phone to connect to itself and pairing could never succeed. Opened at
+  localhost, 127.x or ::1, the window now says so and asks for the address
+  the phone can reach this computer at (for example
+  `http://192.168.1.20:8080`), builds the QR from that and remembers it in
+  this browser. Other addresses work as before. (#253)
 - **The Filters button no longer shows a "0" badge during a search.** A
   search on its own counted as "filters active" but has no filter chip, so
   the badge read 0; it now only appears when a filter is actually set.
