@@ -87,6 +87,26 @@ All notable changes to Tome are documented here. Format loosely follows
   most a second longer) and then fades out over the finished page, so a
   reload goes straight from the logo to the page instead of through a
   spinner and grey placeholders. (#254)
+- **Going back to the library keeps your place.** Coming back from a book
+  (or Stats, Settings, anywhere) shows the library as you left it, scrolled
+  to where you were, also past the first 60 books, and refreshes it quietly
+  instead of blanking it. Home works the same way: no grey placeholders on
+  the way back. The library tab no longer loads Home's sections it does not
+  show. (#255)
+- **Tome loads less up front.** The app's main file is a fifth of its old
+  size (515 KB instead of 2.4 MB). Stats, Settings, Admin, Bindery and the
+  other pages load as their own pieces, fetched in the background once Tome
+  is open, and the full icon set for libraries and shelves loads only when
+  an icon outside the common ones is shown or the icon picker opens. (#255)
+- **Smaller downloads from the server.** The server now compresses its
+  responses (the book list goes from 55 KB to 6 KB), never book files or
+  images. The app's files are cached by the browser for good, since their
+  names change with every release, and the page itself is always checked,
+  so an update never leaves a browser on the old version. (#255)
+- **Faster library pages on big libraries.** New database indexes for the
+  book list, series, reading status and session queries (added on startup),
+  and the series overview reads all series in one query instead of one per
+  series. (#255)
 
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 
