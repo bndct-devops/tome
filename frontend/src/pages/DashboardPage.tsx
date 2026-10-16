@@ -1022,10 +1022,12 @@ export function DashboardPage() {
 
   // The grid's covers load lazily as they near the screen; these load the
   // ones further down in idle time, so they are there before the scroll is.
+  // On Home (which loads the library list too) the first screens' worth, so
+  // the first switch to All Books has them.
   useEffect(() => {
-    if (tab === 'books') {
+    if (tab === 'books' || tab === 'home') {
       const urls: string[] = []
-      for (const b of books) {
+      for (const b of tab === 'home' ? books.slice(0, 30) : books) {
         if (b.cover_path) urls.push(coverSrc(b.id, { w: 400, v: b.updated_at }))
         if (groupActive) for (const id of (b.stack_cover_ids ?? []).slice(0, 2)) urls.push(coverSrc(id, { w: 400 }))
       }
