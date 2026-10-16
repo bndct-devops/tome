@@ -31,11 +31,10 @@ import {
   TopBooksByTime,
   ReadingActivity365,
   BooksFinishedArea,
-  SessionLog,
-  SessionLogHint,
   RecentlyFinished,
   StreakCalendar,
 } from '@/components/stats/widgets/overview'
+import { SessionLog, SessionLogHint } from '@/components/stats/SessionLog'
 import {
   HourDowCard,
   SessionTimeline,
