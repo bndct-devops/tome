@@ -65,7 +65,13 @@ function check() {
 function release() {
   if (released) return
   released = true
-  document.getElementById('tome-splash')?.remove()
+  // Fade the logo out over the finished page (the page itself never fades).
+  const splash = document.getElementById('tome-splash')
+  if (splash) {
+    splash.classList.add('out')
+    splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+    setTimeout(() => splash.remove(), 400) // no transition (reduced motion) or no event
+  }
   for (const k of Object.keys(early)) delete early[k]
   readyCallbacks.splice(0).forEach(cb => cb())
 }
