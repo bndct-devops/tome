@@ -255,8 +255,9 @@ All notable changes to Tome are documented here. Format loosely follows
   page asked the server for when it opened, and on the next visit asks for
   it right away, while the app itself is still loading, instead of one step
   after another. The loading logo stays up until the page has its data (at
-  most a second longer), so a reload goes straight from the logo to the
-  finished page instead of through a spinner and grey placeholders.
+  most a second longer) and then fades out over the finished page, so a
+  reload goes straight from the logo to the page instead of through a
+  spinner and grey placeholders.
 - **Going back to the library keeps your place.** Coming back from a book
   (or Stats, Settings, anywhere) shows the library as you left it, scrolled
   to where you were, also past the first 60 books, and refreshes it quietly

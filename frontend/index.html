@@ -64,6 +64,7 @@
         position: fixed;
         inset: 0;
         z-index: 2147483647;
+        transition: opacity 180ms ease-out;
         display: grid;
         place-items: center;
         background: #f8f7f4;
@@ -82,8 +83,13 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0.45; }
       }
+      #tome-splash.out {
+        opacity: 0;
+        pointer-events: none;
+      }
       @media (prefers-reduced-motion: reduce) {
         #tome-splash svg { animation: none; }
+        #tome-splash { transition: none; }
       }
     </style>
   </head>
