@@ -12,6 +12,7 @@ import {
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { ModalShell } from '@/components/ModalShell'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
+import { useTelemetry } from '@/lib/useTelemetry'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural, msg } from '@lingui/core/macro'
@@ -47,6 +48,7 @@ import { cn } from '@/lib/utils'
 import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
+import { coverSrc } from '@/lib/covers'
 
 type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating'
 type SortOrder = 'asc' | 'desc'
@@ -71,6 +73,7 @@ function normalizeForMatch(s: string): string {
 
 interface SeriesDetailBook {
   id: number
+  updated_at?: string | null
   title: string
   series_index: number | null
   cover_path: string | null
@@ -213,7 +216,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
                   <div key={book.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                     <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
                       <CoverImage
-                        src={book.cover_path ? `/api/books/${book.id}/cover` : null}
+                        src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
                         alt={book.title}
                         iconClassName="w-3.5 h-3.5"
                       />
@@ -808,9 +811,12 @@ export function DashboardPage() {
   // reading, finished, added, forgotten) count down here. Until all have
   // settled the Home tab shows skeletons — never a false "Nothing in
   // progress" empty state, and sections mount in one paint instead of
-  // inserting one by one and shifting the layout (CLS).
+  // inserting one by one and shifting the layout (CLS). The telemetry
+  // question (admins) waits too, or its card lands on top a moment later
+  // and pushes the whole page down.
+  const telemetry = useTelemetry()
   const [homeSettled, setHomeSettled] = useState(0)
-  const homeHydrated = homeSettled >= 5
+  const homeHydrated = homeSettled >= 5 && telemetry.settled
   const countSettled = () => setHomeSettled(n => n + 1)
 
   const PAGE_SIZE = 60
@@ -1223,7 +1229,7 @@ export function DashboardPage() {
           {tab === 'home' ? (
             /* ── Home tab ────────────────────────────────────────────────── */
             <div className="flex flex-col gap-7">
-              <TelemetryConsentCard />
+              {homeHydrated && <TelemetryConsentCard telemetry={telemetry} />}
 
               {homeMode === 'focus' ? (
               <>
@@ -1347,7 +1353,7 @@ export function DashboardPage() {
                         >
                           <div className="relative aspect-[2/3] rounded-md bg-muted overflow-hidden">
                             <CoverImage
-                              src={b.has_cover ? `/api/books/${b.book_id}/cover` : null}
+                              src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null}
                               alt={b.title}
                               iconClassName="w-5 h-5"
                             />
@@ -1440,7 +1446,7 @@ export function DashboardPage() {
                           className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors text-left"
                         >
                           <div className="relative w-9 aspect-[2/3] rounded shrink-0 overflow-hidden bg-muted">
-                            <CoverImage src={book.cover_path ? `/api/books/${book.id}/cover` : null} alt={book.series!} iconClassName="w-4 h-4" />
+                            <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt={book.series!} iconClassName="w-4 h-4" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -1551,7 +1557,7 @@ export function DashboardPage() {
                             >
                               <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
                                 <CoverImage
-                                  src={entry.book_cover_path ? `/api/books/${entry.book_id}/cover` : null}
+                                  src={entry.book_cover_path ? coverSrc(entry.book_id, { w: 160 }) : null}
                                   alt={entry.book_title}
                                   iconClassName="w-3.5 h-3.5"
                                 />
@@ -1839,7 +1845,7 @@ export function DashboardPage() {
                                       >
                                         <div className="relative aspect-[2/3] w-full overflow-hidden">
                                           <CoverImage
-                                            src={vol.cover_path ? `/api/books/${vol.id}/cover` : null}
+                                            src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
                                             alt={vol.title}
                                             iconClassName="w-4 h-4"
                                           />
@@ -1917,7 +1923,7 @@ export function DashboardPage() {
                         >
                           <div className="relative aspect-[2/3] bg-muted overflow-hidden">
                             <CoverImage
-                              src={s.cover_book_id ? `/api/books/${s.cover_book_id}/cover` : null}
+                              src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                               alt={isUnserialized ? t`Unserialized` : s.name}
                               imgClassName="group-hover:scale-105"
                             />
@@ -2389,7 +2395,7 @@ export function DashboardPage() {
                     >
                       <div className="relative w-12 aspect-[2/3] shrink-0 rounded-md overflow-hidden bg-muted">
                         <CoverImage
-                          src={s.cover_book_id ? `/api/books/${s.cover_book_id}/cover` : null}
+                          src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                           alt={name}
                           iconClassName="w-4 h-4"
                         />

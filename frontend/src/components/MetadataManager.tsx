@@ -17,6 +17,7 @@ import { UploadModal } from './UploadModal'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from './CoverImage'
 import { useToast } from '@/contexts/ToastContext'
+import { coverSrc } from '@/lib/covers'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -1464,7 +1465,7 @@ export function MetadataManager() {
                   <td className="px-2 py-1.5">
                     {book.cover_path ? (
                       <img
-                        src={`${API}/api/books/${book.id}/cover`}
+                        src={API + coverSrc(book.id, { w: 160 })}
                         alt=""
                         className="w-7 h-9 object-cover rounded border border-border"
                       />

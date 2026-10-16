@@ -4,6 +4,7 @@ import type { Book } from '@/lib/books'
 import type { ViewMode } from '@/components/BookCard'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
+import { coverSrc } from '@/lib/covers'
 
 interface SeriesStackCardProps {
   book: Book
@@ -26,7 +27,7 @@ export function SeriesStackCard({ book, count, view, focused, index = 0, onOpen 
     }
   }, [focused])
 
-  const coverUrl = book.cover_path ? `/api/books/${book.id}/cover` : null
+  const coverUrl = book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null
   const seriesName = book.series ?? book.title
   // Real covers of the next volumes, deepest last in the array
   const fanIds = (book.stack_cover_ids ?? []).slice(0, 2)
@@ -46,7 +47,7 @@ export function SeriesStackCard({ book, count, view, focused, index = 0, onOpen 
         <div className="relative w-9 h-12 shrink-0">
           <div className="absolute inset-0 translate-x-1 -translate-y-0.5 rounded overflow-hidden bg-muted border border-border transition-transform duration-200 group-hover:translate-x-2 group-hover:-translate-y-1">
             {fanIds[0] && (
-              <CoverImage src={`/api/books/${fanIds[0]}/cover`} alt="" iconClassName="w-3 h-3" />
+              <CoverImage src={coverSrc(fanIds[0], { w: 400 })} alt="" iconClassName="w-3 h-3" />
             )}
           </div>
           <div className="relative w-full h-full rounded overflow-hidden bg-muted border border-border">
@@ -100,12 +101,12 @@ export function SeriesStackCard({ book, count, view, focused, index = 0, onOpen 
             <>
               {fanIds[1] && (
                 <div className={cn(layerBaseCls, deepLayerCls)}>
-                  <CoverImage src={`/api/books/${fanIds[1]}/cover`} alt="" imgClassName="brightness-[0.7]" />
+                  <CoverImage src={coverSrc(fanIds[1], { w: 400 })} alt="" imgClassName="brightness-[0.7]" />
                 </div>
               )}
               {fanIds[0] && (
                 <div className={cn(layerBaseCls, nearLayerCls)}>
-                  <CoverImage src={`/api/books/${fanIds[0]}/cover`} alt="" imgClassName="brightness-[0.85]" />
+                  <CoverImage src={coverSrc(fanIds[0], { w: 400 })} alt="" imgClassName="brightness-[0.85]" />
                 </div>
               )}
             </>

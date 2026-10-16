@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 import { InfoHint } from '@/components/InfoHint'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, HeatmapChart, type StatsResponse, type SessionEntry } from '@/components/stats/shared'
+import { coverSrc } from '@/lib/covers'
 
 // Chart style a configurable widget can render as (per-tile setting in the Lab).
 export type ChartKind = 'bar' | 'line' | 'area'
@@ -59,7 +60,7 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
         <a key={b.book_id} href={`/books/${b.book_id}`} className="group flex items-center gap-2.5 rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/30">
           <div className="h-9 w-6 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
             {b.has_cover ? (
-              <img src={`/api/books/${b.book_id}/cover`} alt="" className="h-full w-full object-cover" />
+              <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="h-full w-full object-cover" />
             ) : (
               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
             )}
@@ -513,7 +514,7 @@ export function RecentlyFinished({ booksFinished }: { booksFinished: StatsRespon
         <a key={`${b.book_id}-${i}`} href={`/books/${b.book_id}`} className="group flex items-center gap-3 rounded-lg p-1.5 hover:bg-accent/30 transition-colors">
           <div className="w-7 h-10 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
             <img
-              src={`/api/books/${b.book_id}/cover`}
+              src={coverSrc(b.book_id, { w: 160 })}
               alt=""
               className="w-full h-full object-cover"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}

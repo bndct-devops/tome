@@ -23,11 +23,15 @@ export function useTelemetry() {
   const admin = isAdmin(user)
   const [data, setData] = useState<TelemetryInfo | null>(null)
   const [busy, setBusy] = useState(false)
+  // True once the state is known (or failed to load), so Home can draw the
+  // card in the same paint as everything else instead of pushing it down later.
+  const [fetched, setFetched] = useState(false)
 
   useEffect(() => {
     if (!admin) return
     let live = true
     api.get<TelemetryInfo>('/admin/telemetry').then(r => { if (live) setData(r) }).catch(() => {})
+      .finally(() => { if (live) setFetched(true) })
     return () => { live = false }
   }, [admin])
 
@@ -44,5 +48,5 @@ export function useTelemetry() {
     }
   }, [])
 
-  return { admin, data, busy, decide }
+  return { admin, data, busy, decide, settled: !admin || fetched }
 }

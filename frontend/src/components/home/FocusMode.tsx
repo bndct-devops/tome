@@ -6,6 +6,7 @@ import { Play, RefreshCw, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
+import { coverSrc } from '@/lib/covers'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ function deviceLabel(device: string | null): string {
   return t`Synced from ${device}`
 }
 
-const cover = (id: number) => `/api/books/${id}/cover`
+const cover = (id: number) => coverSrc(id, { w: 400 })
 const fmtVol = (n: number | null) => (n == null ? '' : String(n))
 
 // Stage geometry — a fixed, overflow-clipped box so receding covers can never

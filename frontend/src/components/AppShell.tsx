@@ -9,6 +9,7 @@ import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { UploadModal } from '@/components/UploadModal'
 import { Trans } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
+import { coverSrc } from '@/lib/covers'
 
 /**
  * The shared application shell — the same top navbar (Tome wordmark) + persistent
@@ -115,7 +116,7 @@ export function AppShell({
                     className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted"
                   >
                     <img
-                      src={`/api/books/${b.id}/cover`}
+                      src={coverSrc(b.id, { w: 160 })}
                       alt=""
                       className="h-9 w-6 shrink-0 rounded-sm object-cover"
                     />

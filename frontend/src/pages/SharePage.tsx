@@ -12,6 +12,7 @@ import { t, plural, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { applyTheme, getStoredTheme } from '@/lib/theme'
+import { coverSrc } from '@/lib/covers'
 
 interface SharedHighlight {
   text: string | null
@@ -159,7 +160,7 @@ function SharedBookCard({ b, defaultOpen = false }: { b: SharedBook; defaultOpen
     <li className="rounded-xl border border-border bg-card p-4">
       <div className="flex gap-4">
         <img
-          src={`/api/books/${b.id}/cover`}
+          src={coverSrc(b.id, { w: 400 })}
           alt=""
           loading="lazy"
           className="h-32 w-[85px] shrink-0 rounded-md object-cover shadow-sm"

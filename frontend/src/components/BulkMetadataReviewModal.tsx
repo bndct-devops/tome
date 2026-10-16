@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
 import type { MetadataCandidate } from '@/lib/books'
 import { CoverImage } from './CoverImage'
+import { coverSrc } from '@/lib/covers'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -290,7 +291,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                       {/* Current book */}
                       <div className="relative w-8 h-12 shrink-0 rounded border border-border overflow-hidden">
                         <CoverImage
-                          src={result.book_cover_path ? `${API}/api/books/${result.book_id}/cover` : null}
+                          src={result.book_cover_path ? API + coverSrc(result.book_id, { w: 160 }) : null}
                           alt=""
                           iconClassName="h-3 w-3"
                         />
