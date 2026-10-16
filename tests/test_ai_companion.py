@@ -2009,7 +2009,10 @@ def test_plugin_snapshot_shape_and_spoiler_window(db, make_book, tmp_path, plugi
     ai.set_provider_override(fake)
 
     pct = _mid(book, db, 4)
-    r = c.get(f"/api/tome-sync/ai/books/{book.id}/snapshot?pct={pct}", headers=h)
+    # The plugin (luasocket) sends no Accept-Encoding; the test client would
+    # send gzip by default, so ask for identity explicitly.
+    r = c.get(f"/api/tome-sync/ai/books/{book.id}/snapshot?pct={pct}",
+              headers={**h, "Accept-Encoding": "identity"})
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("application/json")
     assert "content-encoding" not in r.headers          # no Accept-Encoding: gzip, plain JSON

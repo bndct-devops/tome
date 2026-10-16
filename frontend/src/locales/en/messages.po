@@ -1383,15 +1383,15 @@ msgstr "+{gain}% today"
 msgid "<0>{dur}</0> left in this series"
 msgstr "<0>{dur}</0> left in this series"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "<0>Device name</0> (e.g. Kindle) — recorded live by the KOReader plugin. <1>web</1> / <2>manual</2> — the web reader, or logged by hand."
 msgstr "<0>Device name</0> (e.g. Kindle) — recorded live by the KOReader plugin. <1>web</1> / <2>manual</2> — the web reader, or logged by hand."
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "<0>imported</0> — from KOReader's synced reading history. Delete only: KOReader already caps idle time, so there is nothing to trim."
 msgstr "<0>imported</0> — from KOReader's synced reading history. Delete only: KOReader already caps idle time, so there is nothing to trim."
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "<0>not counted</0> — a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice."
 msgstr "<0>not counted</0> — a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice."
 
@@ -2332,7 +2332,7 @@ msgstr "book"
 
 #: src/components/CoverAudit.tsx
 #: src/components/SendToDeviceModal.tsx
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Book"
@@ -2494,7 +2494,7 @@ msgstr "Can't find it? Add manually"
 #: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 #: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
 #: src/components/WishlistModal.tsx
@@ -3196,7 +3196,7 @@ msgstr "Data"
 msgid "Database"
 msgstr "Database"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Date"
 msgstr "Date"
 
@@ -3272,7 +3272,7 @@ msgstr "Delete failed"
 msgid "Delete Others"
 msgstr "Delete Others"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Delete session"
 msgstr "Delete session"
 
@@ -3297,7 +3297,7 @@ msgstr "Delete this goal"
 msgid "Delete this highlight"
 msgstr "Delete this highlight"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Delete this imported sitting"
 msgstr "Delete this imported sitting"
 
@@ -3370,7 +3370,7 @@ msgid "Details:"
 msgstr "Details:"
 
 #: src/components/SendToDeviceModal.tsx
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Device"
@@ -3540,7 +3540,7 @@ msgstr "Duplicate tile"
 msgid "Duplicates"
 msgstr "Duplicates"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Duration"
 msgstr "Duration"
 
@@ -3580,7 +3580,7 @@ msgstr "Each chapter is read once. Later recaps and the glossary reuse it."
 msgid "Each device sends the list of Tome books on it when it syncs. Books show an \"On ...\" pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync."
 msgstr "Each device sends the list of Tome books on it when it syncs. Books show an \"On ...\" pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync."
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Each row is one reading session."
 msgstr "Each row is one reading session."
 
@@ -5084,7 +5084,7 @@ msgstr "Long-lived tokens for scripts and tools (e.g. Scribe). Each token is sho
 msgid "Longest daily streak"
 msgstr "Longest daily streak"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Longest first"
 msgstr "Longest first"
 
@@ -5274,7 +5274,7 @@ msgstr "Metadata Suggestions"
 msgid "Metric"
 msgstr "Metric"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 #: src/lib/goals.ts
 msgid "min"
 msgstr "min"
@@ -5447,7 +5447,7 @@ msgstr "New code"
 msgid "New cover"
 msgstr "New cover"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "New duration"
 msgstr "New duration"
 
@@ -5492,7 +5492,7 @@ msgstr "New Type"
 msgid "New User"
 msgstr "New User"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Newest first"
 msgstr "Newest first"
 
@@ -5917,7 +5917,7 @@ msgstr "No session data."
 msgid "No session-time data yet."
 msgstr "No session-time data yet."
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "No sessions recorded."
 msgstr "No sessions recorded."
 
@@ -5998,7 +5998,7 @@ msgstr "None"
 msgid "Not configured"
 msgstr "Not configured"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "not counted"
 msgstr "not counted"
 
@@ -8068,7 +8068,7 @@ msgstr "Show less"
 msgid "Show more"
 msgstr "Show more"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Show more ({left} remaining)"
 msgstr "Show more ({left} remaining)"
 
@@ -8381,7 +8381,7 @@ msgstr "Subtitle"
 msgid "Subtitle (optional)"
 msgstr "Subtitle (optional)"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Suggested: {dur}"
 msgstr "Suggested: {dur}"
 
@@ -8616,7 +8616,7 @@ msgstr "The story so far, from the pages before your position. Nothing after it 
 msgid "the sync password set above"
 msgstr "the sync password set above"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
 msgstr "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
 
@@ -8834,7 +8834,7 @@ msgstr "Toggle only-notes filter"
 msgid "Toggle RTL (manga) mode"
 msgstr "Toggle RTL (manga) mode"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Toggle sort order"
 msgstr "Toggle sort order"
 
@@ -8933,15 +8933,15 @@ msgstr "Total: {total}"
 msgid "Translations are community-maintained. Anything not yet translated is shown in English."
 msgstr "Translations are community-maintained. Anything not yet translated is shown in English."
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Trim"
 msgstr "Trim"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Trim session"
 msgstr "Trim session"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace."
 msgstr "Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace."
 
@@ -9062,7 +9062,7 @@ msgstr "Unreadable file"
 msgid "Unserialized"
 msgstr "Unserialized"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Unusually long session"
 msgstr "Unusually long session"
 
@@ -9664,7 +9664,7 @@ msgstr "Your monthly limit"
 msgid "Your note — syncs back to KOReader on the next sync"
 msgstr "Your note — syncs back to KOReader on the next sync"
 
-#: src/components/stats/widgets/overview.tsx
+#: src/components/stats/SessionLog.tsx
 msgid "Your page turns at your usual reading pace"
 msgstr "Your page turns at your usual reading pace"
 

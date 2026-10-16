@@ -543,14 +543,6 @@ def get_series(
     from backend.core.permissions import book_visibility_filter
     visibility = book_visibility_filter(db, current_user)
 
-    series_rows = (
-        db.query(Book.series, func.count(Book.id).label("book_count"))
-        .filter(Book.status == "active", Book.series.isnot(None), visibility)
-        .group_by(Book.series)
-        .order_by(Book.series)
-        .all()
-    )
-
     # Fetch all reading statuses for this user in one query — keyed by book_id
     all_statuses: dict[int, str] = {}
     status_rows = (
@@ -573,20 +565,27 @@ def get_series(
         .filter(UserSeriesRating.user_id == current_user.id, UserSeriesRating.rating.isnot(None)).all()
     }
 
-    result = []
-    for series_name, book_count in series_rows:
-        # Pick the book with the lowest series_index as the cover; fall back to lowest id if all null
-        series_books = (
-            db.query(Book)
-            .filter(Book.status == "active", Book.series == series_name, visibility)
-            .order_by(
-                Book.series_index.is_(None),  # nulls last
-                Book.series_index,
-                Book.id,
-            )
-            .all()
+    # Every visible volume of every series in one query, in series order and,
+    # within a series, by volume (nulls last, then id), instead of one query
+    # per series.
+    volume_rows = (
+        db.query(Book.id, Book.series, Book.cover_path, Book.description, Book.author)
+        .filter(Book.status == "active", Book.series.isnot(None), visibility)
+        .order_by(
+            Book.series,
+            Book.series_index.is_(None),  # nulls last
+            Book.series_index,
+            Book.id,
         )
-        first_book = series_books[0] if series_books else None
+        .all()
+    )
+    by_series: dict[str, list] = {}
+    for row in volume_rows:
+        by_series.setdefault(row.series, []).append(row)
+
+    result = []
+    for series_name, series_books in by_series.items():
+        first_book = series_books[0]
         # Cover comes from the first volume that actually has one — returning a
         # coverless book's id made every grid render request its cover and 404.
         cover_book = next((b for b in series_books if b.cover_path), None)
@@ -605,10 +604,10 @@ def get_series(
 
         result.append({
             "name": series_name,
-            "book_count": book_count,
+            "book_count": len(series_books),
             "cover_book_id": cover_book.id if cover_book else None,
-            "description": first_book.description if first_book else None,
-            "author": first_book.author if first_book else None,
+            "description": first_book.description,
+            "author": first_book.author,
             "read_count": read_count,
             "reading_count": reading_count,
             "rating": display_rating,
