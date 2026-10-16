@@ -33,6 +33,8 @@ class BookOut(BaseModel):
     year: Optional[int] = None
     language: Optional[str] = None
     word_count: Optional[int] = None
+    # Versions the cover URL (``/books/{id}/cover?v=``), so grids can cache covers.
+    updated_at: Optional[datetime] = None
     status: str
     content_type: str
     cover_path: Optional[str] = None

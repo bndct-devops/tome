@@ -13,6 +13,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useAuth } from '@/contexts/AuthContext'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
+import { coverSrc } from '@/lib/covers'
 
 interface TimelineBook {
   book_id: number
@@ -390,7 +391,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
             style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
           >
             {hover.b.has_cover && (
-              <img src={`/api/books/${hover.b.book_id}/cover`} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
+              <img src={coverSrc(hover.b.book_id, { w: 160 })} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
             )}
             <div className="min-w-0">
               <div className="truncate font-semibold">{hover.b.title}</div>

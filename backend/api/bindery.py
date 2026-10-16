@@ -637,6 +637,7 @@ def list_unreviewed(
             "series": b.series,
             "series_index": b.series_index,
             "cover_path": b.cover_path,
+            "updated_at": b.updated_at.isoformat() if b.updated_at else None,
             "added_at": b.added_at.isoformat() if b.added_at else None,
             "format": b.files[0].format if b.files else None,
         }

@@ -7,6 +7,7 @@ import { useBookTypes } from '@/lib/bookTypes'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { DevicePills } from '@/components/DevicePills'
+import { coverSrc } from '@/lib/covers'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
@@ -85,7 +86,7 @@ export function BookCard({
     cb?.()
   }
 
-  const coverUrl = book.cover_path ? `/api/books/${book.id}/cover` : null
+  const coverUrl = book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null
   const hasReadableFile = book.files?.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format))
 
   // Progress bar width for the cover bottom strip (progressPct is 0-1 from the API)

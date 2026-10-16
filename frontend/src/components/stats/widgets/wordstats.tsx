@@ -8,6 +8,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
+import { coverSrc } from '@/lib/covers'
 
 function Empty({ text }: { text?: string }) {
   return <p className="py-10 text-center text-sm text-muted-foreground">{text ?? t`No word counts yet.`}</p>
@@ -24,7 +25,7 @@ function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string 
   return (
     <div className="flex h-12 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
       {id && has ? (
-        <img src={`/api/books/${id}/cover`} alt={alt} className="h-full w-full object-cover" loading="lazy"
+        <img src={coverSrc(id, { w: 160 })} alt={alt} className="h-full w-full object-cover" loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
       ) : (
         <FileText className="h-3.5 w-3.5 text-muted-foreground" />

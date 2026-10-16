@@ -25,6 +25,7 @@ export interface Book {
   status: string
   content_type: string
   cover_path: string | null
+  updated_at?: string | null
   added_at: string
   files: BookFile[]
   tags: BookTag[]

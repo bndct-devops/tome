@@ -2,6 +2,7 @@ import { FileText } from 'lucide-react'
 import { useChartColors } from '@/lib/useChartAccent'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
+import { coverSrc } from '@/lib/covers'
 
 interface SeriesCompletion {
   series: string
@@ -37,7 +38,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
           <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
             {s.sample_book_id ? (
               <img
-                src={`/api/books/${s.sample_book_id}/cover`}
+                src={coverSrc(s.sample_book_id, { w: 160 })}
                 alt=""
                 className="w-full h-full object-cover"
                 loading="lazy"

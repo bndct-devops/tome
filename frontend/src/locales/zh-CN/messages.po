@@ -8678,6 +8678,10 @@ msgstr ""
 msgid "This month, read days filled"
 msgstr ""
 
+#: src/components/ConnectPhoneModal.tsx
+msgid "This page is open at {host}, which your phone cannot reach: on the phone, localhost is the phone itself. Type the address your phone can reach this computer at, or open Tome at that address instead."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "This page is yours — every tile can be moved, resized, swapped or removed, per board. Hit <0>Edit</0> to start. Reset always brings the defaults back."
 msgstr ""

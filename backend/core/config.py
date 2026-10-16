@@ -172,6 +172,10 @@ class Settings(BaseSettings):
         return self.data_dir / "covers"
 
     @property
+    def cover_thumbs_dir(self) -> Path:
+        return self.data_dir / "cover_thumbs"
+
+    @property
     def secret_key_file(self) -> Path:
         return self.data_dir / "secret.key"
 

@@ -240,11 +240,30 @@ All notable changes to Tome are documented here. Format loosely follows
   the left at desktop width, and a row of chips under the header on phones.
   It follows your scroll position and jumps to a section on click, so a
   setting is one click away instead of a scroll through the whole page.
+- **Covers load much faster.** Grids and lists now get small WebP copies of
+  the covers (made once and kept in `data/cover_thumbs/`) instead of the
+  full-size image, which for covers fetched from a metadata source could be
+  over 2 MB. The browser keeps them, so coming back to the library shows the
+  covers right away without asking the server again, and a cover the
+  browser already has appears at once instead of fading in. Changing a
+  cover still shows the new one everywhere, also when you upload a second
+  cover over the first.
 - Applying fetched metadata on the book page is now recorded in the audit log
   (`books.metadata_applied`, with the fields that changed, and marked
   AI-assisted when the change came from AI fix).
 
 ### Fixed
+- **Home no longer jumps down after it has loaded.** For admins who had not
+  answered the telemetry question yet, its card arrived a moment after the
+  rest of the page and pushed everything down. Home now waits for it and
+  draws it together with the other sections.
+- **"Connect a phone" works when Tome is open at localhost.** The QR code
+  carried the address the page was opened at, so from `localhost` it told
+  the phone to connect to itself and pairing could never succeed. Opened at
+  localhost, 127.x or ::1, the window now says so and asks for the address
+  the phone can reach this computer at (for example
+  `http://192.168.1.20:8080`), builds the QR from that and remembers it in
+  this browser. Other addresses work as before. (#253)
 - **The Filters button no longer shows a "0" badge during a search.** A
   search on its own counted as "filters active" but has no filter chip, so
   the badge read 0; it now only appears when a filter is actually set.
