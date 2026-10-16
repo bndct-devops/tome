@@ -34,7 +34,7 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Home no longer jumps down after it has loaded.** For admins who had not
   answered the telemetry question yet, its card arrived a moment after the
   rest of the page and pushed everything down. Home now waits for it and
-  draws it together with the other sections.
+  draws it together with the other sections. (#254)
 - **"Connect a phone" works when Tome is open at localhost.** The QR code
   carried the address the page was opened at, so from `localhost` it told
   the phone to connect to itself and pairing could never succeed. Opened at
@@ -79,13 +79,14 @@ All notable changes to Tome are documented here. Format loosely follows
   Home, so switching to All Books shows them at once), and the next page of books is
   fetched well before you reach the end, so scrolling down no longer shows
   covers popping in, and Safari clearing its cache no longer drops them.
+  (#254)
 - **Tome opens with the page already filled in.** Tome remembers what each
   page asked the server for when it opened, and on the next visit asks for
   it right away, while the app itself is still loading, instead of one step
   after another. The loading logo stays up until the page has its data (at
   most a second longer) and then fades out over the finished page, so a
   reload goes straight from the logo to the page instead of through a
-  spinner and grey placeholders.
+  spinner and grey placeholders. (#254)
 
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 
