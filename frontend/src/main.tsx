@@ -1,9 +1,15 @@
 import './index.css'
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { I18nProvider } from '@lingui/react'
 import App from './App.tsx'
 import { i18n, activateLocale, detectLocale } from './lib/i18n'
+import { afterFirstRender } from './lib/boot'
+
+function Started() {
+  useEffect(afterFirstRender, [])
+  return null
+}
 
 // Activate the UI language before the first render so nothing flashes English
 // for a user who picked another language. activateLocale never rejects: a
@@ -14,6 +20,7 @@ activateLocale(detectLocale())
       <StrictMode>
         <I18nProvider i18n={i18n}>
           <App />
+          <Started />
         </I18nProvider>
       </StrictMode>,
     )

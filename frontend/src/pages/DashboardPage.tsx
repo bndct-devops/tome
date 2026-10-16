@@ -49,6 +49,7 @@ import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 import { coverSrc } from '@/lib/covers'
+import { preloadImages } from '@/lib/preload'
 
 type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating'
 type SortOrder = 'asc' | 'desc'
@@ -940,10 +941,26 @@ export function DashboardPage() {
       if (entries[0].isIntersecting && !loadingMoreRef.current && !loadingRef.current && !refreshingRef.current && hasMoreRef.current) {
         loadBooks(false)
       }
-    }, { rootMargin: '200px' })
+    }, { rootMargin: '1500px' })
     observer.observe(node)
     observerInstanceRef.current = observer
   }, [loadBooks])
+
+  // The grid's covers load lazily as they near the screen; these load the
+  // ones further down in idle time, so they are there before the scroll is.
+  useEffect(() => {
+    if (tab === 'books') {
+      const urls: string[] = []
+      for (const b of books) {
+        if (b.cover_path) urls.push(coverSrc(b.id, { w: 400, v: b.updated_at }))
+        if (groupActive) for (const id of (b.stack_cover_ids ?? []).slice(0, 2)) urls.push(coverSrc(id, { w: 400 }))
+      }
+      return preloadImages(urls)
+    }
+    if (tab === 'series') {
+      return preloadImages(seriesList.slice(0, 120).flatMap(s => s.cover_book_id ? [coverSrc(s.cover_book_id, { w: 400 })] : []))
+    }
+  }, [tab, books, seriesList, groupActive])
 
   function loadFacets() { api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }
   useEffect(() => { loadFacets() }, [])
