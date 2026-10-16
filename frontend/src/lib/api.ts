@@ -1,3 +1,5 @@
+import { bootFetch } from "./boot"
+
 const API_BASE = "/api"
 
 // Wherever a request sends the legacy tz_offset (a single fixed offset), pair
@@ -23,7 +25,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options?.headers,
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const res = await bootFetch(path, options?.method, () => fetch(`${API_BASE}${path}`, { ...options, headers }))
   if (res.status === 401) {
     localStorage.removeItem("tome_token")
     window.location.href = "/login"
@@ -49,7 +51,7 @@ async function requestWithHeaders<T>(
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options?.headers,
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const res = await bootFetch(path, options?.method, () => fetch(`${API_BASE}${path}`, { ...options, headers }))
   if (res.status === 401) {
     localStorage.removeItem("tome_token")
     window.location.href = "/login"

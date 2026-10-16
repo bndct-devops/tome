@@ -74,7 +74,16 @@ All notable changes to Tome are documented here. Format loosely follows
   covers right away without asking the server again, and a cover the
   browser already has appears at once instead of fading in. Changing a
   cover still shows the new one everywhere, also when you upload a second
-  cover over the first.
+  cover over the first. Covers further down the library are loaded in the
+  background while you look at the top, and the next page of books is
+  fetched well before you reach the end, so scrolling down no longer shows
+  covers popping in, and Safari clearing its cache no longer drops them.
+- **Tome opens with the page already filled in.** Tome remembers what each
+  page asked the server for when it opened, and on the next visit asks for
+  it right away, while the app itself is still loading, instead of one step
+  after another. The loading logo stays up until the page has its data (at
+  most a second longer), so a reload goes straight from the logo to the
+  finished page instead of through a spinner and grey placeholders.
 
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 
