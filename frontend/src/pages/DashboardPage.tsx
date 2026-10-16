@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { AnimatePresence, m } from 'motion/react'
-import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
   BookOpen, X, Home, ChevronRight,
   LayoutGrid, List,
@@ -282,6 +282,34 @@ function formatReadingTime(seconds: number): string {
   if (m === 0) return t`${h}h`
   return t`${h}h ${m}m`
 }
+
+type StatusMap = Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>
+
+// The library list as it was when the page was last left, so coming back
+// (from a book, Stats, anywhere) shows it at once and where it was scrolled
+// to, then refreshes it quietly. One entry: the list for one set of filters.
+// Home's sections as last shown, for the same reason: back to Home is instant,
+// and the sections refresh in place.
+let homeCache: {
+  continueReading: Book[]
+  homeStats: HomeStats | null
+  readingDna: ReadingDNA | null
+  recentlyFinished: Book[]
+  recentlyAdded: Book[]
+  activityLog: ActivityEntry[]
+  forgottenBooks: ForgottenBook[]
+  spotlight: HighlightSpotlight | null
+} | null = null
+
+let listCache: {
+  key: string
+  books: Book[]
+  total: number | null
+  statuses: StatusMap
+  hasMore: boolean
+  scrollTop: number
+  locationKey: string
+} | null = null
 
 export function DashboardPage() {
   const { t, i18n } = useLingui()
@@ -765,14 +793,30 @@ export function DashboardPage() {
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
   // ── Books + facets ────────────────────────────────────────────────────────
-  const [books, setBooks] = useState<Book[]>([])
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const mainRef = useRef<HTMLElement | null>(null)
+  const locationKeyRef = useRef(location.key)
+  locationKeyRef.current = location.key
+  // Filters + sort of the list the current `books` belong to.
+  const listKey = () => {
+    const p = buildFilterParams()
+    p.set('sort', sort)
+    p.set('order', order)
+    if (groupActive) p.set('group_by_series', 'true')
+    return p.toString()
+  }
+  const [seed] = useState(() => (listCache && listCache.key === listKey() ? listCache : null))
+  const seededRef = useRef(!!seed)
+  const loadedKeyRef = useRef(seed?.key ?? '')
+  const [books, setBooks] = useState<Book[]>(() => seed?.books ?? [])
   const { handleToggle } = useShiftSelect(books.map(b => b.id))
 
   const booksGridRef = useRef<HTMLDivElement | null>(null)
-  const [totalCount, setTotalCount] = useState<number | null>(null)
-  const [readingStatuses, setReadingStatuses] = useState<Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>>({})
+  const [totalCount, setTotalCount] = useState<number | null>(() => seed?.total ?? null)
+  const [readingStatuses, setReadingStatuses] = useState<StatusMap>(() => seed?.statuses ?? {})
   const [facets, setFacets] = useState<Facets>({ series: [], authors: [], tags: [], formats: [], languages: [] })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!seed)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
 
@@ -781,15 +825,16 @@ export function DashboardPage() {
   const toastError = toast.error
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const booksRef = useRef<Book[]>([])
+  const booksRef = useRef<Book[]>(seed?.books ?? [])
   const abortRef = useRef<AbortController | null>(null)
-  const [hasMore, setHasMore] = useState(true)
-  const hasMoreRef = useRef(true)
+  const [hasMore, setHasMore] = useState(seed?.hasMore ?? true)
+  const hasMoreRef = useRef(seed?.hasMore ?? true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [continueReading, setContinueReading] = useState<Book[]>([])
-  const [homeStats, setHomeStats] = useState<HomeStats | null>(null)
-  const [readingDna, setReadingDna] = useState<ReadingDNA | null>(null)
+  const [homeSeed] = useState(() => homeCache)
+  const [continueReading, setContinueReading] = useState<Book[]>(homeSeed?.continueReading ?? [])
+  const [homeStats, setHomeStats] = useState<HomeStats | null>(homeSeed?.homeStats ?? null)
+  const [readingDna, setReadingDna] = useState<ReadingDNA | null>(homeSeed?.readingDna ?? null)
   // Home view mode: 'focus' = single-book Focus mode, 'dashboard' = the full grid.
   const [homeMode, setHomeMode] = useState<'focus' | 'dashboard'>(
     () => (localStorage.getItem('tome_home_mode') as 'focus' | 'dashboard') || 'dashboard'
@@ -798,11 +843,11 @@ export function DashboardPage() {
     localStorage.setItem('tome_home_mode', m)
     setHomeMode(m)
   }
-  const [recentlyFinished, setRecentlyFinished] = useState<Book[]>([])
-  const [recentlyAdded, setRecentlyAdded] = useState<Book[]>([])
-  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([])
-  const [forgottenBooks, setForgottenBooks] = useState<ForgottenBook[]>([])
-  const [spotlight, setSpotlight] = useState<HighlightSpotlight | null>(null)
+  const [recentlyFinished, setRecentlyFinished] = useState<Book[]>(homeSeed?.recentlyFinished ?? [])
+  const [recentlyAdded, setRecentlyAdded] = useState<Book[]>(homeSeed?.recentlyAdded ?? [])
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>(homeSeed?.activityLog ?? [])
+  const [forgottenBooks, setForgottenBooks] = useState<ForgottenBook[]>(homeSeed?.forgottenBooks ?? [])
+  const [spotlight, setSpotlight] = useState<HighlightSpotlight | null>(homeSeed?.spotlight ?? null)
   // Persisted dismissal: store the signature of the dismissed book set so the
   // panel stays hidden across refreshes, but resurfaces if a new set appears.
   const [forgottenDismissedSig, setForgottenDismissedSig] = useState<string>(
@@ -814,9 +859,10 @@ export function DashboardPage() {
   // progress" empty state, and sections mount in one paint instead of
   // inserting one by one and shifting the layout (CLS). The telemetry
   // question (admins) waits too, or its card lands on top a moment later
-  // and pushes the whole page down.
+  // and pushes the whole page down. Coming back to Home with its sections
+  // kept starts hydrated.
   const telemetry = useTelemetry()
-  const [homeSettled, setHomeSettled] = useState(0)
+  const [homeSettled, setHomeSettled] = useState(homeSeed ? 5 : 0)
   const homeHydrated = homeSettled >= 5 && telemetry.settled
   const countSettled = () => setHomeSettled(n => n + 1)
 
@@ -843,14 +889,18 @@ export function DashboardPage() {
     return params
   }
 
-  const loadBooks = useCallback((reset = true) => {
+  // `quiet`: refresh what is already shown (coming back to the page) without
+  // dimming it, as many books as were loaded so the scroll position holds.
+  const loadBooks = useCallback((reset = true, quiet = false) => {
     const skip = reset ? 0 : booksRef.current.length
+    const limit = quiet ? Math.max(PAGE_SIZE, Math.ceil(booksRef.current.length / PAGE_SIZE) * PAGE_SIZE) : PAGE_SIZE
+    const key = listKey()
 
     if (reset) {
       abortRef.current?.abort()
       abortRef.current = new AbortController()
       if (booksRef.current.length === 0) setLoading(true)
-      else setRefreshing(true)
+      else if (!quiet) setRefreshing(true)
       hasMoreRef.current = true
       setHasMore(true)
     } else {
@@ -866,12 +916,13 @@ export function DashboardPage() {
     params.set('sort', sort)
     params.set('order', order)
     params.set('skip', String(skip))
-    params.set('limit', String(PAGE_SIZE))
+    params.set('limit', String(limit))
     if (groupActive) params.set('group_by_series', 'true')
     api.getWithHeaders<Book[]>(`/books?${params}`, signal)
       .then(({ data: newBooks, headers }) => {
         if (signal?.aborted) return
         if (reset) {
+          loadedKeyRef.current = key
           const raw = headers.get('x-total-count')
           setTotalCount(raw !== null ? Number(raw) : null)
         }
@@ -884,12 +935,12 @@ export function DashboardPage() {
         }
         booksRef.current = merged
         setBooks(merged)
-        hasMoreRef.current = newBooks.length === PAGE_SIZE
-        setHasMore(newBooks.length === PAGE_SIZE)
+        hasMoreRef.current = newBooks.length === limit
+        setHasMore(newBooks.length === limit)
         if (newBooks.length > 0) {
           api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
             .then(map => {
-              const s: Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }> = {}
+              const s: StatusMap = {}
               Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
               setReadingStatuses(prev => ({ ...prev, ...s }))
             })
@@ -917,7 +968,30 @@ export function DashboardPage() {
       })
   }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
-  useEffect(() => { loadBooks() }, [loadBooks])
+  useEffect(() => {
+    if (seededRef.current) {
+      seededRef.current = false
+      loadBooks(true, true)
+    } else loadBooks()
+  }, [loadBooks])
+
+  // Keep the list (and, on leaving, the scroll position) for the way back.
+  useEffect(() => {
+    if (!loadedKeyRef.current) return
+    listCache = {
+      key: loadedKeyRef.current, books, total: totalCount, statuses: readingStatuses, hasMore,
+      scrollTop: listCache?.scrollTop ?? 0, locationKey: listCache?.locationKey ?? '',
+    }
+  }, [books, totalCount, readingStatuses, hasMore])
+  useLayoutEffect(() => {
+    const main = mainRef.current
+    // Back/forward to the entry the list was left from: same place as before.
+    if (seed && navigationType === 'POP' && seed.locationKey === location.key && main) main.scrollTop = seed.scrollTop
+    return () => {
+      if (listCache && main) { listCache.scrollTop = main.scrollTop; listCache.locationKey = locationKeyRef.current }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Reset focused index when book list changes
   useEffect(() => { setFocusedIndex(null) }, [books])
@@ -1029,7 +1103,11 @@ export function DashboardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [navigate])
 
+  // Home's sections load the first time Home is shown, not on the other tabs.
+  const homeLoaded = useRef(false)
   useEffect(() => {
+    if (tab !== 'home' || homeLoaded.current) return
+    homeLoaded.current = true
     // status_updated = last reading activity, so the hero is the book you actually read last
     api.get<Book[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=20')
       .finally(countSettled)
@@ -1046,9 +1124,6 @@ export function DashboardPage() {
         }
       })
       .catch(() => {})
-  }, [])
-
-  useEffect(() => {
     const tzOffset = new Date().getTimezoneOffset()
     api.get<HomeStats>(`/home/stats?tz_offset=${tzOffset}`).finally(countSettled).then(setHomeStats).catch(() => {})
     api.get<Book[]>('/books?reading_status=read&sort=status_updated&order=desc&limit=6').finally(countSettled).then(setRecentlyFinished).catch(() => {})
@@ -1056,8 +1131,16 @@ export function DashboardPage() {
     api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
     api.get<ForgottenBook[]>('/home/forgotten-books').finally(countSettled).then(setForgottenBooks).catch(() => {})
     api.get<HighlightSpotlight>('/annotations/spotlight').then(setSpotlight).catch(() => {})
+  }, [tab])
+
+  useEffect(() => {
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!homeHydrated) return
+    homeCache = { continueReading, homeStats, readingDna, recentlyFinished, recentlyAdded, activityLog, forgottenBooks, spotlight }
+  }, [homeHydrated, continueReading, homeStats, readingDna, recentlyFinished, recentlyAdded, activityLog, forgottenBooks, spotlight])
 
   // Reading DNA is the costliest home request — fetch it lazily, only once the
   // dashboard Home view (the one place the card renders) is actually shown.
@@ -1237,7 +1320,7 @@ export function DashboardPage() {
         {/* overflow-x-hidden: WebKit counts pre-transform layout boxes (e.g. the
             focus rotary's scaled 540px stage) as scrollable overflow, letting the
             content pan sideways on phones; Chromium doesn't, so test on Safari. */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 min-w-0 overscroll-contain">
+        <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 min-w-0 overscroll-contain">
           {/* Section heading */}
           {activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>

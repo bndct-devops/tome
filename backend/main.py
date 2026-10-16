@@ -274,6 +274,33 @@ async def lifespan(app: FastAPI):
             "ON ko_page_stats (user_id, book_id, start_time)"
         ))
         conn.commit()
+        # Indexes for the library's hot paths (book list eager loads, series
+        # pages, reading-status filters, home and stats session ranges).
+        # create_all only indexes brand-new tables; a column some migration
+        # already indexed (leading column) is skipped, so nothing is doubled.
+        for ix_table, ix_name, ix_cols in (
+            ("book_files", "ix_book_files_book_id", "book_id"),
+            ("book_tags", "ix_book_tags_book_id", "book_id"),
+            ("books", "ix_books_series_index", "series, series_index"),
+            ("books", "ix_books_author", "author"),
+            ("books", "ix_books_added_at", "added_at"),
+            ("user_book_status", "ix_user_book_status_user_status", "user_id, status, updated_at"),
+            ("reading_sessions", "ix_reading_sessions_user_started", "user_id, started_at"),
+            ("book_library", "ix_book_library_library_id", "library_id"),
+        ):
+            existing = conn.execute(text(f"PRAGMA index_list({ix_table})")).fetchall()
+            if not existing and not conn.execute(text(f"PRAGMA table_info({ix_table})")).fetchall():
+                continue  # table not there (yet)
+            lead = ix_cols.split(",")[0].strip()
+            leading = {
+                conn.execute(text(f"PRAGMA index_info({row[1]})")).fetchone()[2]
+                for row in existing
+                if conn.execute(text(f"PRAGMA index_info({row[1]})")).fetchone()
+            }
+            if lead in leading and "," not in ix_cols:
+                continue
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS {ix_name} ON {ix_table} ({ix_cols})"))
+        conn.commit()
         # Web-created annotations carry an EPUB CFI so the web reader can
         # re-paint them without a text search (annotations table pre-exists).
         an_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(annotations)")).fetchall()}
@@ -826,6 +853,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Gzip the API's JSON and the app's JS/CSS/HTML (never downloads or images).
+    from backend.core.compression import TextGZipMiddleware
+    app.add_middleware(TextGZipMiddleware, minimum_size=1024, compresslevel=6)
+
     # SessionMiddleware backs the OIDC handshake (transient state/nonce/PKCE).
     # Cookie carries only short-lived OAuth state; cleared after the callback.
     # Mark it Secure when the public origin is https so it survives a proxied
@@ -889,15 +920,30 @@ def create_app() -> FastAPI:
 
         index_html = frontend_dist / "index.html"
 
-        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="static-assets")
+        # Built files under /assets carry a content hash in their name, so a
+        # browser may keep them for good. index.html, the service worker and
+        # the manifest must be checked on every load, or a deploy would leave
+        # browsers on the old app (or asking for asset files that are gone).
+        class _HashedAssets(StaticFiles):
+            def file_response(self, *args, **kwargs):
+                response = super().file_response(*args, **kwargs)
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                return response
+
+        app.mount("/assets", _HashedAssets(directory=str(frontend_dist / "assets")), name="static-assets")
+
+        _no_cache = {"Cache-Control": "no-cache"}
 
         @app.get("/{full_path:path}")
         async def spa_fallback(full_path: str):
             # Serve the actual file if it exists, otherwise index.html
             file = frontend_dist / full_path
             if full_path and file.is_file():
-                return _FileResponse(str(file))
-            return _FileResponse(str(index_html))
+                if file.suffix in (".html", ".webmanifest") or file.name in ("sw.js", "registerSW.js") or file.name.startswith("workbox-"):
+                    return _FileResponse(str(file), headers=_no_cache)
+                # Fonts, icons, the reader's foliate files: unhashed names
+                return _FileResponse(str(file), headers={"Cache-Control": "public, max-age=86400"})
+            return _FileResponse(str(index_html), headers=_no_cache)
 
     return app
 
