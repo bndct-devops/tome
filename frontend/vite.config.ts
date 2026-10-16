@@ -78,14 +78,17 @@ export default defineConfig({
             },
           },
           {
-            // Cache cover images aggressively
-            urlPattern: /^\/api\/books\/\d+\/cover/,
+            // Versioned covers (?v=updated_at) never change under their URL,
+            // so keep them across restarts and browser cache clean-ups.
+            // Workbox matches against the full URL, so no leading ^/.
+            urlPattern: /\/api\/books\/\d+\/cover\?(?:.*&)?v=/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'book-covers',
+              cacheName: 'book-covers-v2',
+              cacheableResponse: { statuses: [200] },
               expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+                maxEntries: 5000,
+                maxAgeSeconds: 365 * 24 * 60 * 60,
               },
             },
           },

@@ -14,6 +14,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
+import { coverSrc } from '@/lib/covers'
 
 interface HardcoverStatus {
   linked: boolean
@@ -406,7 +407,7 @@ export function HardcoverPage() {
                   <div key={b.book_id} className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
                     <Link to={`/books/${b.book_id}`} className="relative block aspect-[2/3] bg-muted">
                       <CoverImage
-                        src={`/api/books/${b.book_id}/cover`}
+                        src={coverSrc(b.book_id, { w: 400 })}
                         alt={b.title}
                         imgClassName="absolute inset-0 w-full h-full object-cover"
                         iconClassName="w-8 h-8"

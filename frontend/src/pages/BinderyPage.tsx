@@ -18,6 +18,7 @@ import { formatBytes } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from '@/components/CoverImage'
+import { coverSrc } from '@/lib/covers'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,6 +26,7 @@ import { CoverImage } from '@/components/CoverImage'
 
 interface UnreviewedBook {
   id: number
+  updated_at?: string | null
   title: string
   author: string | null
   series: string | null
@@ -1759,7 +1761,7 @@ export function BinderyPage() {
                       {/* Cover */}
                       <div className="relative shrink-0 h-16 w-11 rounded overflow-hidden bg-muted">
                         <CoverImage
-                          src={book.cover_path ? `/api/books/${book.id}/cover` : null}
+                          src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null}
                           alt=""
                           iconClassName="h-5 w-5"
                         />

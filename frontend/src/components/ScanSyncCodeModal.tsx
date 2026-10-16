@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
+import { coverSrc } from '@/lib/covers'
 
 interface SyncCodeBook {
   book_id: number
@@ -365,7 +366,7 @@ export function SyncCodeOverview({ result, onAgain, onDone }: { result: SyncCode
             return (
             <li key={b.book_id} className="flex gap-3 rounded-lg border border-border bg-background/50 p-2.5">
               <div className="h-16 w-11 shrink-0 overflow-hidden rounded bg-muted">
-                {b.has_cover && <img src={`/api/books/${b.book_id}/cover`} alt="" className="h-full w-full object-cover" />}
+                {b.has_cover && <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="h-full w-full object-cover" />}
               </div>
               <div className="min-w-0 flex-1 text-xs">
                 <p className="truncate text-sm font-medium text-foreground">{b.title}</p>

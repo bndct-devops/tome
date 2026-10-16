@@ -36,10 +36,31 @@
         document.documentElement.style.backgroundColor = dark ? '#0f0d0c' : '#f8f7f4'
       } catch (e) {}
     </script>
+    <script>
+      // Start the requests this page made the last time it opened, while the
+      // app's code is still loading. lib/boot.ts hands the responses to the app.
+      try {
+        var tok = localStorage.getItem('tome_token')
+        var rec = JSON.parse(localStorage.getItem('tome_boot_requests') || '{}')
+        var paths = tok && rec[location.pathname + location.search]
+        if (paths && paths.length) {
+          var boot = {}
+          for (var j = 0; j < paths.length && j < 32; j++) {
+            boot[paths[j]] = fetch('/api' + paths[j], {
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+            })
+            boot[paths[j]].catch(function () {})
+          }
+          window.__tomeBoot = boot
+        }
+      } catch (e) {}
+    </script>
     <style>
       #tome-splash {
         position: fixed;
         inset: 0;
+        z-index: 2147483647;
+        transition: opacity 180ms ease-out;
         display: grid;
         place-items: center;
         background: #f8f7f4;
@@ -58,19 +79,24 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0.45; }
       }
+      #tome-splash.out {
+        opacity: 0;
+        pointer-events: none;
+      }
       @media (prefers-reduced-motion: reduce) {
         #tome-splash svg { animation: none; }
+        #tome-splash { transition: none; }
       }
     </style>
   </head>
   <body>
-    <div id="root">
-      <div id="tome-splash" aria-hidden="true">
-        <svg viewBox="0 1 64 64" fill="none" stroke="currentColor">
-          <path d="M4 18 Q 4 14 8 14 L 28 18 Q 32 19 32 22 Q 32 19 36 18 L 56 14 Q 60 14 60 18 L 60 46 Q 60 49 56 49 L 36 49 Q 32 50 32 52 Q 32 50 28 49 L 8 49 Q 4 49 4 46 Z" stroke-width="7" stroke-linejoin="round"/>
-          <line x1="32" y1="22" x2="32" y2="52" stroke-width="7" stroke-linecap="round"/>
-        </svg>
-      </div>
+    <div id="root"></div>
+    <!-- Outside #root so it can stay over the first render; lib/boot.ts removes it. -->
+    <div id="tome-splash" aria-hidden="true">
+      <svg viewBox="0 1 64 64" fill="none" stroke="currentColor">
+        <path d="M4 18 Q 4 14 8 14 L 28 18 Q 32 19 32 22 Q 32 19 36 18 L 56 14 Q 60 14 60 18 L 60 46 Q 60 49 56 49 L 36 49 Q 32 50 32 52 Q 32 50 28 49 L 8 49 Q 4 49 4 46 Z" stroke-width="7" stroke-linejoin="round"/>
+        <line x1="32" y1="22" x2="32" y2="52" stroke-width="7" stroke-linecap="round"/>
+      </svg>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

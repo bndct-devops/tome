@@ -24,6 +24,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
+import { coverSrc } from '@/lib/covers'
 
 type Ratings = StatsResponse['ratings']
 
@@ -41,7 +42,7 @@ function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string 
   return (
     <div className="h-12 w-8 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
       {id && has ? (
-        <img src={`/api/books/${id}/cover`} alt={alt} className="h-full w-full object-cover" loading="lazy"
+        <img src={coverSrc(id, { w: 160 })} alt={alt} className="h-full w-full object-cover" loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
       ) : (
         <FileText className="h-3.5 w-3.5 text-muted-foreground" />

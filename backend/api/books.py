@@ -6,6 +6,7 @@ import re
 import json
 import logging
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +24,7 @@ from backend.core.permissions import require_role, user_can_see_book
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
+from backend.services import cover_thumbs
 from backend.models.library import Library
 from backend.models.user import User
 from pydantic import BaseModel as PydanticBaseModel
@@ -674,6 +676,7 @@ def get_series_detail(
             "title": b.title,
             "series_index": b.series_index,
             "cover_path": b.cover_path,
+            "updated_at": b.updated_at.isoformat() if b.updated_at else None,
             "reading_status": st.status if st else "unread",
             "progress_pct": st.progress_pct if st else None,
         })
@@ -1982,9 +1985,17 @@ def update_book(
 @router.get("/{book_id}/cover")
 def get_cover(
     book_id: int,
+    v: Optional[str] = Query(None, max_length=64),
+    w: Optional[int] = Query(None, ge=1, le=4000),
     db: Session = Depends(get_db),
 ):
-    """Serve book cover — no auth required (covers are not sensitive)."""
+    """Serve book cover — no auth required (covers are not sensitive).
+
+    ``w`` asks for a smaller WebP copy (snapped to ``cover_thumbs.WIDTHS``).
+    ``v`` is the book's ``updated_at`` as the client knows it: a versioned URL
+    never changes, so the browser keeps it for a year without asking again.
+    An unversioned URL is reused for 5 minutes, then shown from cache while
+    it is checked in the background."""
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book or not book.cover_path:
         raise HTTPException(status_code=404, detail="Cover not found")
@@ -1993,7 +2004,13 @@ def get_cover(
     if not cover_file.exists():
         raise HTTPException(status_code=404, detail="Cover file missing")
 
-    return FileResponse(str(cover_file), media_type="image/jpeg")
+    width = cover_thumbs.snap_width(w) if w else None
+    if width:
+        cover_file = cover_thumbs.thumbnail(cover_file, book.id, width, settings.cover_thumbs_dir)
+    media = "image/webp" if cover_file.suffix == ".webp" else "image/jpeg"
+    cache = ("public, max-age=31536000, immutable" if v
+             else "public, max-age=300, stale-while-revalidate=604800")
+    return FileResponse(str(cover_file), media_type=media, headers={"Cache-Control": cache})
 
 
 class CoverCandidateOut(PydanticBaseModel):
@@ -2097,6 +2114,9 @@ async def set_book_cover(
         cover_path.write_bytes(data)
 
     book.cover_path = cover_filename
+    # The file name is reused on a second upload, so mark the change by hand:
+    # cover URLs are versioned by updated_at.
+    book.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(book)
     audit(db, "books.cover_changed", user_id=current_user.id, username=current_user.username,
@@ -3003,6 +3023,7 @@ async def apply_metadata(
 
         cover_path.write_bytes(cover_data)
         book.cover_path = cover_filename
+        book.updated_at = datetime.utcnow()   # same file name as the last fetch: bump the cover URL version
 
     db.flush()
     from backend.services.fts import index_book

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
+import { coverSrc } from '@/lib/covers'
 
 interface BookHit {
   id: number
@@ -242,7 +243,7 @@ export function CommandPalette() {
                       >
                         {item.bookId != null ? (
                           <img
-                            src={`/api/books/${item.bookId}/cover`}
+                            src={coverSrc(item.bookId, { w: 160 })}
                             alt=""
                             className="h-8 w-[22px] shrink-0 rounded-sm object-cover"
                           />

@@ -31,6 +31,10 @@ All notable changes to Tome are documented here. Format loosely follows
   forget one. Only your own devices are ever shown. Plugin build 50.
 
 ### Fixed
+- **Home no longer jumps down after it has loaded.** For admins who had not
+  answered the telemetry question yet, its card arrived a moment after the
+  rest of the page and pushed everything down. Home now waits for it and
+  draws it together with the other sections. (#254)
 - **"Connect a phone" works when Tome is open at localhost.** The QR code
   carried the address the page was opened at, so from `localhost` it told
   the phone to connect to itself and pairing could never succeed. Opened at
@@ -63,6 +67,26 @@ All notable changes to Tome are documented here. Format loosely follows
   the left at desktop width, and a row of chips under the header on phones.
   It follows your scroll position and jumps to a section on click, so a
   setting is one click away instead of a scroll through the whole page.
+- **Covers load much faster.** Grids and lists now get small WebP copies of
+  the covers (made once and kept in `data/cover_thumbs/`) instead of the
+  full-size image, which for covers fetched from a metadata source could be
+  over 2 MB. The browser keeps them, so coming back to the library shows the
+  covers right away without asking the server again, and a cover the
+  browser already has appears at once instead of fading in. Changing a
+  cover still shows the new one everywhere, also when you upload a second
+  cover over the first. Covers further down the library are loaded in the
+  background while you look at the top (and the first ones while you are on
+  Home, so switching to All Books shows them at once), and the next page of books is
+  fetched well before you reach the end, so scrolling down no longer shows
+  covers popping in, and Safari clearing its cache no longer drops them.
+  (#254)
+- **Tome opens with the page already filled in.** Tome remembers what each
+  page asked the server for when it opened, and on the next visit asks for
+  it right away, while the app itself is still loading, instead of one step
+  after another. The loading logo stays up until the page has its data (at
+  most a second longer) and then fades out over the finished page, so a
+  reload goes straight from the logo to the page instead of through a
+  spinner and grey placeholders. (#254)
 
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 

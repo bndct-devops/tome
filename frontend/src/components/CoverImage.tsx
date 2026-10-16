@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +19,10 @@ export function CoverImage({
 }: CoverImageProps) {
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
+  // A cover that arrives right away came from the browser cache: show it as is.
+  // Only one that had to come over the network fades in.
+  const [instant, setInstant] = useState(false)
+  const mountedAt = useRef(performance.now())
 
   const hasImg = !!src && !errored
 
@@ -40,10 +44,12 @@ export function CoverImage({
           src={src!}
           alt={alt}
           loading={loading}
-          onLoad={() => setLoaded(true)}
+          ref={el => { if (el?.complete && el.naturalWidth && !loaded) { setInstant(true); setLoaded(true) } }}
+          onLoad={() => { if (performance.now() - mountedAt.current < 80) setInstant(true); setLoaded(true) }}
           onError={() => setErrored(true)}
           className={cn(
-            'w-full h-full object-cover transition-[opacity,transform] duration-300',
+            'w-full h-full object-cover',
+            !instant && 'transition-[opacity,transform] duration-300',
             loaded ? 'opacity-100' : 'opacity-0',
             imgClassName,
           )}

@@ -23,6 +23,7 @@ import { AppShell } from '@/components/AppShell'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
+import { coverSrc } from '@/lib/covers'
 
 interface BookRef {
   book_id: number
@@ -83,7 +84,7 @@ const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padSta
 const addDays = (iso: string, n: number) => { const d = parseDay(iso); d.setDate(d.getDate() + n); return isoOf(d) }
 const shiftMonth = (m: string, n: number) => { const d = new Date(+m.slice(0, 4), +m.slice(5) - 1 + n, 1); return isoOf(d).slice(0, 7) }
 const shortDay = (iso: string) => parseDay(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-const coverUrl = (id: number) => `/api/books/${id}/cover`
+const coverUrl = (id: number) => coverSrc(id, { w: 160 })
 
 // Continuous shading by minutes read (no fixed steps), against a fixed personal
 // scale (your 90th-percentile day) rather than this month's longest day, so a

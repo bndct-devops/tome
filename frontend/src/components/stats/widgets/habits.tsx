@@ -25,6 +25,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { coverSrc } from '@/lib/covers'
 
 
 export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
@@ -199,7 +200,7 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
       {estimates.map((est) => (
         <a key={est.book_id} href={`/books/${est.book_id}`} className="group flex items-start gap-3 rounded-lg p-2 hover:bg-accent/30 transition-colors">
           <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-            {est.has_cover ? <img src={`/api/books/${est.book_id}/cover`} alt="" className="w-full h-full object-cover" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
+            {est.has_cover ? <img src={coverSrc(est.book_id, { w: 160 })} alt="" className="w-full h-full object-cover" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
           </div>
           <div className="flex-1 min-w-0">
             <p className={cn('text-sm font-medium truncate group-hover:text-primary transition-colors', est.confidence === 'low' ? 'text-muted-foreground' : 'text-foreground')}>{est.title}</p>

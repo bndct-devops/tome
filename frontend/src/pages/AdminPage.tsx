@@ -31,6 +31,7 @@ import {
   adminListWishes, fulfillWish, dismissWish,
   type WishAdminOut,
 } from '@/lib/wishlist'
+import { coverSrc } from '@/lib/covers'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -1696,7 +1697,7 @@ function DuplicatesTab() {
                           {/* Cover */}
                           <div className="relative w-10 h-14 rounded bg-muted shrink-0 overflow-hidden">
                             <CoverImage
-                              src={book.cover_path ? `/api/books/${book.id}/cover` : null}
+                              src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
                               alt=""
                               iconClassName="w-4 h-4"
                             />
@@ -1983,7 +1984,7 @@ function FulfillPicker({
             >
               <div className="w-7 h-10 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
                 {book.cover_path ? (
-                  <img src={`/api/books/${book.id}/cover`} alt="" className="w-full h-full object-cover" />
+                  <img src={coverSrc(book.id, { w: 160 })} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <BookOpen className="w-3 h-3 text-muted-foreground" />
                 )}

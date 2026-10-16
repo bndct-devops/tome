@@ -21,6 +21,7 @@ import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 import { SessionLog } from '@/components/stats/widgets/overview'
+import { coverSrc } from '@/lib/covers'
 
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {
   if (!summary) {
@@ -155,7 +156,7 @@ export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_
   return (
     <div className="flex h-full items-center gap-3">
       <img
-        src={`/api/books/${entry.sample_book_id}/cover`}
+        src={coverSrc(entry.sample_book_id, { w: 400 })}
         alt=""
         className="h-full max-h-36 w-auto rounded-md object-cover shadow-sm"
         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -230,7 +231,7 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
               <tr className={cn('hover:bg-accent/30 transition-colors', idx % 2 === 0 ? 'bg-muted/20' : '')}>
                 <td className="py-1.5 px-2">
                   <div className="w-8 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                    {b.has_cover ? <img src={`/api/books/${b.book_id}/cover`} alt="" className="w-full h-full object-cover" loading="lazy" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
+                    {b.has_cover ? <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="w-full h-full object-cover" loading="lazy" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
                   </div>
                 </td>
                 <td className="py-1.5 px-2">

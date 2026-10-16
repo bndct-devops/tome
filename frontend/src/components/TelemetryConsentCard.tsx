@@ -51,9 +51,10 @@ export function TelemetryReportModal({ open, report, busy, onClose, onGrant }: {
   )
 }
 
-export function TelemetryConsentCard() {
+// Home owns the hook (its first paint waits for the consent state) and passes it in.
+export function TelemetryConsentCard({ telemetry }: { telemetry: ReturnType<typeof useTelemetry> }) {
   const { t } = useLingui()
-  const { admin, data, busy, decide } = useTelemetry()
+  const { admin, data, busy, decide } = telemetry
   const [open, setOpen] = useState(false)
 
   // Only the unanswered state asks. Granted, declined and env-off all stay quiet;
