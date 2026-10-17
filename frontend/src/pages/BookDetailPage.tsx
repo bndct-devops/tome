@@ -50,7 +50,7 @@ interface Annotation {
   updated_at: string
 }
 
-interface BookReadingStats {
+export interface BookReadingStats {
   total_seconds: number
   // Reconciled sitting count: recorded web/manual sessions plus gap-clustered
   // imported KOReader history — exactly the rows the session log lists.
@@ -70,7 +70,7 @@ interface BookReadingStats {
   estimated_finish_date: string | null
 }
 
-interface BookIntensity {
+export interface BookIntensity {
   bins: number
   curve: number[]
   total_seconds: number
@@ -85,7 +85,7 @@ interface ChapterSitting {
   end_ts: number
 }
 
-interface ChapterTime {
+export interface ChapterTime {
   idx: number
   title: string
   start_fraction: number
@@ -1546,7 +1546,7 @@ interface StatsLayoutProps {
  *  The progress lane is the per-book "journey" — % complete over calendar time —
  *  drawn whenever the timeline carries 2+ progress points (the backend only
  *  emits progress_pct where a position is actually known). */
-function ActivityChart({ timeline, bookId, onChange }: {
+export function ActivityChart({ timeline, bookId, onChange }: {
   timeline: { date: string; seconds: number; pages: number; progress_pct?: number | null }[]
   bookId?: number
   onChange?: () => void
@@ -1693,7 +1693,7 @@ function sourceLabel(device: string): string {
 const SOURCE_SHADES = ['bg-primary', 'bg-primary/65', 'bg-primary/40', 'bg-primary/25']
 
 // Where the reading time came from: a thin stacked bar + legend.
-function SourceSplit({ sources }: { sources: { device: string; seconds: number; sessions: number }[] }) {
+export function SourceSplit({ sources }: { sources: { device: string; seconds: number; sessions: number }[] }) {
   const total = sources.reduce((sum, s) => sum + s.seconds, 0)
   // A single source is a full-width solid bar — pointless; only split when it splits.
   if (total <= 0 || sources.length < 2) return null
@@ -1726,7 +1726,7 @@ function SourceSplit({ sources }: { sources: { device: string; seconds: number; 
 
 // ── Reading intensity: per-page dwell across the book, from imported KOReader page-stats ─────
 
-function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookId: number; onChange?: () => void }) {
+export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookId: number; onChange?: () => void }) {
   const { t } = useLingui()
   const max = Math.max(...data.curve, 1)
   const finished = data.pct_read >= 99
@@ -1818,7 +1818,7 @@ function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity; bookI
 
 // ── Time per chapter: page-stat dwell bucketed into the book's TOC boundaries ─────
 
-function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
+export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
   const { t } = useLingui()
   const [showDetails, setShowDetails] = useState(false)
   const max = Math.max(...chapters.map(c => c.seconds), 1)
@@ -1936,7 +1936,7 @@ function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
 // Manual reading-log entry point: log a session by hand (paper / un-synced
 // device) and export the log. Used both in the stats hero and on books with no
 // reading history yet, so manual trackers always have a way in.
-function ManualLogControls({ bookId, onChange, exportRows }: {
+export function ManualLogControls({ bookId, onChange, exportRows }: {
   bookId: number
   onChange: () => void
   exportRows?: { date: string; seconds: number; pages: number; progress_pct: number | null }[]

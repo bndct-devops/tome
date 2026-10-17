@@ -10,6 +10,7 @@ import {
   Tablet,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
+import { ShellFrame } from '@/components/ShellFrame'
 import { ModalShell } from '@/components/ModalShell'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
 import { useTelemetry } from '@/lib/useTelemetry'
@@ -1159,22 +1160,36 @@ export function DashboardPage() {
     </div>
   )
 
-  // h-dvh, not h-screen — see AppShell: 100vh overhangs mobile toolbars.
   return (
-    <div className="h-dvh bg-background flex flex-col overflow-hidden">
-      {/* ── Navbar (shared with the standalone pages via AppShell) ───────── */}
-      <AppHeader
-        onMenuClick={() => setMobileSidebarOpen(true)}
-        search={
-          <HeaderSearch
-            value={searchInput}
-            onChange={handleSearchInput}
-            onClear={() => { setSearchInput(''); setFilter('q', '') }}
-            inputRef={searchInputRef}
-          />
-        }
-        onUploadClick={isMember(user) ? () => setUploadModalOpen(true) : undefined}
-      />
+    <ShellFrame
+      sidebar={
+        <Sidebar
+          libraries={libraries}
+          savedFilters={savedFilters}
+          activeTab={tab}
+          onLibrariesChange={loadLibraries}
+          onSavedFiltersChange={loadSavedFilters}
+          onOpenSeriesView={openSeriesTab}
+          onOpenHomeView={() => setTab('home')}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={() => setMobileSidebarOpen(false)}
+        />
+      }
+      header={
+        <AppHeader
+          onMenuClick={() => setMobileSidebarOpen(true)}
+          search={
+            <HeaderSearch
+              value={searchInput}
+              onChange={handleSearchInput}
+              onClear={() => { setSearchInput(''); setFilter('q', '') }}
+              inputRef={searchInputRef}
+            />
+          }
+          onUploadClick={isMember(user) ? () => setUploadModalOpen(true) : undefined}
+        />
+      }
+    >
 
       {shareSeries && (
         <ShareModal
@@ -1222,24 +1237,10 @@ export function DashboardPage() {
         />
       )}
 
-      {/* ── Body (sidebar + main) ────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          libraries={libraries}
-          savedFilters={savedFilters}
-          activeTab={tab}
-          onLibrariesChange={loadLibraries}
-          onSavedFiltersChange={loadSavedFilters}
-          onOpenSeriesView={openSeriesTab}
-          onOpenHomeView={() => setTab('home')}
-          mobileOpen={mobileSidebarOpen}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-        />
-
-        {/* overflow-x-hidden: WebKit counts pre-transform layout boxes (e.g. the
-            focus rotary's scaled 540px stage) as scrollable overflow, letting the
-            content pan sideways on phones; Chromium doesn't, so test on Safari. */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 min-w-0 overscroll-contain">
+      {/* ── Body: the dashboard tabs. The frame's panel scrolls; this wrapper
+            only carries the page padding (the shared PageBody comes with the
+            per-tab rebuilds). ────────────────────────────────────────────── */}
+        <div className="px-4 py-4">
           {/* Section heading */}
           {activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>
@@ -2550,8 +2551,7 @@ export function DashboardPage() {
           })()}
           </>
           )}
-        </main>
-      </div>
+        </div>
 
       {/* ── Bulk delete modal ───────────────────────────────────────────────── */}
       <BulkDeleteModal
@@ -2675,7 +2675,7 @@ export function DashboardPage() {
               </div>
             </div>
       </ModalShell>
-    </div>
+    </ShellFrame>
   )
 }
 
