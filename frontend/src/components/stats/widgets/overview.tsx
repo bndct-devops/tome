@@ -13,7 +13,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-import { FileText, BookOpen } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, HeatmapChart, type StatsResponse } from '@/components/stats/shared'
@@ -31,8 +31,8 @@ export function HeadlineStatBody({ value, sub }: { value: string; sub?: string }
   // a second line and clips inside the fixed-height tile.
   return (
     <div className="flex h-full flex-col justify-center">
-      <p className="truncate text-xl font-bold leading-none text-foreground tabular-nums">{value}</p>
-      <p className="mt-1 truncate text-[11px] leading-tight text-muted-foreground">{sub ?? ' '}</p>
+      <p className="truncate font-display text-[26px] font-bold leading-none text-foreground tabular-nums">{value}</p>
+      <p className="mt-1 truncate text-[13px] leading-4 text-muted-foreground">{sub ?? ' '}</p>
     </div>
   )
 }
@@ -42,8 +42,7 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
   if (books.length === 0) {
     return (
       <div className="flex h-full min-h-[3.5rem] flex-col items-center justify-center gap-1 py-3 text-center">
-        <BookOpen className="h-5 w-5 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground"><Trans>No books in progress</Trans></p>
+        <p className="text-[14px] text-muted-foreground"><Trans>No books in progress</Trans></p>
         <p className="text-xs text-muted-foreground/60"><Trans>Start reading one and it'll show up here</Trans></p>
       </div>
     )

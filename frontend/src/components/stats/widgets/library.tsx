@@ -26,7 +26,7 @@ import { coverSrc } from '@/lib/covers'
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {
   if (!summary) {
     return (
-      <div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
+      <div className="flex h-full items-center justify-center px-4 text-center text-[14px] text-muted-foreground">
         <Trans>Select <span className="mx-1 font-medium text-foreground">1y</span> or <span className="mx-1 font-medium text-foreground">All</span> to see your year in review.</Trans>
       </div>
     )
@@ -41,14 +41,14 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
     { icon: Calendar, label: t`Most Active Month`, value: summary.most_active_month ?? '--' },
   ]
   return (
-    <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid h-full grid-cols-2 content-center gap-x-6 gap-y-4 sm:grid-cols-3">
       {items.map((it) => (
-        <div key={it.label} className="flex flex-col justify-center rounded-lg border border-border bg-muted/20 px-3 py-1.5">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <it.icon className="h-3 w-3 shrink-0" />
-            <span className="truncate text-[10px]">{it.label}</span>
+        <div key={it.label} className="flex min-w-0 flex-col justify-center">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <it.icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate text-[13px]">{it.label}</span>
           </div>
-          <p className="truncate text-base font-bold leading-tight text-foreground sm:text-lg">{it.value}</p>
+          <p className="mt-1 truncate font-display text-[24px] font-bold leading-none tabular-nums text-foreground">{it.value}</p>
         </div>
       ))}
     </div>
