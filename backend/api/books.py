@@ -531,14 +531,6 @@ def get_series(
     from backend.core.permissions import book_visibility_filter
     visibility = book_visibility_filter(db, current_user)
 
-    series_rows = (
-        db.query(Book.series, func.count(Book.id).label("book_count"))
-        .filter(Book.status == "active", Book.series.isnot(None), visibility)
-        .group_by(Book.series)
-        .order_by(Book.series)
-        .all()
-    )
-
     # Fetch all reading statuses for this user in one query — keyed by book_id
     all_statuses: dict[int, str] = {}
     status_rows = (
@@ -561,20 +553,27 @@ def get_series(
         .filter(UserSeriesRating.user_id == current_user.id, UserSeriesRating.rating.isnot(None)).all()
     }
 
-    result = []
-    for series_name, book_count in series_rows:
-        # Pick the book with the lowest series_index as the cover; fall back to lowest id if all null
-        series_books = (
-            db.query(Book)
-            .filter(Book.status == "active", Book.series == series_name, visibility)
-            .order_by(
-                Book.series_index.is_(None),  # nulls last
-                Book.series_index,
-                Book.id,
-            )
-            .all()
+    # Every visible volume of every series in one query, in series order and,
+    # within a series, by volume (nulls last, then id), instead of one query
+    # per series.
+    volume_rows = (
+        db.query(Book.id, Book.series, Book.cover_path, Book.description, Book.author)
+        .filter(Book.status == "active", Book.series.isnot(None), visibility)
+        .order_by(
+            Book.series,
+            Book.series_index.is_(None),  # nulls last
+            Book.series_index,
+            Book.id,
         )
-        first_book = series_books[0] if series_books else None
+        .all()
+    )
+    by_series: dict[str, list] = {}
+    for row in volume_rows:
+        by_series.setdefault(row.series, []).append(row)
+
+    result = []
+    for series_name, series_books in by_series.items():
+        first_book = series_books[0]
         # Cover comes from the first volume that actually has one — returning a
         # coverless book's id made every grid render request its cover and 404.
         cover_book = next((b for b in series_books if b.cover_path), None)
@@ -593,10 +592,10 @@ def get_series(
 
         result.append({
             "name": series_name,
-            "book_count": book_count,
+            "book_count": len(series_books),
             "cover_book_id": cover_book.id if cover_book else None,
-            "description": first_book.description if first_book else None,
-            "author": first_book.author if first_book else None,
+            "description": first_book.description,
+            "author": first_book.author,
             "read_count": read_count,
             "reading_count": reading_count,
             "rating": display_rating,
@@ -2243,19 +2242,9 @@ def get_comic_page(
 ):
     """Serve a single page image from a comic book archive.
     Uses ?token= query param auth (img tags can't send Authorization headers)."""
-    from jose import JWTError, jwt as jose_jwt
-    from backend.core.config import settings as app_settings
-    from backend.core.security import _signing_key
-    from backend.models.user import User as UserModel
+    from backend.core.security import user_from_query_token
 
-    try:
-        payload = jose_jwt.decode(token, _signing_key(), algorithms=[app_settings.jwt_algorithm])
-        user_id = int(payload.get("sub", 0))
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-    user = db.get(UserModel, user_id)
-    if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="User not found")
+    user = user_from_query_token(db, token)
     book = db.get(Book, book_id)
     if not book or not user_can_see_book(db, user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -2303,19 +2292,9 @@ def get_comic_page(
 @router.get("/{book_id}/read.cbz")
 def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
     """Serve CBZ/CBR file for the comic reader."""
-    from jose import JWTError, jwt as jose_jwt
-    from backend.core.security import _signing_key
-    from backend.models.user import User as UserModel
+    from backend.core.security import user_from_query_token
 
-    try:
-        payload = jose_jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
-        user_id = int(payload.get("sub", 0))
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.get(UserModel, user_id)
-    if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="User not found")
+    user = user_from_query_token(db, token)
 
     # Find CBZ or CBR file
     comic_file = db.query(BookFile).filter(
@@ -2357,19 +2336,9 @@ def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db
 @router.get("/{book_id}/read.pdf")
 def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
     """Serve PDF file for the reader."""
-    from jose import JWTError, jwt as jose_jwt
-    from backend.core.security import _signing_key
-    from backend.models.user import User as UserModel
+    from backend.core.security import user_from_query_token
 
-    try:
-        payload = jose_jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
-        user_id = int(payload.get("sub", 0))
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.get(UserModel, user_id)
-    if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="User not found")
+    user = user_from_query_token(db, token)
 
     pdf_file = db.query(BookFile).filter(
         BookFile.book_id == book_id,
@@ -2397,19 +2366,9 @@ def read_epub(
 ):
     """Serve the EPUB file for in-browser reading. Accepts JWT as a query param
     so epub.js can fetch it by URL (it cannot send Authorization headers)."""
-    from jose import JWTError, jwt as jose_jwt
-    from backend.core.security import _signing_key
-    from backend.models.user import User as UserModel
+    from backend.core.security import user_from_query_token
 
-    try:
-        payload = jose_jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
-        user_id = int(payload.get("sub", 0))
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.get(UserModel, user_id)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+    user = user_from_query_token(db, token)
 
     epub_file = (
         db.query(BookFile)

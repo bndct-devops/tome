@@ -9,24 +9,46 @@ import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { ForcePasswordChange } from '@/components/ForcePasswordChange'
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal'
 import { LoginPage } from '@/pages/LoginPage'
-import { OidcCallbackPage } from '@/pages/OidcCallbackPage'
-import { SharePage } from './pages/SharePage'
-import { SetupPage } from '@/pages/SetupPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { BookDetailPage } from '@/pages/BookDetailPage'
-import { AdminPage } from '@/pages/AdminPage'
-import { SettingsPage } from '@/pages/SettingsPage'
-import { StatsPage } from '@/pages/StatsPage'
-import { BinderyPage } from '@/pages/BinderyPage'
-import { WishlistPage } from '@/pages/WishlistPage'
-import { HardcoverPage } from '@/pages/HardcoverPage'
-import { HighlightsPage } from '@/pages/HighlightsPage'
-import { ReadingCalendarPage } from '@/pages/ReadingCalendarPage'
 import { api } from '@/lib/api'
 import { applyTheme, getStoredTheme } from '@/lib/theme'
 
-// Lazy-load the reader — epub.js is large
+// Library and Home (and the book page they open) are in the main bundle; every
+// other page is its own chunk, so the first load does not parse the stats
+// charts, the admin tools or the QR scanner. The chunks are fetched in idle
+// time once the app is up, so opening one of those pages does not wait.
+// The reader is the exception: epub.js is large and only loads when reading.
+const PAGE_LOADERS = {
+  OidcCallbackPage: () => import('@/pages/OidcCallbackPage').then(m => ({ default: m.OidcCallbackPage })),
+  SharePage: () => import('@/pages/SharePage').then(m => ({ default: m.SharePage })),
+  SetupPage: () => import('@/pages/SetupPage').then(m => ({ default: m.SetupPage })),
+  AdminPage: () => import('@/pages/AdminPage').then(m => ({ default: m.AdminPage })),
+  SettingsPage: () => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })),
+  StatsPage: () => import('@/pages/StatsPage').then(m => ({ default: m.StatsPage })),
+  BinderyPage: () => import('@/pages/BinderyPage').then(m => ({ default: m.BinderyPage })),
+  WishlistPage: () => import('@/pages/WishlistPage').then(m => ({ default: m.WishlistPage })),
+  HardcoverPage: () => import('@/pages/HardcoverPage').then(m => ({ default: m.HardcoverPage })),
+  HighlightsPage: () => import('@/pages/HighlightsPage').then(m => ({ default: m.HighlightsPage })),
+  ReadingCalendarPage: () => import('@/pages/ReadingCalendarPage').then(m => ({ default: m.ReadingCalendarPage })),
+}
 const ReaderPage = lazy(() => import('@/pages/ReaderPage'))
+const OidcCallbackPage = lazy(PAGE_LOADERS.OidcCallbackPage)
+const SharePage = lazy(PAGE_LOADERS.SharePage)
+const SetupPage = lazy(PAGE_LOADERS.SetupPage)
+const AdminPage = lazy(PAGE_LOADERS.AdminPage)
+const SettingsPage = lazy(PAGE_LOADERS.SettingsPage)
+const StatsPage = lazy(PAGE_LOADERS.StatsPage)
+const BinderyPage = lazy(PAGE_LOADERS.BinderyPage)
+const WishlistPage = lazy(PAGE_LOADERS.WishlistPage)
+const HardcoverPage = lazy(PAGE_LOADERS.HardcoverPage)
+const HighlightsPage = lazy(PAGE_LOADERS.HighlightsPage)
+const ReadingCalendarPage = lazy(PAGE_LOADERS.ReadingCalendarPage)
+
+function prefetchPages() {
+  const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1500))
+  idle(() => { for (const load of Object.values(PAGE_LOADERS)) load().catch(() => {}) })
+}
 
 // Apply saved theme immediately (avoid flash)
 applyTheme(getStoredTheme())
@@ -38,6 +60,8 @@ function AppRoutes() {
   const location = useLocation()
   const [setupNeeded, setSetupNeeded] = useState<boolean | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  useEffect(() => { if (user) prefetchPages() }, [user])
 
   const isAuthenticatedPage = user != null && !UNAUTHENTICATED_PATHS.includes(location.pathname)
 
@@ -76,6 +100,7 @@ function AppRoutes() {
 
   return (
     <>
+      <Suspense fallback={null}>
       <Routes>
         <Route path="/setup" element={setupNeeded ? <SetupPage /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={setupNeeded ? <Navigate to="/setup" replace /> : <LoginPage />} />
@@ -181,6 +206,7 @@ function AppRoutes() {
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
 
       {/* Global keyboard shortcuts FAB — only on authenticated pages */}
       {isAuthenticatedPage && (

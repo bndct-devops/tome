@@ -20,7 +20,7 @@ import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
-import { SessionLog } from '@/components/stats/widgets/overview'
+import { SessionLog } from '@/components/stats/SessionLog'
 import { coverSrc } from '@/lib/covers'
 
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {

@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import (
-    create_access_token,
     get_current_user,
     hash_password,
     verify_password,
@@ -94,10 +93,38 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled",
         )
-    token = issue_token(db, user.id, body.device)
+    token = issue_token(db, user.id, body.device, request.headers.get("user-agent"))
     audit(db, "auth.login", user_id=user.id, username=user.username, ip=ip,
           details={"device": body.device.name} if body.device else None)
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/logout", status_code=204)
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """End this sign-in for good. A browser's device row is deleted (nothing
+    to keep in the list); an app's is marked revoked like a revoke from
+    Settings. A token without a device row (impersonation, or a web token
+    from before device logins) just expires on its own."""
+    from datetime import datetime
+    from backend.models.client_device import ClientDevice
+
+    device_id = getattr(request.state, "device_id", None)
+    device = db.get(ClientDevice, device_id) if device_id is not None else None
+    if device is not None:
+        name = device.name
+        if device.kind == "web":
+            db.delete(device)
+        else:
+            device.revoked_at = datetime.utcnow()
+        db.commit()
+        audit(db, "auth.logout", user_id=current_user.id, username=current_user.username,
+              resource_type="device", resource_id=device_id, resource_title=name,
+              ip=request.client.host if request.client else None)
+    return Response(status_code=204)
 
 
 @router.get("/me", response_model=UserOut)
@@ -138,6 +165,7 @@ class ChangePasswordRequest(PydanticBaseModel):
 @router.put("/me/password", status_code=204)
 def change_password(
     body: ChangePasswordRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -147,9 +175,9 @@ def change_password(
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     current_user.hashed_password = hash_password(body.new_password)
     current_user.must_change_password = False
-    # Device tokens do not expire, so a new password signs out every connected
-    # device. Web sessions keep their token until it expires.
-    revoked = revoke_all(db, current_user.id)
+    # Logins do not expire, so a new password signs out every other browser
+    # and app. The one changing it stays signed in.
+    revoked = revoke_all(db, current_user.id, keep_id=getattr(request.state, "device_id", None))
     db.commit()
     audit(db, "auth.password_changed", user_id=current_user.id, username=current_user.username,
           details={"devices_revoked": revoked} if revoked else None)

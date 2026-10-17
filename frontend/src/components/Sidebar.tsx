@@ -1,9 +1,8 @@
 import { Fragment, useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams, useLocation, useNavigate, Link } from 'react-router-dom'
-import * as LucideIcons from 'lucide-react'
 import {
   BookOpen, Plus, Pencil, Share2, Trash2,
-  PanelLeftClose, PanelLeftOpen, Library as LibraryIcon, Layers, Home, BarChart3,
+  PanelLeftClose, PanelLeftOpen, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
   Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays,
   type LucideIcon,
@@ -18,29 +17,15 @@ import { useAuth, isAdmin, isMember, type AuthUser } from '@/contexts/AuthContex
 import { applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
 import { DOCS, docsLink } from '@/lib/docs'
 import { Trans, useLingui } from '@lingui/react/macro'
+import { NamedIcon, loadAllIcons } from '@/lib/icons'
 import { msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 
 const SIDEBAR_KEY = 'tome_sidebar'
 
-function isLucideIcon(val: unknown): val is LucideIcon {
-  return typeof val === 'object' && val !== null && 'render' in val
-}
-
-export const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
-  Object.entries(LucideIcons).filter(
-    ([name, val]) => /^[A-Z]/.test(name) && isLucideIcon(val) && !name.endsWith('Icon')
-  ) as [string, LucideIcon][]
-)
-
 export function getIcon(name?: string | null, className = 'w-3.5 h-3.5') {
-  const Comp = ICON_MAP[name ?? ''] ?? LibraryIcon
-  return <Comp className={className} />
+  return <NamedIcon icon={name} className={className} />
 }
-
-const ALL_ICONS: [string, LucideIcon][] = Object.entries(LucideIcons).filter(
-  ([name, val]) => /^[A-Z]/.test(name) && isLucideIcon(val) && !name.endsWith('Icon')
-) as [string, LucideIcon][]
 
 export function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useLingui()
@@ -59,13 +44,18 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    const results = q ? ALL_ICONS.filter(([name]) => name.toLowerCase().includes(q)) : ALL_ICONS
-    return results.slice(0, 96)
-  }, [search])
+  const [allIcons, setAllIcons] = useState<[string, LucideIcon][] | null>(null)
+  useEffect(() => {
+    if (open && !allIcons) loadAllIcons().then(m => setAllIcons(Object.entries(m))).catch(() => {})
+  }, [open, allIcons])
 
-  const Curr = (ICON_MAP[value] ?? LibraryIcon) as LucideIcon
+  const filtered = useMemo(() => {
+    if (!allIcons) return []
+    const q = search.toLowerCase()
+    const results = q ? allIcons.filter(([name]) => name.toLowerCase().includes(q)) : allIcons
+    return results.slice(0, 96)
+  }, [search, allIcons])
+
   return (
     <div className="relative shrink-0" ref={ref}>
       <button
@@ -75,7 +65,7 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
         title={t`Choose icon`}
         aria-label={t`Choose icon`}
       >
-        <Curr className="w-3.5 h-3.5" />
+        <NamedIcon icon={value} className="w-3.5 h-3.5" />
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-xl shadow-accent-soft p-2 w-72">

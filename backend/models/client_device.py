@@ -1,8 +1,9 @@
 """A native client (the iOS app) signed in as a user.
 
-Web logins are stateless JWTs. A client that identifies itself at login gets a
-device row and a JWT carrying its `token_id` as `jti`; every request looks the
-row up, so revoking the row signs the phone out on its next call.
+Every login gets a row: a native client that identifies itself (`kind` "app")
+and a web browser (`kind` "web", named from its User-Agent). The JWT carries
+the row's `token_id` as `jti` and no expiry; every request looks the row up,
+so revoking the row signs that device out on its next call.
 """
 from datetime import datetime
 from typing import Optional
@@ -25,6 +26,8 @@ class ClientDevice(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     platform: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     app_version: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    # "app" (the Tome app) or "web" (a browser sign-in).
+    kind: Mapped[str] = mapped_column(String(16), default="app", server_default="app", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
