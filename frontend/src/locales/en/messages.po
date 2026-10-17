@@ -2462,6 +2462,10 @@ msgstr "Browse library"
 msgid "Browse your library"
 msgstr "Browse your library"
 
+#: src/pages/SettingsPage.tsx
+msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
+msgstr "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
+
 #: src/lib/ai.ts
 msgid "Build the glossary as you read"
 msgstr "Build the glossary as you read"
@@ -6548,8 +6552,8 @@ msgid "Phone connected"
 msgstr "Phone connected"
 
 #: src/pages/SettingsPage.tsx
-msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
-msgstr "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+#~ msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+#~ msgstr "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
 
 #: src/pages/HardcoverPage.tsx
 msgid "Pick"
@@ -7393,8 +7397,12 @@ msgstr "Revoke"
 #~ msgstr "Revoke \"{0}\"? It is signed out immediately and has to connect again."
 
 #: src/pages/SettingsPage.tsx
-msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
-msgstr "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+#~ msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+#~ msgstr "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke \"{name}\"? It is signed out immediately and has to sign in again."
+msgstr "Revoke \"{name}\"? It is signed out immediately and has to sign in again."
 
 #: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
@@ -8108,6 +8116,14 @@ msgstr "Sign in on a new device without entering your password. Show a QR code f
 msgid "Sign in to your library"
 msgstr "Sign in to your library"
 
+#: src/pages/SettingsPage.tsx
+msgid "Sign out"
+msgstr "Sign out"
+
+#: src/pages/SettingsPage.tsx
+msgid "Sign out of this browser?"
+msgstr "Sign out of this browser?"
+
 #: src/pages/OidcCallbackPage.tsx
 msgid "Signing you in…"
 msgstr "Signing you in…"
@@ -8645,6 +8661,10 @@ msgstr "This book"
 #: src/components/DigestConfirmDialog.tsx
 msgid "This book only"
 msgstr "This book only"
+
+#: src/pages/SettingsPage.tsx
+msgid "This browser"
+msgstr "This browser"
 
 #: src/components/ConnectPhoneModal.tsx
 msgid "This code has expired."

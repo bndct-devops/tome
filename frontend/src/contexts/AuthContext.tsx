@@ -103,6 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Logins do not expire, so tell the server to end this one (and the
+    // admin's own while impersonating). Best effort: signing out locally
+    // never waits on it, and keepalive lets it finish after a navigation.
+    for (const token of [localStorage.getItem('tome_token'), sessionStorage.getItem(ADMIN_TOKEN_KEY)]) {
+      if (!token) continue
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        keepalive: true,
+      }).catch(() => {})
+    }
     localStorage.removeItem('tome_token')
     sessionStorage.removeItem(ADMIN_TOKEN_KEY)
     sessionStorage.removeItem(IMPERSONATED_USERNAME_KEY)

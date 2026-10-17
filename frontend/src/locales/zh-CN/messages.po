@@ -2462,6 +2462,10 @@ msgstr ""
 msgid "Browse your library"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
+msgstr ""
+
 #: src/lib/ai.ts
 msgid "Build the glossary as you read"
 msgstr ""
@@ -6548,8 +6552,8 @@ msgid "Phone connected"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
-msgstr ""
+#~ msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+#~ msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "Pick"
@@ -7393,7 +7397,11 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+#~ msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Revoke \"{name}\"? It is signed out immediately and has to sign in again."
 msgstr ""
 
 #: src/components/ShareLinksOverview.tsx
@@ -8108,6 +8116,14 @@ msgstr ""
 msgid "Sign in to your library"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Sign out"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Sign out of this browser?"
+msgstr ""
+
 #: src/pages/OidcCallbackPage.tsx
 msgid "Signing you in…"
 msgstr ""
@@ -8644,6 +8660,10 @@ msgstr ""
 
 #: src/components/DigestConfirmDialog.tsx
 msgid "This book only"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "This browser"
 msgstr ""
 
 #: src/components/ConnectPhoneModal.tsx

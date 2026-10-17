@@ -236,6 +236,16 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ### Changed
 - **Sort books by series.** `GET /api/books` accepts `sort=series`: series in name order, each in volume order, books without a series after them by title. Used by the iOS app's Library sort.
+- **The web app stays signed in until you sign out.** Signing in in a
+  browser used to last 7 days (`TOME_JWT_EXPIRE_MINUTES`), after which you
+  had to sign in again. A browser now stays signed in like the Tome app
+  does, until you sign out there. Each browser is listed under Settings >
+  Connected devices with its browser and system (for example Safari on
+  macOS, marked "This browser" on the one you are using), where you can
+  sign out any of them, such as a lost laptop. Changing your password signs out
+  every other browser and app; an admin setting a user's password signs that
+  user out everywhere. Browsers signed in before this update keep their old
+  sign-in until it runs out, then stay signed in from their next sign-in.
 - **Settings has a jump list.** A sticky list of the page's sections sits on
   the left at desktop width, and a row of chips under the header on phones.
   It follows your scroll position and jumps to a section on click, so a
@@ -318,6 +328,17 @@ All notable changes to Tome are documented here. Format loosely follows
 - A Google Books server error no longer writes your `TOME_GOOGLE_BOOKS_KEY`
   into the server log. The failed-fetch log line printed the full request
   URL, key included; it now names only the source and the HTTP status.
+
+### Security
+- **A password set by an admin is no longer written to the audit log.** The
+  "user updated" entry recorded the request as sent, so a password an admin
+  set for a user was stored there in plain text. It now records only that
+  the password was changed. Admins who have set passwords this way may want
+  to clear old entries from the audit log.
+- **The reader's file links now honour a signed-out device.** The links the
+  web reader uses to open EPUB, PDF and comic files checked the token's
+  signature but not whether that device had been revoked, and the EPUB link
+  did not check for a disabled account.
 
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 

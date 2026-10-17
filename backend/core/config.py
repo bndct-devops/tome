@@ -120,6 +120,8 @@ class Settings(BaseSettings):
 
     # JWT settings
     jwt_algorithm: str = "HS256"
+    # Only tokens without a device row (admin impersonation) expire; every
+    # login is a revocable device login without expiry (see ClientDevice).
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
 
     # ── OIDC / SSO (env TOME_OIDC_*) ──────────────────────────────────────────

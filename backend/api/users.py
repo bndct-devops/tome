@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -589,10 +589,21 @@ def _guard_last_admin(db: Session, user: User, *, demote: bool, deactivate: bool
         raise HTTPException(400, "Cannot remove the last admin")
 
 
+def _update_details(body: UserUpdate, devices_revoked: int) -> dict:
+    """Audit details for a user update. The new password itself is never logged."""
+    details = body.model_dump(exclude_unset=True)
+    if details.pop("password", None) is not None:
+        details["password_changed"] = True
+        if devices_revoked:
+            details["devices_revoked"] = devices_revoked
+    return details
+
+
 @router.put("/users/{user_id}", response_model=UserOut)
 def update_user(
     user_id: int,
     body: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
@@ -603,8 +614,14 @@ def update_user(
         user.username = body.username
     if body.email is not None:
         user.email = body.email
+    devices_revoked = 0
     if body.password is not None:
         user.hashed_password = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+        # Logins do not expire, so a reset password signs the user out of every
+        # browser and app (an admin resetting their own keeps this browser).
+        from backend.services.client_devices import revoke_all
+        keep = getattr(request.state, "device_id", None) if user.id == admin.id else None
+        devices_revoked = revoke_all(db, user.id, keep_id=keep)
     # Work out the prospective admin/active state, then refuse if it would
     # leave the instance with no usable admin (single-user self-demotion footgun).
     if body.role is not None and body.is_admin is None:
@@ -638,7 +655,7 @@ def update_user(
     db.refresh(user)
     audit(db, "users.updated", user_id=admin.id, username=admin.username,
           resource_type="user", resource_id=user.id, resource_title=user.username,
-          details=body.model_dump(exclude_unset=True))
+          details=_update_details(body, devices_revoked))
     return UserOut(
         id=user.id,
         username=user.username,

@@ -1,11 +1,14 @@
 import { api } from './api'
 
-/** A native client (the Tome app) signed in as a user. */
+/** A browser or the Tome app signed in as a user. */
 export interface ClientDevice {
   id: number
   name: string
   platform: string | null
   app_version: string | null
+  kind: 'app' | 'web'
+  /** The browser making the request. */
+  current: boolean
   created_at: string
   last_seen_at: string | null
   revoked_at: string | null
