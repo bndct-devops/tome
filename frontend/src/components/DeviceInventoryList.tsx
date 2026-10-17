@@ -33,13 +33,13 @@ export function DeviceInventoryList() {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+      <p className="text-[15px] font-semibold text-foreground flex items-center gap-1.5">
         <Tablet className="w-3 h-3" /> <Trans>Books on your devices</Trans>
       </p>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[13px] text-muted-foreground">
         <Trans>Each device sends the list of Tome books on it when it syncs. Books show an "On ..." pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync.</Trans>
       </p>
-      <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+      <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
         {devices.map(d => {
           const name = d.name
           const count = d.book_count
