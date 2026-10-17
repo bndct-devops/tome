@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Bookmark } from 'lucide-react'
 import { api } from '@/lib/api'
 import { EntityModal } from '@/components/EntityModal'
+import { Pill } from '@/components/page'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -31,14 +32,15 @@ export function SaveFilterButton({ params, onSaved }: Props) {
           onClose={() => setModalOpen(false)}
         />
       )}
-      <button
+      <Pill
+        variant="quiet"
         onClick={() => setModalOpen(true)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-primary hover:border-primary/30 transition-all"
         title={t`Save current filters as a shelf`}
+        aria-label={t`Save current filters as a shelf`}
       >
-        <Bookmark className="w-3.5 h-3.5" />
+        <Bookmark className="w-4 h-4" />
         <span className="hidden sm:inline"><Trans>Add shelf</Trans></span>
-      </button>
+      </Pill>
     </>
   )
 }

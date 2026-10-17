@@ -9,9 +9,12 @@ import { t } from '@lingui/core/macro'
  * `overflow-x-auto` rows on Home clipped the last card with nothing signalling
  * "there is more" (UX sweep finding).
  */
-export function HScrollRow({ children, className, wrapClassName, controlsTop }: {
+export function HScrollRow({ children, className, wrapClassName, controlsTop, fadeFrom = 'card' }: {
   children: ReactNode
   className?: string
+  /** The surface the row sits on, so the edge fades melt into it: a card
+   *  (Home's grouped panels) or the content panel itself. */
+  fadeFrom?: 'card' | 'background'
   /** Classes for the outer wrapper the fades/chevrons anchor to. Negative
    *  margins (-mx-*) belong HERE, not on className: on the scroll div they
    *  push its clip edge past the wrapper and a sliver of the next card shows
@@ -58,11 +61,13 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
       </div>
       {/* Edge fades — pure affordance, click-through */}
       <div className={cn(
-        'pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-card to-transparent transition-opacity',
+        'pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r to-transparent transition-opacity',
+        fadeFrom === 'card' ? 'from-card' : 'from-background',
         canLeft ? 'opacity-100' : 'opacity-0'
       )} />
       <div className={cn(
-        'pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-card to-transparent transition-opacity',
+        'pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l to-transparent transition-opacity',
+        fadeFrom === 'card' ? 'from-card' : 'from-background',
         canRight ? 'opacity-100' : 'opacity-0'
       )} />
       {/* Chevrons stay visible whenever content is hidden — the gradient alone

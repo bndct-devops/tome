@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom'
 import { t } from '@lingui/core/macro'
 import type { WishCoverageVolume } from '@/lib/wishlist'
 
-const PILL_BASE = 'inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border transition-all'
-const PILL_PRESENT = 'bg-success/10 border-success text-success hover:bg-success/20'
-const PILL_MISSING = 'border-border text-muted-foreground/50'
+/* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+const PILL_BASE = 'inline-flex items-center justify-center min-w-9 h-7 px-2.5 rounded-full text-[13px] font-medium tabular-nums transition-colors'
+const PILL_PRESENT = 'bg-success/15 text-success hover:bg-success/25'
+const PILL_MISSING = 'ring-1 ring-inset ring-border text-muted-foreground/60'
+/* eslint-enable lingui/no-unlocalized-strings */
 
 // The refreshed look (Wishlist): round chips on the neutral fill, present
 // volumes filled in the success colour.

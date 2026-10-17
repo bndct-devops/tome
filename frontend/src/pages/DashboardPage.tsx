@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react
 import { AnimatePresence, m } from 'motion/react'
 import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
-  BookOpen, X, Home, ChevronRight,
+  X,
   LayoutGrid, List,
-  ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
+  SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
   Play, CheckCheck, Trash2, Settings2, Layers, Star, Share2,
   Tablet,
@@ -43,6 +43,12 @@ import { cn } from '@/lib/utils'
 import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
+import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
+import { QuickLook } from '@/components/QuickLook'
+import { SortMenu } from '@/components/library/SortMenu'
+import { PageBody, PageHeader, SectionTitle, Pill } from '@/components/page'
+// Library / Series tab icons, kept apart from the shared import above.
+import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
 import { preloadImages } from '@/lib/preload'
 
@@ -390,16 +396,23 @@ export function DashboardPage() {
     return books.find(b => b.reading_status === 'unread') ?? null
   }
 
-  function groupVolumesByArc(books: SeriesDetailBook[], arcs: Arc[]): Array<{
+  interface ArcSection {
+    /** The arc's id, null for the "Unassigned" bucket and a series without arcs. */
+    arcId: number | null
+    name: string
     label: string
     description: string | null
     volumes: SeriesDetailBook[]
-  }> {
-    if (arcs.length === 0) return [{ label: '', description: null, volumes: books }]
+  }
+
+  function groupVolumesByArc(books: SeriesDetailBook[], arcs: Arc[]): ArcSection[] {
+    if (arcs.length === 0) return [{ arcId: null, name: '', label: '', description: null, volumes: books }]
     const sorted = [...arcs].sort((a, b) => a.start_index - b.start_index)
-    const sections: Array<{ label: string; description: string | null; volumes: SeriesDetailBook[] }> = sorted.map(arc => {
+    const sections: ArcSection[] = sorted.map(arc => {
       const { name, start_index, end_index } = arc
       return {
+        arcId: arc.id,
+        name,
         label: t`${name} · Vol. ${start_index}–${end_index}`,
         description: arc.description ?? null,
         volumes: books.filter(v =>
@@ -414,12 +427,12 @@ export function DashboardPage() {
       !sorted.some(a => v.series_index! >= a.start_index && v.series_index! <= a.end_index)
     )
     if (unassigned.length > 0) {
-      sections.push({ label: t`Unassigned`, description: null, volumes: unassigned })
+      sections.push({ arcId: null, name: '', label: t`Unassigned`, description: null, volumes: unassigned })
     }
     return sections.filter(s => s.volumes.length > 0)
   }
 
-  function SeriesStatusBadge({ status }: { status: SeriesStatus | undefined }) {
+  function SeriesStatusBadge({ status, large = false }: { status: SeriesStatus | undefined; large?: boolean }) {
     if (!status || status === 'unknown') return null
     /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
     const cls =
@@ -430,7 +443,11 @@ export function DashboardPage() {
         : /* hiatus */ 'bg-muted text-muted-foreground'
     /* eslint-enable lingui/no-unlocalized-strings */
     return (
-      <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide leading-none', cls)}>
+      <span className={cn(
+        'inline-flex items-center font-semibold uppercase leading-none',
+        large ? 'h-7 px-3 rounded-full text-[12px] tracking-[0.08em]' : 'px-1.5 py-0.5 rounded text-[10px] tracking-wide',
+        cls,
+      )}>
         {SERIES_STATUS_LABELS[status] ? i18n._(SERIES_STATUS_LABELS[status]) : status}
       </span>
     )
@@ -756,6 +773,9 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(!seed)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
+  // Quick look opened from a cover in the Library grid or a series' volumes.
+  const [quickLookId, setQuickLookId] = useState<number | null>(null)
+  const closeQuickLook = useCallback(() => setQuickLookId(null), [])
 
   const { toast } = useToast()
   const toastSuccess = toast.success
@@ -1047,14 +1067,16 @@ export function DashboardPage() {
   if (filterNotOnDevice) saveableParams.not_on_device = filterNotOnDevice
 
   // Grid columns flow from the spring-smoothed cover size; card typography
-  // follows the slider value. view-fade covers the grid/list switch.
+  // follows the slider value. The grid/list switch swaps in place: the old
+  // view-fade faded the new view up from nothing inside the painted panel.
+  // List rows sit on hairlines, no boxes.
   const cardView: ViewMode = view === 'list' ? 'list' : gridSize < 150 ? 'small' : 'large'
   const gridClass = view === 'list'
     // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-    ? 'flex flex-col gap-2.5 animate-[view-fade_0.25s_ease-out]'
+    ? 'flex flex-col divide-y divide-border/70'
     : cn(
-        'grid transition-[gap] duration-300 ease-out animate-[view-fade_0.25s_ease-out]',
-        gridSize < 150 ? 'gap-2' : 'gap-4'
+        'grid transition-[gap] duration-300 ease-out',
+        gridSize < 150 ? 'gap-x-3 gap-y-5' : 'gap-x-5 gap-y-7'
       )
   // min(size, 42vw) keeps phones at two columns regardless of the slider —
   // without it a 180px minimum fits only one track on a 390px screen
@@ -1146,9 +1168,10 @@ export function DashboardPage() {
       {/* ── Body: the dashboard tabs. The frame's panel scrolls; this wrapper
             only carries the page padding (the shared PageBody comes with the
             per-tab rebuilds). ────────────────────────────────────────────── */}
-        <div ref={bodyRef} className={tab === 'home' ? undefined : 'px-4 py-4'}>
-          {/* Section heading */}
-          {activeLibraryName && (
+        <div ref={bodyRef}>
+          {/* Every tab brings its own PageBody + PageHeader now; the library
+              name heading only had a job before the Library tab had a header. */}
+          {tab === 'home' && activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>
           )}
 
@@ -1158,514 +1181,578 @@ export function DashboardPage() {
               onSeeAllRecent={() => { persistSort('added_at'); persistOrder('desc'); setTab('books') }}
             />
           ) : tab === 'series' ? (
-            /* ── Series grid ─────────────────────────────────────────────── */
-            <>
-            <div className="flex items-center gap-1 mb-5 text-sm text-muted-foreground">
-              <button
-                onClick={() => setTab('books')}
-                className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0"
-              >
-                <Home className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline"><Trans>Library</Trans></span>
-              </button>
-              <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-              {expandedSeries ? (
+            /* ── Series tab: the series grid, or one series' detail ──────────── */
+            <PageBody width="wide">
+            {expandedSeries ? (
+              seriesDetailLoading || !seriesDetail ? (
                 <>
-                  <button
-                    onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
-                    className="hover:text-foreground transition-colors"
-                  >
-                    <Trans>Series</Trans>
-                  </button>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-                  <span className="font-medium text-foreground truncate max-w-[200px] sm:max-w-[300px]">{expandedSeries}</span>
+                  <PageHeader
+                    eyebrow={
+                      <button
+                        type="button"
+                        onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
+                        className="inline-flex items-center gap-1 uppercase hover:text-foreground transition-colors"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <Trans>Series</Trans>
+                      </button>
+                    }
+                    title={expandedSeries === '__unserialized__' ? t`No Series` : expandedSeries}
+                  />
+                  <div className="flex justify-center py-16">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  </div>
                 </>
-              ) : (
-                <span className="font-medium text-foreground"><Trans>Series</Trans></span>
-              )}
-            </div>
-            {seriesLoading ? (
-              <div className="flex justify-center py-24">
-                <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-              </div>
-            ) : seriesList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-                <BookOpen className="w-12 h-12 opacity-20" />
-                <p className="text-sm"><Trans>No series found — add series metadata to your books.</Trans></p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {/* Series detail panel — replaces grid when a series is selected */}
-                {expandedSeries ? (
-                  <div className="rounded-xl border border-border bg-card overflow-hidden">
-                    {seriesDetailLoading || !seriesDetail ? (
-                      <div className="flex justify-center py-12">
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              ) : (() => {
+                const isUnserialized = seriesDetail.name === '__unserialized__'
+                const total = seriesDetail.books.length
+                const readCount = seriesDetail.books.filter(b => b.reading_status === 'read').length
+                const readingCount = seriesDetail.books.filter(b => b.reading_status === 'reading').length
+                const unreadCount = total - readCount - readingCount
+                const readPct = total ? (readCount / total) * 100 : 0
+                const readingPct = total ? (readingCount / total) * 100 : 0
+                const heroCoverId = seriesList.find(s => s.name === seriesDetail.name)?.cover_book_id
+                  ?? seriesDetail.books[0]?.id ?? null
+                const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
+                const hasArcs = seriesArcs.length > 0
+                const coverage = seriesDetail.books.map(b => ({
+                  id: b.id, title: b.title, series_index: b.series_index, cover_path: b.cover_path,
+                }))
+                const continueBook = getContinueBook(seriesDetail.books)
+                return (
+                  <>
+                  {/* ── Hero: cover on the left, the header and the series' state on the right ── */}
+                  <section className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
+                    <div className="w-[160px] sm:w-[220px] mx-auto lg:mx-0 rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
+                      <div className="relative aspect-[2/3]">
+                        <CoverImage
+                          src={heroCoverId != null ? coverSrc(heroCoverId, { w: 400 }) : null}
+                          alt=""
+                          iconClassName="w-10 h-10"
+                        />
                       </div>
-                    ) : (
-                      <div className="p-5 flex flex-col gap-5">
-                        {/* Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">{seriesDetail.name}</h2>
-                              <SeriesStatusBadge status={seriesMetaMap[seriesDetail.name]} />
-                              {seriesDetail.name !== '__unserialized__' && (
-                                <button
-                                  onClick={() => setShareSeries(seriesDetail.name)}
-                                  title={t`Share this series — a public metadata-only page`}
-                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                            {seriesDetail.author && (
-                              <p className="text-sm text-muted-foreground mt-0.5">{seriesDetail.author}</p>
-                            )}
-                            <SeriesRating
-                              seriesName={seriesDetail.name}
-                              isUnserialized={seriesDetail.name === '__unserialized__'}
-                            />
-                            {(() => {
-                              const total = seriesDetail.books.length
-                              const readCount = seriesDetail.books.filter(b => b.reading_status === 'read').length
-                              const readingCount = seriesDetail.books.filter(b => b.reading_status === 'reading').length
-                              const readPct = total ? (readCount / total) * 100 : 0
-                              const readingPct = total ? (readingCount / total) * 100 : 0
-                              return (
-                                <div className="mt-3">
-                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                                    {(() => { const unreadCount = total - readCount - readingCount; return (
-                                      <span><Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans></span>
-                                    ) })()}
-                                    <span><Plural value={total} one="# volume" other="# volumes" /></span>
-                                  </div>
-                                  {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
-                                    <p className="text-[10px] text-muted-foreground mb-1.5" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
-                                      {(() => { const dur = formatEstimateHours(seriesDetail.backlog.seconds); return (
-                                        <Trans><span className="text-foreground font-medium tabular-nums">{dur}</span> left in this series</Trans>
-                                      ) })()}
-                                      {seriesDetail.backlog.days != null && (() => { const d = formatEstimateDays(seriesDetail.backlog.days); return <Trans> &middot; {d} at your pace</Trans> })()}
-                                      {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
-                                    </p>
-                                  )}
-                                  {devices.map(d => {
-                                    const n = seriesDetail.books.filter(b => devicesFor([d], b.id).length > 0).length
-                                    if (n === 0) return null
-                                    const name = d.name
-                                    return (
-                                      <p key={d.name} className="text-[10px] text-muted-foreground mb-1.5 inline-flex items-center gap-1 mr-3">
-                                        <Tablet className="w-3 h-3" />
-                                        <Trans>On {name}: <span className="text-foreground font-medium tabular-nums">{n}</span> of {total}</Trans>
-                                      </p>
-                                    )
-                                  })}
-                                  <div className="h-2 rounded-full bg-muted overflow-hidden flex">
-                                    <div className="h-full bg-primary transition-all" style={{ width: `${readPct}%` }} />
-                                    <div className="h-full bg-primary/50 transition-all" style={{ width: `${readingPct}%` }} />
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                            {seriesDetail.description && (
-                              <div className="mt-3">
-                                <p className={cn(
-                                  "text-xs text-muted-foreground leading-relaxed whitespace-pre-line",
-                                  !seriesDescExpanded && "line-clamp-3"
-                                )}>
-                                  {seriesDetail.description}
-                                </p>
-                                {seriesDetail.description.length > 240 && (
-                                  <button
-                                    onClick={() => setSeriesDescExpanded(v => !v)}
-                                    className="text-xs font-medium text-primary hover:opacity-80 mt-1 transition-opacity"
-                                  >
-                                    {seriesDescExpanded ? t`Show less` : t`Show more`}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            {(() => {
-                              const continueBook = getContinueBook(seriesDetail.books)
-                              if (!continueBook) return null
-                              const volIdx = continueBook.series_index
-                              const volLabel = volIdx != null ? t`Vol. ${volIdx}` : continueBook.title
-                              const isResuming = continueBook.reading_status === 'reading'
-                              return (
-                                <button
-                                  onClick={() => navigate(`/reader/${continueBook.id}`)}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-                                >
-                                  <Play className="w-3.5 h-3.5" />
-                                  {isResuming ? t`Resume ${volLabel}` : t`Start ${volLabel}`}
-                                </button>
-                              )
-                            })()}
+                    </div>
+
+                    <div className="min-w-0 flex flex-col gap-5">
+                      <PageHeader
+                        eyebrow={
+                          <span className="inline-flex items-center gap-1.5 flex-wrap">
                             <button
-                              onClick={() => markAllRead(seriesDetail.books)}
-                              disabled={markingAllRead || seriesDetail.books.every(b => b.reading_status === 'read')}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                              type="button"
+                              onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
+                              className="inline-flex items-center gap-1 uppercase hover:text-foreground transition-colors"
                             >
-                              {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
-                              <Trans>Mark all read</Trans>
+                              <ArrowLeft className="w-3.5 h-3.5" />
+                              <Trans>Series</Trans>
                             </button>
-                            {isAdmin(user) && (
-                              <button
-                                onClick={() => setManageSeriesOpen(true)}
-                                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-all"
-                                title={t`Manage series`}
+                            <span aria-hidden>&middot;</span>
+                            <span><Plural value={total} one="# volume" other="# volumes" /></span>
+                          </span>
+                        }
+                        title={isUnserialized ? t`No Series` : seriesDetail.name}
+                        subtitle={seriesDetail.author ?? undefined}
+                        actions={
+                          <div className="flex flex-wrap items-center gap-1">
+                            {!isUnserialized && (
+                              <Pill
+                                variant="quiet"
+                                onClick={() => setShareSeries(seriesDetail.name)}
+                                title={t`Share this series — a public metadata-only page`}
                               >
-                                <Settings2 className="w-3.5 h-3.5" />
+                                <Share2 className="w-4 h-4" />
+                                <Trans>Share</Trans>
+                              </Pill>
+                            )}
+                            {isAdmin(user) && (
+                              <Pill variant="quiet" onClick={() => setManageSeriesOpen(true)} title={t`Manage series`}>
+                                <Settings2 className="w-4 h-4" />
                                 <Trans>Manage</Trans>
-                              </button>
+                              </Pill>
                             )}
                             <SeriesFollowButton seriesName={seriesDetail.name} />
                           </div>
+                        }
+                      />
+
+                      {/* Status and arcs */}
+                      {(seriesMetaMap[seriesDetail.name] || hasArcs) && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <SeriesStatusBadge status={seriesMetaMap[seriesDetail.name]} large />
+                          {sections.filter(sec => sec.arcId != null).map(sec => (
+                            <button
+                              key={sec.arcId}
+                              type="button"
+                              onClick={() => document.getElementById(`series-arc-${sec.arcId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                              className="h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-muted transition-colors"
+                            >
+                              {sec.name}
+                            </button>
+                          ))}
                         </div>
+                      )}
 
-                        {/* Per-series reading stats */}
-                        <SeriesReadingStats seriesName={seriesDetail.name} />
+                      <SeriesRating seriesName={seriesDetail.name} isUnserialized={isUnserialized} />
 
-                        {/* Volume grid — grouped by arc when arcs exist */}
-                        {(() => {
-                          const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
-                          const hasArcs = seriesArcs.length > 0
+                      {/* Progress through the series */}
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-[6px] flex-1 rounded-full overflow-hidden flex"
+                            style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}
+                          >
+                            <div className="h-full bg-primary" style={{ width: `${readPct}%` }} />
+                            <div className="h-full bg-primary/50" style={{ width: `${readingPct}%` }} />
+                          </div>
+                          <span className="text-[17px] font-bold tabular-nums text-foreground">{Math.round(readPct)}%</span>
+                        </div>
+                        <p className="mt-1.5 text-[13px] text-muted-foreground">
+                          <Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans>
+                        </p>
+                        {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
+                          <p className="mt-1 text-[13px] text-muted-foreground" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
+                            {(() => { const dur = formatEstimateHours(seriesDetail.backlog.seconds); return (
+                              <Trans><span className="text-foreground font-medium tabular-nums">{dur}</span> left in this series</Trans>
+                            ) })()}
+                            {seriesDetail.backlog.days != null && (() => { const d = formatEstimateDays(seriesDetail.backlog.days); return <Trans> &middot; {d} at your pace</Trans> })()}
+                            {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
+                          </p>
+                        )}
+                        {devices.some(d => seriesDetail.books.some(b => devicesFor([d], b.id).length > 0)) && (
+                          <p className="mt-1 text-[13px] text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                            {devices.map(d => {
+                              const n = seriesDetail.books.filter(b => devicesFor([d], b.id).length > 0).length
+                              if (n === 0) return null
+                              const name = d.name
+                              return (
+                                <span key={d.name} className="inline-flex items-center gap-1">
+                                  <Tablet className="w-3.5 h-3.5" />
+                                  <Trans>On {name}: <span className="text-foreground font-medium tabular-nums">{n}</span> of {total}</Trans>
+                                </span>
+                              )
+                            })}
+                          </p>
+                        )}
+                      </div>
+
+                      {seriesDetail.description && (
+                        <div className="max-w-[680px]">
+                          <p className={cn(
+                            'text-[15px] text-foreground/80 leading-relaxed whitespace-pre-line',
+                            !seriesDescExpanded && 'line-clamp-3'
+                          )}>
+                            {seriesDetail.description}
+                          </p>
+                          {seriesDetail.description.length > 240 && (
+                            <button
+                              onClick={() => setSeriesDescExpanded(v => !v)}
+                              className="text-[14px] font-medium text-primary hover:underline underline-offset-4 mt-1"
+                            >
+                              {seriesDescExpanded ? t`Show less` : t`Show more`}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Which volumes the library has, gaps included */}
+                      {!isUnserialized && coverage.some(v => v.series_index != null) && (
+                        <SeriesCoverageStrip coverage={coverage} />
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {continueBook && (() => {
+                          const volIdx = continueBook.series_index
+                          const volLabel = volIdx != null ? t`Vol. ${volIdx}` : continueBook.title
+                          const isResuming = continueBook.reading_status === 'reading'
                           return (
-                            <div className="flex flex-col gap-5">
-                              {sections.map((section, si) => (
-                                <div key={si} className="flex flex-col gap-2">
-                                  {hasArcs && (
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-xs font-semibold text-foreground whitespace-nowrap">{section.label}</span>
-                                      <div className="flex-1 h-px bg-border" />
-                                    </div>
-                                  )}
-                                  {hasArcs && section.description && (
-                                    <p className="text-[11px] text-muted-foreground -mt-1">{section.description}</p>
-                                  )}
-                                  <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                                    {section.volumes.map(vol => (
-                                      <div
-                                        key={vol.id}
-                                        onClick={() => navigate(`/books/${vol.id}`)}
-                                        title={vol.title}
-                                        className="group relative flex flex-col rounded-lg overflow-hidden border bg-muted transition-all duration-150 hover:shadow-md hover:scale-105 cursor-pointer"
-                                        style={{
-                                          borderColor: vol.reading_status === 'read'
-                                            ? 'color-mix(in oklab, var(--primary) 60%, transparent)'
-                                            : vol.reading_status === 'reading'
-                                            ? 'color-mix(in oklab, var(--primary) 30%, transparent)'
-                                            : undefined,
-                                        }}
-                                      >
-                                        <div className="relative aspect-[2/3] w-full overflow-hidden">
-                                          <CoverImage
-                                            src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
-                                            alt={vol.title}
-                                            iconClassName="w-4 h-4"
-                                          />
-                                          {/* Quick-read play button — top-left corner on hover */}
-                                          <button
-                                            onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
-                                            className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                            title={t({ message: 'Read', context: 'action' })}
-                                            aria-label={t({ message: 'Read', context: 'action' })}
-                                          >
-                                            <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
-                                              <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
-                                            </div>
-                                          </button>
-                                          {/* Status dot */}
-                                          {vol.reading_status !== 'unread' && (
-                                            <div className={cn(
-                                              'absolute top-1 right-1 w-2 h-2 rounded-full ring-1 ring-background',
-                                              vol.reading_status === 'read' ? 'bg-primary' : 'bg-primary/60'
-                                            )} />
-                                          )}
-                                          {/* Volume bar: number left, on-device glyph right */}
-                                          {(() => {
-                                            const idx = vol.series_index
-                                            const on = devicesFor(devices, vol.id)
-                                            if (idx == null && on.length === 0) return null
-                                            const names = on.map(d => d.name).join(', ')
-                                            return (
-                                              <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 flex items-center justify-between gap-1">
-                                                <span className="text-[9px] font-bold text-white leading-none">
-                                                  {idx != null && <Trans>Vol. {idx}</Trans>}
-                                                </span>
-                                                {on.length > 0 && (
-                                                  <span title={t`On ${names}`} aria-label={t`On ${names}`}>
-                                                    <Tablet className="w-2.5 h-2.5 text-white" />
-                                                  </span>
-                                                )}
-                                              </div>
-                                            )
-                                          })()}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                            <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${continueBook.id}`)}>
+                              <Play className="w-4 h-4 fill-current" />
+                              {isResuming ? t`Resume ${volLabel}` : t`Start ${volLabel}`}
+                            </Pill>
                           )
                         })()}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Series card grid */
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {seriesList.map(s => {
-                      const isUnserialized = s.name === '__unserialized__'
-                      return (
-                        <button
-                          key={s.name}
-                          onClick={() => {
-                            if (isUnserialized) {
-                              setSearchParams(prev => {
-                                const p = new URLSearchParams(prev)
-                                p.set('tab', 'books')
-                                p.delete('saved_filter')
-                                p.set('no_series', 'true')
-                                return p
-                              })
-                            } else {
-                              openSeriesDetail(s.name)
-                            }
-                          }}
-                          className="group flex flex-col text-left rounded-xl overflow-hidden border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-150"
+                        <Pill
+                          size="lg"
+                          onClick={() => markAllRead(seriesDetail.books)}
+                          disabled={markingAllRead || seriesDetail.books.every(b => b.reading_status === 'read')}
                         >
-                          <div className="relative aspect-[2/3] bg-muted overflow-hidden">
-                            <CoverImage
-                              src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
-                              alt={isUnserialized ? t`Unserialized` : s.name}
-                              imgClassName="group-hover:scale-105"
-                            />
-                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-2">
-                              <span className="text-[10px] font-semibold text-white/90">
-                                <Plural value={s.book_count} one="# book" other="# books" />
-                              </span>
+                          {markingAllRead ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                          <Trans>Mark all read</Trans>
+                        </Pill>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Per-series reading stats */}
+                  <SeriesReadingStats seriesName={seriesDetail.name} />
+
+                  {/* Volume grid — grouped by arc when arcs exist */}
+                  {sections.map((section, si) => (
+                    <section key={si} id={section.arcId != null ? `series-arc-${section.arcId}` : undefined} className="scroll-mt-6">
+                      {hasArcs ? (
+                        <>
+                          <SectionTitle size={20}>{section.label}</SectionTitle>
+                          {section.description && (
+                            <p className="mt-2 text-[14px] text-muted-foreground max-w-[70ch]">{section.description}</p>
+                          )}
+                        </>
+                      ) : (
+                        <SectionTitle size={20}><Trans>Volumes</Trans></SectionTitle>
+                      )}
+                      <div className="mt-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-x-3 gap-y-4">
+                        {section.volumes.map(vol => (
+                          <div
+                            key={vol.id}
+                            onClick={() => navigate(`/books/${vol.id}`)}
+                            title={vol.title}
+                            className="group relative cursor-pointer touch-feedback"
+                          >
+                            <div
+                              className="relative aspect-[2/3] w-full rounded-[8px] overflow-hidden bg-muted transition-transform duration-150 group-hover:-translate-y-0.5"
+                              style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                            >
+                              <CoverImage
+                                src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
+                                alt={vol.title}
+                                iconClassName="w-4 h-4"
+                              />
+                              {/* Quick-read play button — top-left corner on hover */}
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
+                                className="absolute top-1 left-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                title={t({ message: 'Read', context: 'action' })}
+                                aria-label={t({ message: 'Read', context: 'action' })}
+                              >
+                                <Play className="w-3 h-3 fill-current ml-px" />
+                              </button>
+                              {/* Quick look — top-right corner on hover; the status dot steps aside */}
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); setQuickLookId(vol.id) }}
+                                className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                title={t`Quick look`}
+                                aria-label={t`Quick look`}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Status dot */}
+                              {vol.reading_status !== 'unread' && (
+                                <div className={cn(
+                                  'absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-background transition-opacity group-hover:opacity-0 group-focus-within:opacity-0',
+                                  vol.reading_status === 'read' ? 'bg-primary' : 'bg-primary/60'
+                                )} />
+                              )}
+                              {/* Volume bar: number left, on-device glyph right */}
+                              {(() => {
+                                const idx = vol.series_index
+                                const on = devicesFor(devices, vol.id)
+                                if (idx == null && on.length === 0) return null
+                                const names = on.map(d => d.name).join(', ')
+                                return (
+                                  <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-1 flex items-center justify-between gap-1">
+                                    <span className="text-[10px] font-bold text-white leading-none">
+                                      {idx != null && <Trans>Vol. {idx}</Trans>}
+                                    </span>
+                                    {on.length > 0 && (
+                                      <span title={t`On ${names}`} aria-label={t`On ${names}`}>
+                                        <Tablet className="w-3 h-3 text-white" />
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
                             </div>
                           </div>
-                          <div className="px-3 py-2.5 flex flex-col gap-0.5 min-w-0">
-                            <div className="flex items-start gap-1.5 flex-wrap">
-                              <span className="text-xs font-semibold text-foreground leading-tight line-clamp-2">
-                                {isUnserialized ? t`No Series` : s.name}
-                              </span>
-                              {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
-                            </div>
-                            {!isUnserialized && s.author && <span className="text-[10px] text-muted-foreground truncate">{s.author}</span>}
-                            {!isUnserialized && s.rating != null && (
-                              <StarRating value={s.rating} readOnly starClassName="w-3 h-3" className="mt-0.5" />
-                            )}
-                            {!isUnserialized && s.description && (
-                              <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
-                            )}
-                            {isUnserialized && (
-                              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5"><Trans>Books without a series</Trans></p>
-                            )}
-                            {!isUnserialized && s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
-                              <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden flex">
-                                <div
-                                  className="h-full bg-primary"
-                                  style={{ width: `${(s.read_count / s.book_count) * 100}%` }}
-                                />
-                                <div
-                                  className="h-full bg-primary/50"
-                                  style={{ width: `${(s.reading_count / s.book_count) * 100}%` }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                  </>
+                )
+              })()
+            ) : (
+              <>
+              <PageHeader
+                eyebrow={seriesLoading ? undefined : (() => {
+                  const n = seriesList.filter(s => s.name !== '__unserialized__').length
+                  return <Plural value={n} one="# series" other="# series" />
+                })()}
+                title={<Trans>Series</Trans>}
+              />
+              {seriesLoading ? (
+                <div className="flex justify-center py-24">
+                  <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
+                </div>
+              ) : seriesList.length === 0 ? (
+                <div className="flex flex-col items-start gap-4 py-10">
+                  <div>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>No series yet</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Books with series metadata show up here, grouped by series.</Trans></p>
                   </div>
-                )}
-              </div>
-            )
-            }
-            </>
-          ) : (
-          <>
-
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-              {(Object.keys(SORT_LABELS) as SortField[]).map(f => (
-                <button key={f} onClick={() => toggleSort(f)}
-                  className={cn(
-                    'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
-                    sort === f ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  )}>
-                  {i18n._(SORT_LABELS[f])}
-                  {sort === f && (order === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setFilterOpen(o => !o)}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                filterOpen || hasFilters
-                  ? 'border-primary/40 bg-primary/5 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}>
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <Trans>Filters</Trans>
-              {/* Counts filter chips only: a search alone (hasFilters) is not
-                  a filter and used to show a "0" badge. */}
-              {activeFilterChips.length > 0 && (
-                <span className="ml-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold">
-                  {activeFilterChips.length}
-                </span>
+                  <Pill onClick={() => setTab('books')}><Trans>Show all books</Trans></Pill>
+                </div>
+              ) : (
+                /* Series card grid */
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-8">
+                  {seriesList.map(s => {
+                    const isUnserialized = s.name === '__unserialized__'
+                    return (
+                      <button
+                        key={s.name}
+                        onClick={() => {
+                          if (isUnserialized) {
+                            setSearchParams(prev => {
+                              const p = new URLSearchParams(prev)
+                              p.set('tab', 'books')
+                              p.delete('saved_filter')
+                              p.set('no_series', 'true')
+                              return p
+                            })
+                          } else {
+                            openSeriesDetail(s.name)
+                          }
+                        }}
+                        className="group flex flex-col text-left min-w-0 touch-feedback focus:outline-none"
+                      >
+                        <div
+                          className="relative aspect-[2/3] rounded-[8px] bg-muted overflow-hidden transition-transform duration-200 group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-ring"
+                          style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                        >
+                          <CoverImage
+                            src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
+                            alt={isUnserialized ? t`Unserialized` : s.name}
+                          />
+                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 pt-8 pb-2">
+                            <span className="text-[12px] font-semibold text-white/90">
+                              <Plural value={s.book_count} one="# book" other="# books" />
+                            </span>
+                          </div>
+                        </div>
+                        <div className="pt-2.5 flex flex-col gap-0.5 min-w-0">
+                          <div className="flex items-start gap-1.5 flex-wrap">
+                            <span className="text-[14px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                              {isUnserialized ? t`No Series` : s.name}
+                            </span>
+                            {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
+                          </div>
+                          {!isUnserialized && s.author && <span className="text-[13px] text-muted-foreground truncate">{s.author}</span>}
+                          {!isUnserialized && s.rating != null && (
+                            <StarRating value={s.rating} readOnly starClassName="w-3 h-3" className="mt-0.5" />
+                          )}
+                          {!isUnserialized && s.description && (
+                            <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
+                          )}
+                          {isUnserialized && (
+                            <p className="text-[13px] text-muted-foreground leading-snug mt-0.5"><Trans>Books without a series</Trans></p>
+                          )}
+                          {!isUnserialized && s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
+                            <div
+                              className="mt-2 h-[3px] rounded-full overflow-hidden flex"
+                              style={{ background: 'color-mix(in oklch, var(--primary) 25%, var(--background))' }}
+                            >
+                              <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
+                              <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
-            </button>
-
-            {/* Save filter button — only when content filters active (not library) */}
-            <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
-
-            {activeFilterChips.map(f => (
-              <span key={f.key} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
-                {f.label}
-                <button onClick={() => setFilter(f.key, '')} className="hover:text-destructive transition-colors">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-
-            {(hasFilters || filterLibrary) && (
-              <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1">
-                <Trans>Clear all</Trans>
-              </button>
+              </>
             )}
-
-            <div className="flex-1" />
-            <span className="text-xs text-muted-foreground hidden sm:block">
-              {loading
-                ? '…'
-                : (() => {
-                    // Grouped rows are series stacks + standalones — "titles", not the
-                    // ambiguous "entries" (which read like a book count and never matched it).
-                    const shown = books.length
-                    if (totalCount !== null && totalCount > shown) {
-                      return groupActive
-                        ? plural(totalCount, { one: `${shown} of # title`, other: `${shown} of # titles` })
-                        : plural(totalCount, { one: `${shown} of # book`, other: `${shown} of # books` })
-                    }
+            </PageBody>
+          ) : (
+          /* ── Library tab: header with the toolbar, filters, selection, grid ── */
+          <PageBody width="wide">
+          <div className="flex flex-col gap-4">
+          <PageHeader
+            eyebrow={loading
+              ? '…'
+              : (() => {
+                  // Grouped rows are series stacks + standalones — "titles", not the
+                  // ambiguous "entries" (which read like a book count and never matched it).
+                  const shown = books.length
+                  if (totalCount !== null && totalCount > shown) {
                     return groupActive
-                      ? plural(shown, { one: '# title', other: '# titles' })
-                      : plural(shown, { one: '# book', other: '# books' })
-                  })()}
-            </span>
-
-            {/* Group by series toggle */}
-            <button
-              onClick={() => persistGroup(!groupBySeries)}
-              title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
-              aria-label={t`Group by series`}
-              aria-pressed={groupBySeries}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                groupBySeries
-                  ? 'border-primary/40 bg-primary/10 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline"><Trans>Group series</Trans></span>
-            </button>
-
-            {/* Select mode toggle — selection operates on individual books, hidden while grouped */}
-            {books.length > 0 && !groupActive && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    if (!selectionMode) {
-                      setSelectionMode(true)
-                      selectAll()
-                    } else if (selected.size > 0) {
-                      clearSelection()
-                    } else {
-                      selectAll()
-                    }
-                  }}
-                  className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                    selectionMode
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  {selectionMode
-                    ? selected.size > 0
-                      ? <><XSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Deselect all</Trans></span></>
-                      : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Select all</Trans></span></>
-                    : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Select</Trans></span></>
+                      ? plural(totalCount, { one: `${shown} of # title`, other: `${shown} of # titles` })
+                      : plural(totalCount, { one: `${shown} of # book`, other: `${shown} of # books` })
                   }
-                </button>
-                {selectionMode && (
+                  return groupActive
+                    ? plural(shown, { one: '# title', other: '# titles' })
+                    : plural(shown, { one: '# book', other: '# books' })
+                })()}
+            title={activeLibraryName ?? <Trans>Library</Trans>}
+            actions={
+              /* Capped at the viewport so the row wraps on phones instead of
+                 running off the side. */
+              <div className="flex flex-wrap items-center sm:justify-end gap-1 max-w-[calc(100vw-2.5rem)]">
+                <SortMenu
+                  fields={(Object.keys(SORT_LABELS) as SortField[]).map(f => ({ id: f, label: i18n._(SORT_LABELS[f]) }))}
+                  value={sort}
+                  order={order}
+                  onPick={toggleSort}
+                />
+
+                <Pill
+                  variant={filterOpen || activeFilterChips.length > 0 ? 'secondary' : 'quiet'}
+                  onClick={() => setFilterOpen(o => !o)}
+                  aria-expanded={filterOpen}
+                  aria-label={t`Filters`}
+                  title={t`Filters`}
+                  className="px-3"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span className="hidden lg:inline"><Trans>Filters</Trans></span>
+                  {/* Counts filter chips only: a search alone (hasFilters) is not
+                      a filter and used to show a "0" badge. */}
+                  {activeFilterChips.length > 0 && (
+                    <span className="min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-foreground text-background text-[11px] font-semibold tabular-nums">
+                      {activeFilterChips.length}
+                    </span>
+                  )}
+                </Pill>
+
+                {/* Group by series toggle */}
+                <Pill
+                  variant={groupBySeries ? 'secondary' : 'quiet'}
+                  onClick={() => persistGroup(!groupBySeries)}
+                  title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
+                  aria-label={t`Group by series`}
+                  aria-pressed={groupBySeries}
+                  className="px-3"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span className="hidden xl:inline"><Trans>Group series</Trans></span>
+                </Pill>
+
+                {/* Select mode toggle — selection operates on individual books, hidden while grouped */}
+                {books.length > 0 && !groupActive && (
+                  <>
+                    <Pill
+                      variant={selectionMode ? 'secondary' : 'quiet'}
+                      onClick={() => {
+                        if (!selectionMode) {
+                          setSelectionMode(true)
+                          selectAll()
+                        } else if (selected.size > 0) {
+                          clearSelection()
+                        } else {
+                          selectAll()
+                        }
+                      }}
+                      className="px-3"
+                      aria-label={selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`}
+                      title={selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`}
+                    >
+                      {selectionMode
+                        ? selected.size > 0
+                          ? <><XSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Deselect all</Trans></span></>
+                          : <><CheckSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Select all</Trans></span></>
+                        : <><CheckSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Select</Trans></span></>
+                      }
+                    </Pill>
+                    {selectionMode && (
+                      <Pill
+                        variant="quiet"
+                        icon
+                        onClick={exitSelectionMode}
+                        title={t`Exit selection mode`}
+                        aria-label={t`Exit selection mode`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Pill>
+                    )}
+                  </>
+                )}
+
+                {/* Cover size (grid only) + grid / list */}
+                <div className="flex items-center">
+                  <input
+                    type="range"
+                    min={GRID_SIZE_MIN}
+                    max={GRID_SIZE_MAX}
+                    step={10}
+                    value={gridSize}
+                    onChange={e => persistGridSize(Number(e.target.value))}
+                    title={t`Cover size`}
+                    aria-label={t`Cover size`}
+                    tabIndex={view === 'grid' ? 0 : -1}
+                    className={cn(
+                      'cover-slider transition-all duration-200',
+                      view === 'grid'
+                        ? 'w-20 sm:w-24 opacity-100 mx-2'
+                        : 'w-0 opacity-0 mx-0 pointer-events-none'
+                    )}
+                    style={{
+                      background: `linear-gradient(to right, var(--primary) ${((gridSize - GRID_SIZE_MIN) / (GRID_SIZE_MAX - GRID_SIZE_MIN)) * 100}%, var(--input) 0)`,
+                    }}
+                  />
+                  {([
+                    { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
+                    { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
+                  ]).map(({ mode, Icon, title }) => (
+                    <Pill
+                      key={mode}
+                      icon
+                      variant={view === mode ? 'secondary' : 'quiet'}
+                      onClick={() => persistView(mode)}
+                      title={title}
+                      aria-label={title}
+                      aria-pressed={view === mode}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </Pill>
+                  ))}
+                </div>
+              </div>
+            }
+          />
+
+          {/* ── Active filters as chips, Add shelf, Clear all ─────────────── */}
+          {(activeFilterChips.length > 0 || hasFilters) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {activeFilterChips.map(f => (
+                <span key={f.key} className="inline-flex items-center gap-1 h-8 pl-3.5 pr-1.5 rounded-full bg-secondary text-[13px] font-medium text-foreground">
+                  {f.label}
                   <button
-                    onClick={exitSelectionMode}
-                    title={t`Exit selection mode`}
-                    aria-label={t`Exit selection mode`}
-                    className="p-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    type="button"
+                    onClick={() => setFilter(f.key, '')}
+                    aria-label={t`Remove filter`}
+                    className="w-6 h-6 grid place-items-center rounded-full text-muted-foreground hover:text-destructive hover:bg-background/60 transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
-              <input
-                type="range"
-                min={GRID_SIZE_MIN}
-                max={GRID_SIZE_MAX}
-                step={10}
-                value={gridSize}
-                onChange={e => persistGridSize(Number(e.target.value))}
-                title={t`Cover size`}
-                aria-label={t`Cover size`}
-                tabIndex={view === 'grid' ? 0 : -1}
-                className={cn(
-                  'cover-slider transition-all duration-200',
-                  view === 'grid'
-                    ? 'w-20 sm:w-24 opacity-100 mx-2'
-                    : 'w-0 opacity-0 mx-0 pointer-events-none'
-                )}
-                style={{
-                  background: `linear-gradient(to right, var(--primary) ${((gridSize - GRID_SIZE_MIN) / (GRID_SIZE_MAX - GRID_SIZE_MIN)) * 100}%, var(--input) 0)`,
-                }}
-              />
-              {([
-                { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
-                { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
-              ]).map(({ mode, Icon, title }) => (
-                <button key={mode} onClick={() => persistView(mode)} title={title} aria-label={title}
-                  className={cn('p-1.5 rounded-md transition-all',
-                    view === mode ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
+                </span>
               ))}
+
+              {/* Save filter button — only when content filters active (not library) */}
+              <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
+
+              <Pill variant="quiet" onClick={clearFilters}>
+                <Trans>Clear all</Trans>
+              </Pill>
             </div>
-          </div>
+          )}
 
           {/* ── Filter panel ──────────────────────────────────────────────── */}
-          {filterOpen && (
-            <div className="mb-4 p-4 rounded-xl border border-border bg-card flex flex-col gap-4">
+          {filterOpen && (() => {
+            /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+            const opt = (active: boolean) => cn(
+              'h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors inline-flex items-center gap-1',
+              active ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
+            )
+            const rowLabel = 'text-[13px] text-muted-foreground w-20 shrink-0'
+            const selectCls = 'h-9 text-[14px] rounded-lg border border-border bg-background px-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+            /* eslint-enable lingui/no-unlocalized-strings */
+            return (
+            <div className="rounded-[var(--radius-panel)] bg-card p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between sm:hidden">
-                <span className="text-xs font-medium text-muted-foreground"><Trans>Filters</Trans></span>
-                <button
-                  onClick={() => setFilterOpen(false)}
-                  className="p-1 text-muted-foreground hover:text-foreground"
-                >
+                <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Filters</Trans></span>
+                <Pill variant="quiet" icon onClick={() => setFilterOpen(false)} aria-label={t`Close`}>
                   <X className="w-4 h-4" />
-                </button>
+                </Pill>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <FilterSelect label={t`Series`} value={filterSeries} options={facets.series} onChange={v => setFilter('series', v)} />
@@ -1677,24 +1764,15 @@ export function DashboardPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Status</Trans></span>
+                <span className={rowLabel}><Trans>Status</Trans></span>
                 {(['', 'unread', 'want_to_read', 'reading', 'read', 'shelved'] as const).map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setFilter('reading_status', s)}
-                    className={cn(
-                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
-                      filterReadingStatus === s
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
-                  >
+                  <button key={s} type="button" onClick={() => setFilter('reading_status', s)} className={opt(filterReadingStatus === s)}>
                     {s === '' ? t`All` : i18n._(READING_STATUS_LABELS[s])}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Rating</Trans></span>
+                <span className={rowLabel}><Trans>Rating</Trans></span>
                 {([
                   { value: '', label: t`All`, starless: true },
                   { value: '1', label: t`Rated`, starless: true },
@@ -1704,13 +1782,9 @@ export function DashboardPage() {
                 ]).map(({ value, label, starless }) => (
                   <button
                     key={value}
+                    type="button"
                     onClick={() => setFilter('min_rating', value)}
-                    className={cn(
-                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all inline-flex items-center gap-1',
-                      (filterMinRating ? String(filterMinRating) : '') === value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
+                    className={opt((filterMinRating ? String(filterMinRating) : '') === value)}
                   >
                     {!starless && <Star className="w-3 h-3 fill-current" />}
                     {label}
@@ -1718,7 +1792,7 @@ export function DashboardPage() {
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Missing</Trans></span>
+                <span className={rowLabel}><Trans>Missing</Trans></span>
                 {([
                   { value: '', label: t`None` },
                   { value: 'cover', label: t`Cover` },
@@ -1727,16 +1801,7 @@ export function DashboardPage() {
                   { value: 'series', label: t`Series` },
                   { value: 'any', label: t`Any` },
                 ]).map(({ value, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => setFilter('missing', value)}
-                    className={cn(
-                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
-                      filterMissing === value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
-                  >
+                  <button key={value} type="button" onClick={() => setFilter('missing', value)} className={opt(filterMissing === value)}>
                     {label}
                   </button>
                 ))}
@@ -1744,22 +1809,21 @@ export function DashboardPage() {
               {/* Device filter: one pill per device, click cycles off / on / not on */}
               {devices.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Devices</Trans></span>
+                  <span className={rowLabel}><Trans>Devices</Trans></span>
                   {devices.map(d => {
                     const name = d.name
                     const state = onDevices.includes(name) ? 'on' : notOnDevices.includes(name) ? 'not' : 'off'
                     return (
                       <button
                         key={name}
+                        type="button"
                         onClick={() => cycleDeviceFilter(name)}
                         title={state === 'off' ? t`Click: only books on ${name}`
                           : state === 'on' ? t`Click: only books not on ${name}`
                           : t`Click: ${name} does not matter`}
                         className={cn(
-                          'px-3 py-1 rounded-lg text-xs font-medium border transition-all inline-flex items-center gap-1',
-                          state === 'on' && 'bg-primary text-primary-foreground border-primary',
-                          state === 'not' && 'bg-destructive/10 text-destructive border-destructive/40',
-                          state === 'off' && 'border-border bg-card text-muted-foreground hover:text-foreground',
+                          opt(state === 'on'),
+                          state === 'not' && 'bg-destructive/10 text-destructive hover:text-destructive',
                         )}
                       >
                         <Tablet className="w-3 h-3" />
@@ -1772,22 +1836,13 @@ export function DashboardPage() {
               {/* Ownership filter — members only (not admin) */}
               {isMember(user) && !isAdmin(user) && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Books</Trans></span>
+                  <span className={rowLabel}><Trans>Books</Trans></span>
                   {([
                     { value: '', label: t`All` },
                     { value: 'mine', label: t`My Books` },
                     { value: 'shared', label: t`Shared Library` },
                   ] as const).map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => setFilter('ownership', value)}
-                      className={cn(
-                        'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
-                        filterOwnership === value
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                      )}
-                    >
+                    <button key={value} type="button" onClick={() => setFilter('ownership', value)} className={opt(filterOwnership === value)}>
                       {label}
                     </button>
                   ))}
@@ -1796,11 +1851,11 @@ export function DashboardPage() {
               {/* Uploader filter — admins only */}
               {isAdmin(user) && userList.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Uploader</Trans></span>
+                  <span className={rowLabel}><Trans>Uploader</Trans></span>
                   <select
                     value={filterAddedBy ?? ''}
                     onChange={e => setFilter('added_by', e.target.value)}
-                    className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                    className={selectCls}
                   >
                     <option value="">{t`All users`}</option>
                     {userList.map(u => (
@@ -1810,11 +1865,11 @@ export function DashboardPage() {
                 </div>
               )}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Type</Trans></span>
+                <span className={rowLabel}><Trans>Type</Trans></span>
                 <select
                   value={contentType}
                   onChange={e => setContentType(e.target.value)}
-                  className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                  className={selectCls}
                 >
                   <option value="volume">{t`Volumes`}</option>
                   <option value="chapter">{t`Chapters`}</option>
@@ -1822,21 +1877,17 @@ export function DashboardPage() {
                 </select>
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {/* ── Bulk action bar ──────────────────────────────────────────── */}
           {selectionMode && (
-            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/5 border border-primary/20">
-              <span className="text-xs font-medium text-primary">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
-              <div className="flex-1" />
-              <button
-                onClick={bulkDownload}
-                disabled={bulkPending || selected.size === 0}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-              >
-                <Download className="w-3.5 h-3.5" />
+            <div className="flex flex-wrap items-center gap-2 py-2.5 border-y border-border/70">
+              <span className="text-[15px] font-semibold text-foreground tabular-nums mr-auto">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
+              <Pill onClick={bulkDownload} disabled={bulkPending || selected.size === 0}>
+                <Download className="w-4 h-4" />
                 <Trans>Download ZIP</Trans>
-              </button>
+              </Pill>
               {isMember(user) && (
                 <SendButton
                   variant="bulk"
@@ -1844,35 +1895,35 @@ export function DashboardPage() {
                   books={books.filter(b => selected.has(b.id)).map(b => ({ id: b.id, title: b.title, files: b.files }))}
                 />
               )}
-              <button
+              <Pill
                 onClick={() => { setBulkMetaOpen(true); api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }}
                 disabled={bulkPending || selected.size === 0}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <Pencil className="w-4 h-4" />
                 <Trans>Edit Metadata</Trans>
-              </button>
+              </Pill>
               {libraries.some(l => l.can_edit) && (
                 <div className="relative">
-                  <button
+                  <Pill
+                    variant="primary"
                     onClick={() => setBulkLibMenu(o => !o)}
                     disabled={bulkPending || selected.size === 0}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                   >
-                    <LibraryIcon className="w-3.5 h-3.5" />
+                    <LibraryIcon className="w-4 h-4" />
                     <Trans>Add to Library</Trans>
-                  </button>
+                  </Pill>
                   {bulkLibMenu && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-xl py-1 min-w-44">
+                      <div className="absolute right-0 top-full mt-2 z-20 bg-card border border-border/60 rounded-xl shadow-xl p-1.5 min-w-48">
                         {libraries.filter(l => l.can_edit).map(lib => (
                           <button
                             key={lib.id}
+                            type="button"
                             onClick={() => bulkAddToLibrary(lib.id)}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            className="flex items-center gap-2 w-full h-9 px-3 rounded-lg text-[14px] text-foreground hover:bg-secondary transition-colors"
                           >
-                            <LibraryIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <LibraryIcon className="w-4 h-4 text-muted-foreground shrink-0" />
                             {lib.name}
                           </button>
                         ))}
@@ -1881,37 +1932,38 @@ export function DashboardPage() {
                   )}
                 </div>
               )}
-              <button
+              <Pill
+                variant="destructive"
                 onClick={() => setDeleteModalOpen(true)}
                 disabled={bulkPending || selected.size === 0}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-all"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
                 <Trans>Delete</Trans>
-              </button>
-              <button onClick={exitSelectionMode} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              </Pill>
+              <Pill variant="quiet" onClick={exitSelectionMode}>
                 <Trans>Done</Trans>
-              </button>
+              </Pill>
             </div>
           )}
+          </div>
 
           {/* ── Series matching the search ───────────────────────────────── */}
           {search && !groupActive && searchSeries.length > 0 && (
-            <section className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+            <section>
+              <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" />
                 <Trans>Series</Trans>
               </p>
-              <HScrollRow className="gap-3 pb-1">
+              <HScrollRow className="gap-2 pb-1" fadeFrom="background">
                 {searchSeries.map(s => {
                   const name = s.name
                   return (
                     <button
                       key={name}
                       onClick={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(name)}`)}
-                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-150"
+                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl hover:bg-secondary transition-colors"
                     >
-                      <div className="relative w-12 aspect-[2/3] shrink-0 rounded-md overflow-hidden bg-muted">
+                      <div className="relative w-12 aspect-[2/3] shrink-0 rounded-[6px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
                         <CoverImage
                           src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                           alt={name}
@@ -1919,15 +1971,15 @@ export function DashboardPage() {
                         />
                       </div>
                       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                        <span className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">{name}</span>
-                        {s.author && <span className="text-xs text-muted-foreground truncate">{s.author}</span>}
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-[15px] font-medium text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">{name}</span>
+                        {s.author && <span className="text-[13px] text-muted-foreground truncate">{s.author}</span>}
+                        <span className="text-[13px] text-muted-foreground">
                           {(() => { const n = s.book_count; const r = s.read_count; return r > 0
                             ? <Trans>{n} books &middot; {r} read</Trans>
                             : <Plural value={n} one="# book" other="# books" /> })()}
                         </span>
                         {s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
-                          <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden flex">
+                          <div className="mt-1 h-[3px] rounded-full overflow-hidden flex" style={{ background: 'color-mix(in oklch, var(--primary) 25%, var(--background))' }}>
                             <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
                             <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
                           </div>
@@ -1940,64 +1992,67 @@ export function DashboardPage() {
             </section>
           )}
 
-          {/* ── Search result count ───────────────────────────────────────── */}
+          {/* ── Grid / list, with the search result count above ─────────── */}
+          <div>
           {search && !loading && totalCount !== null && (
-            <p className="text-sm text-muted-foreground mb-3">
+            <p className="text-[14px] text-muted-foreground mb-4">
               {totalCount === 0
                 ? t`No results for "${search}"`
                 : plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
             </p>
           )}
 
-          {/* ── Grid / list ───────────────────────────────────────────────── */}
           {loading ? (
             <div className="flex justify-center py-24">
               <BookAnimation variant="refresh" className="block w-12 h-12 text-primary" />
             </div>
           ) : books.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <BookOpen className="w-8 h-8 text-primary/40" />
-              </div>
+            <div className="flex flex-col items-start gap-4 py-10">
               {search ? (
                 <>
                   <div>
-                    <p className="text-base font-medium text-foreground"><Trans>No results found</Trans></p>
-                    <p className="text-sm text-muted-foreground mt-1"><Trans>Nothing matched &ldquo;{search}&rdquo;</Trans></p>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>No results found</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Nothing matched &ldquo;{search}&rdquo;</Trans></p>
                   </div>
-                  <button
-                    onClick={() => { setSearchInput(''); setFilter('q', '') }}
-                    className="text-sm text-primary hover:underline"
-                  >
+                  <Pill onClick={() => { setSearchInput(''); setFilter('q', '') }}>
                     <Trans>Clear search</Trans>
-                  </button>
+                  </Pill>
                 </>
               ) : (hasFilters || filterLibrary) ? (
                 <>
                   <div>
-                    <p className="text-base font-medium text-foreground"><Trans>No matches</Trans></p>
-                    <p className="text-sm text-muted-foreground mt-1"><Trans>Try adjusting your filters</Trans></p>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>No matches</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Try adjusting your filters</Trans></p>
                   </div>
-                  <button onClick={clearFilters} className="text-sm text-primary hover:underline"><Trans>Clear all filters</Trans></button>
+                  <Pill onClick={clearFilters}><Trans>Clear all filters</Trans></Pill>
                 </>
               ) : (
-                <div>
-                  <p className="text-base font-medium text-foreground"><Trans>Your library is empty</Trans></p>
-                  <p className="text-sm text-muted-foreground mt-1"><Trans>Upload or scan a folder to get started</Trans></p>
-                </div>
+                <>
+                  <div>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>Your library is empty</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Upload or scan a folder to get started</Trans></p>
+                  </div>
+                  {isMember(user) && (
+                    <Pill variant="primary" onClick={() => setUploadModalOpen(true)}>
+                      <Upload className="w-4 h-4" />
+                      <Trans>Upload books</Trans>
+                    </Pill>
+                  )}
+                </>
               )}
             </div>
           ) : (
             <div key={view} ref={booksGridRef} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
-              {/* POC: Motion layout animations replace the hand-rolled FLIP above —
-                  `layout` covers reflows (grid-size slider, filter survivors gliding)
-                  and AnimatePresence adds enter/exit, which FLIP never had. */}
+              {/* Motion layout animations: `layout` glides the survivors on a
+                  reflow (cover-size slider, filter changes). Arriving cards
+                  appear in place, never fading up from nothing inside the
+                  painted panel; leaving cards fade out. */}
               <AnimatePresence mode="popLayout" initial={false}>
               {books.map((book, i) => (
                 <m.div
                   key={`${cardView}-${groupActive && book.series ? 'stack-' : ''}${book.id}`}
                   layout
-                  initial={{ opacity: 0, scale: 0.92 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.92 }}
                   transition={{ layout: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
@@ -2022,6 +2077,7 @@ export function DashboardPage() {
                   onTagClick={tag => setFilter('tag', tag)}
                   onSeriesClick={series => setFilter('series', series)}
                   onAuthorClick={author => setFilter('author', author)}
+                  onQuickLook={() => setQuickLookId(book.id)}
                   readingStatus={readingStatuses[book.id]?.status}
                   progressPct={readingStatuses[book.id]?.progress_pct}
                   rating={readingStatuses[book.id]?.rating}
@@ -2042,12 +2098,13 @@ export function DashboardPage() {
           {!hasMore && booksRef.current.length >= PAGE_SIZE && (() => {
             const loadedCount = booksRef.current.length
             return (
-              <p className="text-center text-xs text-muted-foreground py-4">
+              <p className="text-center text-[13px] text-muted-foreground py-4">
                 <Trans>All {loadedCount} books loaded</Trans>
               </p>
             )
           })()}
-          </>
+          </div>
+          </PageBody>
           )}
         </div>
 
@@ -2059,6 +2116,9 @@ export function DashboardPage() {
         onCancel={() => setDeleteModalOpen(false)}
         onConfirm={bulkDelete}
       />
+
+      {/* ── Quick look (Library grid, series volumes) ───────────────────────── */}
+      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={closeQuickLook} />}
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
       <ModalShell open={bulkMetaOpen} onClose={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }} className="w-full max-w-md">
@@ -2183,10 +2243,10 @@ function FilterSelect({ label, value, options, onChange }: {
   const { t } = useLingui()
   const opts = options.map(o => typeof o === 'string' ? { value: o, label: o } : o)
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <label className="text-[13px] text-muted-foreground">{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)}
-        className="h-8 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-foreground">
+        className="h-9 w-full rounded-lg border border-border bg-background px-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring text-foreground">
         <option value="">{t`All`}</option>
         {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
