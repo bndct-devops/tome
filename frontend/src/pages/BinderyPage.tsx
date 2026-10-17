@@ -1477,6 +1477,7 @@ export function BinderyPage() {
 
   function renderRow(item: BinderyItem, indent = false) {
     const isSelected = selected.has(item.path)
+    const itemTitle = item.title
     return (
       <div
         key={item.path}
@@ -1491,7 +1492,7 @@ export function BinderyPage() {
           checked={isSelected}
           onChange={e => toggleSelect(item.path, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
           onClick={e => e.stopPropagation()}
-          aria-label={t`Select ${item.title}`}
+          aria-label={t`Select ${itemTitle}`}
           className="shrink-0 w-4 h-4 rounded border-border cursor-pointer accent-[var(--primary)]"
         />
         <button

@@ -24,14 +24,17 @@ function plainText(html: string): string {
 export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => void }) {
   const navigate = useNavigate()
   const { t } = useLingui()
-  const [book, setBook] = useState<BookDetail | null>(null)
-  const [status, setStatus] = useState<BookStatus | null>(null)
+  // Both answers are kept with the id they belong to, so a switch to another
+  // book shows nothing of the previous one without a reset in the effect.
+  const [loaded, setLoaded] = useState<{ id: number; book: BookDetail } | null>(null)
+  const [loadedStatus, setLoadedStatus] = useState<{ id: number; status: BookStatus } | null>(null)
+  const book = loaded?.id === bookId ? loaded.book : null
+  const status = loadedStatus?.id === bookId ? loadedStatus.status : null
 
   useEffect(() => {
-    setBook(null); setStatus(null)
     const ctrl = new AbortController()
-    api.get<BookDetail>(`/books/${bookId}`, ctrl.signal).then(setBook).catch(() => {})
-    api.get<BookStatus>(`/books/${bookId}/status`, ctrl.signal).then(setStatus).catch(() => {})
+    api.get<BookDetail>(`/books/${bookId}`, ctrl.signal).then(b => setLoaded({ id: bookId, book: b })).catch(() => {})
+    api.get<BookStatus>(`/books/${bookId}/status`, ctrl.signal).then(st => setLoadedStatus({ id: bookId, status: st })).catch(() => {})
     return () => ctrl.abort()
   }, [bookId])
 

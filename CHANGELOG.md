@@ -6,6 +6,30 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **A quieter web app.** Every page now shares one frame: a full-height
+  sidebar with the wordmark on top and the navigation in three groups (Home,
+  Library, Series; Reading; Manage), a lineless header with a pill search and
+  a "Synced 5d ago" chip that says what it is, and the page itself as a
+  rounded panel set into the frame. Home is rebuilt around the book you are
+  reading: cover, progress, Resume, the other books in progress as one row,
+  four bare numbers (streak, this month, finished, library), Recently added,
+  a highlight, and recent activity as plain rows. The book page moves inside
+  that frame with the cover, file, details and genres in a rail beside the
+  content; its charts are unchanged. Library, Series, Stats, Calendar,
+  Highlights, Wishlist, Bindery, Hardcover, Settings, Admin, the login and
+  the public share page follow the same vocabulary: one page header with the
+  page's actions on the right, pill buttons, rows on hairlines instead of
+  boxes, and two content widths. A quick look opens from a cover in any grid
+  or row (cover, progress, Resume, Open page) without leaving the page. All
+  five themes.
+
+### Removed
+- **Home's Focus and Dashboard modes.** There is one Home now. Reading DNA
+  stays on the Stats page, series progress on its Library tab, and recently
+  finished books are the Library's "Read" filter. The forgotten-books
+  reminder is gone.
+
 ## [2.7.0] - 2026-10-17 - "Catalogue"
 
 ### Added

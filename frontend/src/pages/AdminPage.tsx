@@ -1607,9 +1607,7 @@ function DuplicatesTab() {
             const decision = decisions[group.group_id]
             const othersCount = group.books.filter(b => b.id !== keepIds[group.group_id]).length
             return (
-              <div key={group.group_id} className={cn(
-                'border-b border-border/70 py-5',
-              )}>
+              <div key={group.group_id} data-testid="duplicate-group" className="border-b border-border/70 py-5">
                 {/* Group header */}
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <span className={cn(

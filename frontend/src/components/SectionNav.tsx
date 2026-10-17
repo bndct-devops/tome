@@ -32,25 +32,26 @@ export function SectionNav({ items, active, onSelect, label, hrefFor }: {
   label: string
   hrefFor?: (id: string) => string
 }) {
-  const pillRefs = useRef<Record<string, HTMLElement | null>>({})
+  const pillRow = useRef<HTMLDivElement>(null)
 
   // Keep the active pill in view on phones.
   useEffect(() => {
     if (!active) return
-    const pill = pillRefs.current[active]
+    const pill = pillRow.current?.querySelector<HTMLElement>(`[data-section="${CSS.escape(active)}"]`)
     if (pill && pill.offsetParent !== null) pill.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
   }, [active])
 
-  function item(s: SectionNavItem, className: string, ref?: (el: HTMLElement | null) => void) {
+  function item(s: SectionNavItem, className: string) {
     const isActive = s.id === active
     const common = {
       onClick: (e: React.MouseEvent) => onSelect(s.id, e),
       'aria-current': isActive ? ('page' as const) : undefined,
+      'data-section': s.id,
       className,
     }
     return hrefFor
-      ? <a key={s.id} ref={ref} href={hrefFor(s.id)} {...common}>{s.label}</a>
-      : <button key={s.id} ref={ref} type="button" {...common}>{s.label}</button>
+      ? <a key={s.id} href={hrefFor(s.id)} {...common}>{s.label}</a>
+      : <button key={s.id} type="button" {...common}>{s.label}</button>
   }
 
   return (
@@ -67,13 +68,13 @@ export function SectionNav({ items, active, onSelect, label, hrefFor }: {
       </nav>
 
       <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background">
-        <div className="flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div ref={pillRow} className="flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map(s => item(s, cn(
             'shrink-0 whitespace-nowrap inline-flex items-center h-8 px-3.5 rounded-full text-[13px] transition-colors',
             s.id === active
               ? 'bg-primary/10 text-foreground font-medium'
               : 'bg-secondary text-muted-foreground hover:text-foreground',
-          ), el => { pillRefs.current[s.id] = el }))}
+          )))}
         </div>
       </nav>
     </>
