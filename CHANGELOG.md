@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-10-17 - "Catalogue"
+
 ### Added
 - **Searching for a series shows the series.** When a search matches a
   series name ("good guys" finds The Good Guys), the series appear as cards
