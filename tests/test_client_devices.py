@@ -55,10 +55,11 @@ def test_poll_with_device_registers_it(client: TestClient):
     assert d["revoked_at"] is None
 
 
-def test_poll_without_device_registers_nothing(client: TestClient):
+def test_poll_without_device_registers_a_browser(client: TestClient):
     token = _pair_phone(client, device=None)
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
-    assert client.get("/api/auth/devices").json() == []
+    [d] = client.get("/api/auth/devices").json()
+    assert d["kind"] == "web" and d["app_version"] is None
 
 
 def test_revoke_signs_the_phone_out(client: TestClient):
@@ -107,7 +108,7 @@ def test_unknown_device_404(client: TestClient):
     assert client.delete("/api/auth/devices/99999").status_code == 404
 
 
-def test_device_token_has_no_expiry_web_token_keeps_it(client: TestClient):
+def test_every_login_token_has_no_expiry(client: TestClient):
     from backend.core.security import decode_claims
 
     phone = _pair_phone(client)
@@ -116,20 +117,18 @@ def test_device_token_has_no_expiry_web_token_keeps_it(client: TestClient):
 
     web = client.post("/api/auth/login", json={"username": "testadmin", "password": "adminpass123"})
     web_claims = decode_claims(web.json()["access_token"])
-    assert "jti" not in web_claims and "exp" in web_claims
-    from backend.core.config import settings
-    remaining = web_claims["exp"] - datetime.now(timezone.utc).timestamp()
-    assert abs(remaining - settings.jwt_expire_minutes * 60) < 60
+    assert web_claims["jti"] and "exp" not in web_claims
 
 
-def test_device_token_still_valid_past_web_expiry(client: TestClient, monkeypatch):
+def test_logins_still_valid_far_in_the_future(client: TestClient, monkeypatch):
     from backend.core import security
 
     phone = _pair_phone(client)
     web = client.post("/api/auth/login", json={"username": "testadmin", "password": "adminpass123"}).json()["access_token"]
+    plain = security.create_access_token(security.decode_token(web))  # impersonation-style, still expires
 
-    # Jump past the web token's lifetime: jose checks `exp` against datetime.now(UTC).
-    future = datetime.now(timezone.utc) + timedelta(minutes=security.settings.jwt_expire_minutes + 60)
+    # Jump far past the old 7-day web lifetime: jose checks `exp` against datetime.now(UTC).
+    future = datetime.now(timezone.utc) + timedelta(days=400)
 
     class _FrozenDatetime(datetime):
         @classmethod
@@ -143,19 +142,22 @@ def test_device_token_still_valid_past_web_expiry(client: TestClient, monkeypatc
     import jose.jwt
     monkeypatch.setattr(jose.jwt, "datetime", _FrozenDatetime)
 
-    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {web}"}).status_code == 401
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {plain}"}).status_code == 401
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {web}"}).status_code == 200
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {phone}"}).status_code == 200
 
-    device_id = client.get("/api/auth/devices", headers={"Authorization": f"Bearer {phone}"}).json()[0]["id"]
-    assert client.delete(f"/api/auth/devices/{device_id}", headers={"Authorization": f"Bearer {phone}"}).status_code == 204
-    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {phone}"}).status_code == 401
+    wh = {"Authorization": f"Bearer {web}"}
+    browser = next(d for d in client.get("/api/auth/devices", headers=wh).json() if d["kind"] == "web")
+    assert client.delete(f"/api/auth/devices/{browser['id']}", headers=wh).status_code == 204
+    assert client.get("/api/auth/me", headers=wh).status_code == 401
 
 
-def test_password_change_revokes_devices_not_web(client: TestClient, db: Session):
+def test_password_change_revokes_everything_but_this_browser(client: TestClient, db: Session):
     member, _ = _make_member(db, "pwchanger")
     creds = {"username": member.username, "password": "memberpass"}
     phone = client.post("/api/auth/login", json={**creds, "device": {"name": "Phone"}}).json()["access_token"]
     tablet = client.post("/api/auth/login", json={**creds, "device": {"name": "Tablet"}}).json()["access_token"]
+    other_browser = client.post("/api/auth/login", json=creds).json()["access_token"]
     web = client.post("/api/auth/login", json=creds).json()["access_token"]
     # another user's device is untouched
     admin_phone = _pair_phone(client)
@@ -164,12 +166,13 @@ def test_password_change_revokes_devices_not_web(client: TestClient, db: Session
                    headers={"Authorization": f"Bearer {web}"})
     assert r.status_code == 204
 
-    for token in (phone, tablet):
+    for token in (phone, tablet, other_browser):
         assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {web}"}).status_code == 200
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {admin_phone}"}).status_code == 200
     mine = client.get("/api/auth/devices", headers={"Authorization": f"Bearer {web}"}).json()
-    assert len(mine) == 2 and all(d["revoked_at"] for d in mine)
+    assert len(mine) == 4
+    assert [d["current"] for d in mine if not d["revoked_at"]] == [True]
 
 
 def test_wrong_current_password_revokes_nothing(client: TestClient):
