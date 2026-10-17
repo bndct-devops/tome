@@ -1,8 +1,7 @@
 import { TelemetrySettings } from '@/components/TelemetryConsentCard'
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
+  ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
   AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
 } from 'lucide-react'
@@ -11,12 +10,14 @@ import { ScanSyncCodeModal } from '@/components/ScanSyncCodeModal'
 import { DeviceInventoryList } from '@/components/DeviceInventoryList'
 import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
 import { DOCS, docsLink } from '@/lib/docs'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SettingsNav } from '@/components/SettingsNav'
+import { SectionLayout, PanelSection } from '@/components/SectionNav'
+import { AppShell } from '@/components/AppShell'
+import { Pill } from '@/components/page'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
@@ -623,79 +624,65 @@ export function SettingsPage() {
     { id: 'about', label: t`About` },
   ]
 
+  const [activeSection, setActiveSection] = useState<string | null>(null)
   const origin = window.location.origin
   const opdsUrl = `${origin}/opds`
   const kosyncUrl = `${origin}/api/v1`
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 safe-top">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <Trans>Library</Trans>
-            </Link>
-            <span className="text-border select-none">/</span>
-            <span className="text-sm font-medium text-foreground"><Trans>Settings</Trans></span>
-          </div>
-          <ThemeToggle />
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 pb-10 pt-0 lg:pt-10 lg:grid lg:grid-cols-[11rem_minmax(0,48rem)] lg:gap-10 lg:justify-center">
-        <SettingsNav sections={navSections} />
-        <div className="min-w-0 space-y-10 pt-8 lg:pt-0">
+    <AppShell>
+      <SectionLayout
+        title={<Trans>Settings</Trans>}
+        eyebrow={navSections.find(s => s.id === activeSection)?.label ?? navSections[0]?.label}
+        nav={<SettingsNav sections={navSections} onActiveChange={setActiveSection} />}
+      >
+        <div className="flex flex-col gap-12">
 
         {/* ── Account & Security ────────────────────────────────────────── */}
-        <section id="account" className="scroll-mt-24">
-          <SectionHeader title={t`Account & Security`} />
-          <div className="mt-4 rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+        <PanelSection id="account" title={t`Account & Security`}>
+          <div className="divide-y divide-border/70">
 
             {/* Profile */}
-            <div className="p-5">
-              <form onSubmit={handleProfileSubmit} className="flex flex-col sm:flex-row gap-3 items-start">
+            <div className="py-6 first:pt-0 last:pb-0">
+              <form onSubmit={handleProfileSubmit} className="flex flex-col sm:flex-row gap-3 sm:items-end">
                 <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Username</Trans></label>
+                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Username</Trans></label>
                     <input
                       type="text"
                       value={profileUsername}
                       onChange={e => setProfileUsername(e.target.value)}
                       required
-                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Email</Trans></label>
+                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Email</Trans></label>
                     <input
                       type="email"
                       value={profileEmail}
                       onChange={e => setProfileEmail(e.target.value)}
                       required
-                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
-                <button
+                <Pill
                   type="submit"
                   disabled={profileSaving || !profileChanged}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 sm:mt-5 shrink-0"
+                  variant="primary" className="shrink-0"
                 >
                   {profileSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   {profileSaving ? t`Saving…` : t`Save changes`}
-                </button>
+                </Pill>
               </form>
               {profileError && <p className="text-xs text-destructive mt-2">{profileError}</p>}
               {profileSuccess && <p className="text-xs text-success mt-2"><Trans>Profile updated</Trans></p>}
             </div>
 
             {/* Password */}
-            <div className="p-5">
-              <p className="text-sm font-medium text-foreground mb-3"><Trans>Change Password</Trans></p>
+            <div className="py-6 first:pt-0 last:pb-0">
+              <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Change Password</Trans></p>
               {user?.auth_source === 'oidc' ? (
                 <p className="text-sm text-muted-foreground max-w-sm">
                   <Trans>You're signed in via SSO. Manage your credentials at your identity
@@ -722,14 +709,14 @@ export function SettingsPage() {
                 {pwError && <p className="text-xs text-destructive pt-0.5">{pwError}</p>}
                 {pwSuccess && <p className="text-xs text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
                 <div className="pt-1">
-                  <button
+                  <Pill
                     type="submit"
                     disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40"
+                    variant="primary"
                   >
                     {pwSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                     {pwSaving ? t`Saving…` : t`Update password`}
-                  </button>
+                  </Pill>
                 </div>
               </form>
               )}
@@ -737,8 +724,8 @@ export function SettingsPage() {
 
             {/* SSO linking */}
             {ssoEnabled && (
-              <div className="p-5">
-                <p className="text-sm font-medium text-foreground mb-3"><Trans>Single Sign-On</Trans></p>
+              <div className="py-6 first:pt-0 last:pb-0">
+                <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Single Sign-On</Trans></p>
                 {ssoMsg && (
                   <div className={cn(
                     'flex items-center gap-2 text-sm p-3 rounded-lg mb-3 border',
@@ -762,28 +749,25 @@ export function SettingsPage() {
                         ? <Trans>Link your identity provider to this account so you can sign in with SSO. Your existing login keeps working.</Trans>
                         : <Trans>Link your identity provider to this account so you can sign in with SSO. Your existing login and password keep working.</Trans>}
                     </p>
-                    <button
+                    <Pill
                       onClick={handleLinkSso}
                       disabled={linkingSso}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-muted transition-all disabled:opacity-40"
+                      variant="secondary"
                     >
                       {linkingSso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
                       <Trans>Link SSO</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 )}
               </div>
             )}
 
             {/* Quick Connect */}
-            <div className="p-5">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
-                  <Smartphone className="w-3.5 h-3.5 text-primary" />
-                </div>
+            <div className="py-6 first:pt-0 last:pb-0">
+              <div className="mb-4">
                 <div>
-                  <p className="text-sm font-medium text-foreground"><Trans>Quick Connect</Trans></p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-[15px] font-semibold text-foreground"><Trans>Quick Connect</Trans></p>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">
                     {nativeApp
                       ? <Trans>Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap "Quick Connect" on its login screen.</Trans>
                       : <Trans>Sign in on a new device without entering your password. On the new device, tap "Quick Connect" on the login screen to get a 6-character code, then enter it here.</Trans>}
@@ -792,20 +776,20 @@ export function SettingsPage() {
               </div>
               {nativeApp && (
                 <>
-                  <button
+                  <Pill
                     type="button"
                     onClick={() => setShowConnectPhone(true)}
-                    className="mb-4 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-border hover:bg-muted transition-colors"
+                    variant="secondary" className="mb-4"
                   >
                     <QrCode className="w-3.5 h-3.5" />
                     <Trans>Connect a phone</Trans>
-                  </button>
+                  </Pill>
                   {showConnectPhone && <ConnectPhoneModal onClose={() => setShowConnectPhone(false)} />}
                 </>
               )}
-              <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-xs">
+              <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Code from new device</Trans></label>
+                  <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Code from new device</Trans></label>
                   <input
                     type="text"
                     value={qcCode}
@@ -813,17 +797,17 @@ export function SettingsPage() {
                     placeholder="ABC123"
                     maxLength={6}
                     spellCheck={false}
-                    className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full font-mono tracking-widest uppercase h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
-                <button
+                <Pill
                   type="submit"
                   disabled={qcAuthorizing || qcCode.trim().length !== 6}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                  variant="primary" className="shrink-0"
                 >
                   {qcAuthorizing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {qcAuthorizing ? t`Authorizing...` : t`Authorize`}
-                </button>
+                </Pill>
               </form>
               {qcError && <p className="text-xs text-destructive mt-2">{qcError}</p>}
               {qcSuccess && (
@@ -835,20 +819,19 @@ export function SettingsPage() {
             </div>
 
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Connected devices ───────────────────────────────────────── */}
         {(nativeApp || (clientDevices?.length ?? 0) > 0) && (
-          <section id="devices" className="scroll-mt-24">
-            <SectionHeader title={t`Connected devices`} />
-            <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-              <div className="p-5 space-y-2">
+        <PanelSection id="devices" title={t`Connected devices`}>
+            <div>
+              <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code.</Trans>
                   </p>
                   {user?.is_admin && (
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
+                    <label className="flex items-center gap-2 text-[13px] text-muted-foreground cursor-pointer select-none shrink-0">
                       <button
                         type="button"
                         role="switch"
@@ -870,19 +853,19 @@ export function SettingsPage() {
                 </div>
 
                 {clientDevices === null ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                  <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <Trans>Loading…</Trans>
                   </div>
                 ) : clientDevices.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-2">
+                  <p className="text-[13px] text-muted-foreground py-2">
                     <Trans>No devices connected yet. Use "Connect a phone" above to sign the Tome app in.</Trans>
                   </p>
                 ) : (
-                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                     {/* One template for both modes so nothing shifts when the admin toggle flips;
                         the Owner column is simply empty until "All users" is on. */}
-                    <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+                    <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                       <span><Trans>Device</Trans></span>
                       <span><Trans>System</Trans></span>
                       <span><Trans>Last seen</Trans></span>
@@ -897,7 +880,7 @@ export function SettingsPage() {
                           key={d.id}
                           className={cn(
                             'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                            isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                            isRevoked && 'opacity-50'
                           )}
                         >
                           <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
@@ -943,17 +926,16 @@ export function SettingsPage() {
                 )}
               </div>
             </div>
-          </section>
+          </PanelSection>
         )}
 
         {/* ── Appearance ───────────────────────────────────────────────── */}
-        <section id="appearance" className="scroll-mt-24">
-          <SectionHeader title={t`Appearance`} />
+        <PanelSection id="appearance" title={t`Appearance`}>
 
           {/* Built-in themes — neutral core + warm pair */}
           {([[t`Core`, 'core'], [t`Warm`, 'warm']] as const).map(([groupLabel, group]) => (
             <div key={group} className="mt-4">
-              <p className="text-xs text-muted-foreground mb-1.5">{groupLabel}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{groupLabel}</p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {THEMES.filter(t => t.group === group).map(theme => {
                   const active = activeTheme === theme.id
@@ -1033,29 +1015,27 @@ export function SettingsPage() {
           )}
 
           {/* Add custom theme */}
-          <div className="mt-3 rounded-xl border border-border bg-card overflow-hidden">
-            <button
+          <div className="mt-5">
+            <Pill
               onClick={() => setCustomFormOpen(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              variant="secondary"
             >
-              <span className="flex items-center gap-2 font-medium">
-                <Plus className="w-3.5 h-3.5" />
-                <Trans>Add custom theme</Trans>
-              </span>
+              <Plus className="w-3.5 h-3.5" />
+              <Trans>Add custom theme</Trans>
               {customFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
+            </Pill>
 
             {customFormOpen && (
-              <div className="border-t border-border p-4 space-y-4">
+              <div className="mt-5 space-y-4 max-w-2xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Theme name</Trans></label>
+                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Theme name</Trans></label>
                     <input
                       type="text"
                       value={customName}
                       onChange={e => setCustomName(e.target.value)}
                       placeholder={t`My Theme`}
-                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div className="flex items-end">
@@ -1067,13 +1047,13 @@ export function SettingsPage() {
                         className="w-4 h-4 rounded accent-primary"
                       />
                       <Trans>Dark theme</Trans>
-                      <span className="text-xs text-muted-foreground"><Trans>(enables dark: variants)</Trans></span>
+                      <span className="text-[13px] text-muted-foreground"><Trans>(enables dark: variants)</Trans></span>
                     </label>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  <label className="block text-[13px] text-muted-foreground mb-1.5">
                     <Trans>Colors <span className="font-normal">(10 hex values, comma-separated)</span></Trans>
                   </label>
                   <input
@@ -1081,7 +1061,7 @@ export function SettingsPage() {
                     value={customColors}
                     onChange={e => { setCustomColors(e.target.value); setCustomError(null) }}
                     placeholder="#1E1E2E,#CDD6F4,#313244,#CBA6F7,#1E1E2E,#45475A,#A6ADC8,#313244,#585B70,#F38BA8"
-                    className="w-full text-xs font-mono bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full font-mono h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     spellCheck={false}
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">
@@ -1092,7 +1072,7 @@ export function SettingsPage() {
                 {/* Live preview */}
                 {parsedPreview && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0"><Trans>Preview:</Trans></span>
+                    <span className="text-[13px] text-muted-foreground shrink-0"><Trans>Preview:</Trans></span>
                     <div
                       className="flex items-center gap-1.5 rounded-lg px-3 py-2 border"
                       style={{
@@ -1111,26 +1091,25 @@ export function SettingsPage() {
 
                 {customError && <p className="text-xs text-destructive">{customError}</p>}
 
-                <button
+                <Pill
                   onClick={handleAddCustomTheme}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                  variant="primary"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <Trans>Add Theme</Trans>
-                </button>
+                </Pill>
               </div>
             )}
           </div>
 
-        </section>
+        </PanelSection>
 
         {/* ── Language ─────────────────────────────────────────────────── */}
         {/* Pills work up to roughly a dozen locales; if the list outgrows a
             row or two, swap back to a (styled) select. Labels are the
             language's own name and stay untranslated on purpose. */}
-        <section id="language" className="scroll-mt-24">
-          <SectionHeader title={t`Language`} />
-          <div className="mt-4 flex flex-wrap gap-2">
+        <PanelSection id="language" title={t`Language`}>
+          <div className="flex flex-wrap gap-2">
             {LOCALES.map(l => {
               const active = activeLocale === l.code
               return (
@@ -1139,10 +1118,10 @@ export function SettingsPage() {
                   onClick={() => handleLocaleSelect(l.code)}
                   lang={l.code}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-all',
+                    'inline-flex items-center gap-2 h-9 px-4 rounded-full text-[14px] transition-colors',
                     active
-                      ? 'border-primary bg-primary/10 text-primary font-medium'
-                      : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/50'
+                      ? 'bg-primary/10 text-foreground font-medium'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {l.label}
@@ -1151,27 +1130,26 @@ export function SettingsPage() {
               )
             })}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
+          <p className="text-[13px] text-muted-foreground mt-3">
             <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
           </p>
-        </section>
+        </PanelSection>
 
         {/* ── KOReader ─────────────────────────────────────────────────── */}
-        <section id="koreader" className="scroll-mt-24">
-          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-          <SectionHeader title="KOReader" />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                  {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
+        <PanelSection id="koreader" title="KOReader">
+          <div className="divide-y divide-border/70">
 
             {/* OPDS Catalog */}
-            <div className="p-6 space-y-4">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>OPDS Catalog</Trans></p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>OPDS Catalog</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Browse and download your library from KOReader or any OPDS client.</Trans>
                   </p>
                 </div>
-                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -1180,7 +1158,7 @@ export function SettingsPage() {
                 { label: t`Username`, value: user?.username ?? '—', copy: true },
                 { label: t`Password`, value: t`your Tome password` },
               ]} />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 <Trans>In KOReader: Search &rarr; OPDS catalog &rarr; add catalog with the URL above.</Trans>
               </p>
 
@@ -1196,19 +1174,19 @@ export function SettingsPage() {
                       value={pinLabel}
                       onChange={e => setPinLabel(e.target.value)}
                       placeholder={t`Label (e.g. KOReader)`}
-                      className="h-7 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring w-36"
+                      className="w-36 h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
-                    <button
+                    <Pill
                       onClick={handleCreatePin}
                       disabled={pinCreating}
-                      className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
+                      variant="quiet"
                     >
                       {pinCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                       <Trans>Generate PIN</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   <Trans>Short app-specific passwords for OPDS — easier to type on an e-reader than your full password.</Trans>
                 </p>
 
@@ -1224,12 +1202,12 @@ export function SettingsPage() {
                         <Copy className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
+                    <p className="text-[13px] text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
                   </div>
                 )}
 
                 {opdsPins.length > 0 ? (
-                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                     {opdsPins.map(p => (
                       <div key={p.id} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground w-14 shrink-0">{p.pin_preview}</span>
@@ -1249,17 +1227,17 @@ export function SettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
+                  <p className="text-[13px] text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
                 )}
               </div>
             </div>
 
             {/* Progress Sync (KOSync) */}
-            <div className="p-6 space-y-4">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>Progress Sync</Trans></p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Progress Sync</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Sync reading position between KOReader and Tome.</Trans>
                   </p>
                 </div>
@@ -1274,15 +1252,15 @@ export function SettingsPage() {
               </div>
 
               {kosyncStatus?.last_sync && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   {(() => { const d = new Date(kosyncStatus.last_sync * 1000).toLocaleString(i18n.locale); return t`Last sync: ${d}` })()}
                   {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
                 </p>
               )}
 
-              <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-xs">
+              <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  <label className="block text-[13px] text-muted-foreground mb-1.5">
                     {kosyncStatus?.linked ? t`Update sync password` : t`Set sync password`}
                   </label>
                   <input
@@ -1290,17 +1268,17 @@ export function SettingsPage() {
                     value={kosyncPassword}
                     onChange={e => setKosyncPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
-                <button
+                <Pill
                   type="submit"
                   disabled={kosyncSaving || !kosyncPassword}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                  variant="primary" className="shrink-0"
                 >
                   {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
-                </button>
+                </Pill>
               </form>
               {kosyncError && <p className="text-xs text-destructive">{kosyncError}</p>}
               {kosyncSuccess && <p className="text-xs text-success"><Trans>KOSync registered successfully</Trans></p>}
@@ -1310,22 +1288,22 @@ export function SettingsPage() {
                 { label: t`Username`, value: user?.username ?? '—', copy: true },
                 { label: t`Password`, value: t`the sync password set above` },
               ]} />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 <Trans>In KOReader: Tools &rarr; Progress sync &rarr; Custom sync server.</Trans>
               </p>
             </div>
 
             {/* TomeSync Plugin */}
-            <div className="p-6 space-y-4">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>TomeSync Plugin</Trans></p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>TomeSync Plugin</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync.</Trans>
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
                     <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                   </a>
                   <PluginVersion />
@@ -1333,29 +1311,29 @@ export function SettingsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
+                <Pill
                   onClick={handleDownloadPlugin}
                   disabled={pluginDownloading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+                  variant="primary"
                 >
                   {pluginDownloading
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Download className="w-3.5 h-3.5" />
                   }
                   {pluginDownloading ? t`Preparing…` : t`Download plugin ZIP`}
-                </button>
-                <button
+                </Pill>
+                <Pill
                   type="button"
                   onClick={() => setShowScanCode(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors"
+                  variant="secondary"
                   title={t`Read the QR code an offline KOReader device shows under TomeSync > Show sync code`}
                 >
                   <ScanLine className="w-3.5 h-3.5" />
                   <Trans>Scan a sync code</Trans>
-                </button>
+                </Pill>
                 {showScanCode && <ScanSyncCodeModal onClose={() => setShowScanCode(false)} />}
               </div>
-              <p className="text-xs text-muted-foreground -mt-2">
+              <p className="text-[13px] text-muted-foreground -mt-2">
                 <Trans>Device offline but your phone is not? "Show sync code" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it.</Trans>
               </p>
 
@@ -1367,14 +1345,14 @@ export function SettingsPage() {
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                     <Key className="w-3 h-3" /> <Trans>API Keys</Trans>
                   </p>
-                  <button
+                  <Pill
                     onClick={handleCreateKey}
                     disabled={keyCreating}
-                    className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
+                    variant="quiet"
                   >
                     {keyCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                     <Trans>New key</Trans>
-                  </button>
+                  </Pill>
                 </div>
 
                 {newKeyResult && (
@@ -1391,7 +1369,7 @@ export function SettingsPage() {
                 )}
 
                 {apiKeys.length > 0 ? (
-                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                     {apiKeys.map(k => (
                       <div key={k.id} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground flex-1">{k.key_preview}</span>
@@ -1410,7 +1388,7 @@ export function SettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
+                  <p className="text-[13px] text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
                 )}
               </div>
 
@@ -1418,26 +1396,22 @@ export function SettingsPage() {
             </div>
 
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Send to Device ──────────────────────────────────────────── */}
-        <section id="send-to-device" className="scroll-mt-24">
-          <SectionHeader title={t`Send to Device`} />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-4">
+        <PanelSection id="send-to-device" title={t`Send to Device`}>
+          <div>
+            <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
-                    <Send className="w-3.5 h-3.5 text-primary" />
-                  </div>
+                <div>
                   <div>
-                    <p className="text-sm font-medium text-foreground"><Trans>E-Reader Devices</Trans></p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-[15px] font-semibold text-foreground"><Trans>E-Reader Devices</Trans></p>
+                    <p className="text-[13px] text-muted-foreground mt-0.5">
                       <Trans>Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.</Trans>
                     </p>
                   </div>
                 </div>
-                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -1457,7 +1431,7 @@ export function SettingsPage() {
                       {setupGuideOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
                     </button>
                     {setupGuideOpen && (
-                      <div className="border-t border-border px-3 py-3 space-y-3 text-xs text-muted-foreground">
+                      <div className="border-t border-border px-3 py-3 space-y-3 text-[13px] text-muted-foreground">
                         <p><Trans>Your server admin needs to set SMTP environment variables:</Trans></p>
                         <div className="space-y-2">
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
@@ -1490,39 +1464,39 @@ export function SettingsPage() {
                   {/* Add device form */}
                   <form onSubmit={handleAddDevice} className="flex items-end gap-2">
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Device name</Trans></label>
+                      <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Device name</Trans></label>
                       <input
                         type="text"
                         value={newDeviceName}
                         onChange={e => setNewDeviceName(e.target.value)}
                         placeholder={t`My Kindle`}
-                        className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Email address</Trans></label>
+                      <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Email address</Trans></label>
                       <input
                         type="email"
                         value={newDeviceEmail}
                         onChange={e => setNewDeviceEmail(e.target.value)}
                         placeholder="user_abc@kindle.com"
-                        className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
-                    <button
+                    <Pill
                       type="submit"
                       disabled={deviceAdding || !newDeviceName.trim() || !newDeviceEmail.trim()}
-                      className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                      variant="primary" className="shrink-0"
                     >
                       {deviceAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                       <Trans>Add</Trans>
-                    </button>
+                    </Pill>
                   </form>
                   {deviceError && <p className="text-xs text-destructive">{deviceError}</p>}
 
                   {/* Device list */}
                   {devices.length > 0 ? (
-                    <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                    <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                       {devices.map(d => (
                         <div key={d.id} className="flex items-center gap-3 px-3 py-2">
                           <Send className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -1540,40 +1514,47 @@ export function SettingsPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground"><Trans>No devices yet. Add one to start sending books.</Trans></p>
+                    <p className="text-[13px] text-muted-foreground"><Trans>No devices yet. Add one to start sending books.</Trans></p>
                   )}
                 </div>
               ) : null}
             </div>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Hardcover ────────────────────────────────────────────────── */}
         {hardcoverAvailable && (
-          <section id="hardcover" className="scroll-mt-24">
-            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-            <SectionHeader title="Hardcover" />
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+          <PanelSection id="hardcover" title="Hardcover">
             <HardcoverSync onAvailable={setHardcoverAvailable} />
-          </section>
+          </PanelSection>
         )}
 
         {/* ── API Tokens ───────────────────────────────────────────────── */}
-        <section id="api-tokens" className="scroll-mt-24">
-          <SectionHeader title={t`API Tokens`} />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
-                    <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
-                      <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {user?.is_admin && apiTokens.length > 0 && (
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+        <PanelSection
+          id="api-tokens"
+          title={t`API Tokens`}
+          description={<>
+            <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
+            <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
+              <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
+            </a>
+          </>}
+          action={
+            <Pill
+              onClick={() => { setTokenFormOpen(v => !v); setTokenCreateError(null) }}
+              variant="secondary"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <Trans>New Token</Trans>
+            </Pill>
+          }
+        >
+          <div>
+            <div className="space-y-4">
+              {user?.is_admin && apiTokens.length > 0 && (
+                <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={apiTokensAllUsers}
@@ -1582,57 +1563,49 @@ export function SettingsPage() {
                       />
                       <Trans>All users</Trans>
                     </label>
-                  )}
-                  <button
-                    onClick={() => { setTokenFormOpen(v => !v); setTokenCreateError(null) }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <Trans>New Token</Trans>
-                  </button>
                 </div>
-              </div>
+              )}
 
               {/* Create form */}
               {tokenFormOpen && (
-                <form onSubmit={handleCreateToken} className="flex items-end gap-2 rounded-lg bg-muted/50 border border-border p-3">
+                <form onSubmit={handleCreateToken} className="flex flex-wrap items-end gap-2">
                   <div className="flex-1">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Token name</Trans></label>
+                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Token name</Trans></label>
                     <input
                       type="text"
                       value={tokenNewName}
                       onChange={e => { setTokenNewName(e.target.value); setTokenCreateError(null) }}
                       placeholder={t`e.g. scribe-laptop`}
                       autoFocus
-                      className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div className="shrink-0">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Scope</Trans></label>
+                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Scope</Trans></label>
                     <select
                       value={tokenNewScope}
                       onChange={e => setTokenNewScope(e.target.value as 'full' | 'readonly')}
-                      className="h-9 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     >
                       <option value="full">{t`Full access`}</option>
                       <option value="readonly">{t`Read-only`}</option>
                     </select>
                   </div>
-                  <button
+                  <Pill
                     type="submit"
                     disabled={tokenCreating || !tokenNewName.trim()}
-                    className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                    variant="primary" className="shrink-0"
                   >
                     {tokenCreating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {tokenCreating ? t`Creating...` : t`Create`}
-                  </button>
-                  <button
+                  </Pill>
+                  <Pill
                     type="button"
                     onClick={() => { setTokenFormOpen(false); setTokenNewName(''); setTokenCreateError(null) }}
-                    className="flex items-center h-9 px-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                    variant="quiet" className="shrink-0"
                   >
                     <Trans>Cancel</Trans>
-                  </button>
+                  </Pill>
                 </form>
               )}
               {tokenCreateError && <p className="text-xs text-destructive">{tokenCreateError}</p>}
@@ -1658,30 +1631,30 @@ export function SettingsPage() {
                       {tokenCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <button
+                  <Pill
                     onClick={() => { setTokenRevealPlaintext(null); setTokenCopied(false) }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                    variant="primary"
                   >
                     <Trans>Done</Trans>
-                  </button>
+                  </Pill>
                 </div>
               )}
 
               {/* Token list */}
               {apiTokensLoading ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <Trans>Loading…</Trans>
                 </div>
               ) : apiTokens.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">
+                <p className="text-[13px] text-muted-foreground py-2">
                   <Trans>No API tokens yet. Create one to use Scribe or scripts against Tome.</Trans>
                 </p>
               ) : (
-                <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                   {/* Header */}
                   <div className={cn(
-                    'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
+                    'hidden sm:grid px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground',
                     apiTokensAllUsers && user?.is_admin ? 'grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'grid-cols-[1fr_7rem_7rem_6rem_2rem]'
                   )}>
                     <span><Trans>Name</Trans></span>
@@ -1699,7 +1672,7 @@ export function SettingsPage() {
                         className={cn(
                           'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
                           apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'sm:grid-cols-[1fr_7rem_7rem_6rem_2rem]',
-                          isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                          isRevoked && 'opacity-50'
                         )}
                       >
                         <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
@@ -1751,70 +1724,69 @@ export function SettingsPage() {
               )}
             </div>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Export ───────────────────────────────────────────────────── */}
         {/* ── Outbound notifications ────────────────────────────────────── */}
-        <section id="notifications" className="scroll-mt-24">
-          <SectionHeader title={t`Notifications`} subtle />
+        <PanelSection id="notifications" title={t`Notifications`}>
           <NotificationChannels />
-        </section>
+        </PanelSection>
 
         {/* ── Share links overview ──────────────────────────────────────── */}
-        <section id="share-links" className="scroll-mt-24">
-          <SectionHeader title={t`Share links`} subtle />
+        <PanelSection id="share-links" title={t`Share links`}>
           <ShareLinksOverview />
-        </section>
+        </PanelSection>
 
         {/* ── Reading-history import ────────────────────────────────────── */}
-        <section id="import" className="scroll-mt-24">
-          <SectionHeader title={t`Import reading history`} subtle />
+        <PanelSection id="import" title={t`Import reading history`}>
           <ReadingImport />
-        </section>
+        </PanelSection>
 
-        <section id="export" className="scroll-mt-24">
-          <SectionHeader title={t`Export`} subtle />
-          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
-            <p className="text-xs text-muted-foreground mb-4">
-              <Trans>Download your entire library catalog — all titles, authors, series, tags and formats.</Trans>
-            </p>
+        <PanelSection
+          id="export"
+          title={t`Export`}
+          description={<Trans>Download your entire library catalog — all titles, authors, series, tags and formats.</Trans>}
+        >
+          <div>
+
             <div className="flex flex-wrap gap-2">
               <ExportButton format="json" label="JSON" exporting={exporting} onExport={handleExport} />
               <ExportButton format="csv" label="CSV" exporting={exporting} onExport={handleExport} />
             </div>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Personal backup ─────────────────────────────────────────── */}
-        <section id="backup" className="scroll-mt-24">
-          <SectionHeader title={t`Backup`} subtle />
-          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
-            <p className="text-xs text-muted-foreground mb-4">
-              <Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
+        <PanelSection
+          id="backup"
+          title={t`Backup`}
+          description={<Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
               every reading session, sync positions, shelves, and your local preferences.
               Book files themselves are not included — Tome only references them on disk.
-              API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>
-            </p>
-            <button
+              API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>}
+        >
+          <div>
+
+            <Pill
               onClick={handleBackup}
               disabled={backingUp}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed transition-all touch-feedback"
+              variant="secondary"
             >
               {backingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               {backingUp ? t`Preparing…` : t`Download my data`}
-            </button>
+            </Pill>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── About ────────────────────────────────────────────────────── */}
-        <section id="about" className="scroll-mt-24">
-          <SectionHeader title={t`About`} subtle />
-          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
+        <PanelSection id="about" title={t`About`}>
+          <div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2.5">
                 <Info className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground">Tome</span>
-                <span className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                <span className="text-[15px] font-semibold text-foreground">Tome</span>
+
+                <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[13px] text-muted-foreground">
                   v{tomeVersion}
                 </span>
               </div>
@@ -1824,7 +1796,7 @@ export function SettingsPage() {
                     href={updateInfo.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+                    className="inline-flex items-center gap-1.5 h-9 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <ArrowUpCircle className="w-3.5 h-3.5" />
                     {(() => { const v = updateInfo.latest; return t`Update to v${v}` })()}
@@ -1834,7 +1806,7 @@ export function SettingsPage() {
                   href="https://github.com/bndct-devops/tome"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+                  className="inline-flex items-center gap-1.5 h-9 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-muted"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   GitHub
@@ -1842,18 +1814,18 @@ export function SettingsPage() {
               </div>
             </div>
             {updateInfo && (
-              <p className="mt-3 text-xs text-muted-foreground">
+              <p className="mt-3 text-[13px] text-muted-foreground">
                 <Trans>A newer release is available — the link opens the release notes.
                 Update by pulling the new image and restarting the container.</Trans>
               </p>
             )}
             <TelemetrySettings />
           </div>
-        </section>
+        </PanelSection>
 
         </div>
-      </main>
-    </div>
+      </SectionLayout>
+    </AppShell>
   )
 }
 
@@ -1874,20 +1846,6 @@ function relativeTime(iso: string): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SectionHeader({ title, subtle = false }: { title: string; subtle?: boolean }) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className={cn(
-        'font-display text-base font-normal',
-        subtle ? 'text-muted-foreground' : 'text-foreground'
-      )}>
-        {title}
-      </h2>
-      <div className={cn('flex-1 h-px', subtle ? 'bg-border/50' : 'bg-border')} />
-    </div>
-  )
-}
-
 function ConnectBlock({ rows }: { rows: { label: string; value: string; copy?: boolean }[] }) {
   const [copied, setCopied] = useState<string | null>(null)
   function copyValue(value: string) {
@@ -1897,9 +1855,9 @@ function ConnectBlock({ rows }: { rows: { label: string; value: string; copy?: b
     })
   }
   return (
-    <div className="rounded-lg bg-muted/60 border border-border overflow-hidden text-xs">
+    <div className="rounded-[var(--radius-panel)] bg-card overflow-hidden text-[13px] px-1">
       {rows.map(({ label, value, copy }, i) => (
-        <div key={i} className={cn('flex items-center gap-3 px-3 py-2', i > 0 && 'border-t border-border/50')}>
+        <div key={i} className={cn('flex items-center gap-3 px-3 py-2.5', i > 0 && 'border-t border-border/50')}>
           <span className="text-muted-foreground w-20 shrink-0">{label}</span>
           <span className={cn('flex-1 truncate', copy ? 'font-mono text-foreground' : 'text-muted-foreground')}>{value}</span>
           {copy && (
@@ -1930,7 +1888,7 @@ function PasswordField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
+      <label className="block text-[13px] text-muted-foreground mb-1.5">{label}</label>
       <div className="relative">
         <input
           type={show ? 'text' : 'password'}
@@ -1938,8 +1896,8 @@ function PasswordField({
           onChange={e => onChange(e.target.value)}
           required
           className={cn(
-            'w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring',
-            error && 'ring-2 ring-destructive'
+            'w-full h-9 rounded-lg bg-secondary pl-3 pr-10 text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring',
+            error && 'ring-1 ring-destructive'
           )}
         />
         {showToggle && onToggleShow && (
@@ -2046,16 +2004,16 @@ function ExportButton({ format, label, exporting, onExport }: {
   const { t } = useLingui()
   const busy = exporting === format
   return (
-    <button
+    <Pill
       onClick={() => onExport(format)}
       disabled={exporting !== null}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all disabled:opacity-50"
+      variant="secondary"
     >
       {busy
         ? <RefreshCw className="w-3 h-3 animate-spin" />
         : <Download className="w-3 h-3 text-muted-foreground" />
       }
       {busy ? t`Exporting...` : t`Export ${label}`}
-    </button>
+    </Pill>
   )
 }

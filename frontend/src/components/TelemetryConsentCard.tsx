@@ -124,7 +124,7 @@ export function TelemetrySettings() {
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+    <div className="mt-5 pt-5 border-t border-border/70 flex flex-wrap items-center gap-3 text-[14px]">
       <BarChart3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span className="text-foreground"><Trans>Anonymous monthly report:</Trans> <span className="text-muted-foreground">{line}</span></span>
       <span className="ml-auto flex items-center gap-2">{action}</span>
@@ -135,4 +135,4 @@ export function TelemetrySettings() {
 }
 
 // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-const btn = 'inline-flex items-center rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:opacity-50'
+const btn = 'inline-flex items-center h-9 px-4 rounded-full bg-secondary text-[14px] font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50'
