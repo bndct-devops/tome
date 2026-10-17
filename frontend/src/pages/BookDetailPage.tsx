@@ -897,17 +897,19 @@ export function BookDetailPage() {
     </div>
   ) : null
 
-  const rail = (
-    <aside className="min-w-0">
-      <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
-        {cover}
-        {fileLines}
-      </div>
-      <div className="mx-auto mt-7 max-w-[420px] lg:mx-0 lg:max-w-none">
-        <div className={cn(smallCaps, 'mb-3')}><Trans>Details</Trans></div>
-        {details}
-        {genres && <div className="mt-6">{genres}</div>}
-      </div>
+  // The rail is two grid children so phones can read cover, then the hero,
+  // then details; on desktop both sit in the left column.
+  const railCover = (
+    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg:row-start-1">
+      {cover}
+      {fileLines}
+    </div>
+  )
+  const railDetails = (
+    <aside className="order-3 mx-auto w-full max-w-[420px] lg:order-none lg:mx-0 lg:max-w-none lg:col-start-1 lg:row-start-2">
+      <div className={cn(smallCaps, 'mb-3')}><Trans>Details</Trans></div>
+      {details}
+      {genres && <div className="mt-6">{genres}</div>}
     </aside>
   )
 
@@ -1316,9 +1318,9 @@ export function BookDetailPage() {
           {pageActions}
         </div>
 
-        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-          {rail}
-          <div className="flex min-w-0 flex-col gap-7">
+        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+          {railCover}
+          <div className="order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
             {hero}
             {descriptionSection}
             {readingSection}
@@ -1332,6 +1334,7 @@ export function BookDetailPage() {
             {highlightsSection}
             {seriesSection}
           </div>
+          {railDetails}
         </div>
       </PageBody>
 
