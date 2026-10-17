@@ -8,8 +8,9 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { Link } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
+import { PageBody, PageHeader, Pill } from '@/components/page'
 import { toPng } from 'html-to-image'
-import { Plus, RotateCcw, X, BarChart3, HelpCircle, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, ImageDown, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
+import { Plus, RotateCcw, X, HelpCircle, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, ImageDown, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
@@ -1238,9 +1239,11 @@ function TileShell({
           : 'transform 0.3s ease-out, box-shadow 0.2s ease-out',
       }}
       className={cn(
-        'group/tile relative flex h-full w-full flex-col rounded-xl border bg-card p-4',
-        dragging ? 'border-border shadow-2xl ring-1 ring-primary/30' : editMode ? 'shadow-sm' : '',
-        editMode ? 'border-primary/30' : 'border-border',
+        'group/tile relative flex h-full w-full flex-col rounded-[var(--radius-panel)] border bg-card px-5 py-3.5',
+        dragging ? 'shadow-2xl ring-1 ring-primary/30' : editMode ? 'shadow-sm' : '',
+        // a hairline on light themes; dark themes let the card's ground do the work
+        // (the .dark rule lives in the page's style block below)
+        editMode ? 'border-primary/30' : 'stats-tile-quiet border-border/60',
         editMode && !dragging && 'hover:z-10 hover:shadow-lg hover:shadow-accent-soft',
         // marks the grid item so it stacks above siblings while the popover is open
         // (each grid item is transformed = its own stacking context, so the
@@ -1250,7 +1253,7 @@ function TileShell({
     >
       {editMode && (
         <div
-          className="pointer-events-none absolute inset-0 z-20 rounded-xl transition-opacity duration-300"
+          className="pointer-events-none absolute inset-0 z-20 rounded-[var(--radius-panel)] transition-opacity duration-300"
           style={{
             opacity: hovering ? 1 : 0,
             background: `radial-gradient(circle at ${glare.x}% ${glare.y}%, color-mix(in oklab, var(--foreground) 5%, transparent) 0%, transparent 60%)`,
@@ -1259,22 +1262,22 @@ function TileShell({
       )}
       <div
         {...(editMode && !stacked ? dragHandleProps : {})}
-        className={cn('mb-3 flex items-center gap-1.5', editMode && !stacked && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
+        className={cn('mb-2 flex items-center gap-1.5', editMode && !stacked && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
       >
         {editMode && !stacked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
-        {def.icon && <def.icon className="h-3 w-3 shrink-0 text-muted-foreground/70" />}
+        {def.icon && !editMode && <def.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
         {/* truncate, don't wrap — a wrapped title pushes the body out of 1-row tiles.
             12px + a 12px icon keeps long labels ("Reading Time") on one line in a
             narrow ~126px stat tile instead of clipping to "Reading Ti…". */}
-        <h3 className="min-w-0 truncate font-display text-xs font-medium text-muted-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
+        <h3 className="min-w-0 truncate font-sans text-[15px] font-semibold leading-5 text-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
         {def.infoHint && <def.infoHint />}
         {def.fixedWindow && (
-          <span title={t`This tile uses a fixed window and ignores the range picker`} className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+          <span title={t`This tile uses a fixed window and ignores the range picker`} className="shrink-0 text-[13px] text-muted-foreground">
             {i18n._(def.fixedWindow)}
           </span>
         )}
         {editMode && def.autoH && config.autoFit && (
-          <span title={t`Height auto-fits the content — only width is resizable`} className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-medium text-muted-foreground">
+          <span title={t`Height auto-fits the content — only width is resizable`} className="shrink-0 text-[13px] text-muted-foreground">
             <Trans>Auto</Trans>
           </span>
         )}
@@ -1555,12 +1558,14 @@ type CustomRange = { start: string; end: string }
 // always differ proportionally, even on a narrow window. Phones always get px-4 —
 // a 16% gutter on a 390px screen would squeeze the tiles to ~265px.
 type PadWidth = 'none' | 'bit' | 'lot'
-const PAD_X: Record<PadWidth, string> = {
-  none: 'px-4',
+// The refreshed shell centres every page in a column, so the setting now picks
+// the column's width: "A lot" is the standard 1180px dashboard column, "A bit"
+// a wider one, "None" the full panel.
+const PAGE_W: Record<PadWidth, string> = {
+  none: 'max-w-none',
   // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-  bit: 'px-4 sm:px-[7%]',
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-  lot: 'px-4 sm:px-[16%]',
+  bit: 'max-w-[1480px]',
+  lot: '',
 }
 const PAD_LABEL: Record<PadWidth, MessageDescriptor> = { none: msg`None`, bit: msg`A bit`, lot: msg`A lot` }
 
@@ -1714,36 +1719,30 @@ function RangeControl({
   const valid = !!from && !!to && from <= to
 
   return (
-    <div className="relative ml-auto max-sm:ml-0 flex items-center gap-1 rounded-lg bg-muted p-0.5">
+    <div className="relative flex items-center gap-0.5">
       {RANGES.map((r) => (
-        <button
+        <Pill
           key={r.days}
-          type="button"
+          variant={!custom && days === r.days ? 'secondary' : 'quiet'}
           onClick={() => onPreset(r.days)}
-          className={cn(
-            'rounded-md px-2 py-1 text-xs font-medium transition sm:px-2.5',
-            !custom && days === r.days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-          )}
+          className="max-sm:px-3"
         >
           {i18n._(r.label)}
-        </button>
+        </Pill>
       ))}
-      <button
-        type="button"
+      <Pill
+        variant={custom ? 'secondary' : 'quiet'}
         onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition sm:px-2.5',
-          custom ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-        )}
+        className="max-sm:px-3"
       >
-        <Calendar className="h-3.5 w-3.5" />
+        <Calendar className="h-4 w-4" />
         {custom ? `${fmtDay(custom.start)} – ${fmtDay(custom.end)}` : t`Custom`}
-      </button>
+      </Pill>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-border bg-card p-3 shadow-xl shadow-accent-soft">
+          <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-card p-3 shadow-xl shadow-accent-soft">
             <RangeCalendar from={from} to={to} onPick={pick} />
             <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-xs">
               <span className="text-muted-foreground">
@@ -1757,7 +1756,7 @@ function RangeControl({
                       onCustom(null)
                       setOpen(false)
                     }}
-                    className="rounded-md px-2 py-1 text-muted-foreground transition hover:text-foreground"
+                    className="rounded-full px-2.5 py-1 text-muted-foreground transition hover:text-foreground"
                   >
                     <Trans>Clear</Trans>
                   </button>
@@ -1769,7 +1768,7 @@ function RangeControl({
                     onCustom({ start: from, end: to })
                     setOpen(false)
                   }}
-                  className="rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40"
+                  className="rounded-full bg-primary px-3 py-1 font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40"
                 >
                   <Trans>Apply</Trans>
                 </button>
@@ -1835,6 +1834,10 @@ export function StatsPage() {
   const deleteBoardLabel = (name: string) => t`Delete ${name}`
   const renameBoardTitle = t`Rename board`
   const deleteBoardTitle = t`Delete board`
+  const renameHint = t`Double-click to rename`
+  const rangeLabel = custom
+    ? (() => { const from = fmtDay(custom.start), to = fmtDay(custom.end); return t`${from} to ${to}` })()
+    : days === 0 ? t`All time` : days === 365 ? t`Last 12 months` : t`Last ${days} days`
   // genuinely no reading history (not just a quiet range): full onboarding state
   const neverRead = !!stats && stats.headline.total_sessions === 0 && stats.heatmap_daily.every((d) => d.seconds === 0)
 
@@ -2108,7 +2111,7 @@ export function StatsPage() {
         .react-grid-item.react-grid-placeholder {
           background: var(--primary, #6366f1) !important;
           opacity: 0.1 !important;
-          border-radius: 0.75rem;
+          border-radius: var(--radius-panel);
         }
         .react-grid-item > .react-resizable-handle { display: none; }
         .lab-editing .react-grid-item > .react-resizable-handle { display: block; z-index: 30; opacity: 0; transition: opacity 120ms ease; }
@@ -2125,314 +2128,291 @@ export function StatsPage() {
         .lab-editing .react-grid-item > .react-resizable-handle-e::after, .lab-editing .react-grid-item > .react-resizable-handle-s::after { display: none; }
         .lab-editing .react-grid-item { perspective: 1000px; }
         .react-grid-item:has(> .cfg-popover-open) { z-index: 40; }
+        .dark .stats-tile-quiet { border-color: transparent; }
       `}</style>
 
-      {/* No safe-top here: this header renders inside AppShell's scroller, below
-          the app bar that already pays the notch inset — repeating it doubled
-          the padding into a dead band on the installed PWA. */}
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-sm">
-        {/* min-h + wrap: on phones the range pills don't fit beside the title row,
-            so they wrap to a second line instead of overflowing the viewport */}
-        <div className={cn('flex min-h-14 flex-wrap items-center gap-x-3 py-1.5 px-4')}>
-          <h1 className="font-display text-xl text-foreground"><Trans>Reading Stats</Trans></h1>
-          <a
-            href={docsLink(DOCS.stats)}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={t`What do these mean? — read the stats docs`}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <HelpCircle className="h-3.5 w-3.5" />
-          </a>
-          {/* When the range control wraps to its own line (phones), it goes
-              full-width and left-aligned — keeping ml-auto there left it
-              floating right with dead space, reading as misaligned. */}
-          <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:w-full max-sm:overflow-x-auto">
-            {/* range selector — presets + custom date range; refetches /stats */}
-            <RangeControl
-              days={days}
-              custom={custom}
-              onPreset={(d) => {
-                setDays(d)
-                setCustom(null)
-              }}
-              onCustom={setCustom}
-            />
-          </div>
-        </div>
-
-        {/* board tabs (pills, like the Stats page) + board tools */}
-        <div className="border-t border-border/50">
-          <div className={cn('flex items-center gap-1 py-1.5 px-4')}>
-            {/* Only the tabs scroll horizontally; the + and board tools stay pinned
-                and reachable however many boards you add. */}
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
-            {tabs.map((t) => (
-              <div
-                key={t.id}
-                ref={activeTabId === t.id ? activeTabRef : undefined}
-                className={cn(
-                  'group/tab flex shrink-0 items-center rounded-md transition-all',
-                  activeTabId === t.id ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-                )}
+      {/* edit mode gets extra bottom room so the last tile's resize handles have
+          somewhere to scroll to. The Padding setting picks the column width. */}
+      <PageBody width="wide" className={cn(PAGE_W[pad], editMode && 'pb-[35vh]')}>
+      <div className="flex flex-col gap-5">
+        <PageHeader
+          eyebrow={rangeLabel}
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Trans>Stats</Trans>
+              <a
+                href={docsLink(DOCS.stats)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t`What do these mean? Read the stats docs`}
+                aria-label={t`Stats docs`}
+                className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
-                {renamingId === t.id ? (
-                  <input
-                    autoFocus
-                    defaultValue={t.label}
-                    onFocus={(e) => e.target.select()}
-                    onBlur={(e) => {
-                      renameTab(t.id, e.target.value.trim() || t.label)
-                      setRenamingId(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                      if (e.key === 'Escape') {
-                        e.stopPropagation() // cancel the rename only, not edit mode
-                        setRenamingId(null)
-                      }
-                    }}
-                    className="w-24 bg-transparent px-3 py-1.5 text-xs font-medium text-foreground outline-none"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTabId(t.id)}
-                    onDoubleClick={() => editMode && setRenamingId(t.id)}
-                    title={editMode ? 'Double-click to rename' : undefined}
-                    className="whitespace-nowrap px-3 py-1.5 text-xs font-medium"
+                <HelpCircle className="h-4 w-4" />
+              </a>
+            </span>
+          }
+          actions={
+            <div className="flex flex-wrap items-center gap-1">
+              {/* range selector: presets + custom date range; refetches /stats */}
+              <RangeControl
+                days={days}
+                custom={custom}
+                onPreset={(d) => {
+                  setDays(d)
+                  setCustom(null)
+                }}
+                onCustom={setCustom}
+              />
+              {/* board tools: hidden below sm, where the stacked view can't arrange anyway */}
+              <div className="hidden items-center gap-1 sm:flex">
+                {saveState !== 'idle' && (
+                  <span
+                    title={saveState === 'error' ? t`Saving to the server failed. Changes are kept locally.` : undefined}
+                    className={cn('flex items-center gap-1 px-2 text-[13px]', saveState === 'error' ? 'text-destructive' : 'text-muted-foreground')}
                   >
-                    {t.label}
-                  </button>
+                    {saveState === 'saving' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === 'saved' ? <Check className="h-3.5 w-3.5" /> : <CloudOff className="h-3.5 w-3.5" />}
+                    {saveState === 'saving' ? t`Saving` : saveState === 'saved' ? t`Saved` : t`Save failed`}
+                  </span>
                 )}
-                {editMode && renamingId !== t.id && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setRenamingId(t.id)}
-                      aria-label={renameBoardLabel(t.label)}
-                      title={renameBoardTitle}
-                      className={cn('rounded p-0.5 text-muted-foreground transition hover:text-foreground', tabs.length > 1 ? '' : 'mr-1.5')}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    {tabs.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => deleteTab(t.id)}
-                        aria-label={deleteBoardLabel(t.label)}
-                        title={deleteBoardTitle}
-                        className="mr-1.5 rounded p-0.5 text-muted-foreground transition hover:text-foreground"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </>
-                )}
+                <Pill
+                  variant="quiet"
+                  icon
+                  onClick={exportImage}
+                  disabled={shotBusy}
+                  title={t`Save this board as an image`}
+                  aria-label={t`Save board as image`}
+                >
+                  {shotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
+                </Pill>
+                <Pill
+                  variant={editMode ? 'primary' : 'quiet'}
+                  onClick={() => {
+                    if (!hintDismissed) dismissHint()
+                    setEditMode((e) => !e)
+                  }}
+                >
+                  {editMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                  {editMode ? t`Done` : t`Edit`}
+                </Pill>
               </div>
-            ))}
             </div>
-            {editMode && (
-              <div className="relative shrink-0">
+          }
+        />
+
+        {/* board tabs as a pill row, plus the edit-mode board tools */}
+        <div className="flex items-center gap-1">
+          {/* Only the tabs scroll horizontally; the + and board tools stay pinned
+              and reachable however many boards you add. */}
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          {tabs.map((t) => (
+            <div
+              key={t.id}
+              ref={activeTabId === t.id ? activeTabRef : undefined}
+              className={cn(
+                'group/tab flex h-9 shrink-0 items-center rounded-full transition-colors',
+                activeTabId === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+              )}
+            >
+              {renamingId === t.id ? (
+                <input
+                  autoFocus
+                  defaultValue={t.label}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={(e) => {
+                    renameTab(t.id, e.target.value.trim() || t.label)
+                    setRenamingId(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                    if (e.key === 'Escape') {
+                      e.stopPropagation() // cancel the rename only, not edit mode
+                      setRenamingId(null)
+                    }
+                  }}
+                  className="w-28 bg-transparent px-4 text-[14px] font-medium text-foreground outline-none"
+                />
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setTabMenuOpen((o) => !o)}
-                  aria-label={t`Add board`}
-                  title={t`Add board`}
-                  className={cn(
-                    'flex items-center rounded-md px-2 py-1.5 transition hover:bg-muted/50 hover:text-foreground',
-                    tabMenuOpen ? 'bg-muted/50 text-foreground' : 'text-muted-foreground',
-                  )}
+                  onClick={() => setActiveTabId(t.id)}
+                  onDoubleClick={() => editMode && setRenamingId(t.id)}
+                  title={editMode ? renameHint : undefined}
+                  className="h-full whitespace-nowrap px-4 text-[14px] font-medium"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  {t.label}
                 </button>
-                {tabMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onPointerDown={() => setTabMenuOpen(false)} />
-                    <div className="absolute left-0 top-full z-50 mt-1.5 w-48 rounded-lg border border-border bg-card p-1 text-xs shadow-xl">
-                      <button
-                        type="button"
-                        onClick={() => addTabWith(t`New board`, [], [], true)}
-                        className="w-full rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
-                      >
-                        <Trans>Empty board</Trans>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { const name = active.label; addTabWith(t`${name} copy`, active.tiles.map((x) => ({ ...x, config: { ...x.config } })), active.layout.map((l) => ({ ...l }))) }}
-                        className="w-full truncate rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
-                      >
-                        {(() => { const name = active.label; return <Trans>Duplicate “{name}”</Trans> })()}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => importInputRef.current?.click()}
-                        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
-                      >
-                        <Upload className="h-3 w-3 text-muted-foreground" /> <Trans>Import board…</Trans>
-                      </button>
-                      <div className="my-1 border-t border-border" />
-                      <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Start from default</Trans></p>
-                      {TAB_DEFS.map((d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          onClick={() => {
-                            const b = buildTab(d)
-                            addTabWith(i18n._(d.label), b.tiles, b.layout)
-                          }}
-                          className="w-full rounded-md px-2 py-1.5 text-left text-foreground transition hover:bg-muted"
-                        >
-                          {i18n._(d.label)}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      ref={importInputRef}
-                      type="file"
-                      accept="application/json,.json"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0]
-                        if (f) importBoard(f)
-                        e.target.value = ''
-                      }}
-                    />
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* board tools — hidden below sm, where the stacked view can't arrange anyway */}
-            <div className="ml-auto hidden shrink-0 items-center gap-1.5 pl-3 sm:flex">
-              {saveState !== 'idle' && (
-                <span
-                  title={saveState === 'error' ? 'Saving to the server failed — changes are kept locally' : undefined}
-                  className={cn('flex items-center gap-1 text-[10px]', saveState === 'error' ? 'text-red-500' : 'text-muted-foreground')}
-                >
-                  {saveState === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" /> : saveState === 'saved' ? <Check className="h-3 w-3" /> : <CloudOff className="h-3 w-3" />}
-                  {saveState === 'saving' ? t`Saving` : saveState === 'saved' ? t`Saved` : t`Save failed`}
-                </span>
               )}
-              {editMode && (
+              {editMode && renamingId !== t.id && (
                 <>
-                  <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
-                    <span className="px-1.5 text-muted-foreground"><Trans>Padding</Trans></span>
-                    {(['none', 'bit', 'lot'] as const).map((w) => (
+                  <button
+                    type="button"
+                    onClick={() => setRenamingId(t.id)}
+                    aria-label={renameBoardLabel(t.label)}
+                    title={renameBoardTitle}
+                    className={cn('-ml-2 rounded-full p-1 text-muted-foreground transition hover:text-foreground', tabs.length > 1 ? '' : 'mr-2')}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  {tabs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => deleteTab(t.id)}
+                      aria-label={deleteBoardLabel(t.label)}
+                      title={deleteBoardTitle}
+                      className="mr-2 rounded-full p-1 text-muted-foreground transition hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+          </div>
+          {editMode && (
+            <div className="relative shrink-0">
+              <Pill
+                variant={tabMenuOpen ? 'secondary' : 'quiet'}
+                icon
+                onClick={() => setTabMenuOpen((o) => !o)}
+                aria-label={t`Add board`}
+                title={t`Add board`}
+              >
+                <Plus className="h-4 w-4" />
+              </Pill>
+              {tabMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onPointerDown={() => setTabMenuOpen(false)} />
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-52 rounded-xl border border-border bg-card p-1 text-[13px] shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => addTabWith(t`New board`, [], [], true)}
+                      className="w-full rounded-lg px-2.5 py-1.5 text-left text-foreground transition hover:bg-secondary"
+                    >
+                      <Trans>Empty board</Trans>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { const name = active.label; addTabWith(t`${name} copy`, active.tiles.map((x) => ({ ...x, config: { ...x.config } })), active.layout.map((l) => ({ ...l }))) }}
+                      className="w-full truncate rounded-lg px-2.5 py-1.5 text-left text-foreground transition hover:bg-secondary"
+                    >
+                      {(() => { const name = active.label; return <Trans>Duplicate “{name}”</Trans> })()}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => importInputRef.current?.click()}
+                      className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-foreground transition hover:bg-secondary"
+                    >
+                      <Upload className="h-3.5 w-3.5 text-muted-foreground" /> <Trans>Import board…</Trans>
+                    </button>
+                    <div className="my-1 border-t border-border" />
+                    <p className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Start from default</Trans></p>
+                    {TAB_DEFS.map((d) => (
                       <button
-                        key={w}
+                        key={d.id}
                         type="button"
-                        onClick={() => setPad(w)}
-                        className={cn(
-                          'rounded-md px-2 py-0.5 font-medium transition',
-                          pad === w ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                        )}
+                        onClick={() => {
+                          const b = buildTab(d)
+                          addTabWith(i18n._(d.label), b.tiles, b.layout)
+                        }}
+                        className="w-full rounded-lg px-2.5 py-1.5 text-left text-foreground transition hover:bg-secondary"
                       >
-                        {i18n._(PAD_LABEL[w])}
+                        {i18n._(d.label)}
                       </button>
                     ))}
                   </div>
-                  <button type="button" onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted">
-                    <Plus className="h-3.5 w-3.5" /> <Trans>Add tile</Trans>
-                  </button>
-                  <button type="button" onClick={reset} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-                    <RotateCcw className="h-3.5 w-3.5" /> <Trans>Reset</Trans>
-                  </button>
-                  <button type="button" onClick={exportBoard} title={t`Export this board as a JSON file (share or back up)`} className="flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-                    <Download className="h-3.5 w-3.5" /> <Trans>Export</Trans>
-                  </button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) importBoard(f)
+                      e.target.value = ''
+                    }}
+                  />
                 </>
               )}
-              <button
-                type="button"
-                onClick={exportImage}
-                disabled={shotBusy}
-                title={t`Save this board as an image`}
-                aria-label={t`Save board as image`}
-                className="flex items-center rounded-md border border-border bg-card p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
-              >
-                {shotBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageDown className="h-3.5 w-3.5" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!hintDismissed) dismissHint()
-                  setEditMode((e) => !e)
-                }}
-                className={cn(
-                  'flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition',
-                  editMode
-                    ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'border-border bg-card text-foreground hover:bg-muted',
-                )}
-              >
-                {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                {editMode ? t`Done` : t`Edit`}
-              </button>
             </div>
-          </div>
-        </div>
-      </header>
+          )}
 
-      {/* edit mode gets extra bottom room so the last tile's resize handles have
-          somewhere to scroll to */}
-      <div className={cn('py-6', editMode && 'transition-[padding] duration-200 pb-[35vh]', soloTimeline ? 'px-4' : PAD_X[pad])}>
-      {/* one-time hint that the page is editable */}
+          {editMode && (
+            <div className="ml-auto hidden shrink-0 items-center gap-1 pl-3 sm:flex">
+              <div className="flex items-center gap-0.5">
+                <span className="px-2 text-[13px] text-muted-foreground"><Trans>Padding</Trans></span>
+                {(['none', 'bit', 'lot'] as const).map((w) => (
+                  <Pill key={w} variant={pad === w ? 'secondary' : 'quiet'} onClick={() => setPad(w)} className="px-3">
+                    {i18n._(PAD_LABEL[w])}
+                  </Pill>
+                ))}
+              </div>
+              <Pill variant="quiet" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4" /> <Trans>Add tile</Trans>
+              </Pill>
+              <Pill variant="quiet" onClick={reset}>
+                <RotateCcw className="h-4 w-4" /> <Trans>Reset</Trans>
+              </Pill>
+              <Pill variant="quiet" onClick={exportBoard} title={t`Export this board as a JSON file (share or back up)`}>
+                <Download className="h-4 w-4" /> <Trans>Export</Trans>
+              </Pill>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* one-time hint that the page is editable: a quiet line, not a banner */}
       {stats && !neverRead && !hintDismissed && !editMode && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
-          <span className="text-foreground">
-            <Trans>This page is yours — every tile can be moved, resized, swapped or removed, per board. Hit{' '}
+        <div className="-mt-2 flex items-start gap-2 text-[13px] text-muted-foreground">
+          <span>
+            <Trans>This page is yours: every tile can be moved, resized, swapped or removed, per board. Hit{' '}
             <button
               type="button"
               onClick={() => {
                 dismissHint()
                 setEditMode(true)
               }}
-              className="font-semibold text-primary hover:underline"
+              className="font-semibold text-foreground hover:underline"
             >
               Edit
             </button>{' '}
             to start. Reset always brings the defaults back.</Trans>
           </span>
-          <button type="button" onClick={dismissHint} aria-label={t`Dismiss`} className="ml-auto rounded p-0.5 text-muted-foreground transition hover:text-foreground">
+          <button type="button" onClick={dismissHint} aria-label={t`Dismiss`} className="shrink-0 rounded-full p-0.5 text-muted-foreground transition hover:text-foreground">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* Session-free ranges shouldn't blank the whole board — Library-tab tiles
+      {/* Session-free ranges shouldn't blank the whole board: Library-tab tiles
           (growth, categories, per-book table) still have data to show. */}
       {stats && !neverRead && stats.headline.total_sessions === 0 && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <BarChart3 className="h-3.5 w-3.5 shrink-0 opacity-60" />
-          <Trans>No reading sessions in this range — session-based tiles will be empty.</Trans>
-        </div>
+        <p className="-mt-2 text-[13px] text-muted-foreground">
+          <Trans>No reading sessions in this range, so the session-based tiles are empty.</Trans>
+        </p>
       )}
-
       {loading && !stats ? (
         <div className="flex justify-center py-32">
           <BookAnimation variant="refresh" className="block h-10 w-10 text-primary" />
         </div>
       ) : neverRead ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-32 text-muted-foreground">
-          <BarChart3 className="h-16 w-16 opacity-20" />
-          <p className="text-sm font-medium text-foreground"><Trans>No reading data yet</Trans></p>
-          <p className="max-w-xs text-center text-xs">
+        <div className="flex flex-col items-center justify-center gap-3 py-32 text-muted-foreground">
+          <p className="text-[15px] font-semibold text-foreground"><Trans>No reading data yet</Trans></p>
+          <p className="max-w-sm text-center text-[14px]">
             <Trans>Reading stats appear once sessions arrive — synced from the TomeSync
             KOReader plugin, logged by hand on a book page, or imported from a
             KOReader statistics file.</Trans>
           </p>
-          <Link to="/settings" className="text-xs text-primary hover:underline">
+          <Link to="/settings" className="text-[14px] font-medium text-primary hover:underline">
             <Trans>Download the plugin from Settings</Trans>
           </Link>
         </div>
       ) : stats ? (
         active.tiles.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-24 text-muted-foreground">
-            <Plus className="h-10 w-10 opacity-20" />
-            <p className="text-sm"><Trans>This board is empty.</Trans></p>
-            <p className="text-xs">{editMode ? (() => { const name = active.label; return t`Use “Add tile” to build your ${name} board.` })() : t`Hit Edit, then Add tile.`}</p>
+            <p className="text-[15px] text-foreground"><Trans>This board is empty.</Trans></p>
+            <p className="text-[14px]">{editMode ? (() => { const name = active.label; return t`Use “Add tile” to build your ${name} board.` })() : t`Hit Edit, then Add tile.`}</p>
           </div>
         ) : soloTimeline ? (
           <FullBleedTimeline />
@@ -2442,9 +2422,9 @@ export function StatsPage() {
           </div>
         )
       ) : (
-        <p className="py-32 text-center text-sm text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
+        <p className="py-32 text-center text-[14px] text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
       )}
-      </div>
+      </PageBody>
 
       {addOpen && stats && (
         <AddWidgetModal ctx={{ stats, estimates, goals, reloadGoals }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />

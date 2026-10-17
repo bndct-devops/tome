@@ -25,14 +25,14 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
     { icon: Flame, label: t`Longest Streak`, value: `${data.longest_streak_days}d` },
   ]
   return (
-    <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid h-full grid-cols-2 content-center gap-x-6 gap-y-4 sm:grid-cols-3">
       {items.map((it) => (
-        <div key={it.label} className="flex flex-col justify-center rounded-lg border border-border bg-muted/20 px-3 py-1.5">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <it.icon className="h-3 w-3 shrink-0" />
-            <span className="truncate text-[10px]">{it.label}</span>
+        <div key={it.label} className="flex min-w-0 flex-col justify-center">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <it.icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate text-[13px]">{it.label}</span>
           </div>
-          <p className="truncate text-base font-bold leading-tight text-foreground sm:text-lg">{it.value}</p>
+          <p className="mt-1 truncate font-display text-[24px] font-bold leading-none tabular-nums text-foreground">{it.value}</p>
         </div>
       ))}
     </div>

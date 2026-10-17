@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Pencil, Plus, Target, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ProgressRing } from '@/components/stats/ProgressRing'
 import {
   ALLOWED_GOAL_KINDS,
@@ -218,12 +218,11 @@ export function GoalWidgetBody({
   if (goals.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-        <Target className="h-6 w-6 text-muted-foreground/40" />
-        <p className="text-xs text-muted-foreground"><Trans>Set a target and watch the ring fill as you read.</Trans></p>
+        <p className="text-[14px] text-muted-foreground"><Trans>Set a target and watch the ring fill as you read.</Trans></p>
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90"
+          className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-muted"
         >
           <Trans>Set a goal</Trans>
         </button>
@@ -279,7 +278,7 @@ export function GoalWidgetBody({
       <button
         type="button"
         onClick={() => setCreating(true)}
-        className="flex min-h-[4.25rem] items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
+        className="flex min-h-[4.25rem] items-center justify-center gap-1.5 rounded-lg bg-secondary/50 text-[13px] text-muted-foreground transition hover:bg-secondary hover:text-foreground"
       >
         <Plus className="h-3.5 w-3.5" />
         <Trans>New goal</Trans>
