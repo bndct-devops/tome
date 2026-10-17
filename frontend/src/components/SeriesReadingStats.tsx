@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
+import { Field, SectionTitle } from '@/components/page'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
 
   return (
     <div className="flex flex-col">
-      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0"><Trans>Time per volume</Trans></p>
+      <p className="text-[13px] text-muted-foreground mb-2 shrink-0"><Trans>Time per volume</Trans></p>
       <div className="relative h-24">
         {/* faint baseline rule */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />
@@ -93,7 +94,7 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
           })}
         </div>
       </div>
-      <div className="flex justify-between text-xs text-muted-foreground/50 mt-1 shrink-0">
+      <div className="flex justify-between text-[12px] text-muted-foreground mt-1.5 shrink-0">
         <span>{firstIdx != null ? t`Vol ${firstIdx}` : ''}</span>
         <span>{lastIdx != null ? t`Vol ${lastIdx}` : ''}</span>
       </div>
@@ -124,7 +125,7 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
   const { own, aggregate } = data
 
   const supporting: { label: string; value: string }[] = [
-    { label: 'finished', value: `${own.books_finished}/${own.books_total} (${own.completion_pct}%)` },
+    { label: t`finished`, value: `${own.books_finished}/${own.books_total} (${own.completion_pct}%)` },
     { label: t`sessions`, value: String(own.sessions) },
     { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
     ...(own.avg_volume_seconds > 0
@@ -152,37 +153,37 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
   }
 
   return (
-    <div className="mt-1 mb-1">
-      {/* Collapsible header */}
-      <div className="flex items-center gap-2 mb-2.5">
+    <section>
+      {/* Collapsible header: the section title is the toggle */}
+      <SectionTitle size={20}>
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          className="flex items-center gap-1.5 font-display text-base text-foreground hover:text-primary transition-colors"
+          className="inline-flex items-center gap-1.5 hover:text-primary transition-colors"
         >
-          <Trans>Reading Stats</Trans>
-          <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !open && '-rotate-90')} />
+          <Trans>Reading stats</Trans>
+          <ChevronDown className={cn('w-4 h-4 transition-transform', !open && '-rotate-90')} />
         </button>
-      </div>
+      </SectionTitle>
 
       {open && (
-        <div className="rounded-xl border border-border bg-card px-5 py-4">
+        <div className="mt-4 py-5 border-y border-border/70">
           {/* Headline + supporting metrics, one baseline-aligned row */}
-          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
             <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-semibold tabular-nums text-foreground leading-none">
+              <p className="font-display text-[30px] font-bold tabular-nums text-foreground leading-none">
                 {formatDuration(own.total_seconds)}
               </p>
-              <p className="text-sm text-muted-foreground">
-                across {own.books_with_sessions} volume{own.books_with_sessions !== 1 ? 's' : ''}
+              <p className="text-[14px] text-muted-foreground">
+                {plural(own.books_with_sessions, { one: 'across # volume', other: 'across # volumes' })}
               </p>
             </div>
-            <div className="flex items-baseline gap-x-5 gap-y-1 flex-wrap">
+            <div className="flex items-baseline gap-x-6 gap-y-1 flex-wrap">
               {supporting.map(s => (
                 <div key={s.label} className="flex items-baseline gap-1.5">
-                  <span className="text-sm font-medium tabular-nums text-foreground">{s.value}</span>
-                  <span className="text-xs text-muted-foreground/70">{s.label}</span>
+                  <span className="text-[15px] font-semibold tabular-nums text-foreground">{s.value}</span>
+                  <span className="text-[13px] text-muted-foreground">{s.label}</span>
                 </div>
               ))}
             </div>
@@ -190,26 +191,23 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
 
           {/* Per-volume chart */}
           {own.per_volume.length > 0 && (
-            <div className="mt-4">
+            <div className="mt-5">
               <VolumeChart volumes={own.per_volume} />
             </div>
           )}
 
-          {/* Dates row — hairline-divided columns, no boxes */}
+          {/* Dates row — label over value, no boxes */}
           {bottomStats.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-2 sm:flex">
-              {bottomStats.map((s, i) => (
-                <div key={s.label} className={cn('sm:flex-1 sm:px-4', i === 0 && 'sm:pl-0', i > 0 && 'sm:border-l sm:border-border/60')}>
-                  <p className="text-xs text-muted-foreground/70">{s.label}</p>
-                  <p className="text-sm font-medium tabular-nums text-foreground">{s.value}</p>
-                </div>
+            <div className="mt-5 pt-4 border-t border-border/70 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+              {bottomStats.map(s => (
+                <Field key={s.label} label={s.label} value={<span className="tabular-nums">{s.value}</span>} />
               ))}
             </div>
           )}
 
           {/* Admin aggregate footer */}
           {aggregate && (
-            <p className="text-xs text-muted-foreground/60 mt-3">
+            <p className="text-[13px] text-muted-foreground mt-4">
               {(() => {
                 const dur = formatDuration(aggregate.total_seconds)
                 const sess = plural(aggregate.total_sessions, { one: '# session', other: '# sessions' })
@@ -220,6 +218,6 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
           )}
         </div>
       )}
-    </div>
+    </section>
   )
 }

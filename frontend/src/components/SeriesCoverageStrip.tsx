@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
 import { t } from '@lingui/core/macro'
+import { Trans } from '@lingui/react/macro'
 import type { WishCoverageVolume } from '@/lib/wishlist'
 
-const PILL_BASE = 'inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border transition-all'
-const PILL_PRESENT = 'bg-success/10 border-success text-success hover:bg-success/20'
-const PILL_MISSING = 'border-border text-muted-foreground/50'
+/* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+const PILL_BASE = 'inline-flex items-center justify-center min-w-9 h-7 px-2.5 rounded-full text-[13px] font-medium tabular-nums transition-colors'
+const PILL_PRESENT = 'bg-success/15 text-success hover:bg-success/25'
+const PILL_MISSING = 'ring-1 ring-inset ring-border text-muted-foreground/60'
+/* eslint-enable lingui/no-unlocalized-strings */
 
 /**
  * Coverage for a whole-series wish, rendered as a 1..highest strip styled like
@@ -55,8 +58,8 @@ export function SeriesCoverageStrip({ coverage, total }: { coverage: WishCoverag
         ))}
       </div>
       {maxN > 0 && (
-        <p className="text-[10px] text-muted-foreground mt-1.5">
-          {presentCount} of {maxN} present
+        <p className="text-[13px] text-muted-foreground mt-2">
+          <Trans>{presentCount} of {maxN} present</Trans>
         </p>
       )}
     </div>
