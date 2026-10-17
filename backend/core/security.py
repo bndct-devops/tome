@@ -30,7 +30,8 @@ def hash_password(plain: str) -> str:
 def create_access_token(subject: str | int, device_token_id: str | None = None) -> str:
     """JWT for a user. With `device_token_id` the token is bound to a
     ClientDevice row (as `jti`) and carries no `exp`: it lives until that row
-    is revoked. Every other token expires after `jwt_expire_minutes`."""
+    is revoked (every login is one, see services/client_devices.py). Every
+    other token (admin impersonation) expires after `jwt_expire_minutes`."""
     payload: dict = {"sub": str(subject)}
     if device_token_id:
         payload["jti"] = device_token_id
@@ -93,31 +94,76 @@ async def get_current_user(
         request.state.api_token_id = api_token.id
         return user
 
-    claims = decode_claims(token)
-    user_id = claims.get("sub") if claims else None
-    if user_id is None:
+    resolved = resolve_jwt(db, token)
+    if resolved is None:
         raise credentials_exc
+    user, device = resolved
+    if device is not None:
+        request.state.device_id = device.id
+    return user
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+
+def resolve_jwt(db: Session, token: str):
+    """(user, device) for a valid JWT of an active user, else None. `device`
+    is the ClientDevice a device-bound token belongs to (None for a plain,
+    expiring token); a revoked or unknown device makes the token invalid.
+    Every JWT check goes through here, including the `?token=` reader routes."""
+    from backend.models.user import User
+
+    claims = decode_claims(token)
+    try:
+        user_id = int(claims["sub"]) if claims and claims.get("sub") is not None else None
+    except (TypeError, ValueError):
+        user_id = None
+    if user_id is None:
+        return None
+
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None or not user.is_active:
-        raise credentials_exc
+        return None
 
     # Device-bound token: the row must exist, belong to this user and not be revoked.
     jti = claims.get("jti")
-    if jti:
-        from backend.models.client_device import ClientDevice
-        device = db.query(ClientDevice).filter(ClientDevice.token_id == jti).first()
-        if device is None or device.revoked_at is not None or device.user_id != user.id:
-            raise credentials_exc
-        now = datetime.utcnow()
-        if device.last_seen_at is None or now - device.last_seen_at > timedelta(minutes=5):
-            try:
-                device.last_seen_at = now
-                db.commit()
-            except Exception:
-                db.rollback()
-        request.state.device_id = device.id
-    return user
+    if not jti:
+        return user, None
+    from backend.models.client_device import ClientDevice
+    device = db.query(ClientDevice).filter(ClientDevice.token_id == jti).first()
+    if device is None or device.revoked_at is not None or device.user_id != user.id:
+        return None
+    now = datetime.utcnow()
+    if web_session_idle(device, now):
+        # Unused too long: sign it out for good and drop it from the list.
+        try:
+            db.delete(device)
+            db.commit()
+        except Exception:
+            db.rollback()
+        return None
+    if device.last_seen_at is None or now - device.last_seen_at > timedelta(minutes=5):
+        try:
+            device.last_seen_at = now
+            db.commit()
+        except Exception:
+            db.rollback()
+    return user, device
+
+
+def web_session_idle(device, now: datetime | None = None) -> bool:
+    """True for a browser sign-in unused for `web_session_idle_days`."""
+    days = settings.web_session_idle_days
+    if device.kind != "web" or days <= 0:
+        return False
+    seen = device.last_seen_at or device.created_at
+    return (now or datetime.utcnow()) - seen > timedelta(days=days)
+
+
+def user_from_query_token(db: Session, token: str):
+    """The user behind a `?token=` query param (img/epub.js/pdf.js fetches
+    cannot send an Authorization header). 401 when the token is not valid."""
+    resolved = resolve_jwt(db, token)
+    if resolved is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return resolved[0]
 
 
 async def get_current_admin(user=Depends(get_current_user)):

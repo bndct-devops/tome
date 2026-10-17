@@ -5,6 +5,33 @@ import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 import { lingui, linguiTransformerBabelPreset } from '@lingui/vite-plugin'
 import babel from '@rolldown/plugin-babel'
+import fs from 'fs'
+import { createRequire } from 'module'
+
+// Every Lucide icon by name, as its own lazily loaded chunk (src/lib/icons.tsx).
+// Importing it from 'lucide-react' would keep the whole set in the main bundle,
+// since the app imports single icons from there too; icons/index.js holds the
+// primary names only, so the old names the picker also offered are mapped here.
+function lucideAll() {
+  const id = 'virtual:lucide-all'
+  return {
+    name: 'lucide-all',
+    resolveId: (s: string) => (s === id ? '\0' + id : null),
+    load(s: string) {
+      if (s !== '\0' + id) return null
+      const dir = path.dirname(createRequire(import.meta.url).resolve('lucide-react/dist/esm/lucide-react.js'))
+      const fileToName: Record<string, string> = {}
+      for (const m of fs.readFileSync(path.join(dir, 'icons/index.js'), 'utf8').matchAll(/default as (\w+) \} from '\.\/([\w-]+)\.js'/g)) fileToName[m[2]] = m[1]
+      const aliases: Record<string, string> = {}
+      for (const m of fs.readFileSync(path.join(dir, 'lucide-react.js'), 'utf8').matchAll(/export \{ ([^}]+) \} from '\.\/icons\/([\w-]+)\.js'/g)) {
+        const primary = fileToName[m[2]]
+        if (!primary) continue
+        for (const a of m[1].matchAll(/default as (\w+)/g)) if (a[1] !== primary) aliases[a[1]] = primary
+      }
+      return `export * from ${JSON.stringify(path.join(dir, 'icons/index.js'))}\nexport const aliases = ${JSON.stringify(aliases)}\n`
+    },
+  }
+}
 
 export default defineConfig({
   // Some deps (react-draggable, prop-types — pulled in by react-grid-layout) read
@@ -22,6 +49,7 @@ export default defineConfig({
     lingui(),
     babel({ presets: [linguiTransformerBabelPreset()] }),
     tailwindcss(),
+    lucideAll(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],

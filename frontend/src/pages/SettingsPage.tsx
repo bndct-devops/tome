@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
-  Copy, Trash2, Plus, Key, Smartphone, CheckCircle, Info, X, ChevronDown, ChevronUp,
+  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp,
   AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
@@ -50,7 +50,7 @@ interface OpdsPin {
 }
 
 export function SettingsPage() {
-  const { user, refreshUser } = useAuth()
+  const { user, refreshUser, logout } = useAuth()
 
   // ── Version ──────────────────────────────────────────────────────────────
   const [tomeVersion, setTomeVersion] = useState('…')
@@ -170,12 +170,14 @@ export function SettingsPage() {
   const [showConnectPhone, setShowConnectPhone] = useState(false)
   const [showScanCode, setShowScanCode] = useState(false)
 
-  // Native-app UI (Connect a phone, Connected devices) is behind TOME_NATIVE_APP.
+  // Native-app UI (Connect a phone) is behind TOME_NATIVE_APP; Connected devices
+  // also shows whenever there is a sign-in to list, which every browser is.
   const [nativeApp, setNativeApp] = useState(false)
+  const [webIdleDays, setWebIdleDays] = useState(0)
   useEffect(() => {
     let alive = true
-    api.get<{ native_app: boolean }>('/meta/features')
-      .then(f => { if (alive) setNativeApp(f.native_app) })
+    api.get<{ native_app: boolean; web_session_idle_days?: number }>('/meta/features')
+      .then(f => { if (alive) { setNativeApp(f.native_app); setWebIdleDays(f.web_session_idle_days ?? 0) } })
       .catch(() => {})
     return () => { alive = false }
   }, [])
@@ -195,7 +197,13 @@ export function SettingsPage() {
 
   async function handleRevokeClientDevice(d: ClientDevice) {
     const name = d.name
-    if (!confirm(t`Revoke "${name}"? It is signed out immediately and has to connect again.`)) return
+    if (d.current) {
+      if (!confirm(t`Sign out of this browser?`)) return
+      await revokeDevice(d.id).catch(() => {})
+      logout()
+      return
+    }
+    if (!confirm(t`Revoke "${name}"? It is signed out immediately and has to sign in again.`)) return
     try {
       await revokeDevice(d.id)
     } finally {
@@ -845,7 +853,10 @@ export function SettingsPage() {
               <div className="p-5 space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
-                    <Trans>Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code.</Trans>
+                    <Trans>Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately.</Trans>
+                    {webIdleDays > 0 && (
+                      <> <Trans>A browser that is not used for {webIdleDays} days is signed out on its own.</Trans></>
+                    )}
                   </p>
                   {user?.is_admin && (
                     <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
@@ -901,8 +912,19 @@ export function SettingsPage() {
                           )}
                         >
                           <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
-                            <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            {d.kind === 'web'
+                              ? <Monitor className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              : <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                             <span className="truncate">{d.name}</span>
+                            {d.kind === 'web' && d.platform && (
+                              // The System column is hidden on phones; "Safari" alone does not say which device.
+                              <span className="sm:hidden text-muted-foreground font-normal shrink-0">{d.platform}</span>
+                            )}
+                            {d.current && (
+                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-primary/10 text-primary border border-primary/20">
+                                <Trans>This browser</Trans>
+                              </span>
+                            )}
                             {d.app_version && (
                               // "0.1 (1)" → show "0.1", keep the build number in the tooltip
                               <span className="text-muted-foreground font-normal shrink-0" title={d.app_version}>
@@ -929,7 +951,7 @@ export function SettingsPage() {
                             {!isRevoked && (
                               <button
                                 onClick={() => handleRevokeClientDevice(d)}
-                                title={t`Revoke`}
+                                title={d.current ? t`Sign out` : t`Revoke`}
                                 className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

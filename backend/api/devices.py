@@ -1,4 +1,4 @@
-"""Connected devices: native clients signed in as a user (see ClientDevice)."""
+"""Connected devices: the browsers and apps signed in as a user (see ClientDevice)."""
 from datetime import datetime
 from typing import Optional
 
@@ -11,6 +11,7 @@ from backend.core.security import get_current_user
 from backend.models.client_device import ClientDevice
 from backend.models.user import User
 from backend.services.audit import audit
+from backend.services.client_devices import prune_idle_web
 
 router = APIRouter(prefix="/auth/devices", tags=["auth"])
 
@@ -20,6 +21,9 @@ class DeviceListItem(BaseModel):
     name: str
     platform: Optional[str]
     app_version: Optional[str]
+    kind: str
+    # The device making this request ("This browser").
+    current: bool
     created_at: datetime
     last_seen_at: Optional[datetime]
     revoked_at: Optional[datetime]
@@ -34,6 +38,7 @@ class DeviceListItem(BaseModel):
 
 @router.get("", response_model=list[DeviceListItem])
 def list_devices(
+    request: Request,
     all: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -41,13 +46,16 @@ def list_devices(
     """The current user's devices. Admin-only ?all=true returns everyone's."""
     if all and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    prune_idle_web(db)
     query = db.query(ClientDevice).options(joinedload(ClientDevice.user))
     if not all:
         query = query.filter(ClientDevice.user_id == current_user.id)
     rows = query.order_by(ClientDevice.created_at.desc()).all()
+    current_id = getattr(request.state, "device_id", None)
     return [
         DeviceListItem(
             id=d.id, name=d.name, platform=d.platform, app_version=d.app_version,
+            kind=d.kind or "app", current=d.id == current_id,
             created_at=d.created_at, last_seen_at=d.last_seen_at, revoked_at=d.revoked_at,
             user_id=d.user_id, username=d.user.username,
         )

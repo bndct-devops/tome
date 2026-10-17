@@ -24,7 +24,8 @@ import { withBase } from '../../lib/path'
   <table>
     <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
     <tbody>
-      <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>Authenticate, returns JWT</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>Authenticate, returns a JWT that stays valid until signed out. Each call is a new sign-in listed under Settings &gt; Connected devices, so scripts should use an API token instead</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/logout</code></td><td>End the calling sign-in</td></tr>
       <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current user profile</td></tr>
       <tr><td><code>PUT</code></td><td><code>/api/auth/me</code></td><td>Update username / email</td></tr>
       <tr><td><code>PUT</code></td><td><code>/api/auth/me/password</code></td><td>Change password</td></tr>

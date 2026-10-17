@@ -1,22 +1,20 @@
-import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { AnimatePresence, m } from 'motion/react'
-import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
   BookOpen, X, Home, ChevronRight,
   LayoutGrid, List,
   ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon, Shuffle, Share2,
+  Play, CheckCheck, Trash2, Settings2, Layers, Star, Share2,
   Tablet,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { ShellFrame } from '@/components/ShellFrame'
 import { ModalShell } from '@/components/ModalShell'
-import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
-import { useTelemetry } from '@/lib/useTelemetry'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
-import { t, plural, msg } from '@lingui/core/macro'
+import { plural, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
@@ -26,7 +24,6 @@ import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
 import { SeriesFollowButton } from '@/components/SeriesFollowButton'
 import { ShareModal } from '@/components/ShareShelfModal'
-import { UpcomingReleases } from '@/components/UpcomingReleases'
 import { CoverImage } from '@/components/CoverImage'
 import { HScrollRow } from '@/components/HScrollRow'
 import { Sidebar } from '@/components/Sidebar'
@@ -36,10 +33,7 @@ import { UploadModal } from '@/components/UploadModal'
 import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
-import { HomeGoalRings } from '@/components/stats/GoalWidget'
-import { ReadingDNACard } from '@/components/stats/ReadingDNACard'
-import type { ReadingDNA } from '@/components/stats/shared'
-import { FocusMode } from '@/components/home/FocusMode'
+import { HomeTab } from '@/components/home/HomeTab'
 import { api } from '@/lib/api'
 import type { Book, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
@@ -97,42 +91,6 @@ interface Facets {
   tags: string[]
   formats: string[]
   languages: { code: string; label: string }[]
-}
-
-interface HomeStats {
-  current_streak_days: number
-  books_finished_30d: number
-  reading_seconds_30d: number
-  pages_turned_30d: number
-}
-
-interface ActivityEntry {
-  book_id: number
-  book_title: string
-  book_cover_path: string | null
-  started_at: string
-  duration_seconds: number
-  pages_turned: number
-}
-
-interface ForgottenBook {
-  book_id: number
-  title: string
-  author: string | null
-  has_cover: boolean
-  last_read: string | null
-  days_ago: number | null
-}
-
-interface HighlightSpotlight {
-  on_this_day: boolean
-  highlight: {
-    id: number
-    book_id: number
-    book_title: string
-    book_author: string | null
-    highlighted_text: string | null
-  } | null
 }
 
 const SORT_LABELS: Record<SortField, MessageDescriptor> = {
@@ -274,15 +232,20 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
   )
 }
 
-// Duration abbreviations go through the catalog so locales can adapt the units.
-function formatReadingTime(seconds: number): string {
-  if (seconds < 60) return t`${seconds}s`
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h === 0) return t`${m}m`
-  if (m === 0) return t`${h}h`
-  return t`${h}h ${m}m`
-}
+type StatusMap = Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>
+
+// The library list as it was when the page was last left, so coming back
+// (from a book, Stats, anywhere) shows it at once and where it was scrolled
+// to, then refreshes it quietly. One entry: the list for one set of filters.
+let listCache: {
+  key: string
+  books: Book[]
+  total: number | null
+  statuses: StatusMap
+  hasMore: boolean
+  scrollTop: number
+  locationKey: string
+} | null = null
 
 export function DashboardPage() {
   const { t, i18n } = useLingui()
@@ -766,14 +729,31 @@ export function DashboardPage() {
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
   // ── Books + facets ────────────────────────────────────────────────────────
-  const [books, setBooks] = useState<Book[]>([])
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  // The shell's <main> scrolls; reached through the body wrapper below.
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const locationKeyRef = useRef(location.key)
+  locationKeyRef.current = location.key
+  // Filters + sort of the list the current `books` belong to.
+  const listKey = () => {
+    const p = buildFilterParams()
+    p.set('sort', sort)
+    p.set('order', order)
+    if (groupActive) p.set('group_by_series', 'true')
+    return p.toString()
+  }
+  const [seed] = useState(() => (listCache && listCache.key === listKey() ? listCache : null))
+  const seededRef = useRef(!!seed)
+  const loadedKeyRef = useRef(seed?.key ?? '')
+  const [books, setBooks] = useState<Book[]>(() => seed?.books ?? [])
   const { handleToggle } = useShiftSelect(books.map(b => b.id))
 
   const booksGridRef = useRef<HTMLDivElement | null>(null)
-  const [totalCount, setTotalCount] = useState<number | null>(null)
-  const [readingStatuses, setReadingStatuses] = useState<Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>>({})
+  const [totalCount, setTotalCount] = useState<number | null>(() => seed?.total ?? null)
+  const [readingStatuses, setReadingStatuses] = useState<StatusMap>(() => seed?.statuses ?? {})
   const [facets, setFacets] = useState<Facets>({ series: [], authors: [], tags: [], formats: [], languages: [] })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!seed)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
 
@@ -782,45 +762,12 @@ export function DashboardPage() {
   const toastError = toast.error
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const booksRef = useRef<Book[]>([])
+  const booksRef = useRef<Book[]>(seed?.books ?? [])
   const abortRef = useRef<AbortController | null>(null)
-  const [hasMore, setHasMore] = useState(true)
-  const hasMoreRef = useRef(true)
+  const [hasMore, setHasMore] = useState(seed?.hasMore ?? true)
+  const hasMoreRef = useRef(seed?.hasMore ?? true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [continueReading, setContinueReading] = useState<Book[]>([])
-  const [homeStats, setHomeStats] = useState<HomeStats | null>(null)
-  const [readingDna, setReadingDna] = useState<ReadingDNA | null>(null)
-  // Home view mode: 'focus' = single-book Focus mode, 'dashboard' = the full grid.
-  const [homeMode, setHomeMode] = useState<'focus' | 'dashboard'>(
-    () => (localStorage.getItem('tome_home_mode') as 'focus' | 'dashboard') || 'dashboard'
-  )
-  const setHomeModePersisted = (m: 'focus' | 'dashboard') => {
-    localStorage.setItem('tome_home_mode', m)
-    setHomeMode(m)
-  }
-  const [recentlyFinished, setRecentlyFinished] = useState<Book[]>([])
-  const [recentlyAdded, setRecentlyAdded] = useState<Book[]>([])
-  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([])
-  const [forgottenBooks, setForgottenBooks] = useState<ForgottenBook[]>([])
-  const [spotlight, setSpotlight] = useState<HighlightSpotlight | null>(null)
-  // Persisted dismissal: store the signature of the dismissed book set so the
-  // panel stays hidden across refreshes, but resurfaces if a new set appears.
-  const [forgottenDismissedSig, setForgottenDismissedSig] = useState<string>(
-    () => localStorage.getItem('tome_forgotten_dismissed') || ''
-  )
-  // Home hydration gate: the five above-the-fold fetches (stats, continue
-  // reading, finished, added, forgotten) count down here. Until all have
-  // settled the Home tab shows skeletons — never a false "Nothing in
-  // progress" empty state, and sections mount in one paint instead of
-  // inserting one by one and shifting the layout (CLS). The telemetry
-  // question (admins) waits too, or its card lands on top a moment later
-  // and pushes the whole page down.
-  const telemetry = useTelemetry()
-  const [homeSettled, setHomeSettled] = useState(0)
-  const homeHydrated = homeSettled >= 5 && telemetry.settled
-  const countSettled = () => setHomeSettled(n => n + 1)
-
   const PAGE_SIZE = 60
 
   function buildFilterParams(): URLSearchParams {
@@ -844,14 +791,18 @@ export function DashboardPage() {
     return params
   }
 
-  const loadBooks = useCallback((reset = true) => {
+  // `quiet`: refresh what is already shown (coming back to the page) without
+  // dimming it, as many books as were loaded so the scroll position holds.
+  const loadBooks = useCallback((reset = true, quiet = false) => {
     const skip = reset ? 0 : booksRef.current.length
+    const limit = quiet ? Math.max(PAGE_SIZE, Math.ceil(booksRef.current.length / PAGE_SIZE) * PAGE_SIZE) : PAGE_SIZE
+    const key = listKey()
 
     if (reset) {
       abortRef.current?.abort()
       abortRef.current = new AbortController()
       if (booksRef.current.length === 0) setLoading(true)
-      else setRefreshing(true)
+      else if (!quiet) setRefreshing(true)
       hasMoreRef.current = true
       setHasMore(true)
     } else {
@@ -867,12 +818,13 @@ export function DashboardPage() {
     params.set('sort', sort)
     params.set('order', order)
     params.set('skip', String(skip))
-    params.set('limit', String(PAGE_SIZE))
+    params.set('limit', String(limit))
     if (groupActive) params.set('group_by_series', 'true')
     api.getWithHeaders<Book[]>(`/books?${params}`, signal)
       .then(({ data: newBooks, headers }) => {
         if (signal?.aborted) return
         if (reset) {
+          loadedKeyRef.current = key
           const raw = headers.get('x-total-count')
           setTotalCount(raw !== null ? Number(raw) : null)
         }
@@ -885,12 +837,12 @@ export function DashboardPage() {
         }
         booksRef.current = merged
         setBooks(merged)
-        hasMoreRef.current = newBooks.length === PAGE_SIZE
-        setHasMore(newBooks.length === PAGE_SIZE)
+        hasMoreRef.current = newBooks.length === limit
+        setHasMore(newBooks.length === limit)
         if (newBooks.length > 0) {
           api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
             .then(map => {
-              const s: Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }> = {}
+              const s: StatusMap = {}
               Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
               setReadingStatuses(prev => ({ ...prev, ...s }))
             })
@@ -918,7 +870,30 @@ export function DashboardPage() {
       })
   }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
-  useEffect(() => { loadBooks() }, [loadBooks])
+  useEffect(() => {
+    if (seededRef.current) {
+      seededRef.current = false
+      loadBooks(true, true)
+    } else loadBooks()
+  }, [loadBooks])
+
+  // Keep the list (and, on leaving, the scroll position) for the way back.
+  useEffect(() => {
+    if (!loadedKeyRef.current) return
+    listCache = {
+      key: loadedKeyRef.current, books, total: totalCount, statuses: readingStatuses, hasMore,
+      scrollTop: listCache?.scrollTop ?? 0, locationKey: listCache?.locationKey ?? '',
+    }
+  }, [books, totalCount, readingStatuses, hasMore])
+  useLayoutEffect(() => {
+    const main = bodyRef.current?.closest('main') ?? null
+    // Back/forward to the entry the list was left from: same place as before.
+    if (seed && navigationType === 'POP' && seed.locationKey === location.key && main) main.scrollTop = seed.scrollTop
+    return () => {
+      if (listCache && main) { listCache.scrollTop = main.scrollTop; listCache.locationKey = locationKeyRef.current }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Reset focused index when book list changes
   useEffect(() => { setFocusedIndex(null) }, [books])
@@ -1033,43 +1008,8 @@ export function DashboardPage() {
   }, [navigate])
 
   useEffect(() => {
-    // status_updated = last reading activity, so the hero is the book you actually read last
-    api.get<Book[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=20')
-      .finally(countSettled)
-      .then(books => {
-        setContinueReading(books)
-        if (books.length > 0) {
-          api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: books.map(b => b.id) })
-            .then(map => {
-              const s: Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }> = {}
-              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
-              setReadingStatuses(prev => ({ ...prev, ...s }))
-            })
-            .catch(() => {})
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    const tzOffset = new Date().getTimezoneOffset()
-    api.get<HomeStats>(`/home/stats?tz_offset=${tzOffset}`).finally(countSettled).then(setHomeStats).catch(() => {})
-    api.get<Book[]>('/books?reading_status=read&sort=status_updated&order=desc&limit=6').finally(countSettled).then(setRecentlyFinished).catch(() => {})
-    api.get<Book[]>('/books?sort=added_at&order=desc&limit=6').finally(countSettled).then(setRecentlyAdded).catch(() => {})
-    api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
-    api.get<ForgottenBook[]>('/home/forgotten-books').finally(countSettled).then(setForgottenBooks).catch(() => {})
-    api.get<HighlightSpotlight>('/annotations/spotlight').then(setSpotlight).catch(() => {})
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
-
-  // Reading DNA is the costliest home request — fetch it lazily, only once the
-  // dashboard Home view (the one place the card renders) is actually shown.
-  useEffect(() => {
-    if (tab !== 'home' || homeMode !== 'dashboard' || readingDna) return
-    api.get<ReadingDNA>(`/home/reading-dna?tz_offset=${new Date().getTimezoneOffset()}`)
-      .then(setReadingDna)
-      .catch(() => {})
-  }, [tab, homeMode, readingDna])
 
   // ── Filter chip helpers ───────────────────────────────────────────────────
   const filterLibraryChipName = libraries.find(l => l.id === filterLibrary)?.name ?? t`Library`
@@ -1125,40 +1065,6 @@ export function DashboardPage() {
 
   // Active library name for heading
   const activeLibraryName = filterLibrary ? libraries.find(l => l.id === filterLibrary)?.name : null
-
-  // Home quick stats
-  const homeStatItems: { value: string; label: string; icon: ReactNode }[] = homeStats ? [
-    // A zero-day streak is a sad opener — only lead with it when it exists
-    ...(homeStats.current_streak_days > 0
-      ? [{ value: String(homeStats.current_streak_days), label: t`Day streak`, icon: <Flame className="w-5 h-5" /> }]
-      : []),
-    { value: String(homeStats.books_finished_30d), label: t`Finished · 30d`, icon: <BookCheck className="w-5 h-5" /> },
-    { value: formatReadingTime(homeStats.reading_seconds_30d), label: t`Read · 30d`, icon: <Clock className="w-5 h-5" /> },
-    { value: String(homeStats.pages_turned_30d), label: t`Pages · 30d`, icon: <BookOpenCheck className="w-5 h-5" /> },
-  ] : []
-
-  // Compact Focus / Dashboard switch — placed inline next to the KPI band in
-  // Dashboard mode, top-right on its own in Focus mode.
-  const modeToggle = (
-    <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border bg-card p-0.5 sm:shrink-0">
-      {([
-        { id: 'focus', label: t`Focus`, icon: <Moon className="w-3.5 h-3.5" /> },
-        { id: 'dashboard', label: t`Dashboard`, icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-      ] as const).map((m) => (
-        <button
-          key={m.id}
-          onClick={() => setHomeModePersisted(m.id)}
-          className={cn(
-            'flex-1 justify-center sm:flex-none sm:justify-start inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
-            homeMode === m.id ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {m.icon}
-          {m.label}
-        </button>
-      ))}
-    </div>
-  )
 
   return (
     <ShellFrame
@@ -1240,425 +1146,17 @@ export function DashboardPage() {
       {/* ── Body: the dashboard tabs. The frame's panel scrolls; this wrapper
             only carries the page padding (the shared PageBody comes with the
             per-tab rebuilds). ────────────────────────────────────────────── */}
-        <div className="px-4 py-4">
+        <div ref={bodyRef} className={tab === 'home' ? undefined : 'px-4 py-4'}>
           {/* Section heading */}
           {activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>
           )}
 
           {tab === 'home' ? (
-            /* ── Home tab ────────────────────────────────────────────────── */
-            <div className="flex flex-col gap-7">
-              {homeHydrated && <TelemetryConsentCard telemetry={telemetry} />}
-
-              {homeMode === 'focus' ? (
-              <>
-              {/* Focus mode: toggle alone, top-right */}
-              <div className="flex justify-end -mb-1">{modeToggle}</div>
-                <FocusMode />
-              </>
-              ) : (
-              <>
-
-              {/* ── Quick stats + mode toggle on one row ──────────────────── */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:flex-wrap">
-                <div className="flex flex-wrap items-stretch gap-3 empty:hidden w-full sm:w-auto">
-                  {/* Chromeless — the figures sit on the page itself. Boxing them
-                      gave the strip the same weight as the content panel below,
-                      and the dashboard read as four equal crates. */}
-                  {!homeStats && (
-                    /* Same footprint as the loaded strip so the row doesn't
-                       collapse-then-expand when stats arrive (layout shift). */
-                    <div className="px-1 py-1 grid grid-cols-3 gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit" aria-hidden="true">
-                      {[0, 1, 2].map(i => (
-                        <div key={i} className={cn('sm:px-5 animate-pulse', i === 0 && 'sm:pl-0')}>
-                          <div className="h-3 w-16 rounded bg-muted mb-1.5 mt-0.5" />
-                          <div className="h-6 w-14 rounded bg-muted" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {homeStats && (
-                    <div className={cn(
-                      'px-1 py-1 grid gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit',
-                      /* Three chips wrap 2+1 on phones and look ragged — give an
-                         odd count three even columns instead. */
-                      homeStatItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
-                    )}>
-                      {homeStatItems.map((s, i) => (
-                        <div
-                          key={s.label}
-                          className={cn(
-                            'sm:px-5',
-                            i === 0 && 'sm:pl-0',
-                            i > 0 && 'sm:border-l sm:border-border/60'
-                          )}
-                        >
-                          <p className="text-xs text-muted-foreground/70">{s.label}</p>
-                          <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
-                            <span className="text-primary/60">{s.icon}</span>
-                            {s.value}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="w-full sm:w-auto sm:ml-auto">{modeToggle}</div>
-              </div>
-
-              {/* ── Two-column body: content + rail ───────────────────────── */}
-              <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-7 lg:items-start">
-              {/* ── Main column (one connected panel, hairline-divided) ──────
-                  The ONE bordered, elevated surface on the page — the rail and
-                  stat strip deliberately carry less chrome so this reads primary. */}
-              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border min-w-0 overflow-hidden">
-
-              {!homeHydrated ? (
-                /* Skeleton until every above-the-fold fetch has settled — the
-                   real sections then mount in a single paint. Rendering the
-                   empty state before data resolves flashed "Nothing in
-                   progress" at every cold load (UX sweep finding, CLS 0.27). */
-                <div aria-busy="true">
-                  <section className="flex flex-col gap-3 px-5 py-5">
-                    <div className="h-5 w-40 rounded bg-muted animate-pulse" />
-                    <div className="flex gap-4 overflow-hidden pb-2">
-                      {[...Array(6)].map((_, i) => (
-                        <div key={i} className="shrink-0 w-32 animate-pulse">
-                          <div className="aspect-[2/3] rounded-lg bg-muted" />
-                          <div className="h-3 w-24 rounded bg-muted mt-2" />
-                          <div className="h-2.5 w-16 rounded bg-muted mt-1.5" />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                  <section className="flex flex-col gap-3 px-5 py-5 border-t border-border">
-                    <div className="h-5 w-32 rounded bg-muted animate-pulse" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-14 rounded-xl bg-muted/60 animate-pulse" />
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              ) : (
-              <>
-
-              {/* ── Forgotten Books ───────────────────────────────────────── */}
-              {(() => {
-                const forgottenSig = forgottenBooks.map(b => b.book_id).sort((a, b) => a - b).join(',')
-                const showForgotten = forgottenBooks.length > 0 && forgottenSig !== forgottenDismissedSig
-                if (!showForgotten) return null
-                const dismiss = () => {
-                  localStorage.setItem('tome_forgotten_dismissed', forgottenSig)
-                  setForgottenDismissedSig(forgottenSig)
-                }
-                return (
-                  <section className="px-5 py-4">
-                    <header className="flex items-center justify-between mb-2">
-                      <h2 className="text-base text-foreground"><Trans>Pick up where you left off</Trans></h2>
-                      <button
-                        onClick={dismiss}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <Trans>Dismiss</Trans>
-                      </button>
-                    </header>
-                    <HScrollRow className="gap-3 pb-1" controlsTop="top-[60px]">
-                      {forgottenBooks.map(b => (
-                        <a
-                          key={b.book_id}
-                          href={`/books/${b.book_id}`}
-                          className="group flex flex-col gap-1 w-20 shrink-0 hover:opacity-90 transition-opacity"
-                        >
-                          <div className="relative aspect-[2/3] rounded-md bg-muted overflow-hidden">
-                            <CoverImage
-                              src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null}
-                              alt={b.title}
-                              iconClassName="w-5 h-5"
-                            />
-                          </div>
-                          <p className="text-[11px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                            {b.title}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {(() => { const d = b.days_ago; return d != null ? t`${d}d ago` : t`A while ago` })()}
-                          </p>
-                        </a>
-                      ))}
-                    </HScrollRow>
-                  </section>
-                )
-              })()}
-
-              {/* ── Continue Reading ──────────────────────────────────────── */}
-              <section className="flex flex-col gap-3 px-5 py-5">
-                <h2 className="text-base font-semibold text-foreground"><Trans>Continue Reading</Trans></h2>
-                {continueReading.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                      <BookOpen className="w-8 h-8 text-primary/40" />
-                    </div>
-                    <div>
-                      <p className="text-base font-medium text-foreground"><Trans>Nothing in progress</Trans></p>
-                      <p className="text-sm text-muted-foreground mt-1"><Trans>Start reading and your progress will show up here</Trans></p>
-                    </div>
-                    <button onClick={() => setTab('books')} className="text-sm text-primary hover:underline">
-                      <Trans>Browse your library</Trans>
-                    </button>
-                  </div>
-                ) : (
-                  /* Horizontal band (not a grid): one scrollable row keeps Home's
-                     left column on a consistent banded rhythm that aligns with the
-                     rail, instead of a tall wall of covers. */
-                  <HScrollRow className="gap-4 pb-2 px-1" wrapClassName="-mx-1" controlsTop="top-24">
-                    {continueReading.map((book, i) => {
-                      const status = readingStatuses[book.id]
-                      return (
-                        <div key={book.id} className="shrink-0 w-32">
-                          <BookCard
-                            book={book}
-                            view="small"
-                            index={i}
-                            selected={false}
-                            readingStatus={status?.status}
-                            progressPct={status?.progress_pct}
-                            rating={status?.rating}
-                            showFormatBadge={false}
-                          />
-                        </div>
-                      )
-                    })}
-                  </HScrollRow>
-                )}
-              </section>
-
-              {/* ── Series Progress ───────────────────────────────────────── */}
-              {(() => {
-                // One card per series (a series can have several in-progress volumes),
-                // ranked by how far through it you are. Progress = completed volumes /
-                // total, so it never reads "Book 1171 of 17" off a chapter index.
-                const bySeries = new Map<string, { book: typeof continueReading[number]; read: number; total: number | null; pct: number }>()
-                for (const book of continueReading) {
-                  if (!book.series || book.series_index == null || bySeries.has(book.series)) continue
-                  const sd = seriesList.find(s => s.name === book.series)
-                  const total = sd?.book_count ?? null
-                  const read = sd?.read_count ?? 0
-                  bySeries.set(book.series, { book, read, total, pct: total ? Math.min(100, (read / total) * 100) : 0 })
-                }
-                // Only series with genuine momentum: at least one completed volume
-                // and not yet finished. Just-started (0%) series live in Continue
-                // Reading; finished ones don't belong here. Most-progressed first.
-                const rows = [...bySeries.values()]
-                  .filter(r => r.read > 0 && (r.total == null || r.read < r.total))
-                  .sort((a, b) => b.pct - a.pct)
-                  .slice(0, 6)
-                if (rows.length === 0) return null
-                return (
-                  <div className="flex flex-col gap-3 px-5 py-5">
-                    <h2 className="text-base font-semibold text-foreground"><Trans>Series Progress</Trans></h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {rows.map(({ book, read, total, pct }) => (
-                        <button
-                          key={book.series}
-                          type="button"
-                          onClick={() => setSearchParams({ tab: 'books', series: book.series! })}
-                          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors text-left"
-                        >
-                          <div className="relative w-9 aspect-[2/3] rounded shrink-0 overflow-hidden bg-muted">
-                            <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt={book.series!} iconClassName="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">{book.series}</span>
-                              <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">{total ? `${read}/${total}` : `${read}`}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* ── Recently Finished ─────────────────────────────────────── */}
-              {recentlyFinished.length > 0 && (
-                <section className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground"><Trans>Recently Finished</Trans></h2>
-                  <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
-                    {recentlyFinished.map(book => (
-                      <div key={book.id} className="shrink-0 w-24">
-                        <BookCard
-                          book={book}
-                          view="small"
-                          index={0}
-                          selected={false}
-                          readingStatus="read"
-                          rating={readingStatuses[book.id]?.rating}
-                          showFormatBadge={false}
-                        />
-                      </div>
-                    ))}
-                  </HScrollRow>
-                </section>
-              )}
-
-              {/* ── Recently Added ────────────────────────────────────────── */}
-              {recentlyAdded.length > 0 && (
-                <section className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground"><Trans>Recently Added</Trans></h2>
-                  <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
-                    {recentlyAdded.map(book => (
-                      <div key={book.id} className="shrink-0 w-24">
-                        <BookCard
-                          book={book}
-                          view="small"
-                          index={0}
-                          selected={false}
-                          readingStatus={readingStatuses[book.id]?.status}
-                          progressPct={readingStatuses[book.id]?.progress_pct}
-                          rating={readingStatuses[book.id]?.rating}
-                          showFormatBadge={false}
-                        />
-                      </div>
-                    ))}
-                  </HScrollRow>
-                </section>
-              )}
-
-              {/* ── Reading Log ───────────────────────────────────────────── */}
-              {activityLog.length > 0 && (
-                <div className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground"><Trans>Reading Log</Trans></h2>
-                  <div className="flex flex-col gap-1">
-                    {(() => {
-                      // Back-to-back sessions of the same book collapse into one row
-                      // ("3 sessions · 1h 08m") under a day header — five raw
-                      // "Press Start" lines in a row said less than one merged one.
-                      const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString()
-                      const dayLabel = (iso: string) => {
-                        const d = new Date(iso)
-                        const today = new Date()
-                        const yesterday = new Date(today)
-                        yesterday.setDate(today.getDate() - 1)
-                        if (d.toDateString() === today.toDateString()) return t`Today`
-                        if (d.toDateString() === yesterday.toDateString()) return t`Yesterday`
-                        return d.toLocaleDateString(i18n.locale, { weekday: 'short', month: 'short', day: 'numeric' })
-                      }
-                      type LogRow = { entry: ActivityEntry; sessions: number; seconds: number }
-                      const days: { label: string; first: string; rows: LogRow[] }[] = []
-                      for (const entry of activityLog) {
-                        let day = days[days.length - 1]
-                        if (!day || !sameDay(day.first, entry.started_at)) {
-                          day = { label: dayLabel(entry.started_at), first: entry.started_at, rows: [] }
-                          days.push(day)
-                        }
-                        const last = day.rows[day.rows.length - 1]
-                        if (last && last.entry.book_id === entry.book_id) {
-                          last.sessions += 1
-                          last.seconds += entry.duration_seconds
-                        } else {
-                          day.rows.push({ entry, sessions: 1, seconds: entry.duration_seconds })
-                        }
-                      }
-                      return days.map(day => (
-                        <div key={day.first} className="flex flex-col gap-1">
-                          <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {day.label}
-                          </p>
-                          {day.rows.map(({ entry, sessions, seconds }) => (
-                            <Link
-                              key={entry.started_at}
-                              to={`/books/${entry.book_id}`}
-                              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
-                                <CoverImage
-                                  src={entry.book_cover_path ? coverSrc(entry.book_id, { w: 160 }) : null}
-                                  alt={entry.book_title}
-                                  iconClassName="w-3.5 h-3.5"
-                                />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-foreground truncate">{entry.book_title}</p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  {(() => {
-                                    const time = formatReadingTime(seconds)
-                                    return sessions > 1 ? t`${sessions} sessions · ${time}` : time
-                                  })()}
-                                </p>
-                              </div>
-                              <span className="text-[10px] text-muted-foreground shrink-0">
-                                {new Date(entry.started_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                      ))
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              </>
-              )}
-
-              </div>{/* ── /Main column ── */}
-
-              {/* ── Right rail (one connected panel, hairline-divided) ───────
-                  empty:hidden — every child is conditional (no sessions / no
-                  goals / no highlights), and a brand-new user would otherwise
-                  see a bare bordered box. */}
-              <aside className="rounded-2xl bg-muted/40 divide-y divide-border/60 overflow-hidden empty:hidden">
-                {readingDna && <ReadingDNACard dna={readingDna} />}
-                <HomeGoalRings />
-                <UpcomingReleases />
-                {spotlight?.highlight?.highlighted_text && (
-                  <section className="p-4">
-                    <header className="flex items-center justify-between mb-2.5">
-                      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                        <Quote className="w-4 h-4 text-primary/60" />
-                        {spotlight.on_this_day ? t`On this day` : t`From your highlights`}
-                      </h2>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const cur = spotlight.highlight?.id
-                            api.get<HighlightSpotlight>(
-                              `/annotations/spotlight${cur ? `?exclude=${cur}` : ''}`
-                            ).then(setSpotlight).catch(() => {})
-                          }}
-                          title={t`Show another highlight`}
-                          aria-label={t`Show another highlight`}
-                          className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Shuffle className="w-3.5 h-3.5" />
-                        </button>
-                        <a href="/highlights" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                          <Trans>All →</Trans>
-                        </a>
-                      </div>
-                    </header>
-                    <a href={`/books/${spotlight.highlight.book_id}`} className="block group">
-                      <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-3 italic line-clamp-4">
-                        {spotlight.highlight.highlighted_text}
-                      </p>
-                      <p className="mt-2 pl-3 text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                        — {spotlight.highlight.book_title}
-                        {spotlight.highlight.book_author ? `, ${spotlight.highlight.book_author}` : ''}
-                      </p>
-                    </a>
-                  </section>
-                )}
-              </aside>
-
-              </div>{/* ── /Two-column body ── */}
-              </>
-              )}
-            </div>
+            <HomeTab
+              onBrowse={() => setTab('books')}
+              onSeeAllRecent={() => { persistSort('added_at'); persistOrder('desc'); setTab('books') }}
+            />
           ) : tab === 'series' ? (
             /* ── Series grid ─────────────────────────────────────────────── */
             <>
