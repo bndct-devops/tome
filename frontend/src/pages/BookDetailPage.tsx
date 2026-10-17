@@ -1,18 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  Camera, Download, Edit2, Save, X,
-  Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
-  Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
-  Tag as TagIcon, StickyNote, ChevronDown, Archive, AlignLeft,
-  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Timer
+  Camera, Download, Edit2, X, Trash2, Loader2, Sparkles, Library as LibraryIcon, Check,
+  ChevronLeft, ChevronRight, StickyNote, ChevronDown, Play, Link2, RefreshCw,
+  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2,
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
 import { CoverPickerModal } from '@/components/CoverPickerModal'
 import { PositionHistoryModal } from '@/components/PositionHistoryModal'
@@ -23,6 +20,10 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
 import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
+import { AppShell } from '@/components/AppShell'
+import { QuickLook } from '@/components/QuickLook'
+import { PageBody, SectionTitle, Stat, StatStrip, Field, Pill } from '@/components/page'
+import { coverSrc } from '@/lib/covers'
 import { SessionLog, SessionLogHint } from '@/components/stats/widgets/overview'
 import { InfoHint } from '@/components/InfoHint'
 import { api } from '@/lib/api'
@@ -94,13 +95,6 @@ export interface ChapterTime {
   sittings: ChapterSitting[]
 }
 
-import { msg } from '@lingui/core/macro'
-import type { MessageDescriptor } from '@lingui/core'
-
-const STATUS_CHIP_LABELS: Record<string, MessageDescriptor> = {
-  unread: msg`unread`, reading: msg`reading`, read: msg`read`,
-}
-
 // When a chapter was actually read, honest about sittings:
 //   one sitting  → "Jun 2, 17:40 – 18:54"
 //   two or three → "Jun 2 17:40–18:10 · Jun 3 21:00–21:34"
@@ -156,7 +150,18 @@ interface KosyncUnlinkedDoc {
 interface KosyncStatus {
   linked: boolean
   device?: string
+  percentage?: number | null
+  timestamp?: number | null
   unlinked_documents?: KosyncUnlinkedDoc[]
+}
+
+interface SeriesVolume {
+  id: number
+  title: string
+  series_index: number | null
+  cover_path: string | null
+  updated_at: string | null
+  reading_status: string | null
 }
 
 async function downloadFile(book: BookDetail, f: BookFile) {
@@ -206,12 +211,13 @@ export function BookDetailPage() {
   const [cfi, setCfi] = useState<string | null>(null)
   const [progressAnimated, setProgressAnimated] = useState(false)
   const [statusSaving, setStatusSaving] = useState(false)
-  const [statusPopKey, setStatusPopKey] = useState(0)
   const [rating, setRating] = useState<number | null>(null)
   const [review, setReview] = useState('')       // saved review text
   const [reviewDraft, setReviewDraft] = useState('')  // in-progress edit
   const [editingReview, setEditingReview] = useState(false)
   const [kosyncDevice, setKosyncDevice] = useState<string | null>(null)
+  // Where the linked KOSync position stands, for the "Synced from" pill.
+  const [kosyncLinked, setKosyncLinked] = useState<{ percentage: number | null; timestamp: number | null } | null>(null)
   // Manual KOSync linking (#156): sync documents pushed by a KOSync client
   // (stock KOReader / Readest) that aren't attached to any Tome book yet.
   const [kosyncUnlinked, setKosyncUnlinked] = useState<KosyncUnlinkedDoc[]>([])
@@ -223,10 +229,6 @@ export function BookDetailPage() {
   const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(null)
   const [estimate, setEstimate] = useState<BookEstimate | null>(null)
-  // Collapsed state persists across books/visits — the stats tower (hero +
-  // intensity + time-per-chapter) has grown tall enough that "keep it closed"
-  // is a real preference, not a per-page whim.
-  const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('tome_book_stats_open') !== '0')
   // Per-book session list (#150) — collapsed by default; the always-available
   // place to trim/delete a runaway session (the Stats tiles are removable).
   const [sessionsOpen, setSessionsOpen] = useState(false)
@@ -235,6 +237,13 @@ export function BookDetailPage() {
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
   const [editingNoteDraft, setEditingNoteDraft] = useState('')
   const [descExpanded, setDescExpanded] = useState(false)
+  // "Show more" only when the 4-line clamp actually hides text.
+  const descRef = useRef<HTMLParagraphElement>(null)
+  const [descClamped, setDescClamped] = useState(false)
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false)
+  const downloadMenuRef = useRef<HTMLDivElement>(null)
+  const [seriesVolumes, setSeriesVolumes] = useState<SeriesVolume[]>([])
+  const [quickLookId, setQuickLookId] = useState<number | null>(null)
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -269,10 +278,40 @@ export function BookDetailPage() {
   }, [libMenuOpen])
 
   useEffect(() => {
+    if (!downloadMenuOpen) return
+    function onMouseDown(e: MouseEvent) {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+        setDownloadMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [downloadMenuOpen])
+
+  useEffect(() => {
+    const el = descRef.current
+    if (!el) { setDescClamped(false); return }
+    const measure = () => { if (!descExpanded) setDescClamped(el.scrollHeight > el.clientHeight + 1) }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [book?.description, editing, descExpanded, loading])
+
+  useEffect(() => {
+    const name = book?.series
+    if (!name) { setSeriesVolumes([]); return }
+    api.get<{ books: SeriesVolume[] }>(`/books/series-detail?name=${encodeURIComponent(name)}`)
+      .then(d => setSeriesVolumes(d.books ?? []))
+      .catch(() => setSeriesVolumes([]))
+  }, [book?.series])
+
+  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (e.key === 'Escape') {
+        // The quick look closes itself on Esc; do not also leave the page.
+        if (quickLookId != null) return
         e.preventDefault()
         navigate(-1)
         return
@@ -297,11 +336,18 @@ export function BookDetailPage() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate, book, editing, canEdit])
+  }, [navigate, book, editing, canEdit, quickLookId])
 
   useEffect(() => {
     if (!id) return
     setAdjacent(null)
+    setSessionsOpen(false)
+    setDescExpanded(false)
+    setConfirmDelete(false)
+    setKosyncLinked(null)
+    setKosyncDevice(null)
+    // The shell scrolls inside <main>; a new book starts at its top.
+    document.querySelector('main')?.scrollTo(0, 0)
     api.get<BookDetail>(`/books/${id}`)
       .then(b => { setBook(b); setDraft(b); setLocalLibIds(b.library_ids ?? []) })
       .catch(() => setError(t`Book not found`))
@@ -312,6 +358,7 @@ export function BookDetailPage() {
     api.get<KosyncStatus>(`/books/${id}/kosync-progress`)
       .then(r => {
         if (r.linked && r.device) setKosyncDevice(r.device)
+        setKosyncLinked(r.linked ? { percentage: r.percentage ?? null, timestamp: r.timestamp ?? null } : null)
         setKosyncUnlinked(!r.linked && r.unlinked_documents ? r.unlinked_documents : [])
       })
       .catch(() => {})  // KOSync is optional — silent fail is fine
@@ -353,7 +400,6 @@ export function BookDetailPage() {
     setProgressPct(s.progress_pct)
     setCfi(s.cfi ?? null)
     setProgressAnimated(false)
-    setStatusPopKey(k => k + 1)
   }
 
   async function restoreStatus(prev: { status: ReadingStatus; progress_pct: number | null; cfi: string | null }) {
@@ -401,6 +447,7 @@ export function BookDetailPage() {
         api.get<BookStatus>(`/books/${id}/status`),
       ])
       if (ks.linked && ks.device) setKosyncDevice(ks.device)
+      setKosyncLinked(ks.linked ? { percentage: ks.percentage ?? null, timestamp: ks.timestamp ?? null } : null)
       setKosyncUnlinked(!ks.linked && ks.unlinked_documents ? ks.unlinked_documents : [])
       applyStatus(s)
       setKosyncPickerOpen(false)
@@ -514,639 +561,26 @@ export function BookDetailPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-    </div>
+    <AppShell>
+      <div className="flex h-full min-h-[60vh] items-center justify-center">
+        <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
+      </div>
+    </AppShell>
   )
 
   if (error || !book) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center gap-3 flex flex-col items-center">
+    <AppShell>
+      <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-muted-foreground">{error ?? t`Book not found`}</p>
-        <Link to="/" className="text-sm text-primary hover:underline"><Trans>← Back to library</Trans></Link>
+        <Link to="/" className="text-sm text-primary hover:underline"><Trans>Back to library</Trans></Link>
       </div>
-    </div>
+    </AppShell>
   )
 
-  // ── Render helpers (shared across layout variants) ──────────────────────────
+  // ── Pieces ──────────────────────────────────────────────────────────────────
 
-  const coverBlock = (
-    <div
-      className={cn(
-        "relative mx-auto w-40 sm:w-48 aspect-[2/3] rounded-xl overflow-hidden border border-border bg-muted shadow-lg",
-        canEdit && "group cursor-pointer"
-      )}
-      onClick={() => canEdit && setCoverPickerOpen(true)}
-    >
-      <CoverImage
-        src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
-        alt={book.title}
-        loading="eager"
-        iconClassName="w-12 h-12"
-      />
-      {canEdit && (
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Camera className="w-8 h-8 text-white drop-shadow" />
-        </div>
-      )}
-    </div>
-  )
-
-  const readButton = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format)) ? (
-    <button
-      onClick={() => navigate(`/reader/${book.id}`)}
-      className="mt-4 flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-    >
-      <BookMarked className="w-4 h-4" />
-      <Trans context="action">Read</Trans>
-    </button>
-  ) : null
-
-  const downloadButtons = book.files.length > 0 ? (
-    <div className="mt-4 space-y-2">
-      {book.files.map(f => (
-        <button
-          key={f.id}
-          onClick={async () => {
-            setDownloadingId(f.id)
-            try { await downloadFile(book, f) }
-            catch (e) { setError(e instanceof Error ? e.message : t`Download failed`) }
-            finally { setDownloadingId(null) }
-          }}
-          disabled={downloadingId === f.id}
-          className={cn(
-            'flex items-center justify-between gap-2 w-full px-3 py-2 rounded-lg text-sm',
-            'border border-border bg-card text-foreground',
-            'hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm',
-            'transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
-          )}
-        >
-          <span className="flex items-center gap-1.5">
-            {downloadingId === f.id
-              ? <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
-              : <Download className="w-3.5 h-3.5 text-muted-foreground" />}
-            <span className="uppercase font-medium text-xs">{f.format}</span>
-          </span>
-          {f.file_size && (
-            <span className="text-xs text-muted-foreground">{formatBytes(f.file_size)}</span>
-          )}
-        </button>
-      ))}
-    </div>
-  ) : null
-
-  const sendToDeviceButton = isMember(user) && book.files.length > 0 ? (
-    <SendButton
-      books={[{ id: book.id, title: book.title, files: book.files }]}
-      variant="rail"
-    />
-  ) : null
-
-  // Left rail actions: cover + Read + Download + Send
-  const leftRailActions = (
-    <>
-      {coverBlock}
-      {readButton}
-      {downloadButtons}
-      {sendToDeviceButton}
-    </>
-  )
-
-  // Title block: editing title/subtitle/author/series or display
-  const titleBlock = (
-    <>
-      {editing ? (
-        <>
-          <input
-            value={field('title') ?? ''}
-            onChange={e => setField('title', e.target.value)}
-            className="w-full text-2xl font-bold text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring mb-1"
-            placeholder={t`Title`}
-          />
-          <input
-            value={field('subtitle') ?? ''}
-            onChange={e => setField('subtitle', e.target.value)}
-            className="w-full text-base text-muted-foreground bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-1"
-            placeholder={t`Subtitle (optional)`}
-          />
-        </>
-      ) : (
-        <>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{book.title}</h1>
-            {book.content_type === 'chapter' && (
-              <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-muted text-muted-foreground border border-border">
-                <Trans>Chapter</Trans>
-              </span>
-            )}
-          </div>
-          {book.subtitle && (
-            <p className="text-sm sm:text-base text-muted-foreground mt-0.5">{book.subtitle}</p>
-          )}
-        </>
-      )}
-
-      {editing ? (
-        <AutocompleteInput
-          value={field('author') ?? ''}
-          onChange={v => setField('author', v)}
-          suggestions={facets.authors}
-          placeholder={t`Author`}
-          className="w-full text-base bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring mt-2"
-        />
-      ) : book.author ? (
-        <button
-          onClick={() => navigate(`/?tab=books&author=${encodeURIComponent(book.author!)}`)}
-          className="text-base text-muted-foreground mt-1 hover:text-primary transition-colors text-left"
-        >
-          {book.author}
-        </button>
-      ) : null}
-
-      {(book.series || editing) && (
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          {editing ? (
-            <>
-              <AutocompleteInput
-                value={field('series') ?? ''}
-                onChange={v => setField('series', v)}
-                suggestions={facets.series}
-                placeholder={t`Series name`}
-                className="flex-1 min-w-0 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <input
-                value={field('series_index') ?? ''}
-                onChange={e => setField('series_index', e.target.value)}
-                type="number"
-                step="0.1"
-                className="w-20 text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="#"
-              />
-            </>
-          ) : (
-            <button
-              onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
-              className="text-sm text-primary/80 hover:text-primary transition-colors text-left"
-            >
-              {book.series}{book.series_index != null ? ` #${book.series_index}` : ''}
-            </button>
-          )}
-        </div>
-      )}
-      {!editing && <DevicePills bookId={book.id} className="flex mt-2" />}
-    </>
-  )
-
-  // Status + progress bar
-  const statusProgressBlock = (
-    <div className="mt-4 mb-4 flex items-center flex-wrap gap-1.5">
-      {(['unread', 'reading', 'read'] as ReadingStatus[]).map(s => (
-        <button
-          key={bookStatus === s ? `${s}-${statusPopKey}` : s}
-          disabled={statusSaving}
-          onClick={() => handleStatusChange(s)}
-          className={cn(
-            'px-2.5 py-1 rounded-md text-xs font-medium border transition-all capitalize',
-            bookStatus === s
-              ? s === 'reading'
-                ? 'bg-warning/10 border-warning text-warning animate-[pop_0.2s_ease-out]'
-                : s === 'read'
-                  ? 'bg-success/10 border-success text-success animate-[pop_0.2s_ease-out]'
-                  : 'bg-muted border-border text-foreground animate-[pop_0.2s_ease-out]'
-              : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          {i18n._(STATUS_CHIP_LABELS[s])}
-        </button>
-      ))}
-      {/* Want to Read + Shelved — set apart from the linear unread→reading→read
-          progression. Want to Read = queued next (self-promotes to reading on
-          first progress); Shelved keeps your reading position but removes the
-          book from Continue Reading, series progress, and stats until you pick
-          it back up. */}
-      <span className="mx-1 h-4 w-px bg-border self-center" aria-hidden />
-      <button
-        key={bookStatus === 'want_to_read' ? `want_to_read-${statusPopKey}` : 'want_to_read'}
-        disabled={statusSaving}
-        onClick={() => handleStatusChange('want_to_read')}
-        title={t`Want to Read — queue this book up next`}
-        className={cn(
-          'px-2.5 py-1 rounded-md text-xs font-medium border transition-all inline-flex items-center gap-1.5',
-          bookStatus === 'want_to_read'
-            ? 'bg-primary/10 border-primary text-primary animate-[pop_0.2s_ease-out]'
-            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-        )}
-      >
-        <BookMarked className="w-3.5 h-3.5" />
-        <Trans>Want to Read</Trans>
-      </button>
-      <button
-        key={bookStatus === 'shelved' ? `shelved-${statusPopKey}` : 'shelved'}
-        disabled={statusSaving}
-        onClick={() => handleStatusChange('shelved')}
-        title={t`Shelved — set aside, keeps your progress`}
-        className={cn(
-          'px-2.5 py-1 rounded-md text-xs font-medium border transition-all inline-flex items-center gap-1.5',
-          bookStatus === 'shelved'
-            ? 'bg-muted border-foreground/30 text-foreground animate-[pop_0.2s_ease-out]'
-            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-        )}
-      >
-        <Archive className="w-3.5 h-3.5" />
-        <Trans>Shelved</Trans>
-      </button>
-      {statusSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground self-center" />}
-      {progressPct != null && progressPct > 0 && bookStatus !== 'unread' && (
-        <div className="flex items-center gap-2 w-full mt-1.5">
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all duration-700 ease-out"
-              style={{ width: progressAnimated ? `${Math.round(progressPct * 100)}%` : '0%' }}
-            />
-          </div>
-          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-            {Math.round(progressPct * 100)}%
-            {book?.hardcover_pages != null && book.hardcover_pages > 0 && (() => {
-              // Print-edition pagination (from the matched Hardcover edition) —
-              // font-size agnostic, unlike the device's reflowed page count.
-              const page = Math.max(1, Math.round(progressPct * book.hardcover_pages))
-              const totalPages = book.hardcover_pages
-              return (
-                <span className="ml-1 opacity-60">
-                  <Trans>· p. {page} of {totalPages}</Trans>
-                </span>
-              )
-            })()}
-            {kosyncDevice && (
-              <span className="ml-1 opacity-60">· {kosyncDevice}</span>
-            )}
-          </span>
-        </div>
-      )}
-      {kosyncUnlinked.length > 0 && !kosyncDevice && (
-        <div className="w-full mt-1.5 text-xs">
-          {!kosyncPickerOpen ? (
-            <button
-              type="button"
-              onClick={() => { setKosyncPickerOpen(true); setKosyncLinkDoc(kosyncUnlinked[0]?.document ?? '') }}
-              className="text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2 transition-colors"
-              title={t`Attach progress synced from a KOReader-compatible app to this book`}
-            >
-              <Trans>Link KOReader sync…</Trans>
-            </button>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2">
-              <span className="text-muted-foreground"><Trans>Synced document</Trans></span>
-              <select
-                value={kosyncLinkDoc}
-                onChange={e => setKosyncLinkDoc(e.target.value)}
-                className="rounded border border-border bg-background px-1.5 py-0.5 max-w-[16rem]"
-              >
-                {kosyncUnlinked.map(d => (
-                  <option key={d.document} value={d.document}>
-                    {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString(i18n.locale)} · {d.document.slice(0, 8)}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={kosyncLinking || !kosyncLinkDoc}
-                onClick={linkKosyncDocument}
-                className="rounded border border-border px-2 py-0.5 text-foreground hover:bg-muted transition-colors disabled:opacity-40"
-              >
-                {kosyncLinking ? t`Linking…` : t`Link`}
-              </button>
-              <button
-                type="button"
-                onClick={() => setKosyncPickerOpen(false)}
-                className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted transition-colors"
-              >
-                <Trans>Cancel</Trans>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-
-  // Your rating + optional review
-  const ratingBlock = (
-    <div className="mb-5">
-      <div className="flex items-center gap-2.5">
-        <StarRating value={rating} onChange={saveRating} />
-        <span className="text-xs text-muted-foreground">
-          {rating ? t`You rated this ${rating}/5` : t`Rate this book`}
-        </span>
-        {!review && !editingReview && (
-          <button
-            type="button"
-            onClick={startEditingReview}
-            className="text-xs text-primary hover:underline"
-          >
-            <Trans>Add a review</Trans>
-          </button>
-        )}
-      </div>
-      {editingReview ? (
-        <textarea
-          value={reviewDraft}
-          onChange={e => setReviewDraft(e.target.value)}
-          onBlur={saveReview}
-          autoFocus
-          rows={3}
-          placeholder={t`What did you think? (optional, saved automatically)`}
-          className="mt-2 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
-        />
-      ) : review ? (
-        <div className="group/review relative mt-2.5 border-l-2 border-primary/30 pl-3">
-          <p className="whitespace-pre-wrap pr-7 text-sm leading-relaxed text-foreground/90">{review}</p>
-          <button
-            type="button"
-            onClick={startEditingReview}
-            aria-label={t`Edit review`}
-            title={t`Edit review`}
-            className="absolute right-0 top-0 p-1 text-muted-foreground/50 transition-colors hover:text-foreground"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ) : null}
-    </div>
-  )
-
-  // Full collapsible stats hero block. Shows when there are live sessions OR
-  // imported KOReader page-stats (a book read only on the device has no sessions
-  // but does have an intensity curve).
   const refreshStats = () =>
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
-  const hasReadingData = readingStats && (readingStats.own.sessions > 0 || !!readingStats.intensity)
-  const statsFull = readingStats ? (
-    // mt-6 matches the Description/Details section rhythm — this block used to
-    // sit tight under the rating row (mt-1) before the description moved above it.
-    <div className="mt-6">
-      <div className="flex items-center gap-2 mb-3">
-        <button
-          type="button"
-          onClick={() => setStatsOpen(o => { localStorage.setItem('tome_book_stats_open', o ? '0' : '1'); return !o })}
-          aria-expanded={statsOpen}
-          className="flex items-center gap-1.5 font-display text-base text-foreground hover:text-primary transition-colors"
-        >
-          <Trans>Reading Stats</Trans>
-          <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !statsOpen && '-rotate-90')} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowPositionHistory(true)}
-          title={t`Position history — restore a bad sync`}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <HistoryIcon className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      {statsOpen && (
-        hasReadingData ? (
-          <div className="flex flex-col gap-3">
-            {readingStats.own.sessions > 0 && (
-              <StatsLayoutHero
-                own={readingStats.own}
-                aggregate={readingStats.aggregate}
-                bookId={Number(id)}
-                onChange={refreshStats}
-              />
-            )}
-            {readingStats.intensity && (
-              <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
-            )}
-            {readingStats.chapters && readingStats.chapters.length > 0 && (
-              <ChapterTimesBlock chapters={readingStats.chapters} />
-            )}
-            {readingStats.own.sessions > 0 && (
-              <div className="rounded-xl border border-border bg-card px-5 py-4">
-                <span className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSessionsOpen(o => !o)}
-                    aria-expanded={sessionsOpen}
-                    className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
-                  >
-                    {(() => { const n = readingStats.own.sessions; return <Trans>Sessions ({n})</Trans> })()}
-                    <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !sessionsOpen && '-rotate-90')} />
-                  </button>
-                  <SessionLogHint />
-                </span>
-                {sessionsOpen && (
-                  <div className="mt-3">
-                    <SessionLog bookId={Number(id)} onChange={refreshStats} />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          // No history yet — the manual-tracking entry point (paper / un-synced device).
-          <div className="rounded-xl border border-border bg-card px-5 py-4">
-            <p className="text-sm text-muted-foreground">
-              <Trans>No reading logged yet. Track time by hand — handy for a paper copy or a device that isn&apos;t synced.</Trans>
-            </p>
-            <div className="mt-3">
-              <ManualLogControls bookId={Number(id)} onChange={refreshStats} />
-            </div>
-          </div>
-        )
-      )}
-    </div>
-  ) : null
-
-  // Genres block for the left sidebar (variant 1)
-  const genresBlock = editing ? (
-    <div>
-      <p className="font-display text-base text-foreground mb-2"><Trans>Genres</Trans></p>
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {draftTags.map(tag => (
-          <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
-            {tag}
-            <button
-              type="button"
-              onClick={() => setDraftTags(prev => prev.filter(t => t !== tag))}
-              className="text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-        ))}
-      </div>
-      <AutocompleteInput
-        value={tagInput}
-        onChange={setTagInput}
-        suggestions={facets.tags.filter(t => !draftTags.includes(t))}
-        placeholder={t`Add tag…`}
-        onSelect={tag => {
-          if (tag && !draftTags.includes(tag)) {
-            setDraftTags(prev => [...prev, tag])
-            setTagInput('')
-          }
-        }}
-        onEnter={val => {
-          const trimmed = val.trim()
-          if (trimmed && !draftTags.includes(trimmed)) {
-            setDraftTags(prev => [...prev, trimmed])
-            setTagInput('')
-          }
-        }}
-        className="text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring w-full"
-      />
-    </div>
-  ) : book.tags.length > 0 ? (
-    <div>
-      <p className="font-display text-base text-foreground mb-2"><Trans>Genres</Trans></p>
-      <div className="flex flex-wrap gap-1.5">
-        {book.tags.map(t => (
-          <button
-            key={t.id}
-            onClick={() => navigate(`/?tab=books&tag=${encodeURIComponent(t.tag)}`)}
-            className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-colors"
-          >
-            {t.tag}
-          </button>
-        ))}
-      </div>
-    </div>
-  ) : null
-
-  // Full-width Details grid for below the description (variant 1)
-  const metadataGridFull = (
-    <div className="mt-6">
-      <div className="font-display text-base text-foreground mb-3"><Trans>Details</Trans></div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
-        <MetaField icon={<Calendar className="w-3.5 h-3.5" />} label={t`Year`}
-          value={field('year') ?? ''} editing={editing}
-          onChange={v => setField('year', v)} type="number" placeholder="2024" />
-        <MetaField icon={<Globe className="w-3.5 h-3.5" />} label={t`Language`}
-          value={field('language') ?? ''} editing={editing}
-          onChange={v => setField('language', v)} placeholder="en" />
-        <MetaField icon={<Hash className="w-3.5 h-3.5" />} label={t`ISBN`}
-          value={field('isbn') ?? ''} editing={editing}
-          onChange={v => setField('isbn', v)} placeholder="978-..." />
-        <MetaField icon={<Building2 className="w-3.5 h-3.5" />} label={t`Publisher`}
-          value={field('publisher') ?? ''} editing={editing}
-          onChange={v => setField('publisher', v)} placeholder={t`Publisher`} />
-        <MetaField icon={<FileText className="w-3.5 h-3.5" />} label={t`Format`}
-          value={book.files.map(f => f.format.toUpperCase()).join(', ')} editing={false}
-          onChange={() => {}} />
-        <MetaField icon={<AlignLeft className="w-3.5 h-3.5" />} label={t`Words`}
-          value={(() => { if (book.word_count == null) return ''; const words = book.word_count.toLocaleString(i18n.locale); return t`${words} words` })()}
-          editing={false} onChange={() => {}} />
-        {/* How long the whole book would take at your pace (#187). In-progress
-            books additionally get "Est. remaining" in the Reading Stats block. */}
-        {!editing && estimate?.seconds != null && (
-          <div className="flex items-start gap-2">
-            <span className="text-muted-foreground mt-0.5 shrink-0"><Timer className="w-3.5 h-3.5" /></span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Est. read time</Trans></p>
-              <p className="text-sm text-foreground" title={describePace(estimate.pace, estimate.method)}>
-                {formatEstimateHours(estimate.seconds)}
-                {estimate.days != null && (
-                  <span className="text-muted-foreground"> &middot; {formatEstimateDays(estimate.days)}</span>
-                )}
-              </p>
-            </div>
-          </div>
-        )}
-        {/* Hardcover match — only when the sync matcher has linked this book */}
-        {!editing && book.hardcover_slug && (
-          <div className="flex items-start gap-2">
-            <span className="text-muted-foreground mt-0.5 shrink-0"><BookMarked className="w-3.5 h-3.5" /></span>
-            <div className="flex-1 min-w-0">
-              {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-              <p className="text-xs text-muted-foreground/70 mb-0.5">Hardcover</p>
-              <a
-                href={`https://hardcover.app/books/${book.hardcover_slug}`}
-                target="_blank" rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline truncate block"
-              >
-                {book.hardcover_slug}
-              </a>
-            </div>
-          </div>
-        )}
-        {/* Book Type */}
-        <div className="flex items-start gap-2">
-          <span className="text-muted-foreground mt-0.5 shrink-0"><TagIcon className="w-3.5 h-3.5" /></span>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Type</Trans></p>
-            {editing ? (
-              <select
-                value={draftBookTypeId ?? ''}
-                onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">{t`No type`}</option>
-                {bookTypes.map(bt => (
-                  <option key={bt.id} value={bt.id}>{bt.label}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-sm text-foreground">
-                {bookTypes.find(bt => bt.id === book.book_type_id)?.label ?? <span className="text-muted-foreground/50 italic">{t`None`}</span>}
-              </p>
-            )}
-          </div>
-        </div>
-        {/* Content Type */}
-        <div className="flex items-start gap-2">
-          <span className="text-muted-foreground mt-0.5 shrink-0"><FileText className="w-3.5 h-3.5" /></span>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground/70 mb-0.5"><Trans>Content</Trans></p>
-            {editing ? (
-              <select
-                value={draft.content_type ?? 'volume'}
-                onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))}
-                className="w-full text-sm bg-muted rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="volume">{t`Volume`}</option>
-                <option value="chapter">{t`Chapter`}</option>
-              </select>
-            ) : (
-              <p className="text-sm text-foreground">{book.content_type === 'chapter' ? t`Chapter` : t`Volume`}</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  const descriptionBlock = (
-    <div className="mt-6">
-      <div className="font-display text-base text-foreground mb-2"><Trans>Description</Trans></div>
-      {editing ? (
-        <textarea
-          value={field('description') ?? ''}
-          onChange={e => setField('description', e.target.value)}
-          rows={6}
-          className="w-full text-sm text-foreground bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-          placeholder={t`No description`}
-        />
-      ) : book.description ? (
-        <div>
-          <p className={cn('text-sm text-muted-foreground leading-relaxed', !descExpanded && 'line-clamp-3')}>
-            {book.description}
-          </p>
-          {book.description.length > 180 && (
-            <button
-              type="button"
-              onClick={() => setDescExpanded(e => !e)}
-              className="mt-1 text-xs font-medium text-primary hover:underline"
-            >
-              {descExpanded ? t`Show less` : t`Show more`}
-            </button>
-          )}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground/50 italic"><Trans>No description</Trans></p>
-      )}
-    </div>
-  )
 
   async function deleteHighlight(annotationId: number) {
     try {
@@ -1171,28 +605,635 @@ export function BookDetailPage() {
     }
   }
 
-  const highlightsBlock = annotations.length > 0 ? (
-    <div className="mt-6">
-      <button
-        type="button"
-        onClick={() => setHighlightsOpen(o => !o)}
-        aria-expanded={highlightsOpen}
-        className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
-      >
-        <Trans>Highlights &amp; Notes</Trans>
-        <span className="text-muted-foreground/50 font-normal text-sm">({annotations.length})</span>
-        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !highlightsOpen && '-rotate-90')} />
-      </button>
+  async function downloadOne(f: BookFile) {
+    if (!book) return
+    setDownloadMenuOpen(false)
+    setDownloadingId(f.id)
+    try { await downloadFile(book, f) }
+    catch (e) { setError(e instanceof Error ? e.message : t`Download failed`) }
+    finally { setDownloadingId(null) }
+  }
+
+  const readable = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format))
+  const showProgress = progressPct != null && progressPct > 0 && bookStatus !== 'unread'
+  const pctShown = progressPct != null ? Math.round(progressPct * 100) : 0
+  const own = readingStats?.own ?? null
+  const hasSessions = !!own && own.sessions > 0
+  const typeLabel = bookTypes.find(bt => bt.id === book.book_type_id)?.label
+  const seriesHref = book.series ? `/?tab=series&series_detail=${encodeURIComponent(book.series)}` : null
+  const shortDay = (d: Date) => d.toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
+  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+  const inputCls = 'w-full rounded-lg bg-secondary px-3 py-1.5 text-[15px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring'
+  const smallCaps = 'text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
+  const menuCls = 'absolute top-full mt-1.5 z-40 min-w-52 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl'
+  /* eslint-enable lingui/no-unlocalized-strings */
+
+  const STATUS_PILLS: { id: ReadingStatus; label: string; title?: string }[] = [
+    { id: 'unread', label: t`Unread` },
+    { id: 'reading', label: t`Reading` },
+    { id: 'read', label: t`Read` },
+    { id: 'want_to_read', label: t`Want to read`, title: t`Queue this book up next` },
+    { id: 'shelved', label: t`Shelved`, title: t`Set aside, keeps your progress` },
+  ]
+
+  // ── Header line: where you are, previous/next volume, the page's actions ────
+
+  const crumbs = (
+    <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground" aria-label={t`Breadcrumb`}>
+      <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>Library</Trans></Link>
+      {book.series && seriesHref ? (
+        <>
+          <span aria-hidden>/</span>
+          <Link to={seriesHref} className="truncate hover:text-foreground transition-colors">{book.series}</Link>
+        </>
+      ) : adjacent?.mode === 'author' && book.author ? (
+        <>
+          <span aria-hidden>/</span>
+          <Link to={`/?tab=books&author=${encodeURIComponent(book.author)}`} className="truncate hover:text-foreground transition-colors">{book.author}</Link>
+        </>
+      ) : null}
+      {adjacent && (adjacent.prev || adjacent.next) && (
+        <span className="ml-1 inline-flex shrink-0 items-center">
+          {adjacent.prev ? (
+            <Link to={`/books/${adjacent.prev.id}`} title={adjacent.prev.title} aria-label={t`Previous volume`}
+              className="grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground transition-colors">
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          ) : <span className="grid h-7 w-7 place-items-center opacity-30" aria-hidden><ChevronLeft className="h-4 w-4" /></span>}
+          {adjacent.next ? (
+            <Link to={`/books/${adjacent.next.id}`} title={adjacent.next.title} aria-label={t`Next volume`}
+              className="grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground transition-colors">
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          ) : <span className="grid h-7 w-7 place-items-center opacity-30" aria-hidden><ChevronRight className="h-4 w-4" /></span>}
+        </span>
+      )}
+    </nav>
+  )
+
+  const pageActions = editing ? (
+    <div className="flex items-center gap-1.5">
+      <Pill variant="quiet" onClick={cancelEdit}><X className="h-4 w-4" /><Trans>Cancel</Trans></Pill>
+      <Pill variant="primary" onClick={saveEdit} disabled={saving}>
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        {saving ? t`Saving…` : t`Save`}
+      </Pill>
+    </div>
+  ) : confirmDelete ? (
+    <div className="flex items-center gap-1.5">
+      {(() => { const title = book.title; return <span className="hidden max-w-[220px] truncate text-[14px] text-muted-foreground sm:inline"><Trans>Delete "{title}"?</Trans></span> })()}
+      <Pill variant="quiet" onClick={() => setConfirmDelete(false)}><Trans>Cancel</Trans></Pill>
+      <Pill onClick={handleDelete} disabled={deleting} className="bg-destructive text-white hover:bg-destructive/90">
+        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+        {deleting ? t`Deleting…` : t`Delete`}
+      </Pill>
+    </div>
+  ) : (canEdit || canDelete) ? (
+    <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
+      {canEdit && (
+        <Pill variant="quiet" onClick={startEdit} aria-label={t`Edit`}>
+          <Edit2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Edit</Trans></span>
+        </Pill>
+      )}
+      {canEdit && book.content_type !== 'chapter' && (
+        <Pill variant="quiet" onClick={() => setFetchModalOpen(true)} aria-label={t`Fetch Metadata`}>
+          <Sparkles className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Fetch Metadata</Trans></span>
+        </Pill>
+      )}
+      {canEdit && libraries.some(l => l.can_edit) && (
+        <div className="relative" ref={libMenuRef}>
+          <Pill variant="quiet" onClick={() => setLibMenuOpen(o => !o)} aria-expanded={libMenuOpen} aria-label={t`Libraries`}
+            className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
+            <LibraryIcon className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Libraries</Trans></span>
+            {localLibIds.length > 0 && (
+              <span className="ml-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-secondary px-1.5 text-[11px] font-semibold tabular-nums text-foreground">
+                {localLibIds.length}
+              </span>
+            )}
+          </Pill>
+          {libMenuOpen && (
+            <div className={cn(menuCls, 'right-0')}>
+              <p className="border-b border-border px-3 pb-2 pt-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                <Trans>Add to library</Trans>
+              </p>
+              {libraries.filter(l => l.can_edit).map(lib => {
+                const inLib = localLibIds.includes(lib.id)
+                const pending = libPending.has(lib.id)
+                return (
+                  <div key={lib.id} className="flex w-full items-center gap-2 px-3 py-2 text-[14px] hover:bg-secondary transition-colors">
+                    {pending
+                      ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                      : <LibraryIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <Link to={`/?tab=books&library_id=${lib.id}`} onClick={() => setLibMenuOpen(false)}
+                      className="flex-1 truncate hover:text-primary transition-colors">
+                      {lib.name}
+                    </Link>
+                    <button onClick={() => toggleLibrary(lib.id)} disabled={pending}
+                      className="shrink-0 rounded p-0.5 hover:bg-muted transition-colors disabled:opacity-60"
+                      title={inLib ? t`Remove from library` : t`Add to library`}
+                      aria-label={inLib ? t`Remove from library` : t`Add to library`}>
+                      <Check className={cn('h-3.5 w-3.5', inLib ? 'text-primary' : 'text-muted-foreground/30')} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      {canEdit && (
+        <Pill variant="quiet" onClick={() => setShowShare(true)} title={t`Share this book as a public page with its metadata only`} aria-label={t`Share`}>
+          <Share2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Share</Trans></span>
+        </Pill>
+      )}
+      {canDelete && (
+        <Pill variant="destructive" icon onClick={() => setConfirmDelete(true)} aria-label={t`Delete`} title={t`Delete`}>
+          <Trash2 className="h-4 w-4" />
+        </Pill>
+      )}
+    </div>
+  ) : null
+
+  // ── Rail: cover, files, details, genres ─────────────────────────────────────
+
+  const cover = (
+    <div
+      className={cn('relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted', canEdit && 'group cursor-pointer')}
+      style={{ boxShadow: 'var(--cover-bloom-hero)' }}
+      onClick={() => canEdit && setCoverPickerOpen(true)}
+      title={canEdit ? t`Change cover` : undefined}
+    >
+      <CoverImage
+        src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
+        alt={book.title}
+        loading="eager"
+        iconClassName="w-12 h-12"
+      />
+      {canEdit && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+          <Camera className="h-8 w-8 text-white drop-shadow" />
+        </div>
+      )}
+    </div>
+  )
+
+  const fileLines = book.files.length > 0 ? (
+    <div className="mt-4 space-y-1 px-1">
+      {book.files.map(f => (
+        <div key={f.id} className="flex items-center justify-between text-[13px] text-muted-foreground">
+          <span className="uppercase">{f.format}</span>
+          {f.file_size ? <span className="tabular-nums">{formatBytes(f.file_size)}</span> : null}
+        </div>
+      ))}
+    </div>
+  ) : null
+
+  const wordsValue = book.word_count != null
+    ? (() => { const words = book.word_count.toLocaleString(i18n.locale); return t`${words} words` })()
+    : null
+
+  const details = editing ? (
+    <div className="grid grid-cols-1 gap-y-3">
+      <EditField label={t`Year`} value={field('year') ?? ''} onChange={v => setField('year', v)} type="number" placeholder="2024" className={inputCls} />
+      <EditField label={t`Language`} value={field('language') ?? ''} onChange={v => setField('language', v)} placeholder="en" className={inputCls} />
+      <EditField label={t`ISBN`} value={field('isbn') ?? ''} onChange={v => setField('isbn', v)} placeholder="978-..." className={inputCls} />
+      <EditField label={t`Publisher`} value={field('publisher') ?? ''} onChange={v => setField('publisher', v)} placeholder={t`Publisher`} className={inputCls} />
+      <label className="block">
+        <span className="text-[13px] text-muted-foreground"><Trans>Type</Trans></span>
+        <select value={draftBookTypeId ?? ''} onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)} className={cn(inputCls, 'mt-1')}>
+          <option value="">{t`No type`}</option>
+          {bookTypes.map(bt => <option key={bt.id} value={bt.id}>{bt.label}</option>)}
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-[13px] text-muted-foreground"><Trans>Content</Trans></span>
+        <select value={draft.content_type ?? 'volume'} onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))} className={cn(inputCls, 'mt-1')}>
+          <option value="volume">{t`Volume`}</option>
+          <option value="chapter">{t`Chapter`}</option>
+        </select>
+      </label>
+    </div>
+  ) : (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+      {book.year != null && <Field label={t`Year`} value={String(book.year)} />}
+      {book.language && <Field label={t`Language`} value={book.language} />}
+      {book.files.length > 0 && <Field label={t`Format`} value={book.files.map(f => f.format.toUpperCase()).join(', ')} />}
+      {/* How long the whole book would take at your pace (#187). In-progress
+          books additionally get "Est. remaining" in the Reading section. */}
+      {estimate?.seconds != null && (
+        <Field label={t`Est. read time`} value={
+          <span title={describePace(estimate.pace, estimate.method)}>
+            {formatEstimateHours(estimate.seconds)}
+            {estimate.days != null && <span className="block text-[13px] text-muted-foreground">{formatEstimateDays(estimate.days)}</span>}
+          </span>
+        } />
+      )}
+      {/* Hardcover match, only when the sync matcher has linked this book */}
+      {book.hardcover_slug && (
+        // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+        <Field label="Hardcover" className="col-span-2" value={
+          <a href={`https://hardcover.app/books/${book.hardcover_slug}`} target="_blank" rel="noopener noreferrer"
+            className="block truncate text-primary hover:underline underline-offset-4">
+            {book.hardcover_slug}
+          </a>
+        } />
+      )}
+      <Field label={t`Type`} value={typeLabel ?? <span className="italic text-muted-foreground/60">{t`None`}</span>} />
+      <Field label={t`Content`} value={book.content_type === 'chapter' ? t`Chapter` : t`Volume`} />
+      {wordsValue && <Field label={t`Words`} value={wordsValue} />}
+      {book.publisher && <Field label={t`Publisher`} value={book.publisher} className="col-span-2" />}
+      {book.isbn && <Field label={t`ISBN`} value={<span className="break-all">{book.isbn}</span>} className="col-span-2" />}
+    </div>
+  )
+
+  const genres = editing ? (
+    <div>
+      <div className="mb-2 text-[13px] text-muted-foreground"><Trans>Genres</Trans></div>
+      {draftTags.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {draftTags.map(tag => (
+            <span key={tag} className="inline-flex h-7 items-center gap-1 rounded-full bg-secondary pl-3 pr-2 text-[13px] text-foreground">
+              {tag}
+              <button type="button" onClick={() => setDraftTags(prev => prev.filter(x => x !== tag))}
+                aria-label={t`Remove`} className="text-muted-foreground hover:text-destructive transition-colors">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <AutocompleteInput
+        value={tagInput}
+        onChange={setTagInput}
+        suggestions={facets.tags.filter(x => !draftTags.includes(x))}
+        placeholder={t`Add tag…`}
+        onSelect={tag => {
+          if (tag && !draftTags.includes(tag)) {
+            setDraftTags(prev => [...prev, tag])
+            setTagInput('')
+          }
+        }}
+        onEnter={val => {
+          const trimmed = val.trim()
+          if (trimmed && !draftTags.includes(trimmed)) {
+            setDraftTags(prev => [...prev, trimmed])
+            setTagInput('')
+          }
+        }}
+        className={inputCls}
+      />
+    </div>
+  ) : book.tags.length > 0 ? (
+    <div>
+      <div className="mb-2 text-[13px] text-muted-foreground"><Trans>Genres</Trans></div>
+      <div className="flex flex-wrap gap-1.5">
+        {book.tags.map(tg => (
+          <button key={tg.id} type="button" onClick={() => navigate(`/?tab=books&tag=${encodeURIComponent(tg.tag)}`)}
+            className="inline-flex h-7 items-center rounded-full bg-secondary px-3 text-[13px] text-foreground hover:bg-muted hover:text-primary transition-colors">
+            {tg.tag}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null
+
+  const rail = (
+    <aside className="min-w-0">
+      <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
+        {cover}
+        {fileLines}
+      </div>
+      <div className="mx-auto mt-7 max-w-[420px] lg:mx-0 lg:max-w-none">
+        <div className={cn(smallCaps, 'mb-3')}><Trans>Details</Trans></div>
+        {details}
+        {genres && <div className="mt-6">{genres}</div>}
+      </div>
+    </aside>
+  )
+
+  // ── Hero: series, title, author, status, progress, actions, sync, rating ───
+
+  const heroTitle = editing ? (
+    <div className="flex flex-col gap-2">
+      <input value={field('title') ?? ''} onChange={e => setField('title', e.target.value)} placeholder={t`Title`}
+        className={cn(inputCls, 'font-display text-[24px] font-bold py-2')} />
+      <input value={field('subtitle') ?? ''} onChange={e => setField('subtitle', e.target.value)} placeholder={t`Subtitle (optional)`}
+        className={inputCls} />
+      <AutocompleteInput value={field('author') ?? ''} onChange={v => setField('author', v)} suggestions={facets.authors}
+        placeholder={t`Author`} className={inputCls} />
+      <div className="flex gap-2">
+        <AutocompleteInput value={field('series') ?? ''} onChange={v => setField('series', v)} suggestions={facets.series}
+          placeholder={t`Series name`} className={cn(inputCls, 'flex-1 min-w-0')} />
+        <input value={field('series_index') ?? ''} onChange={e => setField('series_index', e.target.value)} type="number" step="0.1"
+          placeholder="#" className={cn(inputCls, 'w-24')} />
+      </div>
+    </div>
+  ) : (
+    <>
+      {book.series && (
+        <button type="button" onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
+          className={cn(smallCaps, 'block text-left text-primary hover:underline underline-offset-4')}>
+          {book.series}{book.series_index != null ? ` · ${book.series_index}` : ''}
+        </button>
+      )}
+      <h1 className="mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground">
+        {book.title}
+        {book.content_type === 'chapter' && (
+          <span className="ml-3 inline-flex h-6 -translate-y-1 items-center rounded-full bg-secondary px-2.5 align-middle font-sans text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <Trans>Chapter</Trans>
+          </span>
+        )}
+      </h1>
+      {book.subtitle && <p className="mt-1.5 text-[16px] text-foreground/80">{book.subtitle}</p>}
+      {book.author && (
+        <button type="button" onClick={() => navigate(`/?tab=books&author=${encodeURIComponent(book.author!)}`)}
+          className="mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors">
+          {book.author}
+        </button>
+      )}
+      <DevicePills bookId={book.id} className="mt-3 flex" />
+    </>
+  )
+
+  const statusRow = (
+    <div className="mt-5 flex flex-wrap items-center gap-2">
+      {STATUS_PILLS.map(s => (
+        <button
+          key={s.id}
+          type="button"
+          disabled={statusSaving}
+          onClick={() => handleStatusChange(s.id)}
+          title={s.title}
+          aria-pressed={bookStatus === s.id}
+          className={cn(
+            'h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors disabled:cursor-default',
+            bookStatus === s.id ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {s.label}
+        </button>
+      ))}
+      {statusSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+    </div>
+  )
+
+  const progressRow = showProgress ? (
+    <div className="mt-5 max-w-[560px]">
+      <div className="flex items-center gap-3">
+        <div className="h-[6px] flex-1 overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+          <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+            style={{ width: progressAnimated ? `${Math.min(100, pctShown)}%` : '0%' }} />
+        </div>
+        <span className="text-[17px] font-bold tabular-nums text-foreground">{pctShown}%</span>
+      </div>
+      {book.hardcover_pages != null && book.hardcover_pages > 0 && (() => {
+        // Print-edition pagination (from the matched Hardcover edition):
+        // font-size agnostic, unlike the device's reflowed page count.
+        const page = Math.max(1, Math.round((progressPct ?? 0) * book.hardcover_pages))
+        const totalPages = book.hardcover_pages
+        return <div className="mt-1.5 text-[13px] text-muted-foreground"><Trans>p. {page} of {totalPages}</Trans></div>
+      })()}
+    </div>
+  ) : null
+
+  const downloadPill = book.files.length === 1 ? (
+    <Pill size="lg" icon onClick={() => downloadOne(book.files[0])} disabled={downloadingId != null}
+      aria-label={t`Download`} title={(() => { const fmt = book.files[0].format.toUpperCase(); return t`Download ${fmt}` })()}>
+      {downloadingId != null ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+    </Pill>
+  ) : book.files.length > 1 ? (
+    <div className="relative" ref={downloadMenuRef}>
+      <Pill size="lg" icon onClick={() => setDownloadMenuOpen(o => !o)} aria-expanded={downloadMenuOpen} aria-label={t`Download`} title={t`Download`}>
+        {downloadingId != null ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+      </Pill>
+      {downloadMenuOpen && (
+        <div className={cn(menuCls, 'left-0 min-w-44')}>
+          {book.files.map(f => (
+            <button key={f.id} type="button" onClick={() => downloadOne(f)} disabled={downloadingId === f.id}
+              className="flex w-full items-center justify-between gap-4 px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors disabled:opacity-60">
+              <span className="flex items-center gap-2 font-medium uppercase"><Download className="h-3.5 w-3.5 text-muted-foreground" />{f.format}</span>
+              {f.file_size ? <span className="text-[13px] tabular-nums text-muted-foreground">{formatBytes(f.file_size)}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null
+
+  const actionRow = (readable || book.files.length > 0) ? (
+    <div className="mt-5 flex flex-wrap items-center gap-2">
+      {readable && (
+        <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${book.id}`)}>
+          <Play className="h-4 w-4 fill-current" />
+          {showProgress ? <Trans>Resume</Trans> : <Trans context="action">Read</Trans>}
+        </Pill>
+      )}
+      {isMember(user) && book.files.length > 0 && (
+        <SendButton books={[{ id: book.id, title: book.title, files: book.files }]} variant="pill" />
+      )}
+      {downloadPill}
+    </div>
+  ) : null
+
+  const syncRow = kosyncDevice && kosyncLinked ? (
+    <div className="mt-4">
+      <span className="inline-flex h-9 max-w-full items-center gap-2 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground">
+        <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">
+          {(() => { const device = kosyncDevice; return <Trans>Synced from {device}</Trans> })()}
+          <span className="text-muted-foreground">
+            {kosyncLinked.percentage != null && ` · ${Math.round(kosyncLinked.percentage * 100)}%`}
+            {kosyncLinked.timestamp ? ` · ${shortDay(new Date(kosyncLinked.timestamp * 1000))}` : ''}
+          </span>
+        </span>
+      </span>
+    </div>
+  ) : kosyncUnlinked.length > 0 && !kosyncDevice ? (
+    <div className="mt-4">
+      {!kosyncPickerOpen ? (
+        <Pill variant="quiet" className="-ml-3"
+          onClick={() => { setKosyncPickerOpen(true); setKosyncLinkDoc(kosyncUnlinked[0]?.document ?? '') }}
+          title={t`Attach progress synced from a KOReader-compatible app to this book`}>
+          <Link2 className="h-4 w-4" /><Trans>Link KOReader sync</Trans>
+        </Pill>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[14px] text-muted-foreground"><Trans>Synced document</Trans></span>
+          <select value={kosyncLinkDoc} onChange={e => setKosyncLinkDoc(e.target.value)}
+            className="h-9 max-w-[18rem] rounded-lg bg-secondary px-2.5 text-[14px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+            {kosyncUnlinked.map(d => (
+              <option key={d.document} value={d.document}>
+                {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString(i18n.locale)} · {d.document.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+          <Pill disabled={kosyncLinking || !kosyncLinkDoc} onClick={linkKosyncDocument}>
+            {kosyncLinking ? t`Linking…` : t`Link`}
+          </Pill>
+          <Pill variant="quiet" onClick={() => setKosyncPickerOpen(false)}><Trans>Cancel</Trans></Pill>
+        </div>
+      )}
+    </div>
+  ) : null
+
+  const ratingRow = (
+    <div className="mt-5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <StarRating value={rating} onChange={saveRating} />
+        <span className="text-[13px] text-muted-foreground">
+          {rating ? t`You rated this ${rating}/5` : t`Rate this book`}
+        </span>
+        {!review && !editingReview && (
+          <button type="button" onClick={startEditingReview} className="text-[13px] text-primary hover:underline underline-offset-4">
+            <Trans>Add a review</Trans>
+          </button>
+        )}
+      </div>
+      {editingReview ? (
+        <textarea
+          value={reviewDraft}
+          onChange={e => setReviewDraft(e.target.value)}
+          onBlur={saveReview}
+          autoFocus
+          rows={3}
+          placeholder={t`What did you think? (optional, saved automatically)`}
+          className={cn(inputCls, 'mt-3 resize-y py-2 leading-relaxed')}
+        />
+      ) : review ? (
+        <div className="group/review relative mt-3 border-l-2 border-primary/30 pl-3">
+          <p className="whitespace-pre-wrap pr-7 text-[15px] leading-relaxed text-foreground/90">{review}</p>
+          <button type="button" onClick={startEditingReview} aria-label={t`Edit review`} title={t`Edit review`}
+            className="absolute right-0 top-0 p-1 text-muted-foreground/50 transition-colors hover:text-foreground">
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const hero = (
+    <div className="min-w-0 max-w-[680px]">
+      {heroTitle}
+      {statusRow}
+      {progressRow}
+      {actionRow}
+      {syncRow}
+      {ratingRow}
+    </div>
+  )
+
+  // ── Sections ────────────────────────────────────────────────────────────────
+
+  const descriptionSection = (
+    <section className="max-w-[720px]">
+      <SectionTitle size={20}><Trans>Description</Trans></SectionTitle>
+      {editing ? (
+        <textarea value={field('description') ?? ''} onChange={e => setField('description', e.target.value)} rows={8}
+          placeholder={t`No description`} className={cn(inputCls, 'mt-3 resize-y py-2 leading-relaxed')} />
+      ) : book.description ? (
+        <>
+          <p ref={descRef} className={cn('mt-3 text-[15px] leading-relaxed text-foreground/85', !descExpanded && 'line-clamp-4')}>
+            {book.description}
+          </p>
+          {(descClamped || descExpanded) && (
+            <button type="button" onClick={() => setDescExpanded(e => !e)}
+              className="mt-2 text-[14px] font-medium text-primary hover:underline underline-offset-4">
+              {descExpanded ? t`Show less` : t`Show more`}
+            </button>
+          )}
+        </>
+      ) : (
+        <p className="mt-3 text-[15px] text-muted-foreground"><Trans>No description</Trans></p>
+      )}
+    </section>
+  )
+
+  const readingSection = readingStats ? (
+    <section>
+      <SectionTitle size={20} action={
+        <Pill variant="quiet" className="-my-2 -mr-3" onClick={() => setShowPositionHistory(true)} title={t`Restore an earlier reading position after a bad sync`}>
+          <HistoryIcon className="h-4 w-4" /><Trans>Position history</Trans>
+        </Pill>
+      }>
+        <Trans>Reading</Trans>
+      </SectionTitle>
+      {hasSessions && own ? (
+        <ReadingBody own={own} aggregate={readingStats.aggregate} bookId={Number(id)} onChange={refreshStats} />
+      ) : (
+        // No history yet: the manual-tracking entry point (paper / un-synced device).
+        <div className="mt-3 flex flex-col items-start gap-3">
+          <p className="max-w-[60ch] text-[15px] text-muted-foreground">
+            <Trans>No reading logged yet. Track time by hand, handy for a paper copy or a device that isn&apos;t synced.</Trans>
+          </p>
+          <ManualLogControls bookId={Number(id)} onChange={refreshStats} />
+        </div>
+      )}
+    </section>
+  ) : null
+
+  const sessionsSection = hasSessions && own ? (
+    <section>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setSessionsOpen(o => !o)} aria-expanded={sessionsOpen}
+          className="flex items-center gap-2 text-left">
+          <h2 className="font-display text-[20px] font-bold leading-none text-foreground">
+            {(() => { const n = own.sessions; return <Trans>Sessions <span className="font-semibold text-muted-foreground">({n})</span></Trans> })()}
+          </h2>
+          <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', sessionsOpen && 'rotate-180')} />
+        </button>
+        <SessionLogHint />
+      </div>
+      {sessionsOpen && (
+        <div className="mt-4">
+          <SessionLog bookId={Number(id)} onChange={refreshStats} />
+        </div>
+      )}
+    </section>
+  ) : null
+
+  const highlightsSection = annotations.length > 0 ? (
+    <section className="max-w-[720px]">
+      <div className="flex items-baseline justify-between gap-4">
+        <button type="button" onClick={() => setHighlightsOpen(o => !o)} aria-expanded={highlightsOpen}
+          className="flex items-center gap-2 text-left">
+          <h2 className="font-display text-[20px] font-bold leading-none text-foreground">
+            {(() => { const n = annotations.length; return <Trans>Highlights &amp; Notes <span className="font-semibold text-muted-foreground">({n})</span></Trans> })()}
+          </h2>
+          <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', highlightsOpen && 'rotate-180')} />
+        </button>
+        <Link to="/highlights" className="shrink-0 text-[15px] font-medium text-primary hover:underline underline-offset-4">
+          <Trans>All highlights</Trans>
+        </Link>
+      </div>
       {highlightsOpen && (
-        <ul className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
-          {annotations.map(a => (
-            <li key={a.id} className="group rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-              <div className="flex items-start justify-between gap-2">
-                {a.chapter ? (
-                  <p className="text-xs text-muted-foreground/70 mb-1.5 truncate">{a.chapter}</p>
-                ) : <span />}
+        <ul className="mt-2">
+          {annotations.map((a, i) => (
+            <li key={a.id} className={cn('group py-4', i > 0 && 'border-t border-border/70')}>
+              {a.highlighted_text && (
+                <p className="text-[15px] leading-relaxed text-foreground/90">{a.highlighted_text}</p>
+              )}
+              {editingNoteId === a.id ? (
+                <div className="mt-2.5 flex flex-col gap-2">
+                  <textarea value={editingNoteDraft} onChange={e => setEditingNoteDraft(e.target.value)} autoFocus rows={2}
+                    placeholder={t`Your note, syncs back to KOReader on the next sync`}
+                    className={cn(inputCls, 'py-2 text-[14px]')} />
+                  <span className="flex items-center gap-1.5">
+                    <Pill variant="primary" onClick={() => saveHighlightNote(a.id)}><Trans>Save note</Trans></Pill>
+                    <Pill variant="quiet" onClick={() => setEditingNoteId(null)}><Trans>Cancel</Trans></Pill>
+                  </span>
+                </div>
+              ) : a.note ? (
+                <p className="mt-1.5 flex items-start gap-1.5 text-[14px] text-muted-foreground">
+                  <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span className="leading-relaxed">{a.note}</span>
+                </p>
+              ) : null}
+              <div className="mt-1.5 flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-[12px] text-muted-foreground/80">
+                  {[a.chapter, a.datetime ? shortDay(new Date(a.datetime)) : null].filter(Boolean).join(' · ')}
+                </span>
                 {confirmingHighlight === a.id ? (
-                  <span className="flex items-center gap-1.5 text-[11px] shrink-0">
+                  <span className="flex shrink-0 items-center gap-3 text-[13px]">
                     <button onClick={() => deleteHighlight(a.id)} className="font-medium text-destructive hover:underline">
                       <Trans>Delete</Trans>
                     </button>
@@ -1201,315 +1242,113 @@ export function BookDetailPage() {
                     </button>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 shrink-0">
+                  <span className="flex shrink-0 items-center gap-0.5">
                     <button
-                      onClick={() => {
-                        setEditingNoteDraft(a.note ?? '')
-                        setEditingNoteId(prev => (prev === a.id ? null : a.id))
-                      }}
+                      onClick={() => { setEditingNoteDraft(a.note ?? ''); setEditingNoteId(prev => (prev === a.id ? null : a.id)) }}
                       title={a.note ? t`Edit note` : t`Add a note`}
                       aria-label={a.note ? t`Edit note` : t`Add a note`}
-                      className="p-1 -mt-1 rounded text-muted-foreground/50 hover:text-foreground transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+                      className="rounded p-1 text-muted-foreground/60 opacity-60 transition-all hover:text-foreground focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
+                      <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => setConfirmingHighlight(a.id)}
                       title={t`Delete this highlight`}
                       aria-label={t`Delete this highlight`}
-                      className="p-1 -mt-1 -mr-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+                      className="rounded p-1 text-muted-foreground/60 opacity-60 transition-all hover:text-destructive focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </span>
                 )}
               </div>
-              {a.highlighted_text && (
-                <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-2.5">
-                  {a.highlighted_text}
-                </p>
-              )}
-              {editingNoteId === a.id ? (
-                <div className="mt-2 flex flex-col gap-1.5">
-                  <textarea
-                    value={editingNoteDraft}
-                    onChange={e => setEditingNoteDraft(e.target.value)}
-                    autoFocus
-                    rows={2}
-                    placeholder={t`Your note — syncs back to KOReader on the next sync`}
-                    className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                  <span className="flex items-center gap-2 text-xs">
-                    <button onClick={() => saveHighlightNote(a.id)} className="font-medium text-primary hover:underline">
-                      <Trans>Save note</Trans>
-                    </button>
-                    <button onClick={() => setEditingNoteId(null)} className="text-muted-foreground hover:text-foreground">
-                      <Trans>Cancel</Trans>
-                    </button>
-                  </span>
-                </div>
-              ) : a.note ? (
-                <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
-                  <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <span className="leading-relaxed">{a.note}</span>
-                </p>
-              ) : null}
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </section>
+  ) : null
+
+  const seriesSection = seriesVolumes.length > 1 && seriesHref ? (
+    <section>
+      <SectionTitle size={20} action={
+        <Link to={seriesHref} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></Link>
+      }>
+        <Trans>In this series</Trans>
+      </SectionTitle>
+      <div className="-mx-1 mt-4 flex gap-4 overflow-x-auto px-1 pb-2 pt-1">
+        {seriesVolumes.map(v => {
+          const here = v.id === book.id
+          const idx = v.series_index
+          return (
+            <div key={v.id} className="w-[104px] shrink-0">
+              <button type="button" onClick={() => !here && setQuickLookId(v.id)} aria-label={v.title} title={v.title}
+                className={cn(
+                  'relative block aspect-[2/3] w-full overflow-hidden rounded-[8px] bg-muted transition',
+                  here ? 'cursor-default ring-2 ring-primary ring-offset-2 ring-offset-background'
+                    : v.reading_status === 'read' ? 'opacity-55 hover:opacity-100' : 'hover:opacity-90',
+                )}
+                style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
+                <CoverImage src={v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null} alt="" iconClassName="w-5 h-5" />
+              </button>
+              {here ? (
+                <div className="mt-2 truncate text-[13px] font-medium text-foreground">{idx != null ? t`Vol. ${idx}` : v.title}</div>
+              ) : (
+                <Link to={`/books/${v.id}`} title={v.title}
+                  className="mt-2 block truncate text-[13px] text-muted-foreground hover:text-foreground transition-colors">
+                  {idx != null ? t`Vol. ${idx}` : v.title}
+                </Link>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
   ) : null
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 safe-top">
-        <div className="max-w-5xl mx-auto px-4 py-2 sm:py-0 sm:h-14 flex items-center justify-between gap-2 min-h-14">
-          <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 shrink">
-            {/* p-2.5/-m-1.5: the bare 14px icons were the whole tap target on
-                phones (UX sweep finding) — pad the hit area, not the visuals. */}
-            <Link to="/" title={t`Home`} aria-label={t`Home`} className="flex items-center hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
-              <Home className="w-3.5 h-3.5" />
-            </Link>
-            <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-            <Link to="/?tab=books" title={t`Library`} className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0 p-2.5 -m-1.5">
-              <Library className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline"><Trans>Library</Trans></span>
-            </Link>
-            {adjacent && (adjacent.prev || adjacent.next) && book && (
-              <>
-                <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-                {adjacent.mode === 'series' && book.series ? (
-                  <Link
-                    to={`/?tab=series&series_detail=${encodeURIComponent(book.series)}`}
-                    className="hover:text-foreground transition-colors truncate max-w-[120px] sm:max-w-[200px]"
-                  >
-                    {book.series}
-                  </Link>
-                ) : (
-                  <span className="truncate max-w-[120px] sm:max-w-[200px]">{book.author}</span>
-                )}
-                <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-                <span className="text-foreground font-medium truncate max-w-[100px] sm:max-w-[180px]">
-                  {(() => { const idx = book.series_index; return idx != null ? t`Vol. ${idx}` : book.title })()}
-                </span>
-                <div className="flex items-center gap-0 shrink-0 ml-1">
-                  {adjacent.prev ? (
-                    <Link
-                      to={`/books/${adjacent.prev.id}`}
-                      title={adjacent.prev.title}
-                      className="p-2 rounded hover:text-foreground hover:bg-accent transition-colors"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                    </Link>
-                  ) : (
-                    <span className="p-2 opacity-25"><ChevronLeft className="w-3.5 h-3.5" /></span>
-                  )}
-                  {adjacent.next ? (
-                    <Link
-                      to={`/books/${adjacent.next.id}`}
-                      title={adjacent.next.title}
-                      className="p-2 rounded hover:text-foreground hover:bg-accent transition-colors"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
-                  ) : (
-                    <span className="p-2 opacity-25"><ChevronRight className="w-3.5 h-3.5" /></span>
-                  )}
-                </div>
-              </>
+    <AppShell>
+      <PageBody width="wide">
+        {/* The page header for a book: where you are on the left, the page's
+            actions on the right. The hero's h1 is the title. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {crumbs}
+          {pageActions}
+        </div>
+
+        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
+          {rail}
+          <div className="flex min-w-0 flex-col gap-7">
+            {hero}
+            {descriptionSection}
+            {readingSection}
+            {readingStats?.intensity && (
+              <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
             )}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-            {canDelete && !editing && (
-              confirmDelete ? (
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  {(() => { const title = book.title; return <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[120px]"><Trans>Delete "{title}"?</Trans></span> })()}
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-transparent bg-destructive text-white hover:opacity-90 transition-all disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {deleting ? t`Deleting…` : t`Confirm`}
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline"><Trans>Cancel</Trans></span>
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all duration-200"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline"><Trans>Delete</Trans></span>
-                </button>
-              )
+            {readingStats?.chapters && readingStats.chapters.length > 0 && (
+              <ChapterTimesBlock chapters={readingStats.chapters} />
             )}
-            {canEdit && !editing && (
-              <>
-                {/* Add to Library dropdown */}
-                {libraries.some(l => l.can_edit) && (
-                  <div className="relative" ref={libMenuRef}>
-                    <button
-                      onClick={() => setLibMenuOpen(o => !o)}
-                      className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border transition-all duration-200",
-                        localLibIds.length > 0
-                          ? "border-primary/40 bg-primary/10 text-primary"
-                          : "border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5"
-                      )}
-                    >
-                      <Library className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline"><Trans>Libraries</Trans></span>
-                      {localLibIds.length > 0 && (
-                        <span className="ml-0.5 bg-primary text-primary-foreground rounded-full px-1.5 py-px text-[10px] font-bold leading-none">
-                          {localLibIds.length}
-                        </span>
-                      )}
-                    </button>
-                    {libMenuOpen && (
-                      <div className="absolute right-0 top-full mt-1 z-40 bg-card border border-border rounded-xl shadow-xl shadow-accent-soft py-1 min-w-48 max-w-[calc(100vw-2rem)]">
-                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border mb-1">
-                          <Trans>Add to library</Trans>
-                        </p>
-                        {libraries.filter(l => l.can_edit).map(lib => {
-                          const inLib = localLibIds.includes(lib.id)
-                          const pending = libPending.has(lib.id)
-                          return (
-                            <div
-                              key={lib.id}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
-                            >
-                              {pending
-                                ? <Loader2 className="w-3.5 h-3.5 text-muted-foreground shrink-0 animate-spin" />
-                                : <Library className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                              }
-                              <Link
-                                to={`/?tab=books&library_id=${lib.id}`}
-                                className="flex-1 truncate hover:text-primary transition-colors"
-                                onClick={() => setLibMenuOpen(false)}
-                              >
-                                {lib.name}
-                              </Link>
-                              <button
-                                onClick={() => toggleLibrary(lib.id)}
-                                disabled={pending}
-                                className="shrink-0 p-0.5 rounded hover:bg-accent transition-colors disabled:opacity-60"
-                                title={inLib ? t`Remove from library` : t`Add to library`}
-                              >
-                                {inLib
-                                  ? <Check className="w-3.5 h-3.5 text-primary" />
-                                  : <Check className="w-3.5 h-3.5 text-muted-foreground/30" />
-                                }
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <button
-                  onClick={() => setShowShare(true)}
-                  title={t`Share this book — a public metadata-only page`}
-                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline"><Trans>Share</Trans></span>
-                </button>
-                {book.content_type !== 'chapter' && (
-                  <button
-                    onClick={() => setFetchModalOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline"><Trans>Fetch Metadata</Trans></span>
-                  </button>
-                )}
-                <button
-                  onClick={startEdit}
-                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline"><Trans>Edit</Trans></span>
-                </button>
-              </>
-            )}
-            {editing && (
-              <>
-                <button
-                  onClick={saveEdit}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  {saving ? t`Saving…` : t`Save`}
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  className="flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline"><Trans>Cancel</Trans></span>
-                </button>
-              </>
-            )}
-            <ThemeToggle />
+            {sessionsSection}
+            {highlightsSection}
+            {seriesSection}
           </div>
         </div>
-      </header>
+      </PageBody>
 
-      <main className="max-w-5xl mx-auto px-4 py-6 sm:py-8">
-        <div className="flex gap-6 sm:gap-8 flex-col sm:flex-row">
-          {/* Left rail: cover + actions + genres */}
-          <div className="shrink-0 w-full sm:w-48">
-            {leftRailActions}
-            {(editing || book.tags.length > 0) && (
-              <div className="mt-5 pt-4 border-t border-border">
-                {genresBlock}
-              </div>
-            )}
-          </div>
-          {/* Right column: title → status → description → stats → details grid → highlights.
-              Description before stats: the page leads with what the book IS;
-              the telemetry tower (hero + intensity + chapters) comes after and
-              collapses as one. */}
-          <div className="flex-1 min-w-0">
-            {titleBlock}
-            {statusProgressBlock}
-            {ratingBlock}
-            {descriptionBlock}
-            {statsFull}
-            {metadataGridFull}
-            {highlightsBlock}
-          </div>
-        </div>
-      </main>
-
-      {book && (
-        <MetadataFetchModal
-          book={book}
-          open={fetchModalOpen}
-          onClose={() => setFetchModalOpen(false)}
-          onApplied={updated => { setBook(updated); setDraft(updated) }}
-        />
-      )}
-      {book && (
-        <CoverPickerModal
-          book={book}
-          open={coverPickerOpen}
-          onClose={() => setCoverPickerOpen(false)}
-          onApplied={updated => { setBook(updated); setDraft(updated) }}
-        />
-      )}
-      {showShare && book && (
+      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={() => setQuickLookId(null)} />}
+      <MetadataFetchModal
+        book={book}
+        open={fetchModalOpen}
+        onClose={() => setFetchModalOpen(false)}
+        onApplied={updated => { setBook(updated); setDraft(updated) }}
+      />
+      <CoverPickerModal
+        book={book}
+        open={coverPickerOpen}
+        onClose={() => setCoverPickerOpen(false)}
+        onApplied={updated => { setBook(updated); setDraft(updated) }}
+      />
+      {showShare && (
         <ShareModal
           title={book.title}
           endpoint={`/books/${book.id}/share`}
@@ -1529,7 +1368,7 @@ export function BookDetailPage() {
           }}
         />
       )}
-    </div>
+    </AppShell>
   )
 }
 
@@ -1740,53 +1579,39 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
       .finally(() => setClearing(false))
   }
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="flex items-center gap-1.5">
-          <p className="font-display text-sm text-foreground"><Trans>Reading intensity</Trans></p>
-          <InfoHint text={t`Where in the book your time went — taller means more time spent on those pages.`} />
-        </span>
-        <span className="flex items-center gap-2">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium tabular-nums text-foreground">{data.pages_read.toLocaleString()}</span>
-            {' '}{(() => { const totalPages = data.total_pages.toLocaleString(); return <Trans>of {totalPages} pages</Trans> })()}
-            {!finished && <span className="tabular-nums"> · {data.pct_read}%</span>}
-            {' · '}{(() => { const dur = formatDuration(data.total_seconds); return <Trans>{dur} on device</Trans> })()}
-          </p>
-          <button
-            type="button"
-            onClick={() => setConfirmClear(o => !o)}
-            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-            title={t`Clear imported history — remove this book's KOReader page data`}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </span>
-      </div>
+    <section>
+      <ChartSectionTitle
+        title={<Trans>Reading intensity</Trans>}
+        hint={t`Where in the book your time went — taller means more time spent on those pages.`}
+        foot={<>
+          <span className="font-medium tabular-nums text-foreground">{data.pages_read.toLocaleString()}</span>
+          {' '}{(() => { const totalPages = data.total_pages.toLocaleString(); return <Trans>of {totalPages} pages</Trans> })()}
+          {!finished && <span className="tabular-nums"> · {data.pct_read}%</span>}
+          {' · '}{(() => { const dur = formatDuration(data.total_seconds); return <Trans>{dur} on device</Trans> })()}
+        </>}
+        action={
+          <Pill variant="destructive" icon className="-my-2 -mr-2" onClick={() => setConfirmClear(o => !o)}
+            aria-label={t`Clear imported history`}
+            title={t`Clear imported history — remove this book's KOReader page data`}>
+            <Trash2 className="h-4 w-4" />
+          </Pill>
+        }
+      />
       {confirmClear && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded bg-muted/40 px-3 py-2 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
           <span className="text-muted-foreground">
             <Trans>Remove all of this book&apos;s imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on.</Trans>
           </span>
-          <button
-            type="button"
-            onClick={clearImported}
-            disabled={clearing}
-            className="rounded border border-destructive/40 px-2 py-0.5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-          >
+          <Pill onClick={clearImported} disabled={clearing} className="bg-destructive text-white hover:bg-destructive/90">
             {clearing ? t`Clearing…` : t`Clear`}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmClear(false)}
-            className="rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted transition-colors"
-          >
+          </Pill>
+          <Pill variant="quiet" onClick={() => setConfirmClear(false)}>
             <Trans>Cancel</Trans>
-          </button>
+          </Pill>
         </div>
       )}
       {/* Dwell across the book, 0% → 100%. Taller bar = more time spent there. */}
-      <div className="mt-3 relative h-16">
+      <div className="mt-4 relative h-16">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />
         <div className="absolute inset-0 flex items-end gap-px">
           {data.curve.map((secs, i) => {
@@ -1810,9 +1635,9 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
         {data.reread_bins > 0 && (
           <span className="text-muted-foreground/70">{plural(data.reread_bins, { one: '# stretch re-read', other: '# stretches re-read' })}</span>
         )}
-        <span>end</span>
+        <span>{t`end`}</span>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -1824,14 +1649,12 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
   const max = Math.max(...chapters.map(c => c.seconds), 1)
   const total = chapters.reduce((s, c) => s + c.seconds, 0)
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="flex items-center gap-1.5">
-          <p className="font-display text-sm text-foreground"><Trans>Time per chapter</Trans></p>
-          <InfoHint text={t`Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device.`} />
-        </span>
-        {(() => { const dur = formatDuration(total); const n = chapters.length; return <p className="text-xs text-muted-foreground tabular-nums">{t`${dur} across ${n} chapters`}</p> })()}
-      </div>
+    <section>
+      <ChartSectionTitle
+        title={<Trans>Time per chapter</Trans>}
+        hint={t`Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device.`}
+        foot={(() => { const dur = formatDuration(total); const n = chapters.length; return <span className="tabular-nums">{t`${dur} across ${n} chapters`}</span> })()}
+      />
       <ChapterLineChart chapters={chapters} />
       {showDetails && (
         <ul className="mt-3 space-y-1.5">
@@ -1859,11 +1682,11 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
       )}
       <button
         onClick={() => setShowDetails(v => !v)}
-        className="mt-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        className="mt-3 text-[14px] font-medium text-primary hover:underline underline-offset-4"
       >
         {showDetails ? t`Hide details` : t`Show details`}
       </button>
-    </div>
+    </section>
   )
 }
 
@@ -2070,98 +1893,75 @@ function MomentumChip({ momentum }: { momentum: NonNullable<BookReadingStats['mo
   )
 }
 
-function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
+/** The Reading section's body: the numbers as a bare strip, the existing
+ *  charts as they are, the dates as fields, then the manual log. */
+function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
   const { t } = useLingui()
-  const pacePerMin = own.pace_pages_per_min
-  const supporting: { label: string; value: string }[] = [
-    { label: t`sessions`, value: String(own.sessions) },
-    { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
-    { label: t`avg session`, value: formatDuration(own.avg_session_seconds) },
-    ...(pacePerMin != null
-      ? [{ label: t`pace`, value: t`${pacePerMin} pg/min` }] : []),
-  ]
+  const h = Math.floor(own.total_seconds / 3600)
+  const m = Math.round((own.total_seconds % 3600) / 60)
+  const pace = own.pace_pages_per_min
 
-  const bottomStats: { label: string; value: string }[] = []
-  if (own.first_read) {
-    bottomStats.push({ label: t`First read`, value: formatDate(own.first_read.slice(0, 10)) })
-  }
-  if (own.last_read) {
-    bottomStats.push({ label: t`Last read`, value: formatDate(own.last_read.slice(0, 10)) })
-  }
-  if (own.finished_at) {
-    bottomStats.push({ label: t({ message: 'Finished', context: 'reading' }), value: formatDate(own.finished_at.slice(0, 10)) })
-  }
-  // Reading days from distinct session days
-  if (own.session_timeline.length > 0) {
-    bottomStats.push({ label: t`Reading days`, value: String(own.session_timeline.length) })
-  }
+  const dates: { label: string; value: string }[] = []
+  if (own.first_read) dates.push({ label: t`First read`, value: formatDate(own.first_read.slice(0, 10)) })
+  if (own.last_read) dates.push({ label: t`Last read`, value: formatDate(own.last_read.slice(0, 10)) })
+  if (own.finished_at) dates.push({ label: t({ message: 'Finished', context: 'reading' }), value: formatDate(own.finished_at.slice(0, 10)) })
+  if (own.session_timeline.length > 0) dates.push({ label: t`Reading days`, value: String(own.session_timeline.length) })
   if (own.status === 'reading' && own.estimated_finish_seconds != null) {
-    bottomStats.push({ label: t`Est. remaining`, value: formatDuration(own.estimated_finish_seconds) })
+    dates.push({ label: t`Est. remaining`, value: formatDuration(own.estimated_finish_seconds) })
   }
   // Date at your recent per-day rate on this book; absent when it's paused.
   if (own.status === 'reading' && own.estimated_finish_date) {
-    bottomStats.push({ label: t`Est. finish`, value: formatDate(own.estimated_finish_date) })
+    dates.push({ label: t`Est. finish`, value: formatDate(own.estimated_finish_date) })
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4">
-      {/* Headline + supporting metrics, one baseline-aligned row */}
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <div className="flex items-baseline gap-2">
-          <p className="text-3xl font-semibold tabular-nums text-foreground leading-none">
-            {formatDuration(own.total_seconds)}
-          </p>
-          <p className="text-sm text-muted-foreground"><Trans>read</Trans></p>
-        </div>
-        {own.momentum && <MomentumChip momentum={own.momentum} />}
-        {/* 2×2 on phones — free wrapping left "pace" orphaned on its own line */}
-        <div className="grid grid-cols-2 gap-x-5 gap-y-1 sm:flex sm:items-baseline sm:flex-wrap">
-          {supporting.map(s => (
-            <div key={s.label} className="flex items-baseline gap-1.5">
-              <span className="text-sm font-medium tabular-nums text-foreground">{s.value}</span>
-              <span className="text-xs text-muted-foreground/70">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {own.session_timeline.length > 1 && (
-        <div className="mt-4">
+    <div className="mt-5 flex flex-col gap-6">
+      <StatStrip cols={5} bordered={false} className="gap-y-6">
+        <Stat size={30} label={t`Time reading`}
+          value={h > 0 ? t`${h}h` : m}
+          unit={h > 0 ? t`${m}m` : t`min`}
+          foot={own.momentum ? <MomentumChip momentum={own.momentum} /> : undefined} />
+        <Stat size={30} label={t`Sessions`} value={own.sessions} />
+        <Stat size={30} label={t`Pages`} value={own.pages_turned > 0 ? own.pages_turned : '-'} />
+        <Stat size={30} label={t`Avg session`} value={Math.round(own.avg_session_seconds / 60)} unit={t`min`} />
+        <Stat size={30} label={t`Pace`} value={pace ?? '-'} unit={pace != null ? t`pg/min` : undefined} />
+      </StatStrip>
+
+      {/* The charts, unchanged: activity on a real date axis, progress, where you read. */}
+      <div>
+        {own.session_timeline.length > 1 && (
           <ActivityChart timeline={own.session_timeline} bookId={bookId} onChange={onChange} />
-        </div>
-      )}
-      {/* Current progress — only when the journey line doesn't actually render
-          (it needs 2+ progress points; a single point used to suppress BOTH,
-          leaving real progress displayed nowhere). Web books with a drawn line
-          show their % in its header, so this avoids two "Progress" rows. */}
-      {own.progress != null && own.progress > 0 &&
-        !(own.session_timeline.length > 1 &&
-          own.session_timeline.filter(d => d.progress_pct != null).length > 1) && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground/70"><Trans>Progress</Trans></span>
-            <span className="text-xs font-medium tabular-nums text-foreground">{Math.round(own.progress * 100)}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(Math.round(own.progress * 100), 100)}%` }} />
-          </div>
-        </div>
-      )}
-      <SourceSplit sources={own.by_source} />
-      {/* Dates row — hairline-divided columns, no boxes */}
-      {bottomStats.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-2 sm:flex">
-          {bottomStats.map((s, i) => (
-            <div key={s.label} className={cn('sm:flex-1 sm:px-4', i === 0 && 'sm:pl-0', i > 0 && 'sm:border-l sm:border-border/60')}>
-              <p className="text-xs text-muted-foreground/70">{s.label}</p>
-              <p className="text-sm font-medium tabular-nums text-foreground">{s.value}</p>
+        )}
+        {/* Current progress, only when the journey line doesn't actually render
+            (it needs 2+ progress points; a single point used to suppress BOTH,
+            leaving real progress displayed nowhere). Web books with a drawn line
+            show their % in its header, so this avoids two "Progress" rows. */}
+        {own.progress != null && own.progress > 0 &&
+          !(own.session_timeline.length > 1 &&
+            own.session_timeline.filter(d => d.progress_pct != null).length > 1) && (
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground/70"><Trans>Progress</Trans></span>
+              <span className="text-xs font-medium tabular-nums text-foreground">{Math.round(own.progress * 100)}%</span>
             </div>
-          ))}
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(Math.round(own.progress * 100), 100)}%` }} />
+            </div>
+          </div>
+        )}
+        <SourceSplit sources={own.by_source} />
+      </div>
+
+      {dates.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-6">
+          {dates.map(d => <Field key={d.label} label={d.label} value={<span className="tabular-nums">{d.value}</span>} />)}
         </div>
       )}
-      {/* Skip when the only reader is you — the line would just repeat the hero.
+
+      {/* Skip when the only reader is you: the line would just repeat the numbers.
           Still shown when someone ELSE read a book you haven't touched. */}
       {aggregate && (aggregate.distinct_readers > 1 || own.total_seconds === 0) && (
-        <p className="text-xs text-muted-foreground/60 mt-3">
+        <p className="text-[13px] text-muted-foreground">
           {(() => {
             const dur = formatDuration(aggregate.total_seconds)
             const days = plural(aggregate.total_sessions, { one: '# reading day', other: '# reading days' })
@@ -2170,44 +1970,40 @@ function StatsLayoutHero({ own, aggregate, bookId, onChange }: StatsLayoutProps)
           })()}
         </p>
       )}
-      {/* Log a session by hand · export the log */}
-      <div className="mt-4 pt-3 border-t border-border/60">
-        <ManualLogControls bookId={bookId} onChange={onChange} exportRows={own.session_timeline} />
-      </div>
+
+      <ManualLogControls bookId={bookId} onChange={onChange} exportRows={own.session_timeline} />
     </div>
   )
 }
 
-
-function MetaField({
-  icon, label, value, editing, onChange, type = 'text', placeholder = ''
-}: {
-  icon: React.ReactNode
+function EditField({ label, value, onChange, type = 'text', placeholder = '', className }: {
   label: string
   value: string
-  editing: boolean
   onChange: (v: string) => void
   type?: string
   placeholder?: string
+  className?: string
 }) {
-  if (!editing && !value) return null
   return (
-    <div className="flex items-start gap-2">
-      <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground/70 mb-0.5">{label}</p>
-        {editing ? (
-          <input
-            type={type}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full text-sm bg-muted rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
-          />
-        ) : (
-          <p className="text-sm text-foreground truncate">{value}</p>
-        )}
-      </div>
+    <label className="block">
+      <span className="text-[13px] text-muted-foreground">{label}</span>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cn(className, 'mt-1')} />
+    </label>
+  )
+}
+
+/** A section heading with the block's explainer beside it and an optional
+ *  line of figures under it, for the reading charts. */
+function ChartSectionTitle({ title, hint, foot, action }: { title: ReactNode; hint: string; foot?: ReactNode; action?: ReactNode }) {
+  return (
+    <div>
+      <SectionTitle size={20} action={action}>
+        <span className="inline-flex items-center gap-2">
+          {title}
+          <span className="font-sans text-[14px] font-normal"><InfoHint text={hint} /></span>
+        </span>
+      </SectionTitle>
+      {foot && <div className="mt-2 text-[14px] text-muted-foreground">{foot}</div>}
     </div>
   )
 }
