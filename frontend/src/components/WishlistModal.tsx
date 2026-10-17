@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Trans } from '@lingui/react/macro'
+import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { X, Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
+import { Pill } from '@/components/page'
 import {
   searchWishCandidates,
   searchWishSeries,
@@ -21,13 +22,19 @@ interface Props {
 
 type Mode = 'book' | 'series'
 
-function SeriesThumb({ url }: { url: string | null }) {
+const INPUT = 'w-full h-10 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const LABEL = 'block text-[13px] text-muted-foreground mb-1.5'
+const RESULT_ROW = 'group w-full flex items-start gap-4 py-3 text-left'
+
+function Thumb({ url, series = false }: { url: string | null; series?: boolean }) {
   return (
-    <div className="w-10 h-14 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+    <div className="w-11 h-16 rounded-[8px] bg-muted shrink-0 overflow-hidden flex items-center justify-center" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
       {url ? (
         <img src={url} alt="" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-      ) : (
+      ) : series ? (
         <Layers className="w-4 h-4 text-muted-foreground" />
+      ) : (
+        <BookOpen className="w-4 h-4 text-muted-foreground" />
       )}
     </div>
   )
@@ -226,95 +233,75 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
 
   return (
     <ModalShell open={open} onClose={handleClose} className="w-full max-w-lg">
-      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft flex flex-col max-h-[85vh]">
+      <div className="bg-card text-foreground rounded-[var(--radius-panel)] shadow-xl shadow-accent-soft flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <h2 className="text-base font-semibold"><Trans>Add to Wishlist</Trans></h2>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
+        <div className="flex items-center justify-between gap-3 pl-6 pr-4 pt-5 pb-3 shrink-0">
+          <h2 className="font-display text-[20px] font-bold leading-none"><Trans>Add to Wishlist</Trans></h2>
+          <Pill variant="quiet" icon onClick={handleClose} aria-label={t`Close`}>
             <X className="w-4 h-4" />
-          </button>
+          </Pill>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 pt-2 pb-5 space-y-4">
           {inSearchState && (
             <>
-              {/* Book / Series mode — Series tab only when Hardcover is configured */}
+              {/* Book / Series mode: Series only when Hardcover is configured */}
               {seriesAvailable && (
-              <div className="flex rounded-lg overflow-hidden border border-border text-xs font-medium">
-                <button
-                  type="button"
-                  onClick={() => switchMode('book')}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 transition-colors',
-                    searchMode === 'book' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <BookOpen className="w-3 h-3" />
-                  <Trans>Book</Trans>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode('series')}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 transition-colors border-l border-border',
-                    searchMode === 'series' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Layers className="w-3 h-3" />
-                  <Trans>Series</Trans>
-                </button>
-              </div>
+                <div className="flex items-center gap-1.5">
+                  <Pill
+                    variant={searchMode === 'book' ? 'secondary' : 'quiet'}
+                    onClick={() => switchMode('book')}
+                    aria-pressed={searchMode === 'book'}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <Trans>Book</Trans>
+                  </Pill>
+                  <Pill
+                    variant={searchMode === 'series' ? 'secondary' : 'quiet'}
+                    onClick={() => switchMode('series')}
+                    aria-pressed={searchMode === 'series'}
+                  >
+                    <Layers className="w-4 h-4" />
+                    <Trans>Series</Trans>
+                  </Pill>
+                </div>
               )}
 
               {/* Search box */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
                   ref={inputRef}
                   value={query}
                   onChange={e => handleQueryChange(e.target.value)}
                   placeholder={searchMode === 'series' ? t`Search for a series…` : t`Search for a book…`}
-                  className="w-full h-9 pl-9 pr-4 rounded-lg bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  className={cn(INPUT, 'pl-10 pr-9')}
                 />
                 {searching && (
-                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground animate-spin" />
+                  <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
                 )}
               </div>
 
               {/* Book candidates */}
               {searchMode === 'book' && candidates.length > 0 && (
-                <div className="space-y-2">
+                <div>
                   {candidates.slice(0, 5).map((c, i) => (
                     <button
                       key={`${c.source}-${c.source_id}-${i}`}
                       onClick={() => selectCandidate(c)}
-                      className="w-full flex items-start gap-3 p-3 rounded-xl border border-border bg-background text-left transition-all hover:border-primary/40 hover:bg-muted/40"
+                      className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
                     >
-                      <div className="w-10 h-14 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
-                        {c.cover_url ? (
-                          <img
-                            src={c.cover_url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                          />
-                        ) : (
-                          <BookOpen className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{c.title}</p>
-                        {c.author && <p className="text-xs text-muted-foreground truncate">{c.author}</p>}
+                      <Thumb url={c.cover_url} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">{c.title}</p>
+                        {c.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{c.author}</p>}
                         {c.series && (
-                          <p className="text-xs text-muted-foreground/70 truncate">
+                          <p className="text-[13px] text-muted-foreground truncate">
                             {c.series}{c.series_index != null ? ` #${c.series_index}` : ''}
                           </p>
                         )}
-                        <span className="mt-1 inline-flex self-start text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
+                        <span className="mt-1.5 inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-muted-foreground">
                           {SOURCE_LABEL[c.source] ?? c.source}
                         </span>
                       </div>
@@ -325,19 +312,19 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
 
               {/* Series results */}
               {searchMode === 'series' && seriesResults.length > 0 && (
-                <div className="space-y-2">
-                  {seriesResults.map(s => (
+                <div>
+                  {seriesResults.map((s, i) => (
                     <button
                       key={`${s.source}-${s.source_id}`}
                       onClick={() => { setSelectedSeries(s); setError(null) }}
-                      className="w-full flex items-start gap-3 p-3 rounded-xl border border-border bg-background text-left transition-all hover:border-primary/40 hover:bg-muted/40"
+                      className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
                     >
-                      <SeriesThumb url={s.cover_url} />
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{s.name}</p>
-                        {s.author && <p className="text-xs text-muted-foreground truncate">{s.author}</p>}
+                      <Thumb url={s.cover_url} series />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">{s.name}</p>
+                        {s.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{s.author}</p>}
                         {s.total != null && (
-                          <p className="text-xs text-muted-foreground/70">{s.total} volume{s.total !== 1 ? 's' : ''}</p>
+                          <p className="text-[13px] text-muted-foreground"><Plural value={s.total} one="# volume" other="# volumes" /></p>
                         )}
                       </div>
                     </button>
@@ -347,27 +334,27 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
 
               {query && !searching && (
                 (searchMode === 'book' ? candidates.length === 0 : seriesResults.length === 0) && (
-                  <p className="text-sm text-muted-foreground text-center py-4"><Trans>No results found.</Trans></p>
+                  <p className="text-[14px] text-muted-foreground text-center py-4"><Trans>No results found.</Trans></p>
                 )
               )}
 
               {/* Manual fallback (book mode only) */}
               {searchMode === 'book' && (
-                <button
-                  type="button"
+                <Pill
+                  variant="quiet"
                   onClick={() => { setManualMode(true); setSelected(null); setWishWholeSeries(false); setError(null) }}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                  className="-ml-4"
                 >
                   <Trans>Can't find it? Add manually</Trans>
-                </button>
+                </Pill>
               )}
             </>
           )}
 
           {manualMode && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                <label className={LABEL}>
                   <Trans>Title <span className="text-destructive">*</span></Trans>
                 </label>
                 <input
@@ -375,119 +362,104 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                   onChange={e => { setManualTitle(e.target.value); setError(null) }}
                   placeholder={t`Book title`}
                   autoFocus
-                  className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  className={INPUT}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Author</Trans></label>
+                <label className={LABEL}><Trans>Author</Trans></label>
                 <input
                   value={manualAuthor}
                   onChange={e => setManualAuthor(e.target.value)}
                   placeholder={t`Author name`}
-                  className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  className={INPUT}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Series</Trans></label>
+                <label className={LABEL}><Trans>Series</Trans></label>
                 <input
                   value={manualSeries}
                   onChange={e => setManualSeries(e.target.value)}
-                  placeholder={t`Series name — fill this alone to wish for the whole series`}
-                  className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder={t`Series name. Fill this alone to wish for the whole series.`}
+                  className={INPUT}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Note</Trans></label>
+                <label className={LABEL}><Trans>Note</Trans></label>
                 <textarea
                   value={manualNote}
                   onChange={e => setManualNote(e.target.value)}
                   placeholder={t`Optional note (e.g. 'the new one')`}
                   rows={2}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                  className="w-full rounded-lg bg-secondary px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 />
               </div>
-              <button
-                type="button"
+              <Pill
+                variant="quiet"
                 onClick={() => { setManualMode(false); setError(null) }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                className="-ml-4"
               >
+                <ChevronLeft className="w-4 h-4" />
                 <Trans>Back to search</Trans>
-              </button>
+              </Pill>
             </div>
           )}
 
           {/* Book confirm view */}
           {!manualMode && selected && (
             <>
-              <button
-                type="button"
+              <Pill
+                variant="quiet"
                 onClick={() => { setSelected(null); setWishWholeSeries(false); setError(null); inputRef.current?.focus() }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="-ml-4"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-4 h-4" />
                 <Trans>Choose a different book</Trans>
-              </button>
+              </Pill>
 
-              <div className="border border-primary/30 bg-primary/5 rounded-xl p-3 flex items-start gap-3">
-                <div className="w-10 h-14 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
-                  {selected.cover_url ? (
-                    <img src={selected.cover_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <BookOpen className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </div>
+              <div className="rounded-[14px] bg-secondary p-3 flex items-start gap-4">
+                <Thumb url={selected.cover_url} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-snug">{selected.title}</p>
-                  {selected.author && <p className="text-xs text-muted-foreground mt-0.5">{selected.author}</p>}
+                  <p className="text-[15px] font-semibold text-foreground leading-snug">{selected.title}</p>
+                  {selected.author && <p className="mt-0.5 text-[14px] text-muted-foreground">{selected.author}</p>}
                   {selected.series && (
-                    <p className="text-xs text-muted-foreground/70">
+                    <p className="text-[13px] text-muted-foreground">
                       {selected.series}{selected.series_index != null ? ` #${selected.series_index}` : ''}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="flex rounded-lg overflow-hidden border border-border text-xs font-medium">
-                <button
-                  type="button"
+              <div className="flex items-center gap-1.5">
+                <Pill
+                  variant={!wishWholeSeries ? 'secondary' : 'quiet'}
                   onClick={() => setWishWholeSeries(false)}
-                  className={cn(
-                    'flex-1 px-3 py-1.5 transition-colors',
-                    !wishWholeSeries
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  )}
+                  aria-pressed={!wishWholeSeries}
                 >
                   <Trans>This volume</Trans>
-                </button>
-                <button
-                  type="button"
+                </Pill>
+                <Pill
+                  variant={wishWholeSeries ? 'secondary' : 'quiet'}
                   onClick={() => {
                     setWishWholeSeries(true)
                     setSeriesNameDraft(deriveSeriesName(selected))
                   }}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 transition-colors border-l border-border',
-                    wishWholeSeries
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  )}
+                  aria-pressed={wishWholeSeries}
                 >
-                  <Layers className="w-3 h-3" />
+                  <Layers className="w-4 h-4" />
                   <Trans>Whole series</Trans>
-                </button>
+                </Pill>
               </div>
 
               {wishWholeSeries && (
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Series name</Trans></label>
+                  <label className={LABEL}><Trans>Series name</Trans></label>
                   <input
                     value={seriesNameDraft}
                     onChange={e => { setSeriesNameDraft(e.target.value); setError(null) }}
                     placeholder={t`Series name`}
-                    className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    className={INPUT}
                   />
-                  <p className="mt-1 text-xs text-muted-foreground"><Trans>For precise series tracking, use the <strong>Series</strong> tab instead.</Trans></p>
+                  <p className="mt-1.5 text-[13px] text-muted-foreground"><Trans>For precise series tracking, use the <strong>Series</strong> tab instead.</Trans></p>
                 </div>
               )}
             </>
@@ -496,45 +468,43 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
           {/* Series confirm view */}
           {!manualMode && selectedSeries && (
             <>
-              <button
-                type="button"
+              <Pill
+                variant="quiet"
                 onClick={() => { setSelectedSeries(null); setError(null); inputRef.current?.focus() }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="-ml-4"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-4 h-4" />
                 <Trans>Choose a different series</Trans>
-              </button>
+              </Pill>
 
-              <div className="border border-primary/30 bg-primary/5 rounded-xl p-3 flex items-start gap-3">
-                <SeriesThumb url={selectedSeries.cover_url} />
+              <div className="rounded-[14px] bg-secondary p-3 flex items-start gap-4">
+                <Thumb url={selectedSeries.cover_url} series />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-snug">{selectedSeries.name}</p>
-                  {selectedSeries.author && <p className="text-xs text-muted-foreground mt-0.5">{selectedSeries.author}</p>}
+                  <p className="text-[15px] font-semibold text-foreground leading-snug">{selectedSeries.name}</p>
+                  {selectedSeries.author && <p className="mt-0.5 text-[14px] text-muted-foreground">{selectedSeries.author}</p>}
                   {selectedSeries.total != null && (
-                    <p className="text-xs text-muted-foreground/70">{(() => { const n = selectedSeries.total; return <Trans>{n} volumes</Trans> })()}</p>
+                    <p className="text-[13px] text-muted-foreground">{(() => { const n = selectedSeries.total; return <Trans>{n} volumes</Trans> })()}</p>
                   )}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground px-1">
+              <p className="text-[13px] text-muted-foreground">
                 <Trans>This wish covers the whole series and stays open as new volumes arrive.</Trans>
               </p>
             </>
           )}
 
           {error && (
-            <p className="text-xs text-destructive px-1">{error}</p>
+            <p className="text-[13px] text-destructive">{error}</p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
-          <button
-            onClick={handleClose}
-            className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border/70 shrink-0">
+          <Pill variant="quiet" onClick={handleClose}>
             <Trans>Cancel</Trans>
-          </button>
-          <button
+          </Pill>
+          <Pill
+            variant="primary"
             onClick={handleSubmit}
             disabled={
               submitting
@@ -542,11 +512,10 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
               || (!manualMode && !selected && !selectedSeries)
               || (!manualMode && !!selected && wishWholeSeries && !seriesNameDraft.trim())
             }
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
           >
-            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
             <Trans>Add to Wishlist</Trans>
-          </button>
+          </Pill>
         </div>
       </div>
     </ModalShell>
