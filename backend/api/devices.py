@@ -11,6 +11,7 @@ from backend.core.security import get_current_user
 from backend.models.client_device import ClientDevice
 from backend.models.user import User
 from backend.services.audit import audit
+from backend.services.client_devices import prune_idle_web
 
 router = APIRouter(prefix="/auth/devices", tags=["auth"])
 
@@ -45,6 +46,7 @@ def list_devices(
     """The current user's devices. Admin-only ?all=true returns everyone's."""
     if all and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    prune_idle_web(db)
     query = db.query(ClientDevice).options(joinedload(ClientDevice.user))
     if not all:
         query = query.filter(ClientDevice.user_id == current_user.id)

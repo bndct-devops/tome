@@ -1487,6 +1487,10 @@ msgstr ""
 msgid "A bit"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "A lot"
 msgstr ""

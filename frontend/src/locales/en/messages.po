@@ -1487,6 +1487,10 @@ msgstr "A 24-hour radial of when you read"
 msgid "A bit"
 msgstr "A bit"
 
+#: src/pages/SettingsPage.tsx
+msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
+msgstr "A browser that is not used for {webIdleDays} days is signed out on its own."
+
 #: src/pages/StatsPage.tsx
 msgid "A lot"
 msgstr "A lot"

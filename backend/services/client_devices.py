@@ -2,10 +2,12 @@
 itself, a web browser is named from its User-Agent."""
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.core.security import create_access_token
 from backend.models.client_device import ClientDevice
 from backend.schemas.auth import DeviceInfo
@@ -68,6 +70,25 @@ def issue_token(
     db.commit()
     db.refresh(row)
     return create_access_token(user_id, device_token_id=row.token_id)
+
+
+def prune_idle_web(db: Session) -> int:
+    """Delete browser sign-ins unused for `web_session_idle_days`, revoked
+    ones included, so abandoned browsers do not pile up in the list. A live
+    one is also caught on its next request (security.resolve_jwt). Commits."""
+    days = settings.web_session_idle_days
+    if days <= 0:
+        return 0
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    seen = func.coalesce(ClientDevice.last_seen_at, ClientDevice.created_at)
+    deleted = (
+        db.query(ClientDevice)
+        .filter(ClientDevice.kind == "web", seen < cutoff)
+        .delete(synchronize_session=False)
+    )
+    if deleted:
+        db.commit()
+    return deleted
 
 
 def revoke_all(db: Session, user_id: int, keep_id: int | None = None) -> int:

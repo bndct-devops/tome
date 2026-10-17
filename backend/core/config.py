@@ -123,6 +123,9 @@ class Settings(BaseSettings):
     # Only tokens without a device row (admin impersonation) expire; every
     # login is a revocable device login without expiry (see ClientDevice).
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+    # A browser sign-in unused this many days is signed out (and dropped from
+    # Connected devices). 0 = never. The Tome app is not affected.
+    web_session_idle_days: int = 90          # env TOME_WEB_SESSION_IDLE_DAYS
 
     # ── OIDC / SSO (env TOME_OIDC_*) ──────────────────────────────────────────
     # Additive single sign-on. Local username/password login always stays. The
