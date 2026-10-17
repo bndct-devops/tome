@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { BarChart3, X } from 'lucide-react'
 import { useTelemetry } from '@/lib/useTelemetry'
+import { Pill } from '@/components/page'
 import { ModalShell } from '@/components/ModalShell'
 
 export function TelemetryReportModal({ open, report, busy, onClose, onGrant }: {
@@ -63,26 +64,23 @@ export function TelemetryConsentCard({ telemetry }: { telemetry: ReturnType<type
 
   return (
     <>
-      <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
-        <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+      <div className="flex items-start gap-4 rounded-[var(--radius-panel)] bg-card px-5 py-4">
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground"><Trans>Help count Tome installs?</Trans></p>
-          <p className="mt-0.5 text-muted-foreground">
+          <p className="text-[15px] font-semibold text-foreground"><Trans>Help count Tome installs?</Trans></p>
+          <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">
             <Trans>Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes.</Trans>
           </p>
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setOpen(true)}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Pill variant="primary" onClick={() => setOpen(true)}>
               <Trans>Show the report</Trans>
-            </button>
-            <button type="button" onClick={() => decide('declined')} disabled={busy}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50">
+            </Pill>
+            <Pill variant="quiet" onClick={() => decide('declined')} disabled={busy}>
               <Trans>No thanks</Trans>
-            </button>
+            </Pill>
           </div>
         </div>
         <button type="button" onClick={() => decide('declined')} aria-label={t`No thanks`} disabled={busy}
-          className="rounded p-0.5 text-muted-foreground transition hover:text-foreground">
+          className="-mr-2 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50">
           <X className="h-4 w-4" />
         </button>
       </div>
