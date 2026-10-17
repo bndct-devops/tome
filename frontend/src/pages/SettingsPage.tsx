@@ -173,10 +173,11 @@ export function SettingsPage() {
   // Native-app UI (Connect a phone) is behind TOME_NATIVE_APP; Connected devices
   // also shows whenever there is a sign-in to list, which every browser is.
   const [nativeApp, setNativeApp] = useState(false)
+  const [webIdleDays, setWebIdleDays] = useState(0)
   useEffect(() => {
     let alive = true
-    api.get<{ native_app: boolean }>('/meta/features')
-      .then(f => { if (alive) setNativeApp(f.native_app) })
+    api.get<{ native_app: boolean; web_session_idle_days?: number }>('/meta/features')
+      .then(f => { if (alive) { setNativeApp(f.native_app); setWebIdleDays(f.web_session_idle_days ?? 0) } })
       .catch(() => {})
     return () => { alive = false }
   }, [])
@@ -853,6 +854,9 @@ export function SettingsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
                     <Trans>Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately.</Trans>
+                    {webIdleDays > 0 && (
+                      <> <Trans>A browser that is not used for {webIdleDays} days is signed out on its own.</Trans></>
+                    )}
                   </p>
                   {user?.is_admin && (
                     <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">

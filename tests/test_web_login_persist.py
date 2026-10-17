@@ -330,3 +330,84 @@ def test_oidc_login_is_a_browser_device(client: TestClient, db: Session, monkeyp
     assert (d["kind"], d["name"]) == ("web", "Safari")
     assert client.post("/api/auth/logout", headers=_auth(token)).status_code == 204
     assert client.get("/api/auth/me", headers=_auth(token)).status_code == 401
+
+
+# ── idle expiry for browsers ─────────────────────────────────────────────────
+
+def _age(db: Session, token: str, days: float) -> ClientDevice:
+    """Pretend the device behind `token` was last used `days` ago."""
+    from datetime import datetime, timedelta
+    device = db.query(ClientDevice).filter(ClientDevice.token_id == decode_claims(token)["jti"]).one()
+    device.last_seen_at = datetime.utcnow() - timedelta(days=days)
+    db.flush()
+    return device
+
+
+def test_browser_unused_past_the_idle_limit_is_signed_out(client: TestClient, db: Session):
+    token = _login(client)
+    _age(db, token, 91)
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 401
+    assert db.query(ClientDevice).filter(ClientDevice.token_id == decode_claims(token)["jti"]).count() == 0
+
+
+def test_browser_used_within_the_limit_stays_and_is_refreshed(client: TestClient, db: Session):
+    from datetime import datetime, timedelta
+    token = _login(client)
+    device = _age(db, token, 89)
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 200
+    db.refresh(device)
+    assert datetime.utcnow() - device.last_seen_at < timedelta(minutes=1)
+
+
+def test_idle_limit_never_applies_to_the_app(client: TestClient, db: Session):
+    r = client.post("/api/auth/login", json={**ADMIN, "device": {"name": "My iPhone"}})
+    token = r.json()["access_token"]
+    _age(db, token, 400)
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 200
+
+
+def test_idle_limit_zero_means_never(client: TestClient, db: Session, monkeypatch):
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "web_session_idle_days", 0)
+    token = _login(client)
+    _age(db, token, 4000)
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 200
+    assert client.get("/api/auth/devices", headers=_auth(token)).status_code == 200
+
+
+def test_custom_idle_limit(client: TestClient, db: Session, monkeypatch):
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "web_session_idle_days", 7)
+    token = _login(client)
+    _age(db, token, 8)
+    assert client.get("/api/auth/me", headers=_auth(token)).status_code == 401
+
+
+def test_reader_links_reject_an_idle_browser(client: TestClient, db: Session, reader_files):
+    token = _login(client)
+    _age(db, token, 91)
+    assert client.get(f"/api/books/{reader_files['pdf'].id}/read.pdf", params={"token": token}).status_code == 401
+
+
+def test_listing_devices_drops_abandoned_browsers(client: TestClient, db: Session):
+    from datetime import datetime
+    me_token = _login(client)
+    abandoned = _login(client)
+    revoked_old = _login(client)
+    recent_other = _login(client)
+    phone = client.post("/api/auth/login", json={**ADMIN, "device": {"name": "Old phone"}}).json()["access_token"]
+    _age(db, abandoned, 120)
+    _age(db, revoked_old, 120).revoked_at = datetime.utcnow()
+    _age(db, phone, 500)
+    db.flush()
+
+    listed = client.get("/api/auth/devices", headers=_auth(me_token)).json()
+    ids = {d["id"] for d in listed}
+    jti = lambda t: db.query(ClientDevice).filter(ClientDevice.token_id == decode_claims(t)["jti"]).first()
+    assert jti(abandoned) is None and jti(revoked_old) is None
+    assert {jti(me_token).id, jti(recent_other).id, jti(phone).id} <= ids
+    assert len(listed) == 3
+
+
+def test_features_report_the_idle_limit(client: TestClient):
+    assert client.get("/api/meta/features").json()["web_session_idle_days"] == 90

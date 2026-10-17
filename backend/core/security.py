@@ -131,6 +131,14 @@ def resolve_jwt(db: Session, token: str):
     if device is None or device.revoked_at is not None or device.user_id != user.id:
         return None
     now = datetime.utcnow()
+    if web_session_idle(device, now):
+        # Unused too long: sign it out for good and drop it from the list.
+        try:
+            db.delete(device)
+            db.commit()
+        except Exception:
+            db.rollback()
+        return None
     if device.last_seen_at is None or now - device.last_seen_at > timedelta(minutes=5):
         try:
             device.last_seen_at = now
@@ -138,6 +146,15 @@ def resolve_jwt(db: Session, token: str):
         except Exception:
             db.rollback()
     return user, device
+
+
+def web_session_idle(device, now: datetime | None = None) -> bool:
+    """True for a browser sign-in unused for `web_session_idle_days`."""
+    days = settings.web_session_idle_days
+    if device.kind != "web" or days <= 0:
+        return False
+    seen = device.last_seen_at or device.created_at
+    return (now or datetime.utcnow()) - seen > timedelta(days=days)
 
 
 def user_from_query_token(db: Session, token: str):

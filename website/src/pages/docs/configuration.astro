@@ -38,6 +38,7 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_SCAN_WORKERS</code></td><td><code>1</code></td><td>Parallel scan worker processes (1 = serial)</td></tr>
       <tr><td><code>TOME_JWT_ALGORITHM</code></td><td><code>HS256</code></td><td>JWT algorithm</td></tr>
       <tr><td><code>TOME_JWT_EXPIRE_MINUTES</code></td><td><code>10080</code></td><td>Lifetime of admin impersonation tokens (7 days); sign-ins do not expire</td></tr>
+      <tr><td><code>TOME_WEB_SESSION_IDLE_DAYS</code></td><td><code>90</code></td><td>Sign out a browser not used for this many days (0 = never; the app is not affected)</td></tr>
       <tr><td><code>TOME_SMTP_HOST</code></td><td>—</td><td>SMTP server (enables Send to Device)</td></tr>
       <tr><td><code>TOME_SMTP_PORT</code></td><td><code>587</code></td><td>SMTP port</td></tr>
       <tr><td><code>TOME_SMTP_USER</code></td><td>—</td><td>SMTP username</td></tr>
@@ -161,7 +162,9 @@ import { withBase } from '../../lib/path'
   <p>
     Browsers and the Tome app stay signed in until they sign out. Each sign-in is listed under
     <strong>Settings &gt; Connected devices</strong>, where it can be signed out at any time;
-    changing a password signs out every other sign-in of that user.
+    changing a password signs out every other sign-in of that user. A browser that is not used
+    for <code>TOME_WEB_SESSION_IDLE_DAYS</code> days (default 90, <code>0</code> = never) is
+    signed out on its own; the Tome app is not affected.
     <code>TOME_JWT_EXPIRE_MINUTES</code> now only sets how long an admin's "view as user"
     (impersonation) token lasts. Default is one week. <code>TOME_JWT_ALGORITHM</code> is the JWS algorithm (default <code>HS256</code>);
     leave it alone unless you have a very specific reason.

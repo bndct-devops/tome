@@ -7,12 +7,12 @@ from backend.core.config import settings
 def test_native_app_on_by_default(client: TestClient):
     r = client.get("/api/meta/features")
     assert r.status_code == 200
-    assert r.json() == {"native_app": True}
+    assert r.json() == {"native_app": True, "web_session_idle_days": 90}
 
 
 def test_native_app_flag_off(client: TestClient, monkeypatch):
     monkeypatch.setattr(settings, "native_app", False)
-    assert client.get("/api/meta/features").json() == {"native_app": False}
+    assert client.get("/api/meta/features").json()["native_app"] is False
 
 
 def test_pairing_and_devices_work_with_flag_off(client: TestClient, monkeypatch):

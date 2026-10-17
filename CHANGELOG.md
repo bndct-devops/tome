@@ -69,10 +69,14 @@ All notable changes to Tome are documented here. Format loosely follows
   does, until you sign out there. Each browser is listed under Settings >
   Connected devices with its browser and system (for example Safari on
   macOS, marked "This browser" on the one you are using), where you can
-  sign out any of them, such as a lost laptop. Changing your password signs out
-  every other browser and app; an admin setting a user's password signs that
-  user out everywhere. Browsers signed in before this update keep their old
-  sign-in until it runs out, then stay signed in from their next sign-in.
+  sign out any of them, such as a lost laptop. A browser that is not used for
+  90 days is signed out on its own (`TOME_WEB_SESSION_IDLE_DAYS`, 0 = never),
+  so a forgotten or copied sign-in does not live forever; using Tome even
+  once in that time keeps it. The Tome app is not affected. Changing your
+  password signs out every other browser and app; an admin setting a user's
+  password signs that user out everywhere. Browsers signed in before this
+  update keep their old sign-in until it runs out, then stay signed in from
+  their next sign-in.
 - **Settings has a jump list.** A sticky list of the page's sections sits on
   the left at desktop width, and a row of chips under the header on phones.
   It follows your scroll position and jumps to a section on click, so a
