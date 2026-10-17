@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search, Layers,
+  RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
   ChevronRight, ChevronDown, ArrowLeft, FolderOpen,
-  Inbox, Zap, Eye, HelpCircle, Library as LibraryIcon,
+  Zap, Eye, HelpCircle, Library as LibraryIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { PageBody, PageHeader, SectionTitle, Pill } from '@/components/page'
+import { QuickLook } from '@/components/QuickLook'
 import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -159,37 +161,18 @@ function formToAcceptFile(path: string, form: ItemForm): BinderyAcceptFile {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+const BADGE_CLS = 'inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[11px] font-semibold uppercase tracking-wide shrink-0'
+
 function FormatBadge({ format }: { format: string }) {
-  const f = format.toLowerCase()
-  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
-  const colorMap: Record<string, string> = {
-    epub: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    pdf: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-    cbz: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-    cbr: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-    mobi: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  }
-  const cls = colorMap[f] ?? 'bg-muted text-muted-foreground border-border'
-  /* eslint-enable lingui/no-unlocalized-strings */
-  return (
-    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border uppercase tracking-wide', cls)}>
-      {format}
-    </span>
-  )
+  return <span className={cn(BADGE_CLS, 'text-muted-foreground')}>{format}</span>
 }
 
 const CONTENT_TYPE_LABELS: Record<string, MessageDescriptor> = { volume: msg`volume`, chapter: msg`chapter` }
 
 function ContentTypeBadge({ type }: { type: string }) {
   const { i18n } = useLingui()
-  const isChapter = type === 'chapter'
   return (
-    <span className={cn(
-      'text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize',
-      isChapter
-        ? 'bg-warning/10 text-warning border-warning/20'
-        : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
-    )}>
+    <span className={cn(BADGE_CLS, 'normal-case tracking-normal', type === 'chapter' ? 'text-warning' : 'text-muted-foreground')}>
       {CONTENT_TYPE_LABELS[type] ? i18n._(CONTENT_TYPE_LABELS[type]) : type}
     </span>
   )
@@ -203,18 +186,18 @@ function SourceBadge({ source }: { source: string }) {
     : 'OpenLib'
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground bg-muted">
+    <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full text-muted-foreground bg-secondary">
       {label}
     </span>
   )
 }
 
-// Shared input class (matches MetadataFetchModal)
+// Shared input class: filled field, the refreshed shell's input look
 const INPUT_CLS =
-  'flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring'
+  'flex h-9 w-full rounded-lg bg-secondary px-3 py-1 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const TEXTAREA_CLS =
-  'w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none'
-const LABEL_CLS = 'block text-xs font-medium text-muted-foreground mb-1'
+  'w-full rounded-lg bg-secondary px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none'
+const LABEL_CLS = 'block text-[13px] text-muted-foreground mb-1'
 
 // ---------------------------------------------------------------------------
 // LibrariesSelect — same idea as the Book page's "Libraries" dropdown (#103)
@@ -534,9 +517,9 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
   return (
     <div className="flex flex-col h-full">
       <div className="mb-3">
-        <span className="text-sm font-medium"><Trans>Metadata Suggestions</Trans></span>
+        <h2 className="font-display text-[20px] font-bold leading-none"><Trans>Metadata Suggestions</Trans></h2>
         {targetLabel && (
-          <span className="block text-xs text-muted-foreground truncate">
+          <span className="block mt-1.5 text-[13px] text-muted-foreground truncate">
             <Trans>for {targetLabel} — click a file to switch</Trans>
           </span>
         )}
@@ -546,7 +529,7 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
         onSubmit={e => { e.preventDefault(); onSearch(searchQuery) }}
       >
         <input
-          className="flex-1 h-8 rounded-md border border-border bg-transparent px-2.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="flex-1 min-w-0 h-9 rounded-full bg-secondary px-4 text-[14px] placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={searchQuery}
           onChange={e => onSearchQueryChange(e.target.value)}
           placeholder={t`Search query...`}
@@ -554,7 +537,8 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
         <button
           type="submit"
           disabled={loading || !searchQuery.trim()}
-          className="shrink-0 h-8 w-8 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          aria-label={t`Search`}
+          className="shrink-0 h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
         </button>
@@ -572,40 +556,40 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
         </div>
       )}
       {!loading && candidates.length > 0 && (
-        <div className="space-y-2 overflow-y-auto flex-1">
-          <p className="text-xs text-muted-foreground mb-1">
+        <div className="flex-1">
+          <p className="text-[13px] text-muted-foreground mb-1">
             <Plural value={candidates.length} one="# result — click to fill form" other="# results — click to fill form" />
           </p>
           {candidates.map(c => (
             <button
               key={`${c.source}-${c.source_id}`}
               className={cn(
-                'w-full text-left rounded-lg border border-border bg-card p-3 hover:bg-accent transition-colors flex gap-3',
-                appliedId === `${c.source}-${c.source_id}` && 'ring-2 ring-primary/50 bg-primary/5'
+                'w-full text-left py-3 px-2 border-t border-border/70 first-of-type:border-t-0 hover:bg-secondary/50 transition-colors flex gap-3',
+                appliedId === `${c.source}-${c.source_id}` && 'bg-primary/5'
               )}
               onClick={() => onSelect(c)}
             >
               {c.cover_url ? (
-                <img src={c.cover_url} alt="" className="h-20 w-14 object-cover rounded shrink-0" />
+                <img src={c.cover_url} alt="" className="h-20 w-14 object-cover rounded-md shrink-0" style={{ boxShadow: 'var(--cover-bloom-fan)' }} />
               ) : (
-                <div className="h-20 w-14 rounded bg-muted flex items-center justify-center shrink-0">
+                <div className="h-20 w-14 rounded-md bg-muted flex items-center justify-center shrink-0">
                   <BookOpen className="h-5 w-5 text-muted-foreground" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-sm line-clamp-2">{c.title}</p>
+                  <p className="font-semibold text-[15px] line-clamp-2">{c.title}</p>
                   <SourceBadge source={c.source} />
                 </div>
-                {c.author && <p className="text-xs text-muted-foreground mt-0.5">{c.author}</p>}
-                {c.year && <p className="text-xs text-muted-foreground">{c.year}</p>}
+                {c.author && <p className="text-[14px] text-muted-foreground mt-0.5">{c.author}</p>}
+                {c.year && <p className="text-[13px] text-muted-foreground">{c.year}</p>}
                 {c.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{c.description}</p>
+                  <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1">{c.description}</p>
                 )}
                 {c.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1">
                     {c.tags.slice(0, 3).map(t => (
-                      <span key={t} className="text-[10px] bg-muted rounded px-1">{t}</span>
+                      <span key={t} className="text-[11px] bg-secondary rounded-full px-2 py-0.5">{t}</span>
                     ))}
                     {c.tags.length > 3 && (
                       <span className="text-[10px] text-muted-foreground">+{c.tags.length - 3}</span>
@@ -635,7 +619,7 @@ interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
+function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
   group: SeriesGroup
   bookTypes: BookType[]
   libraries: LibraryOption[]
@@ -648,19 +632,19 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
   const [typeId, setTypeId] = useState(group.book_type_id != null ? String(group.book_type_id) : '')
   const [libraryIds, setLibraryIds] = useState<number[]>(group.library_ids)
   const destFolder = group.files[0]?.dest_preview.split('/').slice(0, -1).join('/')
+  const hasLibraries = libraries.some(l => l.can_edit)
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
+    <div className="py-5 flex flex-col gap-3.5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <Layers className="w-4 h-4 text-primary/70 shrink-0" />
-            <span className="text-sm font-semibold text-foreground truncate">
+            <span className="text-[17px] font-semibold text-foreground truncate">
               {series || t`Ungrouped files`}
             </span>
             {group.library_match && (
               <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-medium"
+                className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-success whitespace-nowrap"
                 title={(() => { const name = group.library_match.series; return t`Matches "${name}" already in your library — name, author, type and libraries adopted from it` })()}
               >
                 <Check className="w-3 h-3" />
@@ -669,52 +653,57 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
               </span>
             )}
             {!group.library_match && group.series && (
-              <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium">
+              <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-muted-foreground">
                 <Trans>New series</Trans>
               </span>
             )}
           </div>
           {destFolder && (
-            <p className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={destFolder}>
+            <p className="mt-1 text-[13px] text-muted-foreground font-mono truncate" title={destFolder}>
               → {destFolder}/
             </p>
           )}
         </div>
-        <button
+        <Pill
+          variant="secondary"
           onClick={() => onAccept({ series, author, book_type_id: typeId, library_ids: libraryIds })}
           disabled={busy}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all shrink-0"
+          className="shrink-0"
         >
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           <Plural value={group.files.length} one="Accept # volume" other="Accept # volumes" />
-        </button>
+        </Pill>
       </div>
 
       {/* One identity decision for the whole group */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-2', hasLibraries ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
         <input
           value={series}
           onChange={e => setSeries(e.target.value)}
           placeholder={t`Series`}
-          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label={t`Series`}
+          className={INPUT_CLS}
         />
         <input
           value={author}
           onChange={e => setAuthor(e.target.value)}
           placeholder={t`Author`}
-          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label={t`Author`}
+          className={INPUT_CLS}
         />
-        <SelectMenu
+        <select
           value={typeId}
-          onChange={setTypeId}
-          options={[{ value: '', label: t`No type` }, ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
-          className="[&>button]:py-1.5 [&>button]:text-xs"
-        />
+          onChange={e => setTypeId(e.target.value)}
+          aria-label={t`Book Type`}
+          className={cn(INPUT_CLS, 'tome-select cursor-pointer', !typeId && 'text-muted-foreground')}
+        >
+          <option value="">{t`No type`}</option>
+          {bookTypes.map(bt => <option key={bt.id} value={String(bt.id)}>{bt.label}</option>)}
+        </select>
         <LibrariesSelect
           value={libraryIds}
           onChange={setLibraryIds}
           libraries={libraries}
-          className="[&>button]:py-1.5 [&>button]:text-xs"
         />
       </div>
 
@@ -724,10 +713,10 @@ function SeriesGroupCard({ group, bookTypes, libraries, busy, onAccept }: {
           <span
             key={f.path}
             title={`${f.filename} → ${f.dest_preview}`}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted/60 text-[11px] text-foreground"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground"
           >
             {(() => { const idx = f.series_index; return idx != null ? t`Vol ${idx}` : (f.title || f.filename) })()}
-            <span className="text-muted-foreground uppercase text-[9px]">{f.format}</span>
+            <span className="text-muted-foreground uppercase text-[10px] font-semibold tracking-wide">{f.format}</span>
           </span>
         ))}
       </div>
@@ -742,27 +731,20 @@ function ConfirmDialog({ open, title, message, confirmLabel, destructive, onConf
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-sm mx-4 p-6">
-        <h2 className="text-base font-semibold mb-2">{title}</h2>
-        <p className="text-sm text-muted-foreground mb-6">{message}</p>
+      <div className="relative z-10 bg-card rounded-[var(--radius-panel)] shadow-xl w-full max-w-sm mx-4 p-6">
+        <h2 className="font-display text-[20px] font-bold mb-2">{title}</h2>
+        <p className="text-[15px] text-muted-foreground mb-6">{message}</p>
         <div className="flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
+          <Pill variant="quiet" onClick={onCancel}>
             <Trans>Cancel</Trans>
-          </button>
-          <button
+          </Pill>
+          <Pill
+            variant="primary"
             onClick={onConfirm}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-              destructive
-                ? 'bg-destructive text-destructive-foreground hover:opacity-90'
-                : 'bg-primary text-primary-foreground hover:opacity-90'
-            )}
+            className={cn(destructive && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
           >
             {resolvedConfirmLabel}
-          </button>
+          </Pill>
         </div>
       </div>
     </div>
@@ -778,6 +760,7 @@ export function BinderyPage() {
   const { toast } = useToast()
   const bookTypes = useBookTypes()
   const navigate = useNavigate()
+  const [peekId, setPeekId] = useState<number | null>(null)
   const [libraries, setLibraries] = useState<LibraryOption[]>([])
   useEffect(() => {
     api.get<LibraryOption[]>('/libraries').then(setLibraries).catch(() => {})
@@ -817,7 +800,6 @@ export function BinderyPage() {
   const [appliedId, setAppliedId] = useState<string | null>(null)
 
   // View transition
-  const [viewTransition, setViewTransition] = useState(false)
 
   // Quick accept progress
   type QAStatus = 'pending' | 'fetching' | 'accepting' | 'done' | 'error'
@@ -847,11 +829,7 @@ export function BinderyPage() {
   // ---------------------------------------------------------------------------
 
   function transitionTo(newView: View) {
-    setViewTransition(true)
-    setTimeout(() => {
-      setView(newView)
-      setTimeout(() => setViewTransition(false), 20)
-    }, 150)
+    setView(newView)
   }
 
   // ---------------------------------------------------------------------------
@@ -1497,48 +1475,55 @@ export function BinderyPage() {
   // Render helpers
   // ---------------------------------------------------------------------------
 
-  function renderRow(item: BinderyItem, indent = false, rowIndex = 0) {
+  function renderRow(item: BinderyItem, indent = false) {
     const isSelected = selected.has(item.path)
     return (
       <div
         key={item.path}
         className={cn(
-          'flex items-center gap-3 px-4 py-2.5 border-b border-border/60 hover:bg-muted/40 transition-colors group animate-fade-in-up',
+          'group flex items-center gap-4 py-3 px-2 transition-colors',
           isSelected && 'bg-primary/5',
-          indent && 'pl-8'
+          indent && 'pl-9'
         )}
-        style={{ animationDelay: `${rowIndex * 40}ms` }}
       >
         <input
           type="checkbox"
           checked={isSelected}
           onChange={e => toggleSelect(item.path, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
           onClick={e => e.stopPropagation()}
-          className="shrink-0 rounded border-border cursor-pointer"
+          aria-label={t`Select ${item.title}`}
+          className="shrink-0 w-4 h-4 rounded border-border cursor-pointer accent-[var(--primary)]"
         />
         <button
-          className="flex-1 min-w-0 flex items-center gap-3 text-left"
+          className="flex-1 min-w-0 flex items-center gap-4 text-left"
           onClick={() => enterReview([item.path])}
+          title={t`Review this file`}
         >
           <div className="flex-1 min-w-0">
-            <span className="text-sm font-medium truncate block">{item.title}</span>
-            <span className="text-[11px] text-muted-foreground/60 truncate block">{item.filename}</span>
+            <span className="text-[16px] font-semibold text-foreground truncate block group-hover:text-primary transition-colors">{item.title}</span>
+            <span className="text-[13px] text-muted-foreground truncate block mt-0.5">
+              {item.filename}
+              {item.series && <span className="sm:hidden"> · {item.series}</span>}
+            </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[14px] text-muted-foreground w-32 text-right hidden sm:block truncate">
+            {item.series ?? ''}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
             <FormatBadge format={item.format} />
             <ContentTypeBadge type={item.content_type} />
-            <span className="text-xs text-muted-foreground w-24 text-right hidden sm:block truncate">
-              {item.series ?? <span className="text-muted-foreground/40">—</span>}
-            </span>
-            <span className="text-xs text-muted-foreground w-16 text-right hidden md:block">
-              {formatBytes(item.size)}
-            </span>
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
           </div>
+          <span className="text-[13px] text-muted-foreground w-16 text-right hidden md:block tabular-nums">
+            {formatBytes(item.size)}
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
         </button>
       </div>
     )
   }
+
+  const refreshing = loading || unreviewedLoading
+  const firstLoad = refreshing && items.length === 0 && unreviewed.length === 0 && groups.length === 0
 
   // ---------------------------------------------------------------------------
   // LIST VIEW
@@ -1547,127 +1532,93 @@ export function BinderyPage() {
   if (view === 'list') {
     const selectedArr = Array.from(selected)
     const hasSelection = selectedArr.length > 0
-
-    // Compute cumulative row indices across folders and ungrouped
-    let rowCounter = 0
+    const reviewGroups = groups.filter(g => g.files.length > 1 || g.library_match)
+    const eyebrow = firstLoad
+      ? t`Loading…`
+      : (() => {
+          const inc = items.length, imp = unreviewed.length
+          if (imp > 0) return t`${imp} imported · ${inc} incoming`
+          return plural(inc, { one: '# file waiting for review', other: '# files waiting for review' })
+        })()
 
     return (
-      <AppShell
-        onUploaded={fetchAll}
-        actions={
-          <button
-            onClick={fetchAll}
-            disabled={loading || unreviewedLoading}
-            title={t`Rescan the bindery folder`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', (loading || unreviewedLoading) && 'animate-spin')} />
-            {/* Label stays at every size — collapsed to a bare icon it sat next
-                to the global sync indicator as two identical circular-arrow
-                glyphs (UX sweep finding). */}
-            <span><Trans>Refresh</Trans></span>
-          </button>
-        }
-      >
-      <div className={cn('flex flex-col h-full transition-opacity duration-150', viewTransition ? 'opacity-0' : 'opacity-100')}>
-        {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
-        <style>{`
-          @keyframes fade-in-up {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          .animate-fade-in-up { animation: fade-in-up 0.3s ease-out both; }
-          @keyframes gentle-pulse {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 0.45; transform: scale(1.05); }
-          }
-        `}</style>
-        {/* Header */}
-        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border px-4 pt-4 pb-4">
-          <div className="flex items-center gap-3">
-            <h1 className="font-display text-xl text-foreground"><Trans>Bindery</Trans></h1>
-            <p className="text-xs text-muted-foreground hidden md:block">
-              {(() => {
-                if (loading || unreviewedLoading) return t`Loading…`
-                const inc = items.length, imp = unreviewed.length
-                if (imp > 0) return t`${imp} imported + ${inc} incoming`
-                return plural(inc, { one: '# file waiting for review', other: '# files waiting for review' })
-              })()}
-            </p>
-            <a
-              href={docsLink(DOCS.bindery)}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={t`Bindery flow explained — open docs`}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-            </a>
-          </div>
-
-          {/* Toolbar — always visible when there are items */}
-          {items.length > 0 && (
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <button
-                onClick={hasSelection ? clearSelection : selectAll}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
+      <AppShell onUploaded={fetchAll}>
+      <PageBody width="wide">
+        <PageHeader
+          eyebrow={eyebrow}
+          title={<Trans>Bindery</Trans>}
+          className="[&>div:last-child]:shrink [&>div:last-child]:min-w-0"
+          actions={
+            <div className="flex flex-wrap items-center gap-1.5">
+              <a
+                href={docsLink(DOCS.bindery)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t`Bindery flow explained — open docs`}
+                aria-label={t`Bindery flow explained — open docs`}
+                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
-                {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected — Clear` : t`Select All` })()}
-              </button>
-
-              {hasSelection && (
-                <>
-                  <div className="h-4 w-px bg-border" />
-                  <button
-                    onClick={() => enterReview(selectedArr)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                  >
-                    <Eye className="h-3 w-3" /> <Trans>Review</Trans>
-                  </button>
-                  <button
-                    onClick={() => quickAccept(selectedArr)}
-                    disabled={accepting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-                  >
-                    {accepting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                    <Trans>Quick Accept</Trans>
-                  </button>
-                  <button
-                    onClick={() => setConfirmReject(selectedArr)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/30 transition-all"
-                  >
-                    <Trash2 className="h-3 w-3" /> <Trans>Reject</Trans>
-                  </button>
-                  {libraries.some(l => l.can_edit) && (
-                    <>
-                      <div className="h-4 w-px bg-border" />
-                      <LibrariesSelect
-                        value={listLibraryIds}
-                        onChange={setListLibraryIds}
-                        libraries={libraries}
-                        className="w-56 [&>button]:py-1.5 [&>button]:text-xs"
-                        placeholder={t`Add to libraries…`}
-                      />
-                    </>
-                  )}
-                </>
+                <HelpCircle className="w-4 h-4" />
+              </a>
+              <Pill
+                variant="quiet"
+                onClick={fetchAll}
+                disabled={refreshing}
+                title={t`Rescan the bindery folder`}
+              >
+                <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                <Trans>Refresh</Trans>
+              </Pill>
+              {items.length > 0 && (
+                <Pill variant="quiet" onClick={hasSelection ? clearSelection : selectAll}>
+                  {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected · Clear` : t`Select All` })()}
+                </Pill>
+              )}
+              {unreviewed.length > 0 && (
+                <Pill
+                  variant="primary"
+                  onClick={reviewAll}
+                  disabled={reviewingAll}
+                  title={t`Accept every recently imported book`}
+                >
+                  {reviewingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  <Trans>Accept All</Trans>
+                </Pill>
               )}
             </div>
-          )}
-        </div>
+          }
+        />
 
-        {/* Series review — one decision per series, volumes confirmed as chips.
-            Cards render for real series groups; loose singletons stay in the
+        {firstLoad && (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {!refreshing && items.length === 0 && unreviewed.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center gap-4 py-24">
+            <div>
+              <p className="text-[17px] font-semibold text-foreground"><Trans>No files in the bindery</Trans></p>
+              <p className="text-[15px] text-muted-foreground mt-1">
+                <Trans>Drop files in the incoming folder to get started</Trans>
+              </p>
+            </div>
+            <Pill variant="secondary" onClick={fetchAll}>
+              <RefreshCw className="h-4 w-4" />
+              <Trans>Refresh</Trans>
+            </Pill>
+          </div>
+        )}
+
+        {/* Series review: one decision per series, volumes confirmed as chips.
+            Entries render for real series groups; loose singletons stay in the
             flat file list below. */}
-        {!loading && groups.some(g => g.files.length > 1 || g.library_match) && (
-          <div className="px-4 py-3 border-b border-border bg-muted/20 flex flex-col gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <Trans>Series review</Trans>
-            </p>
-            {groups
-              .filter(g => g.files.length > 1 || g.library_match)
-              .map(g => (
-                <SeriesGroupCard
+        {!firstLoad && reviewGroups.length > 0 && (
+          <section className={cn('transition-opacity', loading && 'opacity-60')}>
+            <SectionTitle size={20}><Trans>Series review</Trans></SectionTitle>
+            <div className="mt-2 divide-y divide-border/70">
+              {reviewGroups.map(g => (
+                <SeriesReviewEntry
                   key={g.key}
                   group={g}
                   bookTypes={bookTypes}
@@ -1676,199 +1627,173 @@ export function BinderyPage() {
                   onAccept={form => acceptGroup(g, form)}
                 />
               ))}
-          </div>
+            </div>
+          </section>
         )}
 
-        {/* Column headers */}
-        {items.length > 0 && (
-          <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-            <span className="w-4 shrink-0" />
-            <span className="flex-1"><Trans>Title</Trans></span>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="w-10"><Trans>Format</Trans></span>
-              <span className="w-14"><Trans>Type</Trans></span>
-              <span className="w-24 text-right hidden sm:block"><Trans>Series</Trans></span>
-              <span className="w-16 text-right hidden md:block"><Trans>Size</Trans></span>
-              <span className="w-3.5" />
-            </div>
-          </div>
-        )}
+        {/* Recently imported: unreviewed auto-imported books */}
+        {unreviewed.length > 0 && (
+          <section className={cn('transition-opacity', unreviewedLoading && 'opacity-60')}>
+            <SectionTitle size={20}>
+              <Trans>Recently imported</Trans>{' '}
+              <span className="text-muted-foreground font-semibold tabular-nums">{unreviewed.length}</span>
+            </SectionTitle>
+            <div className="mt-3 divide-y divide-border/70">
+              {unreviewed.map(book => {
+                const format = book.format?.toUpperCase() ?? ''
+                const addedAt = new Date(book.added_at)
+                const diffMs = Date.now() - addedAt.getTime()
+                const diffHrs = Math.floor(diffMs / 1000 / 60 / 60)
+                const diffMins = Math.floor(diffMs / 1000 / 60)
+                const diffDays = Math.floor(diffHrs / 24)
+                const timeAgo = diffHrs >= 24
+                  ? t`${diffDays}d ago`
+                  : diffHrs >= 1
+                    ? t`${diffHrs}h ago`
+                    : diffMins >= 1
+                      ? t`${diffMins}m ago`
+                      : t`just now`
 
-        {/* Content */}
-        <div className="flex-1 flex flex-col">
-          {loading && (
-            <div className="flex flex-1 items-center justify-center py-24">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {!loading && !unreviewedLoading && items.length === 0 && unreviewed.length === 0 && (
-            <div className="flex flex-1 flex-col items-center justify-center text-center">
-              <Inbox
-                className="h-12 w-12 text-muted-foreground/30 mb-3"
-                style={{ animation: 'gentle-pulse 3s ease-in-out infinite' }}
-              />
-              <p className="text-base font-medium text-muted-foreground"><Trans>No files in the bindery</Trans></p>
-              <p className="text-sm text-muted-foreground/60 mt-1">
-                <Trans>Drop files in the incoming folder to get started</Trans>
-              </p>
-            </div>
-          )}
-
-          {/* Recently Imported — unreviewed auto-imported books */}
-          {!unreviewedLoading && unreviewed.length > 0 && (
-            <div className="border-b border-border">
-              {/* Section header */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-sm text-foreground"><Trans>Recently Imported</Trans></span>
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                    {unreviewed.length}
-                  </span>
-                </div>
-                <button
-                  onClick={reviewAll}
-                  disabled={reviewingAll}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-                >
-                  {reviewingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                  <Trans>Accept All</Trans>
-                </button>
-              </div>
-              {/* Cards grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
-                {unreviewed.map(book => {
-                  const format = book.format?.toUpperCase() ?? ''
-                  const addedAt = new Date(book.added_at)
-                  const diffMs = Date.now() - addedAt.getTime()
-                  const diffHrs = Math.floor(diffMs / 1000 / 60 / 60)
-                  const diffMins = Math.floor(diffMs / 1000 / 60)
-                  const diffDays = Math.floor(diffHrs / 24)
-                  const timeAgo = diffHrs >= 24
-                    ? t`${diffDays}d ago`
-                    : diffHrs >= 1
-                      ? t`${diffHrs}h ago`
-                      : diffMins >= 1
-                        ? t`${diffMins}m ago`
-                        : t`just now`
-
-                  return (
-                    <div
-                      key={book.id}
-                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 cursor-pointer hover:bg-accent/50 transition-colors group animate-fade-in-up"
-                      onClick={() => navigate(`/books/${book.id}`)}
+                return (
+                  <div key={book.id} className="group flex items-center gap-4 py-3.5 px-2">
+                    <button
+                      type="button"
+                      onClick={() => setPeekId(book.id)}
+                      aria-label={t`Quick look`}
+                      className="relative shrink-0 w-11 h-16 rounded-md overflow-hidden bg-muted"
+                      style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                     >
-                      {/* Cover */}
-                      <div className="relative shrink-0 h-16 w-11 rounded overflow-hidden bg-muted">
-                        <CoverImage
-                          src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null}
-                          alt=""
-                          iconClassName="h-5 w-5"
-                        />
-                      </div>
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{book.title}</p>
-                        {book.author && (
-                          <p className="text-xs text-muted-foreground truncate">{book.author}</p>
-                        )}
-                        <p className="text-[10px] text-muted-foreground/60 mt-0.5"><Trans>Added {timeAgo}</Trans></p>
-                      </div>
-                      {/* Badges + Actions */}
-                      <div className="shrink-0 flex flex-col items-end gap-1.5">
-                        {format && <FormatBadge format={format} />}
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={e => { e.stopPropagation(); acceptUnreviewed(book.id) }}
-                            className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors"
-                            title={t`Accept`}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); setConfirmRejectUnreviewed(book.id) }}
-                            className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
-                            title={t`Reject`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                      <CoverImage
+                        src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null}
+                        alt=""
+                        iconClassName="h-4 w-4"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/books/${book.id}`)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <span className="block text-[16px] font-semibold text-foreground truncate hover:text-primary transition-colors">{book.title}</span>
+                      {book.author && (
+                        <span className="block text-[14px] text-muted-foreground truncate mt-0.5">{book.author}</span>
+                      )}
+                      <span className="block text-[13px] text-muted-foreground mt-0.5"><Trans>Added {timeAgo}</Trans></span>
+                    </button>
+                    {format && <FormatBadge format={format} />}
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                      <Pill
+                        variant="quiet"
+                        icon
+                        onClick={() => acceptUnreviewed(book.id)}
+                        title={t`Accept`}
+                        aria-label={t`Accept`}
+                        className="hover:text-primary"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Pill>
+                      <Pill
+                        variant="destructive"
+                        icon
+                        onClick={() => setConfirmRejectUnreviewed(book.id)}
+                        title={t`Reject`}
+                        aria-label={t`Reject`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Pill>
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+                )
+              })}
             </div>
-          )}
+          </section>
+        )}
 
-          {!loading && items.length > 0 && (
-            <>
-              {/* Grouped by folder */}
+        {/* Incoming files, grouped by folder */}
+        {items.length > 0 && (
+          <section className={cn('transition-opacity', loading && 'opacity-60')}>
+            <SectionTitle size={20}>
+              <Trans>Incoming files</Trans>{' '}
+              <span className="text-muted-foreground font-semibold tabular-nums">{items.length}</span>
+            </SectionTitle>
+
+            {hasSelection && (
+              <div className="mt-4 flex items-center gap-2 flex-wrap">
+                <Pill variant="secondary" onClick={() => enterReview(selectedArr)}>
+                  <Eye className="h-4 w-4" /> <Trans>Review</Trans>
+                </Pill>
+                <Pill variant="secondary" onClick={() => quickAccept(selectedArr)} disabled={accepting}>
+                  {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                  <Trans>Quick Accept</Trans>
+                </Pill>
+                <Pill variant="destructive" onClick={() => setConfirmReject(selectedArr)}>
+                  <Trash2 className="h-4 w-4" /> <Trans>Reject</Trans>
+                </Pill>
+                {libraries.some(l => l.can_edit) && (
+                  <LibrariesSelect
+                    value={listLibraryIds}
+                    onChange={setListLibraryIds}
+                    libraries={libraries}
+                    className="w-56"
+                    placeholder={t`Add to libraries…`}
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="mt-3 divide-y divide-border/70">
               {folders.map(folder => {
                 const folderItems = items.filter(i => i.folder === folder)
                 const isCollapsed = collapsedFolders.has(folder)
                 const allFolderSelected = folderItems.every(i => selected.has(i.path))
-                const folderHeaderIndex = rowCounter
-                rowCounter += 1
                 return (
-                  <div key={folder}>
-                    {/* Folder header */}
-                    <div
-                      className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border animate-fade-in-up"
-                      style={{ animationDelay: `${folderHeaderIndex * 40}ms` }}
-                    >
+                  <div key={folder} className="divide-y divide-border/70">
+                    <div className="flex items-center gap-4 py-3 px-2">
                       <input
                         type="checkbox"
                         checked={allFolderSelected}
                         onChange={() => selectFolder(folder)}
-                        className="shrink-0 rounded border-border cursor-pointer"
+                        aria-label={t`Select folder ${folder}`}
+                        className="shrink-0 w-4 h-4 rounded border-border cursor-pointer accent-[var(--primary)]"
                       />
                       <button
-                        className="flex items-center gap-1.5 flex-1 text-left"
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
                         onClick={() => toggleFolder(folder)}
+                        aria-expanded={!isCollapsed}
                       >
                         {isCollapsed
-                          ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                          : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                        <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-sm font-medium">{folder}</span>
-                        <span className="text-xs text-muted-foreground">({folderItems.length})</span>
+                          ? <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-[15px] font-semibold text-foreground truncate">{folder}</span>
+                        <span className="text-[14px] text-muted-foreground tabular-nums">{folderItems.length}</span>
                       </button>
                     </div>
-                    {!isCollapsed && folderItems.map(item => {
-                      const idx = rowCounter
-                      rowCounter += 1
-                      return renderRow(item, true, idx)
-                    })}
+                    {!isCollapsed && folderItems.map(item => renderRow(item, true))}
                   </div>
                 )
               })}
 
-              {/* Ungrouped items */}
               {ungrouped.length > 0 && (
-                <>
+                <div className="divide-y divide-border/70">
                   {folders.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border">
-                      <span className="w-4 shrink-0" />
-                      <span className="text-sm font-medium text-muted-foreground"><Trans>Other files</Trans></span>
-                      <span className="text-xs text-muted-foreground">({ungrouped.length})</span>
+                    <div className="flex items-center gap-2 py-3 px-2">
+                      <span className="text-[15px] font-semibold text-muted-foreground"><Trans>Other files</Trans></span>
+                      <span className="text-[14px] text-muted-foreground tabular-nums">{ungrouped.length}</span>
                     </div>
                   )}
-                  {ungrouped.map(item => {
-                    const idx = rowCounter
-                    rowCounter += 1
-                    return renderRow(item, false, idx)
-                  })}
-                </>
+                  {ungrouped.map(item => renderRow(item, false))}
+                </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </section>
+        )}
+      </PageBody>
 
-        {/* Quick accept progress bar — fixed at bottom, above keyboard shortcut FAB (z-40) */}
+        {/* Quick accept progress bar, fixed at bottom, above keyboard shortcut FAB (z-40) */}
         {qaProgress && (
           <div
-            className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border pl-6 pr-16 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+            className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border/70 pl-6 pr-16 py-3 cursor-pointer"
             onClick={() => setQaModalOpen(true)}
           >
             {(() => {
@@ -1877,33 +1802,31 @@ export function BinderyPage() {
               const total = qaProgress.total
               return (
                 <>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[14px] font-semibold">
                       {t`Quick Accept: ${done}/${total} done` + (errors > 0 ? t`, ${errors} failed` : '')}
                     </span>
                     {qaProgress.items.every(i => i.status === 'done' || i.status === 'error') ? (
-                      <button
+                      <Pill
+                        variant="quiet"
+                        className="h-7 px-3 text-[13px]"
                         onClick={e => { e.stopPropagation(); setQaProgress(null); setQaModalOpen(false) }}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
                         <Trans>Dismiss</Trans>
-                      </button>
+                      </Pill>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground"><Trans>Click for details</Trans></span>
+                      <span className="text-[13px] text-muted-foreground"><Trans>Click for details</Trans></span>
                     )}
                   </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden flex">
+                  <div
+                    className="h-[6px] rounded-full overflow-hidden flex"
+                    style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}
+                  >
                     {done > 0 && (
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${(done / total) * 100}%` }}
-                      />
+                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(done / total) * 100}%` }} />
                     )}
                     {errors > 0 && (
-                      <div
-                        className="h-full bg-destructive transition-all duration-300"
-                        style={{ width: `${(errors / total) * 100}%` }}
-                      />
+                      <div className="h-full bg-destructive transition-all duration-300" style={{ width: `${(errors / total) * 100}%` }} />
                     )}
                   </div>
                 </>
@@ -1916,34 +1839,34 @@ export function BinderyPage() {
         {qaModalOpen && qaProgress && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQaModalOpen(false)} />
-            <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                <span className="text-sm font-semibold"><Trans>Quick Accept Progress</Trans></span>
-                <button onClick={() => setQaModalOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+            <div className="relative z-10 bg-card rounded-[var(--radius-panel)] shadow-xl w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
+              <div className="flex items-center justify-between px-6 pt-5 pb-3">
+                <span className="font-display text-[20px] font-bold"><Trans>Quick Accept Progress</Trans></span>
+                <Pill variant="quiet" icon onClick={() => setQaModalOpen(false)} aria-label={t`Close`} className="-mr-2">
                   <X className="h-4 w-4" />
-                </button>
+                </Pill>
               </div>
-              <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5">
+              <div className="flex-1 overflow-y-auto px-6 pb-4 divide-y divide-border/70">
                 {qaProgress.items.map(item => (
-                  <div key={item.path} className="flex items-center gap-2 py-1.5">
+                  <div key={item.path} className="flex items-center gap-3 py-2.5">
                     <div className="shrink-0 w-4 h-4 flex items-center justify-center">
                       {item.status === 'done' ? (
-                        <Check className="h-3.5 w-3.5 text-primary" />
+                        <Check className="h-4 w-4 text-primary" />
                       ) : item.status === 'error' ? (
-                        <X className="h-3.5 w-3.5 text-destructive" />
+                        <X className="h-4 w-4 text-destructive" />
                       ) : item.status === 'pending' ? (
                         <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
                       ) : (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm truncate block">{item.title}</span>
+                      <span className="text-[15px] truncate block">{item.title}</span>
                       {item.error && (
-                        <span className="text-[11px] text-destructive">{item.error}</span>
+                        <span className="text-[13px] text-destructive">{item.error}</span>
                       )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 capitalize">
+                    <span className="text-[13px] text-muted-foreground shrink-0">
                       {item.status === 'fetching' ? t`Fetching metadata...` : item.status === 'accepting' ? t`Importing…` : ''}
                     </span>
                   </div>
@@ -1974,7 +1897,8 @@ export function BinderyPage() {
           onConfirm={() => confirmRejectUnreviewed !== null && doRejectUnreviewed(confirmRejectUnreviewed)}
           onCancel={() => setConfirmRejectUnreviewed(null)}
         />
-      </div>
+
+        {peekId != null && <QuickLook bookId={peekId} onClose={() => setPeekId(null)} />}
       </AppShell>
     )
   }
@@ -1989,43 +1913,41 @@ export function BinderyPage() {
 
   return (
     <AppShell onUploaded={fetchAll}>
-    <div className={cn('flex flex-col h-full transition-opacity duration-150', viewTransition ? 'opacity-0' : 'opacity-100')}>
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-6 pt-5 pb-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => transitionTo('list')}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> <Trans>Back to list</Trans>
-          </button>
-          <span className="text-muted-foreground/40">/</span>
-          <span className="text-sm font-medium">
+    <PageBody width="wide">
+      <PageHeader
+        eyebrow={<Trans>Bindery</Trans>}
+        title={
+          <span className="break-all">
             {isBatch
               ? (() => { const n = reviewItems.length; return t`Reviewing ${n} files` })()
               : currentItem?.filename ?? ''}
           </span>
-        </div>
-      </div>
+        }
+        actions={
+          <Pill variant="quiet" onClick={() => transitionTo('list')}>
+            <ArrowLeft className="h-4 w-4" /> <Trans>Back to list</Trans>
+          </Pill>
+        }
+      />
 
       {/* Single file review */}
       {!isBatch && currentItem && currentForm && (
-        <div className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-10">
           {/* Left: Form */}
           <div
             className={cn(
-              'lg:w-3/5 overflow-y-auto p-6 border-r border-border transition-colors duration-300',
+              'min-w-0 rounded-[var(--radius-panel)] transition-colors duration-300',
               acceptFlash && 'bg-primary/5'
             )}
           >
             {/* File info */}
-            <div className="flex items-center gap-2 mb-5 p-3 rounded-lg bg-muted/40 border border-border">
+            <div className="flex items-center gap-2 mb-5 pb-4 border-b border-border/70">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <FormatBadge format={currentItem.format} />
                 <ContentTypeBadge type={currentForm.content_type} />
-                <span className="text-xs text-muted-foreground truncate">{currentItem.path}</span>
+                <span className="text-[13px] text-muted-foreground truncate">{currentItem.path}</span>
               </div>
-              <span className="text-xs text-muted-foreground shrink-0">{formatBytes(currentItem.size)}</span>
+              <span className="text-[13px] text-muted-foreground shrink-0 tabular-nums">{formatBytes(currentItem.size)}</span>
             </div>
 
             <MetadataForm
@@ -2036,32 +1958,26 @@ export function BinderyPage() {
             />
 
             {/* Action bar */}
-            <div className="flex items-center gap-2 mt-6 pt-4 border-t border-border">
-              <button
+            <div className="flex items-center gap-2 mt-6 pt-5 border-t border-border/70">
+              <Pill
+                variant="primary"
                 onClick={() => acceptItem(currentItem.path)}
                 disabled={accepting || !currentForm.title.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
               >
-                {accepting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 <Trans>Accept</Trans>
-              </button>
-              <button
-                onClick={skipItem}
-                className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-              >
+              </Pill>
+              <Pill variant="secondary" onClick={skipItem}>
                 <Trans>Skip</Trans>
-              </button>
-              <button
-                onClick={rejectCurrentAndAdvance}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-destructive/30 text-destructive hover:bg-destructive/5 transition-all ml-auto"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> <Trans>Reject</Trans>
-              </button>
+              </Pill>
+              <Pill variant="destructive" onClick={rejectCurrentAndAdvance} className="ml-auto">
+                <Trash2 className="h-4 w-4" /> <Trans>Reject</Trans>
+              </Pill>
             </div>
           </div>
 
           {/* Right: Candidates */}
-          <div className="lg:w-2/5 overflow-y-auto p-6">
+          <div className="min-w-0">
             <CandidatePanel
               candidates={candidates}
               loading={fetchingMeta}
@@ -2077,13 +1993,13 @@ export function BinderyPage() {
 
       {/* Batch review */}
       {isBatch && (
-        <div className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-10">
           {/* Left: Batch form */}
-          <div className="lg:w-3/5 overflow-y-auto p-6 border-r border-border space-y-5">
+          <div className="min-w-0 flex flex-col gap-7">
             {/* Shared fields */}
-            <div className="rounded-lg border border-border p-4 space-y-3">
-              {(() => { const n = reviewItems.length; return <h3 className="text-sm font-semibold"><Trans>Shared fields — applies to all {n} items</Trans></h3> })()}
-              <div className="space-y-3">
+            <section>
+              {(() => { const n = reviewItems.length; return <SectionTitle size={20}><Trans>Shared fields — applies to all {n} items</Trans></SectionTitle> })()}
+              <div className="mt-4 space-y-3">
                 <div>
                   <label className={LABEL_CLS}><Trans>Series</Trans></label>
                   <div className="flex gap-2">
@@ -2093,12 +2009,9 @@ export function BinderyPage() {
                       onChange={e => setBatchSeries(e.target.value)}
                       placeholder={t`Series name`}
                     />
-                    <button
-                      onClick={applyBatchSeries}
-                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
-                    >
+                    <Pill variant="secondary" onClick={applyBatchSeries} className="shrink-0">
                       <Trans>Apply to all</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 </div>
                 <div>
@@ -2110,12 +2023,9 @@ export function BinderyPage() {
                       onChange={e => setBatchAuthor(e.target.value)}
                       placeholder={t`Author name`}
                     />
-                    <button
-                      onClick={applyBatchAuthor}
-                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
-                    >
+                    <Pill variant="secondary" onClick={applyBatchAuthor} className="shrink-0">
                       <Trans>Apply to all</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 </div>
                 <div>
@@ -2128,12 +2038,9 @@ export function BinderyPage() {
                       options={[{ value: '', label: t`No type` },
                                 ...bookTypes.map(bt => ({ value: String(bt.id), label: bt.label }))]}
                     />
-                    <button
-                      onClick={applyBatchBookType}
-                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
-                    >
+                    <Pill variant="secondary" onClick={applyBatchBookType} className="shrink-0">
                       <Trans>Apply to all</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 </div>
                 {libraries.some(l => l.can_edit) && (
@@ -2146,142 +2053,131 @@ export function BinderyPage() {
                         libraries={libraries}
                         className="flex-1"
                       />
-                      <button
-                        onClick={applyBatchLibraries}
-                        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted hover:bg-accent transition-colors"
-                      >
+                      <Pill variant="secondary" onClick={applyBatchLibraries} className="shrink-0">
                         <Trans>Apply to all</Trans>
-                      </button>
+                      </Pill>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
+            </section>
 
             {/* Per-item rows */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold"><Trans>Per-file details</Trans></h3>
-                <button
-                  onClick={matchAll}
-                  disabled={matchingAll !== null || fetchingMeta}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-                >
-                  {matchingAll !== null
-                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                    : <Zap className="h-3 w-3" />}
-                  {(() => { const total = reviewItems.length; return matchingAll !== null
-                    ? t`Matching ${matchingAll}/${total}…`
-                    : t`Match all` })()}
-                </button>
-              </div>
-              {reviewItems.map(item => {
-                const form = formData[item.path]
-                if (!form) return null
-                const isExpanded = expandedRows.has(item.path)
-                return (
-                  <div
-                    key={item.path}
-                    className={cn(
-                      'rounded-lg border overflow-hidden transition-colors',
-                      suggestPath === item.path
-                        ? 'border-primary/50 ring-1 ring-primary/25'
-                        : 'border-border'
-                    )}
-                  >
-                    {/* Compact row — clicking anywhere targets the suggestions panel */}
+            <section>
+              <SectionTitle
+                size={20}
+                action={
+                  <Pill variant="quiet" onClick={matchAll} disabled={matchingAll !== null || fetchingMeta} className="-mr-3">
+                    {matchingAll !== null
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Zap className="h-4 w-4" />}
+                    {(() => { const total = reviewItems.length; return matchingAll !== null
+                      ? t`Matching ${matchingAll}/${total}…`
+                      : t`Match all` })()}
+                  </Pill>
+                }
+              >
+                <Trans>Per-file details</Trans>
+              </SectionTitle>
+              <div className="mt-3 divide-y divide-border/70">
+                {reviewItems.map(item => {
+                  const form = formData[item.path]
+                  if (!form) return null
+                  const isExpanded = expandedRows.has(item.path)
+                  return (
                     <div
-                      className="flex items-center gap-3 px-3 py-2.5 bg-card"
-                      onClick={() => {
-                        if (suggestPath !== item.path) {
-                          setSuggestPath(item.path)
-                          fetchPreview(item, undefined, false)
-                        }
-                      }}
+                      key={item.path}
+                      className={cn(
+                        'transition-colors',
+                        suggestPath === item.path && 'bg-primary/5'
+                      )}
                     >
-                      <button
-                        onClick={() => setExpandedRows(prev => {
-                          const next = new Set(prev)
-                          if (next.has(item.path)) next.delete(item.path)
-                          else next.add(item.path)
-                          return next
-                        })}
-                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                      {/* Compact row: clicking anywhere targets the suggestions panel */}
+                      <div
+                        className="flex items-center gap-3 py-2.5 px-2"
+                        onClick={() => {
+                          if (suggestPath !== item.path) {
+                            setSuggestPath(item.path)
+                            fetchPreview(item, undefined, false)
+                          }
+                        }}
                       >
-                        {isExpanded
-                          ? <ChevronDown className="h-3.5 w-3.5" />
-                          : <ChevronRight className="h-3.5 w-3.5" />}
-                      </button>
-                      <span className="text-xs text-muted-foreground truncate w-40 shrink-0" title={item.filename}>
-                        {item.filename}
-                      </span>
-                      <input
-                        className="flex-1 h-7 rounded border border-border bg-transparent px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={form.title}
-                        onChange={e => updateForm(item.path, 'title', e.target.value)}
-                        placeholder={t`Title`}
-                      />
-                      <input
-                        className="w-16 h-7 rounded border border-border bg-transparent px-2 text-xs text-center placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        type="number"
-                        step="0.1"
-                        value={form.series_index}
-                        onChange={e => updateForm(item.path, 'series_index', e.target.value)}
-                        placeholder="#"
-                        title={t`Series index`}
-                      />
-                      <select
-                        className="h-7 rounded border border-border bg-transparent px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                        value={form.content_type}
-                        onChange={e => updateForm(item.path, 'content_type', e.target.value)}
-                      >
-                        <option value="volume">{t`Volume`}</option>
-                        <option value="chapter">{t`Chapter`}</option>
-                      </select>
-                    </div>
-                    {/* Expanded full form */}
-                    {isExpanded && (
-                      <div className="px-4 py-3 border-t border-border bg-muted/20">
-                        <MetadataForm
-                          form={form}
-                          onChange={(field, value) => updateForm(item.path, field, value)}
-                          bookTypes={bookTypes}
-                          libraries={libraries}
+                        <button
+                          onClick={() => setExpandedRows(prev => {
+                            const next = new Set(prev)
+                            if (next.has(item.path)) next.delete(item.path)
+                            else next.add(item.path)
+                            return next
+                          })}
+                          aria-expanded={isExpanded}
+                          aria-label={t`Show all fields`}
+                          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {isExpanded
+                            ? <ChevronDown className="h-4 w-4" />
+                            : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                        <span className="text-[13px] text-muted-foreground truncate w-36 shrink-0 hidden sm:block" title={item.filename}>
+                          {item.filename}
+                        </span>
+                        <input
+                          className={cn(INPUT_CLS, 'flex-1 min-w-0')}
+                          value={form.title}
+                          onChange={e => updateForm(item.path, 'title', e.target.value)}
+                          placeholder={t`Title`}
                         />
+                        <input
+                          className={cn(INPUT_CLS, 'w-16 text-center')}
+                          type="number"
+                          step="0.1"
+                          value={form.series_index}
+                          onChange={e => updateForm(item.path, 'series_index', e.target.value)}
+                          placeholder="#"
+                          title={t`Series index`}
+                        />
+                        <select
+                          className={cn(INPUT_CLS, 'tome-select w-auto cursor-pointer')}
+                          value={form.content_type}
+                          onChange={e => updateForm(item.path, 'content_type', e.target.value)}
+                        >
+                          <option value="volume">{t`Volume`}</option>
+                          <option value="chapter">{t`Chapter`}</option>
+                        </select>
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                      {/* Expanded full form */}
+                      {isExpanded && (
+                        <div className="px-2 pb-4 pt-1">
+                          <MetadataForm
+                            form={form}
+                            onChange={(field, value) => updateForm(item.path, field, value)}
+                            bookTypes={bookTypes}
+                            libraries={libraries}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
 
             {/* Batch action bar */}
-            <div className="flex items-center gap-2 pt-4 border-t border-border">
-              <button
-                onClick={acceptAll}
-                disabled={accepting}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-              >
-                {accepting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            <div className="flex items-center gap-2 pt-5 border-t border-border/70">
+              <Pill variant="primary" onClick={acceptAll} disabled={accepting}>
+                {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 <Trans>Accept All</Trans>
-              </button>
-              <button
-                onClick={() => transitionTo('list')}
-                className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-              >
+              </Pill>
+              <Pill variant="secondary" onClick={() => transitionTo('list')}>
                 <Trans>Back to list</Trans>
-              </button>
-              <button
-                onClick={() => setConfirmReject(reviewItems.map(i => i.path))}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-destructive/30 text-destructive hover:bg-destructive/5 transition-all ml-auto"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> <Trans>Reject All</Trans>
-              </button>
+              </Pill>
+              <Pill variant="destructive" onClick={() => setConfirmReject(reviewItems.map(i => i.path))} className="ml-auto">
+                <Trash2 className="h-4 w-4" /> <Trans>Reject All</Trans>
+              </Pill>
             </div>
           </div>
 
-          {/* Right: candidates for the targeted row — expand a row to retarget */}
-          <div className="lg:w-2/5 overflow-y-auto p-6">
+          {/* Right: candidates for the targeted row; expand a row to retarget */}
+          <div className="min-w-0">
             <CandidatePanel
               candidates={candidates}
               loading={fetchingMeta}
@@ -2295,6 +2191,7 @@ export function BinderyPage() {
           </div>
         </div>
       )}
+    </PageBody>
 
       {/* Confirm reject dialog */}
       <ConfirmDialog
@@ -2312,7 +2209,6 @@ export function BinderyPage() {
         }}
         onCancel={() => setConfirmReject(null)}
       />
-    </div>
     </AppShell>
   )
 }
