@@ -15,10 +15,11 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.oidc import get_oauth
-from backend.core.security import create_access_token, get_current_user
+from backend.core.security import get_current_user
 from backend.core.urls import is_secure_origin, public_base_url
 from backend.models.user import User
 from backend.services.audit import audit
+from backend.services.client_devices import issue_token
 from backend.services.oidc import OIDCError, link_oidc_to_user, resolve_user_from_claims
 
 # Session key carrying "this handshake is an account-link for user N", not a login.
@@ -126,7 +127,7 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         log.exception("OIDC resolution error: %s", exc)
         return _error_redirect("oidc_error")
 
-    jwt = create_access_token(user.id)
+    jwt = issue_token(db, user.id, None, request.headers.get("user-agent"))
     audit(db, "auth.oidc_login", user_id=user.id, username=user.username,
           ip=request.client.host if request.client else None)
     return RedirectResponse(

@@ -128,6 +128,11 @@ async def lifespan(app: FastAPI):
                 "WHERE id IN (SELECT DISTINCT book_id FROM book_chapters)"
             ))
             conn.commit()
+        # Web browsers became device logins too; every existing row is an app.
+        cd_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(client_devices)")).fetchall()}
+        if cd_cols and "kind" not in cd_cols:
+            conn.execute(text("ALTER TABLE client_devices ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'app'"))
+            conn.commit()
         user_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
         if "role" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(16) NOT NULL DEFAULT 'guest'"))

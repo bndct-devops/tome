@@ -116,7 +116,7 @@ def _ver_tuple(v: str) -> tuple:
 @router.get("/features")
 def features(current_user: User = Depends(get_current_user)) -> dict:
     """UI feature flags the frontend cannot infer from other endpoints."""
-    return {"native_app": settings.native_app}
+    return {"native_app": settings.native_app, "web_session_idle_days": settings.web_session_idle_days}
 
 
 @router.get("/update-check")

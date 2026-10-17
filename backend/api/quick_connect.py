@@ -182,9 +182,9 @@ def poll(body: PollRequest, request: Request, db: Session = Depends(get_db)):
     if entry.authorized_at is None or entry.user_id is None:
         return {"status": "pending"}
 
-    # Authorized — issue a JWT (device-bound if the client named itself) and consume the code
+    # Authorized: issue a device-bound JWT (an app, or this browser) and consume the code
     user_id = entry.user_id
-    token = issue_token(db, user_id, body.device)
+    token = issue_token(db, user_id, body.device, request.headers.get("user-agent"))
 
     db.delete(entry)
     db.commit()

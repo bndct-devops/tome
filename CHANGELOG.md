@@ -63,6 +63,20 @@ All notable changes to Tome are documented here. Format loosely follows
   for Google Books carried the configured API key. (#247)
 
 ### Changed
+- **The web app stays signed in until you sign out.** Signing in in a
+  browser used to last 7 days (`TOME_JWT_EXPIRE_MINUTES`), after which you
+  had to sign in again. A browser now stays signed in like the Tome app
+  does, until you sign out there. Each browser is listed under Settings >
+  Connected devices with its browser and system (for example Safari on
+  macOS, marked "This browser" on the one you are using), where you can
+  sign out any of them, such as a lost laptop. A browser that is not used for
+  90 days is signed out on its own (`TOME_WEB_SESSION_IDLE_DAYS`, 0 = never),
+  so a forgotten or copied sign-in does not live forever; using Tome even
+  once in that time keeps it. The Tome app is not affected. Changing your
+  password signs out every other browser and app; an admin setting a user's
+  password signs that user out everywhere. Browsers signed in before this
+  update keep their old sign-in until it runs out, then stay signed in from
+  their next sign-in.
 - **Settings has a jump list.** A sticky list of the page's sections sits on
   the left at desktop width, and a row of chips under the header on phones.
   It follows your scroll position and jumps to a section on click, so a
@@ -107,6 +121,17 @@ All notable changes to Tome are documented here. Format loosely follows
   book list, series, reading status and session queries (added on startup),
   and the series overview reads all series in one query instead of one per
   series. (#255)
+
+### Security
+- **A password set by an admin is no longer written to the audit log.** The
+  "user updated" entry recorded the request as sent, so a password an admin
+  set for a user was stored there in plain text. It now records only that
+  the password was changed. Admins who have set passwords this way may want
+  to clear old entries from the audit log.
+- **The reader's file links now honour a signed-out device.** The links the
+  web reader uses to open EPUB, PDF and comic files checked the token's
+  signature but not whether that device had been revoked, and the EPUB link
+  did not check for a disabled account.
 
 ## [2.6.0] - 2026-10-10 - "Pamphlet"
 
