@@ -306,6 +306,8 @@ export function DashboardPage() {
   // Manage series modal
   const [manageSeriesOpen, setManageSeriesOpen] = useState(false)
   const [seriesDescExpanded, setSeriesDescExpanded] = useState(false)
+  // The follow tracker's "Latest: Vol N · date" line, shown in the series header's crumb line.
+  const [followLatest, setFollowLatest] = useState<string | null>(null)
 
   function setTab(value: 'home' | 'books' | 'series') {
     setSearchParams(prev => {
@@ -1234,6 +1236,12 @@ export function DashboardPage() {
                       </button>
                       <span aria-hidden>/</span>
                       <span><Plural value={total} one="# volume" other="# volumes" /></span>
+                      {followLatest && (
+                        <>
+                          <span aria-hidden>/</span>
+                          <span>{followLatest}</span>
+                        </>
+                      )}
                     </div>
                           <div className="flex flex-wrap items-center gap-1">
                             {!isUnserialized && (
@@ -1252,7 +1260,7 @@ export function DashboardPage() {
                                 <Trans>Manage</Trans>
                               </Pill>
                             )}
-                            <SeriesFollowButton seriesName={seriesDetail.name} />
+                            <SeriesFollowButton seriesName={seriesDetail.name} onLatest={setFollowLatest} />
                           </div>
                   </div>
 

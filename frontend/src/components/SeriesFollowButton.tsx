@@ -14,7 +14,11 @@ import { t } from '@lingui/core/macro'
  * release date under the button — labelled "Next" when the date is upcoming.
  */
 
-export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
+export function SeriesFollowButton({ seriesName, onLatest }: {
+  seriesName: string
+  /** The tracker's latest-volume line ("Latest: Vol 43 · 24 Jul"), for the page to place; null when there is none. */
+  onLatest?: (text: string | null) => void
+}) {
   const { toast } = useToast()
   // undefined = follows not resolved yet (render NOTHING — an optimistic
   // button flickered on instances where release detection is disabled).
@@ -49,26 +53,29 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
   const date = follow?.latest_release_date ?? null
   const vol = follow?.latest_known_index ?? null
   const upcoming = date != null && date >= new Date().toISOString().slice(0, 10)
+  let latest: string | null = null
+  if (follow && vol != null && date) {
+    const v = Number.isInteger(vol) ? vol : vol.toFixed(1)
+    const d = formatDate(date)
+    latest = upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}`
+  }
+  // The page shows the line where it fits (the header's crumb line); the pill
+  // carries it as its tooltip.
+  useEffect(() => { onLatest?.(latest) }, [latest, onLatest])
 
+  const hint = follow ? t`Stop following this series` : t`Get notified when a new volume is released`
   return (
-    <div className="relative">
-      <Pill
-        variant={follow ? 'secondary' : 'quiet'}
-        onClick={toggle}
-        disabled={busy}
-        aria-pressed={!!follow}
-        title={follow ? t`Stop following this series` : t`Get notified when a new volume is released`}
-      >
-        {busy
-          ? <Loader2 className="w-4 h-4 animate-spin" />
-          : follow ? <BellRing className="w-4 h-4 text-primary" /> : <BellPlus className="w-4 h-4" />}
-        {follow ? t`Following` : t`Follow`}
-      </Pill>
-      {follow && vol != null && date && (
-        <p className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap text-[10px] text-muted-foreground text-center">
-          {(() => { const v = Number.isInteger(vol) ? vol : vol.toFixed(1); const d = formatDate(date); return upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}` })()}
-        </p>
-      )}
-    </div>
+    <Pill
+      variant={follow ? 'secondary' : 'quiet'}
+      onClick={toggle}
+      disabled={busy}
+      aria-pressed={!!follow}
+      title={latest ? `${hint} · ${latest}` : hint}
+    >
+      {busy
+        ? <Loader2 className="w-4 h-4 animate-spin" />
+        : follow ? <BellRing className="w-4 h-4 text-primary" /> : <BellPlus className="w-4 h-4" />}
+      {follow ? t`Following` : t`Follow`}
+    </Pill>
   )
 }
