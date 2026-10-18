@@ -24,6 +24,10 @@ All notable changes to Tome are documented here. Format loosely follows
   own section list while they are open. A quick look opens from a cover in
   any grid or row (cover, description, progress, reading time, Resume, Open
   page) without leaving the page. All five themes.
+- **The previous look is one setting away.** `TOME_UI=classic` serves the
+  interface of the last 2.x release, built into the image from its tag, for
+  anyone who wants to stay with it for a while. It is the same server and
+  the same data; only the new interface carries the AI features.
 - **Stats opens faster.** The stats answer computed the same gap-clustered
   sessions up to ten times per request; it now does so once, which roughly
   halves the server time. Stats and Calendar also keep their last answer

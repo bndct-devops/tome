@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     # available" in Settings via a daily-cached GitHub releases lookup. Set
     # false to never call out (air-gapped installs); nothing else phones home.
     update_check: bool = True
+    # Which web UI the server serves (env TOME_UI): "new" is the refreshed
+    # interface; "classic" serves the frozen pre-3.0 look built from the last
+    # 2.x release (frontend/dist-classic in the Docker image). The AI features
+    # have no surface in classic; it is a visual hatch, not a second product.
+    ui: str = "new"
 
     # Opt-in telemetry (env TOME_TELEMETRY): false pins the monthly report off
     # and hides the question entirely. True only means the admin may be asked;
