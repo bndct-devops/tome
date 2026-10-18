@@ -20,6 +20,7 @@ import {
   Flame, Gauge, List, Moon, Trophy, X, type LucideIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { PageBody, PageHeader, Pill } from '@/components/page'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
@@ -101,9 +102,17 @@ function bookLabel(b: BookRef): string {
   return b.series && b.series_index != null ? `${b.series} #${+b.series_index}` : b.title
 }
 
+// The last month seen, so coming back to the calendar paints at once and
+// refreshes underneath instead of starting from the skeleton.
+const monthCache = new Map<string, MonthResponse>()
+
 export function ReadingCalendarPage() {
   const [params, setParams] = useSearchParams()
-  const [data, setData] = useState<MonthResponse | null>(null)
+  const nowMonthInit = isoOf(new Date()).slice(0, 7)
+  const [data, setData] = useState<MonthResponse | null>(() => {
+    const m = new URLSearchParams(window.location.search).get('month')
+    return monthCache.get(/^\d{4}-\d{2}$/.test(m ?? '') ? m! : nowMonthInit) ?? null
+  })
   const [error, setError] = useState(false)
   const nowMonth = isoOf(new Date()).slice(0, 7)
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : nowMonth
@@ -112,8 +121,8 @@ export function ReadingCalendarPage() {
   useEffect(() => {
     let live = true
     api.get<MonthResponse>(`/stats/calendar?month=${month}&tz_offset=${tzOffset()}`)
-      .then(r => { if (live) { setData(r); setError(false) } })
-      .catch(() => { if (live) setError(true) })
+      .then(r => { monthCache.set(month, r); if (live) { setData(r); setError(false) } })
+      .catch(() => { if (live && !monthCache.has(month)) setError(true) })
     return () => { live = false }
   }, [month])
 
@@ -131,7 +140,8 @@ export function ReadingCalendarPage() {
 
   // While the next month loads, the one on screen stays, dimmed, so nothing
   // flashes empty; the skeleton is only for the very first open.
-  const shown = data?.month === month ? data : null
+  // A month seen before paints from the cache while the fresh answer loads.
+  const shown = data?.month === month ? data : (monthCache.get(month) ?? null)
   const view = shown ?? data
   const viewMonth = view?.month ?? month
   const stale = !!view && !shown
@@ -176,15 +186,15 @@ export function ReadingCalendarPage() {
     <AppShell>
       {/* Desktop: the page is one viewport tall; the grid stays put and the day card
           scrolls in its own lane, so a long day never scrolls the calendar away. */}
-      <div className="mx-auto max-w-6xl px-4 py-6 animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none lg:flex lg:h-full lg:flex-col">
+      <PageBody width="wide" className="animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none lg:h-full lg:pb-6">
         <MonthNav month={month} isCurrent={month === today.slice(0, 7)} canPrev={canPrev} canNext={canNext}
           onPrev={() => go({ month: shiftMonth(month, -1), day: null })}
           onNext={() => go({ month: shiftMonth(month, 1), day: null })}
           onToday={() => go({ month: today.slice(0, 7), day: null })} />
 
-        {error && <p className="mt-10 text-center text-sm text-muted-foreground"><Trans>Could not load your reading calendar.</Trans></p>}
+        {error && <p className="mt-3 text-center text-sm text-muted-foreground"><Trans>Could not load your reading calendar.</Trans></p>}
         {!error && (
-          <div className={cn('mt-8 grid gap-8 transition-opacity duration-200 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', stale && 'opacity-50')}>
+          <div className={cn('grid gap-8 transition-opacity duration-200 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', stale && 'opacity-50')}>
             <div className="min-w-0 space-y-8 lg:min-h-0 lg:overflow-y-auto lg:pb-2">
               {view
                 ? <div key={viewMonth} className="animate-in fade-in duration-300 motion-reduce:animate-none"><Headline data={view} month={viewMonth} /></div>
@@ -201,7 +211,7 @@ export function ReadingCalendarPage() {
             </aside>
           </div>
         )}
-      </div>
+      </PageBody>
       {selected && <MobileSheet onClose={() => go({ day: null })}><DayCard day={selected} onClose={() => go({ day: null })} /></MobileSheet>}
     </AppShell>
   )
@@ -212,19 +222,22 @@ function MonthNav({ month, isCurrent, canPrev, canNext, onPrev, onNext, onToday 
 }) {
   const { t } = useLingui()
   const label = new Date(+month.slice(0, 4), +month.slice(5) - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-  const btn = 'grid h-8 w-8 place-items-center rounded-full text-foreground transition-colors hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent'
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <h1 className="mr-1 font-display text-2xl leading-none text-foreground tabular-nums">{label}</h1>
-      <button className={btn} onClick={onPrev} disabled={!canPrev} aria-label={t`Previous month`}><ChevronLeft className="h-4 w-4" /></button>
-      <button className={btn} onClick={onNext} disabled={!canNext} aria-label={t`Next month`}><ChevronRight className="h-4 w-4" /></button>
-      {!isCurrent && (
-        <button onClick={onToday} className="ml-1 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/70">
-          <Trans>Today</Trans>
-        </button>
-      )}
-    </div>
+    <PageHeader
+      eyebrow={<Trans>Calendar</Trans>}
+      title={<span className="tabular-nums">{label}</span>}
+      actions={
+        <>
+          {!isCurrent && (
+            <Pill variant="quiet" onClick={onToday}>
+              <Trans>Today</Trans>
+            </Pill>
+          )}
+          <Pill variant="quiet" icon onClick={onPrev} disabled={!canPrev} aria-label={t`Previous month`}><ChevronLeft className="h-5 w-5" /></Pill>
+          <Pill variant="quiet" icon onClick={onNext} disabled={!canNext} aria-label={t`Next month`}><ChevronRight className="h-5 w-5" /></Pill>
+        </>
+      }
+    />
   )
 }
 

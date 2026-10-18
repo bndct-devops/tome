@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { KeyRound, Eye, EyeOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { Pill } from '@/components/page'
+import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -10,8 +11,6 @@ export function ForcePasswordChange() {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [showCurrent, setShowCurrent] = useState(false)
-  const [showNext, setShowNext] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -31,76 +30,39 @@ export function ForcePasswordChange() {
     }
   }
 
+  const username = user?.username
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      <div className="w-full max-w-sm px-4">
-        <div className="bg-card border border-border rounded-2xl shadow-2xl p-8">
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-              <KeyRound className="w-6 h-6 text-primary" />
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <AuthFrame>
+        <AuthPanel
+          title={<Trans>Set your password</Trans>}
+          subtitle={
+            <Trans>Hi <span className="font-medium text-foreground">{username}</span>, your account was created by an admin.
+            Set a personal password before continuing.</Trans>
+          }
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AuthField label={<Trans>Temporary password</Trans>}>
+              <AuthPasswordInput value={current} onChange={e => setCurrent(e.target.value)} required autoComplete="current-password" toggleTabIndex={-1} />
+            </AuthField>
+            <AuthField label={<Trans>New password</Trans>}>
+              <AuthPasswordInput value={next} onChange={e => setNext(e.target.value)} required autoComplete="new-password" toggleTabIndex={-1} />
+            </AuthField>
+            <AuthField label={<Trans>Confirm new password</Trans>}>
+              <AuthInput type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required autoComplete="new-password" />
+            </AuthField>
+
+            {error && <AuthError>{error}</AuthError>}
+
+            <div className="pt-2">
+              <Pill type="submit" variant="primary" size="lg" disabled={saving || !current || !next || !confirm} className="w-full">
+                {saving && <Spinner />}
+                {saving ? t`Saving…` : t`Set password & continue`}
+              </Pill>
             </div>
-            <h1 className="text-lg font-semibold text-foreground"><Trans>Set your password</Trans></h1>
-            <p className="text-sm text-muted-foreground text-center mt-1">
-              {(() => { const username = user?.username; return (
-              <Trans>Hi <span className="font-medium text-foreground">{username}</span> — your account was created by an admin.
-              Please set a personal password before continuing.</Trans>
-              ) })()}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <div className="relative">
-              <input
-                type={showCurrent ? 'text' : 'password'}
-                placeholder={t`Temporary password`}
-                value={current}
-                onChange={e => setCurrent(e.target.value)}
-                required
-                className="w-full px-3 py-2 pr-10 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <button type="button" tabIndex={-1} onClick={() => setShowCurrent(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            <div className="relative">
-              <input
-                type={showNext ? 'text' : 'password'}
-                placeholder={t`New password`}
-                value={next}
-                onChange={e => setNext(e.target.value)}
-                required
-                className="w-full px-3 py-2 pr-10 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <button type="button" tabIndex={-1} onClick={() => setShowNext(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                {showNext ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            <input
-              type="password"
-              placeholder={t`Confirm new password`}
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              required
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-
-            {error && <p className="text-xs text-destructive">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={saving || !current || !next || !confirm}
-              className="mt-1 w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-            >
-              {saving && <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />}
-              {saving ? t`Saving…` : t`Set password & continue`}
-            </button>
           </form>
-        </div>
-      </div>
+        </AuthPanel>
+      </AuthFrame>
     </div>
   )
 }

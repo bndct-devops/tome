@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
-import { Pencil, Plus, Target, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ProgressRing } from '@/components/stats/ProgressRing'
 import {
   ALLOWED_GOAL_KINDS,
@@ -10,7 +9,6 @@ import {
   goalMeta,
   goalSubtext,
   goalTitle,
-  listGoals,
   updateGoal,
   type Goal,
   type GoalKind,
@@ -218,12 +216,11 @@ export function GoalWidgetBody({
   if (goals.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-        <Target className="h-6 w-6 text-muted-foreground/40" />
-        <p className="text-xs text-muted-foreground"><Trans>Set a target and watch the ring fill as you read.</Trans></p>
+        <p className="text-[14px] text-muted-foreground"><Trans>Set a target and watch the ring fill as you read.</Trans></p>
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90"
+          className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-muted"
         >
           <Trans>Set a goal</Trans>
         </button>
@@ -279,7 +276,7 @@ export function GoalWidgetBody({
       <button
         type="button"
         onClick={() => setCreating(true)}
-        className="flex min-h-[4.25rem] items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
+        className="flex min-h-[4.25rem] items-center justify-center gap-1.5 rounded-lg bg-secondary/50 text-[13px] text-muted-foreground transition hover:bg-secondary hover:text-foreground"
       >
         <Plus className="h-3.5 w-3.5" />
         <Trans>New goal</Trans>
@@ -294,49 +291,3 @@ export function GoalWidgetBody({
 }
 
 // ── Home tab strip ────────────────────────────────────────────────────────────
-
-/**
- * Read-only compact goal segments for the Home tab. Mirrors the quick-stats
- * panel's visual language (label over value, hairline dividers, mini ring in
- * the icon slot) so the two sit side by side as one summary zone.
- * Renders nothing without goals. Pace details live in the title tooltip and
- * on the stats dashboard tile — Home stays glanceable.
- */
-export function HomeGoalRings() {
-  const navigate = useNavigate()
-  const [goals, setGoals] = useState<Goal[]>([])
-
-  useEffect(() => {
-    listGoals().then(setGoals).catch(() => {})
-  }, [])
-
-  if (goals.length === 0) return null
-
-  return (
-    <div className="grid w-full grid-cols-2 gap-y-3 px-4 py-4 sm:flex">
-      {goals.map((goal, i) => (
-        <button
-          key={goal.id}
-          type="button"
-          onClick={() => navigate('/stats')}
-          title={goalSubtext(goal)}
-          className={cn(
-            'text-left sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md',
-            i === 0 && 'sm:pl-0',
-            i > 0 && 'sm:border-l sm:border-border/60',
-          )}
-        >
-          <p className="text-xs text-muted-foreground/70">{goalTitle(goal)}</p>
-          <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
-            <ProgressRing pct={goal.pct} size={22} stroke={3.5} />
-            {Math.round(goal.current)}
-            <span className="text-base font-medium text-muted-foreground/70">
-              /{goal.target}
-              {goalMeta(goal.kind).unit}
-            </span>
-          </p>
-        </button>
-      ))}
-    </div>
-  )
-}

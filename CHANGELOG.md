@@ -7,28 +7,6 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
-- **Searching for a series shows the series.** When a search matches a
-  series name ("good guys" finds The Good Guys), the series appear as cards
-  in a row above the matching books, with author, volume count and reading
-  progress, and open the series page on click. Each word of the search only
-  has to start a word of the name, so a half-typed search already finds it.
-- **Fallback server URL for the KOReader plugin.** TomeSync > Settings has
-  an optional second address for the same server, tried when the main one
-  does not answer: for example the LAN address at home when the main URL
-  only works from outside (a router without hairpin NAT, a VPN address).
-  Whichever address answered last is tried first, so after a network change
-  the plugin switches once and sticks with it. (#249)
-- **See which books are on your e-reader.** The KOReader plugin now tells
-  Tome which of its books are on the device, and books show an "On Kindle"
-  pill (named after the device) on cards and the book page. The filters get
-  a row per device with "On Kindle" and "Not on Kindle", which can be saved
-  as a shelf and also work in shelves browsed on the device; series pages
-  show how many volumes each device holds and mark them on the covers.
-  The list is sent on launch, wake, WiFi up, Sync now and after downloads,
-  and replaces the previous one, so books deleted on the device drop out on
-  the next sync. A device that has not synced in a few days is shown muted
-  with its age, and Settings > KOReader lists your devices with a way to
-  forget one. Only your own devices are ever shown. Plugin build 50.
 - **AI features, with your own key.** Settings has a new AI section. Members
   and admins can add their own Anthropic API key; Tome checks it with
   Anthropic before saving, stores it encrypted and only ever shows the last
@@ -235,7 +213,100 @@ All notable changes to Tome are documented here. Format loosely follows
   user.
 
 ### Changed
+- **A quieter web app.** Every page now shares one frame: a full-height
+  sidebar with the wordmark on top and the navigation in three groups (Home,
+  Library, Series; Reading; Manage), a lineless header with a pill search and
+  a "Synced 5d ago" chip that says what it is, and the page itself as a
+  rounded panel set into the frame. Home is rebuilt around the book you are
+  reading: cover, progress, Resume, the other books in progress as one row,
+  four bare numbers (streak, this month, finished, library), Recently added,
+  a highlight, and recent activity as plain rows. The book page moves inside
+  that frame with the cover, file, details and genres in a rail beside the
+  content; its charts are unchanged. Library, Series, Stats, Calendar,
+  Highlights, Wishlist, Bindery, Hardcover, Settings, Admin, the login and
+  the public share page follow the same vocabulary: one page header with the
+  page's actions on the right, pill buttons, rows on hairlines instead of
+  boxes, and two content widths. Settings and Admin swap the sidebar for their
+  own section list while they are open. A quick look opens from a cover in
+  any grid or row (cover, description, progress, reading time, Resume, Open
+  page) without leaving the page. All five themes.
+- **The previous look is one setting away.** `TOME_UI=classic` serves the
+  interface of the last 2.x release, built into the image from its tag, for
+  anyone who wants to stay with it for a while. It is the same server and
+  the same data; only the new interface carries the AI features.
+- **Stats opens faster.** The stats answer computed the same gap-clustered
+  sessions up to ten times per request; it now does so once, which roughly
+  halves the server time. Stats and Calendar also keep their last answer
+  for the session, so coming back to either page paints at once and
+  refreshes underneath.
+
 - **Sort books by series.** `GET /api/books` accepts `sort=series`: series in name order, each in volume order, books without a series after them by title. Used by the iOS app's Library sort.
+
+### Removed
+- **Home's Focus and Dashboard modes.** There is one Home now. Reading DNA
+  stays on the Stats page, series progress on its Library tab, and recently
+  finished books are the Library's "Read" filter. The forgotten-books
+  reminder is gone.
+
+## [2.7.0] - 2026-10-17 - "Catalogue"
+
+### Added
+- **Searching for a series shows the series.** When a search matches a
+  series name ("good guys" finds The Good Guys), the series appear as cards
+  in a row above the matching books, with author, volume count and reading
+  progress, and open the series page on click. Each word of the search only
+  has to start a word of the name, so a half-typed search already finds it.
+- **Fallback server URL for the KOReader plugin.** TomeSync > Settings has
+  an optional second address for the same server, tried when the main one
+  does not answer: for example the LAN address at home when the main URL
+  only works from outside (a router without hairpin NAT, a VPN address).
+  Whichever address answered last is tried first, so after a network change
+  the plugin switches once and sticks with it. (#249)
+- **See which books are on your e-reader.** The KOReader plugin now tells
+  Tome which of its books are on the device, and books show an "On Kindle"
+  pill (named after the device) on cards and the book page. The filters get
+  a row per device with "On Kindle" and "Not on Kindle", which can be saved
+  as a shelf and also work in shelves browsed on the device; series pages
+  show how many volumes each device holds and mark them on the covers.
+  The list is sent on launch, wake, WiFi up, Sync now and after downloads,
+  and replaces the previous one, so books deleted on the device drop out on
+  the next sync. A device that has not synced in a few days is shown muted
+  with its age, and Settings > KOReader lists your devices with a way to
+  forget one. Only your own devices are ever shown. Plugin build 50.
+
+### Fixed
+- **Home no longer jumps down after it has loaded.** For admins who had not
+  answered the telemetry question yet, its card arrived a moment after the
+  rest of the page and pushed everything down. Home now waits for it and
+  draws it together with the other sections. (#254)
+- **"Connect a phone" works when Tome is open at localhost.** The QR code
+  carried the address the page was opened at, so from `localhost` it told
+  the phone to connect to itself and pairing could never succeed. Opened at
+  localhost, 127.x or ::1, the window now says so and asks for the address
+  the phone can reach this computer at (for example
+  `http://192.168.1.20:8080`), builds the QR from that and remembers it in
+  this browser. Other addresses work as before. (#253)
+- **The Filters button no longer shows a "0" badge during a search.** A
+  search on its own counted as "filters active" but has no filter chip, so
+  the badge read 0; it now only appears when a filter is actually set.
+- **The KOReader plugin no longer freezes the reader when the server is
+  down.** When the device was online but Tome did not answer, every sync
+  request held the screen for its 5 second timeout, and it took three
+  misses before the plugin backed off, so startup and opening a book each
+  stalled. It now backs off after the first miss, waits 1, 2, 4, 8 and then
+  15 minutes between tries, and goes back to normal as soon as a request
+  gets through, WiFi reconnects or you use a TomeSync action such as Sync
+  now. Opening a book no longer waits on the network at all. Reading
+  offline was never affected. Plugin build 49. (#249)
+- **Google Books 503s no longer fail the fetch outright.** Google answers in
+  bursts of "503 Service Unavailable", and Tome gave up on the first one, so
+  the search had to be clicked again by hand. A 5xx from any metadata source
+  now gets the same single retry after a short pause that a rate limit
+  already got, and only then reports the source as errored. The warning
+  logged on a failed fetch also no longer includes the request URL, which
+  for Google Books carried the configured API key. (#247)
+
+### Changed
 - **The web app stays signed in until you sign out.** Signing in in a
   browser used to last 7 days (`TOME_JWT_EXPIRE_MINUTES`), after which you
   had to sign in again. A browser now stays signed in like the Tome app
@@ -294,44 +365,6 @@ All notable changes to Tome are documented here. Format loosely follows
   book list, series, reading status and session queries (added on startup),
   and the series overview reads all series in one query instead of one per
   series. (#255)
-- Applying fetched metadata on the book page is now recorded in the audit log
-  (`books.metadata_applied`, with the fields that changed, and marked
-  AI-assisted when the change came from AI fix).
-
-### Fixed
-- **Home no longer jumps down after it has loaded.** For admins who had not
-  answered the telemetry question yet, its card arrived a moment after the
-  rest of the page and pushed everything down. Home now waits for it and
-  draws it together with the other sections. (#254)
-- **"Connect a phone" works when Tome is open at localhost.** The QR code
-  carried the address the page was opened at, so from `localhost` it told
-  the phone to connect to itself and pairing could never succeed. Opened at
-  localhost, 127.x or ::1, the window now says so and asks for the address
-  the phone can reach this computer at (for example
-  `http://192.168.1.20:8080`), builds the QR from that and remembers it in
-  this browser. Other addresses work as before. (#253)
-- **The Filters button no longer shows a "0" badge during a search.** A
-  search on its own counted as "filters active" but has no filter chip, so
-  the badge read 0; it now only appears when a filter is actually set.
-- **The KOReader plugin no longer freezes the reader when the server is
-  down.** When the device was online but Tome did not answer, every sync
-  request held the screen for its 5 second timeout, and it took three
-  misses before the plugin backed off, so startup and opening a book each
-  stalled. It now backs off after the first miss, waits 1, 2, 4, 8 and then
-  15 minutes between tries, and goes back to normal as soon as a request
-  gets through, WiFi reconnects or you use a TomeSync action such as Sync
-  now. Opening a book no longer waits on the network at all. Reading
-  offline was never affected. Plugin build 49. (#249)
-- **Google Books 503s no longer fail the fetch outright.** Google answers in
-  bursts of "503 Service Unavailable", and Tome gave up on the first one, so
-  the search had to be clicked again by hand. A 5xx from any metadata source
-  now gets the same single retry after a short pause that a rate limit
-  already got, and only then reports the source as errored. The warning
-  logged on a failed fetch also no longer includes the request URL, which
-  for Google Books carried the configured API key. (#247)
-- A Google Books server error no longer writes your `TOME_GOOGLE_BOOKS_KEY`
-  into the server log. The failed-fetch log line printed the full request
-  URL, key included; it now names only the source and the HTTP status.
 
 ### Security
 - **A password set by an admin is no longer written to the audit log.** The

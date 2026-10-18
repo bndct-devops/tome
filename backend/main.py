@@ -588,6 +588,21 @@ async def _run_auto_import() -> None:
     await run_auto_import()
 
 
+def frontend_dist_dir(frontend_root: Path, ui: str) -> Path:
+    """The built bundle to serve. ``TOME_UI=classic`` picks ``dist-classic``
+    (the pre-3.0 look, built from the last 2.x tag by the Dockerfile) when it
+    is there; a missing classic bundle falls back to the new one with a
+    warning rather than an empty site."""
+    new = frontend_root / "dist"
+    if (ui or "new").lower() != "classic":
+        return new
+    classic = frontend_root / "dist-classic"
+    if classic.exists():
+        return classic
+    logger.warning("TOME_UI=classic but %s is missing; serving the new UI", classic)
+    return new
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Tome",
@@ -673,7 +688,7 @@ def create_app() -> FastAPI:
     ai_api.register_exception_handlers(app)
 
     # Serve frontend static files in production (SPA fallback)
-    frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+    frontend_dist = frontend_dist_dir(Path(__file__).parent.parent / "frontend", settings.ui)
     if frontend_dist.exists():
         from starlette.responses import FileResponse as _FileResponse
 

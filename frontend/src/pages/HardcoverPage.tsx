@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  BookMarked, ExternalLink, Layers, Loader2, RefreshCw, Search, X, AlertTriangle, ChevronLeft,
+  ExternalLink, Layers, Loader2, RefreshCw, Search, X, AlertTriangle, ChevronLeft,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { PageBody, PageHeader, Pill } from '@/components/page'
 import { CoverImage } from '@/components/CoverImage'
 import { SeriesStackCard } from '@/components/SeriesStackCard'
 import type { Book } from '@/lib/books'
@@ -282,119 +283,123 @@ export function HardcoverPage() {
     }
   }
 
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+  const pageTitle = 'Hardcover'
+  const subtitle = t`What your books sync to on Hardcover. Audit matches, fix wrong ones, exclude books.`
+
   if (unavailable) {
     return (
       <AppShell>
-        <div className="p-8 text-sm text-muted-foreground"><Trans>Hardcover sync is disabled on this server.</Trans></div>
+        <PageBody width="wide">
+          <PageHeader title={pageTitle} subtitle={subtitle} />
+          <p className="py-16 text-center text-[15px] text-muted-foreground"><Trans>Hardcover sync is disabled on this server.</Trans></p>
+        </PageBody>
       </AppShell>
     )
   }
 
+  const linked = !!status?.linked
+  const eyebrow = linked && status
+    ? (() => {
+        const user = status.username ?? ''
+        if (!status.last_synced_at) return t`@${user}`
+        const when = new Date(status.last_synced_at + 'Z').toLocaleDateString(i18n.locale)
+        return t`@${user} · last synced ${when}`
+      })()
+    : undefined
+
   return (
     <AppShell>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
-        <div className="flex items-center gap-3 mb-1">
-          <BookMarked className="w-5 h-5 text-primary" />
-          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-          <h1 className="font-display text-2xl text-foreground">Hardcover</h1>
-        </div>
-        <p className="text-sm text-muted-foreground mb-6">
-          <Trans>What your books sync to on Hardcover — audit matches, fix wrong ones, exclude books.</Trans>
-        </p>
-
-        {!status ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading…</Trans>
-          </div>
-        ) : !status.linked ? (
-          <div className="rounded-xl border border-border bg-card p-6 text-sm text-foreground/90 max-w-xl">
-            <p className="mb-2"><Trans>No Hardcover account linked yet.</Trans></p>
-            <p className="text-muted-foreground">
-              <Trans>Link your personal API token in{' '}
-              <Link to="/settings" className="text-primary hover:underline">Settings → Hardcover</Link>{' '}
-              — syncing starts right after.</Trans>
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-2 mb-5">
-              <button
-                onClick={() => void syncNow()}
-                disabled={!!status.sync_running}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={cn('w-4 h-4', status.sync_running && 'animate-spin')} />
-                {status.sync_running ? t`Syncing…` : t`Sync now`}
-              </button>
-              <span className="text-xs text-muted-foreground mr-2">
-                @{status.username}
-                {status.last_synced_at && (() => { const when = new Date(status.last_synced_at + 'Z').toLocaleString(i18n.locale); return t` · last synced ${when}` })()}
-              </span>
-              <div className="flex items-center gap-1 ml-auto">
-                <button
-                  onClick={() => persistGroup(!grouped)}
-                  title={grouped ? t`Show individual volumes` : t`Group volumes by series`}
-                  aria-pressed={grouped}
-                  className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all mr-1',
-                    grouped
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline"><Trans>Group series</Trans></span>
-                </button>
-                {FILTERS.map(f => {
-                  const n = counts[f.key]
-                  if (f.key !== 'all' && n === 0) return null
-                  return (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={cn(
-                        'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
-                        filter === f.key
-                          ? 'bg-primary/10 border-primary/40 text-primary'
-                          : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                      )}
-                    >
-                      {i18n._(f.label)} <span className="opacity-60">{n}</span>
-                    </button>
-                  )
-                })}
-              </div>
+      <PageBody width="wide">
+        <PageHeader
+          eyebrow={eyebrow}
+          title={pageTitle}
+          className="[&>div:last-child]:shrink [&>div:last-child]:min-w-0"
+          subtitle={subtitle}
+          actions={linked && status ? (
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder={t`Filter…`}
-                  className="pl-7 pr-2 py-1.5 w-40 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                  aria-label={t`Filter books`}
+                  className="h-9 w-44 rounded-full bg-secondary pl-9 pr-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
+              <Pill
+                variant={grouped ? 'secondary' : 'quiet'}
+                onClick={() => persistGroup(!grouped)}
+                title={grouped ? t`Show individual volumes` : t`Group volumes by series`}
+                aria-pressed={grouped}
+                className={cn(grouped && 'text-primary')}
+              >
+                <Layers className="w-4 h-4" />
+                <Trans>Group series</Trans>
+              </Pill>
+              <Pill variant="primary" onClick={() => void syncNow()} disabled={!!status.sync_running}>
+                <RefreshCw className={cn('w-4 h-4', status.sync_running && 'animate-spin')} />
+                {status.sync_running ? t`Syncing…` : t`Sync now`}
+              </Pill>
+            </div>
+          ) : undefined}
+        />
+
+        {!status ? (
+          <div className="flex items-center gap-2 text-[15px] text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading…</Trans>
+          </div>
+        ) : !status.linked ? (
+          <div className="py-16 flex flex-col items-center gap-4 text-center">
+            <p className="text-[15px] text-muted-foreground max-w-[46ch]">
+              <Trans>No Hardcover account linked yet. Link your personal API token in Settings and syncing starts right after.</Trans>
+            </p>
+            <Link
+              to="/settings"
+              className="inline-flex items-center h-9 px-4 rounded-full bg-primary text-primary-foreground text-[14px] font-semibold hover:bg-primary/90 transition-colors"
+            >
+              <Trans>Open Settings</Trans>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6 -mt-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {FILTERS.map(f => {
+                const n = counts[f.key]
+                if (f.key !== 'all' && n === 0) return null
+                const active = filter === f.key
+                return (
+                  <Pill
+                    key={f.key}
+                    variant={active ? 'secondary' : 'quiet'}
+                    onClick={() => setFilter(f.key)}
+                    aria-pressed={active}
+                  >
+                    {i18n._(f.label)}
+                    <span className="tabular-nums text-muted-foreground">{n}</span>
+                  </Pill>
+                )
+              })}
             </div>
 
             {expandedSeries && (
-              <div className="flex items-center gap-2 mb-4">
-                <button
-                  onClick={() => setExpandedSeries(null)}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> <Trans>All books</Trans>
-                </button>
-                <span className="text-sm font-medium text-foreground">{expandedSeries}</span>
+              <div className="flex items-center gap-2 -mt-2 min-w-0">
+                <Pill variant="quiet" onClick={() => setExpandedSeries(null)} className="-ml-3 shrink-0">
+                  <ChevronLeft className="w-4 h-4" /> <Trans>All books</Trans>
+                </Pill>
+                <span className="font-display text-[20px] font-bold text-foreground truncate">{expandedSeries}</span>
               </div>
             )}
 
             {books == null ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-[15px] text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading books…</Trans>
               </div>
             ) : cells.length === 0 ? (
-              <p className="text-sm text-muted-foreground"><Trans>No books in this view.</Trans></p>
+              <p className="py-16 text-center text-[15px] text-muted-foreground"><Trans>No books in this view.</Trans></p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
                 {cells.map(cell => cell.kind === 'stack' ? (
                   <SeriesStackCard
                     key={`stack-${cell.volumes[0].series}`}
@@ -404,8 +409,12 @@ export function HardcoverPage() {
                     onOpen={() => setExpandedSeries(cell.volumes[0].series)}
                   />
                 ) : (() => { const b = cell.b; return (
-                  <div key={b.book_id} className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
-                    <Link to={`/books/${b.book_id}`} className="relative block aspect-[2/3] bg-muted">
+                  <div key={b.book_id} className="flex flex-col min-w-0">
+                    <Link
+                      to={`/books/${b.book_id}`}
+                      className="relative block aspect-[2/3] rounded-[8px] overflow-hidden bg-muted"
+                      style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                    >
                       <CoverImage
                         src={coverSrc(b.book_id, { w: 400 })}
                         alt={b.title}
@@ -413,41 +422,46 @@ export function HardcoverPage() {
                         iconClassName="w-8 h-8"
                       />
                       <span className={cn(
-                        'absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium',
-                        b.error ? 'bg-warning/90 text-black'
-                          : b.state === 'matched' ? 'bg-success/90 text-black'
-                          : b.state === 'excluded' ? 'bg-muted-foreground/80 text-black'
+                        'absolute top-2 left-2 inline-flex items-center h-6 px-2.5 rounded-full text-[12px] font-semibold backdrop-blur-sm',
+                        b.error ? 'bg-warning text-black'
+                          : b.state === 'matched' ? 'bg-success text-black'
+                          : b.state === 'excluded' ? 'bg-black/55 text-white/80'
                           : 'bg-black/60 text-white'
                       )}>
                         {b.error ? t`Error` : i18n._(STATE_LABEL[b.state])}
                       </span>
                     </Link>
-                    <div className="p-2.5 flex flex-col gap-1 grow">
-                      <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{displayTitle(b)}</p>
+                    <div className="pt-3 flex flex-col gap-1 grow min-w-0">
+                      <Link
+                        to={`/books/${b.book_id}`}
+                        className="text-[15px] font-semibold text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors"
+                      >
+                        {displayTitle(b)}
+                      </Link>
                       {b.slug ? (
                         <a
                           href={`https://hardcover.app/books/${b.slug}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5 truncate"
+                          className="text-[12px] text-muted-foreground hover:text-primary inline-flex items-center gap-1 min-w-0"
                         >
                           <span className="truncate">{b.slug}</span>
                           <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
                       ) : (
-                        <p className="text-[11px] text-muted-foreground truncate">
+                        <p className="text-[12px] text-muted-foreground truncate">
                           {b.state === 'excluded' ? t`not syncing` : b.isbn ?? t`no ISBN`}
                         </p>
                       )}
                       {b.error && (
-                        <p className="text-[11px] text-warning inline-flex items-center gap-1">
+                        <p className="text-[12px] text-warning inline-flex items-center gap-1 min-w-0">
                           <AlertTriangle className="w-3 h-3 shrink-0" />
                           <span className="truncate" title={b.error}>{b.error}</span>
                         </p>
                       )}
-                      <div className="mt-auto pt-1.5 flex items-center gap-2 text-[11px]">
+                      <div className="mt-auto pt-1 flex items-center gap-3 text-[13px] font-medium">
                         <button
                           onClick={() => void openPicker(b)}
-                          className="text-primary hover:underline"
+                          className="text-primary hover:underline underline-offset-4"
                           title={t`Search Hardcover and pick the record yourself`}
                         >
                           <Trans>Pick</Trans>
@@ -484,9 +498,9 @@ export function HardcoverPage() {
                 ) })())}
               </div>
             )}
-          </>
+          </div>
         )}
-      </div>
+      </PageBody>
 
       {/* Pick-a-record modal */}
       {pickFor && (
@@ -495,18 +509,17 @@ export function HardcoverPage() {
           onClick={() => setPickFor(null)}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+            className="w-full max-w-lg rounded-[var(--radius-panel)] bg-card shadow-xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <p className="text-sm font-medium text-foreground truncate">
+            <div className="p-5 pb-4">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <p className="font-display text-[20px] font-bold text-foreground truncate">
                   {(() => { const title = displayTitle(pickFor); return <Trans>Match “{title}” to…</Trans> })()}
                 </p>
-                <button onClick={() => setPickFor(null)} aria-label={t`Close`}
-                        className="text-muted-foreground hover:text-foreground">
+                <Pill variant="quiet" icon onClick={() => setPickFor(null)} aria-label={t`Close`} className="-mr-2 shrink-0">
                   <X className="w-4 h-4" />
-                </button>
+                </Pill>
               </div>
               <div className="flex gap-2">
                 <input
@@ -515,41 +528,37 @@ export function HardcoverPage() {
                   onKeyDown={e => { if (e.key === 'Enter') void runPickSearch(pickQuery) }}
                   autoFocus
                   placeholder={t`Search Hardcover…`}
-                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  className="flex-1 min-w-0 h-9 rounded-full bg-secondary px-4 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                <button
-                  onClick={() => void runPickSearch(pickQuery)}
-                  disabled={pickBusy}
-                  className="px-3 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
-                >
+                <Pill variant="primary" onClick={() => void runPickSearch(pickQuery)} disabled={pickBusy}>
                   <Trans>Search</Trans>
-                </button>
+                </Pill>
               </div>
             </div>
-            <div className="max-h-[50vh] overflow-y-auto">
+            <div className="max-h-[50vh] overflow-y-auto px-5 pb-3 border-t border-border/70">
               {pickResults == null ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+                <div className="flex items-center gap-2 text-[14px] text-muted-foreground py-4">
                   <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Searching…</Trans>
                 </div>
               ) : pickResults.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-4"><Trans>No results — try a different query.</Trans></p>
+                <p className="text-[14px] text-muted-foreground py-4"><Trans>No results. Try a different query.</Trans></p>
               ) : (
-                <ul className="divide-y divide-border">
-                  {pickResults.map(c => (
-                    <li key={c.hardcover_book_id}>
+                <ul>
+                  {pickResults.map((c, i) => (
+                    <li key={c.hardcover_book_id} className={cn(i > 0 && 'border-t border-border/70')}>
                       <button
                         onClick={() => void pin(c)}
                         disabled={pickBusy}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/60 transition-colors disabled:opacity-50"
+                        className="w-full flex items-center gap-4 py-3 text-left rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
                       >
                         {c.cover_url ? (
-                          <img src={c.cover_url} alt="" className="w-9 h-14 object-cover rounded-sm shrink-0" />
+                          <img src={c.cover_url} alt="" className="w-10 h-[60px] object-cover rounded-md shrink-0" />
                         ) : (
-                          <span className="w-9 h-14 rounded-sm bg-muted shrink-0" />
+                          <span className="w-10 h-[60px] rounded-md bg-muted shrink-0" />
                         )}
                         <span className="min-w-0">
-                          <span className="block text-sm text-foreground truncate">{c.title}</span>
-                          <span className="block text-xs text-muted-foreground truncate">
+                          <span className="block text-[15px] font-semibold text-foreground truncate">{c.title}</span>
+                          <span className="block text-[13px] text-muted-foreground truncate">
                             {c.authors.join(', ') || t`unknown author`}
                             {c.users_count > 0 && ' · ' + plural(c.users_count, { one: '# reader', other: '# readers' })}
                           </span>

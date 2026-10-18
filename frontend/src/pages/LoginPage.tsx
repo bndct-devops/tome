@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { LogIn, Eye, EyeOff, AlertCircle, Smartphone, X, Clock, KeyRound } from 'lucide-react'
+import { LogIn, Smartphone, X, Clock, KeyRound } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ThemePill } from '@/components/ThemeToggle'
-import { BookAnimation } from '@/components/BookAnimation'
-import { cn } from '@/lib/utils'
+import { Pill } from '@/components/page'
+import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
@@ -169,213 +169,110 @@ export function LoginPage() {
   const fmtTime = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-top">
-      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
-      <style>{`
-        @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up { animation: fade-in-up 0.4s ease-out both; }
-      `}</style>
-
+    <AuthFrame>
       <ThemePill className="fixed top-4 right-4" />
 
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center gap-3 mb-8 cursor-default">
-          <BookAnimation variant="levitate" className="block w-24 h-24 text-primary" strokeWidth={4} />
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tome</h1>
-        </div>
-
-        {/* Card — fade in on mount */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-lg shadow-accent-soft animate-fade-in-up">
-
-          {qcMode ? (
-            /* Quick Connect view */
+      {qcMode ? (
+        <AuthPanel
+          eyebrow={<Trans>Sign in with a code</Trans>}
+          title={<Trans>Quick Connect</Trans>}
+          subtitle={<Trans>Authorize this code from another device</Trans>}
+          aside={
+            <Pill variant="quiet" icon onClick={stopQc} aria-label={t`Cancel`} title={t`Cancel`}>
+              <X className="w-4 h-4" />
+            </Pill>
+          }
+        >
+          {qcError ? (
             <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-medium text-foreground"><Trans>Quick Connect</Trans></h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    <Trans>Authorize this code from another device</Trans>
-                  </p>
-                </div>
-                <button
-                  onClick={stopQc}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  title={t`Cancel`}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {qcError ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-destructive text-sm p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {qcError}
-                  </div>
-                  <button
-                    onClick={() => { setQcError(null); setQcMode(false) }}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-all"
-                  >
-                    <Trans>Try again</Trans>
-                  </button>
-                </div>
-              ) : qcLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : qcCode ? (
-                <div className="space-y-4">
-                  <div className="flex flex-col items-center py-4 gap-2">
-                    <div className="tracking-[0.35em] text-4xl font-bold font-mono text-foreground select-all">
-                      {qcCode}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                      <Clock className="w-3 h-3" />
-                      {(() => { const timeLeft = fmtTime(qcSecondsLeft); return <span><Trans>Expires in {timeLeft}</Trans></span> })()}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-muted/60 border border-border px-4 py-3 text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground text-sm"><Trans>How to authorize</Trans></p>
-                    <p><Trans>On a device where you're already signed in, go to <span className="font-medium text-foreground">Settings &rarr; Security &rarr; Quick Connect</span> and enter this code.</Trans></p>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                    <div className="w-3.5 h-3.5 border-2 border-primary/50 border-t-primary rounded-full animate-spin" />
-                    <Trans>Waiting for authorization…</Trans>
-                  </div>
-                </div>
-              ) : null}
+              <AuthError>{qcError}</AuthError>
+              <Pill variant="secondary" size="lg" className="w-full" onClick={() => { setQcError(null); setQcMode(false) }}>
+                <Trans>Try again</Trans>
+              </Pill>
             </div>
-          ) : (
-            /* Normal login view */
-            <>
-              <h2 className="text-lg font-medium text-foreground mb-1"><Trans>Welcome back</Trans></h2>
-              <p className="text-sm text-muted-foreground mb-6"><Trans>Sign in to your library</Trans></p>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    <Trans>Username or email</Trans>
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                    autoComplete="username"
-                    className={cn(
-                      'w-full px-3 py-2.5 rounded-lg text-sm bg-background border',
-                      'text-foreground placeholder:text-muted-foreground/50',
-                      'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01]',
-                      'transition-all duration-200',
-                      error ? 'border-destructive' : 'border-input'
-                    )}
-                  />
+          ) : qcLoading ? (
+            <div className="flex items-center justify-center py-8 text-primary">
+              <Spinner className="w-6 h-6" />
+            </div>
+          ) : qcCode ? (
+            <div className="space-y-6">
+              <div className="rounded-xl bg-secondary py-6 flex flex-col items-center gap-2">
+                <div className="tracking-[0.35em] pl-[0.35em] text-[36px] leading-none font-bold font-mono tabular-nums text-foreground select-all">
+                  {qcCode}
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    <Trans>Password</Trans>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                      autoComplete="current-password"
-                      className={cn(
-                        'w-full px-3 py-2.5 pr-10 rounded-lg text-sm bg-background border',
-                        'text-foreground placeholder:text-muted-foreground/50',
-                        'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01]',
-                        'transition-all duration-200',
-                        error ? 'border-destructive' : 'border-input'
-                      )}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(s => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                  <Clock className="w-3.5 h-3.5" />
+                  {(() => { const timeLeft = fmtTime(qcSecondsLeft); return <span><Trans>Expires in {timeLeft}</Trans></span> })()}
                 </div>
-
-                {error && (
-                  <div className="flex items-center gap-2 text-destructive text-sm p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={cn(
-                    'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg',
-                    'bg-primary text-primary-foreground text-sm font-medium',
-                    'hover:opacity-90 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/20',
-                    'active:translate-y-0 active:shadow-none',
-                    'transition-all duration-200',
-                    'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none'
-                  )}
-                >
-                  {loading ? (
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <LogIn className="w-4 h-4" />
-                      <Trans>Sign in</Trans>
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {/* SSO + Quick Connect buttons */}
-              <div className="mt-4 pt-4 border-t border-border space-y-3">
-                {sso.enabled && (
-                  <button
-                    onClick={() => { window.location.href = `${API_BASE}/auth/oidc/login` }}
-                    className={cn(
-                      'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg',
-                      'border border-border text-sm font-medium text-foreground',
-                      'hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm',
-                      'transition-all duration-200'
-                    )}
-                  >
-                    <KeyRound className="w-4 h-4" />
-                    {sso.button_label}
-                  </button>
-                )}
-                <button
-                  onClick={startQuickConnect}
-                  className={cn(
-                    'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg',
-                    'border border-border text-sm font-medium text-muted-foreground',
-                    'hover:text-foreground hover:bg-muted hover:-translate-y-0.5 hover:shadow-sm',
-                    'transition-all duration-200'
-                  )}
-                >
-                  <Smartphone className="w-4 h-4" />
-                  <Trans>Quick Connect</Trans>
-                </button>
               </div>
-            </>
-          )}
-        </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          <Trans>Tome · Your personal library</Trans>
-        </p>
-      </div>
-    </div>
+              <div className="text-[14px] text-muted-foreground leading-relaxed">
+                <p className="text-[15px] font-medium text-foreground mb-1"><Trans>How to authorize</Trans></p>
+                <p><Trans>On a device where you're already signed in, go to <span className="font-medium text-foreground">Settings &rarr; Security &rarr; Quick Connect</span> and enter this code.</Trans></p>
+              </div>
+
+              <div className="flex items-center gap-2 text-[14px] text-muted-foreground">
+                <Spinner className="w-3.5 h-3.5 text-primary" />
+                <Trans>Waiting for authorization…</Trans>
+              </div>
+            </div>
+          ) : null}
+        </AuthPanel>
+      ) : (
+        <AuthPanel title={<Trans>Welcome back</Trans>} subtitle={<Trans>Sign in to your library</Trans>}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AuthField label={<Trans>Username or email</Trans>}>
+              <AuthInput
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="you@example.com"
+                required
+                autoComplete="username"
+                invalid={!!error}
+              />
+            </AuthField>
+
+            <AuthField label={<Trans>Password</Trans>}>
+              <AuthPasswordInput
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+                invalid={!!error}
+                shown={showPassword}
+                onToggle={() => setShowPassword(s => !s)}
+              />
+            </AuthField>
+
+            {error && <AuthError>{error}</AuthError>}
+
+            <div className="pt-2">
+              <Pill type="submit" variant="primary" size="lg" disabled={loading} className="w-full">
+                {loading ? <Spinner /> : <><LogIn className="w-4 h-4" /><Trans>Sign in</Trans></>}
+              </Pill>
+            </div>
+          </form>
+
+          <div className="mt-2 flex flex-col gap-2">
+            {sso.enabled && (
+              <Pill variant="secondary" size="lg" className="w-full" onClick={() => { window.location.href = `${API_BASE}/auth/oidc/login` }}>
+                <KeyRound className="w-4 h-4" />
+                {sso.button_label}
+              </Pill>
+            )}
+            <Pill variant="quiet" size="lg" className="w-full" onClick={startQuickConnect}>
+              <Smartphone className="w-4 h-4" />
+              <Trans>Quick Connect</Trans>
+            </Pill>
+          </div>
+        </AuthPanel>
+      )}
+
+      <p className="text-center text-[13px] text-muted-foreground mt-6">
+        <Trans>Tome · Your personal library</Trans>
+      </p>
+    </AuthFrame>
   )
 }

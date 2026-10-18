@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { AuthFrame, Spinner, Wordmark } from '@/components/auth/AuthPanel'
 import { Trans } from '@lingui/react/macro'
 
 /**
@@ -33,11 +34,14 @@ export function OidcCallbackPage() {
   }, [loginWithToken, navigate])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
-      <div className="flex items-center gap-3 text-sm">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <Trans>Signing you in…</Trans>
+    <AuthFrame>
+      <div className="w-full max-w-[420px] rounded-[var(--radius-panel)] bg-background p-8 flex flex-col items-center gap-6">
+        <Wordmark />
+        <div className="flex items-center gap-3 text-[15px] text-muted-foreground">
+          <Spinner className="text-primary" />
+          <Trans>Signing you in…</Trans>
+        </div>
       </div>
-    </div>
+    </AuthFrame>
   )
 }

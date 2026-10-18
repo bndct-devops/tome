@@ -14,8 +14,9 @@ interface SendStatus {
 
 interface SendButtonProps {
   books: { id: number; title: string; files: BookFile[] }[]
-  /** 'rail' = full-width book-detail action; 'bulk' = compact dashboard action. */
-  variant?: 'rail' | 'bulk'
+  /** 'rail' = full-width action; 'bulk' = compact dashboard action;
+   *  'pill' = the book page's secondary large pill. */
+  variant?: 'rail' | 'bulk' | 'pill'
   disabled?: boolean
 }
 
@@ -78,9 +79,53 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
   // Send-to-Device button.
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const btn = variant === 'bulk'
-    ? 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all'
+    ? 'flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-muted disabled:opacity-50 transition-colors'
     : 'flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all duration-200'
   /* eslint-enable lingui/no-unlocalized-strings */
+
+  if (variant === 'pill') {
+    /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+    const half = 'inline-flex h-11 items-center gap-2 bg-secondary text-[15px] font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50'
+    /* eslint-enable lingui/no-unlocalized-strings */
+    if (!status?.koreader) {
+      return (
+        <>
+          <button type="button" onClick={() => setModalOpen(true)} disabled={disabled} className={`${half} rounded-full px-5`}>
+            <Send className="w-4 h-4" />
+            <Trans>Send to Device</Trans>
+          </button>
+          <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
+        </>
+      )
+    }
+    return (
+      <>
+        <div ref={wrapRef} className="relative inline-flex">
+          <button type="button" onClick={sendToKoreader} disabled={disabled || sending} className={`${half} rounded-l-full pl-5 pr-3`}>
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <Trans>Send to KOReader</Trans>
+            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+              <Trans>Beta</Trans>
+            </span>
+          </button>
+          <button type="button" onClick={() => setMenuOpen(o => !o)} disabled={disabled} aria-label={t`More send options`}
+            className={`${half} rounded-r-full border-l border-background/70 pl-2.5 pr-3.5`}>
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          </button>
+          {menuOpen && (
+            <div className="absolute left-0 top-full z-40 mt-1.5 min-w-[13rem] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl">
+              <button type="button" onClick={() => { setMenuOpen(false); setModalOpen(true) }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                <Trans>Send via email…</Trans>
+              </button>
+            </div>
+          )}
+        </div>
+        <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
+      </>
+    )
+  }
 
   // Feature off (or unknown) → plain email button, current behaviour.
   if (!status?.koreader) {

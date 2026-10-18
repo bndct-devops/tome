@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { seed, login, apiToken, apiGet, LIBRARY_DIR } from './helpers'
 
 async function openAllBooks(page: Page) {
-  await page.click('text=All Books')
+  await page.getByRole('button', { name: 'Library', exact: true }).first().click()
   await expect(page.getByText(/of \d+ books|^\d+ books/).first()).toBeVisible()
 }
 

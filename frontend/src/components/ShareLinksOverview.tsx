@@ -42,27 +42,27 @@ export function ShareLinksOverview() {
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
-      <p className="mb-4 text-xs text-muted-foreground">
+    <div>
+      <p className="-mt-3 mb-5 text-[14px] text-muted-foreground max-w-[70ch]">
         <Trans>Every public link you&apos;ve shared — shelves, series, and books. Links show
         metadata, your ratings, highlights, and reading stats; never files. Revoking
         kills a link instantly.</Trans>
       </p>
       {rows === null ? (
-        <p className="animate-pulse text-xs text-muted-foreground"><Trans>Loading…</Trans></p>
+        <p className="animate-pulse text-[13px] text-muted-foreground"><Trans>Loading…</Trans></p>
       ) : rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           <Trans>Nothing shared yet. Use the share icon on a shelf, a series page, or a book page.</Trans>
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col border-y border-border/70 divide-y divide-border/70">
           {rows.map(row => {
             const Icon = KIND_ICON[row.kind]
             return (
               <li
                 key={row.id}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2',
+                  'flex items-center gap-2.5 py-2.5',
                   row.expired && 'opacity-60',
                 )}
               >

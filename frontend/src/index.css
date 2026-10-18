@@ -28,6 +28,9 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-accent-soft: var(--accent-soft);
+  --color-frame: var(--frame);
+  --color-panel-ring: var(--panel-ring);
+  --radius-panel: 22px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -67,6 +70,10 @@
   --ring: oklch(0.45 0.115 18);
   --chart-accent: oklch(0.52 0.13 18);
   --accent-soft: oklch(0.45 0.115 18 / 0.12);
+  /* The frame behind the sidebar and header; the page content is a rounded
+     panel set into it, one step lighter (dark themes) or lighter (light themes). */
+  --frame: oklch(0.945 0.004 85);
+  --panel-ring: transparent;
 }
 
 /* Dark — near-neutral with a trace of warmth (not zinc, not espresso)
@@ -102,6 +109,7 @@
   --ring: oklch(0.64 0.12 22);
   --chart-accent: oklch(0.64 0.12 22);
   --accent-soft: oklch(0.64 0.12 22 / 0.16);
+  --frame: oklch(0.115 0.004 60);
 }
 
 /* Ember — the warm cappuccino dark: espresso surfaces, same rosewood accent.
@@ -116,6 +124,7 @@
   --muted-foreground: oklch(0.74 0.015 70);
   --border: oklch(0.95 0.015 60 / 16%);
   --input: oklch(0.95 0.015 60 / 20%);
+  --frame: oklch(0.13 0.012 60);
 }
 
 /* Black — true-black OLED theme, same wine identity.
@@ -133,6 +142,8 @@
   --accent-soft: oklch(0.67 0.12 22 / 0.18);
   --border: oklch(1 0 0 / 17%);
   --input: oklch(1 0 0 / 21%);
+  --frame: oklch(0 0 0);
+  --panel-ring: oklch(1 0 0 / 12%);
 }
 
 /* Amber (warm parchment) theme */
@@ -162,6 +173,7 @@
   --ring: oklch(0.50 0.155 52);
   --chart-accent: oklch(0.56 0.155 52);
   --accent-soft: oklch(0.50 0.155 52 / 0.12);
+  --frame: oklch(0.94 0.012 70);
 }
 
 /* Card stagger entrance animation */
@@ -183,6 +195,22 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
+}
+
+/* Settings and Admin replace the app sidebar with their own section list,
+   which slides in from the left (no fade: the frame behind it is painted). */
+@keyframes section-sidebar-in { from { transform: translateX(-16px); } to { transform: none; } }
+
+/* Quick look: the veil fades in over the page, the card scales up from the
+   centre. Both start from nothing on purpose: they are new layers over the
+   page, not content inside a painted container. */
+@keyframes quicklook-veil { from { opacity: 0; } to { opacity: 1; } }
+@keyframes quicklook-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.965); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[quicklook-in_220ms_cubic-bezier\(0\.2\,0\.8\,0\.2\,1\)\] { animation: none; }
 }
 
 /* Focus-mode cover bloom — a soft black halo on light themes, a neutral light

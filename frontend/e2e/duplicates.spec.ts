@@ -13,7 +13,7 @@ test.describe('duplicates apply-all', () => {
   })
 
   function group(page: Page, containsText: string) {
-    return page.locator('div.rounded-xl', { hasText: containsText }).first()
+    return page.getByTestId('duplicate-group').filter({ hasText: containsText }).first()
   }
 
   test('mixed decisions apply in one pass and survive one refresh', async ({ page, request }) => {
@@ -65,13 +65,13 @@ test.describe('duplicates apply-all', () => {
     // delete runs first (render order), so the merge's keeper is gone by the
     // time it executes — it must fail loudly, not silently.
     const exact = page
-      .locator('div.rounded-xl', { has: page.getByText('Exact Match'), hasText: 'Naruto Vol. 1 (copy)' })
+      .getByTestId('duplicate-group').filter({ has: page.getByText('Exact Match'), hasText: 'Naruto Vol. 1 (copy)' })
       .first()
     await exact.locator('label', { hasText: /^Naruto Vol\. 1(?! \(copy\))/ }).first().locator('input[type=radio]').check()
     await exact.locator('button:has-text("Delete")').first().click()
 
     const seriesGroup = page
-      .locator('div.rounded-xl', { has: page.getByText('Same Series Volume'), hasText: 'Naruto Vol. 1 (copy)' })
+      .getByTestId('duplicate-group').filter({ has: page.getByText('Same Series Volume'), hasText: 'Naruto Vol. 1 (copy)' })
       .first()
     await seriesGroup.locator('label', { hasText: 'Naruto Vol. 1 (copy)' }).first().locator('input[type=radio]').check()
     await seriesGroup.locator('button:has-text("Merge")').click()

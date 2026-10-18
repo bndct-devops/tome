@@ -2,7 +2,7 @@ import { Fragment, useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import {
   BookOpen, Plus, Pencil, Share2, Trash2,
-  ChevronLeft, ChevronRight, Bookmark, Library as LibraryIcon, Layers, Home, BarChart3,
+  PanelLeftClose, PanelLeftOpen, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
   Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays,
   type LucideIcon,
@@ -111,9 +111,11 @@ interface Props {
   onOpenHomeView: () => void
   mobileOpen: boolean
   onMobileClose: () => void
+  /** A page that brings its own desktop sidebar (Settings, Admin) keeps only the phone drawer. */
+  desktopHidden?: boolean
 }
 
-export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange, onSavedFiltersChange, onOpenSeriesView, onOpenHomeView, mobileOpen, onMobileClose }: Props) {
+export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange, onSavedFiltersChange, onOpenSeriesView, onOpenHomeView, mobileOpen, onMobileClose, desktopHidden }: Props) {
   const { t } = useLingui()
   const [open, setOpen] = useState(() => localStorage.getItem(SIDEBAR_KEY) !== 'closed')
   const [searchParams] = useSearchParams()
@@ -204,17 +206,34 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   }
 
   const navItems = ([
-    { id: 'home', label: t`Home`, icon: Home, onSelect: onOpenHomeView, active: isHomeTab },
-    { id: 'books', label: t`All Books`, icon: BookOpen, onSelect: selectAllBooks, active: isAllBooks },
-    { id: 'series', label: t`Series`, icon: Layers, onSelect: onOpenSeriesView, active: isSeriesTab },
-    { id: 'stats', label: t`Stats`, icon: BarChart3, to: '/stats' },
-    { id: 'calendar', label: t`Calendar`, icon: CalendarDays, to: '/calendar' },
-    { id: 'highlights', label: t`Highlights`, icon: Quote, to: '/highlights' },
-    { id: 'wishlist', label: t`Wishlist`, icon: Sparkles, to: '/wishlist', visible: isMember },
-    { id: 'hardcover', label: t`Hardcover`, icon: BookMarked, to: '/hardcover', visible: isMember },
-    { id: 'bindery', label: t`Bindery`, icon: BookPlus, to: '/bindery', visible: isAdmin,
+    { id: 'home', group: 'main', label: t`Home`, icon: Home, onSelect: onOpenHomeView, active: isHomeTab },
+    { id: 'books', group: 'main', label: t`Library`, icon: BookOpen, onSelect: selectAllBooks, active: isAllBooks },
+    { id: 'series', group: 'main', label: t`Series`, icon: Layers, onSelect: onOpenSeriesView, active: isSeriesTab },
+    { id: 'stats', group: 'reading', label: t`Stats`, icon: BarChart3, to: '/stats' },
+    { id: 'calendar', group: 'reading', label: t`Calendar`, icon: CalendarDays, to: '/calendar' },
+    { id: 'highlights', group: 'reading', label: t`Highlights`, icon: Quote, to: '/highlights' },
+    { id: 'wishlist', group: 'reading', label: t`Wishlist`, icon: Sparkles, to: '/wishlist', visible: isMember },
+    { id: 'bindery', group: 'manage', label: t`Bindery`, icon: BookPlus, to: '/bindery', visible: isAdmin,
       badge: { count: binderyCount, pulse: badgePulse } },
+    { id: 'hardcover', group: 'manage', label: t`Hardcover`, icon: BookMarked, to: '/hardcover', visible: isMember },
   ] satisfies NavItem[]).filter(item => item.visible?.(user) ?? true)
+
+  // Three groups: what you use daily, your reading, and the things you manage.
+  const groups: { id: NavGroup; label: string | null }[] = [
+    { id: 'main', label: null },
+    { id: 'reading', label: t`Reading` },
+    { id: 'manage', label: t`Manage` },
+  ]
+  const renderGroups = (variant: NavVariant, onActivate?: () => void) => groups.map(g => {
+    const items = navItems.filter(i => i.group === g.id)
+    if (items.length === 0) return null
+    return (
+      <div key={g.id}>
+        {g.label && <GroupLabel>{g.label}</GroupLabel>}
+        <div className="space-y-0.5">{items.map(item => <NavEntry key={item.id} item={item} variant={variant} onActivate={onActivate} />)}</div>
+      </div>
+    )
+  })
 
   function openCreateLibModal() {
     setLibModalTitle(t`New Library`)
@@ -262,7 +281,6 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     <>
       <Section
         title={t`Libraries`}
-        icon={<LibraryIcon className="w-3 h-3" />}
         onAdd={openCreateLibModal} addLabel={t`New library`}
       >
         {libraries.map(lib => (
@@ -287,7 +305,6 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       {savedFilters.length > 0 && (
         <Section
           title={t`Shelves`}
-          icon={<Bookmark className="w-3 h-3" />}
         >
           {savedFilters.map(sf => (
             <SidebarItem
@@ -363,11 +380,16 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         />
       )}
       <aside className={cn(
-        // Same recede tint as the Home rail — the content column is the page's
-        // one elevated surface, and the nav frames it instead of competing.
-        'hidden md:flex shrink-0 flex-col border-r border-border bg-muted/40 transition-all duration-200',
-        open ? 'w-52' : 'w-10'
+        // Part of the frame: no line against the content panel, which is set
+        // into the frame colour. The wordmark lives here, full height.
+        'shrink-0 flex-col bg-frame transition-all duration-200',
+        desktopHidden ? 'hidden' : 'hidden md:flex',
+        open ? 'w-64' : 'w-14'
       )}>
+        <div className={cn('group h-14 shrink-0 flex items-center gap-2 cursor-default', open ? 'px-5' : 'justify-center')}>
+          <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
+          {open && <span className="font-semibold text-[14px] text-foreground">Tome</span>}
+        </div>
         {!open && (
           <div className="flex flex-col items-center flex-1 overflow-y-auto py-2 space-y-0.5 overscroll-contain">
             {navItems.map(item => <NavEntry key={item.id} item={item} variant="rail" />)}
@@ -417,11 +439,8 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         )}
 
         {open && (
-          <nav className="flex-1 overflow-y-auto px-2 pt-3 pb-4 space-y-4 overscroll-contain">
-            <div>
-              {navItems.map(item => <NavEntry key={item.id} item={item} variant="sidebar" />)}
-            </div>
-
+          <nav className="flex-1 overflow-y-auto px-3 pt-1 pb-4 overscroll-contain">
+            {renderGroups('sidebar')}
             {libraryAndShelfSections}
           </nav>
         )}
@@ -448,13 +467,13 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           {/* Drawer panel */}
           <div
             className={cn(
-              'fixed inset-y-0 left-0 z-50 w-72 flex flex-col border-r border-border bg-card safe-top',
+              'fixed inset-y-0 left-0 z-50 w-72 flex flex-col bg-frame safe-top',
               mobileOpen ? 'translate-x-0' : '-translate-x-full'
             )}
             style={{ transition: 'transform 0.35s var(--spring)' }}
           >
             {/* Header with close button */}
-            <div className="flex items-center justify-between px-3 h-14 border-b border-border shrink-0">
+            <div className="flex items-center justify-between px-5 h-14 shrink-0">
               <div className="flex items-center gap-2 group cursor-default">
                 <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
                 <span className="font-semibold text-sm">Tome</span>
@@ -468,20 +487,17 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4 overscroll-contain">
-              <div>
-                {navItems.map(item => <NavEntry key={item.id} item={item} variant="drawer" onActivate={onMobileClose} />)}
-              </div>
-
+            <nav className="flex-1 overflow-y-auto px-3 py-3 overscroll-contain">
+              {renderGroups('drawer', onMobileClose)}
               {libraryAndShelfSections}
             </nav>
 
             {/* Mobile user footer */}
-            <div className="shrink-0 border-t border-border">
+            <div className="shrink-0">
               {/* User info */}
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex w-9 h-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0 ring-2 ring-primary/20">
-                  {(user?.username ?? '?').slice(0, 2).toUpperCase()}
+              <div className="flex items-center gap-3 px-5 py-3">
+                <div className="flex w-9 h-9 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground shrink-0">
+                  {(user?.username ?? '?').slice(0, 1).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{user?.username}</p>
@@ -536,8 +552,10 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 }
 
 
+type NavGroup = 'main' | 'reading' | 'manage'
 type NavItem = {
   id: string
+  group: NavGroup
   label: string
   icon: LucideIcon
   // Hides the entry from the nav; it does not restrict access.
@@ -555,15 +573,15 @@ const NAV_VARIANTS: Record<NavVariant, { entryClassName: string; activeClassName
     showLabel: false,
   },
   sidebar: {
-    entryClassName: 'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all touch-feedback',
-    activeClassName: 'bg-primary/10 text-primary font-medium',
+    entryClassName: 'group flex items-center gap-2.5 w-full h-9 px-3 rounded-lg text-[14px] transition-colors touch-feedback',
+    activeClassName: 'bg-primary/10 text-foreground font-medium [&>svg]:text-primary',
     iconClassName: 'w-4 h-4 shrink-0',
     showLabel: true,
   },
   drawer: {
-    entryClassName: 'group flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all touch-feedback',
-    activeClassName: 'bg-primary/10 text-primary font-medium',
-    iconClassName: 'w-5 h-5 shrink-0',
+    entryClassName: 'group flex items-center gap-2.5 w-full h-10 px-3 rounded-lg text-[15px] transition-colors touch-feedback',
+    activeClassName: 'bg-primary/10 text-foreground font-medium [&>svg]:text-primary',
+    iconClassName: 'w-4 h-4 shrink-0',
     showLabel: true,
   },
 }
@@ -592,7 +610,7 @@ function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: numbe
   // The rail is icon-only, too narrow for a number.
   if (variant === 'rail') return <span className={cn('absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary', pulseClassName)} />
   return (
-    <span className={cn('ml-auto text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full', pulseClassName)}>
+    <span className={cn('ml-auto min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold tabular-nums', pulseClassName)}>
       {count}
     </span>
   )
@@ -676,23 +694,23 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
-    <div ref={ref} className="relative shrink-0 border-t border-border flex flex-col items-center gap-0.5 py-2">
+    <div ref={ref} className="relative shrink-0 flex flex-col items-center gap-1 py-3">
       <button
         onClick={onExpand}
         title={t`Expand sidebar`}
         aria-label={t`Expand sidebar`}
-        className="flex items-center justify-center w-9 h-7 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-accent/60 transition-colors"
+        className="flex items-center justify-center w-9 h-8 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
       >
-        <ChevronRight className="w-4 h-4" />
+        <PanelLeftOpen className="w-4 h-4" />
       </button>
       <button
         onClick={() => setOpen(o => !o)}
         title={user?.username ?? t`User menu`}
         aria-label={user?.username ?? t`User menu`}
-        className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent/60 transition-colors"
+        className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-secondary transition-colors"
       >
-        <div className="flex w-6 h-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary ring-2 ring-primary/20">
-          {(user?.username ?? '?').slice(0, 2).toUpperCase()}
+        <div className="flex w-8 h-8 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">
+          {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
       </button>
       {open && (
@@ -742,28 +760,31 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
-    <div ref={ref} className="relative shrink-0 border-t border-border px-2 py-2.5 flex items-center gap-0.5">
+    <div ref={ref} className="relative shrink-0 px-3 py-3 flex items-center gap-1">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[13px] hover:bg-accent/60 transition-colors"
+        className="flex items-center gap-3 flex-1 min-w-0 px-1 py-1 rounded-lg hover:bg-secondary transition-colors text-left"
       >
-        <div className="flex w-6 h-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary shrink-0 ring-2 ring-primary/20">
-          {(user?.username ?? '?').slice(0, 2).toUpperCase()}
+        <div className="flex w-8 h-8 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground shrink-0">
+          {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
-        <span className="truncate font-medium text-foreground/80 flex-1 text-left">{user?.username}</span>
-        <ChevronsUpDown className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-medium text-foreground">{user?.username}</span>
+          {(user?.is_admin || user?.role === 'admin') && <span className="block text-[11px] leading-none text-muted-foreground"><Trans>Admin</Trans></span>}
+        </span>
+        <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
       </button>
       <button
         onClick={onCollapse}
         title={t`Collapse sidebar`}
         aria-label={t`Collapse sidebar`}
-        className="flex items-center justify-center w-7 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-accent/60 transition-colors"
+        className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
       >
-        <ChevronLeft className="w-4 h-4" />
+        <PanelLeftClose className="w-4 h-4" />
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-2 right-2 mb-1 bg-card border border-border rounded-xl shadow-lg shadow-accent-soft py-1.5 z-50">
+        <div className="absolute bottom-full left-3 right-3 mb-1 bg-card border border-border rounded-xl shadow-lg shadow-accent-soft py-1.5 z-50">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -792,9 +813,13 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
   )
 }
 
-function Section({ title, icon, onAdd, addLabel, onTitleClick, children }: {
+/** A group label in the nav: small caps, no icon. */
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-3 mt-5 mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">{children}</div>
+}
+
+function Section({ title, onAdd, addLabel, onTitleClick, children }: {
   title: string
-  icon: React.ReactNode
   onAdd?: () => void
   /** Accessible label for the add button, e.g. "New library". */
   addLabel?: string
@@ -803,20 +828,20 @@ function Section({ title, icon, onAdd, addLabel, onTitleClick, children }: {
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between px-2 mb-1">
+      <div className="flex items-center justify-between px-3 mt-5 mb-1">
         <button
           onClick={onTitleClick}
           className={cn(
-            'flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors',
+            'text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 transition-colors',
             onTitleClick && 'hover:text-foreground cursor-pointer'
           )}
         >
-          {icon} {title}
+          {title}
         </button>
         {onAdd && (
           <button
             onClick={onAdd}
-            className="p-2.5 -m-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="w-5 h-5 grid place-items-center rounded text-muted-foreground/70 hover:text-foreground hover:bg-secondary transition-colors"
             title={addLabel}
             aria-label={addLabel}
           >
@@ -844,14 +869,14 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
   return (
     <div
       className={cn(
-        'group flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-all cursor-pointer',
+        'group flex items-center gap-2.5 w-full h-9 px-3 rounded-lg text-[14px] transition-colors cursor-pointer',
         active
-          ? 'bg-primary/10 text-primary font-medium'
+          ? 'bg-primary/10 text-foreground font-medium [&_svg]:text-primary'
           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
       )}
       onClick={onClick}
     >
-      <span className="shrink-0 sidebar-item-icon">{getIcon(iconName)}</span>
+      <span className="shrink-0 sidebar-item-icon w-4 h-4 grid place-items-center">{getIcon(iconName, 'w-4 h-4')}</span>
       <span className="truncate flex-1">{label}</span>
       {isPrivate && (
         <span title={t`Private library`} className="shrink-0 flex items-center group-hover:hidden group-focus-within:hidden">
@@ -860,7 +885,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
       )}
       {/* A ghost "0" on an empty library was pure noise — no count reads cleaner. */}
       {count != null && count > 0 && !isPrivate && (
-        <span className="text-[10px] shrink-0 text-muted-foreground group-hover:hidden group-focus-within:hidden">
+        <span className="text-[12px] tabular-nums shrink-0 text-muted-foreground/70 group-hover:hidden group-focus-within:hidden">
           {count}
         </span>
       )}
