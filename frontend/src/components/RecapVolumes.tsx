@@ -18,6 +18,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
 import { cn } from '@/lib/utils'
+import { Pill } from '@/components/page'
 import {
   getRecapVolumes, requestVolumeRecap, isVolumeRecapPending, isAlreadyRunning, startWriteAll,
   startDigest, getDigestJob, cancelDigestJob, activeJobLine, isWriteAllJob,
@@ -250,44 +251,39 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
     || allNotice != null || allError != null
 
   return (
-    <div className="rounded-lg border border-border bg-muted/40">
+    <div>
       {showHeader && (
-        <div className="px-3 py-2 space-y-1.5 border-b border-border/60">
+        <div className="space-y-2 pb-3">
           {showOffer && (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-              <p className="text-xs text-muted-foreground min-w-0">{offerText}</p>
-              <button
-                type="button"
-                onClick={() => void clickWriteAll()}
-                disabled={allStarting}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-60"
-              >
-                {allStarting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <p className="text-[13px] text-muted-foreground min-w-0">{offerText}</p>
+              <Pill onClick={() => void clickWriteAll()} disabled={allStarting} className="shrink-0">
+                {allStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 <Trans>Write all</Trans>
-              </button>
+              </Pill>
             </div>
           )}
           {running && allJob && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-muted-foreground" role="status">
               <span className="flex items-center gap-2 min-w-0">
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                 {activeJobLine(allJob)}
               </span>
               {allJob.status !== 'stopping' && (
-                <button type="button" onClick={() => void stopAll()} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+                <Pill variant="quiet" className="-my-2" onClick={() => void stopAll()}>
                   <Trans>Stop</Trans>
-                </button>
+                </Pill>
               )}
             </div>
           )}
           {endedLine && (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Pause className="w-3 h-3 shrink-0" />
+            <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              <Pause className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0">{endedLine}</span>
             </p>
           )}
           {errorCount > 0 && (
-            <p className="text-xs text-destructive">
+            <p className="text-[13px] text-destructive">
               {plural(errorCount, {
                 one: '# recap could not be written. Try Write it on it.',
                 other: '# recaps could not be written. Try Write it on them.',
@@ -295,25 +291,25 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
             </p>
           )}
           {unreadCount > 0 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               {plural(unreadCount, {
                 one: '# volume still needs its chapters read; use Write it on it.',
                 other: '# volumes still need their chapters read; use Write it on them.',
               })}
             </p>
           )}
-          {allNotice && <p className="text-xs text-muted-foreground">{allNotice}</p>}
-          {allError && <p className="text-xs text-destructive">{allError}</p>}
+          {allNotice && <p className="text-[13px] text-muted-foreground">{allNotice}</p>}
+          {allError && <p className="text-[13px] text-destructive">{allError}</p>}
         </div>
       )}
-      <ul className="divide-y divide-border/60">
+      <ul className="divide-y divide-border/70">
         {volumes == null && !loadError && (
-          <li className="px-3 py-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <li className="flex items-center gap-2 py-3 text-[14px] text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
             <Trans>Loading the earlier volumes…</Trans>
           </li>
         )}
-        {loadError && <li className="px-3 py-2 text-xs text-destructive">{loadError}</li>}
+        {loadError && <li className="py-3 text-[13px] text-destructive">{loadError}</li>}
         {volumes?.map(v => (
           <VolumeRow
             key={v.book_id}
@@ -328,8 +324,8 @@ export function RecapVolumes({ bookId, renderParagraph, current, onDigestEnded, 
             onTextShown={onTextShown}
           />
         ))}
-        <li className="px-3 py-2.5 space-y-2">
-          <p className="text-sm font-medium text-foreground"><Trans>This book</Trans></p>
+        <li className="space-y-3 py-3">
+          <p className="text-[15px] font-semibold text-foreground"><Trans>This book</Trans></p>
           {current}
         </li>
       </ul>
@@ -535,29 +531,26 @@ function VolumeRow({ bookId, vol, canWrite, locked, renderParagraph, onChange, o
       : null
   const busy = phase !== 'idle' || isActive(job)
 
-  const linkButtonClassName = 'flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-60'
-  const buttonClassName = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-60 shrink-0'
-
   let progress: React.ReactNode = null
   if (phase === 'writing') {
     progress = (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+      <p className="flex items-center gap-2 text-[14px] text-muted-foreground" role="status">
+        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
         <Trans>Writing the recap. This can take up to a minute.</Trans>
       </p>
     )
   } else if (phase === 'waiting') {
     const text = job == null ? t`Getting ready to read the chapters…` : activeJobLine(job)
     progress = (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-muted-foreground" role="status">
         <span className="flex items-center gap-2 min-w-0">
-          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           {text}
         </span>
         {job != null && job.status !== 'stopping' && (
-          <button type="button" onClick={() => void stop()} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+          <Pill variant="quiet" className="-my-2" onClick={() => void stop()}>
             <Trans>Stop</Trans>
-          </button>
+          </Pill>
         )}
       </div>
     )
@@ -573,8 +566,8 @@ function VolumeRow({ bookId, vol, canWrite, locked, renderParagraph, onChange, o
         ? t`Interrupted by a server restart after ${done} of ${total} chapters.`
         : t`Stopped after ${done} of ${total} chapters.`
     stoppedLine = (
-      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Pause className="w-3 h-3 shrink-0" />
+      <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+        <Pause className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0">{text}</span>
       </p>
     )
@@ -586,26 +579,24 @@ function VolumeRow({ bookId, vol, canWrite, locked, renderParagraph, onChange, o
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className={cn('w-full text-left px-3 py-2 transition-colors', !open && 'hover:bg-muted/60')}
+        className="group flex w-full items-center gap-3 py-3 text-left"
       >
-        <span className="flex items-baseline gap-2 min-w-0">
-          <span className="text-sm font-medium text-foreground min-w-0 break-words">{label}</span>
-          <span className="ml-auto flex items-center gap-2 shrink-0 self-center">
-            {busy && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-            {statusWord && <span className="text-xs text-muted-foreground">{statusWord}</span>}
-            <ChevronDown className={cn('w-3 h-3 text-muted-foreground/50 transition-transform', !open && '-rotate-90')} />
-          </span>
+        <span className="min-w-0 flex-1 break-words text-[15px] font-semibold text-foreground transition-colors group-hover:text-primary">{label}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          {statusWord && <span className="text-[13px] text-muted-foreground">{statusWord}</span>}
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
         </span>
       </button>
       {open && (
-        <div className="px-3 pb-3 space-y-3">
+        <div className="max-w-[70ch] space-y-3 pb-4">
           {hasText && vol.text != null && phase !== 'writing' && (
             <>
               {paragraphs(vol.text).map((p, i) => (
-                <p key={i} className="text-sm text-foreground leading-relaxed">{renderParagraph(p)}</p>
+                <p key={i} className="text-[15px] leading-relaxed text-foreground/85">{renderParagraph(p)}</p>
               ))}
               {vol.status === 'partial' && (
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-[13px] text-muted-foreground">
                   {plural(unread, {
                     one: 'Written with # chapter unread, so it may skip parts.',
                     other: 'Written with # chapters unread, so it may skip parts.',
@@ -615,7 +606,7 @@ function VolumeRow({ bookId, vol, canWrite, locked, renderParagraph, onChange, o
             </>
           )}
           {!hasText && phase === 'idle' && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               {unread > 0 && canWrite
                 ? plural(unread, {
                     one: 'Not written yet. # chapter needs to be read first.',
@@ -626,28 +617,28 @@ function VolumeRow({ bookId, vol, canWrite, locked, renderParagraph, onChange, o
           )}
           {progress}
           {stoppedLine}
-          {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {notice && <p className="text-[13px] text-muted-foreground">{notice}</p>}
+          {error && <p className="text-[13px] text-destructive">{error}</p>}
           {canWrite && !busy && (
             !hasText ? (
-              <button type="button" onClick={() => void writeIt()} disabled={locked} className={buttonClassName}>
+              <Pill onClick={() => void writeIt()} disabled={locked}>
                 <Trans>Write it</Trans>
-              </button>
+              </Pill>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 pt-1 border-t border-border/60">
-                <p className="text-xs text-muted-foreground/70 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border/70 pt-2">
+                <p className="text-[13px] text-muted-foreground">
                   <Trans>Written for the whole volume · cached, free to reopen</Trans>
                 </p>
                 {vol.status === 'partial' ? (
-                  <button type="button" onClick={() => void writeIt({ force: true })} disabled={locked} className={cn(linkButtonClassName, 'pt-2')}>
-                    <RotateCcw className="w-3 h-3" />
+                  <Pill variant="quiet" className="-mr-3" onClick={() => void writeIt({ force: true })} disabled={locked}>
+                    <RotateCcw className="h-4 w-4" />
                     <Trans>Write again</Trans>
-                  </button>
+                  </Pill>
                 ) : (
-                  <button type="button" onClick={() => void writeIt({ again: true })} disabled={locked} className={cn(linkButtonClassName, 'pt-2')}>
-                    <RotateCcw className="w-3 h-3" />
+                  <Pill variant="quiet" className="-mr-3" onClick={() => void writeIt({ again: true })} disabled={locked}>
+                    <RotateCcw className="h-4 w-4" />
                     <Trans>Ask again</Trans>
-                  </button>
+                  </Pill>
                 )}
               </div>
             )

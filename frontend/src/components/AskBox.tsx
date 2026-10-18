@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MessageCircleQuestion } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
+import { Pill } from '@/components/page'
 import { askBook, isAlreadyRunning, ASK_MAX_CHARS, type AskResult, type SeriesPlace } from '@/lib/ai'
 
 type Props = {
@@ -75,60 +76,63 @@ export function AskBox({ bookId, placeLabel, costHintUsd }: Props) {
     : null
 
   return (
-    <div className="space-y-2">
-      <form
-        className="flex items-center gap-2"
-        onSubmit={e => { e.preventDefault(); void ask() }}
-      >
-        <div className="relative flex-1 min-w-0">
-          <MessageCircleQuestion className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
-          <input
-            type="text"
-            value={question}
-            onChange={e => setQuestion(e.target.value)}
-            maxLength={ASK_MAX_CHARS}
-            placeholder={t`Ask about what you have read`}
-            aria-label={t`Ask about what you have read`}
-            className="w-full rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={asking || !trimmed}
-          title={t`Sends the chapters it needs, all before your position, to Anthropic`}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-60 shrink-0"
+    <div className="space-y-3">
+      <div>
+        <form
+          className="flex items-center gap-2"
+          onSubmit={e => { e.preventDefault(); void ask() }}
         >
-          {asking && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          {asking ? <Trans>Asking…</Trans> : <Trans>Ask</Trans>}
-        </button>
-      </form>
-      <p className="text-xs text-muted-foreground/70">
-        {hint
-          ? <Trans>Reads the chapters it needs, up to about {hint} a question. Never past your position.</Trans>
-          : <Trans>Reads the chapters it needs, around 10 to 30 cents a question. Never past your position.</Trans>}
-      </p>
-      {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="relative flex-1 min-w-0">
+            <MessageCircleQuestion className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={question}
+              onChange={e => setQuestion(e.target.value)}
+              maxLength={ASK_MAX_CHARS}
+              placeholder={t`Ask about what you have read`}
+              aria-label={t`Ask about what you have read`}
+              className="h-9 w-full rounded-full bg-secondary pl-10 pr-4 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <Pill
+            type="submit"
+            variant="secondary"
+            disabled={asking || !trimmed}
+            title={t`Sends the chapters it needs, all before your position, to Anthropic`}
+            className="shrink-0"
+          >
+            {asking && <Loader2 className="h-4 w-4 animate-spin" />}
+            {asking ? <Trans>Asking…</Trans> : <Trans>Ask</Trans>}
+          </Pill>
+        </form>
+        <p className="mt-1.5 text-[13px] text-muted-foreground">
+          {hint
+            ? <Trans>Reads the chapters it needs, up to about {hint} a question. Never past your position.</Trans>
+            : <Trans>Reads the chapters it needs, around 10 to 30 cents a question. Never past your position.</Trans>}
+        </p>
+      </div>
+      {notice && <p className="text-[13px] text-muted-foreground">{notice}</p>}
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
       {result && (
-        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 space-y-1.5">
-          <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{result.answer}</p>
-          {result.found && result.quotes.map((q, i) => {
-            const where = placeLabel(q)
-            return (
-              <div key={`${q.book_id}:${q.chapter_idx}:${i}`} className="space-y-0.5">
-                <p className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-2.5">{q.text}</p>
-                <p className="text-xs text-muted-foreground/70 pl-3">{where}</p>
-              </div>
-            )
-          })}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={clear}
-              className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-            >
+        <div className="max-w-[70ch]">
+          <p className="text-[15px] leading-relaxed text-foreground/85 whitespace-pre-line">{result.answer}</p>
+          {result.found && result.quotes.length > 0 && (
+            <ul className="mt-3 divide-y divide-border/70 border-t border-border/70">
+              {result.quotes.map((q, i) => {
+                const where = placeLabel(q)
+                return (
+                  <li key={`${q.book_id}:${q.chapter_idx}:${i}`} className="py-2.5">
+                    <p className="text-[14px] italic leading-relaxed text-foreground/85">{q.text}</p>
+                    <p className="mt-0.5 text-[13px] text-muted-foreground">{where}</p>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <div className="mt-1 flex justify-end">
+            <Pill variant="quiet" className="-mr-3" onClick={clear}>
               <Trans>Clear</Trans>
-            </button>
+            </Pill>
           </div>
         </div>
       )}

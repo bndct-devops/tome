@@ -93,34 +93,37 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
   const truncated = useFull ? full?.timeline_truncated : e.timeline_truncated
 
   return (
-    <div className="px-3 pb-2.5 -mt-0.5 space-y-1.5">
-      {!v2 && e.more && <p className="text-sm text-foreground leading-relaxed">{e.more}</p>}
-      {v2 && statusText && (
-        <p className="text-sm text-foreground leading-snug">
-          <span className="text-muted-foreground"><Trans>Status:</Trans></span> {statusText}
-          {statusAt && (
-            <span className="text-xs text-muted-foreground/70"> <Trans>as of {statusAt}</Trans></span>
+    <div className="max-w-[70ch] space-y-4 pb-4">
+      {!v2 && e.more && <p className="text-[15px] leading-relaxed text-foreground/85">{e.more}</p>}
+      {v2 && (statusText || facts.length > 0) && (
+        <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          {statusText && (
+            <div>
+              <dt className="text-[13px] text-muted-foreground"><Trans>Status</Trans></dt>
+              <dd className="mt-0.5 text-[15px] leading-snug text-foreground">
+                {statusText}
+                {statusAt && (
+                  <span className="text-[13px] text-muted-foreground"> <Trans>as of {statusAt}</Trans></span>
+                )}
+                {statusEarlier && (
+                  <span className="mt-0.5 block text-[13px] text-muted-foreground">
+                    <Trans>earlier: {statusEarlier}</Trans>
+                  </span>
+                )}
+              </dd>
+            </div>
           )}
-          {statusEarlier && (
-            <span className="block text-xs text-muted-foreground/70">
-              <Trans>earlier: {statusEarlier}</Trans>
-            </span>
-          )}
-        </p>
-      )}
-      {v2 && facts.length > 0 && (
-        <dl className="space-y-0.5">
           {facts.map(({ field, label, fact }) => {
             const at = shortPlace(fact!)
             const earlier = earlierText(fact)
             return (
-              <div key={field} className="text-sm leading-snug">
-                <dt className="inline text-muted-foreground">{label}: </dt>
-                <dd className="inline text-foreground">
+              <div key={field}>
+                <dt className="text-[13px] text-muted-foreground">{label}</dt>
+                <dd className="mt-0.5 text-[15px] leading-snug text-foreground">
                   {fact!.value}
-                  <span className="text-xs text-muted-foreground/70"> · {at}</span>
+                  <span className="text-[13px] text-muted-foreground"> · {at}</span>
                   {earlier && (
-                    <span className="block text-xs text-muted-foreground/70">
+                    <span className="mt-0.5 block text-[13px] text-muted-foreground">
                       <Trans>earlier: {earlier}</Trans>
                     </span>
                   )}
@@ -131,32 +134,29 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
         </dl>
       )}
       {v2 && timeline.length > 0 && (
-        <div className="space-y-0.5">
+        <div>
           {truncated && (
-            <p className="text-xs text-muted-foreground/70"><Trans>Earlier lines not shown.</Trans></p>
+            <p className="pb-1 text-[13px] text-muted-foreground"><Trans>Earlier lines not shown.</Trans></p>
           )}
-          <ul className="space-y-0.5">
+          <ul className="divide-y divide-border/70">
             {timeline.map((item, i) => (
-              <li key={`${item.book_id}:${item.chapter_idx}:${i}`} className="text-xs text-muted-foreground leading-snug">
-                <span className="text-muted-foreground/70">{shortPlace(item)}</span> · {item.line}
+              <li key={`${item.book_id}:${item.chapter_idx}:${i}`} className="flex gap-3 py-2 text-[14px] leading-snug">
+                <span className="w-[104px] shrink-0 text-[13px] text-muted-foreground tabular-nums">{shortPlace(item)}</span>
+                <span className="min-w-0 text-foreground/85">{item.line}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
       {e.evidence && (
-        <p className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-2.5">
+        <p className="border-l-2 border-primary/40 pl-3 text-[14px] italic text-muted-foreground">
           {e.evidence}
         </p>
       )}
-      <p className="text-xs text-muted-foreground/70">
-        <Trans>First seen: {firstSeen}</Trans>
+      <p className="flex flex-wrap gap-x-4 gap-y-0.5 text-[13px] text-muted-foreground">
+        <span><Trans>First seen: {firstSeen}</Trans></span>
+        {lastSeen && <span><Trans>As of: {lastSeen}</Trans></span>}
       </p>
-      {lastSeen && (
-        <p className="text-xs text-muted-foreground/70">
-          <Trans>As of: {lastSeen}</Trans>
-        </p>
-      )}
     </div>
   )
 }

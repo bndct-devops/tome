@@ -16,6 +16,7 @@ import { ArrowRight, ChevronDown, Loader2, Merge, Pause, Play, RotateCcw, Search
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
+import { Pill, SectionTitle } from '@/components/page'
 import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
 import { RecapVolumes } from '@/components/RecapVolumes'
 import { GlossaryEntryDetail } from '@/components/GlossaryEntry'
@@ -761,8 +762,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   // ── the one progress line, under the heading ──────────────────────────────
 
-  const buttonClassName = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-60 shrink-0'
-
   // ── merge duplicates: progress where the button is ───────────────────────
 
   const mergeActive = isActive(job) && isMergeOnlyJob(job)
@@ -789,15 +788,15 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   if (isActive(job) && !mergeInPlace) {
     const text = activeJobLine(job)
     progressLine = (
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" role="status">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-muted-foreground" role="status">
         <span className="flex items-center gap-2 min-w-0">
-          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           {text}
         </span>
         {job.status !== 'stopping' && (
-          <button type="button" onClick={stopJob} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+          <Pill variant="quiet" className="-my-2" onClick={stopJob}>
             <Trans>Stop</Trans>
-          </button>
+          </Pill>
         )}
       </div>
     )
@@ -810,24 +809,24 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
         ? t`Interrupted by a server restart after ${done} of ${total} chapters.`
         : t`Stopped after ${done} of ${total} chapters.`
     progressLine = (
-      <div className="mt-3 space-y-1">
+      <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-            <Pause className="w-3.5 h-3.5 shrink-0" />
+          <p className="flex items-center gap-2 text-[14px] text-muted-foreground min-w-0">
+            <Pause className="h-4 w-4 shrink-0" />
             <span className="min-w-0">{text}</span>
           </p>
-          <button type="button" onClick={continueJob} disabled={starting} className={buttonClassName}>
-            {starting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+          <Pill onClick={continueJob} disabled={starting} className="shrink-0">
+            {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             <Trans>Continue</Trans>
-          </button>
+          </Pill>
         </div>
-        {digestError && <p className="text-xs text-destructive">{digestError}</p>}
+        {digestError && <p className="text-[13px] text-destructive">{digestError}</p>}
       </div>
     )
   }
 
   const endedNote = endedJob && endedJob.status === 'error' && endedJob.stop_reason
-    ? <p className="text-xs text-muted-foreground">{endedJob.stop_reason}</p>
+    ? <p className="text-[13px] text-muted-foreground">{endedJob.stop_reason}</p>
     : null
 
   // ── Recap section ──────────────────────────────────────────────────────────
@@ -853,126 +852,130 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const volumeList = companion.series_recaps === true
 
   const recapButton = (
-    <button
-      type="button"
+    <Pill
       onClick={() => void startRecap()}
       title={t`Sends the summaries of the chapters before your position and the current chapter up to it to Anthropic`}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted hover:-translate-y-0.5 transition-all duration-200 shrink-0"
+      className="shrink-0"
     >
       <Trans>Recap to here</Trans>
-    </button>
+    </Pill>
   )
 
   const teaser = (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-sm text-muted-foreground min-w-0">
+        <p className="text-[14px] text-muted-foreground min-w-0">
           <Trans>The story so far, from the pages before your position. Nothing after it is read.</Trans>
         </p>
         {recapButton}
       </div>
-      {recapError && <p className="text-xs text-destructive">{recapError}</p>}
+      {recapError && <p className="text-[13px] text-destructive">{recapError}</p>}
     </div>
   )
 
   // Today's live recap: loading, waiting, writing, the text and its footer.
-  const recapPanel = (boxed: boolean) => (
-    <div className={cn(boxed ? 'rounded-lg border border-border bg-muted/40 px-4 py-3 space-y-3' : 'space-y-3')}>
-            {recapState === 'loading' && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <Trans>Loading the recap…</Trans>
-              </p>
-            )}
-            {recapState === 'waiting' && (
-              <>
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <Trans>Waiting for the chapters to be read. The recap is written right after.</Trans>
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  <Trans>Each chapter is read once. Later recaps and the glossary reuse it.</Trans>
-                </p>
-              </>
-            )}
-            {recapState === 'writing' && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <Trans>Writing the recap. This can take up to a minute.</Trans>
-              </p>
-            )}
-            {recapState === 'idle' && recap && (
-              <>
-                {paragraphs(recap.text).map((p, i) => (
-                  <p key={i} className="text-sm text-foreground leading-relaxed">{renderParagraph(p)}</p>
-                ))}
-                {recap.partial && (
-                  <p className="text-xs text-muted-foreground/70">
-                    <Trans>Some chapters could not be read, so this recap may skip parts.</Trans>
-                  </p>
-                )}
-                {writtenWithout && (
-                  <p className="text-xs text-muted-foreground/70">
-                    <Trans>Written without: {writtenWithout}.</Trans>
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 pt-1 border-t border-border/60">
-                  <p className="text-xs text-muted-foreground/70 pt-2">
-                    {recap.whole_book
-                      ? <Trans>Written for the whole book · cached, free to reopen</Trans>
-                      : <Trans>Written for {recapFor} · cached, free to reopen</Trans>}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void askAgain()}
-                    className="flex items-center gap-1 pt-2 text-xs font-medium text-primary hover:underline"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <Trans>Ask again</Trans>
-                  </button>
-                </div>
-              </>
-            )}
-      {recapState === 'idle' && recapError && <p className="text-xs text-destructive">{recapError}</p>}
+  const recapPanel = (
+    <div className="max-w-[70ch] space-y-3">
+      {recapState === 'loading' && (
+        <p className="flex items-center gap-2 text-[14px] text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <Trans>Loading the recap…</Trans>
+        </p>
+      )}
+      {recapState === 'waiting' && (
+        <>
+          <p className="flex items-center gap-2 text-[14px] text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <Trans>Waiting for the chapters to be read. The recap is written right after.</Trans>
+          </p>
+          <p className="text-[13px] text-muted-foreground">
+            <Trans>Each chapter is read once. Later recaps and the glossary reuse it.</Trans>
+          </p>
+        </>
+      )}
+      {recapState === 'writing' && (
+        <p className="flex items-center gap-2 text-[14px] text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <Trans>Writing the recap. This can take up to a minute.</Trans>
+        </p>
+      )}
+      {recapState === 'idle' && recap && (
+        <>
+          {paragraphs(recap.text).map((p, i) => (
+            <p key={i} className="text-[15px] leading-relaxed text-foreground/85">{renderParagraph(p)}</p>
+          ))}
+          {recap.partial && (
+            <p className="text-[13px] text-muted-foreground">
+              <Trans>Some chapters could not be read, so this recap may skip parts.</Trans>
+            </p>
+          )}
+          {writtenWithout && (
+            <p className="text-[13px] text-muted-foreground">
+              <Trans>Written without: {writtenWithout}.</Trans>
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border/70 pt-2">
+            <p className="text-[13px] text-muted-foreground">
+              {recap.whole_book
+                ? <Trans>Written for the whole book · cached, free to reopen</Trans>
+                : <Trans>Written for {recapFor} · cached, free to reopen</Trans>}
+            </p>
+            <Pill variant="quiet" className="-mr-3" onClick={() => void askAgain()}>
+              <RotateCcw className="h-4 w-4" />
+              <Trans>Ask again</Trans>
+            </Pill>
+          </div>
+        </>
+      )}
+      {recapState === 'idle' && recapError && <p className="text-[13px] text-destructive">{recapError}</p>}
     </div>
   )
 
   const currentRow = !hasPosition ? (
-    <p className="text-sm text-muted-foreground">
+    <p className="text-[14px] text-muted-foreground">
       <Trans>Open the book to get a recap up to your page.</Trans>
     </p>
-  ) : recapTeaser ? teaser : recapPanel(false)
+  ) : recapTeaser ? teaser : recapPanel
+
+  // A disclosure row of the section: the label (and a count), the chevron.
+  const rowHeadingClassName = 'group flex w-full items-center justify-between gap-3 py-3.5 text-left'
+  const rowLabelClassName = 'text-[17px] font-semibold text-foreground transition-colors group-hover:text-primary'
+  const rowChevron = (open: boolean) => (
+    <ChevronDown className={cn('h-5 w-5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+  )
 
   const recapHeading = (
     <button
       type="button"
       onClick={() => setRecapOpen(o => !o)}
       aria-expanded={recapOpen}
-      className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
+      className={rowHeadingClassName}
     >
-      <Trans>Recap</Trans>
-      <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !recapOpen && '-rotate-90')} />
+      <span className={rowLabelClassName}><Trans>Recap</Trans></span>
+      {rowChevron(recapOpen)}
     </button>
   )
 
   const recapBlock = volumeList ? (
-    <div className="mt-4">
+    <div>
       {recapHeading}
       {recapOpen && (
-        <RecapVolumes
-          key={recapsRev}
-          bookId={bookId}
-          renderParagraph={renderParagraph}
-          current={currentRow}
-          onDigestEnded={onVolumeDigestEnded}
-          onTextShown={ensureGlossary}
-        />
+        <div className="pb-5">
+          <RecapVolumes
+            key={recapsRev}
+            bookId={bookId}
+            renderParagraph={renderParagraph}
+            current={currentRow}
+            onDigestEnded={onVolumeDigestEnded}
+            onTextShown={ensureGlossary}
+          />
+        </div>
       )}
     </div>
   ) : features.recap ? (
-    <div className="mt-4">
+    <div>
       {recapHeading}
-      {recapTeaser ? teaser : recapOpen ? recapPanel(true) : null}
+      {recapTeaser ? <div className="pb-5">{teaser}</div> : recapOpen ? <div className="pb-5">{recapPanel}</div> : null}
     </div>
   ) : null
 
@@ -987,6 +990,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   // Kind headings only on the unfiltered list.
   const grouped = !term
 
+  const kindTagClassName = 'shrink-0 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
+
   const entryRow = (e: GlossaryEntry, showKind: boolean) => {
     const key = `${e.kind}:${e.name}`
     const open = expanded.has(key)
@@ -999,21 +1004,19 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           type="button"
           onClick={() => toggleEntry(key)}
           aria-expanded={open}
-          className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors"
+          className="group flex w-full items-center gap-3 py-3 text-left"
         >
-          <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-sm font-medium text-foreground min-w-0 truncate">{e.name}</span>
-            {aliases.length > 0 && (
-              <span className="text-xs text-muted-foreground/70 flex-1 basis-0 min-w-0 truncate">{aliases.join(', ')}</span>
-            )}
-            {showKind && (
-              <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
-                {kindLabel(e.kind)}
-              </span>
-            )}
-            <ChevronDown className={cn('ml-auto w-3 h-3 shrink-0 self-center text-muted-foreground/50 transition-transform', !open && '-rotate-90')} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline gap-2 min-w-0">
+              <span className="text-[15px] font-semibold text-foreground min-w-0 truncate transition-colors group-hover:text-primary">{e.name}</span>
+              {aliases.length > 0 && (
+                <span className="text-[13px] text-muted-foreground flex-1 basis-0 min-w-0 truncate">{aliases.join(', ')}</span>
+              )}
+              {showKind && <span className={kindTagClassName}>{kindLabel(e.kind)}</span>}
+            </span>
+            <span className="mt-0.5 block text-[14px] leading-snug text-muted-foreground">{entryLine(e)}</span>
           </span>
-          <span className="block text-sm text-muted-foreground leading-snug mt-0.5">{entryLine(e)}</span>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
         </button>
         {open && (
           <GlossaryEntryDetail bookId={bookId} entry={e} firstSeen={firstSeen} lastSeen={lastSeen} shortPlace={shortPlace} />
@@ -1067,21 +1070,21 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   let mergeResultLine: React.ReactNode = null
   if (mergeResult && !DIGEST_JOB_ACTIVE.includes(mergeResult.status)) {
     const f = (mergeResult.followups ?? []).find(x => x.name === 'reconcile')
-    const mutedClassName = 'text-xs text-muted-foreground'
+    const mutedClassName = 'text-[13px] text-muted-foreground'
     const when = endedAt(mergeResult.finished_at)
-    const stamp = when ? <span className="text-muted-foreground/70"> · {when}</span> : null
+    const stamp = when ? <span className="text-muted-foreground/80"> · {when}</span> : null
     const mergedSoFar = (f?.merged ?? 0) > 0 && (f?.merges ?? []).length > 0
       ? <>{' '}{mergedPairs(f?.merges ?? [])}</>
       : null
     if (mergeResult.stop_reason) {
       mergeResultLine = (
-        <p className={cn('text-xs leading-relaxed', mergeResult.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
+        <p className={cn('text-[13px] leading-relaxed', mergeResult.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
           {mergeResult.stop_reason}
           {mergedSoFar}
         </p>
       )
     } else if (mergeResult.status === 'error' || f?.status === 'failed') {
-      mergeResultLine = <p className="text-xs text-destructive">{f?.message || t`Merging failed.`}</p>
+      mergeResultLine = <p className="text-[13px] text-destructive">{f?.message || t`Merging failed.`}</p>
     } else if (mergeResult.status === 'cancelled' || mergeResult.status === 'interrupted') {
       mergeResultLine = (
         <p className={cn(mutedClassName, 'leading-relaxed')}>
@@ -1117,195 +1120,198 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   // "Read again" (admins): deletes the stored notes of a scope and reads it
   // again, after the confirmation dialog.
   const readAgainButton = (
-    <button
-      type="button"
+    <Pill
+      variant="destructive"
       onClick={() => void readAgain()}
       disabled={rereadStarting || starting || isActive(job)}
       title={t`Deletes the stored notes for everyone and reads the chapters again`}
-      className="flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-60 disabled:no-underline shrink-0"
+      className="shrink-0"
     >
-      {rereadStarting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+      {rereadStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
       <Trans>Read again</Trans>
-    </button>
+    </Pill>
   )
 
   const glossaryBlock = glossaryOn ? (
-    <div className="mt-4 scroll-mt-4" ref={glossaryRef}>
+    <div className="scroll-mt-4" ref={glossaryRef}>
       <button
         type="button"
         onClick={toggleGlossary}
         aria-expanded={glossaryOpen}
-        className="flex items-center gap-1.5 font-display text-base text-foreground mb-3 hover:text-primary transition-colors"
+        className={rowHeadingClassName}
       >
-        <Trans>Glossary</Trans>
-        <span className="text-muted-foreground/50 font-normal text-sm">({glossaryCount})</span>
-        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', !glossaryOpen && '-rotate-90')} />
+        <span className={rowLabelClassName}>
+          <Trans>Glossary</Trans>
+          <span className="ml-2 font-semibold text-muted-foreground tabular-nums">({glossaryCount})</span>
+        </span>
+        {rowChevron(glossaryOpen)}
       </button>
       {glossaryOpen && (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-5 pb-5">
           {glossary == null && glossaryLoading && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <p className="flex items-center gap-2 text-[14px] text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
               <Trans>Loading the glossary…</Trans>
             </p>
           )}
-          {glossary != null && (glossary.entries.length > 0 || features.recall) && (
-            <div className="flex items-center gap-3">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
-              <input
-                type="text"
-                value={query}
-                onChange={e => { setQuery(e.target.value); setRecall(null) }}
-                onKeyDown={e => { if (e.key === 'Enter' && filtered.length === 0 && features.recall && !recalling) void runRecall() }}
-                placeholder={t`Search names, places, terms`}
-                aria-label={t`Search the glossary`}
-                className="w-full rounded-lg border border-border bg-background pl-8 pr-8 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => { setQuery(''); setRecall(null) }}
-                  aria-label={t`Clear search`}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground/60 hover:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+          {((glossary != null && (glossary.entries.length > 0 || features.recall)) || mergeNote || (!mergeActive && mergeResultLine)) && (
+            <div className="space-y-2">
+              {glossary != null && (glossary.entries.length > 0 || features.recall) && (
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={e => { setQuery(e.target.value); setRecall(null) }}
+                      onKeyDown={e => { if (e.key === 'Enter' && filtered.length === 0 && features.recall && !recalling) void runRecall() }}
+                      placeholder={t`Search names, places, terms`}
+                      aria-label={t`Search the glossary`}
+                      className="h-9 w-full rounded-full bg-secondary pl-10 pr-9 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => { setQuery(''); setRecall(null) }}
+                        aria-label={t`Clear search`}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {mergeActive ? (
+                    <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground shrink-0" role="status">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {mergeProgress}
+                      {job.status !== 'stopping' && (
+                        <Pill variant="quiet" className="-my-2 -mr-3" onClick={stopJob}>
+                          <Trans>Stop</Trans>
+                        </Pill>
+                      )}
+                    </span>
+                  ) : glossary.entries.length > 1 && (
+                    <Pill
+                      variant="quiet"
+                      onClick={() => void mergeDuplicates()}
+                      disabled={merging || isActive(job)}
+                      title={t`Finds entries that look like the same person, place or term and asks the model to confirm before merging them`}
+                      className="shrink-0"
+                    >
+                      {merging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Merge className="h-4 w-4" />}
+                      <Trans>Merge duplicates</Trans>
+                    </Pill>
+                  )}
+                </div>
               )}
-            </div>
-            {mergeActive ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0" role="status">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                {mergeProgress}
-                {job.status !== 'stopping' && (
-                  <button type="button" onClick={stopJob} className="ml-1.5 hover:text-foreground underline-offset-2 hover:underline">
-                    <Trans>Stop</Trans>
-                  </button>
-                )}
-              </span>
-            ) : glossary.entries.length > 1 && (
-              <button
-                type="button"
-                onClick={() => void mergeDuplicates()}
-                disabled={merging || isActive(job)}
-                title={t`Finds entries that look like the same person, place or term and asks the model to confirm before merging them`}
-                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-60 disabled:no-underline shrink-0"
-              >
-                {merging ? <Loader2 className="w-3 h-3 animate-spin" /> : <Merge className="w-3 h-3" />}
-                <Trans>Merge duplicates</Trans>
-              </button>
-            )}
+              {mergeNote ? (
+                <p className={cn('text-[13px]', mergeNote.error ? 'text-destructive' : 'text-muted-foreground')}>{mergeNote.text}</p>
+              ) : !mergeActive && mergeResultLine}
             </div>
           )}
-          {mergeNote ? (
-            <p className={cn('text-xs', mergeNote.error ? 'text-destructive' : 'text-muted-foreground')}>{mergeNote.text}</p>
-          ) : !mergeActive && mergeResultLine}
           {glossary != null && (features.ask ?? false) && (
             <AskBox bookId={bookId} placeLabel={quotePlace} costHintUsd={companion.ask_cost_hint_usd} />
           )}
           {glossary != null && glossary.entries.length === 0 && !incomplete && !term && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               <Trans>Nobody and nothing worth noting yet. Names show up here once the chapters before your position mention them.</Trans>
             </p>
           )}
           {glossary != null && filtered.length > 0 && (
-            <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-border bg-muted/40">
-              {grouped ? groups.map(g => (
-                <section key={g.kind} aria-label={g.label}>
-                  <h4 className="sticky top-0 z-[1] px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted border-b border-border/60">
-                    {g.label} <span className="font-normal text-muted-foreground/60">{g.entries.length}</span>
+            <div className="max-h-[28rem] overflow-y-auto">
+              {grouped ? groups.map((g, i) => (
+                <section key={g.kind} aria-label={g.label} className={cn(i > 0 && 'pt-5')}>
+                  <h4 className="sticky top-0 z-[1] bg-background pb-1 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                    {g.label} <span className="ml-1 text-muted-foreground/60 tabular-nums">{g.entries.length}</span>
                   </h4>
-                  <ul className="divide-y divide-border/60">
+                  <ul className="divide-y divide-border/70">
                     {g.entries.map(e => entryRow(e, false))}
                   </ul>
                 </section>
               )) : (
-                <ul className="divide-y divide-border/60">
+                <ul className="divide-y divide-border/70">
                   {filtered.map(e => entryRow(e, true))}
                 </ul>
               )}
             </div>
           )}
           {glossary != null && term && filtered.length === 0 && (
-            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 space-y-2">
+            <div className="space-y-2">
               {recall == null ? (
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                  <p className="text-sm text-muted-foreground min-w-0 break-words">
+                  <p className="text-[14px] text-muted-foreground min-w-0 break-words">
                     <Trans>No glossary entry for "{term}".</Trans>
                   </p>
                   {features.recall && (
-                    <button
-                      type="button"
+                    <Pill
                       onClick={runRecall}
                       disabled={recalling}
                       title={t`Checks the glossary and the current chapter up to your position; sends that chapter to Anthropic when needed`}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-60 min-w-0 max-w-full"
+                      className="min-w-0 max-w-full"
                     >
-                      {recalling && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
+                      {recalling && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
                       <span className="truncate">
                         {recalling ? <Trans>Looking…</Trans> : <Trans>Recall "{term}"</Trans>}
                       </span>
-                    </button>
+                    </Pill>
                   )}
                 </div>
               ) : recall.found && recall.entry ? (
-                <div className="space-y-1">
+                <div className="max-w-[70ch] space-y-1.5">
                   <p className="flex items-baseline gap-2 min-w-0">
-                    <span className="text-sm font-medium text-foreground min-w-0 truncate">{recall.entry.name}</span>
-                    <span className="rounded-full border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
-                      {kindLabel(recall.entry.kind)}
-                    </span>
+                    <span className="text-[15px] font-semibold text-foreground min-w-0 truncate">{recall.entry.name}</span>
+                    <span className={kindTagClassName}>{kindLabel(recall.entry.kind)}</span>
                   </p>
-                  <p className="text-sm text-muted-foreground leading-snug">{recall.entry.line}</p>
-                  {recall.entry.more && <p className="text-sm text-foreground leading-relaxed">{recall.entry.more}</p>}
+                  <p className="text-[14px] leading-snug text-muted-foreground">{recall.entry.line}</p>
+                  {recall.entry.more && <p className="text-[15px] leading-relaxed text-foreground/85">{recall.entry.more}</p>}
                   {recall.entry.evidence && (
-                    <p className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-2.5">{recall.entry.evidence}</p>
+                    <p className="border-l-2 border-primary/40 pl-3 text-[14px] italic text-muted-foreground">{recall.entry.evidence}</p>
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground"><Trans>Nothing about that before this page.</Trans></p>
+                <p className="text-[14px] text-muted-foreground"><Trans>Nothing about that before this page.</Trans></p>
               )}
             </div>
           )}
-          {glossaryError && <p className="text-xs text-destructive">{glossaryError}</p>}
+          {glossaryError && <p className="text-[13px] text-destructive">{glossaryError}</p>}
           {incomplete && coverage && (
-            <div className="space-y-1.5">
+            <div className="space-y-2 border-t border-border/70 pt-3">
               {isActive(job) ? (
-                <p className="text-xs text-muted-foreground/70"><Trans>The glossary fills in as each chapter is read.</Trans></p>
+                <p className="text-[13px] text-muted-foreground"><Trans>The glossary fills in as each chapter is read.</Trans></p>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                  <p className="text-xs text-muted-foreground min-w-0">
+                  <p className="text-[13px] text-muted-foreground min-w-0">
                     <Trans>{digested} of {needed} chapters before your position are read so far.</Trans>
                   </p>
                   {(!resumable || admin) && (
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <span className="flex flex-wrap items-center gap-2">
                       {admin && readAgainButton}
                       {!resumable && (
-                        <button type="button" onClick={() => void readMissing()} disabled={starting || rereadStarting} className={buttonClassName}>
-                          {starting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        <Pill onClick={() => void readMissing()} disabled={starting || rereadStarting} className="shrink-0">
+                          {starting && <Loader2 className="h-4 w-4 animate-spin" />}
                           <Trans>Read the missing chapters</Trans>
-                        </button>
+                        </Pill>
                       )}
                     </span>
                   )}
                 </div>
               )}
               {!isActive(job) && lastFailed > 0 && (
-                <p className="text-xs text-muted-foreground/70"><Trans>Some chapters could not be read, so names from them are missing.</Trans></p>
+                <p className="text-[13px] text-muted-foreground"><Trans>Some chapters could not be read, so names from them are missing.</Trans></p>
               )}
-              {!isActive(job) && !resumable && digestError && <p className="text-xs text-destructive">{digestError}</p>}
+              {!isActive(job) && !resumable && digestError && <p className="text-[13px] text-destructive">{digestError}</p>}
               {!isActive(job) && endedNote}
             </div>
           )}
           {admin && !incomplete && glossary != null && (
-            <div className="space-y-1">
+            <div className="space-y-1 border-t border-border/70 pt-3">
               <div className="flex justify-end">{readAgainButton}</div>
-              {!isActive(job) && digestError && <p className="text-xs text-destructive">{digestError}</p>}
+              {!isActive(job) && digestError && <p className="text-[13px] text-destructive">{digestError}</p>}
             </div>
           )}
           {scopeNotes.length > 0 && (
             <div className="space-y-0.5">
-              {scopeNotes.map(line => <p key={line} className="text-xs text-muted-foreground/70">{line}</p>)}
+              {scopeNotes.map(line => <p key={line} className="text-[13px] text-muted-foreground">{line}</p>)}
             </div>
           )}
         </div>
@@ -1314,17 +1320,23 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   ) : null
 
   return (
-    <section className="mt-6" aria-label={t`Reading companion`}>
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        {headingLine && <span className="min-w-0">{headingLine}</span>}
-        <AiBadge />
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground/70">
-        <Trans>Only the pages before your position are sent. For well-known books the model may still know more than it is given.</Trans>
-      </p>
-      {progressLine}
-      {recapBlock}
-      {glossaryBlock}
+    <section className="max-w-[720px]" aria-label={t`Reading companion`}>
+      <SectionTitle size={20} action={<AiBadge />}>
+        <Trans>Reading companion</Trans>
+      </SectionTitle>
+      <div className="mt-3 space-y-0.5 text-[14px] text-muted-foreground">
+        {headingLine && <p>{headingLine}</p>}
+        <p>
+          <Trans>Only the pages before your position are sent. For well-known books the model may still know more than it is given.</Trans>
+        </p>
+      </div>
+      {progressLine && <div className="mt-5">{progressLine}</div>}
+      {(recapBlock || glossaryBlock) && (
+        <div className="mt-5 divide-y divide-border/70 border-y border-border/70">
+          {recapBlock}
+          {glossaryBlock}
+        </div>
+      )}
       <DigestConfirmDialog
         open={confirm != null}
         book={confirm?.book ?? null}
