@@ -403,17 +403,24 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             </div>
             {/* The volumes after this one in its series, when the library has them. */}
             {focus && (focus.upcoming?.length ?? 0) > 0 && (
-              <div className="mt-5 flex items-center gap-3">
-                <Eyebrow className="shrink-0">
+              <div className="mt-6">
+                <Eyebrow className="mb-2">
                   {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
                 </Eyebrow>
-                <div className="flex gap-2">
+                <div className="flex gap-2.5">
                   {focus.upcoming!.slice(0, 8).map(u => (
-                    <Link key={u.book_id} to={`/books/${u.book_id}`} className="shrink-0 w-[36px] group" title={u.series_index != null ? `${fmtIndex(u.series_index)} · ${u.title}` : u.title}>
-                      <div className="relative aspect-[2/3] rounded-[4px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
+                    <button
+                      key={u.book_id}
+                      type="button"
+                      onClick={() => setPeek(u.book_id)}
+                      className="shrink-0 w-[56px] group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[6px]"
+                      title={u.series_index != null ? `${fmtIndex(u.series_index)} · ${u.title}` : u.title}
+                      aria-label={u.title}
+                    >
+                      <div className="relative aspect-[2/3] rounded-[6px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
                         <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 160 }) : null} alt="" iconClassName="w-3 h-3" />
                       </div>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               </div>
