@@ -28,8 +28,23 @@ export function SeriesFollowButton({ seriesName, onLatest }: {
   const load = useCallback(() => { getFollows().then(setRows) }, [seriesName])
   useEffect(load, [load])
 
-  if (rows == null || seriesName === '__unserialized__') return null
-  const follow = rows.find(f => f.name.toLowerCase() === seriesName.toLowerCase()) ?? null
+  const hidden = rows == null || seriesName === '__unserialized__'
+  const follow = hidden ? null : (rows.find(f => f.name.toLowerCase() === seriesName.toLowerCase()) ?? null)
+
+  const date = follow?.latest_release_date ?? null
+  const vol = follow?.latest_known_index ?? null
+  const upcoming = date != null && date >= new Date().toISOString().slice(0, 10)
+  let latest: string | null = null
+  if (follow && vol != null && date) {
+    const v = Number.isInteger(vol) ? vol : vol.toFixed(1)
+    const d = formatDate(date)
+    latest = upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}`
+  }
+  // The page shows the line where it fits (the header's crumb line); the pill
+  // carries it as its tooltip. Hooks stay above the early return.
+  useEffect(() => { onLatest?.(latest) }, [latest, onLatest])
+
+  if (hidden) return null
 
   const toggle = async () => {
     if (busy) return
@@ -49,19 +64,6 @@ export function SeriesFollowButton({ seriesName, onLatest }: {
       setBusy(false)
     }
   }
-
-  const date = follow?.latest_release_date ?? null
-  const vol = follow?.latest_known_index ?? null
-  const upcoming = date != null && date >= new Date().toISOString().slice(0, 10)
-  let latest: string | null = null
-  if (follow && vol != null && date) {
-    const v = Number.isInteger(vol) ? vol : vol.toFixed(1)
-    const d = formatDate(date)
-    latest = upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}`
-  }
-  // The page shows the line where it fits (the header's crumb line); the pill
-  // carries it as its tooltip.
-  useEffect(() => { onLatest?.(latest) }, [latest, onLatest])
 
   const hint = follow ? t`Stop following this series` : t`Get notified when a new volume is released`
   return (
