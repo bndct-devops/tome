@@ -2943,7 +2943,12 @@ msgid "Command palette: jump to a book, series, author, or page"
 msgstr ""
 
 #: src/components/AiCompanionOverview.tsx
+#: src/components/SeriesCompanionButton.tsx
 msgid "Companion"
+msgstr ""
+
+#: src/components/SeriesCompanionButton.tsx
+msgid "Companion on"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -3081,6 +3086,7 @@ msgid "Could not apply the sync code"
 msgstr ""
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/SeriesCompanionButton.tsx
 msgid "Could not change the companion setting"
 msgstr ""
 
@@ -7391,6 +7397,10 @@ msgstr ""
 msgid "Reading companion"
 msgstr ""
 
+#: src/components/SeriesCompanionButton.tsx
+msgid "Reading companion is on for this series: glossary, recaps and answers from the chapters you have read. Click to turn it off."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Reading days"
 msgstr ""
@@ -9416,6 +9426,10 @@ msgstr ""
 msgid "Tome Reader is in free beta for iPhone until 31 December 2026."
 msgstr ""
 
+#: src/components/SeriesCompanionButton.tsx
+msgid "Tome reads along with this series from where you are"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position."
 msgstr ""
@@ -9529,6 +9543,10 @@ msgstr ""
 
 #: src/components/ReadingCompanion.tsx
 msgid "Turn on for this series"
+msgstr ""
+
+#: src/components/SeriesCompanionButton.tsx
+msgid "Turn on the reading companion for this series. Nothing is read before you turn it on, and never past your position."
 msgstr ""
 
 #: src/pages/ReaderPage.tsx

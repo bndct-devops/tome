@@ -2943,8 +2943,13 @@ msgid "Command palette: jump to a book, series, author, or page"
 msgstr "Command palette: jump to a book, series, author, or page"
 
 #: src/components/AiCompanionOverview.tsx
+#: src/components/SeriesCompanionButton.tsx
 msgid "Companion"
 msgstr "Companion"
+
+#: src/components/SeriesCompanionButton.tsx
+msgid "Companion on"
+msgstr "Companion on"
 
 #: src/pages/AdminPage.tsx
 msgid "Complete"
@@ -3081,6 +3086,7 @@ msgid "Could not apply the sync code"
 msgstr "Could not apply the sync code"
 
 #: src/components/ReadingCompanion.tsx
+#: src/components/SeriesCompanionButton.tsx
 msgid "Could not change the companion setting"
 msgstr "Could not change the companion setting"
 
@@ -7391,6 +7397,10 @@ msgstr "Reading Clock"
 msgid "Reading companion"
 msgstr "Reading companion"
 
+#: src/components/SeriesCompanionButton.tsx
+msgid "Reading companion is on for this series: glossary, recaps and answers from the chapters you have read. Click to turn it off."
+msgstr "Reading companion is on for this series: glossary, recaps and answers from the chapters you have read. Click to turn it off."
+
 #: src/pages/BookDetailPage.tsx
 msgid "Reading days"
 msgstr "Reading days"
@@ -9416,6 +9426,10 @@ msgstr "Tome · Your personal library"
 msgid "Tome Reader is in free beta for iPhone until 31 December 2026."
 msgstr "Tome Reader is in free beta for iPhone until 31 December 2026."
 
+#: src/components/SeriesCompanionButton.tsx
+msgid "Tome reads along with this series from where you are"
+msgstr "Tome reads along with this series from where you are"
+
 #: src/pages/SettingsPage.tsx
 msgid "TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position."
 msgstr "TomeSync and KOSync can both be active. TomeSync tracks full reading sessions; KOSync only stores your last position."
@@ -9530,6 +9544,10 @@ msgstr "Turn on for this book"
 #: src/components/ReadingCompanion.tsx
 msgid "Turn on for this series"
 msgstr "Turn on for this series"
+
+#: src/components/SeriesCompanionButton.tsx
+msgid "Turn on the reading companion for this series. Nothing is read before you turn it on, and never past your position."
+msgstr "Turn on the reading companion for this series. Nothing is read before you turn it on, and never past your position."
 
 #: src/pages/ReaderPage.tsx
 msgid "Turn pages by swipe only"

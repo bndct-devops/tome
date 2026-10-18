@@ -825,6 +825,11 @@ export function getCompanion(bookId: number): Promise<Companion> {
   return api.get<Companion>(`/ai/books/${bookId}/companion`)
 }
 
+/** The switch alone, for the series page (no position, no file read). */
+export function getCompanionOptIn(bookId: number): Promise<CompanionOptIn> {
+  return api.get<CompanionOptIn>(`/ai/books/${bookId}/companion/optin`)
+}
+
 export function setCompanionOptIn(bookId: number, enabled: boolean): Promise<CompanionOptIn> {
   return api.put<CompanionOptIn>(`/ai/books/${bookId}/companion/optin`, { enabled })
 }

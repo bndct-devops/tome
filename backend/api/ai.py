@@ -627,6 +627,18 @@ class OptInBody(BaseModel):
     enabled: bool
 
 
+@router.get("/books/{book_id}/companion/optin")
+def get_companion_optin(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """The companion switch for this book's series (or the book) alone: the
+    series page shows it without the book page's full companion payload."""
+    book = _visible_book(db, current_user, book_id)
+    return optin.payload(db, current_user, book)
+
+
 @router.put("/books/{book_id}/companion/optin")
 def put_companion_optin(
     book_id: int,

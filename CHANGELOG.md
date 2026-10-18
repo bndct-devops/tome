@@ -222,7 +222,9 @@ All notable changes to Tome are documented here. Format loosely follows
   "Read the missing chapters". A book that already had chapters read
   continues where it stopped. Turn it off and the position changes nothing.
   The explicit starts (Read the missing chapters, Write all, Read again) are
-  unchanged. The switch carries to every later volume of the series.
+  unchanged. The switch carries to every later volume of the series, and
+  the series page carries the same switch as a "Companion" pill next to
+  Follow.
 - **A quieter web app.** Every page now shares one frame: a full-height
   sidebar with the wordmark on top and the navigation in three groups (Home,
   Library, Series; Reading; Manage), a lineless header with a pill search and

@@ -23,6 +23,7 @@ import { SeriesStackCard } from '@/components/SeriesStackCard'
 import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
 import { SeriesFollowButton } from '@/components/SeriesFollowButton'
+import { SeriesCompanionButton } from '@/components/SeriesCompanionButton'
 import { ShareModal } from '@/components/ShareShelfModal'
 import { CoverImage } from '@/components/CoverImage'
 import { HScrollRow } from '@/components/HScrollRow'
@@ -1259,6 +1260,9 @@ export function DashboardPage() {
                                 <Settings2 className="w-4 h-4" />
                                 <Trans>Manage</Trans>
                               </Pill>
+                            )}
+                            {!isUnserialized && (
+                              <SeriesCompanionButton bookId={continueBook?.id ?? seriesDetail.books[0]?.id ?? null} />
                             )}
                             <SeriesFollowButton seriesName={seriesDetail.name} onLatest={setFollowLatest} />
                           </div>

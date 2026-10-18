@@ -93,3 +93,16 @@ def test_endpoint_round_trip(client, db, make_book, tmp_path):
     r = client.put(f"/api/ai/books/{book.id}/companion/optin", json={"enabled": False}, headers=_headers(user))
     assert r.json()["enabled"] is False
     assert client.get(f"/api/ai/books/{book.id}/companion", headers=_headers(user)).json()["optin"]["enabled"] is False
+
+
+def test_the_switch_alone_reads_the_same_row(client, db, make_book, tmp_path):
+    user = _make_user(db, "lone", "member")
+    v1 = _epub_book(db, make_book, tmp_path, "Lone 1", chapters=EIGHT, series="Lone", index=1)
+    v2 = _epub_book(db, make_book, tmp_path, "Lone 2", chapters=EIGHT, series="Lone", index=2)
+    db.commit()
+    r = client.get(f"/api/ai/books/{v2.id}/companion/optin", headers=_headers(user))
+    assert r.status_code == 200
+    assert r.json() == {"enabled": False, "scope": "series", "start": None}
+    client.put(f"/api/ai/books/{v1.id}/companion/optin", json={"enabled": True}, headers=_headers(user))
+    # One row per series: switched on through volume 1, volume 2 sees it on.
+    assert client.get(f"/api/ai/books/{v2.id}/companion/optin", headers=_headers(user)).json()["enabled"] is True
