@@ -15,7 +15,7 @@ import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SettingsNav } from '@/components/SettingsNav'
-import { SectionLayout, PanelSection } from '@/components/SectionNav'
+import { SectionLayout, SectionSidebar, PanelSection } from '@/components/SectionNav'
 import { AppShell } from '@/components/AppShell'
 import { Pill } from '@/components/page'
 import { api } from '@/lib/api'
@@ -638,11 +638,12 @@ export function SettingsPage() {
   const kosyncUrl = `${origin}/api/v1`
 
   return (
-    <AppShell>
+    <AppShell sidebar={<SectionSidebar title={<Trans>Settings</Trans>} />}>
       <SectionLayout
+        sidebar
         title={<Trans>Settings</Trans>}
         eyebrow={navSections.find(s => s.id === activeSection)?.label ?? navSections[0]?.label}
-        nav={<SettingsNav sections={navSections} onActiveChange={setActiveSection} />}
+        nav={<SettingsNav sections={navSections} onActiveChange={setActiveSection} placement="sidebar" />}
       >
         <div className="flex flex-col gap-12">
 

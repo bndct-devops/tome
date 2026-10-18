@@ -12,9 +12,10 @@ export type SettingsNavSection = SectionNavItem
 // the top of the scrolling content panel (clears the phone pill row).
 const TOP_LINE_PX = 72
 
-export function SettingsNav({ sections, onActiveChange }: {
+export function SettingsNav({ sections, onActiveChange, placement }: {
   sections: SettingsNavSection[]
   onActiveChange?: (id: string | null) => void
+  placement?: 'column' | 'sidebar'
 }) {
   const { t } = useLingui()
   const [active, setActive] = useState<string | null>(sections[0]?.id ?? null)
@@ -113,6 +114,7 @@ export function SettingsNav({ sections, onActiveChange }: {
         onSelect={jump}
         label={t`Settings sections`}
         hrefFor={id => `#${id}`}
+        placement={placement}
       />
     </>
   )

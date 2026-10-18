@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Keyboard, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { ModalShell } from '@/components/ModalShell'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { msg } from '@lingui/core/macro'
@@ -24,11 +24,11 @@ const SECTIONS: ShortcutSection[] = [
   {
     title: msg`Everywhere`,
     rows: [
-      { keys: ['⌘', 'K'], description: msg`Command palette — jump to a book, series, author, or page` },
+      { keys: ['⌘', 'K'], description: msg`Command palette: jump to a book, series, author, or page` },
     ],
   },
   {
-    title: msg`Dashboard`,
+    title: msg`Library`,
     rows: [
       { keys: ['/'], description: msg`Focus search` },
       { keys: ['j', 'ArrowDown'], description: msg`Next book` },
@@ -86,14 +86,14 @@ function KeyBadge({ label }: { label: string }) {
     : label
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-1.5 rounded-md border border-border bg-muted text-xs font-mono font-semibold text-foreground shadow-sm">
+    <kbd className="inline-flex items-center justify-center min-w-[1.9rem] h-7 px-2 rounded-md bg-secondary text-[12px] font-semibold text-foreground tabular-nums">
       {display}
     </kbd>
   )
 }
 
 export function KeyboardShortcutsModal({ open, onClose }: Props) {
-  const { i18n } = useLingui()
+  const { i18n, t } = useLingui()
   useEffect(() => {
     if (!open) return
     function handleKeyDown(e: KeyboardEvent) {
@@ -107,37 +107,35 @@ export function KeyboardShortcutsModal({ open, onClose }: Props) {
   }, [open, onClose])
 
   return (
-    <ModalShell open={open} onClose={onClose} className="w-full max-w-md">
-      <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+    <ModalShell open={open} onClose={onClose} className="w-full max-w-lg">
+      <div className="bg-card rounded-[var(--radius-panel)] shadow-2xl ring-1 ring-panel-ring overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <div className="flex items-center gap-2.5">
-              <Keyboard className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground"><Trans>Keyboard Shortcuts</Trans></h2>
-            </div>
+          <div className="flex items-center justify-between pl-7 pr-4 pt-6 pb-2">
+            <h2 className="font-display text-[24px] font-bold text-foreground"><Trans>Keyboard shortcuts</Trans></h2>
             <button
               onClick={onClose}
-              className="text-muted-foreground hover:text-foreground transition-colors rounded-md p-0.5 hover:bg-muted"
+              aria-label={t`Close`}
+              className="w-9 h-9 grid place-items-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Body */}
-          <div className="px-5 py-4 flex flex-col gap-5 max-h-[70vh] overflow-y-auto">
+          <div className="px-7 pt-2 pb-7 flex flex-col gap-7 max-h-[70vh] overflow-y-auto">
             {SECTIONS.map((section, si) => (
               <div key={si}>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2.5">
+                <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1">
                   {i18n._(section.title)}
                 </p>
-                <div className="flex flex-col gap-1.5">
+                <div className="divide-y divide-border/70">
                   {section.rows.map((row, ri) => (
-                    <div key={ri} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-foreground">{i18n._(row.description)}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                    <div key={ri} className="flex items-center justify-between gap-4 py-2.5">
+                      <span className="text-[15px] text-foreground">{i18n._(row.description)}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {row.keys.map((k, i) => (
-                          <span key={k} className="flex items-center gap-1">
-                            {i > 0 && <span className="text-xs text-muted-foreground">/</span>}
+                          <span key={k} className="flex items-center gap-1.5">
+                            {i > 0 && <span className="text-[12px] text-muted-foreground">/</span>}
                             <KeyBadge label={k} />
                           </span>
                         ))}

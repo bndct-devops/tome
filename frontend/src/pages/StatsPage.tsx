@@ -133,6 +133,10 @@ type WidgetDef = {
 }
 
 // Unique tile/tab ids — Date.now alone collides on rapid actions (duplicates).
+// Stats answers by range, kept for the session: coming back to the page is
+// instant, the fresh answer replaces it when it arrives.
+const statsCache = new Map<string, StatsResponse>()
+
 let _uid = 0
 const newId = (prefix: string) => `${prefix}--${Date.now().toString(36)}${(_uid++).toString(36)}`
 
@@ -1786,7 +1790,7 @@ export function StatsPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [days, setDays] = useState(() => loadPersisted()?.days ?? 30)
   const [custom, setCustom] = useState<CustomRange | null>(null)
-  const [stats, setStats] = useState<StatsResponse | null>(null)
+  const [stats, setStats] = useState<StatsResponse | null>(() => statsCache.get(`days=${days}`) ?? null)
   const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
   const [goals, setGoals] = useState<Goal[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1853,12 +1857,15 @@ export function StatsPage() {
   const setActiveLayout = useCallback((l: Layout) => updateActive((t) => ({ ...t, layout: l })), [updateActive])
 
   useEffect(() => {
-    setLoading(true)
     const tzOffset = new Date().getTimezoneOffset()
     const range = custom ? `start=${custom.start}&end=${custom.end}` : `days=${days}`
+    // The last answer for this range paints at once; the fresh one lands underneath.
+    const cached = statsCache.get(range)
+    if (cached) setStats(cached)
+    else setLoading(true)
     api
       .get<StatsResponse>(`/stats?${range}&tz_offset=${tzOffset}`)
-      .then(setStats)
+      .then(r => { statsCache.set(range, r); setStats(r) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [days, custom])

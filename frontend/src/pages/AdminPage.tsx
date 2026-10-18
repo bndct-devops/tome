@@ -11,7 +11,7 @@ import {
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { AppShell } from '@/components/AppShell'
-import { SectionLayout, SectionNav, PanelSection, TABLE_HEAD } from '@/components/SectionNav'
+import { SectionLayout, SectionNav, SectionSidebar, PanelSection, TABLE_HEAD } from '@/components/SectionNav'
 import { PageBody, Pill, Stat, StatStrip } from '@/components/page'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
 import { CoverAudit } from '@/components/CoverAudit'
@@ -2297,8 +2297,9 @@ export function AdminPage() {
   ]
 
   return (
-    <AppShell>
+    <AppShell sidebar={<SectionSidebar title={<Trans>Admin</Trans>} />}>
       <SectionLayout
+        sidebar
         title={<Trans>Admin</Trans>}
         eyebrow={tabs.find(x => x.id === tab)?.label}
         nav={
@@ -2307,6 +2308,7 @@ export function AdminPage() {
             active={tab}
             onSelect={id => setTab(id as Tab)}
             label={t`Admin sections`}
+            placement="sidebar"
           />
         }
       >

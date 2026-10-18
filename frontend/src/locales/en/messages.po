@@ -1958,6 +1958,10 @@ msgstr "Avg session"
 msgid "Avg Session"
 msgstr "Avg Session"
 
+#: src/components/SectionNav.tsx
+msgid "Back"
+msgstr "Back"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Back to library"
 msgstr "Back to library"
@@ -2403,6 +2407,7 @@ msgstr "Click: only books on {name}"
 
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/ConnectPhoneModal.tsx
+#: src/components/KeyboardShortcutsModal.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/QuickLook.tsx
@@ -2481,8 +2486,12 @@ msgid "Colors <0>(10 hex values, comma-separated)</0>"
 msgstr "Colors <0>(10 hex values, comma-separated)</0>"
 
 #: src/components/KeyboardShortcutsModal.tsx
-msgid "Command palette — jump to a book, series, author, or page"
-msgstr "Command palette — jump to a book, series, author, or page"
+#~ msgid "Command palette — jump to a book, series, author, or page"
+#~ msgstr "Command palette — jump to a book, series, author, or page"
+
+#: src/components/KeyboardShortcutsModal.tsx
+msgid "Command palette: jump to a book, series, author, or page"
+msgstr "Command palette: jump to a book, series, author, or page"
 
 #: src/pages/AdminPage.tsx
 msgid "Complete"
@@ -2818,8 +2827,8 @@ msgid "Dark theme"
 msgstr "Dark theme"
 
 #: src/components/KeyboardShortcutsModal.tsx
-msgid "Dashboard"
-msgstr "Dashboard"
+#~ msgid "Dashboard"
+#~ msgstr "Dashboard"
 
 #: src/pages/AdminPage.tsx
 msgid "Data"
@@ -4173,6 +4182,10 @@ msgstr "In KOReader: Settings > Device > Restart KOReader. The plugin loads auto
 msgid "In KOReader: Tools → Progress sync → Custom sync server."
 msgstr "In KOReader: Tools → Progress sync → Custom sync server."
 
+#: src/pages/DashboardPage.tsx
+msgid "In the library"
+msgstr "In the library"
+
 #: src/pages/BookDetailPage.tsx
 msgid "In this series"
 msgstr "In this series"
@@ -4267,8 +4280,12 @@ msgid "Key created — copy it now, it won't be shown again."
 msgstr "Key created — copy it now, it won't be shown again."
 
 #: src/components/KeyboardShortcutsModal.tsx
-msgid "Keyboard Shortcuts"
-msgstr "Keyboard Shortcuts"
+msgid "Keyboard shortcuts"
+msgstr "Keyboard shortcuts"
+
+#: src/components/KeyboardShortcutsModal.tsx
+#~ msgid "Keyboard Shortcuts"
+#~ msgstr "Keyboard Shortcuts"
 
 #: src/pages/SettingsPage.tsx
 msgid "Kindle users"
@@ -4336,6 +4353,7 @@ msgstr "Last 12 months"
 msgid "Last 30 days"
 msgstr "Last 30 days"
 
+#: src/components/QuickLook.tsx
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Last read"
@@ -4401,6 +4419,7 @@ msgid "Libraries applied to {n} files"
 msgstr "Libraries applied to {n} files"
 
 #: src/components/home/HomeTab.tsx
+#: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -7166,6 +7185,7 @@ msgstr "Session Timeline"
 msgid "sessions"
 msgstr "sessions"
 
+#: src/components/QuickLook.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
@@ -8033,6 +8053,7 @@ msgid "Time per volume"
 msgstr "Time per volume"
 
 #: src/components/home/HomeTab.tsx
+#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Time reading"
 msgstr "Time reading"

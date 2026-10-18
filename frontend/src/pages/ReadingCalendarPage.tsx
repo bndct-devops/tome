@@ -102,9 +102,17 @@ function bookLabel(b: BookRef): string {
   return b.series && b.series_index != null ? `${b.series} #${+b.series_index}` : b.title
 }
 
+// The last month seen, so coming back to the calendar paints at once and
+// refreshes underneath instead of starting from the skeleton.
+const monthCache = new Map<string, MonthResponse>()
+
 export function ReadingCalendarPage() {
   const [params, setParams] = useSearchParams()
-  const [data, setData] = useState<MonthResponse | null>(null)
+  const nowMonthInit = isoOf(new Date()).slice(0, 7)
+  const [data, setData] = useState<MonthResponse | null>(() => {
+    const m = new URLSearchParams(window.location.search).get('month')
+    return monthCache.get(/^\d{4}-\d{2}$/.test(m ?? '') ? m! : nowMonthInit) ?? null
+  })
   const [error, setError] = useState(false)
   const nowMonth = isoOf(new Date()).slice(0, 7)
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : nowMonth
@@ -113,8 +121,8 @@ export function ReadingCalendarPage() {
   useEffect(() => {
     let live = true
     api.get<MonthResponse>(`/stats/calendar?month=${month}&tz_offset=${tzOffset()}`)
-      .then(r => { if (live) { setData(r); setError(false) } })
-      .catch(() => { if (live) setError(true) })
+      .then(r => { monthCache.set(month, r); if (live) { setData(r); setError(false) } })
+      .catch(() => { if (live && !monthCache.has(month)) setError(true) })
     return () => { live = false }
   }, [month])
 
@@ -132,7 +140,8 @@ export function ReadingCalendarPage() {
 
   // While the next month loads, the one on screen stays, dimmed, so nothing
   // flashes empty; the skeleton is only for the very first open.
-  const shown = data?.month === month ? data : null
+  // A month seen before paints from the cache while the fresh answer loads.
+  const shown = data?.month === month ? data : (monthCache.get(month) ?? null)
   const view = shown ?? data
   const viewMonth = view?.month ?? month
   const stale = !!view && !shown

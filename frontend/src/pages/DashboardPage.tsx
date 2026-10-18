@@ -1221,37 +1221,20 @@ export function DashboardPage() {
                 const continueBook = getContinueBook(seriesDetail.books)
                 return (
                   <>
-                  {/* ── Hero: cover on the left, the header and the series' state on the right ── */}
-                  <section className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
-                    <div className="w-[160px] sm:w-[220px] mx-auto lg:mx-0 rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
-                      <div className="relative aspect-[2/3]">
-                        <CoverImage
-                          src={heroCoverId != null ? coverSrc(heroCoverId, { w: 400 }) : null}
-                          alt=""
-                          iconClassName="w-10 h-10"
-                        />
-                      </div>
+                  {/* ── Header line: where you are on the left, the series' actions on the right ── */}
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="text-[13px] text-muted-foreground flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <Trans>Series</Trans>
+                      </button>
+                      <span aria-hidden>/</span>
+                      <span><Plural value={total} one="# volume" other="# volumes" /></span>
                     </div>
-
-                    <div className="min-w-0 flex flex-col gap-5">
-                      <PageHeader
-                        eyebrow={
-                          <span className="inline-flex items-center gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
-                              className="inline-flex items-center gap-1 uppercase hover:text-foreground transition-colors"
-                            >
-                              <ArrowLeft className="w-3.5 h-3.5" />
-                              <Trans>Series</Trans>
-                            </button>
-                            <span aria-hidden>&middot;</span>
-                            <span><Plural value={total} one="# volume" other="# volumes" /></span>
-                          </span>
-                        }
-                        title={isUnserialized ? t`No Series` : seriesDetail.name}
-                        subtitle={seriesDetail.author ?? undefined}
-                        actions={
                           <div className="flex flex-wrap items-center gap-1">
                             {!isUnserialized && (
                               <Pill
@@ -1271,8 +1254,33 @@ export function DashboardPage() {
                             )}
                             <SeriesFollowButton seriesName={seriesDetail.name} />
                           </div>
-                        }
-                      />
+                  </div>
+
+                  {/* ── Rail (cover, coverage) and content (title, state, description, actions, stats) ── */}
+                  <div className="grid gap-8 lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
+                    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
+                      <div className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
+                        <div className="relative aspect-[2/3]">
+                          <CoverImage
+                            src={heroCoverId != null ? coverSrc(heroCoverId, { w: 400 }) : null}
+                            alt=""
+                            iconClassName="w-10 h-10"
+                          />
+                        </div>
+                      </div>
+                      {!isUnserialized && coverage.some(v => v.series_index != null) && (
+                        <div className="mt-6">
+                          <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-3"><Trans>In the library</Trans></div>
+                          <SeriesCoverageStrip coverage={coverage} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex flex-col gap-6">
+                      <div>
+                        <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{isUnserialized ? t`No Series` : seriesDetail.name}</h1>
+                        {seriesDetail.author && <div className="mt-2 text-[16px] text-muted-foreground">{seriesDetail.author}</div>}
+                      </div>
 
                       {/* Status and arcs */}
                       {(seriesMetaMap[seriesDetail.name] || hasArcs) && (
@@ -1292,6 +1300,7 @@ export function DashboardPage() {
                       )}
 
                       <SeriesRating seriesName={seriesDetail.name} isUnserialized={isUnserialized} />
+
 
                       {/* Progress through the series */}
                       <div>
@@ -1334,6 +1343,7 @@ export function DashboardPage() {
                         )}
                       </div>
 
+
                       {seriesDetail.description && (
                         <div className="max-w-[680px]">
                           <p className={cn(
@@ -1353,10 +1363,6 @@ export function DashboardPage() {
                         </div>
                       )}
 
-                      {/* Which volumes the library has, gaps included */}
-                      {!isUnserialized && coverage.some(v => v.series_index != null) && (
-                        <SeriesCoverageStrip coverage={coverage} />
-                      )}
 
                       <div className="flex flex-wrap items-center gap-2">
                         {continueBook && (() => {
@@ -1379,11 +1385,11 @@ export function DashboardPage() {
                           <Trans>Mark all read</Trans>
                         </Pill>
                       </div>
-                    </div>
-                  </section>
 
-                  {/* Per-series reading stats */}
-                  <SeriesReadingStats seriesName={seriesDetail.name} />
+                      {/* Per-series reading stats */}
+                      <SeriesReadingStats seriesName={seriesDetail.name} />
+                    </div>
+                  </div>
 
                   {/* Volume grid — grouped by arc when arcs exist */}
                   {sections.map((section, si) => (

@@ -197,6 +197,22 @@
   to   { opacity: 1; transform: none; }
 }
 
+/* Settings and Admin replace the app sidebar with their own section list,
+   which slides in from the left (no fade: the frame behind it is painted). */
+@keyframes section-sidebar-in { from { transform: translateX(-16px); } to { transform: none; } }
+
+/* Quick look: the veil fades in over the page, the card scales up from the
+   centre. Both start from nothing on purpose: they are new layers over the
+   page, not content inside a painted container. */
+@keyframes quicklook-veil { from { opacity: 0; } to { opacity: 1; } }
+@keyframes quicklook-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.965); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[quicklook-in_220ms_cubic-bezier\(0\.2\,0\.8\,0\.2\,1\)\] { animation: none; }
+}
+
 /* Focus-mode cover bloom — a soft black halo on light themes, a neutral light
    halo on dark (a black shadow is invisible against a near-black background). */
 :root {

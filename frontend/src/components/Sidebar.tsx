@@ -111,9 +111,11 @@ interface Props {
   onOpenHomeView: () => void
   mobileOpen: boolean
   onMobileClose: () => void
+  /** A page that brings its own desktop sidebar (Settings, Admin) keeps only the phone drawer. */
+  desktopHidden?: boolean
 }
 
-export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange, onSavedFiltersChange, onOpenSeriesView, onOpenHomeView, mobileOpen, onMobileClose }: Props) {
+export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange, onSavedFiltersChange, onOpenSeriesView, onOpenHomeView, mobileOpen, onMobileClose, desktopHidden }: Props) {
   const { t } = useLingui()
   const [open, setOpen] = useState(() => localStorage.getItem(SIDEBAR_KEY) !== 'closed')
   const [searchParams] = useSearchParams()
@@ -380,10 +382,11 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       <aside className={cn(
         // Part of the frame: no line against the content panel, which is set
         // into the frame colour. The wordmark lives here, full height.
-        'hidden md:flex shrink-0 flex-col bg-frame transition-all duration-200',
+        'shrink-0 flex-col bg-frame transition-all duration-200',
+        desktopHidden ? 'hidden' : 'hidden md:flex',
         open ? 'w-64' : 'w-14'
       )}>
-        <div className={cn('h-14 shrink-0 flex items-center gap-2 cursor-default', open ? 'px-5' : 'justify-center')}>
+        <div className={cn('group h-14 shrink-0 flex items-center gap-2 cursor-default', open ? 'px-5' : 'justify-center')}>
           <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
           {open && <span className="font-semibold text-[14px] text-foreground">Tome</span>}
         </div>

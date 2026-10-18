@@ -28,10 +28,13 @@ export function AppShell({
   children,
   actions,
   onUploaded,
+  sidebar,
 }: {
   children: ReactNode
   actions?: ReactNode
   onUploaded?: () => void
+  /** Replaces the app sidebar on desktop (Settings and Admin bring their section list). The phone drawer stays. */
+  sidebar?: ReactNode
 }) {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -96,7 +99,10 @@ export function AppShell({
   return (
     <ShellFrame
       sidebar={
+        <>
+        {sidebar}
         <Sidebar
+          desktopHidden={!!sidebar}
           libraries={libraries}
           savedFilters={savedFilters}
           activeTab="none"
@@ -107,6 +113,7 @@ export function AppShell({
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
+        </>
       }
       header={
       <AppHeader

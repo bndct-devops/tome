@@ -20,9 +20,15 @@ All notable changes to Tome are documented here. Format loosely follows
   Highlights, Wishlist, Bindery, Hardcover, Settings, Admin, the login and
   the public share page follow the same vocabulary: one page header with the
   page's actions on the right, pill buttons, rows on hairlines instead of
-  boxes, and two content widths. A quick look opens from a cover in any grid
-  or row (cover, progress, Resume, Open page) without leaving the page. All
-  five themes.
+  boxes, and two content widths. Settings and Admin swap the sidebar for their
+  own section list while they are open. A quick look opens from a cover in
+  any grid or row (cover, description, progress, reading time, Resume, Open
+  page) without leaving the page. All five themes.
+- **Stats opens faster.** The stats answer computed the same gap-clustered
+  sessions up to ten times per request; it now does so once, which roughly
+  halves the server time. Stats and Calendar also keep their last answer
+  for the session, so coming back to either page paints at once and
+  refreshes underneath.
 
 ### Removed
 - **Home's Focus and Dashboard modes.** There is one Home now. Reading DNA

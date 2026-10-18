@@ -14,6 +14,7 @@ import { getFollows, type FollowOut } from '@/lib/follows'
 import { useTelemetry } from '@/lib/useTelemetry'
 import type { Book } from '@/lib/books'
 import { CoverImage } from '@/components/CoverImage'
+import { useTilt } from '@/lib/tilt'
 import { HScrollRow } from '@/components/HScrollRow'
 import { QuickLook } from '@/components/QuickLook'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
@@ -406,21 +407,21 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               const active = r.book_id === b?.book_id
               return (
                 <div key={r.book_id} className="shrink-0 w-[104px]">
-                  <div className="relative group/cover">
+                  <TiltCover className="relative group/cover">
                     <button
                       type="button"
                       onClick={() => switchTo(r.book_id)}
                       aria-current={active}
                       aria-label={r.title}
                       className={cn(
-                        'relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : 'opacity-80 hover:opacity-100',
                       )}
                     >
                       <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
                     </button>
                     <PeekButton onClick={() => setPeek(r.book_id)} />
-                  </div>
+                  </TiltCover>
                   <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
                     <div className="h-full bg-primary" style={{ width: `${Math.min(100, r.progress)}%` }} />
                   </div>
@@ -512,7 +513,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           <HScrollRow className="gap-4 px-1.5 pt-4 pb-3" wrapClassName="-mx-1.5" controlsTop="top-[128px]">
             {recent.map(book => (
               <div key={book.id} className="shrink-0 w-[150px]">
-                <div className="relative group/cover">
+                <TiltCover className="relative group/cover">
                   <Link
                     to={`/books/${book.id}`}
                     className="relative block aspect-[2/3] rounded-[12px] overflow-hidden bg-muted"
@@ -522,7 +523,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                     <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt="" />
                   </Link>
                   <PeekButton onClick={() => setPeek(book.id)} />
-                </div>
+                </TiltCover>
                 <Link to={`/books/${book.id}`} className="mt-2.5 block text-[15px] text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors">
                   {book.title}
                 </Link>
@@ -616,5 +617,15 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 
       {peek != null && <QuickLook bookId={peek} onClose={() => setPeek(null)} />}
     </PageBody>
+  )
+}
+
+/** A cover that tilts toward the pointer, as the Library cards do. */
+function TiltCover({ className, children }: { className?: string; children: ReactNode }) {
+  const { wrapperProps, tiltProps } = useTilt()
+  return (
+    <div {...wrapperProps}>
+      <div {...tiltProps} className={className}>{children}</div>
+    </div>
   )
 }
