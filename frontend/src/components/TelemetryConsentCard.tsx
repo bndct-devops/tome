@@ -133,4 +133,4 @@ export function TelemetrySettings() {
 }
 
 // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-const btn = 'inline-flex items-center h-9 px-4 rounded-full bg-secondary text-[14px] font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50'
+const btn = 'inline-flex items-center h-9 px-4 rounded-full bg-secondary text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover disabled:opacity-50'

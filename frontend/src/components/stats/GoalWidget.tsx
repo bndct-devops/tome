@@ -220,7 +220,7 @@ export function GoalWidgetBody({
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover"
         >
           <Trans>Set a goal</Trans>
         </button>

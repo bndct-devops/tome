@@ -1299,7 +1299,7 @@ export function DashboardPage() {
                               key={sec.arcId}
                               type="button"
                               onClick={() => document.getElementById(`series-arc-${sec.arcId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                              className="h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-muted transition-colors"
+                              className="h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors"
                             >
                               {sec.name}
                             </button>

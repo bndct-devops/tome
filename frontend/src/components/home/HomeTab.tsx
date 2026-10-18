@@ -160,7 +160,7 @@ function PeekButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       aria-label={t`Quick look`}
       title={t`Quick look`}
-      className="absolute top-1.5 right-1.5 z-10 grid place-items-center w-7 h-7 rounded-full bg-background/85 text-foreground shadow-sm opacity-0 group-hover/cover:opacity-100 focus-visible:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="absolute bottom-1.5 right-1.5 z-10 grid place-items-center w-7 h-7 rounded-full bg-background/85 text-foreground shadow-sm opacity-0 group-hover/cover:opacity-100 focus-visible:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Eye className="w-3.5 h-3.5" />
     </button>
@@ -404,7 +404,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
       {focus && focus.reading.length > 1 && (
         <section>
           <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
-          <HScrollRow className="gap-4 px-1.5 py-1.5" wrapClassName="-mx-1.5" controlsTop="top-[84px]">
+          <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
             {focus.reading.map(r => {
               const active = r.book_id === b?.book_id
               return (
@@ -512,7 +512,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
       {recent.length > 0 && (
         <section>
           <SectionTitle action={<SeeAll onClick={onSeeAllRecent} />}><Trans>Recently added</Trans></SectionTitle>
-          <HScrollRow className="gap-4 px-1.5 pt-4 pb-3" wrapClassName="-mx-1.5" controlsTop="top-[128px]">
+          <HScrollRow className="gap-4 px-2 pt-5 pb-3" wrapClassName="-mx-2 -mt-1" controlsTop="top-[128px]">
             {recent.map(book => (
               <div key={book.id} className="shrink-0 w-[150px]">
                 <TiltCover className="relative group/cover">

@@ -29,6 +29,7 @@
   --color-ring: var(--ring);
   --color-accent-soft: var(--accent-soft);
   --color-frame: var(--frame);
+  --color-surface-hover: var(--surface-hover);
   --color-panel-ring: var(--panel-ring);
   --radius-panel: 22px;
   --radius-sm: calc(var(--radius) - 4px);
@@ -74,6 +75,10 @@
      panel set into it, one step lighter (dark themes) or lighter (light themes). */
   --frame: oklch(0.945 0.004 85);
   --panel-ring: transparent;
+  /* One step past --secondary for hover: in the dark themes --secondary and
+     --muted are the same colour, so a secondary pill hovering to muted did
+     not change at all. */
+  --surface-hover: oklch(0.89 0.006 85);
 }
 
 /* Dark — near-neutral with a trace of warmth (not zinc, not espresso)
@@ -110,6 +115,7 @@
   --chart-accent: oklch(0.64 0.12 22);
   --accent-soft: oklch(0.64 0.12 22 / 0.16);
   --frame: oklch(0.115 0.004 60);
+  --surface-hover: oklch(0.33 0.006 60);
 }
 
 /* Ember — the warm cappuccino dark: espresso surfaces, same rosewood accent.
@@ -125,6 +131,7 @@
   --border: oklch(0.95 0.015 60 / 16%);
   --input: oklch(0.95 0.015 60 / 20%);
   --frame: oklch(0.13 0.012 60);
+  --surface-hover: oklch(0.35 0.016 60);
 }
 
 /* Black — true-black OLED theme, same wine identity.
@@ -144,6 +151,7 @@
   --input: oklch(1 0 0 / 21%);
   --frame: oklch(0 0 0);
   --panel-ring: oklch(1 0 0 / 12%);
+  --surface-hover: oklch(0.27 0.005 60);
 }
 
 /* Amber (warm parchment) theme */
@@ -174,6 +182,7 @@
   --chart-accent: oklch(0.56 0.155 52);
   --accent-soft: oklch(0.50 0.155 52 / 0.12);
   --frame: oklch(0.94 0.012 70);
+  --surface-hover: oklch(0.885 0.016 70);
 }
 
 /* Card stagger entrance animation */

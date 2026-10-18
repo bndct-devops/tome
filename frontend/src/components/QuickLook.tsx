@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 import { CoverImage } from '@/components/CoverImage'
 import { Pill } from '@/components/page'
 import { coverSrc } from '@/lib/covers'
+import { progressPercent } from '@/lib/utils'
 import type { BookDetail, BookStatus } from '@/lib/books'
 
 interface OwnStats { total_seconds: number; sessions: number; last_read: string | null }
@@ -59,7 +60,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const pct = status?.progress_pct ?? 0
+  const pct = progressPercent(status?.progress_pct)
   const text = book?.description ? plainText(book.description) : null
 
   return (
