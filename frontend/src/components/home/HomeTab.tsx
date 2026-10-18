@@ -355,16 +355,18 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         </section>
       ) : (
         <section className={cn('flex flex-col sm:flex-row gap-8 sm:items-center transition-opacity', switching && 'opacity-60')}>
-          <Link
-            to={`/books/${b.book_id}`}
-            className="shrink-0 w-[180px] mx-auto sm:mx-0 rounded-[12px] overflow-hidden bg-muted"
-            style={{ boxShadow: 'var(--cover-bloom-hero)' }}
-            aria-label={b.title}
-          >
-            <div className="relative aspect-[2/3]">
-              <CoverImage src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null} alt="" loading="eager" iconClassName="w-10 h-10" />
-            </div>
-          </Link>
+          <TiltCover className="shrink-0 w-[180px] mx-auto sm:mx-0" degrees={4}>
+            <Link
+              to={`/books/${b.book_id}`}
+              className="block rounded-[12px] overflow-hidden bg-muted"
+              style={{ boxShadow: 'var(--cover-bloom-hero)' }}
+              aria-label={b.title}
+            >
+              <div className="relative aspect-[2/3]">
+                <CoverImage src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null} alt="" loading="eager" iconClassName="w-10 h-10" />
+              </div>
+            </Link>
+          </TiltCover>
           <div className="min-w-0 flex-1 max-w-[560px]">
             <Eyebrow className="text-primary"><Trans>Continue reading</Trans></Eyebrow>
             <h2 className="font-display text-[32px] leading-[1.05] font-bold text-foreground mt-2">
@@ -621,10 +623,10 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 }
 
 /** A cover that tilts toward the pointer, as the Library cards do. */
-function TiltCover({ className, children }: { className?: string; children: ReactNode }) {
-  const { wrapperProps, tiltProps } = useTilt()
+function TiltCover({ className, degrees, children }: { className?: string; degrees?: number; children: ReactNode }) {
+  const { wrapperProps, tiltProps } = useTilt(true, degrees)
   return (
-    <div {...wrapperProps}>
+    <div {...wrapperProps} className="shrink-0">
       <div {...tiltProps} className={className}>{children}</div>
     </div>
   )
