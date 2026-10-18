@@ -1385,11 +1385,13 @@ export function DashboardPage() {
                           <Trans>Mark all read</Trans>
                         </Pill>
                       </div>
-
-                      {/* Per-series reading stats */}
-                      <SeriesReadingStats seriesName={seriesDetail.name} />
                     </div>
                   </div>
+
+                  {/* Per-series reading stats: full width, like the volumes below.
+                      Beside the cover it stayed indented against an empty rail once
+                      the cover had scrolled away. */}
+                  <SeriesReadingStats seriesName={seriesDetail.name} />
 
                   {/* Volume grid — grouped by arc when arcs exist */}
                   {sections.map((section, si) => (
