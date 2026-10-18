@@ -401,37 +401,18 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 </div>
               )}
             </div>
-            {/* The volumes after this one in its series, when the library has them. */}
-            {focus && (focus.upcoming?.length ?? 0) > 0 && (
-              <div className="mt-6">
-                <Eyebrow className="mb-2">
-                  {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
-                </Eyebrow>
-                <div className="flex gap-2.5">
-                  {focus.upcoming!.slice(0, 8).map(u => (
-                    <button
-                      key={u.book_id}
-                      type="button"
-                      onClick={() => setPeek(u.book_id)}
-                      className="shrink-0 w-[56px] group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[6px]"
-                      title={u.series_index != null ? `${fmtIndex(u.series_index)} · ${u.title}` : u.title}
-                      aria-label={u.title}
-                    >
-                      <div className="relative aspect-[2/3] rounded-[6px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
-                        <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 160 }) : null} alt="" iconClassName="w-3 h-3" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </section>
       )}
 
-      {/* ── Also reading: every book in progress, the hero ringed ────────── */}
-      {focus && focus.reading.length > 1 && (
-        <section>
+      {/* ── Also reading and Up next, side by side: the other books in progress,
+          and the volumes after the hero in its series. The hero stays short so
+          the stat strip is on the first screen. ────────────────────────────── */}
+      {focus && (focus.reading.length > 1 || (focus.upcoming?.length ?? 0) > 0) && (
+        <section className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          {focus.reading.length > 1 && (
+            <div className="min-w-0 flex-1">
+
           <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
           <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
             {focus.reading.map(r => {
@@ -469,6 +450,33 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               </button>
             )}
           </HScrollRow>
+            </div>
+          )}
+          {(focus.upcoming?.length ?? 0) > 0 && b && (
+            <div className={cn('shrink-0', focus.reading.length > 1 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
+              <Eyebrow className="mb-2">
+                {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
+              </Eyebrow>
+              <div className="flex gap-4 py-1.5">
+                {focus.upcoming!.slice(0, 5).map(u => (
+                  <button
+                    key={u.book_id}
+                    type="button"
+                    onClick={() => setPeek(u.book_id)}
+                    className="shrink-0 w-[104px] text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
+                    aria-label={u.title}
+                  >
+                    <div className="relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
+                      <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+                    </div>
+                    <div className="mt-[17px] text-[13px] text-muted-foreground truncate">
+                      {u.series_index != null ? (() => { const v = fmtIndex(u.series_index); return <Trans>Volume {v}</Trans> })() : u.title}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
