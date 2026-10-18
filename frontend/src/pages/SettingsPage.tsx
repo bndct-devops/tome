@@ -18,6 +18,7 @@ import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SettingsNav } from '@/components/SettingsNav'
 import { api } from '@/lib/api'
+import { SUPPORTERS } from '@/lib/supporters'
 import { cn } from '@/lib/utils'
 import {
   listTokens, createToken, revokeToken,
@@ -1868,6 +1869,14 @@ export function SettingsPage() {
                 <Trans>A newer release is available — the link opens the release notes.
                 Update by pulling the new image and restarting the container.</Trans>
               </p>
+            )}
+            {SUPPORTERS.length > 0 && (
+              <div className="mt-4 border-t border-border/50 pt-4">
+                <p className="text-xs font-medium text-muted-foreground">
+                  <Trans>Thank you to everyone who supports Tome</Trans>
+                </p>
+                <p className="mt-1.5 text-sm text-foreground">{SUPPORTERS.join(', ')}</p>
+              </div>
             )}
             <TelemetrySettings />
           </div>

@@ -215,6 +215,17 @@ Off by default. Admins are asked once whether Tome may send one small anonymous 
 Bugs and concrete feature requests go to [Issues](https://github.com/bndct-devops/tome/issues).
 Setup questions, rough ideas and anything else go to [Discussions](https://github.com/bndct-devops/tome/discussions).
 
+## Supporters
+
+Tome is free and stays free. If it is useful to you, you can say thanks on
+[GitHub Sponsors](https://github.com/sponsors/bndct-devops). Nothing in Tome
+is locked behind a sponsorship.
+
+Thank you to everyone who supports Tome:
+
+<!-- supporters:start -->
+<!-- supporters:end -->
+
 ## Acknowledgements
 
 - [KOReader](https://koreader.rocks) -- the open source e-reader app that Tome's sync plugin and OPDS integration are built for
