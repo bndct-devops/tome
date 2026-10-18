@@ -71,6 +71,16 @@ def _no_real_ai(monkeypatch):
 
 
 @pytest.fixture(autouse=True, scope="function")
+def _companion_on_by_default(monkeypatch):
+    """Autouse: the reading companion's switch answers "on" where no row
+    exists, so the trigger tests keep exercising the triggers. The switch's
+    own tests (tests/test_ai_optin.py) put the production default back."""
+    from backend.services.ai import optin as _optin
+    monkeypatch.setattr(_optin, "_TEST_DEFAULT", True)
+    yield
+
+
+@pytest.fixture(autouse=True, scope="function")
 def _block_smtp():
     """Autouse fixture: replace smtplib.SMTP / SMTP_SSL with a hard block."""
     def _blocked(*args, **kwargs):

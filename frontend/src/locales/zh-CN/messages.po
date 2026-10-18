@@ -3080,6 +3080,10 @@ msgstr ""
 msgid "Could not apply the sync code"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "Could not change the companion setting"
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "Could not create a code"
 msgstr ""
@@ -6481,6 +6485,14 @@ msgstr ""
 msgid "Off"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "Off for this book. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position."
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Off for this series. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position."
+msgstr ""
+
 #: src/components/AiSettings.tsx
 msgid "Off hides every AI button and this section from members. Keys and usage are kept."
 msgstr ""
@@ -8816,6 +8828,14 @@ msgstr ""
 msgid "Stop following this series"
 msgstr ""
 
+#: src/components/ReadingCompanion.tsx
+msgid "Stop reading along for this book"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Stop reading along for this series"
+msgstr ""
+
 #: src/components/TelemetryConsentCard.tsx
 msgid "Stop sending"
 msgstr ""
@@ -9497,6 +9517,18 @@ msgstr ""
 #: src/components/stats/HourDowHeatmap.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Tue"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Turn off"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Turn on for this book"
+msgstr ""
+
+#: src/components/ReadingCompanion.tsx
+msgid "Turn on for this series"
 msgstr ""
 
 #: src/pages/ReaderPage.tsx

@@ -28,7 +28,7 @@ from backend.models.user import User
 from backend.services import ai
 from backend.services import book_text
 from backend.services.ai import (
-    budget, companion, digest, digest_job, fix_book, identify, jobs_view, recall as ai_recall,
+    budget, companion, digest, digest_job, fix_book, identify, jobs_view, optin, recall as ai_recall,
     recap as ai_recap, registry, reread, series_cleanup, settings as ai_settings, usage,
     volume_recap,
 )
@@ -563,6 +563,9 @@ def get_companion(
         "chapters": len(chapters), "coverage": None, "job": None, "last_job": None,
         "recap_cached": False, "glossary_count": 0, "previously": None, "scope": None,
         "series_recaps": False, "ask_cost_hint_usd": None,
+        # The companion switch for this book's series (or the book). Off =
+        # nothing is read on its own; the page shows the switch and nothing else.
+        "optin": optin.payload(db, current_user, book),
     }
     if (not ai_settings.ai_enabled(db) or not ai_settings.feature_enabled(db, digest.FEATURE)
             or not (ai_settings.feature_enabled(db, ai_recap.FEATURE)
@@ -618,6 +621,36 @@ def get_companion(
         "scope": scope.to_dict(),
     })
     return out
+
+
+class OptInBody(BaseModel):
+    enabled: bool
+
+
+@router.put("/books/{book_id}/companion/optin")
+def put_companion_optin(
+    book_id: int,
+    body: OptInBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ai_user),
+) -> dict[str, Any]:
+    """Switch the reading companion on or off for this book's series (or the
+    book). On: automatic reads start at the reader's current chapter (or at 0
+    when the book already has digests) and never go back before it; off: the
+    synced position and marking the book read trigger nothing. Explicit
+    starts are unaffected."""
+    book = _visible_book(db, current_user, book_id)
+    pos = companion.reader_position(db, current_user, book)
+    k = companion.position_chapter(book, pos.word_pct, db) if pos else 0
+    row = optin.set_enabled(db, current_user, book, body.enabled, k)
+    audit(db, "ai.companion_optin", user_id=current_user.id, username=current_user.username,
+          resource_type="book", resource_id=book.id,
+          details={"enabled": body.enabled, "scope": row.scope_key,
+                   "start_chapter": row.start_chapter_idx if body.enabled else None},
+          ip=_ip(request))
+    db.commit()
+    return optin.payload(db, current_user, book)
 
 
 class RecapBody(BaseModel):

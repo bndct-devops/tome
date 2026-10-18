@@ -1705,7 +1705,7 @@ class UnitSplit(Exception):
         self.reason = reason
 
 
-def plan_units(db: Session, scope: Scope, upto: int) -> list[Unit]:
+def plan_units(db: Session, scope: Scope, upto: int, floor: int = 0) -> list[Unit]:
     """The missing chapters of ``scope`` up to ``upto`` (``missing_chapters``,
     reading order) grouped into units: consecutive chapters of one volume, at
     most ``CHUNK_CHAPTERS`` chapters and ``CHUNK_WORDS`` words each. A chapter
@@ -1729,6 +1729,8 @@ def plan_units(db: Session, scope: Scope, upto: int) -> list[Unit]:
         cur, cur_words = [], 0
 
     for vol, ch in missing_chapters(db, scope, upto):
+        if floor and vol.id == scope.book.id and ch.idx < floor:
+            continue   # before the companion switch's start: never read on its own
         if vol.id not in words_by_book:
             words_by_book[vol.id] = book_text.chapter_word_counts(vol, db)
         words = words_by_book[vol.id].get(ch.idx, 0)
@@ -2355,6 +2357,9 @@ def on_position_advanced(db: Session, user: User, book: Book, pct: float | None,
         # Gate before reading the book file to place the reader.
         if not _user_can_digest(db, user, FEATURE):
             return None
+        from backend.services.ai import optin
+        if not optin.enabled(db, user, book):
+            return None   # the companion is off here: nothing happens on its own
         k = book_text.chapter_for_fraction(book, book_text.reading_fraction(book, pct, locator, db), db)
         if not k:
             return None
@@ -2368,7 +2373,8 @@ def on_position_advanced(db: Session, user: User, book: Book, pct: float | None,
             return None
         active = digest_job.active_for(user.id, book.id)
         covered = active["upto_chapter"] if active and active["status"] != "stopping" else 0
-        pending = [c for _, c in missing_chapters(db, Scope(book=book), k) if c.idx >= covered]
+        floor = optin.floor(db, user, book)
+        pending = [c for _, c in missing_chapters(db, Scope(book=book), k) if c.idx >= max(covered, floor)]
         if not PENDING_MIN <= len(pending) <= CONFIRM_THRESHOLD:
             return None   # too few to batch, or a backlog the user confirms first
         words = book_text.chapter_word_counts(book, db)
@@ -2378,7 +2384,7 @@ def on_position_advanced(db: Session, user: User, book: Book, pct: float | None,
         if not budget.allows(db, user, guess):
             logger.info("digest trigger skipped for user %s book %s: monthly AI budget", user.id, book.id)
             return None
-        return digest_job.enqueue(user_id=user.id, book_id=book.id, upto=k, current_book_only=True)
+        return digest_job.enqueue(user_id=user.id, book_id=book.id, upto=k, current_book_only=True, floor=floor)
     except Exception:  # noqa: BLE001 - never break a position sync
         logger.exception("digest trigger failed for user %s book %s", user.id, book.id)
         return None
@@ -2398,7 +2404,9 @@ def finished_book_job(db: Session, user: User, book: Book) -> tuple[int, int, in
         return None
     if not _user_can_digest(db, user, FEATURE, RECAP_FEATURE):
         return None
-    from backend.services.ai import budget, digest_job, estimate
+    from backend.services.ai import budget, digest_job, estimate, optin
+    if not optin.enabled(db, user, book):
+        return None   # the companion is off here
     if digest_job.last_cancelled(db, user.id, book.id):   # stopped by the user: only they restart it
         return None
     n = len(book_text.book_chapters(book, db))
@@ -2422,9 +2430,10 @@ def on_book_finished(db: Session, user: User, book: Book) -> dict | None:
     job = finished_book_job(db, user, book)
     if job is None or not _finished_allowed(user.id, book.id):
         return None
-    from backend.services.ai import digest_job
+    from backend.services.ai import digest_job, optin
     return digest_job.enqueue(user_id=job[0], book_id=job[1], upto=job[2],
-                              followups=(digest_job.FOLLOWUP_PREVIOUSLY,), current_book_only=True)
+                              followups=(digest_job.FOLLOWUP_PREVIOUSLY,), current_book_only=True,
+                              floor=optin.floor(db, user, book))
 
 
 # A book becoming "read" happens on many write paths (web status PUT, the
@@ -2469,7 +2478,8 @@ def _collect_finished_books(session: Session, _flush_context: Any) -> None:
                 continue
             job = finished_book_job(session, user, book)
             if job is not None:
-                ready[(user_id, book_id)] = job
+                from backend.services.ai import optin
+                ready[(user_id, book_id)] = (*job, optin.floor(session, user, book))
     except Exception:  # noqa: BLE001 - never break the write that finished the book
         logger.exception("finished-book digest hook failed")
 
@@ -2481,13 +2491,14 @@ def _enqueue_finished_books(session: Session) -> None:
         return
     try:
         from backend.services.ai import digest_job
-        for user_id, book_id, n in ready.values():
+        for user_id, book_id, n, floor in ready.values():
             if not _finished_allowed(user_id, book_id):
                 logger.info("finished-book digest skipped for user %s book %s: daily cap of %d",
                             user_id, book_id, MAX_FINISHED_PER_USER_DAY)
                 continue
             digest_job.enqueue(user_id=user_id, book_id=book_id, upto=n,
-                               followups=(digest_job.FOLLOWUP_PREVIOUSLY,), current_book_only=True)
+                               followups=(digest_job.FOLLOWUP_PREVIOUSLY,), current_book_only=True,
+                               floor=floor)
     except Exception:  # noqa: BLE001
         logger.exception("finished-book digest enqueue failed")
 

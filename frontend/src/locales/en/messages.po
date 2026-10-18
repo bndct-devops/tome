@@ -3080,6 +3080,10 @@ msgstr "Could not answer that"
 msgid "Could not apply the sync code"
 msgstr "Could not apply the sync code"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Could not change the companion setting"
+msgstr "Could not change the companion setting"
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "Could not create a code"
 msgstr "Could not create a code"
@@ -6481,6 +6485,14 @@ msgstr "of {totalPages} pages"
 msgid "Off"
 msgstr "Off"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Off for this book. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position."
+msgstr "Off for this book. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position."
+
+#: src/components/ReadingCompanion.tsx
+msgid "Off for this series. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position."
+msgstr "Off for this series. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position."
+
 #: src/components/AiSettings.tsx
 msgid "Off hides every AI button and this section from members. Keys and usage are kept."
 msgstr "Off hides every AI button and this section from members. Keys and usage are kept."
@@ -8816,6 +8828,14 @@ msgstr "Stop"
 msgid "Stop following this series"
 msgstr "Stop following this series"
 
+#: src/components/ReadingCompanion.tsx
+msgid "Stop reading along for this book"
+msgstr "Stop reading along for this book"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Stop reading along for this series"
+msgstr "Stop reading along for this series"
+
 #: src/components/TelemetryConsentCard.tsx
 msgid "Stop sending"
 msgstr "Stop sending"
@@ -9498,6 +9518,18 @@ msgstr "Tu"
 #: src/components/stats/widgets/habits.tsx
 msgid "Tue"
 msgstr "Tue"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Turn off"
+msgstr "Turn off"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Turn on for this book"
+msgstr "Turn on for this book"
+
+#: src/components/ReadingCompanion.tsx
+msgid "Turn on for this series"
+msgstr "Turn on for this series"
 
 #: src/pages/ReaderPage.tsx
 msgid "Turn pages by swipe only"

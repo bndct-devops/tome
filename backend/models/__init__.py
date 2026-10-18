@@ -20,5 +20,6 @@ from backend.models.ai_chapter_digest import AIChapterDigest  # noqa: F401
 from backend.models.ai_entity import AIEntity, AIEntityNote  # noqa: F401
 from backend.models.ai_recap import AIRecap  # noqa: F401
 from backend.models.ai_job import AIJob  # noqa: F401
+from backend.models.ai_companion_optin import AICompanionOptIn  # noqa: F401
 from backend.models.ai_reconcile_verdict import AIReconcileVerdict  # noqa: F401
 from backend.models.device_inventory import DeviceInventory, DeviceBook  # noqa: F401

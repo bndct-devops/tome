@@ -17,6 +17,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
 import { Pill, SectionTitle } from '@/components/page'
+import { setCompanionOptIn } from '@/lib/ai'
 import { DigestConfirmDialog } from '@/components/DigestConfirmDialog'
 import { RecapVolumes } from '@/components/RecapVolumes'
 import { GlossaryEntryDetail } from '@/components/GlossaryEntry'
@@ -199,6 +200,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const enabled = aiAvailable('reading_digest') && (aiAvailable('recap') || aiAvailable('recall'))
 
   const [companion, setCompanion] = useState<Companion | null>(null)
+  const [optinBusy, setOptinBusy] = useState(false)
 
   // Recap
   const [recapOpen, setRecapOpen] = useState(false)
@@ -444,6 +446,44 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   if (!enabled || !companion) return null
   const seriesOnly = !companion.available && companion.reason === 'no_position' && companion.series_recaps === true
   if (!hasPosition && !seriesOnly) return null
+
+  // The switch. Off: the section is the switch and nothing else; nothing is
+  // read on its own until the user turns it on here.
+  const optinOff = companion.optin != null && !companion.optin.enabled
+  const optinScopeSeries = companion.optin?.scope === 'series'
+  const toggleOptIn = async (on: boolean) => {
+    if (optinBusy) return
+    setOptinBusy(true)
+    try {
+      const next = await setCompanionOptIn(bookId, on)
+      setCompanion(c => (c ? { ...c, optin: next } : c))
+    } catch (e) {
+      setDigestError(e instanceof Error ? e.message : t`Could not change the companion setting`)
+    } finally {
+      setOptinBusy(false)
+    }
+  }
+  if (optinOff) {
+    return (
+      <section className="max-w-[720px]" aria-label={t`Reading companion`}>
+        <SectionTitle size={20} action={<AiBadge />}>
+          <Trans>Reading companion</Trans>
+        </SectionTitle>
+        <p className="mt-3 text-[14px] text-muted-foreground max-w-[64ch]">
+          {optinScopeSeries
+            ? <Trans>Off for this series. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position.</Trans>
+            : <Trans>Off for this book. Turn it on and Tome reads along from where you are: a glossary of names and places, a recap to your position, and answers from the chapters you have read. Nothing is read before you turn it on, and never past your position.</Trans>}
+        </p>
+        <div className="mt-4">
+          <Pill variant="secondary" onClick={() => void toggleOptIn(true)} disabled={optinBusy}>
+            {optinBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            {optinScopeSeries ? <Trans>Turn on for this series</Trans> : <Trans>Turn on for this book</Trans>}
+          </Pill>
+        </div>
+        {digestError && <p className="mt-3 text-[13px] text-destructive">{digestError}</p>}
+      </section>
+    )
+  }
 
   const { position, features } = companion
   const chapterLabel = (title: string | null, idx: number) => {
@@ -1312,7 +1352,20 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   return (
     <section className="max-w-[720px]" aria-label={t`Reading companion`}>
-      <SectionTitle size={20} action={<AiBadge />}>
+      <SectionTitle
+        size={20}
+        action={
+          <span className="inline-flex items-center gap-2">
+            {companion.optin && (
+              <Pill variant="quiet" onClick={() => void toggleOptIn(false)} disabled={optinBusy} title={optinScopeSeries ? t`Stop reading along for this series` : t`Stop reading along for this book`}>
+                <Pause className="h-4 w-4" />
+                <Trans>Turn off</Trans>
+              </Pill>
+            )}
+            <AiBadge />
+          </span>
+        }
+      >
         <Trans>Reading companion</Trans>
       </SectionTitle>
       <div className="mt-3 space-y-0.5 text-[14px] text-muted-foreground">

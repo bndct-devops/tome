@@ -653,6 +653,16 @@ export interface Companion {
   /** Upper-bound cost in USD of one Ask question on the current model.
    *  Optional until every server sends it. */
   ask_cost_hint_usd?: number
+  /** The companion switch for this book's series (or the book). Off: nothing
+   *  is read on its own. Optional until every server sends it. */
+  optin?: CompanionOptIn
+}
+
+export interface CompanionOptIn {
+  enabled: boolean
+  scope: 'series' | 'book'
+  /** Where the switch was turned on; automatic reads never go back before it. */
+  start: { book_id: number; chapter_idx: number } | null
 }
 
 export interface Recap {
@@ -813,6 +823,10 @@ export interface Previously {
 /** What the book page needs to show the companion. Never queues work. */
 export function getCompanion(bookId: number): Promise<Companion> {
   return api.get<Companion>(`/ai/books/${bookId}/companion`)
+}
+
+export function setCompanionOptIn(bookId: number, enabled: boolean): Promise<CompanionOptIn> {
+  return api.put<CompanionOptIn>(`/ai/books/${bookId}/companion/optin`, { enabled })
 }
 
 export function isRecapPending(r: Recap | RecapPending): r is RecapPending {

@@ -213,6 +213,16 @@ All notable changes to Tome are documented here. Format loosely follows
   user.
 
 ### Changed
+- **The reading companion only reads where you switch it on.** Nothing AI
+  reads a book on its own any more. The companion section on a book page
+  starts as a switch: turn it on for the series (or for a standalone book)
+  and Tome reads along from the chapter you are in, as the position syncs,
+  and finishes the book when you mark it read. It never goes back before the
+  chapter you switched it on in; the earlier chapters are read only through
+  "Read the missing chapters". A book that already had chapters read
+  continues where it stopped. Turn it off and the position changes nothing.
+  The explicit starts (Read the missing chapters, Write all, Read again) are
+  unchanged. The switch carries to every later volume of the series.
 - **A quieter web app.** Every page now shares one frame: a full-height
   sidebar with the wordmark on top and the navigation in three groups (Home,
   Library, Series; Reading; Manage), a lineless header with a pill search and

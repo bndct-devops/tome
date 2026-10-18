@@ -177,6 +177,9 @@ class Job:
     followups: list[str] = field(default_factory=list)
     current_book_only: bool = False
     kind: str = "digest"            # ``ai_jobs.kind``: "digest", or "reread" (Read again)
+    # Automatic reads never go back before this chapter of the job's book
+    # (the companion switch's start); explicit starts pass 0.
+    floor: int = 0
     status: str = "queued"
     done: int = 0
     total: int = 0
@@ -237,6 +240,7 @@ class Job:
             "user_id": self.user_id,
             "book_id": self.book_id,
             "upto_chapter": self.upto,
+            "floor": self.floor,
             "done": self.done,
             "total": self.total,
             "failed": self.failed,
@@ -349,7 +353,7 @@ def latest_with_followup(db: Session, user_id: int, book_id: int, name: str,
 
 def enqueue(*, user_id: int, book_id: int, upto: int,
             followups: tuple[str, ...] | list[str] = (),
-            current_book_only: bool = False, kind: str = "digest") -> dict[str, Any]:
+            current_book_only: bool = False, kind: str = "digest", floor: int = 0) -> dict[str, Any]:
     """Queue (or coalesce into) a digest job; returns its snapshot. ``kind``
     other than "digest" (a Read again passes "reread") also marks a job it
     coalesces into."""
@@ -364,6 +368,7 @@ def enqueue(*, user_id: int, book_id: int, upto: int,
             if job.status == "queued":
                 job.upto = max(job.upto, upto)
                 job.current_book_only = job.current_book_only and current_book_only
+                job.floor = min(job.floor, floor)
             elif upto > job.upto or (job.current_book_only and not current_book_only):
                 continue  # running and smaller: a new job picks up the rest
             if new_followups and not can_add_followups:
@@ -377,7 +382,7 @@ def enqueue(*, user_id: int, book_id: int, upto: int,
         if target is None:
             target = Job(id=uuid.uuid4().hex[:12], user_id=user_id, book_id=book_id, upto=upto,
                          followups=list(dict.fromkeys(followups)),
-                         current_book_only=current_book_only, kind=kind)
+                         current_book_only=current_book_only, kind=kind, floor=floor)
             _jobs[target.id] = target
             _queue.append(target)
             _prune_locked()
@@ -741,7 +746,7 @@ def _expand(job: Job) -> None:
             _mirror(job)
             return
         scope = digest.Scope(book=book) if job.current_book_only else digest.user_scope(db, user, book)
-        units = digest.plan_units(db, scope, job.upto)
+        units = digest.plan_units(db, scope, job.upto, floor=job.floor)
         vol_order = {v.id: (digest.series_key(v),
                             (float(v.series_index), v.id) if v.series_index is not None else None)
                      for v in scope.volumes()}
