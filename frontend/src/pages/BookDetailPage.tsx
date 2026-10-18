@@ -900,19 +900,17 @@ export function BookDetailPage() {
   // The rail is two grid children so phones can read cover, then the hero,
   // then details; on desktop both sit in the left column.
   const railCover = (
-    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
+    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg:row-start-1">
       {cover}
       {fileLines}
     </div>
   )
-  // Details and genres sit under the description, in the content column: in the
-  // rail they made it taller than the text beside it and left a hole.
-  const detailsSection = (
-    <section>
-      <SectionTitle size={20}><Trans>Details</Trans></SectionTitle>
-      <div className="mt-4 [&>div]:grid-cols-2 md:[&>div]:grid-cols-4">{details}</div>
+  const railDetails = (
+    <aside className="order-3 mx-auto w-full max-w-[420px] lg:order-none lg:mx-0 lg:max-w-none lg:col-start-1 lg:row-start-2">
+      <div className={cn(smallCaps, 'mb-3')}><Trans>Details</Trans></div>
+      {details}
       {genres && <div className="mt-6">{genres}</div>}
-    </section>
+    </aside>
   )
 
   // ── Hero: series, title, author, status, progress, actions, sync, rating ───
@@ -1320,28 +1318,23 @@ export function BookDetailPage() {
           {pageActions}
         </div>
 
-        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
           {railCover}
-          <div className="flex min-w-0 flex-col gap-7">
+          <div className="order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
             {hero}
             {descriptionSection}
-            {detailsSection}
+            {readingSection}
+            {readingStats?.intensity && (
+              <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
+            )}
+            {readingStats?.chapters && readingStats.chapters.length > 0 && (
+              <ChapterTimesBlock chapters={readingStats.chapters} />
+            )}
+            {sessionsSection}
+            {highlightsSection}
+            {seriesSection}
           </div>
-        </div>
-
-        {/* Below the rail everything runs full width, so the page has one left
-            edge once the cover and details have scrolled away. */}
-        <div className="flex min-w-0 flex-col gap-7">
-          {readingSection}
-          {readingStats?.intensity && (
-            <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
-          )}
-          {readingStats?.chapters && readingStats.chapters.length > 0 && (
-            <ChapterTimesBlock chapters={readingStats.chapters} />
-          )}
-          {sessionsSection}
-          {highlightsSection}
-          {seriesSection}
+          {railDetails}
         </div>
       </PageBody>
 
