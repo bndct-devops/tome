@@ -1850,7 +1850,7 @@ export function SettingsPage() {
                   href="https://github.com/bndct-devops/tome"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 h-9 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-muted"
+                  className="inline-flex items-center gap-1.5 h-9 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   GitHub

@@ -32,7 +32,7 @@ import { api } from '@/lib/api'
 import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
-import { cn, formatDuration, formatDate } from '@/lib/utils'
+import { progressPercent, cn, formatDuration, formatDate } from '@/lib/utils'
 import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate } from '@/lib/backlog'
 import { useAiStatus, fixBook, fixProposalToCandidate } from '@/lib/ai'
 
@@ -655,7 +655,7 @@ export function BookDetailPage() {
 
   const readable = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format))
   const showProgress = progressPct != null && progressPct > 0 && bookStatus !== 'unread'
-  const pctShown = progressPct != null ? Math.round(progressPct * 100) : 0
+  const pctShown = Math.round(progressPercent(progressPct))
   const own = readingStats?.own ?? null
   const hasSessions = !!own && own.sessions > 0
   const typeLabel = bookTypes.find(bt => bt.id === book.book_type_id)?.label
@@ -940,7 +940,7 @@ export function BookDetailPage() {
       <div className="flex flex-wrap gap-1.5">
         {book.tags.map(tg => (
           <button key={tg.id} type="button" onClick={() => navigate(`/?tab=books&tag=${encodeURIComponent(tg.tag)}`)}
-            className="inline-flex h-7 items-center rounded-full bg-secondary px-3 text-[13px] text-foreground hover:bg-muted hover:text-primary transition-colors">
+            className="inline-flex h-7 items-center rounded-full bg-secondary px-3 text-[13px] text-foreground hover:bg-surface-hover hover:text-primary transition-colors">
             {tg.tag}
           </button>
         ))}
@@ -1042,7 +1042,7 @@ export function BookDetailPage() {
       {book.hardcover_pages != null && book.hardcover_pages > 0 && (() => {
         // Print-edition pagination (from the matched Hardcover edition):
         // font-size agnostic, unlike the device's reflowed page count.
-        const page = Math.max(1, Math.round((progressPct ?? 0) * book.hardcover_pages))
+        const page = Math.max(1, Math.round(progressPercent(progressPct) / 100 * book.hardcover_pages))
         const totalPages = book.hardcover_pages
         return <div className="mt-1.5 text-[13px] text-muted-foreground"><Trans>p. {page} of {totalPages}</Trans></div>
       })()}

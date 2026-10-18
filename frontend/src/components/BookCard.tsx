@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useLingui } from '@lingui/react/macro'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
-import { cn } from '@/lib/utils'
+import { cn, progressPercent } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { DevicePills } from '@/components/DevicePills'
 import { coverSrc } from '@/lib/covers'
@@ -96,7 +96,7 @@ export function BookCard({
   // Floor at 4% so a just-started book still shows a visible nub instead of nothing
   const barWidth =
     readingStatus === 'read' ? 100
-    : readingStatus === 'reading' ? Math.max(4, Math.round((progressPct ?? 0.15) * 100))
+    : readingStatus === 'reading' ? Math.max(4, Math.round(progressPct != null ? progressPercent(progressPct) : 15))
     : 0
   const barColor =
     readingStatus === 'read' ? 'bg-primary'

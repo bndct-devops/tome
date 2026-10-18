@@ -5,9 +5,11 @@ import { cn } from '@/lib/utils'
 export type PillVariant = 'primary' | 'secondary' | 'quiet' | 'destructive'
 export type PillSize = 'md' | 'lg'
 
+// Every variant has a visible hover: primary brightens, secondary steps up to
+// the hover surface, quiet gains a surface, destructive tints red.
 const VARIANT: Record<PillVariant, string> = {
-  primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-  secondary: 'bg-secondary text-foreground hover:bg-muted',
+  primary: 'bg-primary text-primary-foreground hover:brightness-110 active:brightness-95',
+  secondary: 'bg-secondary text-foreground hover:bg-surface-hover',
   quiet: 'text-muted-foreground hover:text-foreground hover:bg-secondary',
   destructive: 'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
 }

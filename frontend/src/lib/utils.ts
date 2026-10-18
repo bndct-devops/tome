@@ -46,3 +46,14 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * A stored reading progress as a 0 to 100 percentage. The field holds a 0 to 1
+ * fraction (KOReader, the web reader, the app), but rows written before that
+ * convention hold 0 to 100; the same rule the server's Home endpoint uses.
+ */
+export function progressPercent(raw: number | null | undefined): number {
+  if (!raw || raw <= 0) return 0
+  const pct = raw <= 1 ? raw * 100 : raw
+  return Math.min(100, pct)
+}

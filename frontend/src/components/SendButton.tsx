@@ -79,13 +79,13 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
   // Send-to-Device button.
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const btn = variant === 'bulk'
-    ? 'flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-muted disabled:opacity-50 transition-colors'
+    ? 'flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-surface-hover disabled:opacity-50 transition-colors'
     : 'flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all duration-200'
   /* eslint-enable lingui/no-unlocalized-strings */
 
   if (variant === 'pill') {
     /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
-    const half = 'inline-flex h-11 items-center gap-2 bg-secondary text-[15px] font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50'
+    const half = 'inline-flex h-11 items-center gap-2 bg-secondary text-[15px] font-medium text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50'
     /* eslint-enable lingui/no-unlocalized-strings */
     if (!status?.koreader) {
       return (

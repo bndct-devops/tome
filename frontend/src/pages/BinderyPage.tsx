@@ -597,7 +597,7 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
           type="submit"
           disabled={loading || !searchQuery.trim()}
           aria-label={t`Search`}
-          className="shrink-0 h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          className="shrink-0 h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
         </button>

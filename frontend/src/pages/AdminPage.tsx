@@ -1625,7 +1625,7 @@ function DuplicatesTab() {
                         'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
                         decision === 'dismiss'
                           ? 'bg-foreground text-background'
-                          : 'bg-secondary text-foreground hover:bg-muted',
+                          : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
                       title={t`Queue: not a duplicate — never show this group again`}
                     >
@@ -1639,7 +1639,7 @@ function DuplicatesTab() {
                         'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
                         decision === 'merge'
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary text-foreground hover:bg-muted',
+                          : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
                       title={t`Queue: fold the other copies into the kept book`}
                     >
