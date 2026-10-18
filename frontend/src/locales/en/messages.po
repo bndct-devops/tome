@@ -2859,6 +2859,7 @@ msgstr "Click: only books on {name}"
 #: src/components/ManageSeriesModal.tsx
 #: src/components/PositionHistoryModal.tsx
 #: src/components/QuickLook.tsx
+#: src/components/ReadingCompanion.tsx
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/GoalWidget.tsx

@@ -354,7 +354,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           <Pill variant="secondary" className="mt-4" onClick={onBrowse}><Trans>Browse library</Trans></Pill>
         </section>
       ) : (
-        <section className={cn('flex flex-col sm:flex-row gap-8 sm:items-center transition-opacity', switching && 'opacity-60')}>
+        <section className={cn('flex flex-col sm:flex-row gap-7 sm:items-start transition-opacity', switching && 'opacity-60')}>
           <TiltCover className="shrink-0 w-[180px] mx-auto sm:mx-0" degrees={4}>
             <Link
               to={`/books/${b.book_id}`}
@@ -385,10 +385,10 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             </h2>
             {b.author && <div className="mt-1.5 text-[16px] text-muted-foreground">{b.author}</div>}
             {b.description && (
-              <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 line-clamp-3 max-w-[64ch]">{plainText(b.description)}</p>
+              <p className="mt-2.5 text-[15px] leading-relaxed text-foreground/80 line-clamp-2 max-w-[64ch]">{plainText(b.description)}</p>
             )}
-            <ProgressBar pct={b.progress} className="mt-5" />
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+            <ProgressBar pct={b.progress} className="mt-4" />
+            <div className="mt-3.5 flex flex-wrap items-center gap-3">
               <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${b.book_id}`)}>
                 <Play className="w-4 h-4 fill-current" />
                 <Trans>Resume</Trans>
@@ -403,17 +403,16 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             </div>
             {/* The volumes after this one in its series, when the library has them. */}
             {focus && (focus.upcoming?.length ?? 0) > 0 && (
-              <div className="mt-6">
-                <Eyebrow className="mb-2">
+              <div className="mt-5 flex items-center gap-3">
+                <Eyebrow className="shrink-0">
                   {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
                 </Eyebrow>
-                <div className="flex gap-3">
-                  {focus.upcoming!.slice(0, 6).map(u => (
-                    <Link key={u.book_id} to={`/books/${u.book_id}`} className="shrink-0 w-[64px] group" title={u.title}>
-                      <div className="relative aspect-[2/3] rounded-[6px] overflow-hidden bg-muted opacity-85 group-hover:opacity-100 transition-opacity">
-                        <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 160 }) : null} alt="" iconClassName="w-4 h-4" />
+                <div className="flex gap-2">
+                  {focus.upcoming!.slice(0, 8).map(u => (
+                    <Link key={u.book_id} to={`/books/${u.book_id}`} className="shrink-0 w-[36px] group" title={u.series_index != null ? `${fmtIndex(u.series_index)} · ${u.title}` : u.title}>
+                      <div className="relative aspect-[2/3] rounded-[4px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
+                        <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 160 }) : null} alt="" iconClassName="w-3 h-3" />
                       </div>
-                      {u.series_index != null && <div className="mt-1 text-[12px] text-muted-foreground tabular-nums">{fmtIndex(u.series_index)}</div>}
                     </Link>
                   ))}
                 </div>

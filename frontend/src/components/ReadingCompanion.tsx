@@ -12,7 +12,7 @@
 // shows no prices beyond the Ask note (a fixed per-question range): the rest
 // lives in that dialog and in Settings > AI.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, ChevronDown, Loader2, Merge, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight, Loader2, Merge, Pause, Play, RotateCcw, Search, X } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { AiBadge } from '@/components/AiBadge'
@@ -212,7 +212,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
   const [glossaryLoading, setGlossaryLoading] = useState(false)
   const [glossaryError, setGlossaryError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  // The entry open in the detail dialog, by its list key; one at a time.
+  const [openEntryKey, setOpenEntryKey] = useState<string | null>(null)
   const [recall, setRecall] = useState<RecallResult | null>(null)
   const [recalling, setRecalling] = useState(false)
 
@@ -470,7 +471,7 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     setGlossaryOpen(true)
     setQuery(name)
     setRecall(null)
-    setExpanded(prev => new Set(prev).add(key))
+    setOpenEntryKey(key)
     window.requestAnimationFrame(() => {
       glossaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -684,14 +685,6 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     if (next && !glossary && !glossaryLoading) void loadGlossary()
   }
 
-  function toggleEntry(key: string) {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
 
   async function runRecall() {
     const term = query.trim()
@@ -994,16 +987,13 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 
   const entryRow = (e: GlossaryEntry, showKind: boolean) => {
     const key = `${e.kind}:${e.name}`
-    const open = expanded.has(key)
-    const firstSeen = placeLabel(e.first_seen)
-    const lastSeen = e.last_seen && !samePlace(e.first_seen, e.last_seen) ? placeLabel(e.last_seen) : null
     const aliases = (e.aliases ?? []).filter(a => a && a !== e.name)
     return (
       <li key={key}>
         <button
           type="button"
-          onClick={() => toggleEntry(key)}
-          aria-expanded={open}
+          onClick={() => setOpenEntryKey(key)}
+          aria-haspopup="dialog"
           className="group flex w-full items-center gap-3 py-3 text-left"
         >
           <span className="min-w-0 flex-1">
@@ -1016,11 +1006,8 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
             </span>
             <span className="mt-0.5 block text-[14px] leading-snug text-muted-foreground">{entryLine(e)}</span>
           </span>
-          <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
         </button>
-        {open && (
-          <GlossaryEntryDetail bookId={bookId} entry={e} firstSeen={firstSeen} lastSeen={lastSeen} shortPlace={shortPlace} />
-        )}
       </li>
     )
   }
@@ -1319,6 +1306,10 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
     </div>
   ) : null
 
+  const dialogEntry = openEntryKey
+    ? (glossary?.entries ?? []).find(e => `${e.kind}:${e.name}` === openEntryKey) ?? null
+    : null
+
   return (
     <section className="max-w-[720px]" aria-label={t`Reading companion`}>
       <SectionTitle size={20} action={<AiBadge />}>
@@ -1337,6 +1328,17 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
           {glossaryBlock}
         </div>
       )}
+      {dialogEntry && (
+        <GlossaryEntryDialog
+          bookId={bookId}
+          entry={dialogEntry}
+          kindLabel={kindLabel(dialogEntry.kind)}
+          firstSeen={placeLabel(dialogEntry.first_seen)}
+          lastSeen={dialogEntry.last_seen && !samePlace(dialogEntry.first_seen, dialogEntry.last_seen) ? placeLabel(dialogEntry.last_seen) : null}
+          shortPlace={shortPlace}
+          onClose={() => setOpenEntryKey(null)}
+        />
+      )}
       <DigestConfirmDialog
         open={confirm != null}
         book={confirm?.book ?? null}
@@ -1353,3 +1355,52 @@ export function ReadingCompanion({ bookId }: { bookId: number }) {
 }
 
 export default ReadingCompanion
+
+/**
+ * One glossary entry in a dialog over the page: the name, kind and aliases
+ * stay pinned at the top while the facts and timeline scroll inside, so a
+ * long entry never loses which character it is about (the in-place expand
+ * did). Esc or the backdrop closes it.
+ */
+function GlossaryEntryDialog({ bookId, entry: e, kindLabel, firstSeen, lastSeen, shortPlace, onClose }: {
+  bookId: number
+  entry: GlossaryEntry
+  kindLabel: string
+  firstSeen: string
+  lastSeen: string | null
+  shortPlace: (p: SeriesPlace) => string
+  onClose: () => void
+}) {
+  const { t } = useLingui()
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.stopPropagation(); onClose() } }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+  const aliases = (e.aliases ?? []).filter(a => a && a !== e.name)
+  return (
+    <div className="fixed inset-0 md:left-64 z-50 grid place-items-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/65 backdrop-blur-[3px] animate-[quicklook-veil_180ms_ease-out]" />
+      <div
+        role="dialog"
+        aria-modal
+        aria-label={e.name}
+        onClick={ev => ev.stopPropagation()}
+        className="relative flex w-full max-w-[760px] max-h-[min(84vh,860px)] flex-col rounded-[var(--radius-panel)] bg-card shadow-2xl shadow-black/40 ring-1 ring-panel-ring animate-[quicklook-in_220ms_cubic-bezier(0.2,0.8,0.2,1)]"
+      >
+        <div className="shrink-0 px-7 pt-6 pb-4 pr-16">
+          <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{kindLabel}</div>
+          <h2 className="mt-1 font-display text-[28px] leading-[1.1] font-bold text-foreground">{e.name}</h2>
+          {aliases.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{aliases.join(', ')}</p>}
+          <p className="mt-3 text-[15px] leading-relaxed text-foreground/85">{entryLine(e)}</p>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border/70 px-7 pb-7 pt-5">
+          <GlossaryEntryDetail bookId={bookId} entry={e} firstSeen={firstSeen} lastSeen={lastSeen} shortPlace={shortPlace} />
+        </div>
+        <button type="button" onClick={onClose} aria-label={t`Close`} className="absolute top-4 right-4 grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
