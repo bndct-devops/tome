@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
-import { Eye, Flame, Play, RefreshCw, Shuffle } from 'lucide-react'
+import { Eye, Play, RefreshCw, Shuffle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
 import { coverSrc } from '@/lib/covers'
@@ -36,9 +36,11 @@ interface FocusBook {
   synced: boolean
   last_sync: string | null
 }
+interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean }
 interface FocusData {
   ready: boolean
   book: FocusBook | null
+  upcoming?: FocusUpcoming[]
   ahead_count: number
   reading: { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number }[]
   reading_total?: number
@@ -97,6 +99,13 @@ const GATED = 9
 const EMPTY_FOCUS: FocusData = { ready: false, book: null, ahead_count: 0, reading: [] }
 
 // ── Formatting ──────────────────────────────────────────────────────────────
+
+/** Descriptions arrive as HTML from some sources; the hero shows plain text. */
+function plainText(html: string): string {
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
 
 function relativeTime(iso: string, locale: string): string {
   const then = new Date(iso)
@@ -295,15 +304,6 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     <PageHeader
       eyebrow={today}
       title={<Trans>Home</Trans>}
-      actions={dailyStreak > 0 ? (
-        <div
-          className="inline-flex items-center gap-1.5 rounded-full px-3.5 h-10 bg-primary/15 text-primary font-semibold text-[15px]"
-          title={plural(dailyStreak, { one: '# day streak', other: '# day streak' })}
-        >
-          <Flame className="w-4 h-4" />
-          <span className="tabular-nums">{dailyStreak}</span>
-        </div>
-      ) : undefined}
     />
   )
 
@@ -367,20 +367,25 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               </div>
             </Link>
           </TiltCover>
-          <div className="min-w-0 flex-1 max-w-[560px]">
-            <Eyebrow className="text-primary"><Trans>Continue reading</Trans></Eyebrow>
+          <div className="min-w-0 flex-1 max-w-[640px]">
+            {/* The eyebrow names the series when there is one, with the volume;
+                a standalone book keeps "Continue reading". */}
+            {b.series ? (
+              <Link
+                to={`/?tab=series&series_detail=${encodeURIComponent(b.series)}`}
+                className="inline-block text-[12px] font-bold uppercase tracking-[0.1em] text-primary hover:underline underline-offset-4"
+              >
+                {b.series}{b.series_index != null && (() => { const v = fmtIndex(b.series_index); return <> · <Trans>Volume {v}</Trans></> })()}
+              </Link>
+            ) : (
+              <Eyebrow className="text-primary"><Trans>Continue reading</Trans></Eyebrow>
+            )}
             <h2 className="font-display text-[32px] leading-[1.05] font-bold text-foreground mt-2">
               <Link to={`/books/${b.book_id}`} className="hover:underline decoration-2 underline-offset-4">{b.title}</Link>
             </h2>
-            {(b.series_index != null || b.author) && (
-              <div className="mt-1.5 text-[16px] text-muted-foreground">
-                {b.series_index != null && (() => {
-                  const v = fmtIndex(b.series_index)
-                  return <span className="text-foreground font-medium"><Trans>Volume {v}</Trans></span>
-                })()}
-                {b.series_index != null && b.author && ' · '}
-                {b.author}
-              </div>
+            {b.author && <div className="mt-1.5 text-[16px] text-muted-foreground">{b.author}</div>}
+            {b.description && (
+              <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 line-clamp-3 max-w-[64ch]">{plainText(b.description)}</p>
             )}
             <ProgressBar pct={b.progress} className="mt-5" />
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -396,6 +401,24 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 </div>
               )}
             </div>
+            {/* The volumes after this one in its series, when the library has them. */}
+            {focus && (focus.upcoming?.length ?? 0) > 0 && (
+              <div className="mt-6">
+                <Eyebrow className="mb-2">
+                  {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
+                </Eyebrow>
+                <div className="flex gap-3">
+                  {focus.upcoming!.slice(0, 6).map(u => (
+                    <Link key={u.book_id} to={`/books/${u.book_id}`} className="shrink-0 w-[64px] group" title={u.title}>
+                      <div className="relative aspect-[2/3] rounded-[6px] overflow-hidden bg-muted opacity-85 group-hover:opacity-100 transition-opacity">
+                        <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 160 }) : null} alt="" iconClassName="w-4 h-4" />
+                      </div>
+                      {u.series_index != null && <div className="mt-1 text-[12px] text-muted-foreground tabular-nums">{fmtIndex(u.series_index)}</div>}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}

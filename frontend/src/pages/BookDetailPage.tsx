@@ -5,6 +5,7 @@ import {
   Camera, Download, Edit2, X, Trash2, Loader2, Sparkles, Library as LibraryIcon, Check,
   ChevronLeft, ChevronRight, StickyNote, ChevronDown, Play, Link2, RefreshCw,
   Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2,
+  ExternalLink,
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -873,27 +874,28 @@ export function BookDetailPage() {
           books additionally get "Est. remaining" in the Reading section. */}
       {estimate?.seconds != null && (
         <Field label={t`Est. read time`} value={
-          <span title={describePace(estimate.pace, estimate.method)}>
+          <span title={[estimate.days != null ? formatEstimateDays(estimate.days) : null, describePace(estimate.pace, estimate.method)].filter(Boolean).join(' · ')}>
             {formatEstimateHours(estimate.seconds)}
-            {estimate.days != null && <span className="block text-[13px] text-muted-foreground">{formatEstimateDays(estimate.days)}</span>}
           </span>
         } />
       )}
       {/* Hardcover match, only when the sync matcher has linked this book */}
       {book.hardcover_slug && (
         // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
-        <Field label="Hardcover" className="col-span-2" value={
+        <Field label="Hardcover" value={
           <a href={`https://hardcover.app/books/${book.hardcover_slug}`} target="_blank" rel="noopener noreferrer"
-            className="block truncate text-primary hover:underline underline-offset-4">
-            {book.hardcover_slug}
+            title={book.hardcover_slug}
+            className="inline-flex items-center gap-1 text-primary hover:underline underline-offset-4">
+            <Trans>Open</Trans>
+            <ExternalLink className="h-3.5 w-3.5" />
           </a>
         } />
       )}
-      <Field label={t`Type`} value={typeLabel ?? <span className="italic text-muted-foreground/60">{t`None`}</span>} />
+      {typeLabel && <Field label={t`Type`} value={typeLabel} />}
       <Field label={t`Content`} value={book.content_type === 'chapter' ? t`Chapter` : t`Volume`} />
       {wordsValue && <Field label={t`Words`} value={wordsValue} />}
-      {book.publisher && <Field label={t`Publisher`} value={book.publisher} className="col-span-2" />}
-      {book.isbn && <Field label={t`ISBN`} value={<span className="break-all">{book.isbn}</span>} className="col-span-2" />}
+      {book.publisher && <Field label={t`Publisher`} value={book.publisher} />}
+      {book.isbn && <Field label={t`ISBN`} value={<span className="break-all tabular-nums">{book.isbn}</span>} />}
     </div>
   )
 
