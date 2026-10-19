@@ -121,6 +121,14 @@ logger = logging.getLogger(__name__)
 # /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
 # seconds after the book map changes; the server replaces the device's list,
 # so deletes drop out on the next push. Powers "On <device>" in web and app.
+# BUILD 51 / 52: released on main (single-book download crash, #259; a fresh
+# pairing written to disk at once, #262).
+# BUILD 53: reader link (device info, file tree, file commands) and inbox
+# auto-pickup, against a server that has those routes (Tome Reader on iOS).
+# It polls while the server asks for it (poll_seconds on device-info /
+# commands), sends the file tree only when the server lacks its hash
+# (GET /tome-sync/files/status), and never runs a command id twice.
+# A Tome without the routes still costs one PUT device-info (405) per process.
 TOMESYNC_PLUGIN_BUILD = 53
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
@@ -2174,6 +2182,8 @@ end
 
 -- opts.token: bearer override for the few calls that authenticate with
 -- something other than the plugin API key (the Quick Connect pairing JWT).
+-- opts.block / opts.total: tighter timeouts (the reader link's poll uses 2 s;
+-- every request here blocks KOReader's UI thread).
 local function apiRequest(method, path, body, opts)
     -- Skip immediately if WiFi is not connected — zero blocking
     if not NetworkMgr:isConnected() then
@@ -2212,8 +2222,8 @@ local function apiRequest(method, path, body, opts)
             resp_chunks = {{}}
             return ltn12.sink.table(resp_chunks)
         end,
-        block   = 5,
-        total   = 45,
+        block   = (opts and opts.block) or 5,
+        total   = (opts and opts.total) or 45,
     }})
     if not ok then return nil, code end
 
@@ -2570,7 +2580,7 @@ function TomeSync:init()
         inventory_launched = true
         UIManager:scheduleIn(15, function() pcall(function() self:_pushDeviceBooks(false) end) end)
     end
-    -- Reader link (build 51): the launch pass and this instance as its owner.
+    -- Reader link (build 53): the launch pass and this instance as its owner.
     self:_linkInit()
 
     if not meta_sync_launched and G_reader_settings:isTrue("tomesync_meta_sync") then
@@ -2877,6 +2887,8 @@ end
 function TomeSync:onSuspend()
     UIManager:unschedule(self._heartbeat_task)
     self._heartbeat_armed = false
+    -- Reader link poll: never across a sleep; resume runs a pass that re-arms it.
+    if TomeSync._linkStopPoll then TomeSync._linkStopPoll("suspend") end
     if not self.enabled then return end
 
     if self.book_id then
@@ -6335,7 +6347,7 @@ function TomeSync:_inboxMenuImpl()
     UIManager:show(self._inbox_menu)
 end
 
--- ── Reader link (build 51) ───────────────────────────────────────────────────
+-- ── Reader link (build 53) ───────────────────────────────────────────────────
 -- A server that looks after this device: the plugin tells it about the
 -- device (battery, storage, versions) and the files under the library root,
 -- and runs the file commands it queued (rename, move, delete into a trash
@@ -6346,6 +6358,12 @@ end
 -- process (device-info answers 404 and the rest is never asked).
 -- Runs at the sync moments (launch, WiFi up, resume, book open and close,
 -- Sync now) as ONE debounced pass shared by every TomeSync instance.
+-- Polling: when the server's device-info / commands answer carries
+-- poll_seconds > 0, a light pass (commands; device-info at most every 60 s;
+-- the tree check at most every 30 s or after a command) follows every
+-- poll_seconds, 2 s timeouts, in the file manager and the reader alike. The
+-- poll stops on an answer without it, no answer, suspend, WiFi down and the
+-- off switch. One scheduled pass at a time (full or light).
 -- One do-block: its locals stay out of the main chunk's 200-local budget.
 do
 local LINK_MAX_ENTRIES = 5000
@@ -6355,6 +6373,18 @@ local link_task     = nil    -- the one pending pass
 local link_reasons  = {{}}     -- what asked for it (log only)
 local link_launched = false  -- launch pass, once per process
 local link_owner    = nil    -- the TomeSync instance that init'd last (the live UI)
+local link_poll_task  = nil  -- the one pending light pass
+local link_poll_secs  = 0    -- what the server asked for last (0 = no poll)
+local link_info_at    = 0    -- os.time() of the last device-info answer
+local link_tree_at    = 0    -- os.time() of the last tree check
+local link_tree_dirty = true -- a command ran (or nothing was sent yet)
+local link_done       = {{}}   -- command id (string) -> the result posted for it
+local link_done_order = {{}}
+local LINK_INFO_EVERY = 60
+local LINK_TREE_EVERY = 30
+local LINK_DONE_KEEP  = 1000
+local LINK_NET_LIGHT  = {{ block = 2, total = 2 }}
+local LINK_NET_TREE   = {{ block = 2, total = 10 }}
 
 local function linkRouteOff(code) return code == 404 or code == 405 end
 
@@ -6623,6 +6653,71 @@ local function linkParseCommands(body)
 end
 -- TOMESYNC_LINKCMD_END
 
+-- TOMESYNC_LINKPOLL_BEGIN (pure: no requires, no I/O; extracted and run under
+-- luajit by tests/test_tomesync_reader_link.py)
+-- poll_seconds from a decoded answer: a positive number, floored and kept in
+-- 2..3600; anything else (absent, 0, negative, NaN, a string, JSON null,
+-- a list) is 0 = do not poll.
+local function linkPollSeconds(body)
+    if type(body) ~= "table" then return 0 end
+    local v = body.poll_seconds
+    if type(v) ~= "number" or v ~= v or v <= 0 or v == math.huge then return 0 end
+    v = math.floor(v)
+    if v < 2 then v = 2 end
+    if v > 3600 then v = 3600 end
+    return v
+end
+
+-- The canonical tree listing the hash is taken of: one line per entry
+-- (path, d/f, size, mtime, sidecar), sorted, so the same tree always gives
+-- the same text whatever order the walk produced.
+local function linkTreeCanon(entries, truncated)
+    local lines = {{}}
+    local function int(v) return type(v) == "number" and string.format("%d", math.floor(v)) or "" end
+    for _, e in ipairs(entries) do
+        lines[#lines + 1] = tostring(e.path) .. "\\t" .. (e.type == "dir" and "d" or "f")
+            .. "\\t" .. int(e.size) .. "\\t" .. int(e.mtime) .. "\\t" .. (e.sdr and "1" or "")
+    end
+    table.sort(lines)
+    if truncated then lines[#lines + 1] = "truncated" end
+    return table.concat(lines, "\\n")
+end
+
+-- Commands to run now and commands already run this session (by id, as a
+-- string, so 7 and "7" are one id). A repeat is not run again; its stored
+-- result is posted again. An id twice in one answer runs once.
+local function linkSplitCommands(cmds, done)
+    local fresh, again, seen = {{}}, {{}}, {{}}
+    for _, c in ipairs(cmds) do
+        local k = tostring(c.id)
+        if done[k] ~= nil then
+            if not seen[k] then table.insert(again, c) end
+        elseif not seen[k] then
+            table.insert(fresh, c)
+        end
+        seen[k] = true
+    end
+    return fresh, again
+end
+-- TOMESYNC_LINKPOLL_END
+
+-- MD5 hex of a string with KOReader's bundled ffi/sha2; nil when missing
+-- (then the tree is sent as before, on full passes only).
+local function linkHash(str)
+    local ok, sha2 = pcall(require, "ffi/sha2")
+    if not ok or type(sha2) ~= "table" or type(sha2.md5) ~= "function" then return nil end
+    local ok2, h = pcall(sha2.md5, str)
+    return ok2 and type(h) == "string" and h or nil
+end
+
+local function linkRemember(key, result)
+    if link_done[key] == nil then table.insert(link_done_order, key) end
+    link_done[key] = result
+    while #link_done_order > LINK_DONE_KEEP do
+        link_done[table.remove(link_done_order, 1)] = nil
+    end
+end
+
 -- One command. Returns ok, error, new_path (relative). Raises nothing the
 -- caller does not pcall.
 function TomeSync:_linkRunCommand(root, cmd, touched)
@@ -6735,49 +6830,127 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
     return true, nil, linkRel(root, dest)
 end
 
+-- The file tree, when the server does not already have it: hash the
+-- canonical listing, ask GET /tome-sync/files/status?hash=, PUT only on
+-- have ~= true. A 404/405 on status turns the check off; the tree is then
+-- PUT on full passes (and after commands), unconditionally.
+local function linkSendTree(root, light)
+    local t0 = os.clock()
+    local entries, truncated = linkFileTree(root)
+    link_tree_at = os.time()
+    local hash = linkHash(linkTreeCanon(entries, truncated))
+    local ms = math.floor((os.clock() - t0) * 1000 + 0.5)
+    local net = light and LINK_NET_LIGHT or nil
+    if hash and not link_off.files_status then
+        local st, code = apiRequest("GET", "/tome-sync/files/status?hash=" .. hash, nil, net)
+        if linkRouteOff(code) then
+            link_off.files_status = true
+            logger.info("TomeSync: link files/status", code, "- tree check off")
+        elseif type(code) ~= "number" then
+            return       -- no answer: next pass
+        elseif type(st) == "table" and st.have == true then
+            link_tree_dirty = false
+            logger.info("TomeSync: link files/status have=true (" .. #entries .. " entries, hash "
+                        .. hash .. ", " .. ms .. " ms)")
+            return
+        else
+            logger.info("TomeSync: link files/status have=false (hash " .. hash .. ")")
+        end
+    end
+    if light and not link_tree_dirty and (not hash or link_off.files_status) then return end
+    local _, code = apiRequest("PUT", "/tome-sync/files", {{
+        device    = deviceName(),
+        root      = root,
+        truncated = truncated,
+        count     = #entries,
+        hash      = hash,
+        entries   = rapidjson.array and rapidjson.array(entries) or entries,
+    }}, light and LINK_NET_TREE or nil)
+    logger.info("TomeSync: link PUT files", tostring(code), "(" .. #entries .. " entries, hash "
+                .. tostring(hash) .. ", " .. ms .. " ms)")
+    if linkRouteOff(code) then
+        link_off.files = true
+    elseif type(code) == "number" and code >= 200 and code < 300 then
+        link_tree_dirty = false
+    end
+end
+
 -- The pass: device info, then the command queue, then the inbox (when
 -- auto-pickup is on), then the file tree, so the tree the server keeps
 -- already shows what the commands and deliveries changed.
-function TomeSync:_linkPass()
-    if not NetworkMgr:isConnected() then return end
+-- light (the poll): device-info only when 60 s old, no inbox, the tree only
+-- after a command or every 30 s, 2 s timeouts.
+-- Returns the poll_seconds of the last link answer (0 = do not poll) and,
+-- when 0, why (for the log).
+function TomeSync:_linkPass(light)
+    if not NetworkMgr:isConnected() then return 0, "offline" end
     local root = linkRoot()
     local link_on = not link_off.all
-    if link_on then
-        local _, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root))
+    local net = light and LINK_NET_LIGHT or nil
+    local poll = 0
+    local ran = 0
+    local nowhy = nil
+    if link_on and (not light or os.time() - link_info_at >= LINK_INFO_EVERY) then
+        local body, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root), net)
         if linkRouteOff(code) then
             link_off.all = true
             link_on = false
             logger.info("TomeSync: server has no reader link (device-info", code, ")")
         elseif type(code) ~= "number" then
             link_on = false   -- offline / unreachable / backing off: next moment
+            nowhy = "no answer (" .. tostring(code) .. ")"
+        else
+            link_info_at = os.time()
+            poll = linkPollSeconds(body)
         end
     end
 
     if link_on and root and not link_off.commands then
-        local list, code = apiRequest("GET", "/tome-sync/commands")
+        local list, code = apiRequest("GET", "/tome-sync/commands", nil, net)
         if linkRouteOff(code) then
             link_off.commands = true
-        elseif type(code) == "number" and code >= 200 and code < 300 then
-            local touched, ran = {{}}, 0
-            for _, cmd in ipairs(linkParseCommands(list)) do
+        elseif type(code) ~= "number" then
+            link_on, poll = false, 0
+            nowhy = "no answer (" .. tostring(code) .. ")"
+        elseif code >= 200 and code < 300 then
+            poll = linkPollSeconds(list)
+            local fresh, again = linkSplitCommands(linkParseCommands(list), link_done)
+            for _, cmd in ipairs(again) do
+                local key = tostring(cmd.id)
+                logger.info("TomeSync: link command", key, tostring(cmd.op),
+                            "already run, posting its result again")
+                pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
+                      link_done[key], net)
+            end
+            local touched = {{}}
+            for _, cmd in ipairs(fresh) do
                 if not link_off.all then
+                    local key = tostring(cmd.id)
                     local ok, res, err, new_path = pcall(self._linkRunCommand, self, root, cmd, touched)
                     if not ok then res, err, new_path = false, tostring(res), nil end
                     ran = ran + 1
-                    logger.info("TomeSync: link command", tostring(cmd.id), tostring(cmd.op),
+                    logger.info("TomeSync: link command", key, tostring(cmd.op),
                                 res and "ok" or ("failed: " .. tostring(err)))
-                    pcall(apiRequest, "POST",
-                        "/tome-sync/commands/" .. urlEncode(tostring(cmd.id)) .. "/result",
-                        {{ ok = res and true or false,
-                          error = (not res) and (err or "failed") or nil,
-                          new_path = res and new_path or nil }})
+                    local result = {{
+                        ok = res and true or false,
+                        error = (not res) and (err or "failed") or nil,
+                        new_path = res and new_path or nil,
+                    }}
+                    linkRemember(key, result)
+                    pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
+                          result, net)
                 end
             end
-            if ran > 0 then linkRefreshBrowser(root, touched) end
+            if ran > 0 then
+                link_tree_dirty = true
+                linkRefreshBrowser(root, touched)
+            end
+        else
+            poll = 0
         end
     end
 
-    if autoDeliver() then
+    if autoDeliver() and not light then
         pcall(function() self:_refreshInbox() end)
         local items = self.inbox_items
         if self.inbox_enabled and type(items) == "table" and #items > 0 then
@@ -6785,26 +6958,72 @@ function TomeSync:_linkPass()
         end
     end
 
-    if link_on and root and not link_off.files and not link_off.all then
-        local entries, truncated = linkFileTree(root)
-        local _, code = apiRequest("PUT", "/tome-sync/files", {{
-            device    = deviceName(),
-            root      = root,
-            truncated = truncated,
-            count     = #entries,
-            entries   = rapidjson.array and rapidjson.array(entries) or entries,
-        }})
-        if linkRouteOff(code) then link_off.files = true end
+    if link_on and root and not link_off.files and not link_off.all
+            and (not light or link_tree_dirty or os.time() - link_tree_at >= LINK_TREE_EVERY) then
+        linkSendTree(root, light)
     end
+    if light then
+        logger.info("TomeSync: link poll pass (" .. ran .. " command(s), next in " .. poll .. " s"
+                    .. ((poll == 0 and nowhy) and (", " .. nowhy) or "") .. ")")
+    end
+    if link_off.all then return 0, "server has no link" end
+    return poll, (poll == 0) and (nowhy or "server did not ask") or nil
+end
+
+local function linkStopPoll(why)
+    if link_poll_task then
+        UIManager:unschedule(link_poll_task)
+        link_poll_task = nil
+    end
+    if link_poll_secs > 0 then
+        logger.info("TomeSync: link poll stopped (" .. why .. ")")
+    end
+    link_poll_secs = 0
+end
+
+-- (Re)arm the light pass secs from now, or stop polling (secs <= 0). Not
+-- while a full pass is pending: that pass arms it when it has run.
+function TomeSync:_linkArmPoll(secs, why)
+    if link_poll_task then
+        UIManager:unschedule(link_poll_task)
+        link_poll_task = nil
+    end
+    if type(secs) ~= "number" or secs <= 0 or link_off.all or not NetworkMgr:isConnected() then
+        linkStopPoll((link_off.all and "server has no link")
+                     or ((not NetworkMgr:isConnected()) and "offline")
+                     or why or "server did not ask")
+        return
+    end
+    if link_task then return end
+    if link_poll_secs ~= secs then
+        logger.info("TomeSync: link poll every " .. secs .. " s")
+    end
+    link_poll_secs = secs
+    link_poll_task = function()
+        link_poll_task = nil
+        local me = link_owner or self
+        local ok, next_secs, why = pcall(me._linkPass, me, true)
+        if not ok then
+            logger.warn("TomeSync: link poll pass failed:", next_secs)
+            next_secs, why = 0, "error"
+        end
+        me:_linkArmPoll(next_secs, why)
+    end
+    UIManager:scheduleIn(secs, link_poll_task)
 end
 
 -- Ask for a pass `delay` seconds from now (debounced: several moments close
 -- together make one pass). Deferred like every background call here, so the
--- moment that asked never waits on the network.
+-- moment that asked never waits on the network. A pending light pass is
+-- dropped: the full pass re-arms the poll from its own answer.
 function TomeSync:_scheduleLinkSync(reason, delay)
     if link_off.all and not autoDeliver() then return end
     link_reasons[reason] = true
     if link_task then UIManager:unschedule(link_task) end
+    if link_poll_task then
+        UIManager:unschedule(link_poll_task)
+        link_poll_task = nil
+    end
     link_task = function()
         link_task = nil
         local why = {{}}
@@ -6812,10 +7031,24 @@ function TomeSync:_scheduleLinkSync(reason, delay)
         link_reasons = {{}}
         local me = link_owner or self
         logger.info("TomeSync: link pass (" .. table.concat(why, ", ") .. ")")
-        local ok, err = pcall(me._linkPass, me)
-        if not ok then logger.warn("TomeSync: link pass failed:", err) end
+        local ok, secs, why = pcall(me._linkPass, me)
+        if not ok then
+            logger.warn("TomeSync: link pass failed:", secs)
+            secs, why = 0, "error"
+        end
+        if type(secs) ~= "number" or secs <= 0 then
+            logger.info("TomeSync: link pass done, no poll (" .. tostring(why) .. ")")
+        end
+        me:_linkArmPoll(secs, why)
     end
     UIManager:scheduleIn(delay or 3, link_task)
+end
+
+-- WiFi gone: no poll until a pass sees the server again (WiFi up runs one).
+-- KOReader has no standby event; standby is only entered with WiFi off,
+-- so this also covers it.
+function TomeSync:onNetworkDisconnected()
+    linkStopPoll("network down")
 end
 
 -- Called from init: the newest instance runs the passes (a closing reader's
@@ -6829,6 +7062,7 @@ function TomeSync:_linkInit()
 end
 
 TomeSync._linkAutoDeliver = autoDeliver
+TomeSync._linkStopPoll = linkStopPoll
 end
 -- Edit the custom download-path template in an input dialog. Validates by
 -- rendering a sample book before saving, so an unknown token is rejected here
