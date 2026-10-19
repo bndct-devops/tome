@@ -839,7 +839,7 @@ def _cleanup_empty_dir(start: Path, stop_at: Path) -> None:
         current = current.parent
 
 
-def create_app() -> FastAPI:
+def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app = FastAPI(
         title="Tome",
         description="Self-hosted ebook library",
@@ -919,7 +919,8 @@ def create_app() -> FastAPI:
     app.include_router(device_books_api.router, prefix="/api")
 
     # Serve frontend static files in production (SPA fallback)
-    frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+    if frontend_dist is None:
+        frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
     if frontend_dist.exists():
         from starlette.responses import FileResponse as _FileResponse
 
@@ -939,7 +940,25 @@ def create_app() -> FastAPI:
 
         _no_cache = {"Cache-Control": "no-cache"}
 
-        @app.get("/{full_path:path}")
+        # The fallback never claims a machine path: an unknown /api or /opds
+        # URL falls through to the router's own JSON 404 (or 405 when the
+        # path exists under another method), so clients can tell "this
+        # server has no such endpoint" from a page of HTML.
+        from fastapi.routing import APIRoute
+        from starlette.routing import Match
+
+        _machine_prefixes = ("/api", "/opds")
+
+        class _SpaRoute(APIRoute):
+            def matches(self, scope):
+                path = scope.get("path", "")
+                root = scope.get("root_path", "")
+                if root and path.startswith(root):
+                    path = path[len(root):]
+                if any(path == p or path.startswith(p + "/") for p in _machine_prefixes):
+                    return Match.NONE, {}
+                return super().matches(scope)
+
         async def spa_fallback(full_path: str):
             # Serve the actual file if it exists, otherwise index.html
             file = frontend_dist / full_path
@@ -949,6 +968,10 @@ def create_app() -> FastAPI:
                 # Fonts, icons, the reader's foliate files: unhashed names
                 return _FileResponse(str(file), headers={"Cache-Control": "public, max-age=86400"})
             return _FileResponse(str(index_html), headers=_no_cache)
+
+        app.router.add_api_route(
+            "/{full_path:path}", spa_fallback, methods=["GET"], route_class_override=_SpaRoute,
+        )
 
     return app
 

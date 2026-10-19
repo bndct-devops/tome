@@ -17,6 +17,11 @@ All notable changes to Tome are documented here. Format loosely follows
   reset in memory until KOReader next closed normally, so a crash before
   that lost them and the device asked to sign in again. They are now
   written to disk right away. Plugin build 52. (#259)
+- **Unknown API addresses answer "not found".** A request to an address
+  under `/api` or `/opds` that does not exist used to get the web app's page
+  back (or "method not allowed" for anything but a read). It now gets a
+  plain 404, so the KOReader plugin and other clients can tell that a server
+  does not have a feature yet instead of choking on a web page.
 
 ## [2.7.1] - 2026-10-19
 
