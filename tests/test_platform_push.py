@@ -2,6 +2,8 @@
 
 Nightlamp is mocked with respx; the real service is never called.
 """
+import base64
+import io
 import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -16,7 +18,7 @@ from backend.core.crypto import decrypt_secret, encrypt_secret
 from backend.core.security import create_access_token, hash_password
 from backend.models.audit_log import AuditLog
 from backend.models.library import BookType
-from backend.models.platform import PlatformLink
+from backend.models.platform import PlatformCoverSent, PlatformLink
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
@@ -197,11 +199,32 @@ def test_current_is_null_without_reading_book_and_absent_without_titles(db, admi
     assert "current" not in pp.build_envelope(db, user, link, full=True).body
 
 
-# ── keys and isbn ────────────────────────────────────────────────────────────
+# ── keys, isbn and covers ────────────────────────────────────────────────────
 
-def test_keys_are_hashes_and_isbn_goes_instead_of_a_cover(db, admin_user, make_book):
+def _cover(tmp_path, monkeypatch, name="c.jpg", size=(600, 900), noise=False) -> str:
+    from PIL import Image
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    (tmp_path / "covers").mkdir(exist_ok=True)
+    if noise:
+        import os
+        img = Image.frombytes("RGB", size, os.urandom(size[0] * size[1] * 3))
+    else:
+        img = Image.new("RGB", size, (120, 40, 40))
+    img.save(tmp_path / "covers" / name, "JPEG", quality=95)
+    return name
+
+
+def _jpeg(b64: str):
+    from PIL import Image
+    raw = base64.b64decode(b64)
+    assert raw[:3] == b"\xff\xd8\xff"
+    return raw, Image.open(io.BytesIO(raw))
+
+
+def test_keys_are_hashes_isbn_and_cover_go_once_and_again_on_resync(db, admin_user, make_book, tmp_path,
+                                                                     monkeypatch):
     user, _ = admin_user
-    book = make_book(title="Hail", isbn="978-0-593-13520-4", cover_path="c.jpg")
+    book = make_book(title="Hail", isbn="978-0-593-13520-4", cover_path=_cover(tmp_path, monkeypatch))
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
     _session(db, user.id, datetime(2026, 4, 2, 10), 60, book.id)
     _link(db, user, tz="UTC", share=True)
@@ -214,16 +237,92 @@ def test_keys_are_hashes_and_isbn_goes_instead_of_a_cover(db, admin_user, make_b
         _iid, secret = pp.instance_identity(db)
         key = pp.book_key(secret, book.id)
         assert key != str(book.id) and len(key) == 64
-        for body in bodies:
-            first = _days(body)["2026-04-02"]["finished"][0]
-            assert first == {"key": key, "title": "Hail", "author": book.author, "series": book.series,
-                             "series_index": book.series_index, "isbn": "9780593135204",
-                             "minutes_total": 60}
-            raw = json.dumps(body)
-            assert "cover" not in raw and "jpeg" not in raw and "b64" not in raw
+        first = _days(bodies[0])["2026-04-02"]["finished"][0]
+        b64 = first.pop("cover_jpeg_b64")
+        assert first == {"key": key, "title": "Hail", "author": book.author, "series": book.series,
+                         "series_index": book.series_index, "isbn": "9780593135204", "minutes_total": 60}
+        raw, img = _jpeg(b64)
+        assert img.width == 160 and len(raw) <= pp.MAX_COVER
+        second = _days(bodies[1])["2026-04-02"]["finished"][0]
+        assert second["isbn"] == "9780593135204" and "cover_jpeg_b64" not in second
+        assert db.query(PlatformCoverSent).filter_by(user_id=user.id, book_key=key).count() == 1
+        # "Resync everything" sends it again.
+        assert pp.push_user(db, user.id, full=True) == "ok"
+        assert "cover_jpeg_b64" in _days(bodies[2])["2026-04-02"]["finished"][0]
+        assert db.query(PlatformCoverSent).filter_by(user_id=user.id).count() == 1
         sent = bodies[0]
         assert sent["schema_version"] == 1 and sent["timezone"] == "UTC" and sent["share_titles"] is True
         assert mock.calls[0].request.headers["authorization"].startswith("Bearer nl_")
+
+
+def test_current_carries_isbn_and_cover_once(db, admin_user, make_book, tmp_path, monkeypatch):
+    user, _ = admin_user
+    book = make_book(title="Reading", isbn="0-306-40615-2", cover_path=_cover(tmp_path, monkeypatch))
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="reading", progress_pct=0.3))
+    _session(db, user.id, datetime(2026, 4, 2, 10), 30, book.id)
+    _link(db, user, tz="UTC", share=True)
+    db.commit()
+    with respx.mock(base_url=NL) as mock:
+        route = mock.post("/api/push").mock(return_value=httpx.Response(200, json={"accepted": 1}))
+        assert pp.push_user(db, user.id, full=True) == "ok"
+        assert pp.push_user(db, user.id) == "ok"
+        cur1 = json.loads(route.calls[0].request.content)["current"]
+        cur2 = json.loads(route.calls[1].request.content)["current"]
+    assert cur1["isbn"] == "0306406152" and _jpeg(cur1["cover_jpeg_b64"])[1].width == 160
+    assert cur2["isbn"] == "0306406152" and "cover_jpeg_b64" not in cur2
+
+
+def test_no_cover_when_the_book_has_none_or_the_file_is_gone(db, admin_user, make_book, tmp_path, monkeypatch):
+    user, _ = admin_user
+    _cover(tmp_path, monkeypatch)
+    bare = make_book(title="Bare")
+    gone = make_book(title="Gone", cover_path="missing.jpg")
+    for b in (bare, gone):
+        db.add(UserBookStatus(user_id=user.id, book_id=b.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    db.commit()
+    link = _link(db, user, tz="UTC", share=True)
+    env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
+    items = _days(env.body)["2026-04-02"]["finished"]
+    assert len(items) == 2 and all("cover_jpeg_b64" not in i for i in items)
+    assert env.cover_keys == set()
+
+
+def test_cover_stays_under_the_size_limit(make_book, tmp_path, monkeypatch):
+    # Random noise compresses badly: quality steps down until it fits.
+    name = _cover(tmp_path, monkeypatch, name="noise.jpg", size=(400, 2000), noise=True)
+    book = make_book(title="Noise", cover_path=name)
+    monkeypatch.setattr(pp, "MAX_COVER", 40 * 1024)
+    b64 = pp.cover_jpeg_b64(book)
+    assert b64 is not None
+    raw, img = _jpeg(b64)
+    assert len(raw) <= 40 * 1024 and img.width == 160
+    monkeypatch.setattr(pp, "MAX_COVER", 100)  # impossible: no cover rather than an oversized one
+    assert pp.cover_jpeg_b64(book) is None
+
+
+def test_no_covers_without_share_titles(db, admin_user, make_book, tmp_path, monkeypatch):
+    user, _ = admin_user
+    book = make_book(title="Hidden", cover_path=_cover(tmp_path, monkeypatch))
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    db.commit()
+    link = _link(db, user, tz="UTC", share=False)
+    env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
+    assert "cover" not in json.dumps(env.body) and env.cover_keys == set()
+
+
+def test_rejected_cover_is_not_marked_sent(db, admin_user, make_book, tmp_path, monkeypatch):
+    user, _ = admin_user
+    book = make_book(title="Bad", cover_path=_cover(tmp_path, monkeypatch))
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    _link(db, user, tz="UTC", share=True)
+    db.commit()
+    _iid, secret = pp.instance_identity(db)
+    key = pp.book_key(secret, book.id)
+    with respx.mock(base_url=NL) as mock:
+        mock.post("/api/push").mock(return_value=httpx.Response(200, json={
+            "accepted": 1, "rejected": [{"key": key, "reason": "cover_invalid"}]}))
+        assert pp.push_user(db, user.id, full=True) == "ok"
+    assert db.query(PlatformCoverSent).filter_by(user_id=user.id).count() == 0
 
 
 # ── ranges ───────────────────────────────────────────────────────────────────
@@ -246,12 +345,26 @@ def test_incremental_range_vs_resync_range(db, admin_user):
 
 
 def test_chunking_splits_large_bodies_and_keeps_current_last(monkeypatch):
-    monkeypatch.setattr(pp, "BODY_BUDGET", 100)
+    monkeypatch.setattr(pp, "BODY_BUDGET", 5000)
     body = {"schema_version": 1, "timezone": "UTC", "share_titles": True,
-            "days": [{"date": f"d{i}"} for i in range(450)], "current": None}
+            "days": [{"date": f"d{i:03d}"} for i in range(450)], "current": None}
     parts = pp.chunk_bodies(body)
     assert [len(p["days"]) for p in parts] == [200, 200, 50]
     assert "current" not in parts[0] and parts[-1]["current"] is None
+
+
+def test_chunking_by_size_keeps_cover_heavy_bodies_under_the_limit(monkeypatch):
+    monkeypatch.setattr(pp, "BODY_BUDGET", 20_000)
+    cover = "A" * 6000
+    days = [{"date": f"d{i:03d}", "finished": [{"key": str(i), "cover_jpeg_b64": cover}] if i % 3 == 0 else []}
+            for i in range(60)]
+    body = {"schema_version": 1, "timezone": "UTC", "share_titles": True, "days": days,
+            "current": {"key": "c", "cover_jpeg_b64": cover}}
+    parts = pp.chunk_bodies(body)
+    assert len(parts) > 1
+    assert [d for p in parts for d in p["days"]] == days
+    assert all(len(json.dumps(p, separators=(",", ":"))) <= 20_000 for p in parts)
+    assert parts[-1]["current"] == body["current"] and all("current" not in p for p in parts[:-1])
 
 
 # ── push outcomes ────────────────────────────────────────────────────────────
@@ -477,8 +590,11 @@ def test_resync_and_unlink(client, db, admin_user):
         route = mock.post("/api/push").mock(return_value=httpx.Response(200, json={"accepted": 0}))
         assert client.post("/api/platform/resync").json() == {"started": True}
         assert route.call_count == 1
+    db.add(PlatformCoverSent(user_id=user.id, book_key="k"))
+    db.commit()
     assert client.post("/api/platform/unlink").json() == {"ok": True}
     assert db.query(PlatformLink).filter_by(user_id=user.id).count() == 0
+    assert db.query(PlatformCoverSent).filter_by(user_id=user.id).count() == 0
     assert client.get("/api/platform/status").json()["linked"] is False
     actions = {a.action for a in db.query(AuditLog).all()}
     assert {"platform.resync", "platform.unlinked"} <= actions
@@ -522,4 +638,3 @@ def test_isbn_null_when_the_book_has_none_and_on_current(db, admin_user, make_bo
     item = _days(body)["2026-04-02"]["finished"][0]
     assert "isbn" in item and item["isbn"] is None
     assert body["current"]["isbn"] == "0306406152"
-    assert not any("cover" in k for k in item) and not any("cover" in k for k in body["current"])

@@ -217,10 +217,13 @@ All notable changes to Tome are documented here. Format loosely follows
   no password or email. From then on Tome sends your daily reading totals:
   minutes read (per book type), sittings, the longest sitting and how many
   books you finished, with days ending at midnight in the time zone you pick.
-  Titles, authors and ISBNs of finished books and the book you are reading
-  go only when you turn on "Share titles"; turning it off again deletes them
-  on Nightlamp. No images ever leave the server: Nightlamp looks covers up in
-  public catalogues by ISBN. Pushes go a couple of minutes after a session
+  Titles, authors, ISBNs and a small cover (160 px JPEG) of finished books
+  and the book you are reading go only when you turn on "Share titles and
+  covers"; turning it off again deletes the titles on Nightlamp. Nightlamp
+  looks covers up in public catalogues by ISBN first and shows the one from
+  Tome only when it finds none; each cover goes once per book, and again
+  after "Resync everything". Covers are visible to anyone who can see your
+  page. Pushes go a couple of minutes after a session
   ends and once an hour; "Resync everything" sends all history again, and
   "Unlink" stops sending. Your Tome user id and book ids never leave the
   server (Nightlamp gets hashes). Linking, unlinking, resyncs and setting

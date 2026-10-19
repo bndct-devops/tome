@@ -9,9 +9,10 @@ session that crosses midnight is split by time. Tome's own 04:00 rollover
 
 What leaves the server per day: minutes read, minutes per book type, sittings,
 the longest sitting and the number of books finished. Titles, authors and
-ISBNs (``finished`` / ``current``) only when the user turned on "share
-titles". No image ever leaves: Nightlamp looks covers up in public catalogues
-by ISBN. Book and user ids never leave: both are sha256(instance_secret + id).
+ISBNs plus a small cover (``finished`` / ``current``) only when the user
+turned on "share titles and covers". Nightlamp looks covers up in public
+catalogues by ISBN first and uses the one from Tome only when it finds none;
+each cover goes once per book (again after "Resync everything"). Book and user ids never leave: both are sha256(instance_secret + id).
 
 Triggers: an ORM hook marks a user dirty when a reading session is written or
 a book is marked read/reading; ``platform_loop`` pushes dirty users two
@@ -20,7 +21,9 @@ minutes after their last change and sweeps every linked user hourly.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
+import io
 import json
 import logging
 import secrets
@@ -39,7 +42,7 @@ from backend.core.config import settings
 from backend.core.crypto import decrypt_secret, encrypt_secret
 from backend.models.book import Book
 from backend.models.instance_setting import InstanceSetting
-from backend.models.platform import PlatformLink
+from backend.models.platform import PlatformCoverSent, PlatformLink
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
@@ -58,6 +61,9 @@ HTTP_TIMEOUT = 30.0
 MAX_BODY = 8 * 1024 * 1024
 BODY_BUDGET = 7 * 1024 * 1024  # split before Nightlamp's 8 MB limit
 CHUNK_DAYS = 200
+COVER_WIDTH = 160
+COVER_QUALITY = 80
+MAX_COVER = 64 * 1024
 
 
 def enabled() -> bool:
@@ -277,12 +283,52 @@ def clean_isbn(raw: str | None) -> str | None:
     return None
 
 
+# ── covers ───────────────────────────────────────────────────────────────────
+
+def cover_jpeg_b64(book: Book) -> str | None:
+    """The book's cover as a 160 px wide JPEG (quality 80, lowered until it
+    fits ``MAX_COVER``), base64, or None. cover_thumbs.py makes WebP for the
+    web UI; Nightlamp takes JPEG only, so this resizes the cached original."""
+    if not book.cover_path:
+        return None
+    src = settings.covers_dir / book.cover_path
+    if not src.is_file():
+        return None
+    try:
+        from PIL import Image
+        with Image.open(src) as img:
+            img = img.convert("RGB")
+            if img.width > COVER_WIDTH:
+                img = img.resize((COVER_WIDTH, max(1, round(img.height * COVER_WIDTH / img.width))), Image.LANCZOS)
+            for quality in (COVER_QUALITY, 65, 50, 35):
+                buf = io.BytesIO()
+                img.save(buf, "JPEG", quality=quality, optimize=True)
+                raw = buf.getvalue()
+                if len(raw) <= MAX_COVER:
+                    return base64.b64encode(raw).decode()
+    except Exception as exc:  # noqa: BLE001 - a bad cover just goes without
+        logger.warning("platform cover failed for book %s: %s", book.id, exc)
+    return None
+
+
+def _attach_cover(item: dict, book: Book, key: str, sent: set[str], cover_keys: set[str]) -> None:
+    """Add ``cover_jpeg_b64`` unless this book's cover already went (or rides
+    earlier in this push)."""
+    if key in sent or key in cover_keys:
+        return
+    b64 = cover_jpeg_b64(book)
+    if b64:
+        item["cover_jpeg_b64"] = b64
+        cover_keys.add(key)
+
+
 # ── the envelope ─────────────────────────────────────────────────────────────
 
 @dataclass
 class Envelope:
     body: dict
     through: date
+    cover_keys: set[str] = field(default_factory=set)
 
 
 def _book_fields(book: Book, key: str) -> dict:
@@ -290,7 +336,8 @@ def _book_fields(book: Book, key: str) -> dict:
             "series_index": book.series_index, "isbn": clean_isbn(book.isbn)}
 
 
-def _current(db: Session, user: User, agg: Aggregate, tz: ZoneInfo, secret: str) -> dict | None:
+def _current(db: Session, user: User, agg: Aggregate, tz: ZoneInfo, secret: str,
+             sent: set[str], cover_keys: set[str]) -> dict | None:
     rows = (db.query(UserBookStatus)
             .filter(UserBookStatus.user_id == user.id, UserBookStatus.status == "reading").all())
     if not rows:
@@ -317,6 +364,7 @@ def _current(db: Session, user: User, agg: Aggregate, tz: ZoneInfo, secret: str)
            "minutes_in": _minutes(agg.seconds_by_book.get(book.id, 0.0)),
            "started": min(s.day for s in segs).isoformat() if segs else None,
            "sittings": len(merge_sittings(segs))}
+    _attach_cover(cur, book, key, sent, cover_keys)
     return cur
 
 
@@ -337,6 +385,10 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
         if since is not None:
             start = min(start, since)
     days: list[dict] = []
+    cover_keys: set[str] = set()
+    sent: set[str] = set()
+    if link.share_titles:
+        sent = {r.book_key for r in db.query(PlatformCoverSent).filter(PlatformCoverSent.user_id == user.id).all()}
     finished_books: dict[int, Book] = {}
     if link.share_titles:
         ids = {i for ids in agg.finished_by_day.values() for i in ids}
@@ -357,8 +409,10 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
                     if book is None:
                         continue
                     key = book_key(secret, book_id)
-                    items.append({**_book_fields(book, key),
-                                  "minutes_total": _minutes(agg.seconds_by_book.get(book_id, 0.0))})
+                    item = {**_book_fields(book, key),
+                            "minutes_total": _minutes(agg.seconds_by_book.get(book_id, 0.0))}
+                    _attach_cover(item, book, key, sent, cover_keys)
+                    items.append(item)
                 entry["finished"] = items
             days.append(entry)
             d += timedelta(days=1)
@@ -366,22 +420,34 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
     body: dict = {"schema_version": SCHEMA_VERSION, "timezone": link.timezone,
                   "share_titles": bool(link.share_titles), "days": days}
     if link.share_titles:
-        body["current"] = _current(db, user, agg, tz, secret)
-    return Envelope(body=body, through=today)
+        body["current"] = _current(db, user, agg, tz, secret, sent, cover_keys)
+    return Envelope(body=body, through=today, cover_keys=cover_keys)
 
 
 def chunk_bodies(body: dict) -> list[dict]:
-    """One body, or several of ``CHUNK_DAYS`` days each when it is too big.
-    ``current`` rides only on the last one (omitted = unchanged)."""
-    raw = json.dumps(body, separators=(",", ":"))
-    if len(raw) <= BODY_BUDGET or len(body["days"]) <= CHUNK_DAYS:
+    """One body, or several when it is over ``BODY_BUDGET`` (Nightlamp's 8 MB
+    limit, less headroom). Days are packed in order until the next one would
+    pass the budget or ``CHUNK_DAYS``; covers make days uneven, so this goes by
+    size, not count. ``current`` rides only on the last one (omitted =
+    unchanged), and its size is reserved in every chunk."""
+    def size(obj: Any) -> int:
+        return len(json.dumps(obj, separators=(",", ":")))
+
+    if size(body) <= BODY_BUDGET:
         return [body]
-    days = body["days"]
-    out = []
-    for i in range(0, len(days), CHUNK_DAYS):
-        part = {k: v for k, v in body.items() if k not in ("days", "current")}
-        part["days"] = days[i:i + CHUNK_DAYS]
-        out.append(part)
+    base = {k: v for k, v in body.items() if k not in ("days", "current")}
+    overhead = size({**base, "days": [], "current": body.get("current")})
+    out: list[dict] = []
+    chunk: list[dict] = []
+    used = overhead
+    for day in body["days"]:
+        n = size(day) + 1  # the comma
+        if chunk and (used + n > BODY_BUDGET or len(chunk) >= CHUNK_DAYS):
+            out.append({**base, "days": chunk})
+            chunk, used = [], overhead
+        chunk.append(day)
+        used += n
+    out.append({**base, "days": chunk})
     if "current" in body:
         out[-1]["current"] = body["current"]
     return out
@@ -463,10 +529,17 @@ def _push_locked(db: Session, user_id: int, *, full: bool, since: date | None) -
         link.last_push_error = "The stored token could not be read (server key changed?). Link again."
         db.commit()
         return "error"
+    if full:
+        db.query(PlatformCoverSent).filter(PlatformCoverSent.user_id == user_id).delete()
+        db.flush()
     env = build_envelope(db, user, link, full=full, since=since)
+    rejected_keys: set[str] = set()
     try:
         for body in chunk_bodies(env.body):
-            call("POST", "/api/push", json_body=body, token=token)
+            res = call("POST", "/api/push", json_body=body, token=token)
+            for r in res.get("rejected") or []:
+                if isinstance(r, dict) and r.get("reason") == "cover_invalid" and r.get("key"):
+                    rejected_keys.add(str(r["key"]))
     except PlatformError as exc:
         if exc.status == 401:
             link.revoked_at = datetime.utcnow()
@@ -478,6 +551,8 @@ def _push_locked(db: Session, user_id: int, *, full: bool, since: date | None) -
         db.commit()
         logger.warning("platform push for user %s failed: %s", user_id, exc)
         return "error"
+    for key in env.cover_keys - rejected_keys:
+        db.add(PlatformCoverSent(user_id=user_id, book_key=key))
     link.last_push_at = datetime.utcnow()
     link.last_push_error = None
     link.pushed_through = env.through

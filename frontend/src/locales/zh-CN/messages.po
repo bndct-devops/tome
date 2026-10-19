@@ -1202,8 +1202,12 @@ msgid "{name} is rate-limited — try again in a minute"
 msgstr ""
 
 #: src/components/PlatformSettings.tsx
-msgid "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles only if you choose."
+msgid "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles and covers only if you choose."
 msgstr ""
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles only if you choose."
+#~ msgstr ""
 
 #: src/components/ThemeToggle.tsx
 msgid "{name} theme"
@@ -6590,7 +6594,11 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/PlatformSettings.tsx
-msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and ISBNs of the books you finish and the one you are reading.{name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent."
+#~ msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and ISBNs of the books you finish and the one you are reading.{name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent."
+#~ msgstr ""
+
+#: src/components/PlatformSettings.tsx
+msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors, ISBNs and a small cover image of the books you finish and the one you are reading. {name} prefers covers from public catalogues and uses yours only when it finds none. Covers are visible to anyone who can see your page."
 msgstr ""
 
 #: src/components/AiSettings.tsx
@@ -8546,12 +8554,12 @@ msgid "Share this series — a public metadata-only page"
 msgstr ""
 
 #: src/components/PlatformSettings.tsx
-msgid "Share titles"
-msgstr ""
+#~ msgid "Share titles"
+#~ msgstr ""
 
 #: src/components/PlatformSettings.tsx
-#~ msgid "Share titles and covers"
-#~ msgstr ""
+msgid "Share titles and covers"
+msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Share with users"

@@ -209,7 +209,7 @@ export function PlatformSettings({ initial }: { initial: PlatformStatus }) {
         <p className="text-[13px] text-muted-foreground">
           <Trans>{name} shows your reading hours, streaks and finished books on a page you can
           share, with boards across Tome servers. Only daily totals leave this server; titles
-          only if you choose.</Trans>
+          and covers only if you choose.</Trans>
         </p>
         {status.revoked && (
           <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
@@ -257,17 +257,18 @@ export function PlatformSettings({ initial }: { initial: PlatformStatus }) {
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-foreground"><Trans>Share titles</Trans></p>
+          <p className="text-sm text-foreground"><Trans>Share titles and covers</Trans></p>
           <p className="text-[13px] text-muted-foreground mt-0.5">
             <Trans>Off: only daily minutes, sittings and how many books you finished leave this server.
-            On: also the titles, authors and ISBNs of the books you finish and the one you are reading.
-            {name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent.</Trans>
+            On: also the titles, authors, ISBNs and a small cover image of the books you finish and the
+            one you are reading. {name} prefers covers from public catalogues and uses yours only when it
+            finds none. Covers are visible to anyone who can see your page.</Trans>
           </p>
         </div>
         <button
           role="switch"
           aria-checked={status.share_titles}
-          aria-label={t`Share titles`}
+          aria-label={t`Share titles and covers`}
           onClick={() => void patch({ share_titles: !status.share_titles })}
           className={cn(
             'relative w-9 h-5 rounded-full transition-colors shrink-0',
