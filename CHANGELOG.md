@@ -11,6 +11,13 @@ All notable changes to Tome are documented here. Format loosely follows
   sponsor Tome on GitHub Sponsors. The repo also shows a Sponsor button.
   Sponsoring is a thank-you; nothing in Tome is locked behind it.
 
+### Fixed
+- **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
+  new pairing (Sign in with code), a changed server URL and a connection
+  reset in memory until KOReader next closed normally, so a crash before
+  that lost them and the device asked to sign in again. They are now
+  written to disk right away. Plugin build 52. (#259)
+
 ## [2.7.1] - 2026-10-19
 
 ### Fixed

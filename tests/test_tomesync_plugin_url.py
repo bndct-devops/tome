@@ -249,5 +249,7 @@ def test_build_bumped_for_rebake():
     # "On <device>" pills and filters).
     # 1.19.1 / build 51 (issue #259): a null book_type no longer crashes a
     # single-book or author/search-list download.
-    assert TOMESYNC_PLUGIN_BUILD >= 51
-    assert TOMESYNC_PLUGIN_SEMVER == "1.19.1"
+    # 1.19.2 / build 52: pairing, server URLs and reset are written to disk
+    # at once, so a crash no longer loses a fresh pairing.
+    assert TOMESYNC_PLUGIN_BUILD >= 52
+    assert TOMESYNC_PLUGIN_SEMVER == "1.19.2"

@@ -121,8 +121,8 @@ logger = logging.getLogger(__name__)
 # /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
 # seconds after the book map changes; the server replaces the device's list,
 # so deletes drop out on the next push. Powers "On <device>" in web and app.
-TOMESYNC_PLUGIN_BUILD = 51
-TOMESYNC_PLUGIN_SEMVER = "1.19.1"
+TOMESYNC_PLUGIN_BUILD = 52
+TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -3093,6 +3093,9 @@ function TomeSync:_editStringSetting(key, title, hint, description, cleared_text
                     else
                         G_reader_settings:saveSetting(key, v)
                     end
+                    -- Written at once, like the pairing: a crash must not
+                    -- lose a server address.
+                    G_reader_settings:flush()
                     UIManager:close(dialog)
                     UIManager:show(InfoMessage:new{{
                         text = title .. ": " .. (v ~= "" and v or cleared_text or hint),
@@ -3103,6 +3106,22 @@ function TomeSync:_editStringSetting(key, title, hint, description, cleared_text
     }}
     UIManager:show(dialog)
     dialog:onShowKeyboard()
+end
+
+-- Settings > Reset connection: back to the server, key and account baked in
+-- at download, written at once like every connection setting.
+function TomeSync:_resetConnection()
+    G_reader_settings:delSetting("tomesync_server_url")
+    G_reader_settings:delSetting("tomesync_fallback_url")
+    G_reader_settings:delSetting("tomesync_active_url")
+    G_reader_settings:delSetting("tomesync_api_key")
+    G_reader_settings:delSetting("tomesync_username")
+    G_reader_settings:flush()
+    UIManager:show(InfoMessage:new{{
+        text = "Connection reset.\\nServer: " .. serverURL()
+               .. "\\nAccount: " .. username(),
+        timeout = 4,
+    }})
 end
 
 -- Settings > Sign in with code: Quick Connect pairing. The device asks the
@@ -3155,6 +3174,9 @@ function TomeSync:_signInWithCode()
         else
             G_reader_settings:delSetting("tomesync_username")
         end
+        -- KOReader writes its settings file only on a clean exit, so a crash
+        -- before then lost the new key and the device asked to pair again.
+        G_reader_settings:flush()
         UIManager:close(waiting)
         UIManager:show(InfoMessage:new{{
             text = "Signed in as " .. username() .. "\\n" .. serverURL(),
@@ -6744,18 +6766,7 @@ function TomeSync:_menuItems()
                 text = "Reset server URLs, API key and account to the baked-in "
                        .. "defaults?",
                 ok_text = "Reset",
-                ok_callback = function()
-                    G_reader_settings:delSetting("tomesync_server_url")
-                    G_reader_settings:delSetting("tomesync_fallback_url")
-                    G_reader_settings:delSetting("tomesync_active_url")
-                    G_reader_settings:delSetting("tomesync_api_key")
-                    G_reader_settings:delSetting("tomesync_username")
-                    UIManager:show(InfoMessage:new{{
-                        text = "Connection reset.\\nServer: " .. serverURL()
-                               .. "\\nAccount: " .. username(),
-                        timeout = 4,
-                    }})
-                end,
+                ok_callback = function() self:_resetConnection() end,
             }})
         end,
     }})
