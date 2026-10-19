@@ -42,6 +42,10 @@ class MetadataCandidate:
     tags: list[str] = field(default_factory=list)
     series: str | None = None
     series_index: float | None = None
+    # Which kind of edition ``isbn`` belongs to, when the source says:
+    # audiobook | ebook | physical | unknown (None = the source does not say).
+    # Write paths refuse an "audiobook" ISBN (book_updates.isbn_allowed).
+    edition_format: str | None = None
 
 
 @dataclass
@@ -197,6 +201,8 @@ async def fetch_candidates(
     hc_query = _build_hardcover_query(title, author, effective_isbn, series, series_index, query_override, media_hint)
 
     hint_cls = classify_media_hint(media_hint)
+    # Edition choice (hardcover_editions.pick_edition) depends on the language.
+    hc_lang = (language or "").strip().lower()[:2] or None
 
     async with httpx.AsyncClient(timeout=10) as client:
         async def _hc_disabled() -> tuple[list[MetadataCandidate], str]:
@@ -207,8 +213,9 @@ async def fetch_candidates(
 
         hc_call = (
             _call_with_retry("hardcover", lambda: _hardcover(
-                client, title, author, effective_isbn, series, series_index, query_override, media_hint),
-                cache_key=hc_query)
+                client, title, author, effective_isbn, series, series_index, query_override, media_hint,
+                language=hc_lang),
+                cache_key=(hc_query, hc_lang))
             if settings.hardcover_token else _hc_disabled()
         )
         # AniList is manga-specialised (no key needed) — only worth a call for
@@ -246,8 +253,9 @@ async def fetch_candidates(
                 )
             if not hc and hc_status not in ("disabled", "rate_limited"):
                 hc, hc_status = await _call_with_retry("hardcover", lambda: _hardcover(
-                    client, title, author, None, series, series_index, fallback_query),
-                    cache_key=fallback_query)
+                    client, title, author, None, series, series_index, fallback_query,
+                    language=hc_lang),
+                    cache_key=(fallback_query, hc_lang))
 
         # Suspect-ISBN fallback: a stored ISBN belonging to the WRONG edition
         # (the manga's ISBN on a light novel — old auto-apply versions caused
@@ -269,12 +277,21 @@ async def fetch_candidates(
             and hc and all(_violates_hint(c) for c in hc)
         ):
             hc2, _st = await _call_with_retry("hardcover", lambda: _hardcover(
-                client, title, author, None, series, series_index, None, media_hint),
-                cache_key=_build_hardcover_query(title, author, None, series, series_index, None, media_hint))
+                client, title, author, None, series, series_index, None, media_hint,
+                language=hc_lang),
+                cache_key=(_build_hardcover_query(title, author, None, series, series_index, None, media_hint),
+                           hc_lang))
             if hc2:
                 hc = [*hc2, *hc]
 
     merged = merge_candidates([*hc, *gb, *ol, *al])
+    # An ISBN Hardcover named as an audiobook edition (this fetch or an earlier
+    # one) never reaches a candidate, whichever source carried it.
+    from backend.services.hardcover_editions import is_known_audio
+    for c in merged:
+        if c.isbn and is_known_audio(c.isbn):
+            c.isbn = None
+            c.edition_format = None
     if al:
         _fill_from_anilist(merged, al)
     ranked = rank_candidates(merged, ScoreContext(
@@ -442,8 +459,12 @@ async def _hardcover(
     series_index: float | None,
     query_override: str | None = None,
     media_hint: str | None = None,
+    *,
+    language: str | None = None,
 ) -> list[MetadataCandidate]:
-    """Fetch candidates from Hardcover.app GraphQL API."""
+    """Fetch candidates from Hardcover.app GraphQL API. ``language`` steers
+    which edition supplies the ISBN, publisher and pages (see
+    ``_fetch_hardcover_details``)."""
     token = settings.hardcover_token
     if not token:
         return []
@@ -505,7 +526,7 @@ async def _hardcover(
         # If filter removed everything, keep originals — better than nothing
 
     if candidates and hc_ids:
-        await _fetch_hardcover_details(client, candidates, hc_ids, headers)
+        await _fetch_hardcover_details(client, candidates, hc_ids, headers, language=language)
 
     return candidates
 
@@ -646,6 +667,9 @@ def _parse_hardcover(doc: dict) -> MetadataCandidate:
         isbn=isbn_val,
         language=None,
         tags=doc.get("genres", []),
+        # The search document's ISBN list mixes every edition; the details
+        # call replaces this with the picked edition's ISBN when it can.
+        edition_format="unknown" if isbn_val else None,
     )
 
 
@@ -654,8 +678,20 @@ async def _fetch_hardcover_details(
     candidates: list[MetadataCandidate],
     hc_ids: list[str],
     headers: dict,
+    *,
+    language: str | None = None,
 ) -> None:
-    """Fetch publisher and series info from Hardcover for each candidate, in-place.
+    """Fetch edition, publisher and series info from Hardcover for each
+    candidate, in place.
+
+    Edition: the book's editions (up to 30) go through the shared
+    ``hardcover_editions.pick_edition`` (never audio, ``language`` first,
+    English when unknown, then ebook, physical, users). The candidate's ISBN,
+    publisher and page count come from the picked edition. A book whose
+    editions are all audiobooks gets ``isbn=None``: the most-used edition of a
+    popular light novel is often the audiobook, and its ISBN used to land on
+    ebooks. With no edition data at all the search document's ISBN stays,
+    marked ``unknown``.
 
     The search response's ``ids`` array holds INTS while document ids parse as
     STRINGS — compare as strings, or nothing ever matches (this exact mismatch
@@ -671,10 +707,15 @@ async def _fetch_hardcover_details(
     query GetBookDetails($ids: [Int!]!) {
         books(where: {id: {_in: $ids}}) {
             id
-            editions(limit: 1, order_by: {users_count: desc}) {
-                publisher {
-                    name
-                }
+            editions(limit: 30, order_by: {users_count: desc}) {
+                id
+                isbn_13
+                isbn_10
+                pages
+                users_count
+                reading_format_id
+                language { code2 }
+                publisher { name }
             }
             book_series {
                 series {
@@ -699,12 +740,7 @@ async def _fetch_hardcover_details(
                 continue
             candidate = id_to_candidate[book_id]
 
-            # Publisher
-            editions = book.get("editions", [])
-            if editions and editions[0].get("publisher"):
-                pub_name = editions[0]["publisher"].get("name")
-                if pub_name:
-                    candidate.publisher = pub_name
+            _apply_edition(candidate, book.get("editions") or [], language)
 
             # Series
             book_series = book.get("book_series", [])
@@ -721,6 +757,34 @@ async def _fetch_hardcover_details(
                         pass
     except Exception:
         logger.warning("Failed to fetch Hardcover details", exc_info=True)
+
+
+def _apply_edition(candidate: MetadataCandidate, editions: list[dict],
+                   language: str | None) -> None:
+    """Set the candidate's ISBN, edition format, publisher and pages from the
+    edition that stands for the book (see ``_fetch_hardcover_details``)."""
+    from backend.services import hardcover_editions as hce
+
+    hce.note_editions(editions)
+    if not editions:
+        if candidate.isbn and hce.is_known_audio(candidate.isbn):
+            candidate.isbn = None
+            candidate.edition_format = None
+        return
+    with_isbn = hce.pick_edition(editions, language=language, require_isbn=True)
+    best = with_isbn or hce.pick_edition(editions, language=language)
+    if with_isbn is not None:
+        candidate.isbn = hce.edition_isbn(with_isbn)
+        candidate.edition_format = hce.edition_format(with_isbn)
+    else:
+        # Only audiobook editions carry an ISBN (or none does): no ISBN at all
+        # rather than the audiobook's.
+        candidate.isbn = None
+        candidate.edition_format = None
+    if best is not None:
+        candidate.publisher = hce.edition_publisher(best) or candidate.publisher
+        if best.get("pages"):
+            candidate.page_count = best["pages"]
 
 
 def _build_series_query(series: str, series_index: float, author: str | None) -> str:

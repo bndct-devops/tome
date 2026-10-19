@@ -32,6 +32,7 @@ from backend.services.ko_hash import ko_partial_md5, record_ko_hash
 from backend.services.book_types import assign_book_to_type_library
 from backend.services.filename_parser import parse_filename
 from backend.services.metadata import extract_metadata, sha256_file
+from backend.services.book_updates import isbn_allowed
 from backend.services.metadata_fetch import fetch_candidates
 from backend.services.organizer import get_library_path, move_into_library, resolve_unique_path
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
@@ -378,6 +379,7 @@ async def bindery_preview(
             "year": c.year,
             "page_count": c.page_count,
             "isbn": c.isbn,
+            "edition_format": c.edition_format,
             "language": c.language,
             "tags": c.tags,
             "series": c.series,
@@ -469,7 +471,8 @@ def bindery_accept(
                 author=item.author,
                 series=item.series,
                 series_index=item.series_index,
-                isbn=item.isbn,
+                # A known audiobook edition's ISBN is never stored (book_updates.isbn_allowed).
+                isbn=item.isbn if isbn_allowed(item.isbn) else None,
                 publisher=item.publisher,
                 description=item.description,
                 language=item.language,

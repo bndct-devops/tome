@@ -566,7 +566,8 @@ def _apply_metadata(session_factory: SessionFactory, book_id: int,
             db.commit()
             return True
         if best.isbn and not book.isbn:
-            book.isbn = best.isbn
+            from backend.services.book_updates import write_isbn
+            write_isbn(book, best.isbn, best.edition_format)
         if best.language and not book.language:
             book.language = best.language
         if best.series and not book.series:

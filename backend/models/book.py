@@ -1,7 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, event
+from sqlalchemy.orm.base import NEVER_SET, NO_VALUE
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -86,6 +87,32 @@ class Book(Base):
     @property
     def library_ids(self) -> list[int]:
         return [lib.id for lib in (self.libraries or [])]
+
+
+# Hardcover match methods the sync re-derives on its own. "manual" (the user
+# picked the record) and "excluded" (never sync) are the user's word and stay.
+HARDCOVER_AUTO_METHODS = frozenset({"isbn13", "isbn10", "search", "none", "shelf"})
+
+
+def _isbn_key(v: object) -> str:
+    return "".join(ch for ch in str(v or "") if ch.isdigit() or ch in "xX").upper()
+
+
+@event.listens_for(Book.isbn, "set", active_history=True)
+def _isbn_changed(target: Book, value, oldvalue, initiator) -> None:
+    """A new ISBN moves the book to another edition, so an automatic Hardcover
+    match no longer follows it: clear the pin and let the next sync re-match
+    (ISBN first, which pins the new edition)."""
+    if oldvalue in (NO_VALUE, NEVER_SET) or _isbn_key(value) == _isbn_key(oldvalue):
+        return
+    if target.hardcover_match_method not in HARDCOVER_AUTO_METHODS:
+        return
+    target.hardcover_book_id = None
+    target.hardcover_edition_id = None
+    target.hardcover_pages = None
+    target.hardcover_slug = None
+    target.hardcover_match_method = None
+    target.hardcover_matched_at = None
 
 
 class BookFile(Base):

@@ -16,6 +16,30 @@ from backend.models.book import Book, BookTag
 from backend.models.user import User
 
 
+def isbn_allowed(isbn: Optional[str], edition_format: Optional[str] = None) -> bool:
+    """May this ISBN be written to a Tome book? Tome has no audio format, so
+    an ISBN known to be an audiobook edition never is: known from the
+    candidate that supplied it (``edition_format == "audiobook"``) or from an
+    audiobook edition Hardcover listed earlier in this process
+    (``hardcover_editions.is_known_audio``). No network call."""
+    if not isbn:
+        return True
+    if (edition_format or "").strip().lower() == "audiobook":
+        return False
+    from backend.services.hardcover_editions import is_known_audio
+    return not is_known_audio(isbn)
+
+
+def write_isbn(book: Book, isbn: Optional[str], edition_format: Optional[str] = None) -> bool:
+    """Set ``book.isbn`` unless ``isbn_allowed`` refuses it. Returns whether
+    it was written. Changing the ISBN clears an automatic Hardcover match
+    (see the ``Book.isbn`` listener in models/book.py)."""
+    if not isbn or not isbn_allowed(isbn, edition_format):
+        return False
+    book.isbn = isbn
+    return True
+
+
 class BookUpdateError(ValueError):
     """A requested edit the API should answer with 400."""
 

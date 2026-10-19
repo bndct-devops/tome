@@ -55,6 +55,7 @@ from backend.models.notification import Notification
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.models.wish import Wish
+from backend.services import hardcover_editions as hc_editions
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ AUTHOR_SIM_MIN = 0.7
 
 # Hardcover reading_format_id for audiobook editions. Audio editions carry
 # ISBNs too (Podium!) and have no page counts — never pin one.
-AUDIO_FORMAT_ID = 2
+AUDIO_FORMAT_ID = hc_editions.AUDIO_FORMAT_ID
 
 # Marks wishes CREATED BY the shelf pull — the only wishes the shelf mirror is
 # allowed to dismiss/reopen. Deliberately distinct from source="hardcover",
@@ -140,6 +141,8 @@ query BookEdition($id: Int!) {
             pages
             users_count
             reading_format_id
+            isbn_13
+            isbn_10
             language { code2 }
         }
     }
@@ -371,37 +374,24 @@ def _lang2(raw: Optional[str]) -> Optional[str]:
 
 
 def _edition_lang(ed: dict) -> Optional[str]:
-    code = ((ed.get("language") or {}).get("code2") or "").strip().lower()
-    return code or None
+    return hc_editions.edition_lang(ed)
 
 
 def _edition_acceptable(ed: dict, want_lang: Optional[str]) -> bool:
     """Is this specific edition safe to pin? Audio editions never are (no page
     counts, and the profile shows the audiobook cover); a known language must
     not contradict the Tome book's known language."""
-    if ed.get("reading_format_id") == AUDIO_FORMAT_ID:
+    if hc_editions.is_audio(ed):
         return False
     ed_lang = _edition_lang(ed)
     return want_lang is None or ed_lang is None or ed_lang == want_lang
 
 
 def _pick_edition(editions: list[dict], want_lang: Optional[str]) -> Optional[dict]:
-    """Choose the edition to pin on a matched Hardcover book: language match
-    first (unknown language beats a contradicting one), then non-audio, then
-    the edition the community actually uses, then one with page data."""
-    def score(ed: dict) -> tuple:
-        ed_lang = _edition_lang(ed)
-        if want_lang and ed_lang == want_lang:
-            lang_rank = 2
-        elif ed_lang is None or want_lang is None:
-            lang_rank = 1
-        else:
-            lang_rank = 0
-        non_audio = 0 if ed.get("reading_format_id") == AUDIO_FORMAT_ID else 1
-        return (lang_rank, non_audio, ed.get("users_count") or 0,
-                1 if ed.get("pages") else 0)
-    candidates = [e for e in editions if e.get("id") is not None]
-    return max(candidates, key=score) if candidates else None
+    """Choose the edition to pin on a matched Hardcover book. The shared
+    ``hardcover_editions.pick_edition`` (the metadata fetch uses the same
+    one): never audio, language match first, then ebook, physical, users."""
+    return hc_editions.pick_edition(editions, language=want_lang)
 
 
 def _isbn_hit_plausible(book, hc_title: str) -> bool:
@@ -446,6 +436,7 @@ async def _adopt_best_edition(client: httpx.AsyncClient, token: str, book: Book)
     b = books[0]
     if not book.hardcover_slug:
         book.hardcover_slug = b.get("slug")
+    hc_editions.note_editions(b.get("editions") or [])
     ed = _pick_edition(b.get("editions") or [], _lang2(book.language))
     if ed is None:
         book.hardcover_edition_id = None

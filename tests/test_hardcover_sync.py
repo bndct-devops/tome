@@ -433,9 +433,10 @@ def test_edition_picker_helpers():
     assert hs._pick_edition([de, en, unk, audio], "en")["id"] == 2
     # unknown want-language: unknown/known tie on language, popularity decides
     assert hs._pick_edition([de, unk], None)["id"] == 3
-    # language outranks format: if the only right-language edition is the
-    # audiobook, it still beats a wrong-language text edition
-    assert hs._pick_edition([de, audio], "en")["id"] == 4
+    # never audio (shared hardcover_editions.pick_edition): a wrong-language
+    # text edition beats the right-language audiobook, and audio alone is None
+    assert hs._pick_edition([de, audio], "en")["id"] == 1
+    assert hs._pick_edition([audio], "en") is None
     # within one language, text always beats audio regardless of popularity
     assert hs._pick_edition([en, audio], "en")["id"] == 2
     assert hs._pick_edition([], "en") is None
