@@ -247,5 +247,7 @@ def test_build_bumped_for_rebake():
     # optional fallback server URL.
     # 1.19.0 / build 50: device inventory (the books on the device, for
     # "On <device>" pills and filters).
-    assert TOMESYNC_PLUGIN_BUILD >= 50
-    assert TOMESYNC_PLUGIN_SEMVER == "1.19.0"
+    # 1.19.1 / build 51 (issue #259): a null book_type no longer crashes a
+    # single-book or author/search-list download.
+    assert TOMESYNC_PLUGIN_BUILD >= 51
+    assert TOMESYNC_PLUGIN_SEMVER == "1.19.1"
