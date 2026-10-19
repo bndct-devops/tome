@@ -10,6 +10,7 @@ TOME_AI_ENABLED=false makes everything except ``GET /status`` a 404.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Literal
 
@@ -34,6 +35,8 @@ from backend.services.ai import (
 )
 from backend.services.ai.provider import AIError, AIKeyInvalid, AIProviderError
 from backend.services.audit import audit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -480,6 +483,26 @@ def apply_series_cleanup(
               "status_changed": result["status_changed"],
               "arcs_set": result["arcs_set"],
           }, ip=_ip(request))
+
+    # Editions pass on the cleaned-up series (no AI): missing ISBNs filled,
+    # audiobook-edition ISBNs replaced. A failure here never undoes the apply.
+    from backend.services import series_editions
+    try:
+        editions = series_editions.fix_editions(db, current_user, result["series_name"])
+        db.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning("Series cleanup: editions pass failed for %r", result["series_name"], exc_info=True)
+        db.rollback()
+        editions = {"checked": 0, "isbns_fixed": []}
+    result["isbns_fixed"] = editions["isbns_fixed"]
+    if editions["isbns_fixed"]:
+        audit(db, "series.editions_fixed", user_id=current_user.id,
+              username=current_user.username, resource_type="series",
+              resource_title=result["series_name"],
+              details={"checked": editions["checked"], "via": "series_cleanup",
+                       "isbns_fixed": [{k: f[k] for k in ("book_id", "from", "to")}
+                                       for f in editions["isbns_fixed"]]},
+              ip=_ip(request))
     return result
 
 

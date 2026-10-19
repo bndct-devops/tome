@@ -90,6 +90,24 @@ def _companion_on_by_default(monkeypatch):
 
 
 @pytest.fixture(autouse=True, scope="function")
+def _no_real_editions_pass(monkeypatch):
+    """Autouse: the series editions pass (run after every AI series cleanup
+    apply) would fetch metadata from the real catalogues. It does nothing
+    here; tests/test_series_editions.py puts the real pass back against
+    mocked sources. The process-wide audiobook-ISBN memory starts empty."""
+    from backend.services import hardcover_editions as _hce
+    from backend.services import series_editions as _se
+
+    async def _noop(books):
+        return []
+
+    monkeypatch.setattr(_se, "_run", _noop)
+    _hce.forget_known_audio()
+    yield
+    _hce.forget_known_audio()
+
+
+@pytest.fixture(autouse=True, scope="function")
 def _block_smtp():
     """Autouse fixture: replace smtplib.SMTP / SMTP_SSL with a hard block."""
     def _blocked(*args, **kwargs):
