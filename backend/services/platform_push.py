@@ -1,6 +1,6 @@
 """Push a user's daily reading totals to Nightlamp (contract schema v1, §2).
 
-Nothing here runs unless ``TOME_PLATFORM_URL`` is set and the user linked
+Nothing here runs unless the feature is on (``settings.platform_active``) and the user linked
 their account in Settings (backend/api/platform.py).
 
 Days are the user's LOCAL days in their IANA zone with exact midnights: a
@@ -61,7 +61,7 @@ CHUNK_DAYS = 200
 
 
 def enabled() -> bool:
-    return bool(settings.platform_url)
+    return settings.platform_active
 
 
 def base_url() -> str:

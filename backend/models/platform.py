@@ -1,7 +1,7 @@
 """Nightlamp link (the "platform"): one row per linked Tome user.
 
-Tome pushes the user's daily reading totals to the Nightlamp service named by
-``TOME_PLATFORM_URL`` (see backend/services/platform_push.py). The push token
+Tome pushes the user's daily reading totals to the Nightlamp service at
+``settings.platform_url`` (see backend/services/platform_push.py). The push token
 is replayed on every push, so it is stored Fernet-encrypted
 (backend/core/crypto.py), never hashed. ``revoked_at`` is set when Nightlamp
 answers 401; pushing stops until the user links again.

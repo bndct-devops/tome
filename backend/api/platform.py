@@ -1,6 +1,6 @@
 """Nightlamp link API (Settings > Nightlamp), mounted at /api/platform.
 
-Every route 404s unless TOME_PLATFORM_URL is set, and needs a member or admin
+Every route 404s when the feature is off (TOME_PLATFORM_ENABLED=false), and needs a member or admin
 (guests get 403). Linking follows the Nightlamp contract §1: Tome asks
 Nightlamp for a one-time URL, the browser opens it in a new tab, and Tome polls
 until Nightlamp hands over the handle and the push token. The poll secret

@@ -211,8 +211,8 @@ All notable changes to Tome are documented here. Format loosely follows
   next to its actual cost and time, and expands to every model call it made,
   with its tokens and price. Admins see everyone's jobs and can filter by
   user.
-- **Link with Nightlamp.** When the server sets `TOME_PLATFORM_URL`, members
-  and admins get a Nightlamp section in Settings. "Link with Nightlamp" opens
+- **Link with Nightlamp.** Members and admins get a Nightlamp section in
+  Settings, on by default. "Link with Nightlamp" opens
   a one-time page in a new tab and Tome waits until you are done there, with
   no password or email. From then on Tome sends your daily reading totals:
   minutes read (per book type), sittings, the longest sitting and how many
@@ -224,8 +224,10 @@ All notable changes to Tome are documented here. Format loosely follows
   ends and once an hour; "Resync everything" sends all history again, and
   "Unlink" stops sending. Your Tome user id and book ids never leave the
   server (Nightlamp gets hashes). Linking, unlinking, resyncs and setting
-  changes are written to the audit log. Without `TOME_PLATFORM_URL` the
-  feature does not exist (`TOME_PLATFORM_NAME` changes the displayed name).
+  changes are written to the audit log. Nothing is sent for a user who never
+  links. `TOME_PLATFORM_ENABLED=false` hides the section and the feature
+  entirely; `TOME_PLATFORM_URL` is only for pointing Tome at another
+  Nightlamp instance (`TOME_PLATFORM_NAME` changes the displayed name).
 
 ### Changed
 - **The reading companion only reads where you switch it on.** Nothing AI

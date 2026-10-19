@@ -447,7 +447,7 @@ export function SettingsPage() {
   const [setupGuideOpen, setSetupGuideOpen] = useState(false)
   // Hardcover sync section hides itself when the server has the feature off
   const [hardcoverAvailable, setHardcoverAvailable] = useState(true)
-  // Nightlamp link: exists only when the server has TOME_PLATFORM_URL set
+  // Nightlamp link: exists unless the server sets TOME_PLATFORM_ENABLED=false
   // (the status call 404s otherwise) and never for guests.
   const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
   const isGuest = user?.role === 'guest' && !user?.is_admin
@@ -1588,7 +1588,7 @@ export function SettingsPage() {
           </PanelSection>
         )}
 
-        {/* ── Nightlamp (TOME_PLATFORM_URL) ────────────────────────────── */}
+        {/* ── Nightlamp (TOME_PLATFORM_ENABLED) ────────────────────────── */}
         {platformStatus && (
           <PanelSection id="nightlamp" title={platformStatus.platform_name}>
             <PlatformSettings initial={platformStatus} />

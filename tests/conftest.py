@@ -71,6 +71,15 @@ def _no_real_ai(monkeypatch):
 
 
 @pytest.fixture(autouse=True, scope="function")
+def _no_real_nightlamp(monkeypatch):
+    """Autouse: Nightlamp is on by default at https://nightlamp.page, so no
+    test may start its push loop or mark users dirty against the real service.
+    tests/test_platform_push.py switches it back on against a mocked URL."""
+    from backend.core.config import settings as _settings
+    monkeypatch.setattr(_settings, "platform_enabled", False)
+
+
+@pytest.fixture(autouse=True, scope="function")
 def _companion_on_by_default(monkeypatch):
     """Autouse: the reading companion's switch answers "on" where no row
     exists, so the trigger tests keep exercising the triggers. The switch's

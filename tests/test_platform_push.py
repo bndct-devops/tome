@@ -30,6 +30,7 @@ VIENNA = ZoneInfo("Europe/Vienna")
 @pytest.fixture(autouse=True)
 def _platform_on(monkeypatch, db: Session):
     monkeypatch.setattr(settings, "platform_url", NL)
+    monkeypatch.setattr(settings, "platform_enabled", True)
     # Pushes run inline on the test session instead of a thread.
     monkeypatch.setattr(pp, "spawn_push", lambda user_id, full=False: pp.push_user(db, user_id, full=full))
     pp.clear_dirty()
@@ -322,8 +323,54 @@ def test_hourly_sweep_pushes_stale_links(db, admin_user):
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
+def test_default_url_is_nightlamp_page_and_active(monkeypatch):
+    from backend.core.config import Settings
+    monkeypatch.delenv("TOME_PLATFORM_URL", raising=False)
+    monkeypatch.delenv("TOME_PLATFORM_ENABLED", raising=False)
+    s = Settings(_env_file=None)
+    assert s.platform_url == "https://nightlamp.page"
+    assert s.platform_enabled is True and s.platform_active is True
+
+
+def test_platform_enabled_false_env_turns_it_off(monkeypatch):
+    from backend.core.config import Settings
+    monkeypatch.delenv("TOME_PLATFORM_URL", raising=False)
+    monkeypatch.setenv("TOME_PLATFORM_ENABLED", "false")
+    s = Settings(_env_file=None)
+    assert s.platform_url == "https://nightlamp.page" and s.platform_active is False
+
+
+def test_disabled_hides_api_and_starts_no_job(db, admin_user, monkeypatch):
+    from starlette.testclient import TestClient
+    from backend.core.database import get_db
+    from backend.main import create_app
+    monkeypatch.setattr(settings, "platform_enabled", False)
+    started = []
+
+    async def _fake_loop():
+        started.append(True)
+
+    monkeypatch.setattr(pp, "platform_loop", _fake_loop)
+    app = create_app()
+
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    _user, token = admin_user
+    with TestClient(app) as c:
+        c.headers["Authorization"] = f"Bearer {token}"
+        assert c.get("/api/platform/status").status_code == 404
+    assert started == []
+    # And the same app with the switch on does start it.
+    monkeypatch.setattr(settings, "platform_enabled", True)
+    with TestClient(app) as c:
+        assert c.get("/api/platform/status", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    assert started == [True]
+
+
 def test_feature_off_404_and_no_dirty(client, db, admin_user, monkeypatch):
-    monkeypatch.setattr(settings, "platform_url", None)
+    monkeypatch.setattr(settings, "platform_enabled", False)
     assert client.get("/api/platform/status").status_code == 404
     assert client.post("/api/platform/link", json={"timezone": "UTC"}).status_code == 404
     user, _ = admin_user

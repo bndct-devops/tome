@@ -516,9 +516,9 @@ async def lifespan(app: FastAPI):
         from backend.services.hardcover_sync import hardcover_sync_loop
         hardcover_task = asyncio.create_task(hardcover_sync_loop())
 
-    # Nightlamp pushes (TOME_PLATFORM_URL). Unset = no loop at all.
+    # Nightlamp pushes. TOME_PLATFORM_ENABLED=false = no loop at all.
     platform_task: asyncio.Task | None = None
-    if settings.platform_url:
+    if settings.platform_active:
         from backend.services.platform_push import platform_loop
         platform_task = asyncio.create_task(platform_loop())
 

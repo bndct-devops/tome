@@ -58,7 +58,7 @@ function ago(iso: string): string {
 }
 
 /**
- * Settings card for the Nightlamp link (TOME_PLATFORM_URL). Linking opens a
+ * Settings card for the Nightlamp link (on unless TOME_PLATFORM_ENABLED=false). Linking opens a
  * one-time Nightlamp page in a new tab and polls until the user finished
  * there; afterwards Tome pushes daily reading totals on its own.
  */
