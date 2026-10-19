@@ -6,6 +6,11 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Supporters on the About page.** Settings > About lists the people who
+  sponsor Tome on GitHub Sponsors. The repo also shows a Sponsor button.
+  Sponsoring is a thank-you; nothing in Tome is locked behind it.
+
 ## [2.7.1] - 2026-10-19
 
 ### Fixed
