@@ -406,6 +406,10 @@ async def lifespan(app: FastAPI):
         if ar_cols and "missing_json" not in ar_cols:
             conn.execute(text("ALTER TABLE ai_recaps ADD COLUMN missing_json TEXT"))
             conn.commit()
+        pl_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(platform_links)")).fetchall()}
+        if pl_cols and "goal_sent" not in pl_cols:
+            conn.execute(text("ALTER TABLE platform_links ADD COLUMN goal_sent TEXT"))
+            conn.commit()
         if "hardcover_book_id" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_book_id INTEGER"))
             conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_edition_id INTEGER"))

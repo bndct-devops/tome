@@ -152,6 +152,7 @@ def test_finished_book_lands_on_local_day_and_respects_visibility(db, admin_user
     # 23:30 UTC on May 3 = 01:30 Vienna on May 4.
     db.add(UserBookStatus(user_id=member.id, book_id=book.id, status="read",
                           finished_at=datetime(2026, 5, 3, 23, 30)))
+    _session(db, member.id, datetime(2026, 5, 3, 20), 30, book.id)
     db.flush()
     agg = pp.aggregate(db, member, VIENNA)
     assert agg.finished_by_day == {date(2026, 5, 4): [book.id]}
@@ -279,6 +280,7 @@ def test_no_cover_when_the_book_has_none_or_the_file_is_gone(db, admin_user, mak
     gone = make_book(title="Gone", cover_path="missing.jpg")
     for b in (bare, gone):
         db.add(UserBookStatus(user_id=user.id, book_id=b.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+        _session(db, user.id, datetime(2026, 4, 2, 10), 30, b.id)
     db.commit()
     link = _link(db, user, tz="UTC", share=True)
     env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
@@ -304,6 +306,7 @@ def test_no_covers_without_share_titles(db, admin_user, make_book, tmp_path, mon
     user, _ = admin_user
     book = make_book(title="Hidden", cover_path=_cover(tmp_path, monkeypatch))
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    _session(db, user.id, datetime(2026, 4, 2, 10), 30, book.id)
     db.commit()
     link = _link(db, user, tz="UTC", share=False)
     env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
@@ -314,6 +317,7 @@ def test_rejected_cover_is_not_marked_sent(db, admin_user, make_book, tmp_path, 
     user, _ = admin_user
     book = make_book(title="Bad", cover_path=_cover(tmp_path, monkeypatch))
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    _session(db, user.id, datetime(2026, 4, 2, 10), 30, book.id)
     _link(db, user, tz="UTC", share=True)
     db.commit()
     _iid, secret = pp.instance_identity(db)
@@ -561,6 +565,7 @@ def test_share_titles_off_pushes_without_titles_and_on_resyncs(client, db, admin
     user, _ = admin_user
     book = make_book(title="Secret Title")
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    _session(db, user.id, datetime(2026, 4, 2, 10), 30, book.id)
     _link(db, user, tz="UTC", share=True, pushed_through=date(2026, 4, 3))
     db.commit()
     with respx.mock(base_url=NL) as mock:
@@ -631,6 +636,7 @@ def test_isbn_null_when_the_book_has_none_and_on_current(db, admin_user, make_bo
     done = make_book(title="No Isbn")
     reading = make_book(title="Reading", isbn="0-306-40615-2")
     db.add(UserBookStatus(user_id=user.id, book_id=done.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    _session(db, user.id, datetime(2026, 4, 2, 10), 30, done.id)
     db.add(UserBookStatus(user_id=user.id, book_id=reading.id, status="reading", progress_pct=0.3))
     db.commit()
     link = _link(db, user, tz="UTC", share=True)
@@ -638,3 +644,130 @@ def test_isbn_null_when_the_book_has_none_and_on_current(db, admin_user, make_bo
     item = _days(body)["2026-04-02"]["finished"][0]
     assert "isbn" in item and item["isbn"] is None
     assert body["current"]["isbn"] == "0306406152"
+
+
+# ── minutes by hour ──────────────────────────────────────────────────────────
+
+def test_minutes_by_hour_splits_a_session_proportionally(db, admin_user):
+    user, _ = admin_user
+    _session(db, user.id, _utc(datetime(2026, 5, 2, 21, 40), VIENNA), 90)  # 21:40-23:10
+    d = pp.aggregate(db, user, VIENNA).days[date(2026, 5, 2)]
+    hours = d["minutes_by_hour"]
+    assert len(hours) == 24 and sum(hours) == d["minutes_read"] == 90
+    assert (hours[21], hours[22], hours[23]) == (20, 60, 10)
+    assert sum(hours[:21]) == 0
+
+
+def test_minutes_by_hour_across_midnight(db, admin_user):
+    user, _ = admin_user
+    _session(db, user.id, _utc(datetime(2026, 5, 2, 23, 30), VIENNA), 75)  # 23:30-00:45
+    agg = pp.aggregate(db, user, VIENNA)
+    first, second = agg.days[date(2026, 5, 2)], agg.days[date(2026, 5, 3)]
+    assert first["minutes_by_hour"][23] == 30 and sum(first["minutes_by_hour"]) == 30
+    assert second["minutes_by_hour"][0] == 45 and sum(second["minutes_by_hour"]) == 45
+
+
+def test_minutes_by_hour_rounding_sums_to_minutes_read(db, admin_user):
+    user, _ = admin_user
+    # Three 20.5-minute sessions each straddling an hour boundary: per-hour
+    # values round unevenly, the sum must still match.
+    for h in (8, 10, 12):
+        _session(db, user.id, _utc(datetime(2026, 5, 2, h, 49, 40), VIENNA), 20.5)
+    d = pp.aggregate(db, user, VIENNA).days[date(2026, 5, 2)]
+    assert d["minutes_read"] == round(3 * 20.5)
+    assert sum(d["minutes_by_hour"]) == d["minutes_read"]
+    assert all(m >= 0 for m in d["minutes_by_hour"])
+
+
+def test_zero_day_carries_24_zero_hours(db, admin_user):
+    user, _ = admin_user
+    _session(db, user.id, datetime(2026, 4, 1, 10), 30)
+    link = _link(db, user, tz="UTC")
+    env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
+    assert _days(env.body)["2026-04-02"]["minutes_by_hour"] == [0] * 24
+    assert _days(env.body)["2026-04-01"]["minutes_by_hour"][10] == 30
+
+
+# ── goal ─────────────────────────────────────────────────────────────────────
+
+def _goal(db, user, kind, target, book_type_id=None):
+    from backend.models.reading_goal import ReadingGoal
+    g = ReadingGoal(user_id=user.id, kind=kind, target=target, book_type_id=book_type_id)
+    db.add(g)
+    db.flush()
+    return g
+
+
+def test_goal_books_yearly(db, admin_user):
+    user, _ = admin_user
+    _goal(db, user, "books_per_year", 30)
+    _goal(db, user, "books_per_month", 3)
+    link = _link(db, user, tz="UTC")
+    env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
+    assert env.body["goal"] == {"year": 2026, "kind": "books", "target": 30}
+
+
+def test_goal_hours_converts_minutes(db, admin_user):
+    user, _ = admin_user
+    _goal(db, user, "minutes_per_year", 6000)
+    link = _link(db, user, tz="UTC")
+    env = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2))
+    assert env.body["goal"] == {"year": 2026, "kind": "hours", "target": 100}
+
+
+def test_goal_omitted_when_none_or_type_filtered(db, admin_user):
+    user, _ = admin_user
+    manga = BookType(slug="manga", label="Manga")
+    db.add(manga)
+    db.flush()
+    _goal(db, user, "books_per_year", 20, book_type_id=manga.id)
+    _goal(db, user, "minutes_per_day", 30)
+    link = _link(db, user, tz="UTC")
+    assert "goal" not in pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2)).body
+
+
+def test_goal_deleted_sends_null_once(db, admin_user):
+    user, _ = admin_user
+    g = _goal(db, user, "books_per_year", 30)
+    _link(db, user, tz="UTC")
+    db.commit()
+    bodies = []
+    with respx.mock(base_url=NL) as mock:
+        mock.post("/api/push").mock(side_effect=lambda req: (bodies.append(json.loads(req.content)),
+                                                             httpx.Response(200, json={"accepted": 1}))[1])
+        assert pp.push_user(db, user.id, full=True) == "ok"
+        assert bodies[0]["goal"]["target"] == 30
+        db.delete(g)
+        db.commit()
+        assert pp.push_user(db, user.id) == "ok"
+        assert "goal" in bodies[1] and bodies[1]["goal"] is None
+        assert pp.push_user(db, user.id) == "ok"
+        assert "goal" not in bodies[2]
+
+
+def test_goal_change_marks_dirty(db, admin_user):
+    user, _ = admin_user
+    _link(db, user, tz="UTC")
+    db.commit()
+    pp.clear_dirty()
+    _goal(db, user, "books_per_year", 12)
+    db.commit()
+    assert user.id in pp.take_due(now=10**12)
+
+
+# ── finished needs reading data ──────────────────────────────────────────────
+
+def test_finished_only_with_reading_sessions(db, admin_user, make_book):
+    user, _ = admin_user
+    marked = make_book(title="Only marked")
+    read = make_book(title="Actually read")
+    for b in (marked, read):
+        db.add(UserBookStatus(user_id=user.id, book_id=b.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    _session(db, user.id, datetime(2026, 4, 1, 10), 45, read.id)
+    db.flush()
+    agg = pp.aggregate(db, user, UTC)
+    assert agg.finished_by_day == {date(2026, 4, 2): [read.id]}
+    link = _link(db, user, tz="UTC", share=True)
+    day = _days(pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2)).body)["2026-04-02"]
+    assert day["books_finished"] == 1 == len(day["finished"])
+    assert day["finished"][0]["title"] == "Actually read" and day["finished"][0]["minutes_total"] == 45

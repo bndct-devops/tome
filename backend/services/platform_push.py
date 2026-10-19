@@ -7,15 +7,17 @@ Days are the user's LOCAL days in their IANA zone with exact midnights: a
 session that crosses midnight is split by time. Tome's own 04:00 rollover
 (reading_day.py) is deliberately not used here.
 
-What leaves the server per day: minutes read, minutes per book type, sittings,
-the longest sitting and the number of books finished. Titles, authors and
+What leaves the server per day: minutes read, minutes per book type and per
+local hour, sittings, the longest sitting and the number of books finished (a
+book counts only when the user has reading time on it). Plus the yearly
+books/hours goal, if any. Titles, authors and
 ISBNs plus a small cover (``finished`` / ``current``) only when the user
 turned on "share titles and covers". Nightlamp looks covers up in public
 catalogues by ISBN first and uses the one from Tome only when it finds none;
 each cover goes once per book (again after "Resync everything"). Book and user ids never leave: both are sha256(instance_secret + id).
 
-Triggers: an ORM hook marks a user dirty when a reading session is written or
-a book is marked read/reading; ``platform_loop`` pushes dirty users two
+Triggers: an ORM hook marks a user dirty when a reading session is written,
+a book is marked read/reading or a goal changes; ``platform_loop`` pushes dirty users two
 minutes after their last change and sweeps every linked user hourly.
 """
 from __future__ import annotations
@@ -43,6 +45,7 @@ from backend.core.crypto import decrypt_secret, encrypt_secret
 from backend.models.book import Book
 from backend.models.instance_setting import InstanceSetting
 from backend.models.platform import PlatformCoverSent, PlatformLink
+from backend.models.reading_goal import ReadingGoal
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
@@ -181,6 +184,41 @@ def split_by_midnight(start: datetime, end: datetime, seconds: float, tz: ZoneIn
     return out
 
 
+def split_by_hour(seg: Segment, tz: ZoneInfo) -> list[tuple[int, float]]:
+    """Spread a one-day segment's reading seconds over the local hours it
+    touches, proportionally by time (the same rule as the midnight split).
+    A DST fall-back repeats an hour; both halves land on that hour index."""
+    if seg.end <= seg.start:
+        return [(seg.start.astimezone(tz).hour, seg.seconds)]
+    total = (seg.end - seg.start).total_seconds()
+    out: list[tuple[int, float]] = []
+    cur = seg.start
+    while cur < seg.end:
+        local = cur.astimezone(tz)
+        boundary = cur + timedelta(minutes=60 - local.minute, seconds=-local.second,
+                                   microseconds=-local.microsecond)
+        part_end = min(seg.end, boundary)
+        out.append((local.hour, seg.seconds * (part_end - cur).total_seconds() / total))
+        cur = part_end
+    return out
+
+
+def minutes_by_hour(segments: Iterable[Segment], tz: ZoneInfo) -> list[int]:
+    """24 whole minutes, one per local hour, summing exactly to the day's
+    rounded ``minutes_read`` (largest remainder)."""
+    secs = [0.0] * 24
+    for seg in segments:
+        for hour, s in split_by_hour(seg, tz):
+            secs[hour] += s
+    exact = [s / 60 for s in secs]
+    target = round(sum(secs) / 60)
+    out = [int(m) for m in exact]
+    short = target - sum(out)
+    for i in sorted(range(24), key=lambda i: exact[i] - out[i], reverse=True)[:max(0, short)]:
+        out[i] += 1
+    return out
+
+
 def merge_sittings(segments: Iterable[Segment], gap: int = SITTING_GAP_SECONDS) -> list[float]:
     """Reading seconds per sitting: segments closer than ``gap`` are one sitting."""
     out: list[list[Any]] = []  # [end, seconds]
@@ -244,6 +282,7 @@ def aggregate(db: Session, user: User, tz: ZoneInfo) -> Aggregate:
         agg.days[day] = {
             "minutes_read": round(sum(s.seconds for s in segs) / 60),
             "minutes_by_type": {k: round(v / 60) for k, v in sorted(by_type.items()) if round(v / 60) > 0},
+            "minutes_by_hour": minutes_by_hour(segs, tz),
             "sittings": len(sittings),
             "longest_sitting_minutes": round(max(sittings) / 60) if sittings else 0,
         }
@@ -252,7 +291,9 @@ def aggregate(db: Session, user: User, tz: ZoneInfo) -> Aggregate:
                 .filter(UserBookStatus.user_id == user.id, UserBookStatus.status == "read").all())
     visible = _visible_book_ids(db, user, (r.book_id for r in finished))
     for r in finished:
-        if r.book_id not in visible:
+        # Finished = a reading event: a book only marked read (no session with
+        # reading time on it) is a library state and does not go.
+        if r.book_id not in visible or agg.seconds_by_book.get(r.book_id, 0.0) <= 0:
             continue
         when = r.finished_at or r.updated_at
         if when is None:
@@ -329,6 +370,28 @@ class Envelope:
     body: dict
     through: date
     cover_keys: set[str] = field(default_factory=set)
+    goal_sent: str | None = None
+
+
+# Tome kind -> (Nightlamp kind, divisor to the Nightlamp unit). Tome's goal UI
+# offers books_per_year only; minutes_per_year is mapped for when it exists.
+_GOAL_KINDS = {"books_per_year": ("books", 1), "minutes_per_year": ("hours", 60)}
+
+
+def current_goal(db: Session, user: User, year: int) -> dict | None:
+    """The user's yearly books or hours goal over all books (no book-type
+    filter), as ``{year, kind, target}``; the most recently changed one when
+    both exist. Hours goals are stored in minutes and sent in hours."""
+    rows = (db.query(ReadingGoal)
+            .filter(ReadingGoal.user_id == user.id, ReadingGoal.book_type_id.is_(None),
+                    ReadingGoal.kind.in_(list(_GOAL_KINDS)), ReadingGoal.target > 0)
+            .order_by(ReadingGoal.updated_at.desc(), ReadingGoal.id.desc()).all())
+    if not rows:
+        return None
+    g = rows[0]
+    kind, div = _GOAL_KINDS[g.kind]
+    target = g.target / div
+    return {"year": year, "kind": kind, "target": int(target) if target == int(target) else round(target, 1)}
 
 
 def _book_fields(book: Book, key: str) -> dict:
@@ -398,8 +461,8 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
     if start is not None:
         d = min(start, today)
         while d <= today:
-            stats = agg.days.get(d) or {"minutes_read": 0, "minutes_by_type": {}, "sittings": 0,
-                                        "longest_sitting_minutes": 0}
+            stats = agg.days.get(d) or {"minutes_read": 0, "minutes_by_type": {}, "minutes_by_hour": [0] * 24,
+                                        "sittings": 0, "longest_sitting_minutes": 0}
             done = agg.finished_by_day.get(d, [])
             entry = {"date": d.isoformat(), **stats, "books_finished": len(done)}
             if link.share_titles and done:
@@ -419,9 +482,15 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
 
     body: dict = {"schema_version": SCHEMA_VERSION, "timezone": link.timezone,
                   "share_titles": bool(link.share_titles), "days": days}
+    goal = current_goal(db, user, today.year)
+    if goal is not None:
+        body["goal"] = goal
+    elif link.goal_sent:
+        body["goal"] = None  # deleted since the last push: clear it once
     if link.share_titles:
         body["current"] = _current(db, user, agg, tz, secret, sent, cover_keys)
-    return Envelope(body=body, through=today, cover_keys=cover_keys)
+    return Envelope(body=body, through=today, cover_keys=cover_keys,
+                    goal_sent=json.dumps(goal, sort_keys=True) if goal is not None else None)
 
 
 def chunk_bodies(body: dict) -> list[dict]:
@@ -556,6 +625,7 @@ def _push_locked(db: Session, user_id: int, *, full: bool, since: date | None) -
     link.last_push_at = datetime.utcnow()
     link.last_push_error = None
     link.pushed_through = env.through
+    link.goal_sent = env.goal_sent
     db.commit()
     return "ok"
 
@@ -688,6 +758,8 @@ def _collect_dirty(session: Session, _ctx: Any) -> None:
         for obj in list(session.new) + list(session.dirty) + list(session.deleted):
             if isinstance(obj, ReadingSession):
                 note(obj.user_id, obj.started_at)
+            elif isinstance(obj, ReadingGoal):
+                note(obj.user_id, None)
             elif isinstance(obj, UserBookStatus) and obj not in session.deleted:
                 hist = sa_inspect(obj).attrs.status.history
                 if hist.added and hist.added[0] in ("read", "reading"):

@@ -34,6 +34,9 @@ class PlatformLink(Base):
     # The last local day (in ``timezone``) fully pushed; None = never pushed.
     pushed_through: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # JSON of the goal in the last successful push; set = a later push without
+    # a goal sends ``"goal": null`` once to clear it.
+    goal_sent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 
