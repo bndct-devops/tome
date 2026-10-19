@@ -172,3 +172,58 @@ local f2, a2 = linkSplitCommands({}, done)
 assert(#f2 == 0 and #a2 == 0, "nothing")
 print("ok")
 ''')
+
+
+# Step six: TLS pinning. The fingerprint helpers are pure and run here; the
+# handshake itself is proved against the app's listener in the emulator.
+
+def _pin_block(fp: str = "") -> str:
+    lua = _main_impl_lua("https://tome.test", "key", "user", server_fingerprint=fp)
+    start = lua.index("-- TOMESYNC_PIN_BEGIN")
+    end = lua.index("-- TOMESYNC_PIN_END")
+    return lua[start:end]
+
+
+def test_fingerprint_bake_defaults_empty_and_is_sanitised():
+    assert 'local SERVER_FINGERPRINT = ""' in _main_impl_lua("http://tome.test", "key", "user")
+    lua = _main_impl_lua("https://x", "k", "u", server_fingerprint='AB:cd"; os.exit() --')
+    assert 'local SERVER_FINGERPRINT = "AB:cde"' in lua  # hex and colons only
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_fingerprint_comparison(tmp_path):
+    hexfp = "146b389a234cb66cde7f96446afb3996a023ae06a05747d4871c9918774ddf9e"
+    colon = ":".join(hexfp[i:i + 2] for i in range(0, 64, 2)).upper()
+    off_by_one = hexfp[:-2] + "9f"
+    script = _pin_block() + f'''
+local hex, colon, off = "{hexfp}", "{colon}", "{off_by_one}"
+assert(fingerprintMatches(hex, colon), "lower hex vs upper colon")
+assert(fingerprintMatches(colon, hex), "colon vs hex")
+assert(fingerprintMatches(colon:lower(), hex:upper()), "lower colon vs upper hex")
+assert(fingerprintMatches(colon:gsub(":", " "), hex), "spaces")
+assert(not fingerprintMatches(hex, off), "last byte off by one")
+assert(not fingerprintMatches(hex, ""), "empty pin")
+assert(not fingerprintMatches("", ""), "both empty")
+assert(not fingerprintMatches(nil, hex), "no certificate")
+assert(not fingerprintMatches(hex:sub(1, 62), hex:sub(1, 62)), "short")
+assert(not fingerprintMatches(hex:sub(1, 63) .. "g", hex:sub(1, 63) .. "g"), "not hex")
+assert(normFingerprint("") == nil and normFingerprint(nil) == nil, "empty is no pin")
+assert(shortFingerprint(hex, 8) == "14:6B:38:9A:23:4C:B6:6C", shortFingerprint(hex, 8))
+assert(shortFingerprint(hex) == colon, "full")
+assert(shortFingerprint("junk", 8) == "?", "junk")
+print("ok")
+'''
+    path = tmp_path / "pin.lua"
+    path.write_text(script)
+    out = subprocess.run(["luajit", str(path)], capture_output=True, text=True)
+    assert out.returncode == 0 and out.stdout.strip() == "ok", out.stderr + out.stdout
+
+
+def test_no_pin_leaves_tls_untouched():
+    """Without a pin, tlsCreateFor returns nil, so http.request picks LuaSec's
+    own https create exactly as before (real Tome servers)."""
+    lua = _main_impl_lua("https://tome.test", "key", "user")
+    body = lua[lua.index("local function tlsCreateFor(base)"):]
+    body = body[:body.index("\nend\n")]
+    assert 'if not pin then return nil end' in body
+    assert 'match("^https://") then return nil end' in body

@@ -47,6 +47,8 @@ local ltn12 = {
     source = { string = function(s) return s end },
     sink = { table = function(t) return function(c) if c then t[#t + 1] = c end return 1 end end },
 }
+local PIN_REFUSED = "certificate fingerprint mismatch"
+local function tlsCreateFor() return nil end
 local hosts, calls = {}, {}
 local http = {
     request = function(req)

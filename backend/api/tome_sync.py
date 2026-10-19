@@ -1911,10 +1911,14 @@ return plugin
 
 
 def _main_impl_lua(server_url: str, api_key: str, username: str,
-                   auto_deliver: bool = False) -> str:
+                   auto_deliver: bool = False, server_fingerprint: str = "") -> str:
     # auto_deliver: bake inbox auto-pickup on (the reader link bakes it; a
     # plugin downloaded from Tome keeps it off unless the user turns it on).
+    # server_fingerprint: SHA-256 of the server's TLS certificate (any of
+    # AB:CD.., abcd..), pinned for https URLs; the reader link bakes its own.
+    # Empty for every Tome download: TLS behaves exactly as before.
     auto_deliver_lua = "true" if auto_deliver else "false"
+    server_fingerprint = "".join(c for c in server_fingerprint if c in "0123456789abcdefABCDEF:")
     return f'''--[[
 TomeSync KOReader Plugin — implementation (replaced in place by self-update).
 Syncs reading progress and sessions with a Tome library server.
@@ -1979,6 +1983,9 @@ local DEFAULT_API_KEY    = "{api_key}"
 local DEFAULT_USERNAME   = "{username}"
 -- Inbox auto-pickup default (Settings > "Download inbox automatically" wins).
 local DEFAULT_AUTO_DELIVER = {auto_deliver_lua}
+-- Pinned TLS certificate (reader link): SHA-256, empty = no pin. A saved
+-- tomesync_server_fingerprint (trusted at "Sign in with code") wins.
+local SERVER_FINGERPRINT = "{server_fingerprint}"
 
 local function liveSetting(key, default)
     local v = G_reader_settings:readSetting(key)
@@ -1998,11 +2005,114 @@ local function hasOverrides()
         or G_reader_settings:readSetting("tomesync_fallback_url") ~= nil
         or G_reader_settings:readSetting("tomesync_api_key") ~= nil
         or G_reader_settings:readSetting("tomesync_username") ~= nil
+        or G_reader_settings:readSetting("tomesync_server_fingerprint") ~= nil
+end
+
+-- TOMESYNC_PIN_BEGIN (pure string functions; extracted and run under luajit
+-- by the backend test suite)
+--
+-- Certificate fingerprints: SHA-256 as 64 hex digits, written any way
+-- (AB:CD:.., ab cd .., abcd..). Anything else is "no fingerprint".
+local function normFingerprint(s)
+    if type(s) ~= "string" then return nil end
+    local hex = (s:gsub("[%s:]", "")):lower()
+    if #hex ~= 64 or hex:find("[^0-9a-f]") then return nil end
+    return hex
+end
+local function fingerprintMatches(got, pinned)
+    local a, b = normFingerprint(got), normFingerprint(pinned)
+    return a ~= nil and a == b
+end
+-- "AB:CD:..", the first `groups` bytes (all 32 by default).
+local function shortFingerprint(s, groups)
+    local hex = normFingerprint(s)
+    if not hex then return "?" end
+    local out = {{}}
+    for i = 1, math.min(groups or 32, 32) do out[i] = hex:sub(2 * i - 1, 2 * i):upper() end
+    return table.concat(out, ":")
+end
+-- TOMESYNC_PIN_END
+
+-- Pinning (reader link, build 53). With an https server URL and a known
+-- fingerprint, every connection is made by tlsCreateFor's `create`: LuaSec
+-- without CA checks (verify "none"; the pin is the check), and after the
+-- handshake, before a byte of the request is sent, the peer certificate's
+-- SHA-256 must equal the pin or the connection is closed. Without a pin, or
+-- for http, it returns nil and LuaSocket/LuaSec run exactly as before.
+local PIN_REFUSED = "certificate fingerprint mismatch"
+local pin_ok_logged = {{}}
+local function pinnedFingerprint()
+    return normFingerprint(liveSetting("tomesync_server_fingerprint", SERVER_FINGERPRINT))
+end
+local function tlsCreateFor(base)
+    if type(base) ~= "string" or not base:lower():match("^https://") then return nil end
+    local pin = pinnedFingerprint()
+    if not pin then return nil end
+    local make = require("ssl.https").tcp({{ verify = "none" }})
+    return function()
+        local conn = make()
+        local connect = conn.connect
+        conn.connect = function(self, host, port)
+            connect(self, host, port)   -- TCP + handshake; raises (socket.try) on failure
+            local cert = self.sock.getpeercertificate and self.sock:getpeercertificate()
+            local got = cert and cert:digest("sha256")
+            if not fingerprintMatches(got, pin) then
+                logger.warn("TomeSync: refused " .. base .. ": certificate "
+                            .. shortFingerprint(got) .. " is not the pinned "
+                            .. shortFingerprint(pin))
+                pcall(self.sock.close, self.sock)
+                return nil, PIN_REFUSED
+            end
+            if not pin_ok_logged[base] then
+                pin_ok_logged[base] = true
+                logger.info("TomeSync: fingerprint ok for " .. base .. " ("
+                            .. shortFingerprint(pin, 8) .. "..), once per process")
+            end
+            return 1
+        end
+        return conn
+    end
+end
+
+-- Trust on first use, for "Sign in with code": one handshake to an https
+-- address, checked against KOReader's CA bundle without failing on errors
+-- (lsec_continue). Returns {{ digest, ca_ok }} or nil, why (no bundle, no
+-- answer): nil means "cannot tell", and the caller goes on as before.
+local function probeCertificate(base)
+    local u = require("socket.url").parse(base)
+    if not u or not u.host then return nil, "bad url" end
+    -- KOReader's own bundle first (shipped in data/ on devices), then the
+    -- usual system places; none found = cannot tell, never "untrusted".
+    local cafile
+    for _, f in ipairs({{ "data/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt",
+                          "/etc/ssl/cert.pem", "/etc/pki/tls/certs/ca-bundle.crt" }}) do
+        if lfs.attributes(f, "mode") == "file" then cafile = f; break end
+    end
+    if not cafile then return nil, "no CA bundle" end
+    local socket, ssl = require("socket"), require("ssl")
+    local tcp = socket.tcp()
+    tcp:settimeout(5)
+    local ok, err = tcp:connect(u.host, tonumber(u.port) or 443)
+    if not ok then tcp:close(); return nil, err end
+    local s, werr = ssl.wrap(tcp, {{ mode = "client", protocol = "any",
+        options = {{ "all", "no_sslv2", "no_sslv3", "no_tlsv1" }},
+        verify = "peer", verifyext = {{ "lsec_continue" }}, cafile = cafile }})
+    if not s then tcp:close(); return nil, werr end
+    s:sni(u.host)
+    s:settimeout(5)
+    local hok, herr = s:dohandshake()
+    if not hok then s:close(); return nil, herr end
+    local cert = s:getpeercertificate()
+    local verified = s:getpeerverification()
+    s:close()
+    if not cert then return nil, "no certificate" end
+    return {{ digest = cert:digest("sha256"), ca_ok = verified == true, cafile = cafile }}
 end
 
 -- TOMESYNC_NET_BEGIN (uses only liveSetting, DEFAULT_SERVER_URL,
--- G_reader_settings, socketutil, http, ltn12 and logger — extracted and run
--- under luajit by the backend test suite with fakes for those)
+-- G_reader_settings, socketutil, http, ltn12, logger, tlsCreateFor and
+-- PIN_REFUSED — extracted and run under luajit by the backend test suite
+-- with fakes for those)
 --
 -- Every request runs on KOReader's UI thread, so a server that does not
 -- answer while the device is online freezes the screen for the whole connect
@@ -2081,6 +2191,7 @@ end
 -- window: background callers do that (apiRequest), interactive ones do not.
 local function serverRequest(spec)
     local ok, code
+    local refused = false
     for _, base in ipairs(serverURLs()) do
         socketutil:set_timeout(spec.block, spec.total)
         ok, code = http.request({{
@@ -2089,6 +2200,7 @@ local function serverRequest(spec)
             headers = spec.headers,
             source  = spec.body and ltn12.source.string(spec.body) or nil,
             sink    = spec.sink(),
+            create  = tlsCreateFor(base),   -- nil unless https with a pinned certificate
         }})
         socketutil:reset_timeout()
         if ok then
@@ -2096,11 +2208,19 @@ local function serverRequest(spec)
             resetBackoff()
             return ok, code
         end
-        logger.warn("TomeSync: no answer from", base, tostring(code))
+        -- A pin refusal was logged once where it happened; it still counts
+        -- as no answer (back-off), so a wrong peer is not asked every second.
+        if code == PIN_REFUSED then
+            refused = true
+        else
+            logger.warn("TomeSync: no answer from", base, tostring(code))
+        end
     end
     noteNetFailure()
-    logger.warn("TomeSync: server unreachable, next try in",
-                backoffSeconds(net_failures), "s (miss " .. net_failures .. ")")
+    if not refused then
+        logger.warn("TomeSync: server unreachable, next try in",
+                    backoffSeconds(net_failures), "s (miss " .. net_failures .. ")")
+    end
     return ok, code
 end
 -- TOMESYNC_NET_END
@@ -3113,6 +3233,11 @@ function TomeSync:_editStringSetting(key, title, hint, description, cleared_text
                 is_enter_default = true,
                 callback         = function()
                     local v = dialog:getInputText():gsub("^%s+", ""):gsub("%s+$", "")
+                    -- A new server address is a new trust decision: a pinned
+                    -- certificate belongs to the old one.
+                    if key == "tomesync_server_url" and v ~= (G_reader_settings:readSetting(key) or "") then
+                        G_reader_settings:delSetting("tomesync_server_fingerprint")
+                    end
                     if v == "" then
                         G_reader_settings:delSetting(key)
                     else
@@ -3141,6 +3266,7 @@ function TomeSync:_resetConnection()
     G_reader_settings:delSetting("tomesync_active_url")
     G_reader_settings:delSetting("tomesync_api_key")
     G_reader_settings:delSetting("tomesync_username")
+    G_reader_settings:delSetting("tomesync_server_fingerprint")
     G_reader_settings:flush()
     UIManager:show(InfoMessage:new{{
         text = "Connection reset.\\nServer: " .. serverURL()
@@ -3153,12 +3279,40 @@ end
 -- server for a short code, the user enters it in the Tome web UI on an
 -- already-signed-in browser, and the device exchanges the resulting JWT for a
 -- freshly minted plugin API key. No token typing on the device, ever.
-function TomeSync:_signInWithCode()
+function TomeSync:_signInWithCode(trusted)
     if not NetworkMgr:isConnected() then
         UIManager:show(InfoMessage:new{{ text = "Connect to WiFi first.", timeout = 3 }})
         return
     end
     resetBackoff()
+    -- Trust on first use (reader link): an https address whose certificate
+    -- no known authority signed, and no pinned fingerprint yet, is shown and
+    -- asked about once; yes pins it. A CA-signed server (or one the probe
+    -- cannot tell about) goes on exactly as before, unpinned.
+    if not trusted and serverURL():lower():match("^https://") and not pinnedFingerprint() then
+        local probe, why = probeCertificate(serverURL())
+        if not probe then
+            logger.info("TomeSync: certificate probe of " .. serverURL() .. " cannot tell (" .. tostring(why) .. "); going on as before")
+        elseif not probe.ca_ok then
+            logger.info("TomeSync: " .. serverURL() .. " shows a certificate no authority in "
+                        .. probe.cafile .. " signed: " .. shortFingerprint(probe.digest) .. "; asking")
+            UIManager:show(ConfirmBox:new{{
+                text = "This server's certificate is not signed by an authority "
+                       .. "this reader knows.\\n\\n" .. serverURL() .. "\\n"
+                       .. "Fingerprint (SHA-256):\\n" .. shortFingerprint(probe.digest, 8) .. "\\u{{2026}}\\n\\n"
+                       .. "If this is the Tome app on your phone, it shows the same "
+                       .. "fingerprint. Trust this server?",
+                ok_text = "Trust",
+                ok_callback = function()
+                    G_reader_settings:saveSetting("tomesync_server_fingerprint", shortFingerprint(probe.digest))
+                    G_reader_settings:flush()
+                    logger.info("TomeSync: trusted " .. serverURL() .. " with fingerprint " .. shortFingerprint(probe.digest))
+                    self:_signInWithCode(true)
+                end,
+            }})
+            return
+        end
+    end
     local resp = apiRequest("POST", "/auth/quick-connect/initiate", {{}})
     if type(resp) ~= "table" or not resp.code or not resp.poll_token then
         UIManager:show(InfoMessage:new{{
