@@ -121,7 +121,7 @@ logger = logging.getLogger(__name__)
 # /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
 # seconds after the book map changes; the server replaces the device's list,
 # so deletes drop out on the next push. Powers "On <device>" in web and app.
-TOMESYNC_PLUGIN_BUILD = 52
+TOMESYNC_PLUGIN_BUILD = 53
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
@@ -1902,7 +1902,11 @@ return plugin
 '''
 
 
-def _main_impl_lua(server_url: str, api_key: str, username: str) -> str:
+def _main_impl_lua(server_url: str, api_key: str, username: str,
+                   auto_deliver: bool = False) -> str:
+    # auto_deliver: bake inbox auto-pickup on (the reader link bakes it; a
+    # plugin downloaded from Tome keeps it off unless the user turns it on).
+    auto_deliver_lua = "true" if auto_deliver else "false"
     return f'''--[[
 TomeSync KOReader Plugin — implementation (replaced in place by self-update).
 Syncs reading progress and sessions with a Tome library server.
@@ -1965,6 +1969,8 @@ end
 local DEFAULT_SERVER_URL = "{server_url}"
 local DEFAULT_API_KEY    = "{api_key}"
 local DEFAULT_USERNAME   = "{username}"
+-- Inbox auto-pickup default (Settings > "Download inbox automatically" wins).
+local DEFAULT_AUTO_DELIVER = {auto_deliver_lua}
 
 local function liveSetting(key, default)
     local v = G_reader_settings:readSetting(key)
@@ -2564,6 +2570,8 @@ function TomeSync:init()
         inventory_launched = true
         UIManager:scheduleIn(15, function() pcall(function() self:_pushDeviceBooks(false) end) end)
     end
+    -- Reader link (build 51): the launch pass and this instance as its owner.
+    self:_linkInit()
 
     if not meta_sync_launched and G_reader_settings:isTrue("tomesync_meta_sync") then
         meta_sync_launched = true
@@ -2795,6 +2803,7 @@ function TomeSync:_afterOpen()
     -- Reconcile the book's rating with Tome (pull web rating onto the device, or
     -- push a device rating that never reached the server). Deferred likewise.
     UIManager:scheduleIn(1, function() pcall(function() self:_pullRatingAtOpen() end) end)
+    self:_scheduleLinkSync("open", 4)
 end
 
 function TomeSync:onPageUpdate(pageno)
@@ -2936,7 +2945,10 @@ end
 function TomeSync:onResume()
     -- Device inventory catches deletes made while the device slept (or in the
     -- file manager); runs for the file manager instance too, no book needed.
-    if self.enabled then self:_scheduleDeviceBooks() end
+    if self.enabled then
+        self:_scheduleDeviceBooks()
+        self:_scheduleLinkSync("resume", 6)
+    end
     if not self.enabled or not self.book_id then return end
 
     -- Start a fresh session (lid open = new session)
@@ -2967,6 +2979,7 @@ function TomeSync:onNetworkConnected()
     self:_flushPendingSessions()
     self:_flushPendingRatings()
     self:_scheduleDeviceBooks()
+    self:_scheduleLinkSync("network", 5)
     -- Catch the reading-history backfill up too — previously launch-only, so
     -- turning WiFi on without restarting KOReader left stats stale (issue #128).
     -- Deferred so it doesn't contend with whatever brought the network up.
@@ -3717,6 +3730,7 @@ end
 function TomeSync:onCloseDocument()
     UIManager:unschedule(self._heartbeat_task)
     self._heartbeat_armed = false
+    if self.enabled then self:_scheduleLinkSync("close", 3) end
     if not self.enabled or not self.book_id then return end
 
     local pct      = self:_getCurrentPercentage()
@@ -6221,7 +6235,7 @@ end
 
 -- Download the given inbox items (filing each by series/author via the shared
 -- downloader) and mark each delivered on success. Shows one roll-up popup.
-function TomeSync:_deliverInbox(items)
+function TomeSync:_deliverInbox(items, auto)
     local delivered, failed = 0, 0
     for _, item in ipairs(items) do
         -- item.series may be JSON null, which rapidjson decodes to a truthy
@@ -6251,6 +6265,18 @@ function TomeSync:_deliverInbox(items)
         end
     end
     pcall(function() self:_refreshInbox() end)
+    if auto then
+        -- Auto-pickup: one short line per batch, nothing when nothing arrived
+        -- (a failed item is retried at the next sync moment).
+        if delivered > 0 then
+            UIManager:show(InfoMessage:new{{
+                text = string.format("Received %s from Tome Reader", plural(delivered, "book")),
+                timeout = 4,
+            }})
+        end
+        if failed > 0 then logger.warn("TomeSync: inbox auto-pickup,", failed, "failed") end
+        return
+    end
     UIManager:show(InfoMessage:new{{
         text = string.format("Inbox\\n\\nDelivered: %d\\nFailed: %d", delivered, failed),
         timeout = 5,
@@ -6309,6 +6335,476 @@ function TomeSync:_inboxMenuImpl()
     UIManager:show(self._inbox_menu)
 end
 
+-- ── Reader link (build 51) ───────────────────────────────────────────────────
+-- A server that looks after this device: the plugin tells it about the
+-- device (battery, storage, versions) and the files under the library root,
+-- and runs the file commands it queued (rename, move, delete into a trash
+-- folder, new folder). Tome Reader, the iOS app, is the first such server.
+-- Every route follows the inbox rule: a 404 means the server does not have
+-- the feature, so the plugin stays silent and stops asking until KOReader
+-- restarts. Against a Tome without these routes that costs one request per
+-- process (device-info answers 404 and the rest is never asked).
+-- Runs at the sync moments (launch, WiFi up, resume, book open and close,
+-- Sync now) as ONE debounced pass shared by every TomeSync instance.
+-- One do-block: its locals stay out of the main chunk's 200-local budget.
+do
+local LINK_MAX_ENTRIES = 5000
+local LINK_TRASH       = ".tomesync-trash"
+local link_off      = {{}}     -- route -> true once the server said it has none
+local link_task     = nil    -- the one pending pass
+local link_reasons  = {{}}     -- what asked for it (log only)
+local link_launched = false  -- launch pass, once per process
+local link_owner    = nil    -- the TomeSync instance that init'd last (the live UI)
+
+local function linkRouteOff(code) return code == 404 or code == 405 end
+
+-- Inbox auto-pickup: off unless the user (or the bake) turned it on.
+local function autoDeliver()
+    local v = G_reader_settings:readSetting("tomesync_auto_deliver")
+    if v == nil then return DEFAULT_AUTO_DELIVER end
+    return v == true
+end
+
+local function linkRealpath(p)
+    local ok, ffiUtil = pcall(require, "ffi/util")
+    if not ok or not ffiUtil.realpath then return nil end
+    return ffiUtil.realpath(p)
+end
+
+-- The library root the link reports and acts in: home_dir, else download_dir
+-- (the download code's order, without its last resort lastdir, which moves
+-- with every folder the user opens and so cannot be a boundary).
+local function linkRoot()
+    local dir = G_reader_settings:readSetting("home_dir")
+             or G_reader_settings:readSetting("download_dir")
+    if type(dir) ~= "string" or dir == "" then return nil end
+    local real = linkRealpath(dir)
+    if not real or lfs.attributes(real, "mode") ~= "directory" then return nil end
+    return real
+end
+
+local function linkInside(root, real)
+    return real ~= nil and (real == root or real:sub(1, #root + 1) == root .. "/")
+end
+
+local function linkRel(root, abs)
+    if abs == root then return "" end
+    return abs:sub(#root + 2)
+end
+
+local function linkParent(abs) return abs:match("^(.*)/[^/]+$") or abs end
+
+local function linkDeviceInfo(root)
+    local info = {{
+        device       = deviceName(),
+        model        = (type(Device.model) == "string") and Device.model or nil,
+        plugin_build = BUILD,
+        home_dir     = root,
+    }}
+    pcall(function() info.koreader_version = require("version"):getCurrentRevision() end)
+    pcall(function()
+        if Device.hasBattery and not Device:hasBattery() then return end
+        local powerd = Device:getPowerDevice()
+        info.battery_pct = powerd:getCapacity()
+        info.charging    = powerd:isCharging() and true or false
+    end)
+    if root then
+        pcall(function()
+            local du = util.diskUsage(root)
+            info.free_bytes  = du.available
+            info.total_bytes = du.total
+        end)
+    end
+    return info
+end
+
+-- Has this book been opened (a sidecar folder in the book or the docsettings
+-- location)? The hash location is not checked: it needs an MD5 per file.
+local function linkHasSidecar(abs)
+    local ok, has = pcall(function()
+        local DocSettings = require("docsettings")
+        if lfs.attributes(DocSettings:getSidecarDir(abs, "doc"), "mode") == "directory" then
+            return true
+        end
+        if G_reader_settings:readSetting("document_metadata_folder") == "dir" then
+            return lfs.attributes(DocSettings:getSidecarDir(abs, "dir"), "mode") == "directory"
+        end
+        return false
+    end)
+    return ok and has or false
+end
+
+-- Folders and files under root, depth first, names sorted. Skips dotfiles
+-- (the trash included), .sdr folders and symbolic links; lfs only, no shell.
+local function linkFileTree(root)
+    local entries, truncated = {{}}, false
+    local function walk(abs, rel)
+        local names = {{}}
+        local ok = pcall(function()
+            for name in lfs.dir(abs) do
+                if name:sub(1, 1) ~= "." then table.insert(names, name) end
+            end
+        end)
+        if not ok then return end
+        table.sort(names)
+        for _, name in ipairs(names) do
+            if truncated then return end
+            local p = abs .. "/" .. name
+            local r = (rel == "") and name or (rel .. "/" .. name)
+            local attr = lfs.symlinkattributes(p)
+            if attr and attr.mode == "directory" and not name:match("%.sdr$") then
+                if #entries >= LINK_MAX_ENTRIES then truncated = true; return end
+                table.insert(entries, {{ path = r, type = "dir", mtime = attr.modification }})
+                walk(p, r)
+            elseif attr and attr.mode == "file" then
+                if #entries >= LINK_MAX_ENTRIES then truncated = true; return end
+                table.insert(entries, {{
+                    path = r, type = "file", size = attr.size,
+                    mtime = attr.modification, sdr = linkHasSidecar(p),
+                }})
+            end
+        end
+    end
+    walk(root, "")
+    return entries, truncated
+end
+
+-- A server-given relative path, resolved inside root. must_exist: the path
+-- itself exists (and is checked by its realpath); otherwise its parent must
+-- exist inside root and the returned path is parent-realpath/name.
+-- Returns abs or nil, error. Never touches the disk beyond lstat/realpath.
+local function linkResolve(root, rel, must_exist)
+    if type(rel) ~= "string" or rel == "" then return nil, "missing path" end
+    if rel:find("%z") or rel:sub(1, 1) == "/" or rel:find("\\\\", 1, true) then
+        return nil, "path must be relative to the library"
+    end
+    rel = rel:gsub("/+", "/"):gsub("/$", "")
+    for part in rel:gmatch("[^/]+") do
+        if part == ".." or part == "." then return nil, "path may not contain . or .." end
+        if part == LINK_TRASH then return nil, "path is inside the trash" end
+    end
+    if rel == "" then return nil, "missing path" end
+    local abs = root .. "/" .. rel
+    if must_exist then
+        if lfs.symlinkattributes(abs, "mode") == "link" then
+            return nil, "symbolic links are not touched"
+        end
+        local real = linkRealpath(abs)
+        if not real then return nil, "not found: " .. rel end
+        if not linkInside(root, real) or real == root then
+            return nil, "outside the library: " .. rel
+        end
+        return real
+    end
+    local real = linkRealpath(linkParent(abs))
+    if not real then return nil, "folder not found: " .. linkParent(rel) end
+    if not linkInside(root, real) then return nil, "outside the library: " .. rel end
+    return real .. "/" .. abs:match("[^/]+$")
+end
+
+-- The book open in the reader, if any (its realpath).
+local function linkOpenFile()
+    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+    local r = ok and ReaderUI.instance
+    local f = r and r.document and r.document.file
+    return f and (linkRealpath(f) or f) or nil
+end
+
+-- KOReader's own bookkeeping after a move/rename, as the file manager's
+-- renameFile does it (sidecar, history, collections) minus its dialogs.
+local function linkMoved(old, new, is_file)
+    local DocSettings    = require("docsettings")
+    local ReadHistory    = require("readhistory")
+    local ReadCollection = require("readcollection")
+    if is_file then
+        pcall(DocSettings.updateLocation, old, new)
+        pcall(ReadHistory.updateItem, ReadHistory, old, new)
+        pcall(ReadCollection.updateItem, ReadCollection, old, new)
+    else
+        -- Trailing slashes: the helpers match by prefix, so "Foo" would also
+        -- catch "Foobar/...".
+        pcall(ReadHistory.updateItemsByPath, ReadHistory, old .. "/", new .. "/")
+        pcall(ReadCollection.updateItemsByPath, ReadCollection, old .. "/", new .. "/")
+    end
+    pcall(function() require("ui/widget/booklist").resetBookInfoCache(old) end)
+end
+
+-- After a delete into the trash: the book (and its sidecar, moved along with
+-- it) is kept, but history and collections treat it as deleted, like the
+-- file manager's deleteFile. Nothing is purged.
+local function linkTrashed(old, new, is_file)
+    local DocSettings    = require("docsettings")
+    local ReadHistory    = require("readhistory")
+    local ReadCollection = require("readcollection")
+    if is_file then
+        pcall(DocSettings.updateLocation, old, new)
+        pcall(ReadHistory.fileDeleted, ReadHistory, old)
+        pcall(ReadCollection.removeItem, ReadCollection, old)
+    else
+        pcall(function()
+            local prefix = old .. "/"
+            local hit = false
+            for i = #ReadHistory.hist, 1, -1 do
+                local f = ReadHistory.hist[i].file
+                if type(f) == "string" and f:sub(1, #prefix) == prefix then
+                    ReadHistory:fileDeleted(i)
+                    hit = true
+                end
+            end
+            if hit then ReadHistory:_flush() end
+        end)
+        pcall(ReadCollection.removeItemsByPath, ReadCollection, old .. "/")
+    end
+    pcall(function() require("ui/widget/booklist").resetBookInfoCache(old) end)
+end
+
+-- Repoint (or drop, new = nil) TomeSync's own path-keyed tables.
+function TomeSync:_linkRemap(old, new, is_file)
+    for _, key in ipairs({{ "book_map", "meta_ledger" }}) do
+        local tbl = self[key]
+        if type(tbl) == "table" then
+            local moves = {{}}
+            for path, v in pairs(tbl) do
+                if path == old then
+                    moves[path] = {{ new, v }}
+                elseif not is_file and path:sub(1, #old + 1) == old .. "/" then
+                    moves[path] = {{ new and (new .. path:sub(#old + 1)) or nil, v }}
+                end
+            end
+            if next(moves) then
+                for path, m in pairs(moves) do
+                    tbl[path] = nil
+                    if m[1] then tbl[m[1]] = m[2] end
+                end
+                self:_saveState("tomesync_" .. key, tbl)
+            end
+        end
+    end
+end
+
+-- Refresh the file browser when it shows a folder a command touched (or the
+-- folder it showed has gone, then go to the library root).
+local function linkRefreshBrowser(root, touched)
+    local ok, FileManager = pcall(require, "apps/filemanager/filemanager")
+    local fm = ok and FileManager.instance
+    local fc = fm and fm.file_chooser
+    if not (fc and fc.path) then return end
+    if lfs.attributes(fc.path, "mode") ~= "directory" then
+        pcall(fc.changeToPath, fc, root)
+        return
+    end
+    local shown = linkRealpath(fc.path) or fc.path
+    if touched["*"] or touched[shown] then pcall(fc.refreshPath, fc) end
+end
+
+-- One command. Returns ok, error, new_path (relative). Raises nothing the
+-- caller does not pcall.
+function TomeSync:_linkRunCommand(root, cmd, touched)
+    local op   = cmd.op
+    local args = type(cmd.args) == "table" and cmd.args or {{}}
+    local function str(v) return type(v) == "string" and v or nil end
+
+    if op == "refresh" then
+        touched["*"] = true
+        return true
+    end
+
+    if op == "mkdir" then
+        local rel = str(args.path)
+        if not rel then return false, "missing path" end
+        -- One level at a time, so every new folder's parent is checked.
+        local built = ""
+        for part in rel:gmatch("[^/]+") do
+            built = (built == "") and part or (built .. "/" .. part)
+            local abs, err = linkResolve(root, built, false)
+            if not abs then return false, err end
+            local mode = lfs.attributes(abs, "mode")
+            if mode == nil then
+                local ok, e = lfs.mkdir(abs)
+                if not ok then return false, "could not create " .. built .. ": " .. tostring(e) end
+                touched[linkParent(abs)] = true
+            elseif mode ~= "directory" then
+                return false, "a file is in the way: " .. built
+            end
+        end
+        if built == "" then return false, "missing path" end
+        return true, nil, built
+    end
+
+    if op ~= "rename" and op ~= "move" and op ~= "delete" then
+        return false, "unknown op: " .. tostring(op)
+    end
+
+    local src, err = linkResolve(root, str(args.path), true)
+    if not src then return false, err end
+    local open = linkOpenFile()
+    if open and (open == src or open:sub(1, #src + 1) == src .. "/") then
+        return false, "open in the reader"
+    end
+    local mode = lfs.attributes(src, "mode")
+    if mode ~= "file" and mode ~= "directory" then return false, "not a file or folder" end
+    local is_file = (mode == "file")
+    local base = src:match("[^/]+$")
+
+    local dest
+    if op == "rename" then
+        local name = str(args.new_name)
+        if not name or name == "" or name == "." or name == ".."
+                or name:find("/", 1, true) or name:find("\\\\", 1, true) or name:find("%z") then
+            return false, "bad new_name"
+        end
+        if name:sub(1, 1) == "." then return false, "new_name may not start with a dot" end
+        dest = linkParent(src) .. "/" .. name
+    elseif op == "move" then
+        local to = str(args.to_dir)
+        if to == nil then return false, "missing to_dir" end
+        local dir
+        if to == "" or to == "/" then
+            dir = root
+        else
+            dir, err = linkResolve(root, to, true)
+            if not dir then return false, err end
+        end
+        if lfs.attributes(dir, "mode") ~= "directory" then return false, "not a folder: " .. to end
+        if not is_file and (dir == src or dir:sub(1, #src + 1) == src .. "/") then
+            return false, "cannot move a folder into itself"
+        end
+        dest = dir .. "/" .. base
+    else -- delete: into <root>/.tomesync-trash, never purged here
+        local trash = root .. "/" .. LINK_TRASH
+        if lfs.attributes(trash, "mode") ~= "directory" then
+            local ok, e = lfs.mkdir(trash)
+            if not ok then return false, "could not create the trash folder: " .. tostring(e) end
+        end
+        local stem, ext = base, ""
+        if is_file then
+            local s, x = base:match("^(.+)(%.[^.]+)$")
+            if s then stem, ext = s, x end
+        end
+        dest = trash .. "/" .. base
+        local n = 1
+        -- Keep every deleted copy; a numbered name also gets its own sidecar.
+        while lfs.attributes(dest)
+                or (is_file and lfs.attributes(require("docsettings"):getSidecarDir(dest, "doc"))) do
+            n = n + 1
+            dest = string.format("%s/%s (%d)%s", trash, stem, n, ext)
+        end
+    end
+
+    if dest == src then return true, nil, linkRel(root, src) end
+    if lfs.attributes(dest) then return false, "already exists: " .. linkRel(root, dest) end
+    local ok, e = os.rename(src, dest)
+    if not ok then return false, "could not move: " .. tostring(e) end
+
+    if op == "delete" then
+        linkTrashed(src, dest, is_file)
+        self:_linkRemap(src, nil, is_file)
+    else
+        linkMoved(src, dest, is_file)
+        self:_linkRemap(src, dest, is_file)
+    end
+    touched[linkParent(src)] = true
+    touched[linkParent(dest)] = true
+    logger.info("TomeSync: link", op, src, "->", dest)
+    return true, nil, linkRel(root, dest)
+end
+
+-- The pass: device info, then the command queue, then the inbox (when
+-- auto-pickup is on), then the file tree, so the tree the server keeps
+-- already shows what the commands and deliveries changed.
+function TomeSync:_linkPass()
+    if not NetworkMgr:isConnected() then return end
+    local root = linkRoot()
+    local link_on = not link_off.all
+    if link_on then
+        local _, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root))
+        if linkRouteOff(code) then
+            link_off.all = true
+            link_on = false
+            logger.info("TomeSync: server has no reader link (device-info", code, ")")
+        elseif type(code) ~= "number" then
+            link_on = false   -- offline / unreachable / backing off: next moment
+        end
+    end
+
+    if link_on and root and not link_off.commands then
+        local list, code = apiRequest("GET", "/tome-sync/commands")
+        if linkRouteOff(code) then
+            link_off.commands = true
+        elseif type(list) == "table" then
+            local cmds = (type(list.commands) == "table") and list.commands or list
+            local touched, ran = {{}}, 0
+            for _, cmd in ipairs(cmds) do
+                if type(cmd) == "table" and cmd.id ~= nil then
+                    local ok, res, err, new_path = pcall(self._linkRunCommand, self, root, cmd, touched)
+                    if not ok then res, err, new_path = false, tostring(res), nil end
+                    ran = ran + 1
+                    logger.info("TomeSync: link command", tostring(cmd.id), tostring(cmd.op),
+                                res and "ok" or ("failed: " .. tostring(err)))
+                    pcall(apiRequest, "POST",
+                        "/tome-sync/commands/" .. urlEncode(tostring(cmd.id)) .. "/result",
+                        {{ ok = res and true or false,
+                          error = (not res) and (err or "failed") or nil,
+                          new_path = res and new_path or nil }})
+                end
+            end
+            if ran > 0 then linkRefreshBrowser(root, touched) end
+        end
+    end
+
+    if autoDeliver() then
+        pcall(function() self:_refreshInbox() end)
+        local items = self.inbox_items
+        if self.inbox_enabled and type(items) == "table" and #items > 0 then
+            self:_deliverInbox(items, true)
+        end
+    end
+
+    if link_on and root and not link_off.files then
+        local entries, truncated = linkFileTree(root)
+        local _, code = apiRequest("PUT", "/tome-sync/files", {{
+            device    = deviceName(),
+            root      = root,
+            truncated = truncated,
+            count     = #entries,
+            entries   = rapidjson.array and rapidjson.array(entries) or entries,
+        }})
+        if linkRouteOff(code) then link_off.files = true end
+    end
+end
+
+-- Ask for a pass `delay` seconds from now (debounced: several moments close
+-- together make one pass). Deferred like every background call here, so the
+-- moment that asked never waits on the network.
+function TomeSync:_scheduleLinkSync(reason, delay)
+    if link_off.all and not autoDeliver() then return end
+    link_reasons[reason] = true
+    if link_task then UIManager:unschedule(link_task) end
+    link_task = function()
+        link_task = nil
+        local why = {{}}
+        for k in pairs(link_reasons) do table.insert(why, k) end
+        link_reasons = {{}}
+        local me = link_owner or self
+        logger.info("TomeSync: link pass (" .. table.concat(why, ", ") .. ")")
+        local ok, err = pcall(me._linkPass, me)
+        if not ok then logger.warn("TomeSync: link pass failed:", err) end
+    end
+    UIManager:scheduleIn(delay or 3, link_task)
+end
+
+-- Called from init: the newest instance runs the passes (a closing reader's
+-- pass runs on the file manager that replaces it), plus the launch pass.
+function TomeSync:_linkInit()
+    link_owner = self
+    if not link_launched then
+        link_launched = true
+        self:_scheduleLinkSync("launch", 16)
+    end
+end
+
+TomeSync._linkAutoDeliver = autoDeliver
+end
 -- Edit the custom download-path template in an input dialog. Validates by
 -- rendering a sample book before saving, so an unknown token is rejected here
 -- rather than silently falling back to the default layout per download.
@@ -6571,6 +7067,17 @@ function TomeSync:_menuItems()
         end,
     }})
     table.insert(settings_items, {{
+        text         = "Download inbox automatically",
+        help_text    = "Books sent to this device are downloaded at the next sync "
+                       .. "(launch, WiFi on, wake, opening or closing a book, Sync now) "
+                       .. "without opening the Inbox.",
+        checked_func = function() return TomeSync._linkAutoDeliver() end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_auto_deliver",
+                not TomeSync._linkAutoDeliver())
+        end,
+    }})
+    table.insert(settings_items, {{
         text         = "Auto-check for updates on launch",
         checked_func = function() return G_reader_settings:isTrue("tomesync_auto_check") end,
         callback     = function()
@@ -6808,6 +7315,7 @@ function TomeSync:_menuItems()
                         text = msg,
                         timeout = 4,
                     }})
+                    self:_scheduleLinkSync("sync-now", 1)
                 end)
             end,
         }})
