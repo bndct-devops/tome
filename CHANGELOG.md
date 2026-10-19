@@ -277,6 +277,25 @@ All notable changes to Tome are documented here. Format loosely follows
   finished books are the Library's "Read" filter. The forgotten-books
   reminder is gone.
 
+### Fixed
+- **No more audiobook ISBNs on ebooks.** Fetch Metadata took the ISBN and
+  publisher of the Hardcover edition most people use, and for popular light
+  novels that is often the audiobook, so its ISBN ended up on the ebook and
+  every cover or catalogue lookup keyed on it failed. The fetch now looks at
+  the book's editions and takes the ebook edition, else a print one, in the
+  book's language (English when unknown), and never an audiobook; a book
+  with only audiobook editions gets no ISBN. The Hardcover sync picks its
+  pinned edition by the same rule. Applying a candidate, the AI fix and
+  auto-import refuse an ISBN known to be an audiobook edition, and changing a
+  book's ISBN makes the Hardcover sync match it again on its next run.
+- **Series cleanup corrects wrong-edition ISBNs.** After "Clean up with AI"
+  applies, every volume of the series without an ISBN, or with an audiobook
+  edition's ISBN, gets the ISBN of a matching text edition (publisher and
+  year too where they are empty), and the result line says how many were
+  corrected. The same check runs on its own with the new "Fix editions"
+  button in Manage Series, which needs no AI key; members fix the books they
+  uploaded, admins any book. Each run is written to the audit log.
+
 ## [2.7.0] - 2026-10-17 - "Catalogue"
 
 ### Added

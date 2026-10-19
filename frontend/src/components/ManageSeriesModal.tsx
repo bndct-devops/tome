@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Trans } from '@lingui/react/macro'
+import { Plural, Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
@@ -10,8 +10,9 @@ import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { AiBadge } from '@/components/AiBadge'
 import {
-  applySeriesCleanup, proposeSeriesCleanup, useAiStatus,
-  type SeriesCleanupApply, type SeriesCleanupArc, type SeriesCleanupProposal,
+  applySeriesCleanup, fixSeriesEditions, proposeSeriesCleanup, useAiStatus,
+  type FixEditionsResult, type SeriesCleanupApply, type SeriesCleanupArc, type SeriesCleanupProposal,
+  type SeriesCleanupResult,
 } from '@/lib/ai'
 
 interface Props {
@@ -186,6 +187,12 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
+  // A cleanup apply that also corrected ISBNs stays open to say so.
+  const [applied, setApplied] = useState<SeriesCleanupResult | null>(null)
+
+  // Fix editions (no AI)
+  const [fixingEditions, setFixingEditions] = useState(false)
+  const [editionsResult, setEditionsResult] = useState<FixEditionsResult | null>(null)
 
   // Load both on mount
   useEffect(() => {
@@ -307,6 +314,10 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
     setSaveError(null)
     try {
       const res = await applySeriesCleanup(seriesName, cleanupBody)
+      if (res.isbns_fixed?.length) {
+        setApplied(res)
+        return
+      }
       onSaved(res.renamed ? res.series_name : undefined)
       onClose()
     } catch (e: unknown) {
@@ -316,11 +327,32 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
     }
   }
 
+  async function runFixEditions() {
+    setFixingEditions(true)
+    setSaveError(null)
+    try {
+      setEditionsResult(await fixSeriesEditions(seriesName))
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : t`Fix editions failed`)
+    } finally {
+      setFixingEditions(false)
+    }
+  }
+
+  /** Close, telling the page to reload when something was written here. */
+  function close() {
+    if (applied) onSaved(applied.renamed ? applied.series_name : undefined)
+    else if (editionsResult?.isbns_fixed.length) onSaved()
+    onClose()
+  }
+
+  const isbnsFixed = (applied?.isbns_fixed?.length ?? 0) + (editionsResult?.isbns_fixed.length ?? 0)
+
   function toggle(patch: (s: CleanupSelection) => CleanupSelection) {
     setSelection(prev => (prev ? patch(prev) : prev))
   }
 
-  const isBusy = statusSaving || arcsSaving || applying
+  const isBusy = statusSaving || arcsSaving || applying || fixingEditions
 
   return (
     <ModalShell open className="w-full max-w-3xl">
@@ -332,7 +364,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
             <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">{seriesName}</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
             aria-label={t`Close`}
           >
@@ -356,12 +388,21 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
               {tb === 'series' ? t`Series` : t`Arcs`}
             </button>
           ))}
+          <button
+            onClick={() => void runFixEditions()}
+            disabled={isBusy}
+            title={t`Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's`}
+            className="ml-auto self-center flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            {fixingEditions && <Loader2 className="w-3 h-3 animate-spin" />}
+            <Trans>Fix editions</Trans>
+          </button>
           {showAi && (
             <button
               onClick={openCleanup}
               title={t`Sends the titles, volume numbers and file names of the books you can see in this series to Anthropic, which proposes fixes for you to check`}
               className={cn(
-                'ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
                 activeTab === 'ai'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -674,19 +715,26 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-border shrink-0 gap-3">
           <div className="flex-1">
-            {saveError && (
+            {saveError ? (
               <p className="text-xs text-destructive">{saveError}</p>
-            )}
+            ) : isbnsFixed > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {applied && <><Trans>Applied.</Trans>{' '}</>}
+                <Plural value={isbnsFixed} one="# ISBN corrected" other="# ISBNs corrected" />
+              </p>
+            ) : editionsResult ? (
+              <p className="text-xs text-muted-foreground"><Trans>All ISBNs look right.</Trans></p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
+              onClick={close}
               disabled={isBusy}
               className="px-4 py-2 rounded-lg border border-border bg-background text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
             >
-              <Trans>Cancel</Trans>
+              {applied || editionsResult ? <Trans>Close</Trans> : <Trans>Cancel</Trans>}
             </button>
-            {activeTab === 'ai' ? (
+            {applied ? null : activeTab === 'ai' ? (
               <button
                 onClick={() => void applyCleanup()}
                 disabled={isBusy || aiLoading || selectedCount === 0}

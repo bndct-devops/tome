@@ -993,6 +993,10 @@ msgstr "{imp} imported · {inc} incoming"
 msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+msgstr "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+
 #: src/components/stats/GoalWidget.tsx
 msgid "{label} only"
 msgstr "{label} only"
@@ -1982,6 +1986,10 @@ msgstr "All highlights"
 msgid "All imported books accepted"
 msgstr "All imported books accepted"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "All ISBNs look right."
+msgstr "All ISBNs look right."
+
 #: src/pages/BinderyPage.tsx
 msgid "All items must have a title"
 msgstr "All items must have a title"
@@ -2102,6 +2110,10 @@ msgstr "Applied to volumes you haven’t rated"
 #: src/components/ReadingImport.tsx
 msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
 msgstr "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Applied."
+msgstr "Applied."
 
 #: src/components/CoverPickerModal.tsx
 #: src/pages/StatsPage.tsx
@@ -4335,6 +4347,10 @@ msgstr "Files whose place on disk no longer matches their series or author folde
 msgid "Fill missing fields only"
 msgstr "Fill missing fields only"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+msgstr "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Filter books"
 msgstr "Filter books"
@@ -4430,6 +4446,14 @@ msgstr "Fit page height (W)"
 #: src/pages/ReaderPage.tsx
 msgid "Fit page width (W)"
 msgstr "Fit page width (W)"
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Fix editions"
+msgstr "Fix editions"
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Fix editions failed"
+msgstr "Fix editions failed"
 
 #: src/lib/ai.ts
 msgid "Fix this book"

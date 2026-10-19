@@ -293,7 +293,10 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
         if (checkedKeys.has('publisher') && selectedCandidate.publisher && !draft.publisher) body.publisher = selectedCandidate.publisher
         if (checkedKeys.has('year') && selectedCandidate.year != null && !draft.year) body.year = selectedCandidate.year
         if (checkedKeys.has('language') && selectedCandidate.language && !draft.language) body.language = selectedCandidate.language
-        if (checkedKeys.has('isbn') && selectedCandidate.isbn && !draft.isbn) body.isbn = selectedCandidate.isbn
+        if (checkedKeys.has('isbn') && selectedCandidate.isbn && !draft.isbn) {
+          body.isbn = selectedCandidate.isbn
+          body.isbn_edition_format = selectedCandidate.edition_format ?? null
+        }
         if (checkedKeys.has('series') && selectedCandidate.series && !draft.series) body.series = selectedCandidate.series
         if (checkedKeys.has('series_index') && selectedCandidate.series_index != null && draft.series_index == null) body.series_index = selectedCandidate.series_index
         if (checkedKeys.has('tags')) body.tags = selectedCandidate.tags

@@ -65,6 +65,8 @@ export interface MetadataCandidate {
   tags: string[]
   series: string | null
   series_index: number | null
+  /** Which edition the ISBN belongs to, when the source says (Hardcover). */
+  edition_format?: 'audiobook' | 'ebook' | 'physical' | 'unknown' | null
 }
 
 export interface ScanResult {

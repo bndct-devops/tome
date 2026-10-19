@@ -993,6 +993,10 @@ msgstr ""
 msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+msgstr ""
+
 #: src/components/stats/GoalWidget.tsx
 msgid "{label} only"
 msgstr ""
@@ -1982,6 +1986,10 @@ msgstr ""
 msgid "All imported books accepted"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "All ISBNs look right."
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "All items must have a title"
 msgstr ""
@@ -2101,6 +2109,10 @@ msgstr ""
 
 #: src/components/ReadingImport.tsx
 msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Applied."
 msgstr ""
 
 #: src/components/CoverPickerModal.tsx
@@ -4335,6 +4347,10 @@ msgstr ""
 msgid "Fill missing fields only"
 msgstr ""
 
+#: src/components/ManageSeriesModal.tsx
+msgid "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Filter books"
 msgstr ""
@@ -4429,6 +4445,14 @@ msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Fit page width (W)"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Fix editions"
+msgstr ""
+
+#: src/components/ManageSeriesModal.tsx
+msgid "Fix editions failed"
 msgstr ""
 
 #: src/lib/ai.ts
