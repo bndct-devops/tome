@@ -67,9 +67,31 @@ end
 -- and asks to sign in. Settings > Server overrides all of it, as before.
 local PluginConfig = {
     FIELDS = { SERVER_URL = "string", API_KEY = "string", USERNAME = "string",
-               AUTO_DELIVER = "boolean", SERVER_FINGERPRINT = "string" },
+               AUTO_DELIVER = "boolean", SERVER_FINGERPRINT = "string",
+               LINK_HOSTS = "table" },
     ORDER  = { "SERVER_URL", "API_KEY", "USERNAME", "AUTO_DELIVER", "SERVER_FINGERPRINT" },
+    -- LINK_HOSTS (build 55, the reader link): addresses of the phone to try
+    -- when SERVER_URL does not answer, or when it is one of them anyway; a
+    -- list of "https://host:port". Written only when not empty, so a Tome
+    -- download's config.lua stays five lines.
+    LINK_HOSTS_MAX = 8,
 }
+
+-- Keeps the https:// strings of a LINK_HOSTS list, in order, without
+-- repeats; anything else in it is dropped.
+function PluginConfig.linkHosts(v)
+    if type(v) ~= "table" then return nil end
+    local out, seen = {}, {}
+    for _, h in ipairs(v) do
+        if type(h) == "string" and h:match("^https://[^%s/]+$") and not seen[h]
+                and #out < PluginConfig.LINK_HOSTS_MAX then
+            seen[h] = true
+            out[#out + 1] = h
+        end
+    end
+    if #out == 0 then return nil end
+    return out
+end
 
 -- The plugin's own directory, found the way the shim finds it.
 function PluginConfig.dir()
@@ -90,6 +112,7 @@ function PluginConfig.parse(text)
     for k, ty in pairs(PluginConfig.FIELDS) do
         if type(env[k]) == ty then out[k] = env[k] end
     end
+    out.LINK_HOSTS = PluginConfig.linkHosts(out.LINK_HOSTS)
     return out
 end
 
@@ -132,6 +155,12 @@ function PluginConfig.render(cfg)
         else
             lines[#lines + 1] = k .. " = " .. string.format("%q", type(v) == "string" and v or "")
         end
+    end
+    local hosts = PluginConfig.linkHosts(cfg.LINK_HOSTS)
+    if hosts then
+        local q = {}
+        for i, h in ipairs(hosts) do q[i] = string.format("%q", h) end
+        lines[#lines + 1] = "LINK_HOSTS = { " .. table.concat(q, ", ") .. " }"
     end
     return table.concat(lines, "\n") .. "\n"
 end
@@ -372,8 +401,15 @@ local function fallbackURL()
     if v == nil or v == "" or v == primaryURL() then return nil end
     return v
 end
+-- The reader link's address for this session (build 55): a LINK_HOSTS entry
+-- that answered device-info (the phone on its hotspot or its last Wi-Fi
+-- address). While set, every request goes there and nowhere else; it is
+-- dropped when it stops answering and when the network changes, and never
+-- saved, so a restart starts from SERVER_URL again.
+local LinkSession = { url = nil }
 -- Addresses in the order to try them: the one that last answered first.
 local function serverURLs()
+    if LinkSession.url then return { LinkSession.url } end
     local primary, fallback = primaryURL(), fallbackURL()
     if not fallback then return { primary } end
     if G_reader_settings:readSetting("tomesync_active_url") == fallback then
@@ -416,7 +452,7 @@ local function serverRequest(spec)
         })
         socketutil:reset_timeout()
         if ok then
-            rememberURL(base)
+            if base ~= LinkSession.url then rememberURL(base) end
             resetBackoff()
             return ok, code
         end
@@ -427,6 +463,10 @@ local function serverRequest(spec)
         else
             logger.warn("TomeSync: no answer from", base, tostring(code))
         end
+    end
+    if LinkSession.url then
+        logger.info("TomeSync: reader link via " .. LinkSession.url .. " stopped answering; back to the configured server")
+        LinkSession.url = nil
     end
     noteNetFailure()
     if not refused then
@@ -461,8 +501,8 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "54"
-local BUILD           = 54      -- monotonic; the only thing compared
+local PLUGIN_VERSION  = "55"
+local BUILD           = 55      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -503,6 +543,37 @@ local function deviceName()
     local custom = G_reader_settings:readSetting("tomesync_device_name")
     if type(custom) == "string" and custom ~= "" then return custom end
     return autoDeviceName()
+end
+
+-- A random id for this KOReader install (build 55), made once and kept in
+-- its settings: a server that sees the device under two keys (installed by
+-- the phone, then paired by code) knows it is one reader. Sent in
+-- device-info and in the Quick Connect initiate body; never shown.
+-- (A field of LinkSession, not a local: the main chunk is at its 200-local limit.)
+function LinkSession.deviceID()
+    local id = G_reader_settings:readSetting("tomesync_device_id")
+    if type(id) == "string" and id:match("^%x+%-%x+%-%x+%-%x+%-%x+$") then return id end
+    local bytes
+    local f = io.open("/dev/urandom", "rb")
+    if f then bytes = f:read(16); f:close() end
+    if type(bytes) ~= "string" or #bytes ~= 16 then
+        math.randomseed(os.time() + math.floor((os.clock() * 1e6) % 1e6))
+        local t = {}
+        for i = 1, 16 do t[i] = string.char(math.random(0, 255)) end
+        bytes = table.concat(t)
+    end
+    local b = { bytes:byte(1, 16) }
+    b[7] = (b[7] % 16) + 64           -- version 4
+    b[9] = (b[9] % 64) + 128          -- RFC 4122 variant
+    local hex = {}
+    for i = 1, 16 do hex[i] = string.format("%02x", b[i]) end
+    id = table.concat(hex, "", 1, 4) .. "-" .. table.concat(hex, "", 5, 6) .. "-"
+        .. table.concat(hex, "", 7, 8) .. "-" .. table.concat(hex, "", 9, 10) .. "-"
+        .. table.concat(hex, "", 11, 16)
+    G_reader_settings:saveSetting("tomesync_device_id", id)
+    G_reader_settings:flush()
+    logger.info("TomeSync: device id made: " .. id)
+    return id
 end
 
 local function idleCapSeconds()
@@ -1341,6 +1412,7 @@ function TomeSync:onNetworkConnected()
     self:_flushPendingSessions()
     self:_flushPendingRatings()
     self:_scheduleDeviceBooks()
+    self:_linkNetworkUp()
     self:_scheduleLinkSync("network", 5)
     -- Catch the reading-history backfill up too — previously launch-only, so
     -- turning WiFi on without restarting KOReader left stats stale (issue #128).
@@ -1543,7 +1615,11 @@ function TomeSync:_signInWithCode(trusted)
             return
         end
     end
-    local resp = apiRequest("POST", "/auth/quick-connect/initiate", {})
+    -- device_id and device (build 55): Tome Reader keys the reader by them, so
+    -- pairing again replaces this reader's key instead of adding a second
+    -- reader. Tome ignores them.
+    local resp = apiRequest("POST", "/auth/quick-connect/initiate",
+                            { device_id = LinkSession.deviceID(), device = deviceName() })
     if type(resp) ~= "table" or not resp.code or not resp.poll_token then
         UIManager:show(InfoMessage:new{
             text = "Could not reach " .. serverURL()
@@ -1556,11 +1632,21 @@ function TomeSync:_signInWithCode(trusted)
     local deadline = os.time() + 5 * 60   -- codes expire server-side after 5 min
     local cancelled = false
     local waiting
+    -- Tome Reader (the phone) says so in its answer: the code is approved on
+    -- the phone, not typed into Tome's web UI.
+    local how
+    if resp.server_kind == "tome-reader" then
+        how = "On your phone, open Tome Reader:\n"
+              .. "Settings > Readers\n"
+              .. "and approve this code.\n\n"
+    else
+        how = "In Tome (signed in, any browser) open\n"
+              .. "Settings > Security > Quick Connect\n"
+              .. "and enter this code.\n\n"
+    end
+    logger.info("TomeSync: pairing code shown (" .. (resp.server_kind == "tome-reader" and "tome-reader" or "tome") .. " wording)")
     waiting = InfoMessage:new{
-        text = "Pairing code:  " .. qc_code .. "\n\n"
-               .. "In Tome (signed in, any browser) open\n"
-               .. "Settings > Security > Quick Connect\n"
-               .. "and enter this code.\n\n"
+        text = "Pairing code:  " .. qc_code .. "\n\n" .. how
                .. "Waiting\u{2026}  Tap to cancel.",
         dismiss_callback = function() cancelled = true end,
     }
@@ -4864,6 +4950,7 @@ local function linkParent(abs) return abs:match("^(.*)/[^/]+$") or abs end
 local function linkDeviceInfo(root)
     local info = {
         device       = deviceName(),
+        device_id    = LinkSession.deviceID(),
         model        = (type(Device.model) == "string") and Device.model or nil,
         plugin_build = BUILD,
         home_dir     = root,
@@ -5702,6 +5789,85 @@ local function linkSendTree(root, light)
     end
 end
 
+-- Link hosts (build 55): the "join the phone's hotspot and the reader finds
+-- it" behaviour. config.lua's LINK_HOSTS lists the phone's addresses (the
+-- one it had at install, and 172.20.10.1, the iPhone's own address on its
+-- Personal Hotspot). On a full pass in the file manager, when SERVER_URL
+-- did not answer, or is one of LINK_HOSTS anyway, each host is asked
+-- device-info with a 2 s connect timeout and the pinned certificate; the
+-- first that answers 200 is used for this session (LinkSession.url, see
+-- TOMESYNC_NET). Never without a pinned fingerprint: an unpinned probe would
+-- send the key to whatever answers at that address. A host that missed is
+-- not asked again for LINK_HOST_BACKOFF seconds; after a pass where none
+-- answered, one more pass follows after the back-off, up to
+-- LINK_HOST_RETRIES times (reset when the network comes up again).
+local LINK_HOST_BACKOFF = 60
+local LINK_HOST_RETRIES = 10
+local link_host_failed  = {}      -- host -> os.time() of its last miss
+local link_host_retries = LINK_HOST_RETRIES
+local link_host_missed  = false   -- the last pass probed and found none
+local link_host_nopin   = false   -- "no pin" logged once
+
+local function linkHostListed(url)
+    for _, h in ipairs(PLUGIN_CONFIG.LINK_HOSTS or {}) do
+        if h == url then return true end
+    end
+    return false
+end
+
+-- The first LINK_HOSTS entry that answers device-info 200 becomes this
+-- session's address; returns that answer, or nil and why.
+local function linkProbeHosts(root)
+    local hosts = PLUGIN_CONFIG.LINK_HOSTS
+    if not hosts then return nil, "no link hosts" end
+    if not pinnedFingerprint() then
+        if not link_host_nopin then
+            link_host_nopin = true
+            logger.info("TomeSync: link hosts set but no pinned fingerprint: not probing")
+        end
+        return nil, "no pinned fingerprint"
+    end
+    local body = rapidjson.encode(linkDeviceInfo(root))
+    for _, host in ipairs(hosts) do
+        local last = link_host_failed[host]
+        if last and os.time() - last < LINK_HOST_BACKOFF then
+            logger.info("TomeSync: link host " .. host .. " backing off ("
+                        .. (LINK_HOST_BACKOFF - (os.time() - last)) .. " s left)")
+        else
+            local chunks = {}
+            socketutil:set_timeout(2, 4)
+            local ok, code = http.request({
+                url     = host .. "/api/tome-sync/device-info",
+                method  = "PUT",
+                headers = {
+                    ["Authorization"]  = "Bearer " .. apiKey(),
+                    ["Content-Type"]   = "application/json",
+                    ["Accept"]         = "application/json",
+                    ["Content-Length"] = tostring(#body),
+                },
+                source  = ltn12.source.string(body),
+                sink    = cappedTableSink(chunks),
+                create  = tlsCreateFor(host),
+            })
+            socketutil:reset_timeout()
+            if ok and code == 200 then
+                local dok, parsed = pcall(rapidjson.decode, table.concat(chunks))
+                LinkSession.url = host
+                link_host_failed[host] = nil
+                link_host_retries = LINK_HOST_RETRIES
+                resetBackoff()
+                logger.info("TomeSync: reader link via " .. host)
+                return (dok and type(parsed) == "table") and parsed or {}
+            end
+            link_host_failed[host] = os.time()
+            logger.info("TomeSync: link host " .. host
+                        .. (ok and (" answered " .. tostring(code)) or (" no answer (" .. tostring(code) .. ")"))
+                        .. ", not asked again for " .. LINK_HOST_BACKOFF .. " s")
+        end
+    end
+    return nil, "no link host answered"
+end
+
 -- The pass: device info, then the command queue, then the inbox (when
 -- auto-pickup is on), then the file tree, so the tree the server keeps
 -- already shows what the commands and deliveries changed.
@@ -5723,8 +5889,30 @@ function TomeSync:_linkPass(light)
     local poll = 0
     local ran = 0
     local nowhy = nil
+    -- Link hosts: full passes in the file manager, while no host is in use.
+    local probe = not light and not reading and PLUGIN_CONFIG.LINK_HOSTS ~= nil
+                  and LinkSession.url == nil and not link_off.all
+    local probed, missed = nil, false
+    link_host_missed = false
+    if probe and linkHostListed(primaryURL()) then
+        -- SERVER_URL is one of them: ask them all, it included, and not
+        -- the configured server a second time.
+        probe = false
+        probed, nowhy = linkProbeHosts(root)
+        if not probed then link_on, missed = false, true end
+    end
     if link_on and (not light or (not reading and os.time() - link_info_at >= LINK_INFO_EVERY)) then
-        local body, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root), net)
+        local body, code
+        if probed then
+            body, code = probed, 200
+        else
+            body, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root), net)
+            if probe and type(code) ~= "number" then
+                -- The configured server did not answer: try the phone.
+                probed, nowhy = linkProbeHosts(root)
+                if probed then body, code = probed, 200 else missed = true end
+            end
+        end
         if linkRouteOff(code) then
             link_off.all = true
             link_on = false
@@ -5785,7 +5973,8 @@ function TomeSync:_linkPass(light)
         end
     end
 
-    if autoDeliver() and not light then
+    link_host_missed = missed
+    if autoDeliver() and not light and not missed then
         pcall(function() self:_refreshInbox() end)
         local items = self.inbox_items
         if self.inbox_enabled and type(items) == "table" and #items > 0 then
@@ -5880,8 +6069,30 @@ function TomeSync:_scheduleLinkSync(reason, delay)
             logger.info("TomeSync: link pass done, no poll (" .. tostring(why) .. ")")
         end
         me:_linkArmPoll(secs, why)
+        -- No link host answered: one more pass once their back-off is over.
+        if link_host_missed and not link_task then
+            if link_host_retries > 0 then
+                link_host_retries = link_host_retries - 1
+                logger.info("TomeSync: no link host answered; trying again in "
+                            .. (LINK_HOST_BACKOFF + 1) .. " s (" .. link_host_retries .. " retries left)")
+                me:_scheduleLinkSync("link-retry", LINK_HOST_BACKOFF + 1)
+            else
+                logger.info("TomeSync: no link host answered; no retries left until the network comes up again")
+            end
+        end
     end
     UIManager:scheduleIn(delay or 3, link_task)
+end
+
+-- The network came up (again): maybe on the phone's hotspot now. The host in
+-- use and the per-host back-off are forgotten, and the retries start over.
+function TomeSync:_linkNetworkUp()
+    if LinkSession.url then
+        logger.info("TomeSync: network up: forgetting reader link via " .. LinkSession.url)
+    end
+    LinkSession.url = nil
+    link_host_failed = {}
+    link_host_retries = LINK_HOST_RETRIES
 end
 
 -- WiFi gone: no poll until a pass sees the server again (WiFi up runs one).
@@ -5889,6 +6100,7 @@ end
 -- so this also covers it.
 function TomeSync:onNetworkDisconnected()
     linkStopPoll("network down")
+    LinkSession.url = nil
 end
 
 -- Called from init: the newest instance runs the passes (a closing reader's

@@ -10,3 +10,6 @@ AUTO_DELIVER = false
 -- SHA-256 of the server's TLS certificate (AB:CD:.. or hex), pinned for an
 -- https SERVER_URL. Empty = ordinary certificate checks.
 SERVER_FINGERPRINT = ""
+-- Reader link (Tome Reader on a phone): its addresses, tried with the pinned
+-- fingerprint when SERVER_URL does not answer. Optional; Tome never writes it.
+-- LINK_HOSTS = { "https://192.168.1.20:8899", "https://172.20.10.1:8899" }

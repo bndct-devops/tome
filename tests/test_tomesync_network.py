@@ -265,3 +265,34 @@ def test_each_attempt_gets_a_fresh_sink():
         emit(table.concat(chunks))
     """)
     assert out == ["full"]
+
+
+def test_reader_link_session_url_takes_every_request_and_is_dropped_on_a_miss():
+    # Build 55: a LINK_HOSTS entry that answered is used for the session only,
+    # never saved; when it stops answering the configured server is back.
+    out = _run(r"""
+        hosts["http://main.example:8080"] = "down"
+        hosts["https://172.20.10.1:8899"] = "up"
+        LinkSession.url = "https://172.20.10.1:8899"
+        local ok, code = get("/api/x")
+        emit(code)
+        emit(calls)
+        emit(settings.tomesync_active_url)
+        hosts["https://172.20.10.1:8899"] = "down"
+        calls = {}
+        get("/api/y")
+        emit(calls)
+        emit(LinkSession.url)
+        resetBackoff()
+        calls = {}
+        get("/api/z")
+        emit(calls)
+    """)
+    assert out == [
+        200,
+        ["https://172.20.10.1:8899"],
+        None,
+        ["https://172.20.10.1:8899"],
+        None,
+        ["http://main.example:8080"],
+    ]

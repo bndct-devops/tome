@@ -264,6 +264,47 @@ def test_bake_tool_writes_the_four_files(tmp_path):
         "https://192.168.1.5:8899", 'tk_"k"\\', "me", True, "AB:CD:zz")
 
 
+@needs_luajit
+def test_link_hosts_kept_https_only_and_rendered_like_python(tmp_path):
+    d = tmp_path / "plugin"
+    d.mkdir()
+    hosts = ("https://192.168.1.5:8899", "https://172.20.10.1:8899")
+    (d / "config.lua").write_text(_config_lua("https://192.168.1.5:8899", "tk_x", "u",
+                                              True, "AB:CD", link_hosts=hosts))
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    (bad / "config.lua").write_text(
+        'LINK_HOSTS = { "http://plain:1", 7, "https://ok:2", "https://ok:2", "https://a b:3", "https://x/path" }\n')
+    out = _run_lua(tmp_path, _config_block() + f'''
+local c = PluginConfig.load("{d}")
+assert(#c.LINK_HOSTS == 2 and c.LINK_HOSTS[1] == "https://192.168.1.5:8899"
+       and c.LINK_HOSTS[2] == "https://172.20.10.1:8899", "hosts")
+local b = PluginConfig.load("{bad}")
+assert(#b.LINK_HOSTS == 1 and b.LINK_HOSTS[1] == "https://ok:2", "only https host:port, once")
+local none = PluginConfig.parse('LINK_HOSTS = {{ "http://x:1" }}')
+assert(none.LINK_HOSTS == nil, "nothing usable: no list")
+io.write(PluginConfig.render(c))
+''')
+    assert out == (d / "config.lua").read_text()
+    # Without hosts the file is the five lines Tome has always written.
+    assert "LINK_HOSTS" not in _config_lua("https://a", "tk", "u")
+
+
+def test_bake_tool_writes_link_hosts(tmp_path):
+    out = tmp_path / "tomesync.koplugin"
+    r = subprocess.run(
+        [sys.executable, "-I", str(ROOT / "tools" / "bake-tomesync.py"), str(out),
+         "--server-url", "https://10.0.0.2:8899", "--api-key", "k", "--username", "me",
+         "--fingerprint", "AB", "--link-host", "https://10.0.0.2:8899",
+         "--link-host", "https://172.20.10.1:8899"],
+        capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    text = (out / "config.lua").read_text()
+    assert text == _config_lua("https://10.0.0.2:8899", "k", "me", False, "AB",
+                               link_hosts=("https://10.0.0.2:8899", "https://172.20.10.1:8899"))
+    assert text.endswith('LINK_HOSTS = { "https://10.0.0.2:8899", "https://172.20.10.1:8899" }\n')
+
+
 def test_config_example_parses_like_a_config():
     text = (PLUGIN / "config.lua.example").read_text()
     for name in ("SERVER_URL", "API_KEY", "USERNAME", "AUTO_DELIVER", "SERVER_FINGERPRINT"):

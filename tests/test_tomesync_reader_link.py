@@ -328,3 +328,52 @@ def test_download_and_delivered_hardening_in_render():
     assert "local API_BODY_MAX = 8 * 1024 * 1024" in lua
     assert "TomeSync._linkDownloadRefused(base_dir, dest, ext, guarded)" in lua
     assert "LINK_TRASH_MAX_BYTES = 200 * 1024 * 1024" in lua and "LINK_TRASH_MAX_ITEMS = 50" in lua
+
+
+# ── Build 55: one reader, the phone's wording, link hosts ────────────────────
+
+def test_build_55_device_id_wording_and_probe_rules():
+    assert TOMESYNC_PLUGIN_BUILD >= 55
+    lua = _main_impl_lua()
+    assert "local BUILD           = 55" in lua
+    # A persistent id, sent in device-info and in the initiate body.
+    assert "device_id    = LinkSession.deviceID()," in lua
+    assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
+    assert 'saveSetting("tomesync_device_id", id)' in lua
+    # The phone's wording only when the server says it is Tome Reader.
+    assert 'resp.server_kind == "tome-reader"' in lua
+    assert "Settings > Readers" in lua
+    assert "Settings > Security > Quick Connect" in lua
+    # Never a probe without a pin; the pinned create is used for each host.
+    probe = lua[lua.index("local function linkProbeHosts"):lua.index("-- The pass: device info")]
+    assert probe.index("if not pinnedFingerprint() then") < probe.index("http.request")
+    assert "create  = tlsCreateFor(host)," in probe
+    assert "socketutil:set_timeout(2, 4)" in probe
+
+
+def test_device_id_is_a_uuid_made_once(tmp_path):
+    import shutil, subprocess
+    luajit = shutil.which("luajit")
+    if luajit is None:
+        pytest.skip("luajit not installed")
+    lua = _main_impl_lua()
+    fn = lua[lua.index("function LinkSession.deviceID()"):lua.index("local function idleCapSeconds")]
+    src = """
+local settings, flushed = {}, 0
+G_reader_settings = { readSetting = function(_, k) return settings[k] end,
+                      saveSetting = function(_, k, v) settings[k] = v end,
+                      flush = function() flushed = flushed + 1 end }
+local logger = { info = function() end }
+local LinkSession = {}
+""" + fn + """
+local a = LinkSession.deviceID()
+local b = LinkSession.deviceID()
+assert(a == b, "same id twice")
+assert(flushed == 1, "saved once")
+assert(a:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-4%x%x%x%-[89ab]%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$"), a)
+settings.tomesync_device_id = "junk"
+assert(LinkSession.deviceID() ~= "junk", "a malformed id is replaced")
+print("ok")
+"""
+    out = subprocess.run([luajit, "-"], input=src, capture_output=True, text=True)
+    assert out.returncode == 0 and out.stdout.strip() == "ok", out.stderr + out.stdout

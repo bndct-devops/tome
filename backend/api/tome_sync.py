@@ -136,7 +136,12 @@ logger = logging.getLogger(__name__)
 # the new impl reads the baked values back from main_impl.lua.bak (kept by the
 # old updater) and writes config.lua; failing that, its next update fetches
 # GET /plugin/config.lua. Bumped so those installs are offered the update.
-TOMESYNC_PLUGIN_BUILD = 54
+# BUILD 55: reader link. A persistent device_id (device-info, Quick Connect
+# initiate), the sign-in dialog says to approve on the phone when the server
+# answers initiate with server_kind "tome-reader", and config.lua may list
+# LINK_HOSTS (the phone's addresses), tried with the pinned certificate when
+# the configured server does not answer. Against Tome nothing changes.
+TOMESYNC_PLUGIN_BUILD = 55
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
@@ -1865,7 +1870,8 @@ def _lua_str(value: str) -> str:
 
 
 def _config_lua(server_url: str, api_key: str, username: str,
-                auto_deliver: bool = False, server_fingerprint: str = "") -> str:
+                auto_deliver: bool = False, server_fingerprint: str = "",
+                link_hosts: tuple = ()) -> str:
     """The config.lua a plugin starts with (same format the plugin writes).
 
     auto_deliver: inbox auto-pickup on (the reader link bakes it; a plugin
@@ -1873,8 +1879,11 @@ def _config_lua(server_url: str, api_key: str, username: str,
     server_fingerprint: SHA-256 of the server's TLS certificate (any of
     AB:CD.., abcd..), pinned for https URLs; the reader link bakes its own.
     Empty for every Tome download: TLS behaves exactly as before.
+    link_hosts: the reader link's phone addresses ("https://host:port"); a
+    LINK_HOSTS line only when there are any, so a Tome download is unchanged.
     """
     server_fingerprint = "".join(c for c in server_fingerprint if c in "0123456789abcdefABCDEF:")
+    hosts = ("LINK_HOSTS = { " + ", ".join(_lua_str(h) for h in link_hosts) + " }\n") if link_hosts else ""
     return (
         "-- TomeSync connection. Self-update never replaces this file.\n"
         f"SERVER_URL = {_lua_str(server_url)}\n"
@@ -1882,4 +1891,5 @@ def _config_lua(server_url: str, api_key: str, username: str,
         f"USERNAME = {_lua_str(username)}\n"
         f"AUTO_DELIVER = {'true' if auto_deliver else 'false'}\n"
         f"SERVER_FINGERPRINT = {_lua_str(server_fingerprint)}\n"
+        + hosts
     )
