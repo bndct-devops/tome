@@ -6558,8 +6558,12 @@ msgid "Off, you have not opted in."
 msgstr "Off, you have not opted in."
 
 #: src/components/PlatformSettings.tsx
-msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and covers of the books you finish and the one you are reading."
-msgstr "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and covers of the books you finish and the one you are reading."
+#~ msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and covers of the books you finish and the one you are reading."
+#~ msgstr "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and covers of the books you finish and the one you are reading."
+
+#: src/components/PlatformSettings.tsx
+msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and ISBNs of the books you finish and the one you are reading.{name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent."
+msgstr "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and ISBNs of the books you finish and the one you are reading.{name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent."
 
 #: src/components/AiSettings.tsx
 msgid "On"
@@ -7809,8 +7813,12 @@ msgid "Resync everything"
 msgstr "Resync everything"
 
 #: src/components/PlatformSettings.tsx
-msgid "Resync sends all your reading history again, covers included. Unlinking keeps your {name} page; link again from here to continue."
-msgstr "Resync sends all your reading history again, covers included. Unlinking keeps your {name} page; link again from here to continue."
+#~ msgid "Resync sends all your reading history again, covers included. Unlinking keeps your {name} page; link again from here to continue."
+#~ msgstr "Resync sends all your reading history again, covers included. Unlinking keeps your {name} page; link again from here to continue."
+
+#: src/components/PlatformSettings.tsx
+msgid "Resync sends all your reading history again. Unlinking keeps your {name} page; link again from here to continue."
+msgstr "Resync sends all your reading history again. Unlinking keeps your {name} page; link again from here to continue."
 
 #: src/components/WordCount.tsx
 msgid "Retry {n} failed"
@@ -8510,8 +8518,12 @@ msgid "Share this series — a public metadata-only page"
 msgstr "Share this series — a public metadata-only page"
 
 #: src/components/PlatformSettings.tsx
-msgid "Share titles and covers"
-msgstr "Share titles and covers"
+msgid "Share titles"
+msgstr "Share titles"
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "Share titles and covers"
+#~ msgstr "Share titles and covers"
 
 #: src/components/Sidebar.tsx
 msgid "Share with users"

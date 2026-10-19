@@ -22,7 +22,7 @@ from backend.core.crypto import encrypt_secret
 from backend.core.database import get_db
 from backend.core.permissions import require_role
 from backend.core.security import get_current_user
-from backend.models.platform import PlatformCoverSent, PlatformLink
+from backend.models.platform import PlatformLink
 from backend.models.user import User
 from backend.services import platform_push
 from backend.services.audit import audit
@@ -241,7 +241,6 @@ def platform_unlink(db: Session = Depends(get_db), user: User = Depends(_member)
     if link is None:
         return {"ok": True}
     db.delete(link)
-    db.query(PlatformCoverSent).filter(PlatformCoverSent.user_id == user.id).delete()
     db.commit()
     audit(db, "platform.unlinked", user_id=user.id, username=user.username)
     return {"ok": True}

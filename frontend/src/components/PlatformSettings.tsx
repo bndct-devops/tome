@@ -257,16 +257,17 @@ export function PlatformSettings({ initial }: { initial: PlatformStatus }) {
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-foreground"><Trans>Share titles and covers</Trans></p>
+          <p className="text-sm text-foreground"><Trans>Share titles</Trans></p>
           <p className="text-[13px] text-muted-foreground mt-0.5">
             <Trans>Off: only daily minutes, sittings and how many books you finished leave this server.
-            On: also the titles, authors and covers of the books you finish and the one you are reading.</Trans>
+            On: also the titles, authors and ISBNs of the books you finish and the one you are reading.
+            {name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent.</Trans>
           </p>
         </div>
         <button
           role="switch"
           aria-checked={status.share_titles}
-          aria-label={t`Share titles and covers`}
+          aria-label={t`Share titles`}
           onClick={() => void patch({ share_titles: !status.share_titles })}
           className={cn(
             'relative w-9 h-5 rounded-full transition-colors shrink-0',
@@ -339,7 +340,7 @@ export function PlatformSettings({ initial }: { initial: PlatformStatus }) {
         )}
       </div>
       <p className="text-[12px] text-muted-foreground -mt-2">
-        <Trans>Resync sends all your reading history again, covers included. Unlinking keeps
+        <Trans>Resync sends all your reading history again. Unlinking keeps
         your {name} page; link again from here to continue.</Trans>
       </p>
     </div>

@@ -9,8 +9,9 @@ session that crosses midnight is split by time. Tome's own 04:00 rollover
 
 What leaves the server per day: minutes read, minutes per book type, sittings,
 the longest sitting and the number of books finished. Titles, authors and
-covers (``finished`` / ``current``) only when the user turned on "share
-titles". Book and user ids never leave: both are sha256(instance_secret + id).
+ISBNs (``finished`` / ``current``) only when the user turned on "share
+titles". No image ever leaves: Nightlamp looks covers up in public catalogues
+by ISBN. Book and user ids never leave: both are sha256(instance_secret + id).
 
 Triggers: an ORM hook marks a user dirty when a reading session is written or
 a book is marked read/reading; ``platform_loop`` pushes dirty users two
@@ -19,9 +20,7 @@ minutes after their last change and sweeps every linked user hourly.
 from __future__ import annotations
 
 import asyncio
-import base64
 import hashlib
-import io
 import json
 import logging
 import secrets
@@ -40,7 +39,7 @@ from backend.core.config import settings
 from backend.core.crypto import decrypt_secret, encrypt_secret
 from backend.models.book import Book
 from backend.models.instance_setting import InstanceSetting
-from backend.models.platform import PlatformCoverSent, PlatformLink
+from backend.models.platform import PlatformLink
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
@@ -59,9 +58,6 @@ HTTP_TIMEOUT = 30.0
 MAX_BODY = 8 * 1024 * 1024
 BODY_BUDGET = 7 * 1024 * 1024  # split before Nightlamp's 8 MB limit
 CHUNK_DAYS = 200
-COVER_WIDTH = 160
-COVER_QUALITY = 80
-MAX_COVER = 64 * 1024
 
 
 def enabled() -> bool:
@@ -266,31 +262,18 @@ def _minutes(seconds: float) -> int:
     return round(seconds / 60)
 
 
-# ── covers ───────────────────────────────────────────────────────────────────
+# ── isbn ─────────────────────────────────────────────────────────────────────
 
-def cover_jpeg_b64(book: Book) -> str | None:
-    """The book's cover as a 160 px wide JPEG (quality 80), base64, or None.
-    cover_thumbs.py makes WebP for the web UI; Nightlamp takes JPEG only, so
-    this resizes the original the same way into JPEG."""
-    if not book.cover_path:
+def clean_isbn(raw: str | None) -> str | None:
+    """The ISBN with hyphens and spaces stripped when it is 10 or 13 digits
+    (an ISBN-10 may end in X), else None."""
+    if not raw:
         return None
-    src = settings.covers_dir / book.cover_path
-    if not src.is_file():
-        return None
-    try:
-        from PIL import Image
-        with Image.open(src) as img:
-            img = img.convert("RGB")
-            if img.width > COVER_WIDTH:
-                img = img.resize((COVER_WIDTH, max(1, round(img.height * COVER_WIDTH / img.width))), Image.LANCZOS)
-            for quality in (COVER_QUALITY, 65, 50):
-                buf = io.BytesIO()
-                img.save(buf, "JPEG", quality=quality, optimize=True)
-                raw = buf.getvalue()
-                if len(raw) <= MAX_COVER:
-                    return base64.b64encode(raw).decode()
-    except Exception as exc:  # noqa: BLE001 - a bad cover just goes without
-        logger.warning("platform cover failed for book %s: %s", book.id, exc)
+    v = raw.replace("-", "").replace(" ", "").strip().upper()
+    if len(v) == 13 and v.isdigit():
+        return v
+    if len(v) == 10 and v[:9].isdigit() and (v[9].isdigit() or v[9] == "X"):
+        return v
     return None
 
 
@@ -299,17 +282,15 @@ def cover_jpeg_b64(book: Book) -> str | None:
 @dataclass
 class Envelope:
     body: dict
-    cover_keys: set[str]
     through: date
 
 
 def _book_fields(book: Book, key: str) -> dict:
     return {"key": key, "title": book.title or "", "author": book.author, "series": book.series,
-            "series_index": book.series_index}
+            "series_index": book.series_index, "isbn": clean_isbn(book.isbn)}
 
 
-def _current(db: Session, user: User, agg: Aggregate, tz: ZoneInfo, secret: str,
-             sent: set[str], cover_keys: set[str]) -> dict | None:
+def _current(db: Session, user: User, agg: Aggregate, tz: ZoneInfo, secret: str) -> dict | None:
     rows = (db.query(UserBookStatus)
             .filter(UserBookStatus.user_id == user.id, UserBookStatus.status == "reading").all())
     if not rows:
@@ -336,11 +317,6 @@ def _current(db: Session, user: User, agg: Aggregate, tz: ZoneInfo, secret: str,
            "minutes_in": _minutes(agg.seconds_by_book.get(book.id, 0.0)),
            "started": min(s.day for s in segs).isoformat() if segs else None,
            "sittings": len(merge_sittings(segs))}
-    if key not in sent and key not in cover_keys:
-        b64 = cover_jpeg_b64(book)
-        if b64:
-            cur["cover_jpeg_b64"] = b64
-            cover_keys.add(key)
     return cur
 
 
@@ -361,8 +337,6 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
         if since is not None:
             start = min(start, since)
     days: list[dict] = []
-    cover_keys: set[str] = set()
-    sent = {r.book_key for r in db.query(PlatformCoverSent).filter(PlatformCoverSent.user_id == user.id).all()}
     finished_books: dict[int, Book] = {}
     if link.share_titles:
         ids = {i for ids in agg.finished_by_day.values() for i in ids}
@@ -383,14 +357,8 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
                     if book is None:
                         continue
                     key = book_key(secret, book_id)
-                    item = {**_book_fields(book, key),
-                            "minutes_total": _minutes(agg.seconds_by_book.get(book_id, 0.0))}
-                    if key not in sent and key not in cover_keys:
-                        b64 = cover_jpeg_b64(book)
-                        if b64:
-                            item["cover_jpeg_b64"] = b64
-                            cover_keys.add(key)
-                    items.append(item)
+                    items.append({**_book_fields(book, key),
+                                  "minutes_total": _minutes(agg.seconds_by_book.get(book_id, 0.0))})
                 entry["finished"] = items
             days.append(entry)
             d += timedelta(days=1)
@@ -398,8 +366,8 @@ def build_envelope(db: Session, user: User, link: PlatformLink, *, full: bool,
     body: dict = {"schema_version": SCHEMA_VERSION, "timezone": link.timezone,
                   "share_titles": bool(link.share_titles), "days": days}
     if link.share_titles:
-        body["current"] = _current(db, user, agg, tz, secret, sent, cover_keys)
-    return Envelope(body=body, cover_keys=cover_keys, through=today)
+        body["current"] = _current(db, user, agg, tz, secret)
+    return Envelope(body=body, through=today)
 
 
 def chunk_bodies(body: dict) -> list[dict]:
@@ -495,17 +463,10 @@ def _push_locked(db: Session, user_id: int, *, full: bool, since: date | None) -
         link.last_push_error = "The stored token could not be read (server key changed?). Link again."
         db.commit()
         return "error"
-    if full:
-        db.query(PlatformCoverSent).filter(PlatformCoverSent.user_id == user_id).delete()
-        db.flush()
     env = build_envelope(db, user, link, full=full, since=since)
-    rejected_keys: set[str] = set()
     try:
         for body in chunk_bodies(env.body):
-            res = call("POST", "/api/push", json_body=body, token=token)
-            for r in res.get("rejected") or []:
-                if isinstance(r, dict) and r.get("reason") == "cover_invalid" and r.get("key"):
-                    rejected_keys.add(str(r["key"]))
+            call("POST", "/api/push", json_body=body, token=token)
     except PlatformError as exc:
         if exc.status == 401:
             link.revoked_at = datetime.utcnow()
@@ -517,8 +478,6 @@ def _push_locked(db: Session, user_id: int, *, full: bool, since: date | None) -
         db.commit()
         logger.warning("platform push for user %s failed: %s", user_id, exc)
         return "error"
-    for key in env.cover_keys - rejected_keys:
-        db.add(PlatformCoverSent(user_id=user_id, book_key=key))
     link.last_push_at = datetime.utcnow()
     link.last_push_error = None
     link.pushed_through = env.through

@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -35,15 +35,3 @@ class PlatformLink(Base):
     pushed_through: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-
-class PlatformCoverSent(Base):
-    """A cover goes to Nightlamp once per book per user; "Resync everything"
-    clears these rows so the covers go again."""
-    __tablename__ = "platform_cover_sent"
-    __table_args__ = (UniqueConstraint("user_id", "book_key", name="uq_platform_cover_sent"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    book_key: Mapped[str] = mapped_column(String(64), nullable=False)

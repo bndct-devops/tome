@@ -2,8 +2,6 @@
 
 Nightlamp is mocked with respx; the real service is never called.
 """
-import base64
-import io
 import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -18,7 +16,7 @@ from backend.core.crypto import decrypt_secret, encrypt_secret
 from backend.core.security import create_access_token, hash_password
 from backend.models.audit_log import AuditLog
 from backend.models.library import BookType
-from backend.models.platform import PlatformCoverSent, PlatformLink
+from backend.models.platform import PlatformLink
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.user import User, UserPermission
 from backend.models.user_book_status import UserBookStatus
@@ -198,19 +196,11 @@ def test_current_is_null_without_reading_book_and_absent_without_titles(db, admi
     assert "current" not in pp.build_envelope(db, user, link, full=True).body
 
 
-# ── keys and covers ──────────────────────────────────────────────────────────
+# ── keys and isbn ────────────────────────────────────────────────────────────
 
-def _cover(tmp_path, monkeypatch) -> str:
-    from PIL import Image
-    monkeypatch.setattr(settings, "data_dir", tmp_path)
-    (tmp_path / "covers").mkdir(exist_ok=True)
-    Image.new("RGB", (600, 900), (120, 40, 40)).save(tmp_path / "covers" / "c.jpg", "JPEG")
-    return "c.jpg"
-
-
-def test_keys_are_hashes_and_cover_goes_once(db, admin_user, make_book, tmp_path, monkeypatch):
+def test_keys_are_hashes_and_isbn_goes_instead_of_a_cover(db, admin_user, make_book):
     user, _ = admin_user
-    book = make_book(title="Hail", cover_path=_cover(tmp_path, monkeypatch))
+    book = make_book(title="Hail", isbn="978-0-593-13520-4", cover_path="c.jpg")
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
     _session(db, user.id, datetime(2026, 4, 2, 10), 60, book.id)
     _link(db, user, tz="UTC", share=True)
@@ -223,17 +213,13 @@ def test_keys_are_hashes_and_cover_goes_once(db, admin_user, make_book, tmp_path
         _iid, secret = pp.instance_identity(db)
         key = pp.book_key(secret, book.id)
         assert key != str(book.id) and len(key) == 64
-        first = _days(bodies[0])["2026-04-02"]["finished"][0]
-        assert first["key"] == key and first["minutes_total"] == 60
-        raw = base64.b64decode(first["cover_jpeg_b64"])
-        from PIL import Image
-        assert raw[:3] == b"\xff\xd8\xff" and Image.open(io.BytesIO(raw)).width == 160
-        assert "cover_jpeg_b64" not in _days(bodies[1])["2026-04-02"]["finished"][0]
-        assert db.query(PlatformCoverSent).filter_by(user_id=user.id, book_key=key).count() == 1
-        # Resync sends it again.
-        assert pp.push_user(db, user.id, full=True) == "ok"
-        assert "cover_jpeg_b64" in _days(bodies[2])["2026-04-02"]["finished"][0]
-        assert db.query(PlatformCoverSent).filter_by(user_id=user.id).count() == 1
+        for body in bodies:
+            first = _days(body)["2026-04-02"]["finished"][0]
+            assert first == {"key": key, "title": "Hail", "author": book.author, "series": book.series,
+                             "series_index": book.series_index, "isbn": "9780593135204",
+                             "minutes_total": 60}
+            raw = json.dumps(body)
+            assert "cover" not in raw and "jpeg" not in raw and "b64" not in raw
         sent = bodies[0]
         assert sent["schema_version"] == 1 and sent["timezone"] == "UTC" and sent["share_titles"] is True
         assert mock.calls[0].request.headers["authorization"].startswith("Bearer nl_")
@@ -416,7 +402,6 @@ def test_share_titles_off_pushes_without_titles_and_on_resyncs(client, db, admin
     book = make_book(title="Secret Title")
     db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
     _link(db, user, tz="UTC", share=True, pushed_through=date(2026, 4, 3))
-    db.add(PlatformCoverSent(user_id=user.id, book_key="old"))
     db.commit()
     with respx.mock(base_url=NL) as mock:
         route = mock.post("/api/push").mock(return_value=httpx.Response(200, json={"accepted": 1}))
@@ -429,7 +414,6 @@ def test_share_titles_off_pushes_without_titles_and_on_resyncs(client, db, admin
         body2 = json.loads(route.calls[1].request.content)
         assert body2["share_titles"] is True and body2["days"][0]["date"] == "2026-04-02"  # full resync
         assert _days(body2)["2026-04-02"]["finished"][0]["title"] == "Secret Title"
-        assert db.query(PlatformCoverSent).filter_by(book_key="old").count() == 0
         client.patch("/api/platform/settings", json={"timezone": "Pacific/Auckland"})
         assert json.loads(route.calls[2].request.content)["timezone"] == "Pacific/Auckland"
         assert client.patch("/api/platform/settings", json={"timezone": "Mars/Base"}).status_code == 422
@@ -463,3 +447,32 @@ def test_open_requires_link_and_keeps_timezone(client, db, admin_user):
             "request_id": "r3", "poll_secret": "ps", "url": f"{NL}/link?t=t3"}))
         assert client.post("/api/platform/open").status_code == 200
         assert json.loads(req.calls[0].request.content)["timezone"] == "Asia/Tokyo"
+
+
+@pytest.mark.parametrize("raw,want", [
+    ("978-0-593-13520-4", "9780593135204"),
+    ("0 306 40615 2", "0306406152"),
+    ("080442957x", "080442957X"),
+    ("12345", None),
+    ("978-0-593-13520", None),
+    ("ISBN 9780593135204", None),
+    ("", None),
+    (None, None),
+])
+def test_clean_isbn(raw, want):
+    assert pp.clean_isbn(raw) == want
+
+
+def test_isbn_null_when_the_book_has_none_and_on_current(db, admin_user, make_book):
+    user, _ = admin_user
+    done = make_book(title="No Isbn")
+    reading = make_book(title="Reading", isbn="0-306-40615-2")
+    db.add(UserBookStatus(user_id=user.id, book_id=done.id, status="read", finished_at=datetime(2026, 4, 2, 12)))
+    db.add(UserBookStatus(user_id=user.id, book_id=reading.id, status="reading", progress_pct=0.3))
+    db.commit()
+    link = _link(db, user, tz="UTC", share=True)
+    body = pp.build_envelope(db, user, link, full=True, today=date(2026, 4, 2)).body
+    item = _days(body)["2026-04-02"]["finished"][0]
+    assert "isbn" in item and item["isbn"] is None
+    assert body["current"]["isbn"] == "0306406152"
+    assert not any("cover" in k for k in item) and not any("cover" in k for k in body["current"])
