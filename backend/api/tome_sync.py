@@ -2031,6 +2031,18 @@ local function shortFingerprint(s, groups)
     for i = 1, math.min(groups or 32, 32) do out[i] = hex:sub(2 * i - 1, 2 * i):upper() end
     return table.concat(out, ":")
 end
+-- "AB:CD:EF:01..9A:BC:DE:F0": the first and the last 4 bytes, so two
+-- fingerprints that differ only at the end still read differently in a log.
+local function edgeFingerprint(s)
+    local hex = normFingerprint(s)
+    if not hex then return "?" end
+    local function colon(h)
+        local out = {{}}
+        for i = 1, #h, 2 do out[#out + 1] = h:sub(i, i + 1):upper() end
+        return table.concat(out, ":")
+    end
+    return colon(hex:sub(1, 8)) .. ".." .. colon(hex:sub(-8))
+end
 -- TOMESYNC_PIN_END
 
 -- Pinning (reader link, build 53). With an https server URL and a known
@@ -2058,8 +2070,8 @@ local function tlsCreateFor(base)
             local got = cert and cert:digest("sha256")
             if not fingerprintMatches(got, pin) then
                 logger.warn("TomeSync: refused " .. base .. ": certificate "
-                            .. shortFingerprint(got) .. " is not the pinned "
-                            .. shortFingerprint(pin))
+                            .. edgeFingerprint(got) .. " is not the pinned "
+                            .. edgeFingerprint(pin))
                 pcall(self.sock.close, self.sock)
                 return nil, PIN_REFUSED
             end
@@ -2300,6 +2312,24 @@ local function idleCapSeconds()
     return mins * 60
 end
 
+-- A table sink that refuses a body over 8 MB (the request then fails like a
+-- dropped connection), so a server cannot fill the device's memory. Every
+-- JSON answer and the self-update text go through it; downloads stream to a file.
+local API_BODY_MAX = 8 * 1024 * 1024
+local function cappedTableSink(chunks)
+    local inner, got = ltn12.sink.table(chunks), 0
+    return function(chunk, err)
+        if chunk then
+            got = got + #chunk
+            if got > API_BODY_MAX then
+                logger.warn("TomeSync: answer over 8 MB, dropped")
+                return nil, "response over 8 MB"
+            end
+        end
+        return inner(chunk, err)
+    end
+end
+
 -- opts.token: bearer override for the few calls that authenticate with
 -- something other than the plugin API key (the Quick Connect pairing JWT).
 -- opts.block / opts.total: tighter timeouts (the reader link's poll uses 2 s;
@@ -2340,7 +2370,7 @@ local function apiRequest(method, path, body, opts)
         body    = req_body,
         sink    = function()
             resp_chunks = {{}}
-            return ltn12.sink.table(resp_chunks)
+            return cappedTableSink(resp_chunks)
         end,
         block   = (opts and opts.block) or 5,
         total   = (opts and opts.total) or 45,
@@ -2577,7 +2607,7 @@ local function fetchText(path)
         headers = {{ ["Authorization"] = "Bearer " .. apiKey() }},
         sink    = function()
             chunks = {{}}
-            return ltn12.sink.table(chunks)
+            return cappedTableSink(chunks)
         end,
         block   = 10,
         total   = 60,
@@ -4705,7 +4735,7 @@ end
 
 -- ── Series download ─────────────────────────────────────────────────────────
 
-function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type, quiet)
+function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type, quiet, guarded)
     -- `quiet` suppresses the summary popups (used by the inbox, which shows its
     -- own roll-up). Returns {{downloaded, skipped, failed}} so callers can tell
     -- success (file is now on device) from failure.
@@ -4739,13 +4769,13 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
     -- (book.book_type), not from the batch: the No Series bucket mixes types, so
     -- a single batch type would misfile standalone books (issue #88). The batch
     -- `book_type` is only a fallback for older servers that omit the per-book field.
+    -- (Paths only: the folders are made just before the download, after the
+    -- final path has been checked.)
     local function ensureDefaultDirs(effective_type)
         local type_dir = base_dir .. "/" .. effective_type
-        lfs.mkdir(type_dir)
         local series_dir
         if not is_no_series then
             series_dir = type_dir .. "/" .. util.getSafeFilename(series_name)
-            lfs.mkdir(series_dir)
         end
         return type_dir, series_dir
     end
@@ -4792,7 +4822,6 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                     }})
                     if rel then
                         dest = base_dir .. "/" .. rel .. "." .. ext
-                        mkdirp(dest:match("^(.*)/[^/]+$"))
                     end
                 end
                 if not dest then
@@ -4814,14 +4843,18 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                     if is_no_series then
                         if type(book.author) == "string" and book.author ~= "" then
                             dest_dir = type_dir .. "/" .. util.getSafeFilename(book.author)
-                            lfs.mkdir(dest_dir)
                         else
                             dest_dir = type_dir
                         end
                     end
                     dest = dest_dir .. "/" .. fname
                 end
-                if lfs.attributes(dest) then
+                local refused = TomeSync._linkDownloadRefused
+                    and TomeSync._linkDownloadRefused(base_dir, dest, ext, guarded)
+                if refused then
+                    logger.warn("TomeSync: download refused:", book.title, "->", dest, "(" .. refused .. ")")
+                    table.insert(queue, {{book = book, file = nil, dest = nil}})
+                elseif lfs.attributes(dest) then
                     skipped = skipped + 1
                 else
                     save_location = save_location or dest:match("^(.*)/[^/]+$")
@@ -4869,6 +4902,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
             table.insert(failed_books, item.book)
         else
             local total = type(item.file.file_size) == "number" and item.file.file_size or nil
+            mkdirp(item.dest:match("^(.*)/[^/]+$"))
             local ok, err = downloadFile(item.book.id, item.file.id, item.dest, total,
                 function(received, size)
                     if size then
@@ -6422,10 +6456,12 @@ function TomeSync:_deliverInbox(items, auto)
             series_index = item.series_index, author = item.author,
             files = files,
         }}
-        local res = self:_downloadSeriesBooks(series_name, {{ book }}, nil, item.book_type, true)
+        -- guarded: the server decides this path, so the reader link's
+        -- refusal rules apply (TomeSync._linkDownloadRefused).
+        local res = self:_downloadSeriesBooks(series_name, {{ book }}, nil, item.book_type, true, true)
         if res and res.failed == 0 then
             delivered = delivered + 1
-            pcall(apiRequest, "POST", "/tome-sync/inbox/" .. item.id .. "/delivered")
+            pcall(apiRequest, "POST", "/tome-sync/inbox/" .. urlEncode(tostring(item.id)) .. "/delivered")
         else
             failed = failed + 1
         end
@@ -6515,14 +6551,17 @@ end
 -- Polling: when the server's device-info / commands answer carries
 -- poll_seconds > 0, a light pass (commands; device-info at most every 60 s;
 -- the tree check at most every 30 s or after a command) follows every
--- poll_seconds, 2 s timeouts, in the file manager and the reader alike. The
+-- poll_seconds (at least 5), 2 s timeouts; in the reader only the commands
+-- GET, and no tree check on any pass while a book is open. Paths a server
+-- names are checked by linkResolve/linkGuard ("Refused paths" in Tome
+-- Reader's tools/reader-link-routes.md); run commands are kept across
+-- restarts in settings/tomesync_link.lua. The
 -- poll stops on an answer without it, no answer, suspend, WiFi down and the
 -- off switch. One scheduled pass at a time (full or light).
 -- One do-block: its locals stay out of the main chunk's 200-local budget.
 do
 local LINK_MAX_ENTRIES = 5000
-local LINK_TRASH       = ".tomesync-trash"
-local link_off      = {{}}     -- route -> true once the server said it has none
+local link_off     = {{}}     -- route -> true once the server said it has none
 local link_task     = nil    -- the one pending pass
 local link_reasons  = {{}}     -- what asked for it (log only)
 local link_launched = false  -- launch pass, once per process
@@ -6539,8 +6578,41 @@ local LINK_TREE_EVERY = 30
 local LINK_DONE_KEEP  = 1000
 local LINK_NET_LIGHT  = {{ block = 2, total = 2 }}
 local LINK_NET_TREE   = {{ block = 2, total = 10 }}
+-- The trash is bounded so unattended deliveries and deletes cannot fill the
+-- disk: oldest purged first, the newest item always kept.
+local LINK_TRASH_MAX_BYTES = 200 * 1024 * 1024
+local LINK_TRASH_MAX_ITEMS = 50
+-- Commands already run, kept across restarts (settings/tomesync_link.lua):
+-- a result POST lost to a crash or a kill is posted again, never re-run.
+local link_store = nil
 
 local function linkRouteOff(code) return code == 404 or code == 405 end
+
+local function linkStore()
+    if not link_store then
+        link_store = LuaSettings:open(DataStorage:getSettingsDir() .. "/tomesync_link.lua")
+        local list = link_store:readSetting("done")
+        if type(list) == "table" then
+            for _, e in ipairs(list) do
+                if type(e) == "table" and type(e.id) == "string" and type(e.result) == "table"
+                        and link_done[e.id] == nil then
+                    link_done[e.id] = e.result
+                    table.insert(link_done_order, e.id)
+                end
+            end
+            if #list > 0 then
+                logger.info("TomeSync: link remembers " .. #link_done_order .. " command result(s) from before")
+            end
+        end
+    end
+    return link_store
+end
+
+local function linkNow()
+    local ok, socket = pcall(require, "socket")
+    if ok and socket.gettime then return socket.gettime() end
+    return os.time()
+end
 
 -- Inbox auto-pickup: off unless the user (or the bake) turned it on.
 local function autoDeliver()
@@ -6653,37 +6725,215 @@ local function linkFileTree(root)
     return entries, truncated
 end
 
--- A server-given relative path, resolved inside root. must_exist: the path
--- itself exists (and is checked by its realpath); otherwise its parent must
--- exist inside root and the returned path is parent-realpath/name.
--- Returns abs or nil, error. Never touches the disk beyond lstat/realpath.
+-- TOMESYNC_LINKGUARD_BEGIN (pure: no requires, no I/O; extracted and run
+-- under luajit by tests/test_tomesync_reader_link.py)
+-- What the link refuses to name, create or act on, whatever a server asks:
+-- any path part starting with a dot (hidden folders such as Kobo's .adds,
+-- where KOReader itself lives, and the trash, in any case), and names that
+-- KOReader or the device would run (.koplugin, .lua, .sh). KOReader's own
+-- folders are refused by identity in linkGuard.
+local LINK_TRASH = ".tomesync-trash"
+local LINK_CODE_SUFFIXES = {{ ".koplugin", ".lua", ".sh" }}
+local function linkPartRefused(part)
+    if type(part) ~= "string" or part == "" then return "empty name" end
+    if part == "." or part == ".." then return "path may not contain . or .." end
+    local low = part:lower()
+    if low == LINK_TRASH then return "path is inside the trash" end
+    if part:sub(1, 1) == "." then return "names starting with a dot are refused: " .. part end
+    for _, sfx in ipairs(LINK_CODE_SUFFIXES) do
+        if low:sub(-#sfx) == sfx then return "refused name (" .. sfx .. "): " .. part end
+    end
+    return nil
+end
+local function linkPathRefused(rel)
+    if type(rel) ~= "string" then return "missing path" end
+    for part in rel:gmatch("[^/]+") do
+        local why = linkPartRefused(part)
+        if why then return why end
+    end
+    return nil
+end
+-- p equal to or under dir, ignoring case (FAT and exFAT, where readers keep
+-- their books, ignore it).
+local function linkUnderNoCase(p, dir)
+    if type(p) ~= "string" or type(dir) ~= "string" or dir == "" then return false end
+    local a, b = p:lower(), dir:lower()
+    return a == b or b == "/" or a:sub(1, #b + 1) == b .. "/"
+end
+-- A rename whose new name differs from the old only in case: on FAT (and a
+-- case-insensitive Mac) both names are one file, so the destination
+-- "exists" and is the source itself.
+local function linkCaseOnly(old_name, new_name)
+    return type(old_name) == "string" and type(new_name) == "string"
+        and old_name ~= new_name and old_name:lower() == new_name:lower()
+end
+-- The spellings KOReader stored (history, collections) that name `path`
+-- ignoring case; prefix = true: entries under the folder `path` ("dir/").
+-- Distinct, in the order met; empty when none.
+local function linkStoredSpellings(stored, path, prefix)
+    local out, seen = {{}}, {{}}
+    local want = path:lower()
+    for _, f in ipairs(stored) do
+        if type(f) == "string" then
+            local cand = prefix and f:sub(1, #path) or f
+            if cand:lower() == want and not seen[cand] then
+                seen[cand] = true
+                table.insert(out, cand)
+            end
+        end
+    end
+    return out
+end
+-- TOMESYNC_LINKGUARD_END
+
+-- dev:ino of a path (links followed); nil when it does not exist or the
+-- filesystem gives no inode numbers.
+local function linkId(p)
+    local a = lfs.attributes(p)
+    if type(a) ~= "table" or not a.ino or a.ino == 0 then return nil end
+    return tostring(a.dev) .. ":" .. tostring(a.ino)
+end
+local function linkSame(a, b)
+    if a == b then return true end
+    local ia = linkId(a)
+    return ia ~= nil and ia == linkId(b)
+end
+-- a is b or one of b's folders: b's parents walked up, compared with a by
+-- identity (another spelling of one folder on FAT is the same folder).
+local function linkContains(a, b)
+    local ida = linkId(a)
+    local p = b
+    while type(p) == "string" and p ~= "" do
+        if p == a or (ida and linkId(p) == ida) then return true end
+        local up = p:match("^(.*)/[^/]*$")
+        if not up or up == p then break end
+        p = up
+    end
+    return false
+end
+
+-- KOReader's own folders: its data folder (settings, patches, plugins on
+-- some devices), the folder it runs from (KOReader starts in its install
+-- folder: frontend/userpatch.lua takes lfs.currentdir() as that) and the
+-- plugins folder this plugin was loaded from. Each by its path and its
+-- realpath, worked out once per process.
+local link_protected = nil
+local function linkProtected()
+    if link_protected then return link_protected end
+    local list, seen = {{}}, {{}}
+    local function add(label, p)
+        if type(p) ~= "string" or p == "" then return end
+        for _, q in ipairs({{ p, linkRealpath(p) or "" }}) do
+            if q:sub(1, 1) == "/" and not seen[q] then
+                seen[q] = true
+                table.insert(list, {{ label = label, path = q, id = linkId(q) }})
+            end
+        end
+    end
+    pcall(function() add("KOReader data folder", DataStorage:getDataDir()) end)
+    pcall(function() add("KOReader data folder", DataStorage:getFullDataDir()) end)
+    pcall(function() add("KOReader folder", lfs.currentdir()) end)
+    pcall(function() add("KOReader plugins folder", (implDir():match("^(.*)/[^/]+$"))) end)
+    link_protected = list
+    local names = {{}}
+    for _, d in ipairs(list) do table.insert(names, d.label .. " " .. d.path) end
+    logger.info("TomeSync: link refuses " .. table.concat(names, "; "))
+    return list
+end
+
+-- nil when abs (absolute, under root; it need not exist yet) may be acted
+-- on, else why. Every part below root passes linkPartRefused, and abs is
+-- not one of KOReader's folders nor inside one: by name ignoring case, and
+-- by identity for every existing folder on the way up to root (case,
+-- symbolic links, a second mount of the same storage).
+local function linkGuard(root, abs)
+    if not linkInside(root, abs) then return "outside the library" end
+    local why = linkPathRefused(linkRel(root, abs))
+    if why then return why end
+    for _, d in ipairs(linkProtected()) do
+        if linkUnderNoCase(abs, d.path) then return "inside the " .. d.label end
+        if d.id then
+            local p = abs
+            while #p >= #root do
+                if linkId(p) == d.id then return "inside the " .. d.label end
+                local up = linkParent(p)
+                if up == p then break end
+                p = up
+            end
+        end
+    end
+    return nil
+end
+
+-- A folder that holds one of KOReader's folders is never moved, renamed or
+-- deleted.
+local function linkHoldsProtected(src)
+    for _, d in ipairs(linkProtected()) do
+        if linkContains(src, d.path) then return "holds the " .. d.label end
+    end
+    return nil
+end
+
+-- The spelling on disk of a path under root: each part below root as its
+-- folder lists it (FAT finds any case; realpath keeps the case it was given
+-- on Linux, so a command's "foo.epub" would otherwise reach KOReader's
+-- helpers instead of the "Foo.epub" they stored). Unchanged where nothing matches.
+local function linkOnDisk(root, abs)
+    if abs == root or not linkInside(root, abs) then return abs end
+    local out = root
+    for part in linkRel(root, abs):gmatch("[^/]+") do
+        local found = nil
+        if lfs.attributes(out .. "/" .. part) then
+            local low = part:lower()
+            pcall(function()
+                for name in lfs.dir(out) do
+                    if name == part then found = name; break end
+                    if not found and name:lower() == low then found = name end
+                end
+            end)
+        end
+        out = out .. "/" .. (found or part)
+    end
+    return out
+end
+
+-- A server-given relative path, resolved inside root and checked by
+-- linkGuard. must_exist: the path itself exists (checked by its realpath,
+-- returned in its on-disk spelling); otherwise its parent must exist inside
+-- root and the returned path is parent/name.
+-- Returns abs, or nil, error, and "missing" when must_exist found nothing.
+-- Never touches the disk beyond lstat/realpath/listing a folder.
 local function linkResolve(root, rel, must_exist)
     if type(rel) ~= "string" or rel == "" then return nil, "missing path" end
     if rel:find("%z") or rel:sub(1, 1) == "/" or rel:find("\\\\", 1, true) then
         return nil, "path must be relative to the library"
     end
     rel = rel:gsub("/+", "/"):gsub("/$", "")
-    for part in rel:gmatch("[^/]+") do
-        if part == ".." or part == "." then return nil, "path may not contain . or .." end
-        if part == LINK_TRASH then return nil, "path is inside the trash" end
-    end
     if rel == "" then return nil, "missing path" end
+    local why = linkPathRefused(rel)
+    if why then return nil, why end
     local abs = root .. "/" .. rel
     if must_exist then
         if lfs.symlinkattributes(abs, "mode") == "link" then
             return nil, "symbolic links are not touched"
         end
         local real = linkRealpath(abs)
-        if not real then return nil, "not found: " .. rel end
+        if not real then return nil, "not found: " .. rel, "missing" end
         if not linkInside(root, real) or real == root then
             return nil, "outside the library: " .. rel
         end
+        real = linkOnDisk(root, real)
+        why = linkGuard(root, real)
+        if why then return nil, why .. ": " .. rel end
         return real
     end
-    local real = linkRealpath(linkParent(abs))
-    if not real then return nil, "folder not found: " .. linkParent(rel) end
-    if not linkInside(root, real) then return nil, "outside the library: " .. rel end
-    return real .. "/" .. abs:match("[^/]+$")
+    local parent = linkRealpath(linkParent(abs))
+    if not parent then return nil, "folder not found: " .. linkParent(rel) end
+    if not linkInside(root, parent) then return nil, "outside the library: " .. rel end
+    local out = linkOnDisk(root, parent) .. "/" .. abs:match("[^/]+$")
+    why = linkGuard(root, out)
+    if why then return nil, why .. ": " .. rel end
+    return out
 end
 
 -- The book open in the reader, if any (its realpath).
@@ -6694,52 +6944,168 @@ local function linkOpenFile()
     return f and (linkRealpath(f) or f) or nil
 end
 
+-- In the reader (a ReaderUI is up): the poll stays light there.
+local function linkReading()
+    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+    return ok and ReaderUI.instance ~= nil
+end
+
+-- The paths ReadHistory and ReadCollection hold, as stored.
+local function linkHistFiles()
+    local out = {{}}
+    pcall(function()
+        for _, v in ipairs(require("readhistory").hist) do table.insert(out, v.file) end
+    end)
+    return out
+end
+local function linkCollFiles()
+    local out = {{}}
+    pcall(function()
+        for _, coll in pairs(require("readcollection").coll) do
+            for f in pairs(coll) do table.insert(out, f) end
+        end
+    end)
+    return out
+end
+
 -- KOReader's own bookkeeping after a move/rename, as the file manager's
 -- renameFile does it (sidecar, history, collections) minus its dialogs.
+-- History and collections are updated under the spelling they stored,
+-- found ignoring case.
 local function linkMoved(old, new, is_file)
     local DocSettings    = require("docsettings")
     local ReadHistory    = require("readhistory")
     local ReadCollection = require("readcollection")
     if is_file then
         pcall(DocSettings.updateLocation, old, new)
-        pcall(ReadHistory.updateItem, ReadHistory, old, new)
-        pcall(ReadCollection.updateItem, ReadCollection, old, new)
+        for _, s in ipairs(linkStoredSpellings(linkHistFiles(), old, false)) do
+            pcall(ReadHistory.updateItem, ReadHistory, s, new)
+        end
+        for _, s in ipairs(linkStoredSpellings(linkCollFiles(), old, false)) do
+            pcall(ReadCollection.updateItem, ReadCollection, s, new)
+        end
     else
         -- Trailing slashes: the helpers match by prefix, so "Foo" would also
         -- catch "Foobar/...".
-        pcall(ReadHistory.updateItemsByPath, ReadHistory, old .. "/", new .. "/")
-        pcall(ReadCollection.updateItemsByPath, ReadCollection, old .. "/", new .. "/")
+        for _, s in ipairs(linkStoredSpellings(linkHistFiles(), old .. "/", true)) do
+            pcall(ReadHistory.updateItemsByPath, ReadHistory, s, new .. "/")
+        end
+        for _, s in ipairs(linkStoredSpellings(linkCollFiles(), old .. "/", true)) do
+            pcall(ReadCollection.updateItemsByPath, ReadCollection, s, new .. "/")
+        end
     end
     pcall(function() require("ui/widget/booklist").resetBookInfoCache(old) end)
 end
 
 -- After a delete into the trash: the book (and its sidecar, moved along with
 -- it) is kept, but history and collections treat it as deleted, like the
--- file manager's deleteFile. Nothing is purged.
+-- file manager's deleteFile.
 local function linkTrashed(old, new, is_file)
     local DocSettings    = require("docsettings")
     local ReadHistory    = require("readhistory")
     local ReadCollection = require("readcollection")
     if is_file then
         pcall(DocSettings.updateLocation, old, new)
-        pcall(ReadHistory.fileDeleted, ReadHistory, old)
-        pcall(ReadCollection.removeItem, ReadCollection, old)
+        for _, s in ipairs(linkStoredSpellings(linkHistFiles(), old, false)) do
+            pcall(ReadHistory.fileDeleted, ReadHistory, s)
+        end
+        for _, s in ipairs(linkStoredSpellings(linkCollFiles(), old, false)) do
+            pcall(ReadCollection.removeItem, ReadCollection, s)
+        end
     else
         pcall(function()
-            local prefix = old .. "/"
+            local prefix = (old .. "/"):lower()
             local hit = false
             for i = #ReadHistory.hist, 1, -1 do
                 local f = ReadHistory.hist[i].file
-                if type(f) == "string" and f:sub(1, #prefix) == prefix then
+                if type(f) == "string" and f:sub(1, #prefix):lower() == prefix then
                     ReadHistory:fileDeleted(i)
                     hit = true
                 end
             end
             if hit then ReadHistory:_flush() end
         end)
-        pcall(ReadCollection.removeItemsByPath, ReadCollection, old .. "/")
+        for _, s in ipairs(linkStoredSpellings(linkCollFiles(), old .. "/", true)) do
+            pcall(ReadCollection.removeItemsByPath, ReadCollection, s)
+        end
     end
     pcall(function() require("ui/widget/booklist").resetBookInfoCache(old) end)
+end
+
+-- Bytes under p (a file, or a folder walked without following links).
+local function linkBytes(p)
+    local a = lfs.symlinkattributes(p)
+    if not a then return 0 end
+    if a.mode ~= "directory" then return a.size or 0 end
+    local n = 0
+    pcall(function()
+        for name in lfs.dir(p) do
+            if name ~= "." and name ~= ".." then n = n + linkBytes(p .. "/" .. name) end
+        end
+    end)
+    return n
+end
+
+-- Keeps the trash within LINK_TRASH_MAX_ITEMS and LINK_TRASH_MAX_BYTES:
+-- oldest first (by when the link trashed them, else mtime), the newest item
+-- always kept. A book's sidecar goes with it. One log line per trim.
+local function linkTrimTrash(trash, newest)
+    local DocSettings = require("docsettings")
+    local st = linkStore()
+    local times = st:readSetting("trash") or {{}}
+    local items, total, present = {{}}, 0, {{}}
+    local ok = pcall(function()
+        for name in lfs.dir(trash) do
+            if name ~= "." and name ~= ".." and not name:lower():match("%.sdr$") then
+                local p = trash .. "/" .. name
+                local a = lfs.symlinkattributes(p)
+                if a then
+                    local is_file = a.mode == "file"
+                    local bytes = linkBytes(p)
+                    if is_file then bytes = bytes + linkBytes(DocSettings:getSidecarDir(p, "doc")) end
+                    total = total + bytes
+                    present[name] = true
+                    table.insert(items, {{ name = name, path = p, mode = a.mode, bytes = bytes,
+                                          t = tonumber(times[name]) or a.modification or 0 }})
+                end
+            end
+        end
+    end)
+    if not ok then return end
+    for name in pairs(times) do if not present[name] then times[name] = nil end end
+    local before_n, before_b = #items, total
+    local purged, freed = {{}}, 0
+    if #items > LINK_TRASH_MAX_ITEMS or total > LINK_TRASH_MAX_BYTES then
+        table.sort(items, function(x, y)
+            if x.t ~= y.t then return x.t < y.t end
+            return x.name < y.name
+        end)
+        local ffiUtil = require("ffi/util")
+        for _, it in ipairs(items) do
+            if #items - #purged <= LINK_TRASH_MAX_ITEMS and total <= LINK_TRASH_MAX_BYTES then break end
+            if it.name ~= newest then
+                if it.mode == "file" then
+                    pcall(DocSettings.updateLocation, it.path)   -- its sidecar, every location
+                    os.remove(it.path)
+                    local sdr = DocSettings:getSidecarDir(it.path, "doc")
+                    if lfs.attributes(sdr, "mode") == "directory" then pcall(ffiUtil.purgeDir, sdr) end
+                elseif it.mode == "directory" then
+                    pcall(ffiUtil.purgeDir, it.path)
+                else
+                    os.remove(it.path)
+                end
+                total = total - it.bytes
+                freed = freed + it.bytes
+                times[it.name] = nil
+                table.insert(purged, it.name)
+            end
+        end
+        logger.info(string.format("TomeSync: link trash over its bound (%d items, %.1f MB; keeps %d, %d MB): "
+            .. "purged the %d oldest (%.1f MB): %s", before_n, before_b / 1048576, LINK_TRASH_MAX_ITEMS,
+            LINK_TRASH_MAX_BYTES / 1048576, #purged, freed / 1048576, table.concat(purged, ", ")))
+    end
+    st:saveSetting("trash", times)
+    st:flush()
 end
 
 -- Repoint (or drop, new = nil) TomeSync's own path-keyed tables.
@@ -6748,10 +7114,12 @@ function TomeSync:_linkRemap(old, new, is_file)
         local tbl = self[key]
         if type(tbl) == "table" then
             local moves = {{}}
+            -- Ignoring case: the stored spelling may differ from the one on disk (FAT).
+            local low = old:lower()
             for path, v in pairs(tbl) do
-                if path == old then
+                if path:lower() == low then
                     moves[path] = {{ new, v }}
-                elseif not is_file and path:sub(1, #old + 1) == old .. "/" then
+                elseif not is_file and path:sub(1, #old + 1):lower() == low .. "/" then
                     moves[path] = {{ new and (new .. path:sub(#old + 1)) or nil, v }}
                 end
             end
@@ -6810,14 +7178,15 @@ end
 -- TOMESYNC_LINKPOLL_BEGIN (pure: no requires, no I/O; extracted and run under
 -- luajit by tests/test_tomesync_reader_link.py)
 -- poll_seconds from a decoded answer: a positive number, floored and kept in
--- 2..3600; anything else (absent, 0, negative, NaN, a string, JSON null,
+-- 5..3600 (every request blocks KOReader's UI thread, so never more often
+-- than every 5 s); anything else (absent, 0, negative, NaN, a string, JSON null,
 -- a list) is 0 = do not poll.
 local function linkPollSeconds(body)
     if type(body) ~= "table" then return 0 end
     local v = body.poll_seconds
     if type(v) ~= "number" or v ~= v or v <= 0 or v == math.huge then return 0 end
     v = math.floor(v)
-    if v < 2 then v = 2 end
+    if v < 5 then v = 5 end
     if v > 3600 then v = 3600 end
     return v
 end
@@ -6870,10 +7239,21 @@ local function linkRemember(key, result)
     while #link_done_order > LINK_DONE_KEEP do
         link_done[table.remove(link_done_order, 1)] = nil
     end
+    -- Written through before the result is posted: a kill between the two
+    -- posts this result again after the restart instead of running it again.
+    local ok, e = pcall(function()
+        local list = {{}}
+        for _, k in ipairs(link_done_order) do table.insert(list, {{ id = k, result = link_done[k] }}) end
+        local st = linkStore()
+        st:saveSetting("done", list)
+        st:flush()
+    end)
+    if not ok then logger.warn("TomeSync: link could not save the command results:", e) end
 end
 
--- One command. Returns ok, error, new_path (relative). Raises nothing the
--- caller does not pcall.
+-- One command. Returns ok, error, new_path (relative), note. Raises nothing
+-- the caller does not pcall. Every path and name goes through linkResolve /
+-- linkGuard (tools/reader-link-routes.md, "Refused paths").
 function TomeSync:_linkRunCommand(root, cmd, touched)
     local op   = cmd.op
     local args = type(cmd.args) == "table" and cmd.args or {{}}
@@ -6887,6 +7267,9 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
     if op == "mkdir" then
         local rel = str(args.path)
         if not rel then return false, "missing path" end
+        -- The whole path by name first, so no level is made before a refusal.
+        local why = linkPathRefused(rel)
+        if why then return false, why end
         -- One level at a time, so every new folder's parent is checked.
         local built = ""
         for part in rel:gmatch("[^/]+") do
@@ -6910,43 +7293,77 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
         return false, "unknown op: " .. tostring(op)
     end
 
-    local src, err = linkResolve(root, str(args.path), true)
-    if not src then return false, err end
-    local open = linkOpenFile()
-    if open and (open == src or open:sub(1, #src + 1) == src .. "/") then
+    local new_name
+    if op == "rename" then
+        new_name = str(args.new_name)
+        if not new_name or new_name == "" or new_name:find("/", 1, true)
+                or new_name:find("\\\\", 1, true) or new_name:find("%z") then
+            return false, "bad new_name"
+        end
+        local why = linkPartRefused(new_name)
+        if why then return false, "new_name: " .. why end
+    end
+    local to = (op == "move") and str(args.to_dir) or nil
+    if op == "move" and to == nil then return false, "missing to_dir" end
+    local function destDir()
+        if to == "" or to == "/" then return root end
+        local dir, e = linkResolve(root, to, true)
+        if not dir then return nil, e end
+        if lfs.attributes(dir, "mode") ~= "directory" then return nil, "not a folder: " .. to end
+        return dir
+    end
+
+    local src, err, missing = linkResolve(root, str(args.path), true)
+    if not src then
+        -- Ran already (its result was lost, or it was done by hand): the
+        -- source is gone and the destination is there under the expected name.
+        if missing and op ~= "delete" then
+            local rel = (str(args.path):gsub("/+", "/"):gsub("/$", ""))
+            local name = rel:match("[^/]+$")
+            local dest
+            if op == "rename" then
+                local parent_rel = rel:match("^(.*)/[^/]+$")
+                dest = linkResolve(root, (parent_rel and (parent_rel .. "/") or "") .. new_name, true)
+            else
+                local dir = destDir()
+                if dir and name then
+                    local drel = linkRel(root, dir)
+                    dest = linkResolve(root, (drel == "") and name or (drel .. "/" .. name), true)
+                end
+            end
+            if dest then
+                logger.info("TomeSync: link", op, rel, "already done:", dest)
+                return true, nil, linkRel(root, dest),
+                       "already done: the source is gone and the destination exists"
+            end
+        end
+        return false, err
+    end
+    if linkOpenFile() and linkContains(src, linkOpenFile()) then
         return false, "open in the reader"
     end
-    local mode = lfs.attributes(src, "mode")
-    if mode ~= "file" and mode ~= "directory" then return false, "not a file or folder" end
+    local mode = lfs.symlinkattributes(src, "mode")
+    if mode ~= "file" and mode ~= "directory" then return false, "not a regular file or folder" end
     local is_file = (mode == "file")
+    if not is_file then
+        local why = linkHoldsProtected(src)
+        if why then return false, why .. ": " .. linkRel(root, src) end
+    end
+    local trash = root .. "/" .. LINK_TRASH
+    if linkContains(trash, src) then return false, "path is inside the trash" end
     local base = src:match("[^/]+$")
 
     local dest
     if op == "rename" then
-        local name = str(args.new_name)
-        if not name or name == "" or name == "." or name == ".."
-                or name:find("/", 1, true) or name:find("\\\\", 1, true) or name:find("%z") then
-            return false, "bad new_name"
-        end
-        if name:sub(1, 1) == "." then return false, "new_name may not start with a dot" end
-        dest = linkParent(src) .. "/" .. name
+        dest = linkParent(src) .. "/" .. new_name
     elseif op == "move" then
-        local to = str(args.to_dir)
-        if to == nil then return false, "missing to_dir" end
-        local dir
-        if to == "" or to == "/" then
-            dir = root
-        else
-            dir, err = linkResolve(root, to, true)
-            if not dir then return false, err end
-        end
-        if lfs.attributes(dir, "mode") ~= "directory" then return false, "not a folder: " .. to end
-        if not is_file and (dir == src or dir:sub(1, #src + 1) == src .. "/") then
+        local dir, e = destDir()
+        if not dir then return false, e end
+        if not is_file and linkContains(src, dir) then
             return false, "cannot move a folder into itself"
         end
         dest = dir .. "/" .. base
-    else -- delete: into <root>/.tomesync-trash, never purged here
-        local trash = root .. "/" .. LINK_TRASH
+    else -- delete: into <root>/.tomesync-trash, bounded by linkTrimTrash
         if lfs.attributes(trash, "mode") ~= "directory" then
             local ok, e = lfs.mkdir(trash)
             if not ok then return false, "could not create the trash folder: " .. tostring(e) end
@@ -6965,22 +7382,67 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
             dest = string.format("%s/%s (%d)%s", trash, stem, n, ext)
         end
     end
+    if op ~= "delete" then
+        local why = linkGuard(root, dest)
+        if why then return false, why .. ": " .. linkRel(root, dest) end
+    end
 
     if dest == src then return true, nil, linkRel(root, src) end
-    if lfs.attributes(dest) then return false, "already exists: " .. linkRel(root, dest) end
-    local ok, e = os.rename(src, dest)
-    if not ok then return false, "could not move: " .. tostring(e) end
+    local case_only = false
+    if lfs.attributes(dest) then
+        if not linkSame(src, dest) then
+            return false, "already exists: " .. linkRel(root, dest)
+        elseif op == "rename" and linkCaseOnly(base, new_name) then
+            case_only = true
+        else
+            return true, nil, linkRel(root, linkOnDisk(root, dest)), "already there"
+        end
+    end
 
-    if op == "delete" then
-        linkTrashed(src, dest, is_file)
-        self:_linkRemap(src, nil, is_file)
-    else
-        linkMoved(src, dest, is_file)
+    if case_only then
+        -- One file under both names: through a temporary name, so the
+        -- filesystem (and DocSettings.updateLocation, which would write the
+        -- new sidecar into the old one and then purge it) sees two names.
+        local tmp
+        for n = 1, 50 do
+            tmp = linkParent(src) .. "/.tomesync-case-" .. n .. "-" .. base
+            if not lfs.attributes(tmp) then break end
+            tmp = nil
+        end
+        if not tmp then return false, "no free temporary name for a case-only rename" end
+        local ok, e = os.rename(src, tmp)
+        if not ok then return false, "could not rename: " .. tostring(e) end
+        linkMoved(src, tmp, is_file)
+        ok, e = os.rename(tmp, dest)
+        if not ok then
+            if os.rename(tmp, src) then linkMoved(tmp, src, is_file) end
+            return false, "could not rename: " .. tostring(e)
+        end
+        linkMoved(tmp, dest, is_file)
         self:_linkRemap(src, dest, is_file)
+        logger.info("TomeSync: link rename (case only, via " .. tmp:match("[^/]+$") .. ")", src, "->", dest)
+    else
+        local ok, e = os.rename(src, dest)
+        if not ok then return false, "could not move: " .. tostring(e) end
+        if op == "delete" then
+            linkTrashed(src, dest, is_file)
+            self:_linkRemap(src, nil, is_file)
+            pcall(function()
+                local st = linkStore()
+                local times = st:readSetting("trash") or {{}}
+                times[dest:match("[^/]+$")] = os.time()
+                st:saveSetting("trash", times)
+            end)
+            local ok2, e2 = pcall(linkTrimTrash, trash, dest:match("[^/]+$"))
+            if not ok2 then logger.warn("TomeSync: link trash trim failed:", e2) end
+        else
+            linkMoved(src, dest, is_file)
+            self:_linkRemap(src, dest, is_file)
+        end
+        logger.info("TomeSync: link", op, src, "->", dest)
     end
     touched[linkParent(src)] = true
     touched[linkParent(dest)] = true
-    logger.info("TomeSync: link", op, src, "->", dest)
     return true, nil, linkRel(root, dest)
 end
 
@@ -7034,17 +7496,23 @@ end
 -- already shows what the commands and deliveries changed.
 -- light (the poll): device-info only when 60 s old, no inbox, the tree only
 -- after a command or every 30 s, 2 s timeouts.
+-- In the reader (ReaderUI up) no tree check at all, and a light pass is the
+-- commands GET only: the reader's page turns must not wait on a tree walk.
+-- Each pass logs how long it took.
 -- Returns the poll_seconds of the last link answer (0 = do not poll) and,
 -- when 0, why (for the log).
 function TomeSync:_linkPass(light)
     if not NetworkMgr:isConnected() then return 0, "offline" end
+    local t0 = linkNow()
+    local reading = linkReading()
     local root = linkRoot()
+    linkStore()   -- the results kept from before a restart, before any command
     local link_on = not link_off.all
     local net = light and LINK_NET_LIGHT or nil
     local poll = 0
     local ran = 0
     local nowhy = nil
-    if link_on and (not light or os.time() - link_info_at >= LINK_INFO_EVERY) then
+    if link_on and (not light or (not reading and os.time() - link_info_at >= LINK_INFO_EVERY)) then
         local body, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root), net)
         if linkRouteOff(code) then
             link_off.all = true
@@ -7080,15 +7548,17 @@ function TomeSync:_linkPass(light)
             for _, cmd in ipairs(fresh) do
                 if not link_off.all then
                     local key = tostring(cmd.id)
-                    local ok, res, err, new_path = pcall(self._linkRunCommand, self, root, cmd, touched)
-                    if not ok then res, err, new_path = false, tostring(res), nil end
+                    local ok, res, err, new_path, note = pcall(self._linkRunCommand, self, root, cmd, touched)
+                    if not ok then res, err, new_path, note = false, tostring(res), nil, nil end
                     ran = ran + 1
                     logger.info("TomeSync: link command", key, tostring(cmd.op),
-                                res and "ok" or ("failed: " .. tostring(err)))
+                                res and ("ok" .. (note and (" (" .. note .. ")") or ""))
+                                or ("failed: " .. tostring(err)))
                     local result = {{
                         ok = res and true or false,
                         error = (not res) and (err or "failed") or nil,
                         new_path = res and new_path or nil,
+                        note = note,
                     }}
                     linkRemember(key, result)
                     pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
@@ -7112,13 +7582,18 @@ function TomeSync:_linkPass(light)
         end
     end
 
-    if link_on and root and not link_off.files and not link_off.all
+    if link_on and root and not reading and not link_off.files and not link_off.all
             and (not light or link_tree_dirty or os.time() - link_tree_at >= LINK_TREE_EVERY) then
         linkSendTree(root, light)
     end
+    local ms = math.floor((linkNow() - t0) * 1000 + 0.5)
     if light then
         logger.info("TomeSync: link poll pass (" .. ran .. " command(s), next in " .. poll .. " s"
-                    .. ((poll == 0 and nowhy) and (", " .. nowhy) or "") .. ")")
+                    .. ((poll == 0 and nowhy) and (", " .. nowhy) or "") .. ", "
+                    .. (reading and "reader" or "file manager") .. ", " .. ms .. " ms)")
+    else
+        logger.info("TomeSync: link pass took " .. ms .. " ms (" .. ran .. " command(s), "
+                    .. (reading and "reader" or "file manager") .. ")")
     end
     if link_off.all then return 0, "server has no link" end
     return poll, (poll == 0) and (nowhy or "server did not ask") or nil
@@ -7215,8 +7690,35 @@ function TomeSync:_linkInit()
     end
 end
 
+-- A download's final path, checked before any folder is made for it.
+-- Always: no "." / ".." part, a plain extension, no runnable name
+-- (.koplugin/.lua/.sh). guarded (inbox deliveries, which a server decides,
+-- auto-pickup included): the link's whole rule, linkGuard, under base_dir.
+-- Returns nil or why.
+local function linkDownloadRefused(base_dir, dest, ext, guarded)
+    if type(ext) ~= "string" or #ext > 16 or not ext:match("^%w[%w%.]*$") or ext:find("..", 1, true) then
+        return "bad format: " .. tostring(ext)
+    end
+    if type(base_dir) ~= "string" or type(dest) ~= "string"
+            or dest:sub(1, #base_dir + 1) ~= base_dir .. "/" then
+        return "outside the download folder"
+    end
+    local rel = dest:sub(#base_dir + 2)
+    for part in rel:gmatch("[^/]+") do
+        if part == "." or part == ".." then return "path may not contain . or .." end
+        local low = part:lower()
+        for _, sfx in ipairs(LINK_CODE_SUFFIXES) do
+            if low:sub(-#sfx) == sfx then return "refused name (" .. sfx .. "): " .. part end
+        end
+    end
+    if not guarded then return nil end
+    local base_real = linkRealpath(base_dir) or base_dir
+    return linkGuard(base_real, base_real .. "/" .. rel)
+end
+
 TomeSync._linkAutoDeliver = autoDeliver
 TomeSync._linkStopPoll = linkStopPoll
+TomeSync._linkDownloadRefused = linkDownloadRefused
 end
 -- Edit the custom download-path template in an input dialog. Validates by
 -- rendering a sample book before saving, so an unknown token is rejected here

@@ -113,7 +113,9 @@ assert(P({ poll_seconds = math.huge }) == 0, "inf")
 assert(P({ { id = 1 } }) == 0, "a bare list")
 assert(P({ poll_seconds = 5 }) == 5, "five")
 assert(P({ poll_seconds = 5.9 }) == 5, "floored")
-assert(P({ poll_seconds = 0.5 }) == 2, "at least 2")
+assert(P({ poll_seconds = 0.5 }) == 5, "at least 5")
+assert(P({ poll_seconds = 2 }) == 5, "2 is floored to 5")
+assert(P({ poll_seconds = 7 }) == 7, "seven")
 assert(P({ poll_seconds = 1e9 }) == 3600, "at most an hour")
 assert(P({ commands = {}, poll_seconds = 5 }) == 5, "commands answer")
 print("ok")
@@ -227,3 +229,92 @@ def test_no_pin_leaves_tls_untouched():
     body = body[:body.index("\nend\n")]
     assert 'if not pin then return nil end' in body
     assert 'match("^https://") then return nil end' in body
+
+
+# Step seven: the refusal rules (a server must not be able to plant code on the
+# device), case-insensitive storage, and the pin log. The pure parts run here;
+# the identity checks (dev+ino, KOReader's folders) are proved in the emulator.
+
+def _linkguard_block() -> str:
+    lua = _main_impl_lua("http://tome.test", "key", "user")
+    start = lua.index("-- TOMESYNC_LINKGUARD_BEGIN")
+    end = lua.index("-- TOMESYNC_LINKGUARD_END")
+    return lua[start:end]
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_refused_names(tmp_path):
+    _run_lua(tmp_path, "guard.lua", _linkguard_block() + r'''
+local P = linkPathRefused
+local function refused(rel) return P(rel) ~= nil end
+-- dot parts: hidden folders (Kobo's .adds holds KOReader), anywhere in the path
+assert(refused(".adds/x"), ".adds")
+assert(refused("books/.adds/koreader/patches"), "dot part deep")
+assert(refused(".hidden.epub"), "dot file")
+assert(refused("a/../b") and refused("./a"), ". and ..")
+-- runnable names, any case, any part
+assert(refused("x.koplugin"), "koplugin")
+assert(refused("plugins/evil.KOPLUGIN/main.lua"), "koplugin folder, any case")
+assert(refused("x.lua") and refused("X.LUA"), "lua")
+assert(refused("a/b/run.sh"), "sh")
+assert(refused("dir.lua/book.epub"), "a folder named .lua")
+-- the trash, in any case
+assert(P(".tomesync-trash/x") == "path is inside the trash", P(".tomesync-trash/x"))
+assert(P(".TomeSync-Trash/x") == "path is inside the trash", "trash, other case")
+assert(P(".TOMESYNC-TRASH/y") == "path is inside the trash", "trash, upper case")
+-- what stays allowed
+assert(P("book/Series/Vol. 1.epub") == nil, "normal book")
+assert(P("koreader/patches") == nil, "by name only: koreader/ is refused by identity, not here")
+assert(P("lua guide.epub") == nil and P("notes.lua.epub") == nil, "lua not at the end")
+assert(P("a.shx") == nil, "not .sh")
+assert(linkPartRefused("") ~= nil, "empty name")
+-- KOReader's folders by name, ignoring case
+assert(linkUnderNoCase("/mnt/us/koreader/patches", "/mnt/us/koreader"), "under")
+assert(linkUnderNoCase("/mnt/us/KOReader", "/mnt/us/koreader"), "equal, other case")
+assert(not linkUnderNoCase("/mnt/us/koreader2/x", "/mnt/us/koreader"), "a sibling with a longer name")
+assert(not linkUnderNoCase("/mnt/us/documents", "/mnt/us/koreader"), "elsewhere")
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_case_only_rename_decision_and_stored_spelling(tmp_path):
+    _run_lua(tmp_path, "case.lua", _linkguard_block() + r'''
+assert(linkCaseOnly("Foo.epub", "foo.epub"), "case only")
+assert(not linkCaseOnly("Foo.epub", "Foo.epub"), "same name is not a rename")
+assert(not linkCaseOnly("Foo.epub", "Bar.epub"), "a real rename")
+assert(not linkCaseOnly("Foo.epub", nil), "no new name")
+local stored = {
+  "/mnt/us/books/Foo.epub", "/mnt/us/books/Other.epub",
+  "/mnt/us/Books/Series/A.epub", "/mnt/us/books/series/B.epub", "/mnt/us/books/Foo.epub",
+}
+local s = linkStoredSpellings(stored, "/mnt/us/books/foo.epub", false)
+assert(#s == 1 and s[1] == "/mnt/us/books/Foo.epub", "the stored spelling, once")
+assert(#linkStoredSpellings(stored, "/mnt/us/books/none.epub", false) == 0, "nothing stored")
+local d = linkStoredSpellings(stored, "/mnt/us/books/series/", true)
+assert(#d == 2 and d[1] == "/mnt/us/Books/Series/" and d[2] == "/mnt/us/books/series/", "both folder spellings")
+assert(#linkStoredSpellings(stored, "/mnt/us/books/ser/", true) == 0, "a prefix of a name is not the folder")
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_pin_mismatch_log_shows_both_ends(tmp_path):
+    hexfp = "146b389a234cb66cde7f96446afb3996a023ae06a05747d4871c9918774ddf9e"
+    tail = hexfp[:-2] + "9f"
+    _run_lua(tmp_path, "edge.lua", _pin_block() + f'''
+local a, b = edgeFingerprint("{hexfp}"), edgeFingerprint("{tail}")
+assert(a == "14:6B:38:9A..77:4D:DF:9E", a)
+assert(b == "14:6B:38:9A..77:4D:DF:9F", b)
+assert(a ~= b, "a tail-only difference shows")
+assert(edgeFingerprint("junk") == "?", "junk")
+print("ok")
+''')
+
+
+def test_download_and_delivered_hardening_in_render():
+    lua = _main_impl_lua("http://tome.test", "key", "user")
+    assert '"/tome-sync/inbox/" .. urlEncode(tostring(item.id)) .. "/delivered"' in lua
+    assert "local API_BODY_MAX = 8 * 1024 * 1024" in lua
+    assert "TomeSync._linkDownloadRefused(base_dir, dest, ext, guarded)" in lua
+    assert "LINK_TRASH_MAX_BYTES = 200 * 1024 * 1024" in lua and "LINK_TRASH_MAX_ITEMS = 50" in lua
