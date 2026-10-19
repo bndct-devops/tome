@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-10-19
+
 ### Fixed
 - **Downloading a single book without a book type no longer crashes
   KOReader.** Tapping one such book in the TomeSync series browser, or
