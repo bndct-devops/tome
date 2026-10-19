@@ -6597,6 +6597,32 @@ local function linkRefreshBrowser(root, touched)
     if touched["*"] or touched[shown] then pcall(fc.refreshPath, fc) end
 end
 
+-- TOMESYNC_LINKCMD_BEGIN (pure: no requires, no I/O; extracted and run under
+-- luajit by tests/test_tomesync_reader_link.py)
+-- The commands a GET /tome-sync/commands reply really holds. Only a JSON
+-- array (or {{commands = [...]}}) of {{id, op, args}} with a known op counts;
+-- anything else is no commands at all, so it can never cause a result POST.
+-- Released Tomes answer unknown GETs under /api with 200 + the web app's HTML,
+-- which apiRequest hands back as {{}} (body not JSON): that is "nothing".
+local LINK_OPS = {{ rename = true, move = true, delete = true, mkdir = true, refresh = true }}
+local function linkParseCommands(body)
+    if type(body) ~= "table" then return {{}} end
+    local list = body
+    if type(body.commands) == "table" then list = body.commands end
+    local out = {{}}
+    for i, cmd in ipairs(list) do
+        if i > 200 then break end
+        if type(cmd) == "table"
+                and (type(cmd.id) == "number" or (type(cmd.id) == "string" and cmd.id:match("^[%w%-_]+$")))
+                and type(cmd.op) == "string" and LINK_OPS[cmd.op]
+                and (cmd.args == nil or type(cmd.args) == "table") then
+            table.insert(out, cmd)
+        end
+    end
+    return out
+end
+-- TOMESYNC_LINKCMD_END
+
 -- One command. Returns ok, error, new_path (relative). Raises nothing the
 -- caller does not pcall.
 function TomeSync:_linkRunCommand(root, cmd, touched)
@@ -6731,11 +6757,10 @@ function TomeSync:_linkPass()
         local list, code = apiRequest("GET", "/tome-sync/commands")
         if linkRouteOff(code) then
             link_off.commands = true
-        elseif type(list) == "table" then
-            local cmds = (type(list.commands) == "table") and list.commands or list
+        elseif type(code) == "number" and code >= 200 and code < 300 then
             local touched, ran = {{}}, 0
-            for _, cmd in ipairs(cmds) do
-                if type(cmd) == "table" and cmd.id ~= nil then
+            for _, cmd in ipairs(linkParseCommands(list)) do
+                if not link_off.all then
                     local ok, res, err, new_path = pcall(self._linkRunCommand, self, root, cmd, touched)
                     if not ok then res, err, new_path = false, tostring(res), nil end
                     ran = ran + 1
@@ -6760,7 +6785,7 @@ function TomeSync:_linkPass()
         end
     end
 
-    if link_on and root and not link_off.files then
+    if link_on and root and not link_off.files and not link_off.all then
         local entries, truncated = linkFileTree(root)
         local _, code = apiRequest("PUT", "/tome-sync/files", {{
             device    = deviceName(),
