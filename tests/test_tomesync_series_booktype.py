@@ -78,10 +78,13 @@ def test_real_series_reports_per_book_type_and_legacy_top_level(db, client, admi
     assert all(b["book_type"] == "manga" for b in data["books"])
 
 
-def test_book_without_type_reports_null(db, client, admin_user, make_book):
-    """A standalone book with no assigned type reports book_type: null (the
-    plugin falls back to its batch type / 'book')."""
+def test_untyped_standalone_reports_book(db, client, admin_user, make_book):
+    """A standalone with no type reports "book", never null (issue #259: null
+    crashed single-book downloads) and never the bucket's first book's type."""
     user, _ = admin_user
+    ln = _book_type(db, "light_novel", "Light Novels", 1)
+    first = make_book(title="Apex Predator", series=None)
+    first.book_type_id = ln.id
     typeless = make_book(title="Orphan Title", series=None)
     db.flush()
 
@@ -89,4 +92,34 @@ def test_book_without_type_reports_null(db, client, admin_user, make_book):
     resp = client.get(f"/api/tome-sync/series/{typeless.id}", headers=hdr)
     assert resp.status_code == 200
     book = next(b for b in resp.json()["books"] if b["title"] == "Orphan Title")
-    assert book["book_type"] is None
+    assert book["book_type"] == "book"
+
+
+def test_untyped_volume_reports_its_series_type(db, client, admin_user, make_book):
+    """An untyped volume of a typed series reports the series type, so a
+    single-volume download files next to its siblings."""
+    user, _ = admin_user
+    manga = _book_type(db, "manga", "Manga", 1)
+    v1 = make_book(title="Vol 1", series="Ink Tide", series_index=1)
+    v1.book_type_id = manga.id
+    make_book(title="Vol 2", series="Ink Tide", series_index=2)
+    db.flush()
+
+    hdr = {"Authorization": f"Bearer {_api_key_for(db, user.id)}"}
+    resp = client.get(f"/api/tome-sync/series/{v1.id}", headers=hdr)
+    assert resp.status_code == 200
+    assert [b["book_type"] for b in resp.json()["books"]] == ["manga", "manga"]
+
+
+def test_untyped_book_in_author_and_search_lists_reports_book(db, client, admin_user, make_book):
+    """The mixed lists (author, search) have no series type to borrow."""
+    user, _ = admin_user
+    make_book(title="Orphan Title", author="Quill Marrow", series=None)
+    db.flush()
+
+    hdr = {"Authorization": f"Bearer {_api_key_for(db, user.id)}"}
+    by_author = client.get("/api/tome-sync/author-books", params={"author": "Quill Marrow"}, headers=hdr)
+    search = client.get("/api/tome-sync/search", params={"q": "Orphan"}, headers=hdr)
+    for resp in (by_author, search):
+        assert resp.status_code == 200, resp.text
+        assert [b["book_type"] for b in resp.json()["books"]] == ["book"]

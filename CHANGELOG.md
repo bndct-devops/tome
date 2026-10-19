@@ -6,6 +6,17 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **Downloading a single book without a book type no longer crashes
+  KOReader.** Tapping one such book in the TomeSync series browser, or
+  downloading from an author or search list, crashed the reader (and on a
+  Kindle lost unsaved settings such as a fresh sign-in). Tome now sends a
+  type for every book: the series' type for a volume of a series, "book"
+  otherwise, so plugins already on devices are fixed by updating Tome. The
+  plugin also ignores a missing type itself. An untyped volume downloads
+  into the same folder as the rest of its series. Plugin build 51.
+  Reported by @kastro5. (#259)
+
 ## [2.7.0] - 2026-10-17 - "Catalogue"
 
 ### Added
