@@ -250,5 +250,8 @@ def test_build_bumped_for_rebake():
     # 1.19.0 / build 50: device inventory (the books on the device, for
     # "On <device>" pills and filters).
     # 1.20.0 / build 51: the AI branch (48) merged with main's 49 and 50.
-    assert TOMESYNC_PLUGIN_BUILD >= 51
-    assert TOMESYNC_PLUGIN_SEMVER == "1.20.0"
+    # 1.19.1 / build 51 on main (v2.7.1, issue #259): a null book_type no
+    # longer crashes a single-book or author/search-list download.
+    # 1.20.1 / build 52: the AI branch's 51 merged with main's 51.
+    assert TOMESYNC_PLUGIN_BUILD >= 52
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.1"

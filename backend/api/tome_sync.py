@@ -126,11 +126,11 @@ logger = logging.getLogger(__name__)
 # /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
 # seconds after the book map changes; the server replaces the device's list,
 # so deletes drop out on the next push. Powers "On <device>" in web and app.
-# BUILD 51: feat/ai-provider (build 48, reading companion offline) merged with
-# main's 49 (network resilience) and 50 (device inventory): one build newer
-# than both lines, so devices on 48 and on 49/50 all see it as an update.
-TOMESYNC_PLUGIN_BUILD = 51
-TOMESYNC_PLUGIN_SEMVER = "1.20.0"
+# BUILD 52: feat/ai-provider's 51 (reading companion offline, merged with
+# main's 49 and 50) merged with main's 51 (v2.7.1, null book_type, #259): one
+# build newer than both lines, so devices on either 51 see it as an update.
+TOMESYNC_PLUGIN_BUILD = 52
+TOMESYNC_PLUGIN_SEMVER = "1.20.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -986,15 +986,17 @@ def _status_map(db: Session, user_id: int, book_ids: list[int]) -> dict[int, str
     return {bid: status for bid, status in rows if status}
 
 
-def _book_entry(b: Book, status_map: dict[int, str]) -> dict:
+def _book_entry(b: Book, status_map: dict[int, str], default_type: str = "book") -> dict:
     """The book shape the plugin's volume-list menus consume. `series` and
-    `status` are additive (build 33+); older plugins ignore them."""
+    `status` are additive (build 33+); older plugins ignore them. A book with
+    no type reports `default_type`, never null: plugins up to build 50 crash
+    filing a single-book download on null (issue #259)."""
     entry = {
         "id": b.id,
         "title": b.title,
         "series_index": b.series_index,
         "author": b.author,
-        "book_type": b.book_type.slug if b.book_type else None,
+        "book_type": b.book_type.slug if b.book_type else default_type,
         "status": status_map.get(b.id, "unread"),
         "files": [
             {"id": f.id, "format": f.format, "file_size": f.file_size}
@@ -1506,12 +1508,15 @@ def get_series_books(
     # books of mixed types — so each book also carries its own `book_type`
     # below, which newer plugins prefer when filing downloads.
     book_type_slug = books[0].book_type.slug if books and books[0].book_type else "book"
+    # An untyped volume of a real series files with its siblings; an untyped
+    # standalone in the bucket files under "book", not the first book's type.
+    untyped = book_type_slug if book.series else "book"
 
     smap = _status_map(db, user.id, [b.id for b in books])
     return {
         "series_name": series_name,
         "book_type": book_type_slug,
-        "books": [_book_entry(b, smap) for b in books],
+        "books": [_book_entry(b, smap, untyped) for b in books],
     }
 
 
@@ -2567,6 +2572,13 @@ end
 local function jval(v)
     if v == nil or v == rapidjson.null then return nil end
     return v
+end
+
+-- A non-empty string, else nil. JSON null is a truthy userdata, so `a or b`
+-- alone lets a null win over a real fallback (issue #259).
+local function jstr(v)
+    if type(v) == "string" and v ~= "" then return v end
+    return nil
 end
 
 -- Device identity as reported to Tome: the label on live sessions and imported
@@ -5027,9 +5039,9 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                 -- Per-book type (server >= build 24); fall back to the batch
                 -- type for older servers. This is what fixes mixed-type No
                 -- Series downloads landing in the wrong folder (issue #88).
-                local effective_type = (type(book.book_type) == "string"
-                                        and book.book_type ~= "" and book.book_type)
-                                        or book_type or "book"
+                -- Both are checked: mixed-list downloads pass the per-book
+                -- value, possibly null, as the batch type (issue #259).
+                local effective_type = jstr(book.book_type) or jstr(book_type) or "book"
                 local dest
                 if template ~= "" then
                     local rel = renderDownloadPath(template, {{
@@ -5259,7 +5271,7 @@ function TomeSync:_downloadListBooks(data, book)
     end
     if book then
         self:_downloadSeriesBooks(seriesOf(book), {{ book }}, nil,
-                                  book.book_type or data.book_type)
+                                  jstr(book.book_type) or jstr(data.book_type))
         return
     end
     if data.series_name then

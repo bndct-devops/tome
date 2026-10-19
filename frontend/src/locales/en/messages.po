@@ -9102,6 +9102,10 @@ msgstr "Test email sent successfully."
 msgid "Th"
 msgstr "Th"
 
+#: src/pages/SettingsPage.tsx
+msgid "Thank you to everyone who supports Tome"
+msgstr "Thank you to everyone who supports Tome"
+
 #: src/pages/StatsPage.tsx
 msgid "That file is not a Tome board export."
 msgstr "That file is not a Tome board export."

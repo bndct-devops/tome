@@ -9102,6 +9102,10 @@ msgstr ""
 msgid "Th"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Thank you to everyone who supports Tome"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "That file is not a Tome board export."
 msgstr ""
