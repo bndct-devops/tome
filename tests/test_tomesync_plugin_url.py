@@ -53,18 +53,20 @@ def app_client(db: Session):
     app.dependency_overrides.clear()
 
 
-def _baked_url(impl_text: str) -> str:
-    m = re.search(r'local DEFAULT_SERVER_URL\s*=\s*"([^"]+)"', impl_text)
-    assert m, "DEFAULT_SERVER_URL not found in baked impl"
+def _baked_url(config_text: str) -> str:
+    # Build 54+: the URL lives in config.lua, not in the impl.
+    m = re.search(r'^SERVER_URL\s*=\s*"([^"]+)"', config_text, re.M)
+    assert m, "SERVER_URL not found in config.lua"
     return m.group(1)
 
 
 def _impl_via_self_update(c: TestClient, token: str, **kwargs) -> str:
-    """Mint a key, hit /plugin/main-impl.lua, return the baked impl text."""
+    """Mint a key, hit /plugin/config.lua (what an install without a
+    config.lua fetches during self-update), return the config text."""
     rk = c.post("/api/plugin/api-keys", json={"label": "KO"},
                 headers={"Authorization": f"Bearer {token}"})
     key = rk.json()["key"]
-    r = c.get("/api/plugin/main-impl.lua",
+    r = c.get("/api/plugin/config.lua",
               headers={"Authorization": f"Bearer {key}", **kwargs.get("headers", {})},
               params=kwargs.get("params"))
     assert r.status_code == 200, r.text
@@ -135,8 +137,8 @@ def test_zip_download_bakes_https_with_forwarded_proto(app_client):
               headers={"Authorization": f"Bearer {token}", "X-Forwarded-Proto": "https"})
     assert r.status_code == 200
     zf = zipfile.ZipFile(io.BytesIO(r.content))
-    impl = zf.read("tomesync.koplugin/main_impl.lua").decode()
-    assert _baked_url(impl) == "https://testserver"
+    config = zf.read("tomesync.koplugin/config.lua").decode()
+    assert _baked_url(config) == "https://testserver"
 
 
 # ── Release guard: the build MUST be bumped or devices won't re-bake ──────────

@@ -1,0 +1,12 @@
+-- TomeSync connection. Self-update never replaces this file.
+-- Copy to config.lua beside main.lua (Tome's zip download and
+-- tools/bake-tomesync.py write it for you). Every value is optional; without
+-- a config.lua the plugin starts unconfigured and asks to sign in with a code.
+SERVER_URL = "https://tome.example.org"
+API_KEY = "tk_..."
+USERNAME = "reader"
+-- Download the Send-to-KOReader inbox automatically (Settings can change it).
+AUTO_DELIVER = false
+-- SHA-256 of the server's TLS certificate (AB:CD:.. or hex), pinned for an
+-- https SERVER_URL. Empty = ordinary certificate checks.
+SERVER_FINGERPRINT = ""

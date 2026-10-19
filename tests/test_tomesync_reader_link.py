@@ -6,10 +6,18 @@ reader link turns it on, and both renders are valid Lua.
 """
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from backend.api.tome_sync import TOMESYNC_PLUGIN_BUILD, _main_impl_lua
+from backend.api.tome_sync import TOMESYNC_PLUGIN_BUILD, _config_lua, _main_impl_lua
+
+# The plugin's Lua is a file since build 54; blocks are read from it directly.
+IMPL_PATH = Path(__file__).resolve().parent.parent / "backend" / "tomesync.koplugin" / "main_impl.lua"
+
+
+def _impl() -> str:
+    return IMPL_PATH.read_text(encoding="utf-8")
 
 
 def test_build_is_53_or_later():
@@ -17,13 +25,12 @@ def test_build_is_53_or_later():
 
 
 def test_auto_deliver_defaults_off():
-    lua = _main_impl_lua("http://tome.test", "key", "user")
-    assert "local DEFAULT_AUTO_DELIVER = false" in lua
+    assert "AUTO_DELIVER = false\n" in _config_lua("http://tome.test", "key", "user")
+    assert "local DEFAULT_AUTO_DELIVER = PLUGIN_CONFIG.AUTO_DELIVER == true" in _impl()
 
 
 def test_auto_deliver_baked_on():
-    lua = _main_impl_lua("http://tome.test", "key", "user", auto_deliver=True)
-    assert "local DEFAULT_AUTO_DELIVER = true" in lua
+    assert "AUTO_DELIVER = true\n" in _config_lua("http://tome.test", "key", "user", auto_deliver=True)
 
 
 def test_reader_link_routes_present():
@@ -38,15 +45,18 @@ def test_reader_link_routes_present():
 @pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
 @pytest.mark.parametrize("auto", [False, True])
 def test_renders_compile(tmp_path, auto):
-    path = tmp_path / "main_impl.lua"
-    path.write_text(_main_impl_lua("http://tome.test", "key", "user", auto_deliver=auto))
-    out = subprocess.run(["luajit", "-e", f"assert(loadfile('{path}'))"],
-                         capture_output=True, text=True)
-    assert out.returncode == 0, out.stderr
+    impl = tmp_path / "main_impl.lua"
+    impl.write_text(_main_impl_lua())
+    config = tmp_path / "config.lua"
+    config.write_text(_config_lua("http://tome.test", "key", "user", auto_deliver=auto))
+    for path in (impl, config):
+        out = subprocess.run(["luajit", "-e", f"assert(loadfile('{path}'))"],
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
 
 
 def _linkcmd_block() -> str:
-    lua = _main_impl_lua("http://tome.test", "key", "user")
+    lua = _impl()
     start = lua.index("-- TOMESYNC_LINKCMD_BEGIN")
     end = lua.index("-- TOMESYNC_LINKCMD_END")
     return lua[start:end]
@@ -80,7 +90,7 @@ print("ok")
 
 
 def _linkpoll_block() -> str:
-    lua = _main_impl_lua("http://tome.test", "key", "user")
+    lua = _impl()
     start = lua.index("-- TOMESYNC_LINKPOLL_BEGIN")
     end = lua.index("-- TOMESYNC_LINKPOLL_END")
     return lua[start:end]
@@ -180,16 +190,16 @@ print("ok")
 # handshake itself is proved against the app's listener in the emulator.
 
 def _pin_block(fp: str = "") -> str:
-    lua = _main_impl_lua("https://tome.test", "key", "user", server_fingerprint=fp)
+    lua = _impl()
     start = lua.index("-- TOMESYNC_PIN_BEGIN")
     end = lua.index("-- TOMESYNC_PIN_END")
     return lua[start:end]
 
 
 def test_fingerprint_bake_defaults_empty_and_is_sanitised():
-    assert 'local SERVER_FINGERPRINT = ""' in _main_impl_lua("http://tome.test", "key", "user")
-    lua = _main_impl_lua("https://x", "k", "u", server_fingerprint='AB:cd"; os.exit() --')
-    assert 'local SERVER_FINGERPRINT = "AB:cde"' in lua  # hex and colons only
+    assert 'SERVER_FINGERPRINT = ""\n' in _config_lua("http://tome.test", "key", "user")
+    lua = _config_lua("https://x", "k", "u", server_fingerprint='AB:cd"; os.exit() --')
+    assert 'SERVER_FINGERPRINT = "AB:cde"\n' in lua  # hex and colons only
 
 
 @pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
@@ -236,7 +246,7 @@ def test_no_pin_leaves_tls_untouched():
 # the identity checks (dev+ino, KOReader's folders) are proved in the emulator.
 
 def _linkguard_block() -> str:
-    lua = _main_impl_lua("http://tome.test", "key", "user")
+    lua = _impl()
     start = lua.index("-- TOMESYNC_LINKGUARD_BEGIN")
     end = lua.index("-- TOMESYNC_LINKGUARD_END")
     return lua[start:end]

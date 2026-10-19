@@ -11,6 +11,15 @@ All notable changes to Tome are documented here. Format loosely follows
   sponsor Tome on GitHub Sponsors. The repo also shows a Sponsor button.
   Sponsoring is a thank-you; nothing in Tome is locked behind it.
 
+### Changed
+- **The KOReader plugin keeps its connection in its own file.** The TomeSync
+  download now holds four files: the plugin itself is the same for everyone,
+  and `config.lua` holds the server address, key and user name it starts
+  with. Updates replace the plugin and never touch `config.lua`. A device on
+  an older build moves its connection into `config.lua` by itself on its
+  first start after the update; nothing to re-download, and the server URL
+  and key set in TomeSync's settings still win. Plugin build 54.
+
 ### Fixed
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
   new pairing (Sign in with code), a changed server URL and a connection
