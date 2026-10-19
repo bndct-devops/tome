@@ -45,6 +45,7 @@ from backend.api import sync_code as sync_code_api
 from backend.api import device_books as device_books_api
 from backend.api import hardcover as hardcover_api
 from backend.api import ai as ai_api
+from backend.api import platform as platform_api
 from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
@@ -65,6 +66,7 @@ from backend.models.ai_entity import AIEntity, AIEntityNote  # noqa: F401
 from backend.models.ai_recap import AIRecap  # noqa: F401
 from backend.models.ai_job import AIJob  # noqa: F401
 from backend.models.ai_reconcile_verdict import AIReconcileVerdict  # noqa: F401
+from backend.models.platform import PlatformCoverSent, PlatformLink  # noqa: F401
 
 
 @asynccontextmanager
@@ -514,10 +516,16 @@ async def lifespan(app: FastAPI):
         from backend.services.hardcover_sync import hardcover_sync_loop
         hardcover_task = asyncio.create_task(hardcover_sync_loop())
 
+    # Nightlamp pushes (TOME_PLATFORM_URL). Unset = no loop at all.
+    platform_task: asyncio.Task | None = None
+    if settings.platform_url:
+        from backend.services.platform_push import platform_loop
+        platform_task = asyncio.create_task(platform_loop())
+
     yield
 
     # Shutdown: cancel the background tasks cleanly
-    for task in (auto_import_task, release_task, hardcover_task, telemetry_task):
+    for task in (auto_import_task, release_task, hardcover_task, telemetry_task, platform_task):
         if task is not None:
             task.cancel()
             try:
@@ -682,6 +690,7 @@ def create_app() -> FastAPI:
     app.include_router(sync_code_api.router, prefix="/api")
     app.include_router(device_books_api.router, prefix="/api")
     app.include_router(ai_api.router, prefix="/api")
+    app.include_router(platform_api.router, prefix="/api")
     # Every AI failure (refusal, provider down, no key, feature off) is a typed
     # exception from backend/services/ai; one handler maps them to status codes
     # so feature endpoints never repeat the mapping.

@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     # never returned by the API.
     anthropic_api_key: str | None = None
 
+    # Nightlamp link (env TOME_PLATFORM_URL): the base URL of the Nightlamp
+    # service users may link to, e.g. "https://nightlamp.example". Unset = the
+    # feature does not exist (no Settings section, no API routes, no jobs).
+    # Only daily reading totals leave the server; titles only per user opt-in.
+    platform_url: str | None = None
+    # Display name of that service in the UI (env TOME_PLATFORM_NAME).
+    platform_name: str = "Nightlamp"
+
     # SMTP (send-to-device)
     smtp_host: str | None = None
     smtp_port: int = 587
