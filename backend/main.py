@@ -416,6 +416,9 @@ async def lifespan(app: FastAPI):
         if "hardcover_slug" not in cols:
             conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_slug VARCHAR(255)"))
             conn.commit()
+        if "hardcover_editions_checked_at" not in cols:
+            conn.execute(text("ALTER TABLE books ADD COLUMN hardcover_editions_checked_at DATETIME"))
+            conn.commit()
         ubs_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(user_book_status)")).fetchall()}
         if ubs_cols and "hardcover_user_book_id" not in ubs_cols:
             conn.execute(text("ALTER TABLE user_book_status ADD COLUMN hardcover_user_book_id INTEGER"))

@@ -57,6 +57,11 @@ class Book(Base):
     # The matched record's URL slug — lets the UI link to hardcover.app/books/{slug}
     # so users can AUDIT what their books matched to and re-match wrong ones.
     hardcover_slug: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # When the sync last checked the stored ISBN against the matched Hardcover
+    # book's editions (hardcover_sync editions check: an audiobook edition's
+    # ISBN is replaced, a missing one filled). NULL = not checked yet; any ISBN
+    # change resets it, and a check older than hardcover_matched_at is stale.
+    hardcover_editions_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     cover_path: Mapped[Optional[str]] = mapped_column(Text)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     book_type_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("book_types.id"), nullable=True)
@@ -105,6 +110,9 @@ def _isbn_changed(target: Book, value, oldvalue, initiator) -> None:
     (ISBN first, which pins the new edition)."""
     if oldvalue in (NO_VALUE, NEVER_SET) or _isbn_key(value) == _isbn_key(oldvalue):
         return
+    if getattr(target, "_keep_hardcover_match", False):
+        return  # the Hardcover sync correcting the book it matched
+    target.hardcover_editions_checked_at = None
     if target.hardcover_match_method not in HARDCOVER_AUTO_METHODS:
         return
     target.hardcover_book_id = None

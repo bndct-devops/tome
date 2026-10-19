@@ -495,13 +495,12 @@ def apply_series_cleanup(
         db.rollback()
         editions = {"checked": 0, "isbns_fixed": []}
     result["isbns_fixed"] = editions["isbns_fixed"]
-    if editions["isbns_fixed"]:
-        audit(db, "series.editions_fixed", user_id=current_user.id,
-              username=current_user.username, resource_type="series",
-              resource_title=result["series_name"],
-              details={"checked": editions["checked"], "via": "series_cleanup",
-                       "isbns_fixed": [{k: f[k] for k in ("book_id", "from", "to")}
-                                       for f in editions["isbns_fixed"]]},
+    for f in editions["isbns_fixed"]:
+        audit(db, "books.isbn_corrected", user_id=current_user.id,
+              username=current_user.username, resource_type="book",
+              resource_id=f["book_id"], resource_title=f["title"],
+              details={"from": f["from"], "to": f["to"], "reason": f["reason"],
+                       "via": "series_cleanup"},
               ip=_ip(request))
     return result
 

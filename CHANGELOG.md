@@ -287,14 +287,19 @@ All notable changes to Tome are documented here. Format loosely follows
   with only audiobook editions gets no ISBN. The Hardcover sync picks its
   pinned edition by the same rule. Applying a candidate, the AI fix and
   auto-import refuse an ISBN known to be an audiobook edition, and changing a
-  book's ISBN makes the Hardcover sync match it again on its next run.
-- **Series cleanup corrects wrong-edition ISBNs.** After "Clean up with AI"
-  applies, every volume of the series without an ISBN, or with an audiobook
-  edition's ISBN, gets the ISBN of a matching text edition (publisher and
-  year too where they are empty), and the result line says how many were
-  corrected. The same check runs on its own with the new "Fix editions"
-  button in Manage Series, which needs no AI key; members fix the books they
-  uploaded, admins any book. Each run is written to the audit log.
+  book's ISBN by hand makes the Hardcover sync match it again on its next run.
+- **Wrong-edition ISBNs already in the library are corrected automatically.**
+  The Hardcover sync now checks each matched book once against the matched
+  book's editions: an audiobook edition's ISBN is replaced by the ebook or
+  print edition's (by the same rule as the fetch), and a book without an ISBN
+  gets one, with the publisher filled in where it is empty. The book stays
+  matched while this happens, a book you excluded from the sync is left
+  alone, and a book you matched by hand keeps your choice of record but still
+  loses an audiobook ISBN. The check runs in the background with every sync,
+  a hundred books at most each time, from what is left of the request budget.
+  "Clean up with AI" in Manage Series runs the same correction over the
+  series after it applies and says how many ISBNs it corrected. Every
+  correction is written to the audit log with the old and new ISBN.
 
 ## [2.7.0] - 2026-10-17 - "Catalogue"
 

@@ -11,12 +11,20 @@ catalogues, its pages are missing, and every lookup keyed on it goes wrong.
 agree: never audio, the book's language first (English when unknown), then
 ebook, then physical, then the edition most people use.
 
+``decide_isbn`` is the one rule for repairing a stored ISBN from a Hardcover
+book's editions, used by the Hardcover sync's editions check
+(``hardcover_sync``) and the pass after an AI series cleanup
+(``series_editions``): an ISBN known to be an audiobook edition's is replaced
+by the picked edition's (or removed when the book has no other edition with
+an ISBN), a missing one is filled, any other stays.
+
 ``note_editions`` remembers audiobook ISBNs seen while fetching, so a write
 path can refuse one without a network call (``is_known_audio``).
 """
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Iterable, Optional
 
 # Hardcover reading_format_id values.
@@ -114,6 +122,65 @@ def pick_edition(
         and (not require_isbn or edition_isbn(e))
     ]
     return max(usable, key=score) if usable else None
+
+
+# ── the ISBN repair rule ─────────────────────────────────────────────────────
+
+@dataclass
+class IsbnFix:
+    """What ``decide_isbn`` wants written: ``isbn`` None removes the stored
+    one. ``reason`` is ``audiobook`` (the stored ISBN is an audiobook
+    edition's) or ``missing`` (there was none)."""
+    isbn: Optional[str]
+    edition: Optional[dict]
+    reason: str
+
+
+def isbn_format(isbn: Optional[str], editions: Iterable[dict]) -> Optional[str]:
+    """The format of the edition in ``editions`` that carries ``isbn``
+    (``audiobook`` also when the ISBN is known to be one), or None when
+    unknown."""
+    key = normalize_isbn(isbn)
+    if not key:
+        return None
+    forms = _forms(key)
+    for ed in editions:
+        if not isinstance(ed, dict):
+            continue
+        for field in ("isbn_13", "isbn_10"):
+            val = normalize_isbn(ed.get(field))
+            if val and _forms(val) & forms:
+                return edition_format(ed)
+    return "audiobook" if is_known_audio(key) else None
+
+
+def decide_isbn(
+    isbn: Optional[str],
+    editions: Iterable[dict],
+    *,
+    language: Optional[str] = None,
+    fill_missing: bool = True,
+) -> Optional[IsbnFix]:
+    """Given a book's stored ISBN and its Hardcover editions, the ISBN it
+    should have, or None to leave it. An ISBN that is not known to be an
+    audiobook edition's always stays (Tome never second-guesses one it cannot
+    prove wrong). ``fill_missing`` False leaves a missing ISBN missing."""
+    editions = [e for e in editions if isinstance(e, dict)]
+    note_editions(editions)
+    if normalize_isbn(isbn):
+        if isbn_format(isbn, editions) != "audiobook":
+            return None
+        reason = "audiobook"
+    elif fill_missing:
+        reason = "missing"
+    else:
+        return None
+    ed = pick_edition(editions, language=language, require_isbn=True)
+    if ed is not None:
+        return IsbnFix(edition_isbn(ed), ed, reason)
+    if reason == "audiobook":
+        return IsbnFix(None, None, reason)   # known wrong, nothing better
+    return None
 
 
 # ── ISBN helpers ──────────────────────────────────────────────────────────────

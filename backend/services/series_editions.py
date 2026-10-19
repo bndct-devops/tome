@@ -1,19 +1,20 @@
-"""Fix editions: give every volume of a series the ISBN of a text edition.
+"""The editions pass after an AI series cleanup: give every volume of the
+series the ISBN of a text edition.
 
-A volume needs a fix when it has no ISBN, or when its stored ISBN is an
-audiobook edition (one Hardcover ``EditionByIsbn`` lookup per stored ISBN,
-cached for the run; ISBNs the metadata fetch already saw as audiobooks need no
-lookup). For each such volume the metadata fetch runs on its title, author,
-series and volume number; the first candidate that agrees with the volume
-(``identity_match.agrees``) and carries an ISBN that is not an audiobook
-edition's supplies the ISBN, plus publisher and year where the book has none.
-Writes go through ``book_updates.write_isbn`` (the same guard as every other
-write path). A volume with an audiobook ISBN and no agreeing candidate has the
-ISBN removed: it is known to be wrong, and every lookup keyed on it fails.
+The rule is the Hardcover sync's (``hardcover_editions.decide_isbn``): an
+ISBN known to be an audiobook edition's is replaced by the picked text
+edition's, or removed when the book has no other edition with an ISBN; a
+missing one is filled; any other stays. The Hardcover book comes from the
+volume's match, else from its stored ISBN (``EditionByIsbn``, sanity-checked
+like the sync's ISBN match), else from the first metadata-fetch candidate
+from Hardcover that agrees with the volume (``identity_match.agrees``). Its
+edition list is one ``BookEdition`` query, cached for the run. Writes go
+through ``book_updates.apply_isbn_fix`` (the same guard as every other write
+path); an ISBN change clears an automatic Hardcover match so the next sync
+re-pins the new edition. Uses the instance Hardcover token; without one only
+ISBNs already known to be audiobook editions are removed.
 
-Run by the AI series cleanup after its apply, and on its own through
-``POST /api/series/{name}/fix-editions`` for people without an AI key.
-Nothing here commits: the caller owns the transaction and the audit entry.
+Nothing here commits: the caller owns the transaction and the audit entries.
 """
 from __future__ import annotations
 
@@ -29,9 +30,9 @@ from backend.core.permissions import book_visibility_filter
 from backend.models.book import Book
 from backend.models.user import User
 from backend.services import hardcover_editions as hce
-from backend.services.book_updates import can_edit_book, isbn_allowed, write_isbn
+from backend.services.book_updates import apply_isbn_fix, can_edit_book
 from backend.services.identity_match import agrees
-from backend.services.metadata_fetch import HARDCOVER_URL, MetadataCandidate, fetch_candidates
+from backend.services.metadata_fetch import HARDCOVER_URL, fetch_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -48,61 +49,66 @@ def series_books(db: Session, user: User, name: str) -> list[Book]:
     )
 
 
-async def _lookup_format(client: httpx.AsyncClient, isbn: str,
-                         cache: dict[str, Optional[str]]) -> Optional[str]:
-    """The edition format Hardcover gives this ISBN, or None when unknown
-    (no token, no hit, an error)."""
-    key = hce.normalize_isbn(isbn)
-    if not key:
-        return None
-    if key in cache:
-        return cache[key]
-    if hce.is_known_audio(key):
-        cache[key] = "audiobook"
-        return "audiobook"
+async def _gql(client: httpx.AsyncClient, query: str, variables: dict) -> dict:
+    """One Hardcover query with the instance token; {} when there is none or
+    the call fails (one retry on 429)."""
     token = settings.hardcover_token
     if not token:
-        return None
-    from backend.services.hardcover_sync import Q_EDITION_BY_ISBN
+        return {}
+    for attempt in (1, 2):
+        try:
+            resp = await client.post(HARDCOVER_URL, json={"query": query, "variables": variables},
+                                     headers={"authorization": token})
+        except httpx.HTTPError as exc:
+            logger.info("editions pass: Hardcover call failed (%s)", type(exc).__name__)
+            return {}
+        if resp.status_code == 429 and attempt == 1:
+            await asyncio.sleep(1.5)
+            continue
+        if resp.status_code >= 400:
+            logger.info("editions pass: Hardcover HTTP %s", resp.status_code)
+            return {}
+        return (resp.json() or {}).get("data") or {}
+    return {}
 
-    variants = [key] + ([hce.isbn10_to_13(key)] if len(key) == 10 and hce.isbn10_to_13(key) else [])
-    fmt: Optional[str] = None
-    for variant in variants:
-        data: dict[str, Any] = {}
-        for attempt in (1, 2):
-            try:
-                resp = await client.post(
-                    HARDCOVER_URL,
-                    json={"query": Q_EDITION_BY_ISBN, "variables": {"isbn": variant}},
-                    headers={"authorization": token},
-                )
-            except httpx.HTTPError as exc:
-                logger.info("fix-editions: ISBN lookup failed (%s)", type(exc).__name__)
-                break
-            if resp.status_code == 429 and attempt == 1:
-                await asyncio.sleep(1.5)
-                continue
-            if resp.status_code >= 400:
-                logger.info("fix-editions: ISBN lookup HTTP %s", resp.status_code)
-                break
-            data = (resp.json() or {}).get("data") or {}
-            break
-        editions = data.get("editions") or []
+
+async def _edition_by_isbn(client: httpx.AsyncClient, isbn: str,
+                           cache: dict[Any, Any]) -> Optional[dict]:
+    """The Hardcover edition carrying this ISBN, or None."""
+    from backend.services.hardcover_sync import Q_EDITION_BY_ISBN, isbn_variants
+
+    key = ("isbn", hce.normalize_isbn(isbn))
+    if key in cache:
+        return cache[key]
+    hit = None
+    for variant in isbn_variants(isbn):
+        editions = (await _gql(client, Q_EDITION_BY_ISBN, {"isbn": variant})).get("editions") or []
         if editions:
-            fmt = hce.edition_format(editions[0])
-            if fmt == "audiobook":
-                hce.note_audio_isbn(key)
+            hit = editions[0]
+            hce.note_editions([hit])
             break
-    cache[key] = fmt
-    return fmt
+    cache[key] = hit
+    return hit
+
+
+async def _book_editions(client: httpx.AsyncClient, hc_id: int,
+                         cache: dict[Any, Any]) -> list[dict]:
+    from backend.services.hardcover_sync import Q_BOOK_EDITION
+
+    key = ("book", hc_id)
+    if key not in cache:
+        books = (await _gql(client, Q_BOOK_EDITION, {"id": hc_id})).get("books") or []
+        cache[key] = (books[0].get("editions") or []) if books else []
+    return cache[key]
 
 
 def _identity(book: Book) -> dict[str, Any]:
     return {"title": book.title, "author": book.author, "series_index": book.series_index}
 
 
-async def _pick_candidate(client: httpx.AsyncClient, book: Book,
-                          cache: dict[str, Optional[str]]) -> Optional[MetadataCandidate]:
+async def _candidate_book_id(book: Book) -> Optional[int]:
+    """The Hardcover book of the first fetch candidate from Hardcover that
+    agrees with the volume, or None."""
     try:
         result = await fetch_candidates(
             title=book.title,
@@ -115,54 +121,51 @@ async def _pick_candidate(client: httpx.AsyncClient, book: Book,
             media_hint=book.book_type.slug if book.book_type else None,
         )
     except Exception as exc:  # noqa: BLE001 - one volume never fails the run
-        logger.info("fix-editions: fetch failed for book %s (%s)", book.id, type(exc).__name__)
+        logger.info("editions pass: fetch failed for book %s (%s)", book.id, type(exc).__name__)
         return None
-    current = hce.normalize_isbn(book.isbn)
     for cand in result.candidates:
-        isbn = hce.normalize_isbn(cand.isbn)
-        if not isbn or isbn == current:
+        if cand.source != "hardcover" or not agrees(_identity(book), cand):
             continue
-        if not isbn_allowed(cand.isbn, cand.edition_format):
+        try:
+            return int(cand.source_id)
+        except (TypeError, ValueError):
             continue
-        if not agrees(_identity(book), cand):
-            continue
-        if cand.edition_format not in ("ebook", "physical"):
-            # Not from a Hardcover edition list: check what the ISBN is.
-            if await _lookup_format(client, isbn, cache) == "audiobook":
-                continue
-        return cand
     return None
 
 
 async def _run(books: list[Book]) -> list[dict[str, Any]]:
+    from backend.services.hardcover_sync import _isbn_hit_plausible, _lang2
+
     fixed: list[dict[str, Any]] = []
-    cache: dict[str, Optional[str]] = {}
+    cache: dict[Any, Any] = {}
     async with httpx.AsyncClient(timeout=15) as client:
         for book in books:
-            old = book.isbn
-            if old:
-                if await _lookup_format(client, old, cache) != "audiobook":
+            editions: list[dict] = []
+            hc_id = book.hardcover_book_id if book.hardcover_match_method != "excluded" else None
+            if book.isbn:
+                hit = await _edition_by_isbn(client, book.isbn, cache)
+                if hit:
+                    editions.append(hit)
+                if hce.isbn_format(book.isbn, editions) != "audiobook":
                     continue  # an ISBN that is not known to be wrong stays
-                reason = "audiobook"
-            else:
-                reason = "missing"
-            cand = await _pick_candidate(client, book, cache)
-            if cand is not None and write_isbn(book, cand.isbn, cand.edition_format):
-                if cand.publisher and not book.publisher:
-                    book.publisher = cand.publisher
-                if cand.year and not book.year:
-                    book.year = cand.year
-                fixed.append({"book_id": book.id, "title": book.title,
-                              "from": old, "to": book.isbn, "reason": reason})
-            elif reason == "audiobook":
-                book.isbn = None
-                fixed.append({"book_id": book.id, "title": book.title,
-                              "from": old, "to": None, "reason": reason})
+                if hc_id is None and hit:
+                    title = (hit.get("book") or {}).get("title") or hit.get("title") or ""
+                    if _isbn_hit_plausible(book, title):
+                        hc_id = hit.get("book_id") or (hit.get("book") or {}).get("id")
+            if hc_id is None:
+                hc_id = await _candidate_book_id(book)
+            if hc_id is not None:
+                editions += await _book_editions(client, int(hc_id), cache)
+            fix = hce.decide_isbn(book.isbn, editions, language=_lang2(book.language))
+            change = apply_isbn_fix(book, fix) if fix else None
+            if change:
+                fixed.append(change)
     return fixed
 
 
 def fix_editions(db: Session, user: User, name: str) -> dict[str, Any]:
-    """Check and fix the ISBNs of the series' volumes the user may edit.
+    """Check and fix the ISBNs of the series' volumes the user may edit
+    (run after an AI series cleanup apply).
     Returns ``{"checked": n, "isbns_fixed": [{book_id, title, from, to,
     reason}]}``. Flushes; the caller commits and audits."""
     if not name or name == NO_SERIES_SENTINEL:

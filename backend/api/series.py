@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -339,34 +339,6 @@ def set_series_rating(
         row.review = body.review or None
     db.commit()
     return _series_rating_out(db, current_user, name)
-
-
-# ── Fix editions ──────────────────────────────────────────────────────────────
-
-@router.post("/series/{name:path}/fix-editions")
-def fix_series_editions(
-    name: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Give the series' volumes the ISBN of a text edition: fills missing
-    ISBNs and replaces audiobook-edition ISBNs (services/series_editions.py).
-    Members fix the books they uploaded, admins every visible book. No AI."""
-    require_role(current_user, "member")
-    if not name or name == NO_SERIES_SENTINEL:
-        raise HTTPException(404, "Series not found")
-    from backend.services import series_editions
-    from backend.services.audit import audit
-    result = series_editions.fix_editions(db, current_user, name)
-    db.commit()
-    audit(db, "series.editions_fixed", user_id=current_user.id,
-          username=current_user.username, resource_type="series", resource_title=name,
-          details={"checked": result["checked"],
-                   "isbns_fixed": [{k: f[k] for k in ("book_id", "from", "to")}
-                                   for f in result["isbns_fixed"]]},
-          ip=request.client.host if request.client else None)
-    return result
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

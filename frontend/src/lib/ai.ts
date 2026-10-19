@@ -435,16 +435,6 @@ export interface IsbnFix {
   reason: 'missing' | 'audiobook'
 }
 
-export interface FixEditionsResult {
-  checked: number
-  isbns_fixed: IsbnFix[]
-}
-
-/** Fill missing ISBNs and replace audiobook-edition ISBNs in a series. No AI. */
-export function fixSeriesEditions(name: string): Promise<FixEditionsResult> {
-  return api.post<FixEditionsResult>(`/series/${encodeURIComponent(name)}/fix-editions`, {})
-}
-
 /** Ask the model for one cleanup diff of a series. Writes nothing. */
 export function proposeSeriesCleanup(name: string): Promise<SeriesCleanupProposal> {
   return api.post<SeriesCleanupProposal>(`/ai/series/${encodeURIComponent(name)}/cleanup`, {})

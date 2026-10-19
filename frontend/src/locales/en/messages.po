@@ -994,8 +994,12 @@ msgid "{inc, plural, one {# file waiting for review} other {# files waiting for 
 msgstr "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 
 #: src/components/ManageSeriesModal.tsx
-msgid "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
-msgstr "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+msgid "{isbns, plural, one {Applied. # ISBN corrected} other {Applied. # ISBNs corrected}}"
+msgstr "{isbns, plural, one {Applied. # ISBN corrected} other {Applied. # ISBNs corrected}}"
+
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+#~ msgstr "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
 
 #: src/components/stats/GoalWidget.tsx
 msgid "{label} only"
@@ -1987,8 +1991,8 @@ msgid "All imported books accepted"
 msgstr "All imported books accepted"
 
 #: src/components/ManageSeriesModal.tsx
-msgid "All ISBNs look right."
-msgstr "All ISBNs look right."
+#~ msgid "All ISBNs look right."
+#~ msgstr "All ISBNs look right."
 
 #: src/pages/BinderyPage.tsx
 msgid "All items must have a title"
@@ -2112,8 +2116,8 @@ msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates,
 msgstr "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
 
 #: src/components/ManageSeriesModal.tsx
-msgid "Applied."
-msgstr "Applied."
+#~ msgid "Applied."
+#~ msgstr "Applied."
 
 #: src/components/CoverPickerModal.tsx
 #: src/pages/StatsPage.tsx
@@ -4348,8 +4352,8 @@ msgid "Fill missing fields only"
 msgstr "Fill missing fields only"
 
 #: src/components/ManageSeriesModal.tsx
-msgid "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
-msgstr "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+#~ msgid "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+#~ msgstr "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Filter books"
@@ -4448,12 +4452,12 @@ msgid "Fit page width (W)"
 msgstr "Fit page width (W)"
 
 #: src/components/ManageSeriesModal.tsx
-msgid "Fix editions"
-msgstr "Fix editions"
+#~ msgid "Fix editions"
+#~ msgstr "Fix editions"
 
 #: src/components/ManageSeriesModal.tsx
-msgid "Fix editions failed"
-msgstr "Fix editions failed"
+#~ msgid "Fix editions failed"
+#~ msgstr "Fix editions failed"
 
 #: src/lib/ai.ts
 msgid "Fix this book"
