@@ -66,6 +66,14 @@ All notable changes to Tome are documented here. Format loosely follows
   the phone stops answering pauses while a book is open, and a phone that
   no longer knows the reader (forgotten in Tome Reader) is no longer asked:
   TomeSync says once to pair again. Plugin build 58.
+- **KOReader's settings from Tome Reader.** The reader link reports a short,
+  curated list of KOReader settings (night mode, frontlight and warmth where
+  the device has them, refresh rate, sleep, standby and shutdown timers, the
+  sleep screen, Wi-Fi restore and power saving, and the font, size, spacing,
+  margins and page-turn direction for new books), the font list and the
+  profiles, and the phone can change them or run a profile. Every value is
+  checked against KOReader's own range; the running KOReader follows where it
+  can, and the answer says when a change takes effect. Plugin build 59.
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
   new pairing (Sign in with code), a changed server URL and a connection
   reset in memory until KOReader next closed normally, so a crash before

@@ -420,7 +420,7 @@ def test_download_and_delivered_hardening_in_render():
 def test_build_55_device_id_wording_and_probe_rules():
     assert TOMESYNC_PLUGIN_BUILD >= 55
     lua = _main_impl_lua()
-    assert "local BUILD           = 58" in lua
+    assert "local BUILD           = 59" in lua
     # A persistent id, sent in device-info and in the initiate body.
     assert "device_id    = LinkSession.deviceID()," in lua
     assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
@@ -672,7 +672,7 @@ print("ok")
 
 def test_build_58_wiring():
     lua = _impl()
-    assert "local BUILD           = 58" in lua
+    assert "local BUILD           = 59" in lua
     api = lua[lua.index("local function apiRequest(method, path, body, opts)"):]
     api = api[:api.index("\nend\n")]
     assert "return nil, code, resp_body" in api
@@ -692,3 +692,180 @@ def test_build_58_wiring():
     # no host retry pass while the window is open (it would drop the heartbeat)
     assert "if not probed then link_on, missed, noanswer = false, true, true end" in pas
     assert "if link_host_missed and not link_task and not LinkHB.till then" in lua
+
+
+# ── Build 59: KOReader settings from the phone ──────────────────────────────
+
+def _linkset_block() -> str:
+    lua = _impl()
+    start = lua.index("-- TOMESYNC_LINKSET_BEGIN")
+    end = lua.index("-- TOMESYNC_LINKSET_END")
+    return lua[start:end]
+
+
+ALL_CAPS = ("{ frontlight = true, natural_light = true, eink = true, suspend = true, standby = true,"
+            " power_off = true, wifi_restore = true, wifi_powersave = true, touch = true }")
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_setting_whitelist_validation(tmp_path):
+    """Only curated keys, the right type, inside the range; never clamped."""
+    _run_lua(tmp_path, "set.lua", _linkset_block() + r'''
+local ctx = { caps = ''' + ALL_CAPS + r''', fonts = { "Noto Serif", "Literata" },
+              limits = { frontlight = { min = 0, max = 10 } } }
+local function ok(k, v, c) local a, b = LinkSet.check(k, v, c or ctx); assert(a == true, k .. ": " .. tostring(b)); return b end
+local function no(k, v, want, c)
+    local a, b = LinkSet.check(k, v, c or ctx)
+    assert(a == false, tostring(k) .. " should be refused")
+    assert(type(b) == "string" and b:find(want, 1, true), tostring(k) .. ": " .. tostring(b))
+end
+-- unknown and missing keys
+no("format_card", true, "unknown setting: format_card")
+no("home_dir", "/", "unknown setting")
+no("tomesync_api_key", "x", "unknown setting")
+no(nil, true, "missing key")
+-- types
+assert(ok("night_mode", true) == true and ok("night_mode", false) == false)
+no("night_mode", "true", "expected true or false")
+no("night_mode", 1, "expected true or false")
+no("font_size", "22", "expected a number")
+no("font_size", 0/0, "expected a number")
+no("font_size", math.huge, "expected a number")
+no("line_spacing", 100.5, "expected a whole number")
+no("sleep_screen", 3, "expected one of")
+no("sleep_message", false, "expected text")
+no("font_face", 7, "expected a font name")
+-- ranges (refused, not clamped)
+assert(ok("font_size", 22.5) == 22.5)
+no("font_size", 22.25, "steps of 0.5")
+no("font_size", 11.5, "out of range (12..255)")
+no("font_size", 256, "out of range")
+assert(ok("line_spacing", 50) == 50 and ok("line_spacing", 200) == 200)
+no("line_spacing", 49, "out of range (50..200)")
+no("margin_sides", -1, "out of range (0..140)")
+no("margin_top", 141, "out of range")
+assert(ok("refresh_every", -1) == -1 and ok("refresh_every", 0) == 0)
+no("refresh_every", -2, "out of range (-1..200)")
+assert(ok("sleep_after", -1) == -1 and ok("sleep_after", 60) == 60)
+no("sleep_after", 59, "out of range (60..86400, or -1 for off)")
+no("sleep_after", 0, "out of range")
+no("shutdown_after", 299, "out of range")
+no("standby_after", 901, "out of range")
+-- the frontlight's range is the device's, not the table's
+assert(ok("frontlight", 10) == 10)
+no("frontlight", 11, "out of range (0..10)")
+assert(ok("frontlight", 24, { caps = { frontlight = true }, limits = { frontlight = { min = 0, max = 24 } } }) == 24)
+no("warmth", 101, "out of range (0..100)")
+-- enums and fonts
+assert(ok("sleep_screen", "cover") == "cover")
+no("sleep_screen", "random_image", "not one of cover, bookstatus, disable")
+assert(ok("font_face", "Literata") == "Literata")
+no("font_face", "Comic Sans", "no font named Comic Sans")
+no("font_face", "Literata", "font list is not known", { caps = {} })
+no("sleep_message", string.rep("x", 301), "longer than 300")
+no("sleep_message", "a\0b", "NUL")
+-- capabilities: a key the reader lacks is refused
+no("frontlight", 3, "has no frontlight", { caps = {} })
+no("warmth", 3, "has no warmth control", { caps = { frontlight = true } })
+no("standby_after", 10, "has no standby", { caps = {} })
+no("auto_disable_wifi", true, "no Wi-Fi power saving", { caps = {} })
+assert(ok("night_mode", true, { caps = {} }) == true, "night mode needs nothing")
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_setting_applies_notes(tmp_path):
+    """Every key says when it takes effect, names its KOReader setting (or a
+    live device value), and the notes are the ones the app knows."""
+    _run_lua(tmp_path, "applies.lua", _linkset_block() + r'''
+local want = {
+    night_mode = "now", frontlight = "now", warmth = "now", refresh_every = "now",
+    sleep_after = "now", standby_after = "now", shutdown_after = "now",
+    sleep_screen = "now", sleep_message_on = "now", sleep_message = "now",
+    restore_wifi = "now", auto_disable_wifi = "restart",
+    font_face = "next book", font_size = "next book", line_spacing = "next book",
+    margin_sides = "next book", margin_top = "next book", margin_bottom = "next book",
+    invert_page_turns = "next book",
+}
+local n = 0
+for _, s in ipairs(LinkSet.KEYS) do
+    n = n + 1
+    assert(want[s.key] == s.applies, s.key .. " applies " .. tostring(s.applies))
+    assert(LinkSet.APPLIES[s.applies], s.key)
+    assert(s.setting or s.live, s.key .. " has neither a setting nor a live value")
+    assert(s.section, s.key .. " has no section")
+end
+for k in pairs(want) do assert(LinkSet.byKey[k], "missing " .. k) end
+assert(n == 19, "19 keys, got " .. n)
+-- the KOReader names (checked against its source)
+local names = {
+    night_mode = "night_mode", refresh_every = "full_refresh_count",
+    sleep_after = "auto_suspend_timeout_seconds", standby_after = "auto_standby_timeout_seconds",
+    shutdown_after = "autoshutdown_timeout_seconds", sleep_screen = "screensaver_type",
+    sleep_message_on = "screensaver_show_message", sleep_message = "screensaver_message",
+    restore_wifi = "auto_restore_wifi", auto_disable_wifi = "auto_disable_wifi",
+    font_face = "cre_font", font_size = "copt_font_size", line_spacing = "copt_line_spacing",
+    margin_sides = "copt_h_page_margins", margin_top = "copt_t_page_margin",
+    margin_bottom = "copt_b_page_margin", invert_page_turns = "inverse_reading_order",
+}
+for k, v in pairs(names) do assert(LinkSet.byKey[k].setting == v, k) end
+assert(LinkSet.byKey.margin_sides.pair == true, "L/R margins are a pair")
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_settings_report_shape(tmp_path):
+    """The report: capabilities, settings for the keys this reader has only,
+    the key descriptions with ranges and applies, fonts, profiles."""
+    _run_lua(tmp_path, "report.lua", _linkset_block() + r'''
+local caps = { frontlight = true, natural_light = false, suspend = true, power_off = true, touch = true }
+local r = LinkSet.report({ night_mode = true, frontlight = 4, warmth = 30, font_size = 22,
+                           sleep_after = 900, not_a_key = 1 },
+                         caps, { "Noto Serif" }, { { name = "Night", autoexec = {} } },
+                         { frontlight = { min = 0, max = 24 } })
+assert(r.capabilities == caps)
+assert(r.settings.night_mode == true and r.settings.frontlight == 4 and r.settings.font_size == 22)
+assert(r.settings.warmth == nil, "no warmth without natural_light")
+assert(r.settings.not_a_key == nil, "only curated keys")
+assert(r.keys.frontlight.min == 0 and r.keys.frontlight.max == 24, "device range")
+assert(r.keys.warmth == nil and r.keys.refresh_every == nil and r.keys.standby_after == nil)
+assert(r.keys.sleep_after.off == -1 and r.keys.sleep_after.min == 60 and r.keys.sleep_after.type == "seconds")
+assert(r.keys.font_size.applies == "next book" and r.keys.night_mode.applies == "now")
+assert(r.keys.sleep_screen.values[1] == "cover" and r.keys.sleep_screen.section == "sleep")
+assert(r.keys.invert_page_turns ~= nil and r.keys.auto_disable_wifi == nil)
+assert(r.fonts[1] == "Noto Serif" and r.profiles[1].name == "Night")
+local empty = LinkSet.report(nil, nil, nil, nil, nil)
+assert(next(empty.settings) == nil and empty.keys.night_mode and empty.keys.frontlight == nil)
+print("ok")
+''')
+
+
+def test_build_59_wiring():
+    lua = _impl()
+    assert "local BUILD           = 59" in lua
+    assert TOMESYNC_PLUGIN_BUILD == 59
+    assert "set_setting = true, run_profile = true" in lua
+    assert '"/tome-sync/reader-settings"' in lua
+    assert 'if op == "set_setting" then return self:_linkSetSetting(args) end' in lua
+    assert 'if op == "run_profile" then return self:_linkRunProfile(args) end' in lua
+    # Live paths: KOReader's own events and the profiles plugin's own execute.
+    for ev in ('"SetNightMode"', '"SetFlIntensity"', '"SetFlWarmth"', '"SetBothRefreshRates"'):
+        assert ev in lua
+    assert "p:onProfileExecute(name, { qm_show = false })" in lua
+    assert "applies = res and applies or nil" in lua
+    # The report: full passes and after a settings command; off on 404/405.
+    assert "(not light or LinkSet.dirty)" in lua
+    assert "link_off.reader_settings = true" in lua
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_parser_takes_settings_ops(tmp_path):
+    _run_lua(tmp_path, "ops.lua", _linkcmd_block() + r'''
+assert(#linkParseCommands({ commands = {
+    { id = 1, op = "set_setting", args = { key = "night_mode", value = true } },
+    { id = 2, op = "run_profile", args = { name = "Night" } },
+    { id = 3, op = "set_settings", args = {} } } }) == 2)
+print("ok")
+''')

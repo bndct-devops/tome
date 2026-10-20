@@ -150,7 +150,10 @@ logger = logging.getLogger(__name__)
 # delivers right away in the file manager (in the reader after the book closes);
 # the heartbeat pauses while a book is open; a 401 "Device id mismatch" /
 # "unknown key" from the link stops the poll and says to pair again.
-TOMESYNC_PLUGIN_BUILD = 58
+# BUILD 59: reader link: KOReader settings report (PUT /tome-sync/reader-settings:
+# capabilities, a curated settings list, fonts, profiles) and the set_setting /
+# run_profile commands.
+TOMESYNC_PLUGIN_BUILD = 59
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

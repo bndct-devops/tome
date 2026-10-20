@@ -773,8 +773,8 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "58"
-local BUILD           = 58      -- monotonic; the only thing compared
+local PLUGIN_VERSION  = "59"
+local BUILD           = 59      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -5143,7 +5143,7 @@ local LINK_NET_TREE   = { block = 2, total = 10 }
 -- disk: oldest purged first, the newest item always kept.
 local LINK_TRASH_MAX_BYTES = 200 * 1024 * 1024
 TomeSync.LINK_TRASH_DAYS  = 30   -- default of tomesync_link_trash_days (0 = never)
-local LINK_TRASH_MAX_ITEMS = 50
+TomeSync.LINK_TRASH_MAX_ITEMS = 50   -- a field, not a local: the main chunk is at its 200-local limit
 -- Commands already run, kept across restarts (settings/tomesync_link.lua):
 -- a result POST lost to a crash or a kill is posted again, never re-run.
 local link_store = nil
@@ -5773,7 +5773,7 @@ local function linkTrimTrash(trash, newest)
     if type(days) ~= "number" or days < 0 then days = TomeSync.LINK_TRASH_DAYS end
     local before_n, before_b = #items, total
     local plan, by_age = TomeSync._linkTrashPlan(items, newest, os.time(), days,
-                                                 LINK_TRASH_MAX_ITEMS, LINK_TRASH_MAX_BYTES)
+                                                 TomeSync.LINK_TRASH_MAX_ITEMS, LINK_TRASH_MAX_BYTES)
     local purged, freed = {}, 0
     local ffiUtil = require("ffi/util")
     for _, it in ipairs(plan) do
@@ -5794,7 +5794,7 @@ local function linkTrimTrash(trash, newest)
     logger.info(string.format("TomeSync: link trash: %d items (%.1f MB), purged %d (%d by age, %s; "
         .. "%d over the bound of %d items / %d MB; %.1f MB)%s, kept %d", before_n, before_b / 1048576,
         #purged, by_age, (days > 0) and ("over " .. days .. " days") or "age off", #purged - by_age,
-        LINK_TRASH_MAX_ITEMS, LINK_TRASH_MAX_BYTES / 1048576, freed / 1048576,
+        TomeSync.LINK_TRASH_MAX_ITEMS, LINK_TRASH_MAX_BYTES / 1048576, freed / 1048576,
         (#purged > 0) and (": " .. table.concat(purged, ", ")) or "", before_n - #purged))
     st:saveSetting("trash", times)
     st:flush()
@@ -5848,7 +5848,8 @@ end
 -- anything else is no commands at all, so it can never cause a result POST.
 -- Released Tomes answer unknown GETs under /api with 200 + the web app's HTML,
 -- which apiRequest hands back as {} (body not JSON): that is "nothing".
-local LINK_OPS = { rename = true, move = true, delete = true, mkdir = true, refresh = true }
+local LINK_OPS = { rename = true, move = true, delete = true, mkdir = true, refresh = true,
+                   set_setting = true, run_profile = true }   -- build 59: the last two
 local function linkParseCommands(body)
     if type(body) ~= "table" then return {} end
     local list = body
@@ -5990,6 +5991,176 @@ end
 LinkHB.REPAIR_TEXT = "This phone no longer recognises the reader. Pair again in Tome Reader."
 -- TOMESYNC_LINKPOLL_END
 
+-- TOMESYNC_LINKSET_BEGIN (pure: no requires, no I/O; extracted and run under
+-- luajit by tests/test_tomesync_reader_link.py)
+-- Build 59: the KOReader settings the phone may read and change. One curated
+-- list; every key checked against KOReader's source (c00df15ae):
+--   setting: the G_reader_settings key (nil: a live device value, see live)
+--   kind:    bool | int | number (step 0.5) | seconds (-1 = off) | enum | string | font
+--   applies: "now" (the running KOReader follows), "next book" (books opened
+--            for the first time; a book with its own settings keeps them),
+--            "restart" (KOReader asks for a restart itself)
+--   cap:     the capability the reader must report, or nil (every reader)
+--   gdef:    the G_defaults key KOReader falls back to when the setting is unset
+--   default: KOReader's own default when unset (source-verified)
+-- One table: the main chunk is close to its 200-local limit.
+local LinkSet = {
+    APPLIES = { now = true, ["next book"] = true, restart = true },
+    KEYS = {
+        -- DeviceListener:onSetNightMode (frontend/device/devicelistener.lua)
+        { key = "night_mode", setting = "night_mode", kind = "bool", applies = "now",
+          default = false, event = "SetNightMode", section = "screen" },
+        -- DeviceListener:onSetFlIntensity / onSetFlWarmth, powerd fl_min..fl_max and 0..100
+        { key = "frontlight", live = "frontlight", kind = "int", applies = "now",
+          cap = "frontlight", event = "SetFlIntensity", section = "screen" },
+        { key = "warmth", live = "warmth", kind = "int", min = 0, max = 100, applies = "now",
+          cap = "natural_light", event = "SetFlWarmth", section = "screen" },
+        -- UIManager:setRefreshRate via DeviceListener:onSetBothRefreshRates;
+        -- -1 = every chapter, 0 = never (refresh_menu_table.lua, -1..200)
+        { key = "refresh_every", setting = "full_refresh_count", kind = "int", min = -1, max = 200,
+          applies = "now", cap = "eink", event = "SetBothRefreshRates", section = "screen" },
+        -- autosuspend.koplugin: ranges from its pickers, -1 = disabled
+        { key = "sleep_after", setting = "auto_suspend_timeout_seconds", kind = "seconds",
+          min = 60, max = 24 * 3600, applies = "now", cap = "suspend", default = 15 * 60,
+          autosuspend = true, section = "sleep" },
+        { key = "standby_after", setting = "auto_standby_timeout_seconds", kind = "seconds",
+          min = 1, max = 15 * 60, applies = "now", cap = "standby", default = -1,
+          autosuspend = true, section = "sleep" },
+        { key = "shutdown_after", setting = "autoshutdown_timeout_seconds", kind = "seconds",
+          min = 5 * 60, max = 28 * 24 * 3600, applies = "now", cap = "power_off", default = 3 * 24 * 3600,
+          autosuspend = true, section = "sleep" },
+        -- screensaver_menu.lua; read when the reader goes to sleep. The values
+        -- that need a file or folder picked on the reader are left out.
+        { key = "sleep_screen", setting = "screensaver_type", kind = "enum",
+          values = { "cover", "bookstatus", "disable" }, applies = "now", default = "disable",
+          section = "sleep" },
+        { key = "sleep_message_on", setting = "screensaver_show_message", kind = "bool",
+          applies = "now", default = false, section = "sleep" },
+        { key = "sleep_message", setting = "screensaver_message", kind = "string", max = 300,
+          applies = "now", section = "sleep" },
+        -- ui/network/manager.lua: restore is shown on hasWifiRestore or the
+        -- emulator; auto-disable needs a network interface name and asks for a restart.
+        { key = "restore_wifi", setting = "auto_restore_wifi", kind = "bool", applies = "now",
+          cap = "wifi_restore", default = false, section = "network" },
+        { key = "auto_disable_wifi", setting = "auto_disable_wifi", kind = "bool", applies = "restart",
+          cap = "wifi_powersave", default = false, section = "network" },
+        -- Defaults for new books: ReaderFont:onReadSettings (cre_font) and
+        -- Configurable:loadDefaults (copt_<name>), creoptions.lua ranges.
+        { key = "font_face", setting = "cre_font", kind = "font", applies = "next book",
+          section = "reading" },
+        { key = "font_size", setting = "copt_font_size", kind = "number", min = 12, max = 255,
+          applies = "next book", gdef = "DCREREADER_CONFIG_DEFAULT_FONT_SIZE", section = "reading" },
+        { key = "line_spacing", setting = "copt_line_spacing", kind = "int", min = 50, max = 200,
+          applies = "next book", gdef = "DCREREADER_CONFIG_LINE_SPACE_PERCENT_MEDIUM", section = "reading" },
+        -- copt_h_page_margins is {left, right}; both sides get the one value.
+        { key = "margin_sides", setting = "copt_h_page_margins", kind = "int", min = 0, max = 140,
+          pair = true, applies = "next book", gdef = "DCREREADER_CONFIG_H_MARGIN_SIZES_MEDIUM",
+          section = "reading" },
+        { key = "margin_top", setting = "copt_t_page_margin", kind = "int", min = 0, max = 140,
+          applies = "next book", gdef = "DCREREADER_CONFIG_T_MARGIN_SIZES_LARGE", section = "reading" },
+        { key = "margin_bottom", setting = "copt_b_page_margin", kind = "int", min = 0, max = 140,
+          applies = "next book", gdef = "DCREREADER_CONFIG_B_MARGIN_SIZES_LARGE", section = "reading" },
+        -- page_turns.lua: the default (★) for newly opened books
+        { key = "invert_page_turns", setting = "inverse_reading_order", kind = "bool",
+          applies = "next book", cap = "touch", default = false, section = "reading" },
+    },
+    CAP_TEXT = {
+        frontlight = "no frontlight", natural_light = "no warmth control", eink = "no e-ink screen",
+        suspend = "no sleep timer", standby = "no standby", power_off = "no automatic shutdown",
+        wifi_restore = "no Wi-Fi restore", wifi_powersave = "no Wi-Fi power saving",
+        touch = "no touch screen", profiles = "no profiles plugin",
+    },
+}
+LinkSet.byKey = {}
+for _, s in ipairs(LinkSet.KEYS) do LinkSet.byKey[s.key] = s end
+
+function LinkSet.num(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end
+
+-- The range of a key on this reader: limits[key] (the frontlight's) over the table's.
+function LinkSet.range(s, limits)
+    local l = type(limits) == "table" and limits[s.key]
+    if type(l) == "table" and LinkSet.num(l.min) and LinkSet.num(l.max) then return l.min, l.max end
+    return s.min, s.max
+end
+
+-- Is value v allowed for key on this reader? ctx: {caps = {}, fonts = {...},
+-- limits: the frontlight range as min and max). Returns true, value (normalised: an
+-- int stays an int) | false, why. Never clamps: out of range is refused.
+function LinkSet.check(key, v, ctx)
+    ctx = type(ctx) == "table" and ctx or {}
+    if type(key) ~= "string" then return false, "missing key" end
+    local s = LinkSet.byKey[key]
+    if not s then return false, "unknown setting: " .. key end
+    if s.cap and not (type(ctx.caps) == "table" and ctx.caps[s.cap]) then
+        return false, key .. ": this reader has " .. (LinkSet.CAP_TEXT[s.cap] or ("no " .. s.cap))
+    end
+    local k = s.kind
+    if k == "bool" then
+        if type(v) ~= "boolean" then return false, key .. ": expected true or false" end
+        return true, v
+    end
+    if k == "int" or k == "number" or k == "seconds" then
+        if not LinkSet.num(v) then return false, key .. ": expected a number" end
+        if k ~= "number" and v ~= math.floor(v) then return false, key .. ": expected a whole number" end
+        if k == "number" and v * 2 ~= math.floor(v * 2) then return false, key .. ": steps of 0.5 only" end
+        if k == "seconds" and v == -1 then return true, -1 end
+        local lo, hi = LinkSet.range(s, ctx.limits)
+        if (lo and v < lo) or (hi and v > hi) then
+            return false, key .. ": out of range (" .. tostring(lo) .. ".." .. tostring(hi)
+                          .. (k == "seconds" and ", or -1 for off" or "") .. ")"
+        end
+        return true, v
+    end
+    if k == "enum" then
+        if type(v) ~= "string" then return false, key .. ": expected one of " .. table.concat(s.values, ", ") end
+        for _, x in ipairs(s.values) do if x == v then return true, v end end
+        return false, key .. ": not one of " .. table.concat(s.values, ", ")
+    end
+    if k == "string" then
+        if type(v) ~= "string" then return false, key .. ": expected text" end
+        if #v > (s.max or 300) then return false, key .. ": longer than " .. (s.max or 300) .. " bytes" end
+        if v:find("%z") then return false, key .. ": contains a NUL" end
+        return true, v
+    end
+    if k == "font" then
+        if type(v) ~= "string" or v == "" then return false, key .. ": expected a font name" end
+        local fonts = type(ctx.fonts) == "table" and ctx.fonts or {}
+        if #fonts == 0 then return false, key .. ": this reader's font list is not known" end
+        for _, f in ipairs(fonts) do if f == v then return true, v end end
+        return false, key .. ": no font named " .. v .. " on this reader"
+    end
+    return false, key .. ": unsupported kind"
+end
+
+-- The keys this reader has, for the report: key -> {type, applies, min?, max?,
+-- values?, off?, section}.
+function LinkSet.describe(caps, limits)
+    local out = {}
+    caps = type(caps) == "table" and caps or {}
+    for _, s in ipairs(LinkSet.KEYS) do
+        if not s.cap or caps[s.cap] then
+            local lo, hi = LinkSet.range(s, limits)
+            out[s.key] = { type = s.kind, applies = s.applies, min = lo, max = hi,
+                           values = s.values, off = (s.kind == "seconds") and -1 or nil,
+                           section = s.section }
+        end
+    end
+    return out
+end
+
+-- The report body. values: key -> current value (only keys this reader has
+-- are kept); fonts: list of names; profiles: list of {name, autoexec}.
+function LinkSet.report(values, caps, fonts, profiles, limits)
+    local keys = LinkSet.describe(caps, limits)
+    local settings = {}
+    for k, v in pairs(type(values) == "table" and values or {}) do
+        if keys[k] ~= nil then settings[k] = v end
+    end
+    return { capabilities = caps or {}, settings = settings, keys = keys,
+             fonts = fonts or {}, profiles = profiles or {} }
+end
+-- TOMESYNC_LINKSET_END
+
 -- MD5 hex of a string with KOReader's bundled ffi/sha2; nil when missing
 -- (then the tree is sent as before, on full passes only).
 local function linkHash(str)
@@ -6017,7 +6188,8 @@ local function linkRemember(key, result)
     if not ok then logger.warn("TomeSync: link could not save the command results:", e) end
 end
 
--- One command. Returns ok, error, new_path (relative), note. Raises nothing
+-- One command. Returns ok, error, new_path (relative), note, applies (the
+-- settings ops, build 59). Raises nothing
 -- the caller does not pcall. Every path and name goes through linkResolve /
 -- linkGuard (tools/reader-link-routes.md, "Refused paths").
 function TomeSync:_linkRunCommand(root, cmd, touched)
@@ -6029,6 +6201,8 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
         touched["*"] = true
         return true
     end
+    if op == "set_setting" then return self:_linkSetSetting(args) end
+    if op == "run_profile" then return self:_linkRunProfile(args) end
 
     if op == "mkdir" then
         local rel = str(args.path)
@@ -6458,8 +6632,9 @@ function TomeSync:_linkPass(light, hb)
             for _, cmd in ipairs(fresh) do
                 if not link_off.all then
                     local key = tostring(cmd.id)
-                    local ok, res, err, new_path, note = pcall(self._linkRunCommand, self, root, cmd, touched)
-                    if not ok then res, err, new_path, note = false, tostring(res), nil, nil end
+                    local ok, res, err, new_path, note, applies = pcall(self._linkRunCommand, self, root, cmd, touched)
+                    if not ok then res, err, new_path, note, applies = false, tostring(res), nil, nil, nil end
+                    if cmd.op == "set_setting" or cmd.op == "run_profile" then LinkSet.dirty = true end
                     ran = ran + 1
                     logger.info("TomeSync: link command", key, tostring(cmd.op),
                                 res and ("ok" .. (note and (" (" .. note .. ")") or ""))
@@ -6469,6 +6644,7 @@ function TomeSync:_linkPass(light, hb)
                         error = (not res) and (err or "failed") or nil,
                         new_path = res and new_path or nil,
                         note = note,
+                        applies = res and applies or nil,
                     }
                     linkRemember(key, result)
                     pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
@@ -6482,6 +6658,15 @@ function TomeSync:_linkPass(light, hb)
         else
             poll = 0
         end
+    end
+
+    -- Build 59: the settings report, on full passes and after a settings command.
+    if link_on and not link_off.all and not link_off.reader_settings and not repair
+            and (not light or LinkSet.dirty) then
+        local was = LinkSet.dirty
+        LinkSet.dirty = nil
+        local ok, e = pcall(self._linkSendSettings, self, net, was and "after a change" or "full pass")
+        if not ok then logger.warn("TomeSync: link reader-settings failed:", e) end
     end
 
     link_host_missed = missed
@@ -6553,6 +6738,204 @@ function TomeSync:_linkRepair(code, raw, route)
         UIManager:show(InfoMessage:new{ text = LinkHB.REPAIR_TEXT, timeout = 8 })
     end
     return true
+end
+
+-- Build 59: KOReader settings from the phone (the list and its checks are
+-- TOMESYNC_LINKSET above). Where a setting has a live path in KOReader, the
+-- same event or call KOReader's own menu uses is sent, so the running UI
+-- follows; the rest are written with saveSetting + flush.
+function LinkSet.ui()
+    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+    if ok and ReaderUI.instance then return ReaderUI.instance end
+    local ok2, FileManager = pcall(require, "apps/filemanager/filemanager")
+    return ok2 and FileManager.instance or nil
+end
+
+-- What this reader has. Each answer is KOReader's own test for showing the
+-- matching menu entry (see the comments in LinkSet.KEYS).
+function LinkSet.caps()
+    local ui = LinkSet.ui()
+    local function has(f)
+        local ok, v = pcall(f)
+        return (ok and v) and true or false
+    end
+    return {
+        night_mode     = true,
+        frontlight     = has(function() return Device:hasFrontlight() end),
+        natural_light  = has(function() return Device:hasNaturalLight() end),
+        wifi_toggle    = has(function() return Device:hasWifiToggle() end),
+        wifi_restore   = has(function() return Device:hasWifiRestore() or Device:isEmulator() end),
+        wifi_powersave = has(function() return NetworkMgr:getNetworkInterfaceName() ~= nil end),
+        eink           = has(function() return Device:hasEinkScreen() end),
+        touch          = has(function() return Device:isTouchDevice() end),
+        suspend        = has(function() return ui and ui.autosuspend ~= nil and Device:canSuspend() end),
+        standby        = has(function() return ui and ui.autosuspend ~= nil and Device:canStandby() end),
+        power_off      = has(function() return ui and ui.autosuspend ~= nil and Device:canPowerOff() end),
+        profiles       = has(function() return ui and ui.profiles ~= nil end),
+    }
+end
+
+-- The frontlight's native range (powerd fl_min..fl_max: 0..100 on Kobos and the
+-- emulator, 0..24 on Kindles (0..25 where step 0 is not off: KOReader adds an off step).
+function LinkSet.limits()
+    local l = {}
+    pcall(function()
+        if Device:hasFrontlight() then
+            local p = Device:getPowerDevice()
+            if type(p.fl_min) == "number" and type(p.fl_max) == "number" then
+                l.frontlight = { min = p.fl_min, max = p.fl_max }
+            end
+        end
+    end)
+    return l
+end
+
+-- crengine's font faces, sorted; read once per process (the engine is
+-- initialised for it, as ReaderFont's menu does).
+function LinkSet.fonts()
+    if LinkSet.font_cache then return LinkSet.font_cache end
+    local ok, list = pcall(function()
+        return require("document/credocument"):engineInit().getFontFaces()
+    end)
+    if not ok or type(list) ~= "table" then
+        logger.warn("TomeSync: link could not read the font list:", list)
+        return {}
+    end
+    local out = {}
+    for _, f in ipairs(list) do if type(f) == "string" then table.insert(out, f) end end
+    table.sort(out)
+    LinkSet.font_cache = out
+    return out
+end
+
+-- The current value of one key: the live value, else the setting, else the
+-- default KOReader uses when it is unset.
+function LinkSet.read(s)
+    if s.live == "frontlight" then return Device:getPowerDevice():frontlightIntensity() end
+    if s.live == "warmth" then return Device:getPowerDevice():frontlightWarmth() end
+    if s.key == "refresh_every" then return (UIManager:getRefreshRate()) end
+    local ui = LinkSet.ui()
+    if s.autosuspend and ui and ui.autosuspend and type(ui.autosuspend[s.setting]) == "number" then
+        return ui.autosuspend[s.setting]
+    end
+    local v = G_reader_settings:readSetting(s.setting)
+    if s.pair and type(v) == "table" then v = v[1] end
+    if v == nil and s.gdef and G_defaults then
+        v = G_defaults:readSetting(s.gdef)
+        if type(v) == "table" then v = v[1] end
+    end
+    if v == nil and s.kind == "font" then
+        local ok, cre = pcall(require, "document/credocument")
+        v = ok and cre.default_font or nil
+    end
+    if v == nil then v = s.default end
+    return v
+end
+
+-- The profiles plugin's profiles, with the events each runs on by itself.
+function LinkSet.profiles()
+    local ui = LinkSet.ui()
+    local p = ui and ui.profiles
+    if not p then return {} end
+    pcall(p.loadProfiles, p)
+    local auto = type(p.autoexec) == "table" and p.autoexec
+                 or G_reader_settings:readSetting("profiles_autoexec") or {}
+    local out = {}
+    for name in pairs(type(p.data) == "table" and p.data or {}) do
+        local ev = {}
+        for event, profs in pairs(auto) do
+            if type(profs) == "table" and profs[name] ~= nil then table.insert(ev, event) end
+        end
+        table.sort(ev)
+        table.insert(out, { name = name, autoexec = rapidjson.array and rapidjson.array(ev) or ev })
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    return out
+end
+
+-- PUT /tome-sync/reader-settings: on full passes and after a settings
+-- command. 404/405 (a Tome without the route) turns it off for the session.
+function TomeSync:_linkSendSettings(net, why)
+    local t0 = linkNow()
+    local caps, limits = LinkSet.caps(), LinkSet.limits()
+    local values = {}
+    for _, s in ipairs(LinkSet.KEYS) do
+        if not s.cap or caps[s.cap] then
+            local ok, v = pcall(LinkSet.read, s)
+            if ok and v ~= nil then values[s.key] = v end
+        end
+    end
+    local fonts, profiles = LinkSet.fonts(), LinkSet.profiles()
+    local arr = rapidjson.array or function(t) return t end
+    local body = LinkSet.report(values, caps, arr(fonts), arr(profiles), limits)
+    for _, d in pairs(body.keys) do if d.values then d.values = arr(d.values) end end
+    body.device = deviceName()
+    local _, code = apiRequest("PUT", "/tome-sync/reader-settings", body, net)
+    local n = 0
+    for _ in pairs(body.settings) do n = n + 1 end
+    logger.info("TomeSync: link PUT reader-settings " .. tostring(code) .. " (" .. why .. ", " .. n
+                .. " settings, " .. #fonts .. " fonts, " .. #profiles .. " profiles, "
+                .. math.floor((linkNow() - t0) * 1000 + 0.5) .. " ms)")
+    if linkRouteOff(code) then
+        link_off.reader_settings = true
+        logger.info("TomeSync: link reader-settings", code, "- report off")
+    end
+end
+
+-- set_setting {key, value}. Returns ok, error, nil, note, applies.
+function TomeSync:_linkSetSetting(args)
+    local key, v = args.key, args.value
+    local s = type(key) == "string" and LinkSet.byKey[key] or nil
+    local ctx = { caps = LinkSet.caps(), limits = LinkSet.limits(),
+                  fonts = (s and s.kind == "font") and LinkSet.fonts() or nil }
+    local ok, val = LinkSet.check(key, v, ctx)
+    if not ok then return false, val end
+    if s.event then
+        -- KOReader's own handlers (DeviceListener) save what needs saving.
+        UIManager:broadcastEvent(Event:new(s.event, val))
+    else
+        G_reader_settings:saveSetting(s.setting, s.pair and { val, val } or val)
+        local ui = LinkSet.ui()
+        local a = s.autosuspend and ui and ui.autosuspend
+        if a then
+            -- What AutoSuspend:pickTimeoutValue does after its own save.
+            a[s.setting] = val
+            if s.setting == "auto_standby_timeout_seconds" then
+                a:_unschedule_standby()
+                a:toggleStandbyHandler(a:_enabledStandby())
+                a:_start_standby()
+            else
+                a:_unschedule()
+                a:_start()
+            end
+        end
+    end
+    G_reader_settings:flush()
+    -- The end state, not the call: read it back.
+    local rok, now = pcall(LinkSet.read, s)
+    if rok and now ~= val and not (s.live == "frontlight" and val == 0 and now == 0) then
+        return false, key .. ": KOReader kept " .. tostring(now)
+    end
+    logger.info("TomeSync: link set " .. key .. " = " .. tostring(val) .. " (" .. s.applies .. ")")
+    return true, nil, nil, nil, s.applies
+end
+
+-- run_profile {name}: the profiles plugin's own path (Profiles:onProfileExecute,
+-- what its menu's "Execute" does, without the quick menu).
+function TomeSync:_linkRunProfile(args)
+    local name = args.name
+    if type(name) ~= "string" or name == "" then return false, "missing name" end
+    local ui = LinkSet.ui()
+    local p = ui and ui.profiles
+    if not p then return false, "this reader has no profiles plugin" end
+    pcall(p.loadProfiles, p)
+    if type(p.data) ~= "table" or type(p.data[name]) ~= "table" then
+        return false, "no profile named " .. name
+    end
+    p:onProfileExecute(name, { qm_show = false })
+    G_reader_settings:flush()
+    logger.info("TomeSync: link ran profile " .. name)
+    return true, nil, nil, nil, "now"
 end
 
 local function linkStopPoll(why)
