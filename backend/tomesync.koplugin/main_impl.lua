@@ -773,8 +773,8 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "57"
-local BUILD           = 57      -- monotonic; the only thing compared
+local PLUGIN_VERSION  = "58"
+local BUILD           = 58      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -932,7 +932,8 @@ local function apiRequest(method, path, body, opts)
     end
 
     logger.warn("TomeSync: HTTP", code, resp_body)
-    return nil, code
+    -- The body too (build 58): the reader link tells a forgotten reader why.
+    return nil, code, resp_body
 end
 
 -- ── Format preference & download helpers ────────────────────────────────────
@@ -5944,6 +5945,49 @@ local function linkSplitCommands(cmds, done)
     end
     return fresh, again
 end
+
+-- Build 58: the heartbeat only in the file manager. A heartbeat due while a
+-- book is open is paused (every request blocks the page turns); the window's
+-- clock keeps running, and the close pass picks it up again if it is still
+-- open. Returns "heartbeat" | "paused" | act unchanged.
+function LinkHB.where(act, reading)
+    if act == "heartbeat" and reading then return "paused" end
+    return act
+end
+
+-- Build 58: the inbox count a link's commands answer carries (inbox: N, the
+-- items waiting for this reader); anything but a positive number is 0.
+function LinkHB.inboxCount(body)
+    if type(body) ~= "table" then return 0 end
+    local v = body.inbox
+    if type(v) ~= "number" or v ~= v or v <= 0 or v == math.huge then return 0 end
+    return math.floor(v)
+end
+
+-- Build 58: what a pass does about the inbox. t.auto: auto-delivery is on;
+-- t.full: a full pass (asks the inbox itself, as before); t.n: the inbox
+-- count the commands answer carried; t.reading: a book is open; t.missed: no
+-- link host answered; t.repair: the server no longer knows this reader.
+-- Returns "deliver" (ask the inbox, deliver what is there), "note" (N waiting:
+-- delivered after the book closes) or "none".
+function LinkHB.inbox(t)
+    if not t.auto or t.missed or t.repair then return "none" end
+    if t.full then return "deliver" end
+    if (t.n or 0) <= 0 then return "none" end
+    if t.reading then return "note" end
+    return "deliver"
+end
+
+-- Build 58: a 401 from a reader link that no longer knows this reader (Forget
+-- in Tome Reader, or another reader's key): "Device id mismatch" or "unknown
+-- key" in the answer. Only from a server that asked for a poll this process
+-- (a real Tome never does), so a real Tome's 401 changes nothing here.
+function LinkHB.repair(code, raw, is_link)
+    if code ~= 401 or not is_link or type(raw) ~= "string" then return false end
+    local s = raw:lower()
+    return s:find("device id mismatch", 1, true) ~= nil or s:find("unknown key", 1, true) ~= nil
+end
+LinkHB.REPAIR_TEXT = "This phone no longer recognises the reader. Pair again in Tome Reader."
 -- TOMESYNC_LINKPOLL_END
 
 -- MD5 hex of a string with KOReader's bundled ffi/sha2; nil when missing
@@ -6341,9 +6385,13 @@ function TomeSync:_linkPass(light, hb)
     elseif LinkSession.url then
         LinkHB.url = LinkSession.url
     end
+    -- Build 58: a link that no longer knows this key is not asked again
+    -- (until the key changes: a new pairing).
+    local repair = LinkHB.repaired ~= nil and LinkHB.repaired == apiKey()
+    if repair then link_on = false end
     -- Link hosts: full passes in the file manager, while no host is in use.
     local probe = not light and not hb and not reading and PLUGIN_CONFIG.LINK_HOSTS ~= nil
-                  and LinkSession.url == nil and not link_off.all
+                  and LinkSession.url == nil and not link_off.all and not repair
     local probed, missed = nil, false
     link_host_missed = false
     if probe and linkHostListed(primaryURL()) then
@@ -6354,18 +6402,20 @@ function TomeSync:_linkPass(light, hb)
         if not probed then link_on, missed = false, true end
     end
     if link_on and not hb and (not light or (not reading and os.time() - link_info_at >= LINK_INFO_EVERY)) then
-        local body, code
+        local body, code, raw
         if probed then
             body, code = probed, 200
         else
-            body, code = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root), net)
+            body, code, raw = apiRequest("PUT", "/tome-sync/device-info", linkDeviceInfo(root), net)
             if probe and type(code) ~= "number" then
                 -- The configured server did not answer: try the phone.
                 probed, nowhy = linkProbeHosts(root)
                 if probed then body, code = probed, 200 else missed = true end
             end
         end
-        if linkRouteOff(code) then
+        if self:_linkRepair(code, raw, "device-info") then
+            link_on, repair = false, true
+        elseif linkRouteOff(code) then
             link_off.all = true
             link_on = false
             logger.info("TomeSync: server has no reader link (device-info", code, ")")
@@ -6376,12 +6426,16 @@ function TomeSync:_linkPass(light, hb)
         else
             link_info_at = os.time()
             poll = linkPollSeconds(body)
+            if poll > 0 then LinkHB.linked = true end
         end
     end
 
+    local inbox_n = 0
     if link_on and root and not link_off.commands then
-        local list, code = apiRequest("GET", "/tome-sync/commands", nil, net)
-        if linkRouteOff(code) then
+        local list, code, raw = apiRequest("GET", "/tome-sync/commands", nil, net)
+        if self:_linkRepair(code, raw, "commands") then
+            link_on, repair, poll = false, true, 0
+        elseif linkRouteOff(code) then
             link_off.commands = true
         elseif type(code) ~= "number" then
             link_on, poll = false, 0
@@ -6389,6 +6443,8 @@ function TomeSync:_linkPass(light, hb)
             noanswer = true
         elseif code >= 200 and code < 300 then
             poll = linkPollSeconds(list)
+            if poll > 0 then LinkHB.linked = true end
+            inbox_n = LinkHB.inboxCount(list)
             local fresh, again = linkSplitCommands(linkParseCommands(list), link_done)
             for _, cmd in ipairs(again) do
                 local key = tostring(cmd.id)
@@ -6428,15 +6484,37 @@ function TomeSync:_linkPass(light, hb)
     end
 
     link_host_missed = missed
-    if autoDeliver() and not light and not missed then
+    -- The inbox: every full pass asks it (auto-delivery on); a light pass or
+    -- heartbeat whose commands answer said inbox: N delivers now in the file
+    -- manager (build 58), and in the reader only notes it: the next light
+    -- pass after the book closes, or the next full pass, delivers.
+    local delivered_now = false
+    local inbox_act = LinkHB.inbox({ auto = autoDeliver(), full = not light, n = inbox_n,
+                                     reading = reading, missed = missed, repair = repair })
+    if inbox_act == "deliver" then
+        if light then
+            logger.info("TomeSync: link poll: " .. inbox_n .. " waiting, delivering now (file manager)")
+        end
+        LinkHB.noted = nil
         pcall(function() self:_refreshInbox() end)
         local items = self.inbox_items
         if self.inbox_enabled and type(items) == "table" and #items > 0 then
+            local d0 = linkNow()
             self:_deliverInbox(items, true)
+            delivered_now = true
+            link_tree_dirty = true
+            logger.info("TomeSync: link inbox delivery of " .. #items .. " item(s) took "
+                        .. math.floor((linkNow() - d0) * 1000 + 0.5) .. " ms ("
+                        .. (light and (hb and "heartbeat" or "poll pass") or "full pass") .. ")")
         end
+    elseif inbox_act == "none" and inbox_n == 0 then
+        LinkHB.noted = nil
+    elseif inbox_act == "note" and LinkHB.noted ~= inbox_n then
+        LinkHB.noted = inbox_n
+        logger.info("TomeSync: link poll: " .. inbox_n .. " waiting, delivering after the book closes")
     end
 
-    if link_on and root and not reading and not hb and not link_off.files and not link_off.all
+    if link_on and root and not reading and (not hb or delivered_now) and not link_off.files and not link_off.all
             and (not light or link_tree_dirty or os.time() - link_tree_at >= LINK_TREE_EVERY) then
         linkSendTree(root, light)
     end
@@ -6453,7 +6531,27 @@ function TomeSync:_linkPass(light, hb)
                     .. (reading and "reader" or "file manager") .. ")")
     end
     if link_off.all then return 0, "server has no link" end
+    if repair then return 0, "the reader link no longer knows this reader", false end
     return poll, (poll == 0) and (nowhy or "server did not ask") or nil, noanswer
+end
+
+-- Build 58: a 401 from the link that no longer knows this reader. Stops the
+-- poll and heartbeat for this key and says once per process to pair again.
+-- Returns true when it was such an answer.
+function TomeSync:_linkRepair(code, raw, route)
+    if not LinkHB.repair(code, raw, LinkHB.linked or link_poll_secs > 0 or LinkHB.till ~= nil) then
+        return false
+    end
+    if LinkHB.repaired ~= apiKey() then
+        LinkHB.repaired = apiKey()
+        logger.info("TomeSync: reader link answered " .. route .. " 401 (" .. tostring(raw)
+                    .. "): not asked again until a new pairing")
+    end
+    if not LinkHB.repair_shown then
+        LinkHB.repair_shown = true
+        UIManager:show(InfoMessage:new{ text = LinkHB.REPAIR_TEXT, timeout = 8 })
+    end
+    return true
 end
 
 local function linkStopPoll(why)
@@ -6468,6 +6566,7 @@ local function linkStopPoll(why)
     end
     link_poll_secs = 0
     LinkHB.till = nil
+    LinkHB.paused = nil
 end
 
 -- (Re)arm the light pass secs from now, or stop polling (secs <= 0). Not
@@ -6492,6 +6591,25 @@ function TomeSync:_linkArmPoll(secs, why, noanswer)
         linkStopPoll(arg or why or "server did not ask")
         return
     end
+    act = LinkHB.where(act, linkReading())
+    if act == "paused" then
+        -- Build 58: not while a book is open; the window's clock runs on and
+        -- the close pass resumes it if it is still open.
+        if not LinkHB.paused then
+            logger.info("TomeSync: link heartbeat paused while reading ("
+                        .. math.max(0, math.floor((arg - os.time()) / 60 + 0.5)) .. " min of the window left)")
+        end
+        LinkHB.paused = true
+        LinkHB.till = arg
+        link_poll_secs = 0
+        return
+    end
+    if LinkHB.paused then
+        LinkHB.paused = nil
+        if act == "heartbeat" then
+            logger.info("TomeSync: link heartbeat resumed in the file manager")
+        end
+    end
     if act == "heartbeat" then
         if not LinkHB.till then
             logger.info("TomeSync: link poll got " .. tostring(why or "no answer")
@@ -6504,6 +6622,10 @@ function TomeSync:_linkArmPoll(secs, why, noanswer)
         link_poll_task = function()
             link_poll_task = nil
             local me = link_owner or self
+            if linkReading() then
+                -- A book opened since it was armed: no knock; re-armed paused.
+                return me:_linkArmPoll(0, "reading", true)
+            end
             local ok, next_secs, why2, noanswer2 = pcall(me._linkPass, me, true, true)
             if not ok then
                 logger.warn("TomeSync: link heartbeat failed:", next_secs)

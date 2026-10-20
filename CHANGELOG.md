@@ -59,6 +59,13 @@ All notable changes to Tome are documented here. Format loosely follows
   within a minute; it refuses file names ending in a dot or a space (the
   card drops them), and sends no file list when it cannot read the
   library folder. Plugin build 57.
+- **Books sent from Tome Reader arrive within seconds.** While the reader
+  sits in KOReader's file browser, the reader link's next poll fetches a
+  book sent from the phone instead of waiting for the next sync moment; with
+  a book open it waits until the book closes. The once-a-minute knock after
+  the phone stops answering pauses while a book is open, and a phone that
+  no longer knows the reader (forgotten in Tome Reader) is no longer asked:
+  TomeSync says once to pair again. Plugin build 58.
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
   new pairing (Sign in with code), a changed server URL and a connection
   reset in memory until KOReader next closed normally, so a crash before

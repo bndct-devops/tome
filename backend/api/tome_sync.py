@@ -146,7 +146,11 @@ logger = logging.getLogger(__name__)
 # is text only and a name set twice makes it invalid; reader link: a heartbeat
 # every 60 s for 30 min after a poll got no answer, names ending in a dot or
 # space refused, no tree sent when the walk fails.
-TOMESYNC_PLUGIN_BUILD = 57
+# BUILD 58: reader link: a light poll whose commands answer says inbox: N > 0
+# delivers right away in the file manager (in the reader after the book closes);
+# the heartbeat pauses while a book is open; a 401 "Device id mismatch" /
+# "unknown key" from the link stops the poll and says to pair again.
+TOMESYNC_PLUGIN_BUILD = 58
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

@@ -420,7 +420,7 @@ def test_download_and_delivered_hardening_in_render():
 def test_build_55_device_id_wording_and_probe_rules():
     assert TOMESYNC_PLUGIN_BUILD >= 55
     lua = _main_impl_lua()
-    assert "local BUILD           = 57" in lua
+    assert "local BUILD           = 58" in lua
     # A persistent id, sent in device-info and in the initiate body.
     assert "device_id    = LinkSession.deviceID()," in lua
     assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
@@ -592,7 +592,7 @@ def test_heartbeat_wiring():
     # heartbeat: commands GET only (no device-info, no tree, no probe)
     assert "local probe = not light and not hb and" in pas
     assert "if link_on and not hb and (not light" in pas
-    assert "if link_on and root and not reading and not hb and" in pas
+    assert "if link_on and root and not reading and (not hb or delivered_now) and" in pas
     assert 'tomesync_link_heartbeat_minutes' in lua
     stop = lua[lua.index("local function linkStopPoll(why)"):]
     stop = stop[:stop.index("\nend\n")]
@@ -608,3 +608,83 @@ def test_tree_walk_failure_sends_nothing():
     send = send[:send.index("\nend\n")]
     i_fail = send.index("if not entries then")
     assert i_fail < send.index("/tome-sync/files/status") and i_fail < send.index('"PUT", "/tome-sync/files"')
+
+
+# ── Build 58: deliveries on light passes, heartbeat in the file manager, 401 ──
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_light_pass_inbox_decision(tmp_path):
+    _run_lua(tmp_path, "inbox.lua", _linkpoll_block() + r"""
+local C, I = LinkHB.inboxCount, LinkHB.inbox
+assert(C(nil) == 0 and C({}) == 0 and C({ inbox = 0 }) == 0 and C({ inbox = -1 }) == 0, "none")
+assert(C({ inbox = "1" }) == 0 and C({ inbox = 0/0 }) == 0 and C({ inbox = math.huge }) == 0, "junk")
+assert(C({ commands = {}, inbox = 2, poll_seconds = 5 }) == 2 and C({ inbox = 1.7 }) == 1, "count")
+-- file manager, light pass, something waiting: deliver now
+assert(I({ auto = true, full = false, n = 1, reading = false }) == "deliver", "deliver now")
+-- in the reader: only noted
+assert(I({ auto = true, full = false, n = 1, reading = true }) == "note", "note in the reader")
+-- nothing waiting: nothing on a light pass
+assert(I({ auto = true, full = false, n = 0, reading = false }) == "none", "nothing waiting")
+-- a full pass asks the inbox itself, as before, wherever KOReader is
+assert(I({ auto = true, full = true, n = 0, reading = true }) == "deliver", "full pass")
+-- auto-delivery off, no host answered, or a forgotten reader: nothing
+assert(I({ auto = false, full = false, n = 3, reading = false }) == "none", "auto off")
+assert(I({ auto = false, full = true, n = 0 }) == "none", "auto off, full")
+assert(I({ auto = true, full = true, missed = true }) == "none", "missed")
+assert(I({ auto = true, full = false, n = 1, repair = true }) == "none", "repair")
+print("ok")
+""")
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_heartbeat_only_in_the_file_manager(tmp_path):
+    _run_lua(tmp_path, "hbwhere.lua", _linkpoll_block() + r"""
+local W = LinkHB.where
+assert(W("heartbeat", false) == "heartbeat", "file manager: knock")
+assert(W("heartbeat", true) == "paused", "reader: paused")
+assert(W("poll", true) == "poll" and W("stop", true) == "stop", "poll and stop unchanged")
+-- the window clock runs while reading: once it is over, the close pass stops
+local now = 1000000
+local a = LinkHB.after({ secs = 0, noanswer = true, hb_until = now - 1, now = now, minutes = 30 })
+assert(a == "stop", "window over while reading")
+a = LinkHB.after({ secs = 0, noanswer = true, hb_until = now + 60, now = now, minutes = 30 })
+assert(W(a, false) == "heartbeat", "window still open after the close")
+print("ok")
+""")
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_repair_on_401(tmp_path):
+    _run_lua(tmp_path, "repair.lua", _linkpoll_block() + r"""
+local R = LinkHB.repair
+assert(R(401, '{"detail":"Device id mismatch"}', true), "mismatch")
+assert(R(401, '{"detail":"Invalid API key: unknown key"}', true), "unknown key")
+assert(R(401, '{"detail":"UNKNOWN KEY"}', true), "any case")
+-- a real Tome (never asked for a poll) or another answer: nothing
+assert(not R(401, '{"detail":"Device id mismatch"}', false), "not a link")
+assert(not R(401, '{"detail":"Invalid API key"}', true), "plain invalid key")
+assert(not R(403, '{"detail":"unknown key"}', true), "not 401")
+assert(not R(401, nil, true) and not R("timeout", nil, true), "no body")
+assert(LinkHB.REPAIR_TEXT == "This phone no longer recognises the reader. Pair again in Tome Reader.", "text")
+print("ok")
+""")
+
+
+def test_build_58_wiring():
+    lua = _impl()
+    assert "local BUILD           = 58" in lua
+    api = lua[lua.index("local function apiRequest(method, path, body, opts)"):]
+    api = api[:api.index("\nend\n")]
+    assert "return nil, code, resp_body" in api
+    pas = lua[lua.index("function TomeSync:_linkPass(light, hb)"):]
+    pas = pas[:pas.index("\nend\n")]
+    assert "inbox_n = LinkHB.inboxCount(list)" in pas
+    assert "self:_deliverInbox(items, true)" in pas
+    assert 'self:_linkRepair(code, raw, "device-info")' in pas
+    assert 'self:_linkRepair(code, raw, "commands")' in pas
+    assert "and not link_off.all and not repair" in pas
+    arm = lua[lua.index("function TomeSync:_linkArmPoll(secs, why, noanswer)"):]
+    arm = arm[:arm.index("\nend\n\n")]
+    assert "act = LinkHB.where(act, linkReading())" in arm
+    i_task = arm.index("link_poll_task = function()")
+    assert arm.index("if linkReading() then", i_task) < arm.index("pcall(me._linkPass, me, true, true)")
