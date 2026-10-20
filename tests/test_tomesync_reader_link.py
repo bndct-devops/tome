@@ -231,14 +231,73 @@ print("ok")
     assert out.returncode == 0 and out.stdout.strip() == "ok", out.stderr + out.stdout
 
 
-def test_no_pin_leaves_tls_untouched():
-    """Without a pin, tlsCreateFor returns nil, so http.request picks LuaSec's
-    own https create exactly as before (real Tome servers)."""
+def test_http_leaves_tls_untouched():
+    """http: tlsCreateFor returns nil, so http.request runs exactly as before.
+    https always goes through the policy's create (build 56)."""
     lua = _main_impl_lua("https://tome.test", "key", "user")
     body = lua[lua.index("local function tlsCreateFor(base)"):]
     body = body[:body.index("\nend\n")]
-    assert 'if not pin then return nil end' in body
     assert 'match("^https://") then return nil end' in body
+    assert "TLS.decision(" in body
+
+
+# Build 56: the TLS policy for ordinary Tome servers, as one decision table.
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_tls_policy_decision_table(tmp_path):
+    hexfp = "146b389a234cb66cde7f96446afb3996a023ae06a05747d4871c9918774ddf9e"
+    other = hexfp[:-2] + "9f"
+    _run_lua(tmp_path, "policy.lua", _pin_block() + f'''
+local pin, other = "{hexfp}", "{other}"
+local D = TLS.decision
+-- http: no TLS at all, whatever else is set
+assert(D({{ https = false, pin = pin, got = other }}) == "plain", "http")
+-- https + pin, certificate is the pin
+assert(D({{ https = true, pin = pin, got = pin }}) == "pinned", "pin ok")
+assert(D({{ https = true, pin = pin:upper(), got = pin, ca = false }}) == "pinned", "pin ok, no CA")
+-- https + pin, another certificate: the reader link refuses, a Tome server asks again
+assert(D({{ https = true, pin = pin, got = other, link = true }}) == "refuse", "link mismatch")
+assert(D({{ https = true, pin = pin, got = nil, link = true }}) == "refuse", "link, no certificate")
+assert(D({{ https = true, pin = pin, got = other }}) == "ask", "server mismatch asks again")
+assert(D({{ https = true, pin = pin, got = other, ca = true }}) == "ask", "a pin beats the CA")
+-- https, no pin
+assert(D({{ https = true, got = pin, ca = true }}) == "ca", "CA ok")
+assert(D({{ https = true, got = pin, ca = false }}) == "ask", "CA failed")
+assert(D({{ https = true, got = pin, ca = nil }}) == "ask", "no CA bundle")
+assert(D({{ https = true, pin = "", got = pin, ca = true }}) == "ca", "empty pin is no pin")
+assert(D({{ https = true, pin = "junk", got = pin, ca = false }}) == "ask", "junk pin is no pin")
+-- the host name check for a CA-verified certificate
+local H = TLS.hostMatches
+assert(H("tome.example.com", {{ "tome.example.com" }}), "exact")
+assert(H("Tome.Example.com.", {{ "tome.example.COM" }}), "case, trailing dot")
+assert(H("tome.example.com", {{ "*.example.com" }}), "wildcard")
+assert(not H("a.tome.example.com", {{ "*.example.com" }}), "wildcard is one label")
+assert(not H("example.com", {{ "*.example.com" }}), "wildcard needs a label")
+assert(not H("evil.com", {{ "*.com" }}), "no wildcard for a whole TLD")
+assert(not H("10.0.0.5", {{ "*.0.0.5" }}), "no wildcard for an IP")
+assert(H("192.168.1.10", {{ "nas.local", "192.168.1.10" }}), "IP SAN")
+assert(not H("tome.example.com", {{ "other.example.com" }}), "another name")
+assert(not H("tome.example.com", {{}}), "no names")
+print("ok")
+''')
+
+
+def test_tls_policy_wiring():
+    lua = _impl()
+    # background: an untrusted certificate is no miss (no back-off), logged once where found
+    net = lua[lua.index("-- TOMESYNC_NET_BEGIN"):lua.index("-- TOMESYNC_NET_END")]
+    assert "if code == TLS.UNTRUSTED then" in net
+    assert "if not missed then return ok, code end" in net
+    # every user action asks first; the menu asks without network, once
+    wc = lua[lua.index("local function whenConnected(fn)"):]
+    wc = wc[:wc.index("\nend\n")]
+    assert "TLS.trustThen(fn)" in wc
+    assert "TLS.trustThen(nil, { no_network = true, once = true })" in lua
+    assert "return TLS.trustThen(function() self:_signInWithCode(true) end)" in lua
+    # Trust pins it
+    trust = lua[lua.index("function TLS.trustThen(fn, opts)"):]
+    trust = trust[:trust.index("\nend\n")]
+    assert 'saveSetting("tomesync_server_fingerprint", shortFingerprint(digest))' in trust
+    assert "G_reader_settings:flush()" in trust
 
 
 # Step seven: the refusal rules (a server must not be able to plant code on the
@@ -335,7 +394,7 @@ def test_download_and_delivered_hardening_in_render():
 def test_build_55_device_id_wording_and_probe_rules():
     assert TOMESYNC_PLUGIN_BUILD >= 55
     lua = _main_impl_lua()
-    assert "local BUILD           = 55" in lua
+    assert "local BUILD           = 56" in lua
     # A persistent id, sent in device-info and in the initiate body.
     assert "device_id    = LinkSession.deviceID()," in lua
     assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
@@ -377,3 +436,74 @@ print("ok")
 """
     out = subprocess.run([luajit, "-"], input=src, capture_output=True, text=True)
     assert out.returncode == 0 and out.stdout.strip() == "ok", out.stderr + out.stdout
+
+
+# ── Build 56: dot titles, the trash's age ────────────────────────────────────
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_delivery_names_lose_their_leading_dots(tmp_path):
+    _run_lua(tmp_path, "dots.lua", _linkguard_block() + r'''
+local S = linkSafeName
+-- getSafeFilename(".hack//SIGN.epub") gives ".hack__SIGN.epub"
+assert(S(".hack__SIGN.epub", "42", "epub") == "hack__SIGN.epub", S(".hack__SIGN.epub", "42", "epub"))
+assert(S(".hack__SIGN", "42") == "hack__SIGN", "a folder")
+-- "..." as a title: getSafeFilename gives ".epub"
+assert(S(".epub", "42", "epub") == "42.epub", S(".epub", "42", "epub"))
+assert(S("...", "42") == "42", "a folder of dots")
+assert(S(" . .x.epub", "42", "epub") == "x.epub", "dots and spaces")
+assert(S("Vol. 1 - A.epub", "42", "epub") == "Vol. 1 - A.epub", "a dot inside stays")
+assert(S("A.EPUB", "42", "epub") == "A.EPUB", "extension case kept")
+assert(S(".kepub.epub", "42", "kepub.epub") == "42.kepub.epub", "two-part extension")
+-- the cleaned names pass the guard; a rename to a dot name is still refused
+assert(linkPathRefused("book/hack__SIGN/hack__SIGN.epub") == nil, "clean path allowed")
+assert(linkPartRefused(".foo") ~= nil, "rename to .foo refused")
+print("ok")
+''')
+
+
+def _linktrash_block() -> str:
+    lua = _impl()
+    start = lua.index("-- TOMESYNC_LINKTRASH_BEGIN")
+    end = lua.index("-- TOMESYNC_LINKTRASH_END")
+    return "TomeSync = {}\n" + lua[start:end]
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_trash_purge_by_age_and_bound(tmp_path):
+    _run_lua(tmp_path, "trash.lua", _linktrash_block() + r'''
+local P = TomeSync._linkTrashPlan
+local now, day, MB = 1000 * 86400, 86400, 1048576
+local function names(list) local o = {} for i, it in ipairs(list) do o[i] = it.name end return table.concat(o, ",") end
+local three = {
+  { name = "old.epub", t = now - 40 * day, bytes = 1 },
+  { name = "mid.epub", t = now - 20 * day, bytes = 1 },
+  { name = "new.epub", t = now - 1 * day,  bytes = 1 },
+}
+local out, by_age = P(three, nil, now, 30, 50, 200 * MB)
+assert(names(out) == "old.epub" and by_age == 1, names(out))
+-- 0 = never by age
+out, by_age = P(three, nil, now, 0, 50, 200 * MB)
+assert(#out == 0 and by_age == 0, "days 0 purges nothing")
+-- the newest item is never purged, even when everything is old
+local all_old = { { name = "a", t = now - 90 * day, bytes = 1 }, { name = "b", t = now - 80 * day, bytes = 1 } }
+out = P(all_old, nil, now, 30, 50, 200 * MB)
+assert(names(out) == "a", names(out))
+-- the one just trashed is kept even if its mtime is older
+out = P(all_old, "a", now, 30, 50, 200 * MB)
+assert(names(out) == "b", names(out))
+-- the bound still applies, oldest first, after the age
+local big = {
+  { name = "x", t = now - 3 * day, bytes = 150 * MB },
+  { name = "y", t = now - 2 * day, bytes = 60 * MB },
+  { name = "z", t = now - 1 * day, bytes = 10 * MB },
+}
+out, by_age = P(big, nil, now, 30, 50, 200 * MB)
+assert(names(out) == "x" and by_age == 0, names(out))
+-- items bound
+local many = {}
+for i = 1, 53 do many[i] = { name = string.format("n%02d", i), t = now - (60 - i) , bytes = 1 } end
+out = P(many, nil, now, 30, 50, 200 * MB)
+assert(names(out) == "n01,n02,n03", names(out))
+assert(#P({}, nil, now, 30, 50, 200 * MB) == 0, "empty")
+print("ok")
+''')

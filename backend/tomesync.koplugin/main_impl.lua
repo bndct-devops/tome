@@ -240,6 +240,10 @@ end
 -- TOMESYNC_PIN_BEGIN (pure string functions; extracted and run under luajit
 -- by the backend test suite)
 --
+-- TLS: one table for the policy's parts (the main chunk is at its 200-local
+-- limit). The pure ones are here; the rest follows the block.
+local TLS = {}
+--
 -- Certificate fingerprints: SHA-256 as 64 hex digits, written any way
 -- (AB:CD:.., ab cd .., abcd..). Anything else is "no fingerprint".
 local function normFingerprint(s)
@@ -272,24 +276,162 @@ local function edgeFingerprint(s)
     end
     return colon(hex:sub(1, 8)) .. ".." .. colon(hex:sub(-8))
 end
+-- The TLS policy (build 56), as one decision. t.https, t.pin (the pinned
+-- fingerprint or nil), t.link (a reader link address: the phone), t.got (the
+-- certificate's SHA-256 or nil), t.ca (true: a CA in the bundle signed it for
+-- this host name; false: none did, or not for this name; nil: no bundle).
+--   http                                       -> "plain"   no TLS at all
+--   https + pin, certificate is the pin        -> "pinned"  go on
+--   https + pin, another one, reader link      -> "refuse"  never asks
+--   https + pin, another one, any other server -> "ask"     it changed: ask again
+--   https, no pin, CA-verified for the host    -> "ca"      go on, unpinned
+--   https, no pin, CA check failed             -> "ask"
+--   https, no pin, no CA bundle on the device  -> "ask"
+-- "ask": nothing is sent. A user action shows the trust prompt (Trust pins
+-- the certificate); a background pass skips the request quietly.
+function TLS.decision(t)
+    if not t.https then return "plain" end
+    if normFingerprint(t.pin) then
+        if fingerprintMatches(t.got, t.pin) then return "pinned" end
+        if t.link then return "refuse" end
+        return "ask"
+    end
+    if t.ca == true then return "ca" end
+    return "ask"
+end
+-- Does a CA-verified certificate name this host? names: its subjectAltName
+-- DNS and IP entries, else its common name. "*.example.com" covers one
+-- leftmost label, never an IP address. Case and a trailing dot ignored.
+function TLS.hostMatches(host, names)
+    if type(host) ~= "string" or host == "" or type(names) ~= "table" then return false end
+    host = (host:lower():gsub("%.$", ""))
+    local is_ip = host:match("^[%d%.]+$") or host:find(":", 1, true)
+    for _, n in ipairs(names) do
+        if type(n) == "string" and n ~= "" then
+            n = (n:lower():gsub("%.$", ""))
+            if n == host then return true end
+            local rest = n:match("^%*%.(.+%..+)$")
+            if rest and not is_ip and host:match("^[^%.]+%.(.+)$") == rest then return true end
+        end
+    end
+    return false
+end
 -- TOMESYNC_PIN_END
 
--- Pinning (reader link, build 53). With an https server URL and a known
--- fingerprint, every connection is made by tlsCreateFor's `create`: LuaSec
--- without CA checks (verify "none"; the pin is the check), and after the
--- handshake, before a byte of the request is sent, the peer certificate's
--- SHA-256 must equal the pin or the connection is closed. Without a pin, or
--- for http, it returns nil and LuaSocket/LuaSec run exactly as before.
-local PIN_REFUSED = "certificate fingerprint mismatch"
-local pin_ok_logged = {}
+-- ── TLS policy (build 56) ───────────────────────────────────────────────────
+-- Every https request is made by tlsCreateFor's `create`; TLS.decision above
+-- is the whole rule set.
+--  * Pinned (a fingerprint saved at a trust prompt, or baked in by Tome
+--    Reader): LuaSec without CA checks (the pin is the check); after the
+--    handshake, before a byte of the request is sent, the certificate's
+--    SHA-256 must equal the pin.
+--  * Not pinned: the certificate is checked against the device's CA bundle
+--    (KOReader's data/ca-bundle.crt, else the usual system files; looked up
+--    once per process) and must name the host. A CA-signed server goes on
+--    exactly as before, unpinned.
+--  * Not trusted (no bundle, no CA signed it, wrong name, or a pinned
+--    certificate that changed on an ordinary Tome server): the request is not
+--    sent. At the next user-visible moment (Sign in with code, Sync now and
+--    every other TomeSync action, the TomeSync menu opening) the trust prompt
+--    shows the fingerprint; Trust saves it as tomesync_server_fingerprint and
+--    from then on the server is pinned. Background passes never prompt: they
+--    skip the request with one logged line ("certificate not trusted yet"),
+--    and it does not count as a miss, so no back-off window opens.
+--  * The reader link (Tome Reader's addresses: LINK_HOSTS, or the baked
+--    SERVER_URL with its baked pin) never asks: a different certificate there
+--    is refused, logged with the head and tail of both fingerprints.
+-- http is untouched: tlsCreateFor returns nil and LuaSocket runs as before.
+local PIN_REFUSED   = "certificate fingerprint mismatch"
+TLS.UNTRUSTED = "certificate not trusted yet"
+TLS.RECHECK = 900      -- seconds a "not trusted" verdict is kept before a new handshake
+TLS.state   = {}       -- base -> { verdict = "ok" | "ask", digest, changed, why, at, logged_at, asked }
+TLS.logged  = {}       -- base .. verdict -> true: "fingerprint ok" / "CA ok" once per process
 local function pinnedFingerprint()
     return normFingerprint(liveSetting("tomesync_server_fingerprint", SERVER_FINGERPRINT))
 end
+-- The CA bundle, looked up once per process; nil when the device has none.
+function TLS.bundle()
+    if TLS.cafile == nil then
+        TLS.cafile = false
+        for _, f in ipairs({ "data/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt",
+                              "/etc/ssl/cert.pem", "/etc/pki/tls/certs/ca-bundle.crt" }) do
+            if lfs.attributes(f, "mode") == "file" then TLS.cafile = f; break end
+        end
+        logger.info("TomeSync: CA bundle for https servers: " .. (TLS.cafile or "none found"))
+    end
+    return TLS.cafile or nil
+end
+-- A reader link address (the phone): pinned by the bake, never asks.
+function TLS.isLink(base)
+    for _, h in ipairs(PLUGIN_CONFIG.LINK_HOSTS or {}) do
+        if h == base then return true end
+    end
+    return normFingerprint(SERVER_FINGERPRINT) ~= nil and base == DEFAULT_SERVER_URL
+end
+-- The names a certificate is for: subjectAltName DNS and IP entries, else CN.
+function TLS.names(cert)
+    local names = {}
+    pcall(function()
+        local san = (cert:extensions() or {})["2.5.29.17"]
+        if type(san) == "table" then
+            for _, kind in ipairs({ "dNSName", "iPAddress" }) do
+                for _, n in ipairs(type(san[kind]) == "table" and san[kind] or {}) do
+                    table.insert(names, n)
+                end
+            end
+        end
+        if #names == 0 then
+            for _, e in ipairs(cert:subject() or {}) do
+                if e.name == "commonName" or e.oid == "2.5.4.3" then table.insert(names, e.value) end
+            end
+        end
+    end)
+    return names
+end
+-- The CA verdict of a finished handshake: true, false (why), or nil (no bundle).
+function TLS.caVerdict(sock, host, cert, cafile)
+    if not cafile then return nil, "no CA bundle on this device" end
+    if sock:getpeerverification() ~= true then return false, "no authority in " .. cafile .. " signed it" end
+    if not TLS.hostMatches(host, TLS.names(cert)) then return false, "it is not for " .. tostring(host) end
+    return true
+end
+-- One line at most every 60 s per address, so a pass logs it once.
+function TLS.noteUntrusted(base, st)
+    if st.logged_at and os.time() - st.logged_at < 60 then return end
+    st.logged_at = os.time()
+    logger.info("TomeSync: " .. base .. ": " .. TLS.UNTRUSTED .. " ("
+                .. (st.changed and "the pinned certificate changed: " or "")
+                .. edgeFingerprint(st.digest) .. ", " .. tostring(st.why)
+                .. "); request skipped, TomeSync asks at the next Sync now or menu open")
+end
+function TLS.markUntrusted(base, digest, changed, why)
+    local st = TLS.state[base]
+    if not (st and st.verdict == "ask" and st.digest == digest) then st = {} end
+    st.verdict, st.digest, st.changed, st.why, st.at = "ask", digest, changed, why, os.time()
+    TLS.state[base] = st
+    TLS.noteUntrusted(base, st)
+    return st
+end
+function TLS.markOk(base, verdict, text)
+    TLS.state[base] = { verdict = "ok", at = os.time() }
+    if not TLS.logged[base .. verdict] then
+        TLS.logged[base .. verdict] = true
+        logger.info("TomeSync: " .. text .. " for " .. base .. ", once per process")
+    end
+end
 local function tlsCreateFor(base)
     if type(base) ~= "string" or not base:lower():match("^https://") then return nil end
-    local pin = pinnedFingerprint()
-    if not pin then return nil end
-    local make = require("ssl.https").tcp({ verify = "none" })
+    local st = TLS.state[base]
+    if st and st.verdict == "ask" and os.time() - st.at < TLS.RECHECK then
+        TLS.noteUntrusted(base, st)
+        return function() return nil, TLS.UNTRUSTED end
+    end
+    local pin  = pinnedFingerprint()
+    local link = TLS.isLink(base)
+    local cafile = (not pin) and TLS.bundle() or nil
+    local make = require("ssl.https").tcp(cafile
+        and { verify = "peer", verifyext = { "lsec_continue" }, cafile = cafile }
+        or  { verify = "none" })
     return function()
         local conn = make()
         local connect = conn.connect
@@ -297,63 +439,65 @@ local function tlsCreateFor(base)
             connect(self, host, port)   -- TCP + handshake; raises (socket.try) on failure
             local cert = self.sock.getpeercertificate and self.sock:getpeercertificate()
             local got = cert and cert:digest("sha256")
-            if not fingerprintMatches(got, pin) then
+            local ca, why
+            if not pin and cert then ca, why = TLS.caVerdict(self.sock, host, cert, cafile) end
+            local verdict = TLS.decision({ https = true, pin = pin, link = link, got = got, ca = ca })
+            if verdict == "pinned" then
+                TLS.markOk(base, verdict, "fingerprint ok (" .. shortFingerprint(pin, 8) .. "..)")
+                return 1
+            elseif verdict == "ca" then
+                TLS.markOk(base, verdict, "certificate verified against " .. cafile)
+                return 1
+            end
+            pcall(self.sock.close, self.sock)
+            if verdict == "refuse" then
                 logger.warn("TomeSync: refused " .. base .. ": certificate "
                             .. edgeFingerprint(got) .. " is not the pinned "
                             .. edgeFingerprint(pin))
-                pcall(self.sock.close, self.sock)
                 return nil, PIN_REFUSED
             end
-            if not pin_ok_logged[base] then
-                pin_ok_logged[base] = true
-                logger.info("TomeSync: fingerprint ok for " .. base .. " ("
-                            .. shortFingerprint(pin, 8) .. "..), once per process")
-            end
-            return 1
+            TLS.markUntrusted(base, got, pin ~= nil,
+                pin and ("pinned " .. edgeFingerprint(pin)) or why or "no certificate")
+            return nil, TLS.UNTRUSTED
         end
         return conn
     end
 end
 
--- Trust on first use, for "Sign in with code": one handshake to an https
--- address, checked against KOReader's CA bundle without failing on errors
--- (lsec_continue). Returns { digest, ca_ok } or nil, why (no bundle, no
--- answer): nil means "cannot tell", and the caller goes on as before.
-local function probeCertificate(base)
+-- One handshake to an https address for a trust decision (a user action):
+-- { digest, ca, why } (ca as TLS.caVerdict gives it) or nil, why when the
+-- server did not answer. Never sends a request.
+function TLS.probe(base)
     local u = require("socket.url").parse(base)
     if not u or not u.host then return nil, "bad url" end
-    -- KOReader's own bundle first (shipped in data/ on devices), then the
-    -- usual system places; none found = cannot tell, never "untrusted".
-    local cafile
-    for _, f in ipairs({ "data/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt",
-                          "/etc/ssl/cert.pem", "/etc/pki/tls/certs/ca-bundle.crt" }) do
-        if lfs.attributes(f, "mode") == "file" then cafile = f; break end
-    end
-    if not cafile then return nil, "no CA bundle" end
+    local cafile = TLS.bundle()
     local socket, ssl = require("socket"), require("ssl")
     local tcp = socket.tcp()
     tcp:settimeout(5)
     local ok, err = tcp:connect(u.host, tonumber(u.port) or 443)
     if not ok then tcp:close(); return nil, err end
-    local s, werr = ssl.wrap(tcp, { mode = "client", protocol = "any",
-        options = { "all", "no_sslv2", "no_sslv3", "no_tlsv1" },
-        verify = "peer", verifyext = { "lsec_continue" }, cafile = cafile })
+    local params = { mode = "client", protocol = "any",
+        options = { "all", "no_sslv2", "no_sslv3", "no_tlsv1" }, verify = "none" }
+    if cafile then
+        params.verify, params.verifyext, params.cafile = "peer", { "lsec_continue" }, cafile
+    end
+    local s, werr = ssl.wrap(tcp, params)
     if not s then tcp:close(); return nil, werr end
     s:sni(u.host)
     s:settimeout(5)
     local hok, herr = s:dohandshake()
     if not hok then s:close(); return nil, herr end
     local cert = s:getpeercertificate()
-    local verified = s:getpeerverification()
+    if not cert then s:close(); return nil, "no certificate" end
+    local ca, why = TLS.caVerdict(s, u.host, cert, cafile)
     s:close()
-    if not cert then return nil, "no certificate" end
-    return { digest = cert:digest("sha256"), ca_ok = verified == true, cafile = cafile }
+    return { digest = cert:digest("sha256"), ca = ca, why = why }
 end
 
 -- TOMESYNC_NET_BEGIN (uses only liveSetting, DEFAULT_SERVER_URL,
--- G_reader_settings, socketutil, http, ltn12, logger, tlsCreateFor and
--- PIN_REFUSED — extracted and run under luajit by the backend test suite
--- with fakes for those)
+-- G_reader_settings, socketutil, http, ltn12, logger, tlsCreateFor,
+-- PIN_REFUSED and TLS (its UNTRUSTED) — extracted and run under luajit by the
+-- backend test suite with fakes for those)
 --
 -- Every request runs on KOReader's UI thread, so a server that does not
 -- answer while the device is online freezes the screen for the whole connect
@@ -439,7 +583,7 @@ end
 -- window: background callers do that (apiRequest), interactive ones do not.
 local function serverRequest(spec)
     local ok, code
-    local refused = false
+    local refused, missed = false, false
     for _, base in ipairs(serverURLs()) do
         socketutil:set_timeout(spec.block, spec.total)
         ok, code = http.request({
@@ -458,12 +602,18 @@ local function serverRequest(spec)
         end
         -- A pin refusal was logged once where it happened; it still counts
         -- as no answer (back-off), so a wrong peer is not asked every second.
-        if code == PIN_REFUSED then
-            refused = true
+        -- A certificate not trusted yet (TLS policy) was logged there too and
+        -- is no miss: nothing was sent, and a trust prompt fixes it at once.
+        if code == TLS.UNTRUSTED then
+            -- (nothing: no miss)
+        elseif code == PIN_REFUSED then
+            refused, missed = true, true
         else
+            missed = true
             logger.warn("TomeSync: no answer from", base, tostring(code))
         end
     end
+    if not missed then return ok, code end
     if LinkSession.url then
         logger.info("TomeSync: reader link via " .. LinkSession.url .. " stopped answering; back to the configured server")
         LinkSession.url = nil
@@ -476,6 +626,68 @@ local function serverRequest(spec)
     return ok, code
 end
 -- TOMESYNC_NET_END
+
+-- The trust prompt (TLS policy above), at a user-visible moment: then runs
+-- fn (may be nil) once the server is trusted, at once when nothing needs
+-- asking. opts.no_network: only ask about what a request already found (the
+-- menu opening never touches the network); opts.once: ask about one
+-- certificate once per process (the menu opens often). A server that does
+-- not answer the probe goes on to fn, which fails as it always did.
+function TLS.trustThen(fn, opts)
+    opts = opts or {}
+    local base = serverURL()
+    local function run() if fn then return fn() end end
+    if type(base) ~= "string" or not base:lower():match("^https://") or TLS.isLink(base) then
+        return run()
+    end
+    local st = TLS.state[base]
+    if not (st and st.verdict == "ask") then
+        if opts.no_network or (st and st.verdict == "ok" and os.time() - st.at < TLS.RECHECK)
+                or not NetworkMgr:isConnected() then
+            return run()
+        end
+        local probe, why = TLS.probe(base)
+        if not probe then
+            logger.info("TomeSync: certificate check of " .. base .. ": no answer (" .. tostring(why) .. ")")
+            return run()
+        end
+        local pin = pinnedFingerprint()
+        local verdict = TLS.decision({ https = true, pin = pin, got = probe.digest, ca = probe.ca })
+        if verdict ~= "ask" then
+            TLS.markOk(base, verdict, verdict == "ca" and ("certificate verified against " .. tostring(TLS.cafile))
+                                       or ("fingerprint ok (" .. shortFingerprint(pin, 8) .. "..)"))
+            return run()
+        end
+        st = TLS.markUntrusted(base, probe.digest, pin ~= nil,
+            pin and ("pinned " .. edgeFingerprint(pin)) or probe.why)
+    end
+    if opts.once and st.asked == st.digest then return end
+    st.asked = st.digest
+    local digest = st.digest
+    local head = st.changed
+        and "This server's certificate has changed since you trusted it.\n\n"
+        or  "This server's certificate is not signed by an authority this reader knows.\n\n"
+    logger.info("TomeSync: asking to trust " .. base .. " (" .. shortFingerprint(digest) .. ")")
+    UIManager:show(ConfirmBox:new{
+        text = head .. base .. "\n"
+               .. "Fingerprint (SHA-256):\n" .. shortFingerprint(digest, 8) .. "\u{2026}\n"
+               .. edgeFingerprint(digest) .. "\n\n"
+               .. "If this is the Tome app on your phone, it shows the same "
+               .. "fingerprint. Trust this server?",
+        ok_text = "Trust",
+        ok_callback = function()
+            G_reader_settings:saveSetting("tomesync_server_fingerprint", shortFingerprint(digest))
+            G_reader_settings:flush()
+            TLS.state[base] = nil
+            TLS.logged[base .. "pinned"] = nil
+            logger.info("TomeSync: trusted " .. base .. " with fingerprint " .. shortFingerprint(digest))
+            run()
+        end,
+        cancel_callback = function()
+            logger.info("TomeSync: " .. base .. " not trusted; its requests stay off until it is")
+        end,
+    })
+end
 
 -- Chunk-local (shared across plugin instances): dedupes _initSession when the
 -- ReaderReady event reaches more than one live TomeSync instance for the same
@@ -501,8 +713,8 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "55"
-local BUILD           = 55      -- monotonic; the only thing compared
+local PLUGIN_VERSION  = "56"
+local BUILD           = 56      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -714,7 +926,7 @@ local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb
     -- a stalled connection quickly (no global http.TIMEOUT mutation).
     local rok, ok, code = pcall(serverRequest, {
         method  = "GET",
-        path    = "/api/tome-sync/download/" .. book_id .. "/" .. file_id,
+        path    = "/api/tome-sync/download/" .. urlEncode(tostring(book_id)) .. "/" .. urlEncode(tostring(file_id)),
         headers = { ["Authorization"] = "Bearer " .. apiKey() },
         sink    = makeSink,
         block   = 15,
@@ -840,12 +1052,14 @@ local function whenConnected(fn)
     -- back-off window (issue #249), so "Sync now" right after the server
     -- comes back does not wait out the background retry timer.
     resetBackoff()
+    -- A certificate not trusted yet is asked about first (TLS policy).
+    local function run() TLS.trustThen(fn) end
     if G_reader_settings:isTrue("tomesync_auto_connect")
             and not NetworkMgr:isConnected() then
-        NetworkMgr:runWhenConnected(fn)
+        NetworkMgr:runWhenConnected(run)
         return
     end
-    fn()
+    run()
 end
 
 -- ── Self-update helpers ──────────────────────────────────────────────────────
@@ -1587,33 +1801,12 @@ function TomeSync:_signInWithCode(trusted)
         return
     end
     resetBackoff()
-    -- Trust on first use (reader link): an https address whose certificate
-    -- no known authority signed, and no pinned fingerprint yet, is shown and
-    -- asked about once; yes pins it. A CA-signed server (or one the probe
-    -- cannot tell about) goes on exactly as before, unpinned.
-    if not trusted and serverURL():lower():match("^https://") and not pinnedFingerprint() then
-        local probe, why = probeCertificate(serverURL())
-        if not probe then
-            logger.info("TomeSync: certificate probe of " .. serverURL() .. " cannot tell (" .. tostring(why) .. "); going on as before")
-        elseif not probe.ca_ok then
-            logger.info("TomeSync: " .. serverURL() .. " shows a certificate no authority in "
-                        .. probe.cafile .. " signed: " .. shortFingerprint(probe.digest) .. "; asking")
-            UIManager:show(ConfirmBox:new{
-                text = "This server's certificate is not signed by an authority "
-                       .. "this reader knows.\n\n" .. serverURL() .. "\n"
-                       .. "Fingerprint (SHA-256):\n" .. shortFingerprint(probe.digest, 8) .. "\u{2026}\n\n"
-                       .. "If this is the Tome app on your phone, it shows the same "
-                       .. "fingerprint. Trust this server?",
-                ok_text = "Trust",
-                ok_callback = function()
-                    G_reader_settings:saveSetting("tomesync_server_fingerprint", shortFingerprint(probe.digest))
-                    G_reader_settings:flush()
-                    logger.info("TomeSync: trusted " .. serverURL() .. " with fingerprint " .. shortFingerprint(probe.digest))
-                    self:_signInWithCode(true)
-                end,
-            })
-            return
-        end
+    -- Trust on first use (TLS policy): an https address whose certificate
+    -- is not trusted yet (no pin, and no CA in the device's bundle signed it
+    -- for this name; or a pinned one that changed) is shown and asked about
+    -- first; Trust pins it. A CA-signed or pinned server goes on at once.
+    if not trusted then
+        return TLS.trustThen(function() self:_signInWithCode(true) end)
     end
     -- device_id and device (build 55): Tome Reader keys the reader by them, so
     -- pairing again replaces this reader's key instead of adding a second
@@ -3134,6 +3327,13 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                         end
                     end
                     dest = dest_dir .. "/" .. fname
+                end
+                -- A delivery (guarded) whose title or series starts with a
+                -- dot is saved without the dot instead of being refused
+                -- (hidden files never show in KOReader). Not for the user's
+                -- own downloads: their names stay what earlier builds saved.
+                if guarded and TomeSync._linkSafeDest then
+                    dest = TomeSync._linkSafeDest(base_dir, dest, ext, book.id)
                 end
                 local refused = TomeSync._linkDownloadRefused
                     and TomeSync._linkDownloadRefused(base_dir, dest, ext, guarded)
@@ -4878,6 +5078,7 @@ local LINK_NET_TREE   = { block = 2, total = 10 }
 -- The trash is bounded so unattended deliveries and deletes cannot fill the
 -- disk: oldest purged first, the newest item always kept.
 local LINK_TRASH_MAX_BYTES = 200 * 1024 * 1024
+TomeSync.LINK_TRASH_DAYS  = 30   -- default of tomesync_link_trash_days (0 = never)
 local LINK_TRASH_MAX_ITEMS = 50
 -- Commands already run, kept across restarts (settings/tomesync_link.lua):
 -- a result POST lost to a crash or a kill is posted again, never re-run.
@@ -4989,14 +5190,33 @@ local function linkHasSidecar(abs)
 end
 
 -- Folders and files under root, depth first, names sorted. Skips dotfiles
--- (the trash included), .sdr folders and symbolic links; lfs only, no shell.
+-- (the trash included), .sdr folders (so a sidecar and its .old backup are
+-- never listed) and symbolic links; lfs only, no shell. A name that is not
+-- valid UTF-8 (a Latin-1 byte from a FAT card) is skipped with its folder's
+-- contents, one log line per walk: JSON cannot carry it, and one such name
+-- made the whole tree PUT invalid. (Build 56.)
 local function linkFileTree(root)
     local entries, truncated = {}, false
+    local bad, bad_example = 0, nil
+    local function utf8ok(name)
+        local ok, fixed = pcall(util.fixUtf8, name, "?")
+        return not ok or fixed == name
+    end
     local function walk(abs, rel)
         local names = {}
         local ok = pcall(function()
             for name in lfs.dir(abs) do
-                if name:sub(1, 1) ~= "." then table.insert(names, name) end
+                if name:sub(1, 1) ~= "." then
+                    if utf8ok(name) then
+                        table.insert(names, name)
+                    else
+                        bad = bad + 1
+                        bad_example = bad_example or ((rel == "" and "" or (rel .. "/"))
+                            .. name:gsub(".", function(c)
+                                if c:byte() >= 128 then return string.format("\\x%02X", c:byte()) end
+                            end))
+                    end
+                end
             end
         end)
         if not ok then return end
@@ -5020,6 +5240,9 @@ local function linkFileTree(root)
         end
     end
     walk(root, "")
+    if bad > 0 then
+        logger.info("TomeSync: link tree: skipped " .. bad .. " name(s) that are not UTF-8, e.g. " .. bad_example)
+    end
     return entries, truncated
 end
 
@@ -5080,6 +5303,21 @@ local function linkStoredSpellings(stored, path, prefix)
             end
         end
     end
+    return out
+end
+-- A delivery's file or folder name without the leading dots and spaces that
+-- would hide it (".hack__SIGN" -> "hack__SIGN"); the fallback (the book id)
+-- when nothing is left. With ext (a file name) the extension is kept and
+-- the stem cleaned ("...": getSafeFilename gives ".epub" -> "<id>.epub").
+-- Only for deliveries: a server's rename or mkdir to a dot name is a
+-- command and stays refused by linkPartRefused.
+local function linkSafeName(name, fallback, ext)
+    local sfx = ext and ("." .. tostring(ext)) or nil
+    if sfx and #name >= #sfx and name:sub(-#sfx):lower() == sfx:lower() then
+        return linkSafeName(name:sub(1, -#sfx - 1), fallback) .. name:sub(-#sfx)
+    end
+    local out = (name:gsub("^[%.%s]+", ""))
+    if out == "" then out = tostring(fallback) end
     return out
 end
 -- TOMESYNC_LINKGUARD_END
@@ -5266,6 +5504,39 @@ local function linkCollFiles()
     return out
 end
 
+-- DocSettings.updateLocation, plus the sidecar's ".old" backups (e.g.
+-- metadata.epub.lua.old): updateLocation writes a fresh sidecar at the new
+-- place and purges the old folder, so the backup was lost on every move
+-- (build 56). Each .old in the old sidecar folder (book-side and docsettings
+-- location; the hash location does not move) is copied next to the new
+-- sidecar, never over a file already there. (A field: the 200-local budget.)
+function TomeSync._linkUpdateLocation(old, new)
+    local DocSettings = require("docsettings")
+    local keep = {}
+    pcall(function()
+        for _, loc in ipairs({ "doc", "dir" }) do
+            local d = DocSettings:getSidecarDir(old, loc)
+            if lfs.attributes(d, "mode") == "directory" then
+                for name in lfs.dir(d) do
+                    if name:match("%.old$") and lfs.attributes(d .. "/" .. name, "mode") == "file"
+                            and (lfs.attributes(d .. "/" .. name, "size") or 0) <= 4 * 1024 * 1024 then
+                        table.insert(keep, { loc = loc, name = name, data = readWhole(d .. "/" .. name) })
+                    end
+                end
+            end
+        end
+    end)
+    DocSettings.updateLocation(old, new)
+    for _, k in ipairs(keep) do
+        local d = DocSettings:getSidecarDir(new, k.loc)
+        if k.data and lfs.attributes(d, "mode") == "directory" and not lfs.attributes(d .. "/" .. k.name) then
+            if writeWhole(d .. "/" .. k.name, k.data) then
+                logger.info("TomeSync: link kept the sidecar backup " .. k.name .. " (" .. k.loc .. " location)")
+            end
+        end
+    end
+end
+
 -- KOReader's own bookkeeping after a move/rename, as the file manager's
 -- renameFile does it (sidecar, history, collections) minus its dialogs.
 -- History and collections are updated under the spelling they stored,
@@ -5275,7 +5546,7 @@ local function linkMoved(old, new, is_file)
     local ReadHistory    = require("readhistory")
     local ReadCollection = require("readcollection")
     if is_file then
-        pcall(DocSettings.updateLocation, old, new)
+        pcall(TomeSync._linkUpdateLocation, old, new)
         for _, s in ipairs(linkStoredSpellings(linkHistFiles(), old, false)) do
             pcall(ReadHistory.updateItem, ReadHistory, s, new)
         end
@@ -5303,7 +5574,7 @@ local function linkTrashed(old, new, is_file)
     local ReadHistory    = require("readhistory")
     local ReadCollection = require("readcollection")
     if is_file then
-        pcall(DocSettings.updateLocation, old, new)
+        pcall(TomeSync._linkUpdateLocation, old, new)
         for _, s in ipairs(linkStoredSpellings(linkHistFiles(), old, false)) do
             pcall(ReadHistory.fileDeleted, ReadHistory, s)
         end
@@ -5344,10 +5615,51 @@ local function linkBytes(p)
     return n
 end
 
--- Keeps the trash within LINK_TRASH_MAX_ITEMS and LINK_TRASH_MAX_BYTES:
--- oldest first (by when the link trashed them, else mtime), the newest item
--- always kept. A book's sidecar goes with it. One log line per trim.
+-- TOMESYNC_LINKTRASH_BEGIN (pure: no requires, no I/O; extracted and run
+-- under luajit by tests/test_tomesync_reader_link.py)
+-- What the trash purge removes. items: { name, t (when the link trashed
+-- it, else its mtime), bytes }, any order. First everything older than
+-- `days` (0 or nil = never by age), then, oldest first, until the trash is
+-- within max_items and max_bytes; `newest` (the item just trashed; else the
+-- youngest) is never removed. Returns the items to remove, oldest first,
+-- and how many of them went by age. (A field: the 200-local budget.)
+function TomeSync._linkTrashPlan(items, newest, now, days, max_items, max_bytes)
+    local list, total = {}, 0
+    for _, it in ipairs(items) do
+        table.insert(list, it)
+        total = total + (it.bytes or 0)
+    end
+    if #list == 0 then return {}, 0 end
+    table.sort(list, function(x, y)
+        if x.t ~= y.t then return x.t < y.t end
+        return x.name < y.name
+    end)
+    newest = newest or list[#list].name
+    local cutoff = (type(days) == "number" and days > 0) and (now - days * 86400) or nil
+    local out, by_age = {}, 0
+    for _, it in ipairs(list) do
+        local old = cutoff ~= nil and it.t < cutoff
+        local over = (#list - #out > max_items) or total > max_bytes
+        if not old and not over then break end
+        if it.name ~= newest then
+            table.insert(out, it)
+            total = total - (it.bytes or 0)
+            if old then by_age = by_age + 1 end
+        end
+    end
+    return out, by_age
+end
+-- TOMESYNC_LINKTRASH_END
+
+-- Keeps the trash within LINK_TRASH_MAX_ITEMS and LINK_TRASH_MAX_BYTES and,
+-- since build 56, its age: items older than tomesync_link_trash_days (default
+-- 30, 0 = never) go first. Age is when the link trashed them, else mtime.
+-- Then the bound, oldest first. The newest item (the one just trashed, else
+-- the youngest) is always kept. A book's sidecar goes with it. Runs after
+-- every delete and on every full pass in the file manager; one log line per
+-- run that finds anything in the trash.
 local function linkTrimTrash(trash, newest)
+    if lfs.attributes(trash, "mode") ~= "directory" then return end
     local DocSettings = require("docsettings")
     local st = linkStore()
     local times = st:readSetting("trash") or {}
@@ -5371,37 +5683,38 @@ local function linkTrimTrash(trash, newest)
     end)
     if not ok then return end
     for name in pairs(times) do if not present[name] then times[name] = nil end end
-    local before_n, before_b = #items, total
-    local purged, freed = {}, 0
-    if #items > LINK_TRASH_MAX_ITEMS or total > LINK_TRASH_MAX_BYTES then
-        table.sort(items, function(x, y)
-            if x.t ~= y.t then return x.t < y.t end
-            return x.name < y.name
-        end)
-        local ffiUtil = require("ffi/util")
-        for _, it in ipairs(items) do
-            if #items - #purged <= LINK_TRASH_MAX_ITEMS and total <= LINK_TRASH_MAX_BYTES then break end
-            if it.name ~= newest then
-                if it.mode == "file" then
-                    pcall(DocSettings.updateLocation, it.path)   -- its sidecar, every location
-                    os.remove(it.path)
-                    local sdr = DocSettings:getSidecarDir(it.path, "doc")
-                    if lfs.attributes(sdr, "mode") == "directory" then pcall(ffiUtil.purgeDir, sdr) end
-                elseif it.mode == "directory" then
-                    pcall(ffiUtil.purgeDir, it.path)
-                else
-                    os.remove(it.path)
-                end
-                total = total - it.bytes
-                freed = freed + it.bytes
-                times[it.name] = nil
-                table.insert(purged, it.name)
-            end
-        end
-        logger.info(string.format("TomeSync: link trash over its bound (%d items, %.1f MB; keeps %d, %d MB): "
-            .. "purged the %d oldest (%.1f MB): %s", before_n, before_b / 1048576, LINK_TRASH_MAX_ITEMS,
-            LINK_TRASH_MAX_BYTES / 1048576, #purged, freed / 1048576, table.concat(purged, ", ")))
+    if #items == 0 then
+        st:saveSetting("trash", times)
+        st:flush()
+        return
     end
+    local days = G_reader_settings:readSetting("tomesync_link_trash_days")
+    if type(days) ~= "number" or days < 0 then days = TomeSync.LINK_TRASH_DAYS end
+    local before_n, before_b = #items, total
+    local plan, by_age = TomeSync._linkTrashPlan(items, newest, os.time(), days,
+                                                 LINK_TRASH_MAX_ITEMS, LINK_TRASH_MAX_BYTES)
+    local purged, freed = {}, 0
+    local ffiUtil = require("ffi/util")
+    for _, it in ipairs(plan) do
+        if it.mode == "file" then
+            pcall(DocSettings.updateLocation, it.path)   -- its sidecar, every location
+            os.remove(it.path)
+            local sdr = DocSettings:getSidecarDir(it.path, "doc")
+            if lfs.attributes(sdr, "mode") == "directory" then pcall(ffiUtil.purgeDir, sdr) end
+        elseif it.mode == "directory" then
+            pcall(ffiUtil.purgeDir, it.path)
+        else
+            os.remove(it.path)
+        end
+        freed = freed + it.bytes
+        times[it.name] = nil
+        table.insert(purged, it.name)
+    end
+    logger.info(string.format("TomeSync: link trash: %d items (%.1f MB), purged %d (%d by age, %s; "
+        .. "%d over the bound of %d items / %d MB; %.1f MB)%s, kept %d", before_n, before_b / 1048576,
+        #purged, by_age, (days > 0) and ("over " .. days .. " days") or "age off", #purged - by_age,
+        LINK_TRASH_MAX_ITEMS, LINK_TRASH_MAX_BYTES / 1048576, freed / 1048576,
+        (#purged > 0) and (": " .. table.concat(purged, ", ")) or "", before_n - #purged))
     st:saveSetting("trash", times)
     st:flush()
 end
@@ -5879,6 +6192,12 @@ end
 -- Returns the poll_seconds of the last link answer (0 = do not poll) and,
 -- when 0, why (for the log).
 function TomeSync:_linkPass(light)
+    -- The trash's age purge: local, so before the network check; full
+    -- passes in the file manager only (never during page turns).
+    if not light and not linkReading() and linkRoot() then
+        local ok, e = pcall(linkTrimTrash, linkRoot() .. "/" .. LINK_TRASH, nil)
+        if not ok then logger.warn("TomeSync: link trash purge failed:", e) end
+    end
     if not NetworkMgr:isConnected() then return 0, "offline" end
     local t0 = linkNow()
     local reading = linkReading()
@@ -6139,6 +6458,32 @@ local function linkDownloadRefused(base_dir, dest, ext, guarded)
     return linkGuard(base_real, base_real .. "/" .. rel)
 end
 
+-- A delivery's path with every part below base_dir cleaned of leading dots
+-- (linkSafeName). Returns the path and true when something changed, logged
+-- once per book per process. (Fields, not locals: the 200-local budget.)
+TomeSync._link_named = {}
+function TomeSync._linkSafeDest(base_dir, dest, ext, book_id)
+    if type(base_dir) ~= "string" or type(dest) ~= "string"
+            or dest:sub(1, #base_dir + 1) ~= base_dir .. "/" then
+        return dest, false
+    end
+    local parts = {}
+    for part in dest:sub(#base_dir + 2):gmatch("[^/]+") do table.insert(parts, part) end
+    local fallback = tostring(book_id or "book")
+    local changed = false
+    for i, part in ipairs(parts) do
+        local safe = linkSafeName(part, fallback, (i == #parts) and ext or nil)
+        if safe ~= part then parts[i], changed = safe, true end
+    end
+    if not changed then return dest, false end
+    local out = base_dir .. "/" .. table.concat(parts, "/")
+    if not TomeSync._link_named[fallback] then
+        TomeSync._link_named[fallback] = true
+        logger.info("TomeSync: delivery of book " .. fallback .. ": a name started with a dot, saved as "
+                    .. out:sub(#base_dir + 2) .. " (was " .. dest:sub(#base_dir + 2) .. ")")
+    end
+    return out, true
+end
 TomeSync._linkAutoDeliver = autoDeliver
 TomeSync._linkStopPoll = linkStopPoll
 TomeSync._linkDownloadRefused = linkDownloadRefused
@@ -6203,6 +6548,10 @@ end
 
 function TomeSync:_menuItems()
     local in_book = self.ui and self.ui.document
+    -- The menu opening is a user-visible moment: a certificate a background
+    -- request found not trusted yet is asked about (once per certificate per
+    -- process, no network here), after the menu is drawn.
+    UIManager:nextTick(function() TLS.trustThen(nil, { no_network = true, once = true }) end)
 
     -- Settings submenu: persistent toggles and diagnostics, set once and
     -- forgotten — kept out of the top level so frequent actions stay reachable.
@@ -6414,6 +6763,44 @@ function TomeSync:_menuItems()
             G_reader_settings:saveSetting("tomesync_auto_deliver",
                 not TomeSync._linkAutoDeliver())
         end,
+    })
+    -- The reader link's trash (files the phone deleted): how long they stay.
+    local function trashDaysItems()
+        local function current()
+            local d = G_reader_settings:readSetting("tomesync_link_trash_days")
+            if type(d) ~= "number" or d < 0 then d = TomeSync.LINK_TRASH_DAYS end
+            return d
+        end
+        local items = {}
+        for _, entry in ipairs({
+            { 7,  "7 days" },
+            { 30, "30 days (default)" },
+            { 90, "90 days" },
+            { 0,  "Never by age (size bound only)" },
+        }) do
+            local value, label = entry[1], entry[2]
+            table.insert(items, {
+                text         = label,
+                checked_func = function() return current() == value end,
+                callback     = function()
+                    if value == TomeSync.LINK_TRASH_DAYS then
+                        G_reader_settings:delSetting("tomesync_link_trash_days")
+                    else
+                        G_reader_settings:saveSetting("tomesync_link_trash_days", value)
+                    end
+                end,
+            })
+        end
+        return items
+    end
+    table.insert(settings_items, {
+        text           = "Keep deleted files",
+        help_text      = "Files Tome Reader deletes on this device go to a hidden "
+                       .. "trash folder (.tomesync-trash in the library) first. "
+                       .. "They are removed for good after this many days, or "
+                       .. "sooner when the trash passes 50 items or 200 MB. The "
+                       .. "newest item is always kept.",
+        sub_item_table = trashDaysItems(),
     })
     table.insert(settings_items, {
         text         = "Auto-check for updates on launch",

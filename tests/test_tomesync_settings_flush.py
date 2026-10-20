@@ -57,6 +57,8 @@ NetworkMgr = { isConnected = function() return true end }
 local function resetBackoff() end
 local function deviceName() return "Kindle" end
 local LinkSession = { deviceID = function() return "00000000-0000-4000-8000-000000000000" end }
+-- The TLS policy is tested on its own (test_tomesync_reader_link); http here.
+local TLS = { trustThen = function(fn) return fn() end }
 local logger = { info = function() end, warn = function() end, dbg = function() end }
 local function username() return mem.tomesync_username or "baked_user" end
 local function serverURL() return mem.tomesync_server_url or "http://main.example:8080" end

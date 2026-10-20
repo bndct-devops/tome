@@ -48,6 +48,7 @@ local ltn12 = {
     sink = { table = function(t) return function(c) if c then t[#t + 1] = c end return 1 end end },
 }
 local PIN_REFUSED = "certificate fingerprint mismatch"
+local TLS = { UNTRUSTED = "certificate not trusted yet" }
 local function tlsCreateFor() return nil end
 local hosts, calls = {}, {}
 local http = {
@@ -296,3 +297,27 @@ def test_reader_link_session_url_takes_every_request_and_is_dropped_on_a_miss():
         None,
         ["http://main.example:8080"],
     ]
+
+
+def test_untrusted_certificate_is_not_a_miss():
+    # Build 56 (TLS policy): a certificate not trusted yet sends nothing and
+    # opens no back-off window; the next request is tried as usual. A pin
+    # refusal (the reader link) still counts as a miss.
+    out = _run(r"""
+        http.request = function(req)
+            calls[#calls + 1] = req.url:match("^(https?://[^/]+)")
+            return nil, hosts.mode == "pin" and PIN_REFUSED or TLS.UNTRUSTED
+        end
+        hosts.mode = "untrusted"
+        local ok, code = get("/api/x")
+        emit(code)
+        emit(net_failures)
+        emit(inBackoff())
+        get("/api/y")
+        emit(#calls)
+        hosts.mode = "pin"
+        get("/api/z")
+        emit(net_failures)
+        emit(inBackoff())
+    """)
+    assert out == ["certificate not trusted yet", 0, False, 2, 1, True]

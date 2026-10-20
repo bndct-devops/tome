@@ -141,7 +141,7 @@ logger = logging.getLogger(__name__)
 # answers initiate with server_kind "tome-reader", and config.lua may list
 # LINK_HOSTS (the phone's addresses), tried with the pinned certificate when
 # the configured server does not answer. Against Tome nothing changes.
-TOMESYNC_PLUGIN_BUILD = 55
+TOMESYNC_PLUGIN_BUILD = 56
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

@@ -21,6 +21,33 @@ All notable changes to Tome are documented here. Format loosely follows
   and key set in TomeSync's settings still win. Plugin build 54.
 
 ### Fixed
+- **The KOReader plugin checks https certificates.** With an https server
+  address and no trusted fingerprint, TomeSync now checks the server's
+  certificate against the device's certificate authorities (KOReader's own
+  list, else the system's) and that it is for the server's name; builds
+  before sent the request without any check. A certificate no known
+  authority signed (a self-signed one, or a device without such a list) is
+  not silently used and not silently refused: the next time you use
+  TomeSync (Sign in with code, Sync now or any other action, or opening
+  the TomeSync menu) it shows the certificate's fingerprint and asks once;
+  Trust remembers it and from then on only that certificate is accepted.
+  Until then, background syncs skip the server with one log line and do
+  not back off. If a trusted certificate later changes, TomeSync asks
+  again. A server signed by a known authority works as before, with no
+  prompt. Plain http is unchanged. Plugin build 56.
+- **Books sent to a reader whose title starts with a dot arrive.** Such a
+  title (".hack//SIGN") would have made a hidden file, so the delivery was
+  refused; the dot is now dropped from the file and folder names
+  ("hack__SIGN.epub"), and a name of only dots becomes the book's id.
+  Plugin build 56.
+- **The reader link keeps KOReader's sidecar backup on a move.** Renaming
+  or moving a book from Tome Reader carried `metadata.epub.lua` over but
+  lost its `.old` backup; it now moves too. A file name that is not valid
+  UTF-8 is left out of the file list sent to the phone (with a log line)
+  instead of making the whole list unreadable. Deleted files in the
+  reader's trash are removed for good after 30 days (TomeSync > Settings >
+  Keep deleted files: 7, 30, 90 days or never), besides the existing
+  50 items / 200 MB bound. Plugin build 56.
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
   new pairing (Sign in with code), a changed server URL and a connection
   reset in memory until KOReader next closed normally, so a crash before
