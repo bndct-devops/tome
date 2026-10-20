@@ -631,8 +631,7 @@ end
 -- fn (may be nil) once the server is trusted, at once when nothing needs
 -- asking. opts.no_network: only ask about what a request already found (the
 -- menu opening never touches the network); opts.once: ask about one
--- certificate once per process (the menu opens often). A server that does
--- not answer the probe goes on to fn, which fails as it always did.
+-- certificate once per process (the menu opens often).
 function TLS.trustThen(fn, opts)
     opts = opts or {}
     local base = serverURL()
@@ -642,13 +641,16 @@ function TLS.trustThen(fn, opts)
     end
     local st = TLS.state[base]
     if not (st and st.verdict == "ask") then
-        if opts.no_network or (st and st.verdict == "ok" and os.time() - st.at < TLS.RECHECK)
-                or not NetworkMgr:isConnected() then
-            return run()
-        end
+        -- Every user action checks afresh (one handshake): a certificate
+        -- that changed since the last request is asked about now, not after
+        -- the action failed.
+        if opts.no_network or not NetworkMgr:isConnected() then return run() end
         local probe, why = TLS.probe(base)
         if not probe then
+            -- No answer: the action fails as it always did, at once instead
+            -- of after a second timeout (unless a fallback address may answer).
             logger.info("TomeSync: certificate check of " .. base .. ": no answer (" .. tostring(why) .. ")")
+            if not fallbackURL() then noteNetFailure() end
             return run()
         end
         local pin = pinnedFingerprint()
