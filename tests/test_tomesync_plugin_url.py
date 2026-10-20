@@ -253,5 +253,6 @@ def test_build_bumped_for_rebake():
     # 1.19.1 / build 51 on main (v2.7.1, issue #259): a null book_type no
     # longer crashes a single-book or author/search-list download.
     # 1.20.1 / build 52: the AI branch's 51 merged with main's 51.
-    assert TOMESYNC_PLUGIN_BUILD >= 52
-    assert TOMESYNC_PLUGIN_SEMVER == "1.20.1"
+    # 1.20.2 / build 53: companion entry timeline newest first.
+    assert TOMESYNC_PLUGIN_BUILD >= 53
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.2"

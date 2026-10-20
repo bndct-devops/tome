@@ -129,8 +129,10 @@ logger = logging.getLogger(__name__)
 # BUILD 52: feat/ai-provider's 51 (reading companion offline, merged with
 # main's 49 and 50) merged with main's 51 (v2.7.1, null book_type, #259): one
 # build newer than both lines, so devices on either 51 see it as an update.
-TOMESYNC_PLUGIN_BUILD = 52
-TOMESYNC_PLUGIN_SEMVER = "1.20.1"
+# BUILD 53: the companion entry view lists its timeline lines newest first,
+# like the web dialog.
+TOMESYNC_PLUGIN_BUILD = 53
+TOMESYNC_PLUGIN_SEMVER = "1.20.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -7125,8 +7127,9 @@ function Companion.entryText(e)
     local tl = type(e.timeline) == "table" and e.timeline or {{}}
     if #tl > 0 then
         add("Timeline")
+        -- Newest first, like the web dialog: the latest lines lead.
         local from = math.max(1, #tl - Companion.TIMELINE_SHOWN + 1)
-        for i = from, #tl do
+        for i = #tl, from, -1 do
             local t = tl[i]
             local line = type(t) == "table" and Companion.str(t.line) or nil
             if line then

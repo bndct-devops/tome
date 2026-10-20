@@ -89,7 +89,10 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
     .filter(x => x.fact && x.fact.value)
   const fullTimeline = full?.timeline
   const useFull = fullTimeline != null && fullTimeline.length > 0
-  const timeline = useFull ? fullTimeline : (e.timeline ?? [])
+  // The server sends oldest first; the dialog is a lookup, so the latest line
+  // leads (like the facts above). The cap drops the oldest lines, so the
+  // "not shown" note goes at the end.
+  const timeline = [...(useFull ? fullTimeline : (e.timeline ?? []))].reverse()
   const truncated = useFull ? full?.timeline_truncated : e.timeline_truncated
 
   return (
@@ -135,9 +138,6 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
       )}
       {v2 && timeline.length > 0 && (
         <div>
-          {truncated && (
-            <p className="pb-1 text-[13px] text-muted-foreground"><Trans>Earlier lines not shown.</Trans></p>
-          )}
           <ul className="divide-y divide-border/70">
             {timeline.map((item, i) => (
               <li key={`${item.book_id}:${item.chapter_idx}:${i}`} className="flex gap-3 py-2 text-[14px] leading-snug">
@@ -146,6 +146,9 @@ export function GlossaryEntryDetail({ bookId, entry: e, firstSeen, lastSeen, sho
               </li>
             ))}
           </ul>
+          {truncated && (
+            <p className="pt-1 text-[13px] text-muted-foreground"><Trans>Earlier lines not shown.</Trans></p>
+          )}
         </div>
       )}
       {e.evidence && (

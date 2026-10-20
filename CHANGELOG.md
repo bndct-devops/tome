@@ -228,6 +228,12 @@ All notable changes to Tome are documented here. Format loosely follows
   unchanged. The switch carries to every later volume of the series, and
   the series page carries the same switch as a "Companion" pill next to
   Follow.
+- **Glossary timelines read newest first.** An opened glossary entry lists
+  its chapter lines with the latest one on top, the same way the facts above
+  it do, so the useful end is no longer at the bottom of a long list. Each
+  line keeps its volume and chapter, and "Earlier lines not shown." now sits
+  at the end of the list. The KOReader plugin's entry view (build 53) shows
+  its lines in the same order.
 - **A quieter web app.** Every page now shares one frame: a full-height
   sidebar with the wordmark on top and the navigation in three groups (Home,
   Library, Series; Reading; Manage), a lineless header with a pill search and
