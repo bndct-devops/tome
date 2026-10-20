@@ -141,7 +141,12 @@ logger = logging.getLogger(__name__)
 # answers initiate with server_kind "tome-reader", and config.lua may list
 # LINK_HOSTS (the phone's addresses), tried with the pinned certificate when
 # the configured server does not answer. Against Tome nothing changes.
-TOMESYNC_PLUGIN_BUILD = 56
+# BUILD 57: an https server pinned at a trust prompt whose new certificate is
+# CA-valid for its name is unpinned instead of asking (a CA renewal); config.lua
+# is text only and a name set twice makes it invalid; reader link: a heartbeat
+# every 60 s for 30 min after a poll got no answer, names ending in a dot or
+# space refused, no tree sent when the walk fails.
+TOMESYNC_PLUGIN_BUILD = 57
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

@@ -183,6 +183,34 @@ print("ok")
 ''')
 
 
+# Build 57: a name set twice is no config at all (Tome Reader reads API_KEY
+# line by line and must never pick a different one than the plugin), and a
+# precompiled chunk is refused.
+@needs_luajit
+def test_config_reader_refuses_duplicates_and_bytecode(tmp_path):
+    dup = tmp_path / "dup"
+    dup.mkdir()
+    (dup / "config.lua").write_text('API_KEY = "first"\nUSERNAME = "u"\nAPI_KEY = "second"\n')
+    oneline = tmp_path / "oneline"
+    oneline.mkdir()
+    (oneline / "config.lua").write_text('API_KEY = "a"; API_KEY = "b"\n')
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "config.lua").write_text('x = 1\nx = 2\nAPI_KEY = "only"\n')
+    _run_lua(tmp_path, _config_block() + f'''
+local c, from = PluginConfig.load("{dup}")
+assert(from == "invalid" and next(c) == nil, "API_KEY twice: invalid, " .. from)
+c, from = PluginConfig.load("{oneline}")
+assert(from == "invalid", "twice on one line: invalid")
+c, from = PluginConfig.load("{other}")
+assert(from == "config" and c.API_KEY == "only", "an unknown name set twice is no concern")
+local bc = string.dump(function() API_KEY = "x" end)
+assert(PluginConfig.parse(bc) == nil, "bytecode refused")
+assert(PluginConfig.parse('API_KEY = "k"').API_KEY == "k", "text accepted")
+print("ok")
+''')
+
+
 # A build-53 impl as Tome rendered it: the five lines that matter, unescaped.
 BAKED_53 = '''--[[ old impl ]]
 local logger = require("logger")

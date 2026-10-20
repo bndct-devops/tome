@@ -48,6 +48,17 @@ All notable changes to Tome are documented here. Format loosely follows
   reader's trash are removed for good after 30 days (TomeSync > Settings >
   Keep deleted files: 7, 30, 90 days or never), besides the existing
   50 items / 200 MB bound. Plugin build 56.
+- **A renewed https certificate no longer asks again.** When a server you
+  once trusted by fingerprint shows a new certificate that a known
+  authority signed for its name (a Let's Encrypt renewal), TomeSync drops
+  the old fingerprint and checks the authority from then on, instead of
+  asking. A certificate no authority vouches for still asks. TomeSync's
+  `config.lua` is read as text only, and one that sets a name twice is
+  ignored. The reader link keeps asking the phone once a minute for 30
+  minutes after it stops answering, so reopening Tome Reader picks up
+  within a minute; it refuses file names ending in a dot or a space (the
+  card drops them), and sends no file list when it cannot read the
+  library folder. Plugin build 57.
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
   new pairing (Sign in with code), a changed server URL and a connection
   reset in memory until KOReader next closed normally, so a crash before

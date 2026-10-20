@@ -258,7 +258,15 @@ assert(D({{ https = true, pin = pin:upper(), got = pin, ca = false }}) == "pinne
 assert(D({{ https = true, pin = pin, got = other, link = true }}) == "refuse", "link mismatch")
 assert(D({{ https = true, pin = pin, got = nil, link = true }}) == "refuse", "link, no certificate")
 assert(D({{ https = true, pin = pin, got = other }}) == "ask", "server mismatch asks again")
-assert(D({{ https = true, pin = pin, got = other, ca = true }}) == "ask", "a pin beats the CA")
+-- build 57: a pinned ordinary server whose new certificate is CA-valid for its
+-- name (a Let's Encrypt renewal behind an IP-pinned setup): the pin goes
+assert(D({{ https = true, pin = pin, got = other, ca = true }}) == "unpin", "CA renewal unpins")
+assert(D({{ https = true, pin = pin, got = other, ca = true, baked = true }}) == "ask", "a baked pin beats the CA")
+assert(D({{ https = true, pin = pin, got = other, ca = true, link = true }}) == "refuse", "the link never unpins")
+assert(D({{ https = true, pin = pin, got = other, ca = false }}) == "ask", "not CA-valid: ask as before")
+assert(D({{ https = true, pin = pin, got = other, ca = nil }}) == "ask", "no bundle: ask as before")
+assert(D({{ https = true, pin = pin, got = nil, ca = true }}) == "ask", "no certificate: ask")
+assert(D({{ https = true, pin = pin, got = pin, ca = true }}) == "pinned", "still the pin: pinned")
 -- https, no pin
 assert(D({{ https = true, got = pin, ca = true }}) == "ca", "CA ok")
 assert(D({{ https = true, got = pin, ca = false }}) == "ask", "CA failed")
@@ -298,6 +306,15 @@ def test_tls_policy_wiring():
     trust = trust[:trust.index("\nend\n")]
     assert 'saveSetting("tomesync_server_fingerprint", shortFingerprint(digest))' in trust
     assert "G_reader_settings:flush()" in trust
+    # build 57: the CA renewal path unpins in both places a decision is made
+    assert "TLS.unpin(base, pin, probe.digest)" in trust
+    create = lua[lua.index("local function tlsCreateFor(base)"):]
+    create = create[:create.index("\nend\n")]
+    assert "TLS.unpin(base, pin, got)" in create
+    assert "local cafile = (not link) and TLS.bundle() or nil" in create
+    unpin = lua[lua.index("function TLS.unpin(base, pin, got)"):]
+    unpin = unpin[:unpin.index("\nend\n")]
+    assert 'delSetting("tomesync_server_fingerprint")' in unpin
 
 
 # Step seven: the refusal rules (a server must not be able to plant code on the
@@ -337,6 +354,15 @@ assert(P("koreader/patches") == nil, "by name only: koreader/ is refused by iden
 assert(P("lua guide.epub") == nil and P("notes.lua.epub") == nil, "lua not at the end")
 assert(P("a.shx") == nil, "not .sh")
 assert(linkPartRefused("") ~= nil, "empty name")
+-- build 57: FAT drops a trailing dot or space, so "run.sh." would land as run.sh
+assert(refused("run.sh."), "run.sh.")
+assert(refused("run.sh "), "run.sh + space")
+assert(refused("evil.koplugin./main.lua"), "a folder with a trailing dot")
+assert(refused("books/Series./x.epub"), "a trailing dot in a middle part")
+assert(refused("books/x.epub "), "a trailing space")
+assert(refused("x.lua\t"), "a trailing tab")
+assert(P("books/Vol. 1.epub") == nil, "a dot inside stays allowed")
+assert(P(" lead space.epub") == nil, "a leading space is not refused here")
 -- KOReader's folders by name, ignoring case
 assert(linkUnderNoCase("/mnt/us/koreader/patches", "/mnt/us/koreader"), "under")
 assert(linkUnderNoCase("/mnt/us/KOReader", "/mnt/us/koreader"), "equal, other case")
@@ -394,7 +420,7 @@ def test_download_and_delivered_hardening_in_render():
 def test_build_55_device_id_wording_and_probe_rules():
     assert TOMESYNC_PLUGIN_BUILD >= 55
     lua = _main_impl_lua()
-    assert "local BUILD           = 56" in lua
+    assert "local BUILD           = 57" in lua
     # A persistent id, sent in device-info and in the initiate body.
     assert "device_id    = LinkSession.deviceID()," in lua
     assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
@@ -454,6 +480,11 @@ assert(S(" . .x.epub", "42", "epub") == "x.epub", "dots and spaces")
 assert(S("Vol. 1 - A.epub", "42", "epub") == "Vol. 1 - A.epub", "a dot inside stays")
 assert(S("A.EPUB", "42", "epub") == "A.EPUB", "extension case kept")
 assert(S(".kepub.epub", "42", "kepub.epub") == "42.kepub.epub", "two-part extension")
+-- build 57: a folder loses trailing dots and spaces; a file stem keeps them
+assert(S("Acme Inc.", "42") == "Acme Inc", S("Acme Inc.", "42"))
+assert(S("Series . ", "42") == "Series", "dots and spaces at the end")
+assert(S("Mr..epub", "42", "epub") == "Mr..epub", "a stem's trailing dot stays (the part ends in epub)")
+assert(linkPathRefused("book/Acme Inc/Mr..epub") == nil, "cleaned path allowed")
 -- the cleaned names pass the guard; a rename to a dot name is still refused
 assert(linkPathRefused("book/hack__SIGN/hack__SIGN.epub") == nil, "clean path allowed")
 assert(linkPartRefused(".foo") ~= nil, "rename to .foo refused")
@@ -507,3 +538,73 @@ assert(names(out) == "n01,n02,n03", names(out))
 assert(#P({}, nil, now, 30, 50, 200 * MB) == 0, "empty")
 print("ok")
 ''')
+
+
+# ── Build 57: the heartbeat after a failed poll, the tree walk, config.lua ──
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_heartbeat_decision(tmp_path):
+    _run_lua(tmp_path, "hb.lua", _linkpoll_block() + r"""
+local A, M = LinkHB.after, LinkHB.minutes
+local now = 1000000
+-- an answer with poll_seconds always polls, heartbeat or not
+local a, b = A({ secs = 5, now = now, minutes = 30 })
+assert(a == "poll" and b == 5, "poll")
+a, b = A({ secs = 5, now = now, minutes = 30, hb_until = now + 60 })
+assert(a == "poll" and b == 5, "heartbeat answered: poll again")
+-- a poll that got no answer opens the window
+a, b = A({ secs = 0, noanswer = true, polling = true, now = now, minutes = 30 })
+assert(a == "heartbeat" and b == now + 1800, "window opens for 30 min")
+-- inside the window a miss keeps it, the end does not move
+a, b = A({ secs = 0, noanswer = true, hb_until = now + 100, now = now, minutes = 30 })
+assert(a == "heartbeat" and b == now + 100, "window kept")
+-- the window over: stop until the next sync moment
+a, b = A({ secs = 0, noanswer = true, hb_until = now, now = now, minutes = 30 })
+assert(a == "stop" and b:find("heartbeat over"), "window over")
+-- no poll before: a real Tome that did not answer gets no heartbeat
+a = A({ secs = 0, noanswer = true, polling = false, now = now, minutes = 30 })
+assert(a == "stop", "no heartbeat without a poll")
+-- off switch
+a = A({ secs = 0, noanswer = true, polling = true, now = now, minutes = 0 })
+assert(a == "stop", "0 = off")
+-- the server answered but did not ask: stop
+a, b = A({ secs = 0, noanswer = false, hb_until = now + 100, now = now, minutes = 30 })
+assert(a == "stop" and b == "server answered without a poll", "answer without poll")
+a = A({ secs = 0, noanswer = false, polling = true, now = now, minutes = 30 })
+assert(a == "stop", "plain stop")
+-- the setting
+assert(M(nil) == 30 and M("5") == 30 and M(-1) == 30 and M(0/0) == 30, "defaults")
+assert(M(0) == 0 and M(10) == 10 and M(7.9) == 7, "values")
+assert(LinkHB.EVERY == 60 and LinkHB.NET.block == 2 and LinkHB.NET.total == 2 and LinkHB.NET.no_backoff, "every 60 s, 2 s")
+print("ok")
+""")
+
+
+def test_heartbeat_wiring():
+    lua = _impl()
+    net = lua[lua.index("-- TOMESYNC_NET_BEGIN"):lua.index("-- TOMESYNC_NET_END")]
+    assert "if spec.no_backoff then return ok, code end\n    noteNetFailure()" in net
+    api = lua[lua.index("local function apiRequest(method, path, body, opts)"):]
+    api = api[:api.index("\nend\n")]
+    assert "if inBackoff() and not (opts and opts.no_backoff) then" in api
+    pas = lua[lua.index("function TomeSync:_linkPass(light, hb)"):]
+    pas = pas[:pas.index("\nend\n")]
+    # heartbeat: commands GET only (no device-info, no tree, no probe)
+    assert "local probe = not light and not hb and" in pas
+    assert "if link_on and not hb and (not light" in pas
+    assert "if link_on and root and not reading and not hb and" in pas
+    assert 'tomesync_link_heartbeat_minutes' in lua
+    stop = lua[lua.index("local function linkStopPoll(why)"):]
+    stop = stop[:stop.index("\nend\n")]
+    assert "LinkHB.till = nil" in stop
+
+
+def test_tree_walk_failure_sends_nothing():
+    lua = _impl()
+    tree = lua[lua.index("local function linkFileTree(root)"):]
+    tree = tree[:tree.index("\nend\n")]
+    assert 'if root_failed then return nil, "cannot list "' in tree
+    send = lua[lua.index("local function linkSendTree(root, light)"):]
+    send = send[:send.index("\nend\n")]
+    i_fail = send.index("if not entries then")
+    assert i_fail < send.index("/tome-sync/files/status") and i_fail < send.index('"PUT", "/tome-sync/files"')

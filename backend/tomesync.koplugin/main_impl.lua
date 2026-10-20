@@ -101,16 +101,32 @@ end
 
 -- config.lua is data: it runs with nothing in scope, and only the five names,
 -- each with its own type, are kept. Anything that fails reads as no value.
+-- Text only ("t": a precompiled chunk is refused). A name set twice makes the
+-- whole file invalid (build 57): Tome Reader reads API_KEY from the text
+-- line by line, and the two must never disagree on which key a reader holds.
+-- Running it cannot be bounded: a config.lua that loops forever hangs
+-- KOReader's start. Only trusted writers produce it (Tome's download, Tome
+-- Reader's install, PluginConfig.write); nothing a server sends reaches it.
 function PluginConfig.parse(text)
     if type(text) ~= "string" then return nil end
-    local chunk = load(text, "=config.lua")
+    local chunk = load(text, "=config.lua", "t")
     if not chunk then return nil end
-    local env = {}
+    -- Every assignment goes through __newindex (env itself stays empty),
+    -- so a second one to a known name is seen.
+    local vals, dup = {}, false
+    local env = setmetatable({}, {
+        __index = vals,
+        __newindex = function(_, k, v)
+            if PluginConfig.FIELDS[k] and vals[k] ~= nil then dup = true end
+            vals[k] = v
+        end,
+    })
     setfenv(chunk, env)
     if not pcall(chunk) then return nil end
+    if dup then return nil end
     local out = {}
     for k, ty in pairs(PluginConfig.FIELDS) do
-        if type(env[k]) == ty then out[k] = env[k] end
+        if type(vals[k]) == ty then out[k] = vals[k] end
     end
     out.LINK_HOSTS = PluginConfig.linkHosts(out.LINK_HOSTS)
     return out
@@ -277,12 +293,17 @@ local function edgeFingerprint(s)
     return colon(hex:sub(1, 8)) .. ".." .. colon(hex:sub(-8))
 end
 -- The TLS policy (build 56), as one decision. t.https, t.pin (the pinned
--- fingerprint or nil), t.link (a reader link address: the phone), t.got (the
+-- fingerprint or nil), t.baked (that pin came from config.lua), t.link (a
+-- reader link address: the phone), t.got (the
 -- certificate's SHA-256 or nil), t.ca (true: a CA in the bundle signed it for
 -- this host name; false: none did, or not for this name; nil: no bundle).
 --   http                                       -> "plain"   no TLS at all
 --   https + pin, certificate is the pin        -> "pinned"  go on
 --   https + pin, another one, reader link      -> "refuse"  never asks
+--   https + pin, another one, any other server,
+--     the new one CA-verified for the host,
+--     pin saved at a prompt (not baked)        -> "unpin"   a CA renewal: the pin
+--                                                           goes, CA mode from now (build 57)
 --   https + pin, another one, any other server -> "ask"     it changed: ask again
 --   https, no pin, CA-verified for the host    -> "ca"      go on, unpinned
 --   https, no pin, CA check failed             -> "ask"
@@ -294,6 +315,10 @@ function TLS.decision(t)
     if normFingerprint(t.pin) then
         if fingerprintMatches(t.got, t.pin) then return "pinned" end
         if t.link then return "refuse" end
+        -- Let's Encrypt renewed a certificate the user once pinned (an
+        -- IP-pinned setup that later got a real name): it is valid, so no
+        -- prompt; the pin is dropped and the CA checks it from now on.
+        if t.ca == true and not t.baked and normFingerprint(t.got) then return "unpin" end
         return "ask"
     end
     if t.ca == true then return "ca" end
@@ -348,6 +373,22 @@ TLS.state   = {}       -- base -> { verdict = "ok" | "ask", digest, changed, why
 TLS.logged  = {}       -- base .. verdict -> true: "fingerprint ok" / "CA ok" once per process
 local function pinnedFingerprint()
     return normFingerprint(liveSetting("tomesync_server_fingerprint", SERVER_FINGERPRINT))
+end
+-- The pin in force is config.lua's (SERVER_FINGERPRINT), not one a trust
+-- prompt saved: never dropped by a CA renewal.
+function TLS.pinBaked()
+    local saved = normFingerprint(G_reader_settings:readSetting("tomesync_server_fingerprint"))
+    return saved == nil and normFingerprint(SERVER_FINGERPRINT) ~= nil
+end
+-- A pinned server now shows a CA-valid certificate for its name: the saved
+-- pin goes (CA mode), logged once. (Build 57.)
+function TLS.unpin(base, pin, got)
+    G_reader_settings:delSetting("tomesync_server_fingerprint")
+    G_reader_settings:flush()
+    TLS.state[base] = { verdict = "ok", at = os.time() }
+    logger.info("TomeSync: " .. base .. ": the pinned certificate " .. edgeFingerprint(pin)
+                .. " was replaced by " .. edgeFingerprint(got) .. ", which a CA in "
+                .. tostring(TLS.cafile) .. " signed for this host; pin removed, CA checks from now on")
 end
 -- The CA bundle, looked up once per process; nil when the device has none.
 function TLS.bundle()
@@ -428,7 +469,9 @@ local function tlsCreateFor(base)
     end
     local pin  = pinnedFingerprint()
     local link = TLS.isLink(base)
-    local cafile = (not pin) and TLS.bundle() or nil
+    -- A pinned ordinary server is verified against the bundle too (the
+    -- result only counts when the pin no longer matches: TLS.decision).
+    local cafile = (not link) and TLS.bundle() or nil
     local make = require("ssl.https").tcp(cafile
         and { verify = "peer", verifyext = { "lsec_continue" }, cafile = cafile }
         or  { verify = "none" })
@@ -440,8 +483,14 @@ local function tlsCreateFor(base)
             local cert = self.sock.getpeercertificate and self.sock:getpeercertificate()
             local got = cert and cert:digest("sha256")
             local ca, why
-            if not pin and cert then ca, why = TLS.caVerdict(self.sock, host, cert, cafile) end
-            local verdict = TLS.decision({ https = true, pin = pin, link = link, got = got, ca = ca })
+            if cert and not link and not fingerprintMatches(got, pin) then
+                ca, why = TLS.caVerdict(self.sock, host, cert, cafile)
+            end
+            local verdict = TLS.decision({ https = true, pin = pin, baked = TLS.pinBaked(), link = link, got = got, ca = ca })
+            if verdict == "unpin" then
+                TLS.unpin(base, pin, got)
+                return 1
+            end
             if verdict == "pinned" then
                 TLS.markOk(base, verdict, "fingerprint ok (" .. shortFingerprint(pin, 8) .. "..)")
                 return 1
@@ -615,9 +664,14 @@ local function serverRequest(spec)
     end
     if not missed then return ok, code end
     if LinkSession.url then
-        logger.info("TomeSync: reader link via " .. LinkSession.url .. " stopped answering; back to the configured server")
+        if not spec.no_backoff then
+            logger.info("TomeSync: reader link via " .. LinkSession.url .. " stopped answering; back to the configured server")
+        end
         LinkSession.url = nil
     end
+    -- The reader link's heartbeat (build 57) is its own bounded retry: it
+    -- neither opens nor waits for the back-off window.
+    if spec.no_backoff then return ok, code end
     noteNetFailure()
     if not refused then
         logger.warn("TomeSync: server unreachable, next try in",
@@ -654,7 +708,11 @@ function TLS.trustThen(fn, opts)
             return run()
         end
         local pin = pinnedFingerprint()
-        local verdict = TLS.decision({ https = true, pin = pin, got = probe.digest, ca = probe.ca })
+        local verdict = TLS.decision({ https = true, pin = pin, baked = TLS.pinBaked(), got = probe.digest, ca = probe.ca })
+        if verdict == "unpin" then
+            TLS.unpin(base, pin, probe.digest)
+            return run()
+        end
         if verdict ~= "ask" then
             TLS.markOk(base, verdict, verdict == "ca" and ("certificate verified against " .. tostring(TLS.cafile))
                                        or ("fingerprint ok (" .. shortFingerprint(pin, 8) .. "..)"))
@@ -715,8 +773,8 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "56"
-local BUILD           = 56      -- monotonic; the only thing compared
+local PLUGIN_VERSION  = "57"
+local BUILD           = 57      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -819,6 +877,8 @@ end
 -- something other than the plugin API key (the Quick Connect pairing JWT).
 -- opts.block / opts.total: tighter timeouts (the reader link's poll uses 2 s;
 -- every request here blocks KOReader's UI thread).
+-- opts.no_backoff: the reader link's heartbeat (build 57): sent even while
+-- the back-off window is open, and a miss does not open or extend it.
 local function apiRequest(method, path, body, opts)
     -- Skip immediately if WiFi is not connected — zero blocking
     if not NetworkMgr:isConnected() then
@@ -827,7 +887,7 @@ local function apiRequest(method, path, body, opts)
 
     -- Skip requests while the back-off window is open (see TOMESYNC_NET).
     -- Once it expires the next request goes through as the probe.
-    if inBackoff() then
+    if inBackoff() and not (opts and opts.no_backoff) then
         logger.dbg("TomeSync: skipping request (server unreachable, backing off)")
         return nil, "backoff"
     end
@@ -859,6 +919,7 @@ local function apiRequest(method, path, body, opts)
         end,
         block   = (opts and opts.block) or 5,
         total   = (opts and opts.total) or 45,
+        no_backoff = opts and opts.no_backoff or nil,
     })
     if not ok then return nil, code end
 
@@ -5197,16 +5258,21 @@ end
 -- valid UTF-8 (a Latin-1 byte from a FAT card) is skipped with its folder's
 -- contents, one log line per walk: JSON cannot carry it, and one such name
 -- made the whole tree PUT invalid. (Build 56.)
+-- Returns nil and why when the root cannot be listed or the walk errors
+-- (build 57): an empty or half tree sent then would tell the phone every
+-- book is gone. A folder below the root that cannot be listed is skipped as
+-- before (a protected system folder must not stop the tree for good).
 local function linkFileTree(root)
     local entries, truncated = {}, false
     local bad, bad_example = 0, nil
+    local root_failed = nil
     local function utf8ok(name)
         local ok, fixed = pcall(util.fixUtf8, name, "?")
         return not ok or fixed == name
     end
     local function walk(abs, rel)
         local names = {}
-        local ok = pcall(function()
+        local ok, err = pcall(function()
             for name in lfs.dir(abs) do
                 if name:sub(1, 1) ~= "." then
                     if utf8ok(name) then
@@ -5221,7 +5287,10 @@ local function linkFileTree(root)
                 end
             end
         end)
-        if not ok then return end
+        if not ok then
+            if rel == "" then root_failed = tostring(err) end
+            return
+        end
         table.sort(names)
         for _, name in ipairs(names) do
             if truncated then return end
@@ -5241,7 +5310,9 @@ local function linkFileTree(root)
             end
         end
     end
-    walk(root, "")
+    local ok, err = pcall(walk, root, "")
+    if not ok then return nil, "the walk failed: " .. tostring(err) end
+    if root_failed then return nil, "cannot list " .. tostring(root) .. ": " .. root_failed end
     if bad > 0 then
         logger.info("TomeSync: link tree: skipped " .. bad .. " name(s) that are not UTF-8, e.g. " .. bad_example)
     end
@@ -5263,6 +5334,9 @@ local function linkPartRefused(part)
     local low = part:lower()
     if low == LINK_TRASH then return "path is inside the trash" end
     if part:sub(1, 1) == "." then return "names starting with a dot are refused: " .. part end
+    -- vfat and exFAT drop a trailing dot or space when the name is made,
+    -- so "run.sh." would land as "run.sh" past the suffix check. (Build 57.)
+    if part:match("[%.%s]$") then return "names ending in a dot or a space are refused: " .. part end
     for _, sfx in ipairs(LINK_CODE_SUFFIXES) do
         if low:sub(-#sfx) == sfx then return "refused name (" .. sfx .. "): " .. part end
     end
@@ -5310,15 +5384,19 @@ end
 -- A delivery's file or folder name without the leading dots and spaces that
 -- would hide it (".hack__SIGN" -> "hack__SIGN"); the fallback (the book id)
 -- when nothing is left. With ext (a file name) the extension is kept and
--- the stem cleaned ("...": getSafeFilename gives ".epub" -> "<id>.epub").
+-- the stem cleaned of leading ones only ("...": getSafeFilename gives
+-- ".epub" -> "<id>.epub"; "Mr..epub" stays). A folder also loses trailing
+-- dots and spaces ("Acme Inc." -> "Acme Inc"), which FAT would drop anyway
+-- and linkPartRefused refuses (build 57).
 -- Only for deliveries: a server's rename or mkdir to a dot name is a
 -- command and stays refused by linkPartRefused.
-local function linkSafeName(name, fallback, ext)
+local function linkSafeName(name, fallback, ext, stem)
     local sfx = ext and ("." .. tostring(ext)) or nil
     if sfx and #name >= #sfx and name:sub(-#sfx):lower() == sfx:lower() then
-        return linkSafeName(name:sub(1, -#sfx - 1), fallback) .. name:sub(-#sfx)
+        return linkSafeName(name:sub(1, -#sfx - 1), fallback, nil, true) .. name:sub(-#sfx)
     end
     local out = (name:gsub("^[%.%s]+", ""))
+    if not stem then out = (out:gsub("[%.%s]+$", "")) end
     if out == "" then out = tostring(fallback) end
     return out
 end
@@ -5790,6 +5868,37 @@ end
 
 -- TOMESYNC_LINKPOLL_BEGIN (pure: no requires, no I/O; extracted and run under
 -- luajit by tests/test_tomesync_reader_link.py)
+-- The heartbeat (build 57): after a poll that got no answer (Tome Reader
+-- killed, the phone briefly off the network) the link keeps asking every
+-- LinkHB.EVERY seconds -- the commands GET only, 2 s timeouts, outside the
+-- back-off window -- for tomesync_link_heartbeat_minutes (default 30, 0 =
+-- off), and polls at the server's poll_seconds again as soon as it answers.
+-- Only after a poll: a server that never asked for one (any real Tome)
+-- never gets a heartbeat.
+-- One table: the main chunk is at its 200-local limit.
+local LinkHB = { EVERY = 60, MINUTES = 30,
+                 till = nil,     -- os.time() the heartbeat window closes (nil: none open)
+                 url = nil,      -- the link host in use when the poll last answered
+                 NET = { block = 2, total = 2, no_backoff = true } }
+function LinkHB.minutes(v)
+    if type(v) ~= "number" or v ~= v or v < 0 or v == math.huge then return LinkHB.MINUTES end
+    return math.floor(v)
+end
+-- What follows a pass. t.secs: the poll_seconds it got (0 = none); t.noanswer:
+-- the server did not answer; t.polling: a poll was running; t.hb_until: the
+-- heartbeat window's end, if one is open; t.now; t.minutes.
+-- Returns "poll", secs | "heartbeat", until | "stop", why.
+function LinkHB.after(t)
+    if type(t.secs) == "number" and t.secs > 0 then return "poll", t.secs end
+    if t.noanswer and (t.minutes or 0) > 0 and (t.polling or t.hb_until) then
+        local till = t.hb_until or (t.now + t.minutes * 60)
+        if t.now < till then return "heartbeat", till end
+        return "stop", "heartbeat over: no answer for " .. t.minutes .. " min"
+    end
+    if t.hb_until and not t.noanswer then return "stop", "server answered without a poll" end
+    return "stop", nil
+end
+
 -- poll_seconds from a decoded answer: a positive number, floored and kept in
 -- 5..3600 (every request blocks KOReader's UI thread, so never more often
 -- than every 5 s); anything else (absent, 0, negative, NaN, a string, JSON null,
@@ -6067,6 +6176,19 @@ local function linkSendTree(root, light)
     local t0 = os.clock()
     local entries, truncated = linkFileTree(root)
     link_tree_at = os.time()
+    if not entries then
+        -- No PUT, no status check: the phone keeps the last tree it has.
+        if not TomeSync._link_tree_failed then
+            TomeSync._link_tree_failed = true
+            logger.warn("TomeSync: link tree not sent (" .. tostring(truncated)
+                        .. "); the phone keeps the last one")
+        end
+        return
+    end
+    if TomeSync._link_tree_failed then
+        TomeSync._link_tree_failed = false
+        logger.info("TomeSync: link tree readable again")
+    end
     local hash = linkHash(linkTreeCanon(entries, truncated))
     local ms = math.floor((os.clock() - t0) * 1000 + 0.5)
     local net = light and LINK_NET_LIGHT or nil
@@ -6191,9 +6313,11 @@ end
 -- In the reader (ReaderUI up) no tree check at all, and a light pass is the
 -- commands GET only: the reader's page turns must not wait on a tree walk.
 -- Each pass logs how long it took.
+-- hb (build 57, with light): a heartbeat, the commands GET only, wherever
+-- KOReader is, outside the back-off window.
 -- Returns the poll_seconds of the last link answer (0 = do not poll) and,
--- when 0, why (for the log).
-function TomeSync:_linkPass(light)
+-- when 0, why (for the log), and true when the server did not answer.
+function TomeSync:_linkPass(light, hb)
     -- The trash's age purge: local, so before the network check; full
     -- passes in the file manager only (never during page turns).
     if not light and not linkReading() and linkRoot() then
@@ -6206,12 +6330,19 @@ function TomeSync:_linkPass(light)
     local root = linkRoot()
     linkStore()   -- the results kept from before a restart, before any command
     local link_on = not link_off.all
-    local net = light and LINK_NET_LIGHT or nil
+    local net = hb and LinkHB.NET or (light and LINK_NET_LIGHT or nil)
     local poll = 0
     local ran = 0
     local nowhy = nil
+    local noanswer = false
+    if hb then
+        -- The phone's address it was polled at, though the miss dropped it.
+        if not LinkSession.url and LinkHB.url then LinkSession.url = LinkHB.url end
+    elseif LinkSession.url then
+        LinkHB.url = LinkSession.url
+    end
     -- Link hosts: full passes in the file manager, while no host is in use.
-    local probe = not light and not reading and PLUGIN_CONFIG.LINK_HOSTS ~= nil
+    local probe = not light and not hb and not reading and PLUGIN_CONFIG.LINK_HOSTS ~= nil
                   and LinkSession.url == nil and not link_off.all
     local probed, missed = nil, false
     link_host_missed = false
@@ -6222,7 +6353,7 @@ function TomeSync:_linkPass(light)
         probed, nowhy = linkProbeHosts(root)
         if not probed then link_on, missed = false, true end
     end
-    if link_on and (not light or (not reading and os.time() - link_info_at >= LINK_INFO_EVERY)) then
+    if link_on and not hb and (not light or (not reading and os.time() - link_info_at >= LINK_INFO_EVERY)) then
         local body, code
         if probed then
             body, code = probed, 200
@@ -6241,6 +6372,7 @@ function TomeSync:_linkPass(light)
         elseif type(code) ~= "number" then
             link_on = false   -- offline / unreachable / backing off: next moment
             nowhy = "no answer (" .. tostring(code) .. ")"
+            noanswer = true
         else
             link_info_at = os.time()
             poll = linkPollSeconds(body)
@@ -6254,6 +6386,7 @@ function TomeSync:_linkPass(light)
         elseif type(code) ~= "number" then
             link_on, poll = false, 0
             nowhy = "no answer (" .. tostring(code) .. ")"
+            noanswer = true
         elseif code >= 200 and code < 300 then
             poll = linkPollSeconds(list)
             local fresh, again = linkSplitCommands(linkParseCommands(list), link_done)
@@ -6303,12 +6436,15 @@ function TomeSync:_linkPass(light)
         end
     end
 
-    if link_on and root and not reading and not link_off.files and not link_off.all
+    if link_on and root and not reading and not hb and not link_off.files and not link_off.all
             and (not light or link_tree_dirty or os.time() - link_tree_at >= LINK_TREE_EVERY) then
         linkSendTree(root, light)
     end
     local ms = math.floor((linkNow() - t0) * 1000 + 0.5)
-    if light then
+    if hb then
+        logger.info("TomeSync: link heartbeat (" .. (noanswer and nowhy or ("answered, " .. ran .. " command(s), poll " .. poll .. " s"))
+                    .. ", " .. (reading and "reader" or "file manager") .. ", " .. ms .. " ms)")
+    elseif light then
         logger.info("TomeSync: link poll pass (" .. ran .. " command(s), next in " .. poll .. " s"
                     .. ((poll == 0 and nowhy) and (", " .. nowhy) or "") .. ", "
                     .. (reading and "reader" or "file manager") .. ", " .. ms .. " ms)")
@@ -6317,7 +6453,7 @@ function TomeSync:_linkPass(light)
                     .. (reading and "reader" or "file manager") .. ")")
     end
     if link_off.all then return 0, "server has no link" end
-    return poll, (poll == 0) and (nowhy or "server did not ask") or nil
+    return poll, (poll == 0) and (nowhy or "server did not ask") or nil, noanswer
 end
 
 local function linkStopPoll(why)
@@ -6327,22 +6463,61 @@ local function linkStopPoll(why)
     end
     if link_poll_secs > 0 then
         logger.info("TomeSync: link poll stopped (" .. why .. ")")
+    elseif LinkHB.till then
+        logger.info("TomeSync: link heartbeat stopped (" .. why .. ")")
     end
     link_poll_secs = 0
+    LinkHB.till = nil
 end
 
 -- (Re)arm the light pass secs from now, or stop polling (secs <= 0). Not
 -- while a full pass is pending: that pass arms it when it has run.
-function TomeSync:_linkArmPoll(secs, why)
+-- noanswer: the pass got no answer; after a poll that starts (or continues)
+-- the heartbeat (LinkHB.after).
+function TomeSync:_linkArmPoll(secs, why, noanswer)
     if link_poll_task then
         UIManager:unschedule(link_poll_task)
         link_poll_task = nil
     end
-    if type(secs) ~= "number" or secs <= 0 or link_off.all or not NetworkMgr:isConnected() then
-        linkStopPoll((link_off.all and "server has no link")
-                     or ((not NetworkMgr:isConnected()) and "offline")
-                     or why or "server did not ask")
+    if link_off.all or not NetworkMgr:isConnected() then
+        linkStopPoll((link_off.all and "server has no link") or "offline")
         return
+    end
+    local act, arg = LinkHB.after({
+        secs = secs, noanswer = noanswer, polling = link_poll_secs > 0, hb_until = LinkHB.till,
+        now = os.time(),
+        minutes = LinkHB.minutes(G_reader_settings:readSetting("tomesync_link_heartbeat_minutes")),
+    })
+    if act == "stop" then
+        linkStopPoll(arg or why or "server did not ask")
+        return
+    end
+    if act == "heartbeat" then
+        if not LinkHB.till then
+            logger.info("TomeSync: link poll got " .. tostring(why or "no answer")
+                        .. ": heartbeat every " .. LinkHB.EVERY .. " s for "
+                        .. math.floor((arg - os.time()) / 60 + 0.5) .. " min")
+        end
+        LinkHB.till = arg
+        link_poll_secs = 0
+        if link_task then return end
+        link_poll_task = function()
+            link_poll_task = nil
+            local me = link_owner or self
+            local ok, next_secs, why2, noanswer2 = pcall(me._linkPass, me, true, true)
+            if not ok then
+                logger.warn("TomeSync: link heartbeat failed:", next_secs)
+                next_secs, why2, noanswer2 = 0, "error", true
+            end
+            me:_linkArmPoll(next_secs, why2, noanswer2)
+        end
+        UIManager:scheduleIn(LinkHB.EVERY, link_poll_task)
+        return
+    end
+    secs = arg
+    if LinkHB.till then
+        logger.info("TomeSync: link heartbeat answered: polling again")
+        LinkHB.till = nil
     end
     if link_task then return end
     if link_poll_secs ~= secs then
@@ -6352,12 +6527,12 @@ function TomeSync:_linkArmPoll(secs, why)
     link_poll_task = function()
         link_poll_task = nil
         local me = link_owner or self
-        local ok, next_secs, why = pcall(me._linkPass, me, true)
+        local ok, next_secs, why, noanswer = pcall(me._linkPass, me, true)
         if not ok then
             logger.warn("TomeSync: link poll pass failed:", next_secs)
             next_secs, why = 0, "error"
         end
-        me:_linkArmPoll(next_secs, why)
+        me:_linkArmPoll(next_secs, why, noanswer)
     end
     UIManager:scheduleIn(secs, link_poll_task)
 end
@@ -6381,7 +6556,7 @@ function TomeSync:_scheduleLinkSync(reason, delay)
         link_reasons = {}
         local me = link_owner or self
         logger.info("TomeSync: link pass (" .. table.concat(why, ", ") .. ")")
-        local ok, secs, why = pcall(me._linkPass, me)
+        local ok, secs, why, noanswer = pcall(me._linkPass, me)
         if not ok then
             logger.warn("TomeSync: link pass failed:", secs)
             secs, why = 0, "error"
@@ -6389,7 +6564,7 @@ function TomeSync:_scheduleLinkSync(reason, delay)
         if type(secs) ~= "number" or secs <= 0 then
             logger.info("TomeSync: link pass done, no poll (" .. tostring(why) .. ")")
         end
-        me:_linkArmPoll(secs, why)
+        me:_linkArmPoll(secs, why, noanswer)
         -- No link host answered: one more pass once their back-off is over.
         if link_host_missed and not link_task then
             if link_host_retries > 0 then
@@ -6412,6 +6587,7 @@ function TomeSync:_linkNetworkUp()
         logger.info("TomeSync: network up: forgetting reader link via " .. LinkSession.url)
     end
     LinkSession.url = nil
+    LinkHB.url = nil
     link_host_failed = {}
     link_host_retries = LINK_HOST_RETRIES
 end
@@ -6439,7 +6615,8 @@ end
 -- (.koplugin/.lua/.sh). guarded (inbox deliveries, which a server decides,
 -- auto-pickup included): the link's whole rule, linkGuard, under base_dir.
 -- Returns nil or why.
-local function linkDownloadRefused(base_dir, dest, ext, guarded)
+-- (A field, not a local: the main chunk is at its 200-local limit.)
+function TomeSync._linkDownloadRefused(base_dir, dest, ext, guarded)
     if type(ext) ~= "string" or #ext > 16 or not ext:match("^%w[%w%.]*$") or ext:find("..", 1, true) then
         return "bad format: " .. tostring(ext)
     end
@@ -6488,7 +6665,6 @@ function TomeSync._linkSafeDest(base_dir, dest, ext, book_id)
 end
 TomeSync._linkAutoDeliver = autoDeliver
 TomeSync._linkStopPoll = linkStopPoll
-TomeSync._linkDownloadRefused = linkDownloadRefused
 end
 -- Edit the custom download-path template in an input dialog. Validates by
 -- rendering a sample book before saving, so an unknown token is rejected here
