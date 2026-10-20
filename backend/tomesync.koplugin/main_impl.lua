@@ -6399,7 +6399,8 @@ function TomeSync:_linkPass(light, hb)
         -- the configured server a second time.
         probe = false
         probed, nowhy = linkProbeHosts(root)
-        if not probed then link_on, missed = false, true end
+        -- No host answered is no answer (build 58): a heartbeat window stays open.
+        if not probed then link_on, missed, noanswer = false, true, true end
     end
     if link_on and not hb and (not light or (not reading and os.time() - link_info_at >= LINK_INFO_EVERY)) then
         local body, code, raw
@@ -6688,7 +6689,10 @@ function TomeSync:_scheduleLinkSync(reason, delay)
         end
         me:_linkArmPoll(secs, why, noanswer)
         -- No link host answered: one more pass once their back-off is over.
-        if link_host_missed and not link_task then
+        -- Not while a heartbeat window is open (build 58): the heartbeat knocks
+        -- on the phone's address once a minute already (or is paused while a
+        -- book is open), and a retry pass would drop it.
+        if link_host_missed and not link_task and not LinkHB.till then
             if link_host_retries > 0 then
                 link_host_retries = link_host_retries - 1
                 logger.info("TomeSync: no link host answered; trying again in "

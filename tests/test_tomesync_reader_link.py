@@ -688,3 +688,7 @@ def test_build_58_wiring():
     assert "act = LinkHB.where(act, linkReading())" in arm
     i_task = arm.index("link_poll_task = function()")
     assert arm.index("if linkReading() then", i_task) < arm.index("pcall(me._linkPass, me, true, true)")
+    # no link host answered is no answer (the heartbeat window stays open), and
+    # no host retry pass while the window is open (it would drop the heartbeat)
+    assert "if not probed then link_on, missed, noanswer = false, true, true end" in pas
+    assert "if link_host_missed and not link_task and not LinkHB.till then" in lua
