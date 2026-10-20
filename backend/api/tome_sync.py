@@ -153,7 +153,11 @@ logger = logging.getLogger(__name__)
 # BUILD 59: reader link: KOReader settings report (PUT /tome-sync/reader-settings:
 # capabilities, a curated settings list, fonts, profiles) and the set_setting /
 # run_profile commands.
-TOMESYNC_PLUGIN_BUILD = 59
+# BUILD 60: reader link: plugins report (PUT /tome-sync/plugins: every *.koplugin
+# as KOReader's PluginLoader sees it, enabled from plugins_disabled) and the
+# plugin_enable / plugin_install (a zip from GET /tome-sync/plugins/{id}/download)
+# / plugin_remove / self_update commands.
+TOMESYNC_PLUGIN_BUILD = 60
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

@@ -420,7 +420,7 @@ def test_download_and_delivered_hardening_in_render():
 def test_build_55_device_id_wording_and_probe_rules():
     assert TOMESYNC_PLUGIN_BUILD >= 55
     lua = _main_impl_lua()
-    assert "local BUILD           = 59" in lua
+    assert "local BUILD           = 60" in lua
     # A persistent id, sent in device-info and in the initiate body.
     assert "device_id    = LinkSession.deviceID()," in lua
     assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
@@ -672,7 +672,7 @@ print("ok")
 
 def test_build_58_wiring():
     lua = _impl()
-    assert "local BUILD           = 59" in lua
+    assert "local BUILD           = 60" in lua
     api = lua[lua.index("local function apiRequest(method, path, body, opts)"):]
     api = api[:api.index("\nend\n")]
     assert "return nil, code, resp_body" in api
@@ -844,8 +844,8 @@ print("ok")
 
 def test_build_59_wiring():
     lua = _impl()
-    assert "local BUILD           = 59" in lua
-    assert TOMESYNC_PLUGIN_BUILD == 59
+    assert "local BUILD           = 60" in lua
+    assert TOMESYNC_PLUGIN_BUILD == 60
     assert "set_setting = true, run_profile = true" in lua
     assert '"/tome-sync/reader-settings"' in lua
     assert 'if op == "set_setting" then return self:_linkSetSetting(args) end' in lua
@@ -869,3 +869,178 @@ assert(#linkParseCommands({ commands = {
     { id = 3, op = "set_settings", args = {} } } }) == 2)
 print("ok")
 ''')
+
+
+# ── Build 60: plugins from the phone ────────────────────────────────────────
+
+def _linkplug_block() -> str:
+    lua = _impl()
+    start = lua.index("-- TOMESYNC_LINKPLUG_BEGIN")
+    end = lua.index("-- TOMESYNC_LINKPLUG_END")
+    return "local LinkSet = {}\n" + lua[start:end]
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_plugin_zip_validation(tmp_path):
+    """One <name>.koplugin with _meta.lua and main.lua; nothing that escapes,
+    no second top-level entry, no link, never tomesync."""
+    _run_lua(tmp_path, "zip.lua", _linkplug_block() + r"""
+local P = LinkSet.Plug
+local function f(p, size) return { path = p, mode = "file", size = size or 10 } end
+local function d(p) return { path = p, mode = "directory", size = 0 } end
+local function no(entries, want)
+    local ok, why = P.checkZip(entries)
+    assert(ok == false, want .. ": accepted")
+    assert(type(why) == "string" and why:find(want, 1, true), want .. " / got: " .. tostring(why))
+end
+-- a good zip, with and without folder entries, ./ and macOS's resource folder
+local ok, top, plan = P.checkZip({ d("hello.koplugin/"), f("hello.koplugin/_meta.lua"),
+                                   f("hello.koplugin/main.lua"), d("hello.koplugin/lib/"),
+                                   f("hello.koplugin/lib/x.lua") })
+assert(ok == true and top == "hello.koplugin", tostring(top))
+assert(#plan == 5 and plan[1].path == "hello.koplugin" and plan[1].mode == "directory")
+ok, top, plan = P.checkZip({ f("./hello.koplugin/_meta.lua"), f("hello.koplugin/main.lua"),
+                             d("__MACOSX/"), f("__MACOSX/hello.koplugin/._main.lua") })
+assert(ok == true and top == "hello.koplugin" and #plan == 2, tostring(top))
+assert(plan[1].path == "hello.koplugin/_meta.lua" and plan[1].src == "./hello.koplugin/_meta.lua")
+-- two top-level folders, a top-level file, not a koplugin
+no({ f("a.koplugin/_meta.lua"), f("a.koplugin/main.lua"), f("b.koplugin/main.lua") },
+   "2 top-level folders (a.koplugin, b.koplugin)")
+no({ f("a.koplugin/_meta.lua"), f("a.koplugin/main.lua"), f("README.md") }, "a file at the top level: README.md")
+no({ f("hello/_meta.lua"), f("hello/main.lua") }, "the top folder is not a .koplugin: hello")
+no({ f(".hidden.koplugin/_meta.lua"), f(".hidden.koplugin/main.lua") }, "bad folder name")
+-- missing files
+no({ f("hello.koplugin/_meta.lua") }, "missing main.lua in hello.koplugin")
+no({ f("hello.koplugin/main.lua") }, "missing _meta.lua")
+no({ d("hello.koplugin/main.lua/"), f("hello.koplugin/_meta.lua") }, "missing main.lua")
+-- escapes
+no({ f("hello.koplugin/_meta.lua"), f("hello.koplugin/main.lua"), f("hello.koplugin/../../evil.lua") },
+   "path escapes the folder: hello.koplugin/../../evil.lua")
+no({ f("../hello.koplugin/main.lua") }, "path escapes")
+no({ f("/etc/hello.koplugin/main.lua") }, "absolute path")
+no({ f("C:/x.koplugin/main.lua") }, "absolute path")
+no({ f("hello.koplugin\\main.lua") }, "backslash")
+no({ f("hello.koplugin/_meta.lua"), f("hello.koplugin/main.lua"),
+     { path = "hello.koplugin/lib", mode = "link", size = 0 } }, "not a file or folder (link)")
+no({ f("hello.koplugin/_meta.lua"), f("hello.koplugin/main.lua"), f("hello.koplugin/main.lua") }, "twice in the zip")
+-- tomesync is refused, whatever the case
+no({ f("tomesync.koplugin/_meta.lua"), f("tomesync.koplugin/main.lua") }, "tomesync.koplugin is refused")
+no({ f("TomeSync.koplugin/_meta.lua"), f("TomeSync.koplugin/main.lua") }, "tomesync.koplugin is refused")
+-- bounds
+no({}, "the zip is empty")
+no({ d("__MACOSX/") }, "the zip is empty")
+no({ f("big.koplugin/_meta.lua"), f("big.koplugin/main.lua", 65 * 1024 * 1024) }, "unpacks to more than 64 MB")
+local many = {}
+for i = 1, 2001 do many[i] = f("m.koplugin/" .. i .. ".lua") end
+no(many, "more than 2000 entries")
+print("ok")
+""")
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_plugin_enable_setting_round_trip(tmp_path):
+    """plugins_disabled as KOReader's Plugin management writes it: the folder
+    name without .koplugin -> true when off, absent when on; other entries kept."""
+    _run_lua(tmp_path, "enable.lua", _linkplug_block() + r"""
+local P = LinkSet.Plug
+local t = P.setDisabled(nil, "qrclipboard", false)
+assert(t.qrclipboard == true)
+local t2 = P.setDisabled({ hello = true, qrclipboard = true }, "qrclipboard", true)
+assert(t2.qrclipboard == nil and t2.hello == true)
+local src = { hello = true }
+local t3 = P.setDisabled(src, "x", false)
+assert(src.x == nil and t3.x == true and t3.hello == true, "a copy, not the setting itself")
+-- the row reads it back the same way
+local row = P.row({ dir = "qrclipboard.koplugin", path = "plugins/qrclipboard.koplugin", default = true },
+                  { fullname = "QR from clipboard" },
+                  { disabled = t, loaded = true, known = true, boot = true })
+assert(row.enabled == false and row.loaded == true and row.pending == true, "off, still running: restart")
+row = P.row({ dir = "qrclipboard.koplugin", path = "plugins/qrclipboard.koplugin", default = true },
+            nil, { disabled = t2, loaded = true, known = true, boot = true })
+assert(row.enabled == true and row.pending == false and row.fullname == "qrclipboard")
+assert(P.isSelf("TomeSync.koplugin") and not P.isSelf("tomesync"))
+assert(P.validDir("hello.koplugin") and not P.validDir("../x.koplugin") and not P.validDir("a/b.koplugin"))
+print("ok")
+""")
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_plugin_report_shape(tmp_path):
+    """Rows: dir, name, fullname, description, version, enabled, loaded,
+    builtin (from ota/package.index; false in an extra path; nil unknown),
+    removable (never tomesync, never a shipped one), pending; the report sorts
+    by name and says when a restart is needed."""
+    _run_lua(tmp_path, "report.lua", _linkplug_block() + r"""
+local P = LinkSet.Plug
+local idx = P.shipped("koreader/plugins/kosync.koplugin/main.lua\nkoreader/plugins/kosync.koplugin/_meta.lua\n"
+                      .. "koreader/plugins/qrclipboard.koplugin/main.lua\nkoreader/frontend/x.lua\n")
+assert(idx["kosync.koplugin"] and idx["qrclipboard.koplugin"] and not idx["zen_ui.koplugin"])
+assert(P.shipped(nil) == nil and P.shipped("") == nil)
+local rows = {
+    P.row({ dir = "zen_ui.koplugin", path = "plugins/zen_ui.koplugin", default = true },
+          { fullname = "Zen UI", version = "2.5.4", description = "A clean UI" },
+          { shipped = idx, loaded = true, known = true, boot = true }),
+    P.row({ dir = "kosync.koplugin", path = "plugins/kosync.koplugin", default = true },
+          { fullname = "Progress sync" }, { shipped = idx, loaded = true, known = true, boot = true }),
+    P.row({ dir = "tomesync.koplugin", path = "plugins/tomesync.koplugin", default = true },
+          { fullname = "TomeSync" }, { shipped = idx, loaded = true, known = true, boot = true, build = 60 }),
+    P.row({ dir = "hello.koplugin", path = "/data/plugins/hello.koplugin", default = false },
+          { fullname = "Hello", version = 3 }, { installed = true, touched = true }),
+}
+local z, k, t, h = rows[1], rows[2], rows[3], rows[4]
+assert(z.builtin == false and z.removable == true and z.version == "2.5.4" and z.description == "A clean UI")
+assert(k.builtin == true and k.removable == false and k.can_toggle == true and k.version == nil)
+assert(t.builtin == false and t.removable == false and t.can_toggle == false and t.tomesync_build == 60)
+assert(h.builtin == false and h.removable and h.installed_by_link and h.pending and h.version == "3")
+assert(z.tomesync_build == nil and z.pending == false and z.name == "zen_ui")
+-- no index: unknown, and only what the link installed can be removed
+local u = P.row({ dir = "zen_ui.koplugin", path = "plugins/zen_ui.koplugin", default = true }, {}, { loaded = true, known = true, boot = true })
+assert(u.builtin == nil and u.removable == false)
+local ui = P.row({ dir = "x.koplugin", path = "plugins/x.koplugin", default = true }, {}, { installed = true, boot = true })
+assert(ui.builtin == nil and ui.removable == true)
+-- a plugin that turns itself off (KOReader's hello): not loaded, not pending
+local self_off = P.row({ dir = "hello.koplugin", path = "plugins/hello.koplugin", default = true }, {}, { known = false, boot = true })
+assert(self_off.loaded == false and self_off.pending == false)
+local r = P.report(rows, {}, "/k/plugins", true, 60)
+assert(r.plugins[1].fullname == "Hello" and r.plugins[2].fullname == "Progress sync"
+       and r.plugins[3].fullname == "TomeSync" and r.plugins[4].fullname == "Zen UI")
+assert(r.restart_needed == true and r.can_install == true and r.install_dir == "/k/plugins" and r.tomesync_running == 60)
+local quiet = P.report({ z, k }, {}, nil, false, 60)
+assert(quiet.restart_needed == false and quiet.can_install == false)
+assert(P.report({ z }, { "gone.koplugin" }, nil, true, 60).restart_needed == true, "a removal needs a restart")
+assert(P.report({ t }, {}, nil, true, 59).restart_needed == true, "tomesync updated on disk, older running")
+print("ok")
+""")
+
+
+def test_build_60_wiring():
+    lua = _impl()
+    assert "local BUILD           = 60" in lua
+    assert TOMESYNC_PLUGIN_BUILD == 60
+    assert "plugin_enable = true, plugin_install = true, plugin_remove = true" in lua
+    assert "self_update = true }" in lua
+    for op in ("plugin_enable", "plugin_install", "plugin_remove", "self_update"):
+        assert f'if op == "{op}" then return self:' in lua
+    assert '"/tome-sync/plugins"' in lua
+    assert '"/tome-sync/plugins/" .. urlEncode(id) .. "/download"' in lua
+    assert 'require, "ffi/archiver"' in lua
+    assert "(not light or LinkSet.Plug.dirty)" in lua
+    assert "link_off.plugins = true" in lua
+    # KOReader's own setting, flushed and read back
+    assert 'G_reader_settings:saveSetting("plugins_disabled", LinkSet.Plug.setDisabled(cur, name, args.on))' in lua
+    # the menu's update and the link's share one swap
+    assert "local ok, _, text = self:_applyUpdate(new_build)" in lua
+    assert "local ok, e = self:_applyUpdate(avail.build)" in lua
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_parser_takes_plugin_ops(tmp_path):
+    _run_lua(tmp_path, "plugops.lua", _linkcmd_block() + r"""
+assert(#linkParseCommands({ commands = {
+    { id = 1, op = "plugin_enable", args = { dir = "qrclipboard.koplugin", on = false } },
+    { id = 2, op = "plugin_install", args = { id = 3 } },
+    { id = 3, op = "plugin_remove", args = { dir = "hello.koplugin" } },
+    { id = 4, op = "self_update", args = {} },
+    { id = 5, op = "plugin_exec", args = {} } } }) == 4)
+print("ok")
+""")

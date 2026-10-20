@@ -773,8 +773,8 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "59"
-local BUILD           = 59      -- monotonic; the only thing compared
+local PLUGIN_VERSION  = "60"
+local BUILD           = 60      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -4905,37 +4905,30 @@ function TomeSync:checkForUpdate(on_result)
     end
 end
 
-function TomeSync:installUpdate(new_build)
+-- The swap itself (build 60: also the link's self_update). Returns true, or
+-- false, a short reason and the text the menu shows.
+function TomeSync:_applyUpdate(new_build)
     local body, code = fetchText("/plugin/main-impl.lua")
     if not body then
-        UIManager:show(InfoMessage:new{
-            text = "Download failed (" .. tostring(code) .. ").\nNothing changed.",
-            timeout = 5,
-        })
-        return
+        return false, "download failed (" .. tostring(code) .. ")",
+               "Download failed (" .. tostring(code) .. ").\nNothing changed."
     end
     local valid, why = validateImpl(body)
     if not valid then
-        UIManager:show(InfoMessage:new{
-            text = "Update rejected: " .. tostring(why) .. ".\nNothing changed.",
-            timeout = 6,
-        })
-        return
+        return false, "update rejected: " .. tostring(why),
+               "Update rejected: " .. tostring(why) .. ".\nNothing changed."
     end
     -- Back up the current (known-good) impl, then atomically swap in the new one.
     local current = readWhole(IMPL_PATH)
     if current and not writeWhole(IMPL_BAK, current) then
-        UIManager:show(InfoMessage:new{ text = "Could not write backup.", timeout = 5 })
-        return
+        return false, "could not write the backup", "Could not write backup."
     end
     if not writeWhole(IMPL_PATH .. ".new", body) then
-        UIManager:show(InfoMessage:new{ text = "Could not write update.", timeout = 5 })
-        return
+        return false, "could not write the update", "Could not write update."
     end
     if not os.rename(IMPL_PATH .. ".new", IMPL_PATH) then
         os.remove(IMPL_PATH .. ".new")
-        UIManager:show(InfoMessage:new{ text = "Could not install update.", timeout = 5 })
-        return
+        return false, "could not install the update", "Could not install update."
     end
     -- config.lua is never part of an update. An install that has none (one
     -- that came up from build 53 or older without a backup to recover the
@@ -4957,6 +4950,15 @@ function TomeSync:installUpdate(new_build)
         prev_build = cur_state.build or BUILD,
     })
     G_reader_settings:flush()
+    return true
+end
+
+function TomeSync:installUpdate(new_build)
+    local ok, _, text = self:_applyUpdate(new_build)
+    if not ok then
+        UIManager:show(InfoMessage:new{ text = text, timeout = 5 })
+        return
+    end
     UIManager:show(InfoMessage:new{
         text = "TomeSync updated to build " .. new_build .. ".\nRestart KOReader to apply.",
         timeout = 8,
@@ -5849,7 +5851,9 @@ end
 -- Released Tomes answer unknown GETs under /api with 200 + the web app's HTML,
 -- which apiRequest hands back as {} (body not JSON): that is "nothing".
 local LINK_OPS = { rename = true, move = true, delete = true, mkdir = true, refresh = true,
-                   set_setting = true, run_profile = true }   -- build 59: the last two
+                   set_setting = true, run_profile = true,     -- build 59
+                   plugin_enable = true, plugin_install = true, plugin_remove = true,
+                   self_update = true }                         -- build 60
 local function linkParseCommands(body)
     if type(body) ~= "table" then return {} end
     local list = body
@@ -6161,6 +6165,179 @@ function LinkSet.report(values, caps, fonts, profiles, limits)
 end
 -- TOMESYNC_LINKSET_END
 
+-- TOMESYNC_LINKPLUG_BEGIN (pure: no requires, no I/O; extracted and run under
+-- luajit by tests/test_tomesync_reader_link.py)
+-- Build 60: KOReader's plugins from the phone. What KOReader itself does
+-- (frontend/pluginloader.lua): every "<name>.koplugin" folder in "plugins"
+-- (the default path, what ships with KOReader) and in extra_plugin_paths is
+-- a plugin; plugins_disabled[<name>] = true (the folder name without
+-- ".koplugin") keeps one from loading; its Plugin management menu writes
+-- that table and asks for a restart. The loader has no "essential" plugin.
+-- A field (LinkSet.Plug), not a local: the 200-local budget.
+LinkSet.Plug = {
+    SELF        = "tomesync.koplugin",
+    MAX_ZIP     = 20 * 1024 * 1024,   -- the download
+    MAX_ENTRIES = 2000,
+    MAX_BYTES   = 64 * 1024 * 1024,   -- what the zip unpacks to
+    dirty       = nil,                -- a plugin command ran: report on this pass
+    boot        = nil,                -- path -> enabled, the first scan of this process
+    touched     = {},                 -- path -> true: installed or replaced since then
+    removed     = {},                 -- folder names removed since then
+}
+
+function LinkSet.Plug.isSelf(dir)
+    return type(dir) == "string" and dir:lower() == LinkSet.Plug.SELF
+end
+
+-- A folder name the link may name: "<name>.koplugin", no path, no dot first.
+function LinkSet.Plug.validDir(dir)
+    return type(dir) == "string" and #dir <= 128 and dir:match("^[%w][%w_%-%.]*%.koplugin$") ~= nil
+end
+
+-- plugins_disabled with <name> turned on (removed) or off (true), exactly as
+-- PluginLoader:genPluginManagerSubItem's callback does it.
+function LinkSet.Plug.setDisabled(tbl, name, on)
+    local out = {}
+    for k, v in pairs(type(tbl) == "table" and tbl or {}) do out[k] = v end
+    if on then out[name] = nil else out[name] = true end
+    return out
+end
+
+-- The plugin folders KOReader's release package lists (ota/package.index,
+-- one path per line, e.g. "koreader/plugins/kosync.koplugin/main.lua"):
+-- dir -> true. nil without an index (the emulator, a source build).
+function LinkSet.Plug.shipped(index_text)
+    if type(index_text) ~= "string" or index_text == "" then return nil end
+    local set = {}
+    for line in index_text:gmatch("[^\r\n]+") do
+        local d = line:match("plugins/([^/]+%.koplugin)/") or line:match("plugins/([^/]+%.koplugin)$")
+        if d then set[d] = true end
+    end
+    return set
+end
+
+-- What a zip holds, before anything is unpacked. entries: { path, mode
+-- ("file", "directory", "link", ...), size } in archive order. Returns
+-- true, the top folder, the plan ({ path (normalised), mode, src (as in the
+-- archive) }), or false and why. Exactly one top-level "<name>.koplugin/"
+-- with _meta.lua and main.lua; no absolute path, no "..", no backslash, no
+-- link or device, no duplicate; never tomesync.koplugin (it updates itself).
+-- macOS's "__MACOSX/" resource folder is skipped, not unpacked.
+function LinkSet.Plug.checkZip(entries)
+    local P = LinkSet.Plug
+    if type(entries) ~= "table" or #entries == 0 then return false, "the zip is empty" end
+    if #entries > P.MAX_ENTRIES then return false, "more than " .. P.MAX_ENTRIES .. " entries" end
+    local plan, tops, top_order, seen, bytes = {}, {}, {}, {}, 0
+    for _, e in ipairs(entries) do
+        local raw = e.path
+        if type(raw) ~= "string" or raw == "" then return false, "an entry without a name" end
+        if raw:find("%z") then return false, "NUL in a name" end
+        if raw:find("\\", 1, true) then return false, "backslash in " .. raw end
+        if raw:sub(1, 1) == "/" or raw:match("^%a:") then return false, "absolute path: " .. raw end
+        local parts = {}
+        for part in raw:gmatch("[^/]+") do
+            if part == ".." then return false, "path escapes the folder: " .. raw end
+            if part ~= "." then table.insert(parts, part) end
+        end
+        if #parts > 0 and parts[1] ~= "__MACOSX" then
+            local path = table.concat(parts, "/")
+            local mode = e.mode
+            if mode ~= "file" and mode ~= "directory" then
+                return false, "not a file or folder (" .. tostring(mode) .. "): " .. raw
+            end
+            if seen[path] then return false, "twice in the zip: " .. path end
+            seen[path] = mode
+            if #parts == 1 and mode == "file" then
+                return false, "a file at the top level: " .. path .. " (expected one <name>.koplugin folder)"
+            end
+            if not tops[parts[1]] then
+                tops[parts[1]] = true
+                table.insert(top_order, parts[1])
+            end
+            if mode == "file" then bytes = bytes + (tonumber(e.size) or 0) end
+            if bytes > P.MAX_BYTES then
+                return false, "unpacks to more than " .. math.floor(P.MAX_BYTES / 1048576) .. " MB"
+            end
+            table.insert(plan, { path = path, mode = mode, src = raw })
+        end
+    end
+    if #top_order == 0 then return false, "the zip is empty" end
+    if #top_order > 1 then
+        return false, #top_order .. " top-level folders (" .. table.concat(top_order, ", ")
+                      .. "): expected exactly one <name>.koplugin"
+    end
+    local top = top_order[1]
+    if not top:match("%.koplugin$") then return false, "the top folder is not a .koplugin: " .. top end
+    if not P.validDir(top) then return false, "bad folder name: " .. top end
+    if P.isSelf(top) then return false, "tomesync.koplugin is refused: TomeSync updates itself" end
+    for _, f in ipairs({ "_meta.lua", "main.lua" }) do
+        if seen[top .. "/" .. f] ~= "file" then return false, "missing " .. f .. " in " .. top end
+    end
+    return true, top, plan
+end
+
+-- One row of the report. p: { dir, path, default (in "plugins") }; meta: the
+-- plugin's _meta.lua table (or the loader's module), may be nil; st: {
+-- disabled (plugins_disabled), shipped (from the index, may be nil), loaded
+-- (the loader runs it now), known (the loader saw it at start), installed
+-- (the link installed it), boot (enabled at the first scan, nil: not there),
+-- touched, build (tomesync's build on disk) }.
+function LinkSet.Plug.row(p, meta, st)
+    local P = LinkSet.Plug
+    meta = type(meta) == "table" and meta or {}
+    st = st or {}
+    local name = p.dir:sub(1, -10)
+    local function text(v, max)
+        if type(v) == "number" then v = tostring(v) end
+        if type(v) ~= "string" or v == "" then return nil end
+        return #v > max and v:sub(1, max) or v
+    end
+    local builtin
+    if p.default == false then builtin = false
+    elseif type(st.shipped) == "table" then builtin = st.shipped[p.dir] == true end
+    local is_self = P.isSelf(p.dir)
+    local enabled = not (type(st.disabled) == "table" and st.disabled[name])
+    local pending = false
+    if st.touched then pending = true
+    elseif st.boot == nil then pending = enabled
+    elseif st.known then pending = enabled ~= (st.loaded == true)
+    else pending = st.boot ~= enabled end
+    return {
+        dir = p.dir, name = name,
+        fullname = text(meta.fullname, 80) or name,
+        description = text(meta.description, 600),
+        version = text(meta.version, 40),
+        enabled = enabled,
+        loaded = st.loaded == true,
+        builtin = builtin,
+        installed_by_link = st.installed == true or nil,
+        removable = (not is_self) and (builtin == false or st.installed == true),
+        can_toggle = not is_self,
+        pending = pending,
+        tomesync_build = is_self and st.build or nil,
+    }
+end
+
+-- The body of PUT /tome-sync/plugins: rows by name, what went since start.
+function LinkSet.Plug.report(rows, removed, install_dir, can_install, running_build)
+    local list = {}
+    for _, r in ipairs(rows or {}) do table.insert(list, r) end
+    table.sort(list, function(a, b)
+        local x, y = a.fullname:lower(), b.fullname:lower()
+        if x ~= y then return x < y end
+        return a.dir < b.dir
+    end)
+    local restart = #(removed or {}) > 0
+    for _, r in ipairs(list) do
+        if r.pending then restart = true end
+        if r.tomesync_build and running_build and r.tomesync_build ~= running_build then restart = true end
+    end
+    return { plugins = list, removed = removed or {}, restart_needed = restart,
+             install_dir = install_dir, can_install = can_install == true,
+             tomesync_running = running_build }
+end
+-- TOMESYNC_LINKPLUG_END
+
 -- MD5 hex of a string with KOReader's bundled ffi/sha2; nil when missing
 -- (then the tree is sent as before, on full passes only).
 local function linkHash(str)
@@ -6189,7 +6366,8 @@ local function linkRemember(key, result)
 end
 
 -- One command. Returns ok, error, new_path (relative), note, applies (the
--- settings ops, build 59). Raises nothing
+-- settings ops, build 59), extra (fields for the result: the plugin ops,
+-- build 60). Raises nothing
 -- the caller does not pcall. Every path and name goes through linkResolve /
 -- linkGuard (tools/reader-link-routes.md, "Refused paths").
 function TomeSync:_linkRunCommand(root, cmd, touched)
@@ -6203,6 +6381,10 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
     end
     if op == "set_setting" then return self:_linkSetSetting(args) end
     if op == "run_profile" then return self:_linkRunProfile(args) end
+    if op == "plugin_enable" then return self:_linkPluginEnable(args) end
+    if op == "plugin_install" then return self:_linkPluginInstall(args) end
+    if op == "plugin_remove" then return self:_linkPluginRemove(args) end
+    if op == "self_update" then return self:_linkSelfUpdate(args) end
 
     if op == "mkdir" then
         local rel = str(args.path)
@@ -6632,9 +6814,10 @@ function TomeSync:_linkPass(light, hb)
             for _, cmd in ipairs(fresh) do
                 if not link_off.all then
                     local key = tostring(cmd.id)
-                    local ok, res, err, new_path, note, applies = pcall(self._linkRunCommand, self, root, cmd, touched)
-                    if not ok then res, err, new_path, note, applies = false, tostring(res), nil, nil, nil end
+                    local ok, res, err, new_path, note, applies, extra = pcall(self._linkRunCommand, self, root, cmd, touched)
+                    if not ok then res, err, new_path, note, applies, extra = false, tostring(res), nil, nil, nil, nil end
                     if cmd.op == "set_setting" or cmd.op == "run_profile" then LinkSet.dirty = true end
+                    if cmd.op:find("^plugin_") or cmd.op == "self_update" then LinkSet.Plug.dirty = true end
                     ran = ran + 1
                     logger.info("TomeSync: link command", key, tostring(cmd.op),
                                 res and ("ok" .. (note and (" (" .. note .. ")") or ""))
@@ -6646,6 +6829,10 @@ function TomeSync:_linkPass(light, hb)
                         note = note,
                         applies = res and applies or nil,
                     }
+                    -- Build 60: from_build / to_build, dir, trash.
+                    if type(extra) == "table" then
+                        for k, v in pairs(extra) do if result[k] == nil then result[k] = v end end
+                    end
                     linkRemember(key, result)
                     pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
                           result, net)
@@ -6667,6 +6854,14 @@ function TomeSync:_linkPass(light, hb)
         LinkSet.dirty = nil
         local ok, e = pcall(self._linkSendSettings, self, net, was and "after a change" or "full pass")
         if not ok then logger.warn("TomeSync: link reader-settings failed:", e) end
+    end
+    -- Build 60: the plugins report, on full passes and after a plugin command.
+    if link_on and not link_off.all and not link_off.plugins and not repair
+            and (not light or LinkSet.Plug.dirty) then
+        local was = LinkSet.Plug.dirty
+        LinkSet.Plug.dirty = nil
+        local ok, e = pcall(self._linkSendPlugins, self, net, was and "after a change" or "full pass")
+        if not ok then logger.warn("TomeSync: link plugins report failed:", e) end
     end
 
     link_host_missed = missed
@@ -6936,6 +7131,401 @@ function TomeSync:_linkRunProfile(args)
     G_reader_settings:flush()
     logger.info("TomeSync: link ran profile " .. name)
     return true, nil, nil, nil, "now"
+end
+
+-- ── Build 60: plugins (LinkSet.Plug above holds the pure rules) ─────────────
+
+-- The folders PluginLoader:_discover looks in, spelled as it spells them (its
+-- plugin paths are lookup_path .. "/" .. entry, so rows match its modules):
+-- "plugins" first, then extra_plugin_paths that are folders.
+function TomeSync._linkPluginDirs()
+    local out = { { path = "plugins", default = true } }
+    local extra = G_reader_settings:readSetting("extra_plugin_paths")
+    if type(extra) == "string" then extra = { extra } end
+    if type(extra) == "table" then
+        for _, p in ipairs(extra) do
+            if type(p) == "string" and p ~= "plugins" and lfs.attributes(p, "mode") == "directory" then
+                table.insert(out, { path = p, default = false })
+            end
+        end
+    end
+    return out
+end
+
+-- Where an install goes: the first extra path (KOReader's data dir, when it
+-- is not the install dir: Android, AppImage), else "plugins".
+function TomeSync._linkPluginUserDir()
+    local dirs = TomeSync._linkPluginDirs()
+    local d = dirs[2] or dirs[1]
+    local p = d.path:gsub("/+$", "")
+    if p == "plugins" then p = lfs.currentdir() .. "/plugins" end
+    if lfs.attributes(p, "mode") ~= "directory" then return nil end
+    return p
+end
+
+function TomeSync._linkPluginScan()
+    local found = {}
+    for _, d in ipairs(TomeSync._linkPluginDirs()) do
+        pcall(function()
+            for entry in lfs.dir(d.path) do
+                local root = d.path .. "/" .. entry
+                if entry:find(".+%.koplugin$") and lfs.attributes(root, "mode") == "directory" then
+                    table.insert(found, { dir = entry, path = root, default = d.default })
+                end
+            end
+        end)
+    end
+    return found
+end
+
+-- tomesync's build as main_impl.lua on disk says (after a self-update that
+-- waits for a restart it differs from BUILD).
+function TomeSync._linkDiskBuild()
+    local text = readWhole(IMPL_PATH)
+    return text and tonumber(text:match("\nlocal BUILD%s*=%s*(%d+)")) or nil
+end
+
+function TomeSync:_linkPluginReport()
+    local P = LinkSet.Plug
+    local okl, PL = pcall(require, "pluginloader")
+    local mods, loaded = {}, {}
+    if okl and type(PL) == "table" then
+        for _, m in ipairs(PL.enabled_plugins or {}) do
+            if type(m) == "table" and m.path then mods[m.path] = m; loaded[m.path] = true end
+        end
+        for _, m in ipairs(PL.disabled_plugins or {}) do
+            if type(m) == "table" and m.path then mods[m.path] = m end
+        end
+    end
+    if P.index == nil then
+        P.index = P.shipped(readWhole("ota/package.index")) or false
+    end
+    local disabled = G_reader_settings:readSetting("plugins_disabled")
+    local installed = linkStore():readSetting("plugins_installed") or {}
+    local scan = TomeSync._linkPluginScan()
+    local first = P.boot == nil
+    if first then P.boot = {} end
+    local rows, disk_build = {}, nil
+    for _, p in ipairs(scan) do
+        local meta = mods[p.path]
+        if not meta then
+            -- Not loaded (just installed, or a plugin that turns itself off):
+            -- its _meta.lua, as the loader reads a disabled one.
+            local ok, m = pcall(dofile, p.path .. "/_meta.lua")
+            meta = ok and m or nil
+        end
+        local enabled = not (type(disabled) == "table" and disabled[p.dir:sub(1, -10)])
+        local key = p.path:gsub("/+", "/")
+        if first then P.boot[key] = enabled end
+        if P.isSelf(p.dir) then disk_build = TomeSync._linkDiskBuild() end
+        table.insert(rows, P.row(p, meta, {
+            disabled = disabled, shipped = P.index or nil, loaded = loaded[p.path],
+            known = mods[p.path] ~= nil, installed = installed[p.dir] ~= nil and p.default == (installed[p.dir] == "plugins"),
+            boot = P.boot[key], touched = P.touched[key],
+            build = P.isSelf(p.dir) and disk_build or nil,
+        }))
+    end
+    local okA = pcall(require, "ffi/archiver")
+    local arr = rapidjson.array or function(t) return t end
+    local body = P.report(rows, P.removed, TomeSync._linkPluginUserDir(), okA, BUILD)
+    body.plugins = arr(body.plugins)
+    body.removed = arr(body.removed)
+    body.device = deviceName()
+    return body
+end
+
+-- PUT /tome-sync/plugins: on full passes and after a plugin command; 404/405
+-- (a Tome without the route) turns it off for the session.
+function TomeSync:_linkSendPlugins(net, why)
+    local t0 = linkNow()
+    local body = self:_linkPluginReport()
+    local _, code = apiRequest("PUT", "/tome-sync/plugins", body, net)
+    logger.info("TomeSync: link PUT plugins " .. tostring(code) .. " (" .. why .. ", " .. #body.plugins
+                .. " plugins" .. (body.restart_needed and ", restart needed" or "") .. ", "
+                .. math.floor((linkNow() - t0) * 1000 + 0.5) .. " ms)")
+    if linkRouteOff(code) then
+        link_off.plugins = true
+        logger.info("TomeSync: link plugins", code, "- report off")
+    end
+end
+
+-- The rows for a folder name ("x" or "x.koplugin"), or nil and why.
+function TomeSync._linkPluginFind(dir)
+    if type(dir) ~= "string" or dir == "" then return nil, "missing dir" end
+    if not dir:find("%.koplugin$") then dir = dir .. ".koplugin" end
+    if not LinkSet.Plug.validDir(dir) then return nil, "bad plugin folder name: " .. dir end
+    local hits = {}
+    for _, p in ipairs(TomeSync._linkPluginScan()) do
+        if p.dir == dir then table.insert(hits, p) end
+    end
+    if #hits == 0 then return nil, "no plugin " .. dir end
+    return hits
+end
+
+-- plugin_enable {dir, on}: plugins_disabled, as KOReader's own menu writes it.
+function TomeSync:_linkPluginEnable(args)
+    local hits, err = TomeSync._linkPluginFind(args.dir)
+    if not hits then return false, err end
+    if type(args.on) ~= "boolean" then return false, "on must be true or false" end
+    if LinkSet.Plug.isSelf(hits[1].dir) then
+        return false, "TomeSync is not turned off from the phone: it carries the link"
+    end
+    local name = hits[1].dir:sub(1, -10)
+    local cur = G_reader_settings:readSetting("plugins_disabled")
+    G_reader_settings:saveSetting("plugins_disabled", LinkSet.Plug.setDisabled(cur, name, args.on))
+    G_reader_settings:flush()
+    local back = G_reader_settings:readSetting("plugins_disabled")
+    local now_on = not (type(back) == "table" and back[name])
+    if now_on ~= args.on then return false, "KOReader kept it " .. (now_on and "on" or "off") end
+    -- The Plugin management menu's checkmarks, until the restart.
+    pcall(function()
+        for _, e in ipairs(require("pluginloader").all_plugins or {}) do
+            if e.name == name then e.enable = args.on end
+        end
+    end)
+    logger.info("TomeSync: link plugin " .. name .. (args.on and " enabled" or " disabled") .. " (restart)")
+    return true, nil, nil, nil, "restart"
+end
+
+-- A folder tree, without following links. Returns true, or false and why.
+function TomeSync._linkRmTree(p)
+    local a = lfs.symlinkattributes(p)
+    if not a then return true end
+    if a.mode == "directory" then
+        for name in lfs.dir(p) do
+            if name ~= "." and name ~= ".." then
+                local ok, e = TomeSync._linkRmTree(p .. "/" .. name)
+                if not ok then return false, e end
+            end
+        end
+    end
+    local ok, e = os.remove(p)
+    if not ok then return false, tostring(e) end
+    return true
+end
+
+-- Whether a folder holds a link anywhere (the trash purge follows links).
+function TomeSync._linkHasLink(p)
+    local a = lfs.symlinkattributes(p)
+    if not a then return false end
+    if a.mode == "link" then return true end
+    if a.mode ~= "directory" then return false end
+    for name in lfs.dir(p) do
+        if name ~= "." and name ~= ".." and TomeSync._linkHasLink(p .. "/" .. name) then return true end
+    end
+    return false
+end
+
+-- Into the link trash under a free name; returns the trash name or nil, why.
+function TomeSync._linkPluginTrash(src)
+    local root = linkRoot()
+    if not root then return nil, "no home folder for the trash" end
+    local trash = root .. "/" .. LINK_TRASH
+    if lfs.attributes(trash, "mode") ~= "directory" then
+        local ok, e = lfs.mkdir(trash)
+        if not ok then return nil, "could not create the trash folder: " .. tostring(e) end
+    end
+    local base = src:match("[^/]+$")
+    local dest, n = trash .. "/" .. base, 1
+    while lfs.symlinkattributes(dest) do
+        n = n + 1
+        dest = string.format("%s/%s (%d)", trash, base, n)
+    end
+    local ok, e = os.rename(src, dest)
+    if not ok then return nil, "could not move it to the trash: " .. tostring(e) end
+    pcall(function()
+        local st = linkStore()
+        local times = st:readSetting("trash") or {}
+        times[dest:match("[^/]+$")] = os.time()
+        st:saveSetting("trash", times)
+        st:flush()
+    end)
+    pcall(linkTrimTrash, trash, dest:match("[^/]+$"))
+    return dest:match("[^/]+$")
+end
+
+-- GET to a file, at most cap bytes (the sink stops the transfer past it).
+function TomeSync._linkFetchCapped(api_path, dest, cap)
+    if not NetworkMgr:isConnected() then return false, "offline" end
+    local fh, got, over
+    local ok, code = serverRequest({
+        method  = "GET",
+        path    = "/api" .. api_path,
+        headers = { ["Authorization"] = "Bearer " .. apiKey() },
+        sink    = function()
+            if fh then pcall(fh.close, fh) end
+            fh, got, over = io.open(dest, "wb"), 0, false
+            if not fh then return ltn12.sink.null() end
+            local inner = ltn12.sink.file(fh)
+            return function(chunk, err)
+                if chunk then
+                    got = got + #chunk
+                    if got > cap then over = true; return nil, "over the size limit" end
+                end
+                return inner(chunk, err)
+            end
+        end,
+        block   = 15,
+        total   = 180,
+    })
+    if fh then pcall(fh.close, fh) end
+    if over then os.remove(dest); return false, "the zip is over " .. math.floor(cap / 1048576) .. " MB" end
+    if not ok or (type(code) == "number" and code >= 300) then
+        os.remove(dest)
+        return false, tostring(code or "request failed")
+    end
+    return true, got
+end
+
+-- plugin_install {id}: the zip the phone serves at /tome-sync/plugins/{id}/download,
+-- checked (LinkSet.Plug.checkZip), unpacked with KOReader's own libarchive
+-- (ffi/archiver) into a staging folder next to the plugins, then renamed in;
+-- a plugin of that name already there becomes "<name>.koplugin.bak", which
+-- the loader does not load (an older .bak goes to the link trash).
+function TomeSync:_linkPluginInstall(args)
+    local P = LinkSet.Plug
+    local id = args.id
+    if type(id) == "number" and id >= 0 and id == math.floor(id) then id = tostring(id) end
+    if type(id) ~= "string" or not id:match("^[%w%-_]+$") or #id > 64 then return false, "bad id" end
+    local okA, Archiver = pcall(require, "ffi/archiver")
+    if not okA or type(Archiver) ~= "table" or not Archiver.Reader then
+        return false, "this KOReader has no archive reader (ffi/archiver)"
+    end
+    local dir = TomeSync._linkPluginUserDir()
+    if not dir then return false, "no plugins folder" end
+    local tmp = dir .. "/.tomesync-install"
+    local function fail(why)
+        TomeSync._linkRmTree(tmp)
+        logger.warn("TomeSync: link plugin install " .. id .. " refused: " .. why)
+        return false, why
+    end
+    TomeSync._linkRmTree(tmp)
+    local okm, em = lfs.mkdir(tmp)
+    if not okm then return false, "could not create " .. tmp .. ": " .. tostring(em) end
+    local zip = tmp .. "/download.zip"
+    local okd, ed = TomeSync._linkFetchCapped("/tome-sync/plugins/" .. urlEncode(id) .. "/download", zip, P.MAX_ZIP)
+    if not okd then return fail("download failed: " .. tostring(ed)) end
+    local arc = Archiver.Reader:new()
+    if not arc:open(zip) then return fail("not a zip: " .. tostring(arc.err)) end
+    local entries = {}
+    for e in arc:iterate() do
+        table.insert(entries, { path = e.path, mode = e.mode, size = tonumber(e.size) })
+        if #entries > P.MAX_ENTRIES then break end
+    end
+    if arc.err then arc:close(); return fail("could not read the zip: " .. tostring(arc.err)) end
+    local okz, top, plan = P.checkZip(entries)
+    if not okz then arc:close(); return fail(top) end
+    local stage = tmp .. "/unpacked"
+    lfs.mkdir(stage)
+    local want = {}
+    for _, it in ipairs(plan) do
+        if it.mode == "directory" then mkdirp(stage .. "/" .. it.path)
+        else want[it.src] = it.path end
+    end
+    -- One pass in archive order: each file is extracted when it is current.
+    local unpacked, bad = 0, nil
+    for e in arc:iterate() do
+        local rel = want[e.path]
+        if rel then
+            mkdirp(stage .. "/" .. (rel:match("^(.*)/[^/]+$") or ""))
+            if not arc:extractToPath(e.path, stage .. "/" .. rel) then
+                bad = "could not unpack " .. rel .. ": " .. tostring(arc.err)
+                break
+            end
+            unpacked = unpacked + 1
+        end
+    end
+    arc:close()
+    if bad then return fail(bad) end
+    for _, f in ipairs({ "_meta.lua", "main.lua" }) do
+        if lfs.symlinkattributes(stage .. "/" .. top .. "/" .. f, "mode") ~= "file" then
+            return fail("missing " .. f .. " after unpacking")
+        end
+    end
+    if TomeSync._linkHasLink(stage .. "/" .. top) then return fail("the unpacked folder holds a link") end
+    local target = dir .. "/" .. top
+    local replaced = lfs.symlinkattributes(target) ~= nil
+    if replaced then
+        local bak = target .. ".bak"
+        if lfs.symlinkattributes(bak) then
+            local name, why = TomeSync._linkPluginTrash(bak)
+            if not name then return fail("the old " .. top .. ".bak: " .. why) end
+        end
+        local okr, er = os.rename(target, bak)
+        if not okr then return fail("could not keep the old copy: " .. tostring(er)) end
+    end
+    local okn, en = os.rename(stage .. "/" .. top, target)
+    if not okn then
+        if replaced then os.rename(target .. ".bak", target) end
+        return fail("could not move it in: " .. tostring(en))
+    end
+    TomeSync._linkRmTree(tmp)
+    P.touched[(((dir == lfs.currentdir() .. "/plugins") and "plugins" or dir) .. "/" .. top):gsub("/+", "/")] = true
+    for i = #P.removed, 1, -1 do if P.removed[i] == top then table.remove(P.removed, i) end end
+    pcall(function()
+        local st = linkStore()
+        local inst = st:readSetting("plugins_installed") or {}
+        inst[top] = (dir == lfs.currentdir() .. "/plugins") and "plugins" or dir
+        st:saveSetting("plugins_installed", inst)
+        st:flush()
+    end)
+    logger.info("TomeSync: link plugin installed " .. top .. " (" .. unpacked .. " files"
+                .. (replaced and ", the old copy kept as " .. top .. ".bak" or "") .. ") into " .. dir)
+    return true, nil, nil, replaced and ("replaced; the old copy is " .. top .. ".bak") or nil, "restart",
+           { dir = top, replaced = replaced, files = unpacked }
+end
+
+-- plugin_remove {dir}: a plugin that did not ship with KOReader (or that the
+-- link installed), never tomesync; into the link trash.
+function TomeSync:_linkPluginRemove(args)
+    local hits, err = TomeSync._linkPluginFind(args.dir)
+    if not hits then return false, err end
+    local dir = hits[1].dir
+    if LinkSet.Plug.isSelf(dir) then return false, "TomeSync is not removed from the phone" end
+    local body = self:_linkPluginReport()
+    local pick
+    for _, h in ipairs(hits) do
+        for _, r in ipairs(body.plugins) do
+            if r.dir == h.dir and r.removable and not pick then
+                -- The user's copy, when the same folder is in two paths.
+                if not h.default or #hits == 1 then pick = h end
+            end
+        end
+    end
+    if not pick then return false, dir .. " ships with KOReader: it is turned off, not removed" end
+    if TomeSync._linkHasLink(pick.path) then return false, dir .. " holds a link: remove it on the reader" end
+    local name, why = TomeSync._linkPluginTrash(pick.path)
+    if not name then return false, why end
+    table.insert(LinkSet.Plug.removed, dir)
+    pcall(function()
+        local st = linkStore()
+        local inst = st:readSetting("plugins_installed") or {}
+        inst[dir] = nil
+        st:saveSetting("plugins_installed", inst)
+        st:flush()
+    end)
+    logger.info("TomeSync: link plugin removed " .. dir .. " (trash: " .. name .. ")")
+    return true, nil, nil, "in the trash as " .. name, "restart", { trash = name }
+end
+
+-- self_update {}: the update check the menu runs, against the server in use
+-- (the phone serves its bundled build), without the dialogs.
+function TomeSync:_linkSelfUpdate(_)
+    local disk = TomeSync._linkDiskBuild()
+    local avail, why
+    self:checkForUpdate(function(a, e) avail, why = a, e end)
+    if avail == nil then return false, why or "could not reach the server", nil, nil, nil, { from_build = BUILD } end
+    if avail == false or (disk and disk >= avail.build) then
+        if disk and disk ~= BUILD then
+            return true, nil, nil, "build " .. disk .. " is installed, KOReader runs " .. BUILD, "restart",
+                   { from_build = BUILD, to_build = disk }
+        end
+        return true, nil, nil, "already current", nil, { from_build = BUILD, to_build = BUILD }
+    end
+    local ok, e = self:_applyUpdate(avail.build)
+    if not ok then return false, e, nil, nil, nil, { from_build = BUILD } end
+    logger.info("TomeSync: link self-update " .. BUILD .. " -> " .. avail.build .. " (restart)")
+    return true, nil, nil, nil, "restart", { from_build = BUILD, to_build = avail.build }
 end
 
 local function linkStopPoll(why)
