@@ -202,6 +202,9 @@ def merge_candidates(candidates: list) -> list:
             for f in _MERGE_FIELDS:
                 if getattr(base, f) in (None, "") and getattr(c, f) not in (None, ""):
                     setattr(base, f, getattr(c, f))
+                    if f == "isbn":
+                        # The edition kind travels with the ISBN it describes.
+                        base.edition_format = getattr(c, "edition_format", None)
             existing = {t.lower() for t in base.tags}
             base.tags.extend(t for t in c.tags if t.lower() not in existing)
 

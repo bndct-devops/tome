@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Trans } from '@lingui/react/macro'
-import { t, msg } from '@lingui/core/macro'
+import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { X, Plus, Trash2, Loader2, Save, Check, ArrowRight, RefreshCw } from 'lucide-react'
@@ -9,6 +9,7 @@ import { ModalShell } from '@/components/ModalShell'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { AiBadge } from '@/components/AiBadge'
+import { useToast } from '@/contexts/ToastContext'
 import {
   applySeriesCleanup, proposeSeriesCleanup, useAiStatus,
   type SeriesCleanupApply, type SeriesCleanupArc, type SeriesCleanupProposal,
@@ -186,6 +187,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
+  const { toast } = useToast()
 
   // Load both on mount
   useEffect(() => {
@@ -307,6 +309,14 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
     setSaveError(null)
     try {
       const res = await applySeriesCleanup(seriesName, cleanupBody)
+      // The editions pass after the apply may also have corrected ISBNs.
+      const isbns = res.isbns_fixed?.length ?? 0
+      if (isbns > 0) {
+        toast.success(plural(isbns, {
+          one: 'Applied. # ISBN corrected',
+          other: 'Applied. # ISBNs corrected',
+        }))
+      }
       onSaved(res.renamed ? res.series_name : undefined)
       onClose()
     } catch (e: unknown) {

@@ -14,6 +14,7 @@ import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
+import { PlatformSettings, type PlatformStatus } from '@/components/PlatformSettings'
 import { AiSettings } from '@/components/AiSettings'
 import { useAiStatus } from '@/lib/ai'
 import { SettingsNav } from '@/components/SettingsNav'
@@ -447,6 +448,18 @@ export function SettingsPage() {
   const [setupGuideOpen, setSetupGuideOpen] = useState(false)
   // Hardcover sync section hides itself when the server has the feature off
   const [hardcoverAvailable, setHardcoverAvailable] = useState(true)
+  // Nightlamp link: exists unless the server sets TOME_PLATFORM_ENABLED=false
+  // (the status call 404s otherwise) and never for guests.
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
+  const isGuest = user?.role === 'guest' && !user?.is_admin
+  useEffect(() => {
+    if (!user || isGuest) return
+    let live = true
+    api.get<PlatformStatus>('/platform/status')
+      .then(s => { if (live && s?.enabled) setPlatformStatus(s) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [user, isGuest])
 
   // ── AI ────────────────────────────────────────────────────────────────────
   // Hidden entirely with TOME_AI_ENABLED=false and for guests. When an admin
@@ -638,6 +651,7 @@ export function SettingsPage() {
     ...((showAi || showAiKeyOnly) ? [{ id: 'ai', label: t`AI` }] : []),
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     ...(hardcoverAvailable ? [{ id: 'hardcover', label: 'Hardcover' }] : []),
+    ...(platformStatus ? [{ id: 'nightlamp', label: platformStatus.platform_name }] : []),
     { id: 'api-tokens', label: t`API Tokens` },
     { id: 'notifications', label: t`Notifications` },
     { id: 'share-links', label: t`Share links` },
@@ -1572,6 +1586,13 @@ export function SettingsPage() {
           // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
           <PanelSection id="hardcover" title="Hardcover">
             <HardcoverSync onAvailable={setHardcoverAvailable} />
+          </PanelSection>
+        )}
+
+        {/* ── Nightlamp (TOME_PLATFORM_ENABLED) ────────────────────────── */}
+        {platformStatus && (
+          <PanelSection id="nightlamp" title={platformStatus.platform_name}>
+            <PlatformSettings initial={platformStatus} />
           </PanelSection>
         )}
 

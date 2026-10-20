@@ -1837,9 +1837,13 @@ async def bulk_fetch_metadata(
             changed = False
 
             # Only fill fields that are currently empty
+            from backend.services.book_updates import write_isbn
             simple_fields = ("author", "description", "publisher", "year", "language", "isbn", "series", "series_index")
             for f in simple_fields:
                 if getattr(book, f) is None and getattr(best, f) is not None:
+                    if f == "isbn":
+                        changed = write_isbn(book, best.isbn, best.edition_format) or changed
+                        continue
                     setattr(book, f, getattr(best, f))
                     changed = True
 
@@ -2922,12 +2926,20 @@ async def apply_metadata(
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
 
-    # Apply scalar fields if provided
+    # Apply scalar fields if provided. The ISBN goes through the shared guard:
+    # an audiobook edition's ISBN is never stored on a Tome book.
+    from backend.services.book_updates import write_isbn
     simple_fields = ("title", "author", "description", "publisher", "year", "language", "isbn", "series", "series_index")
+    isbn_refused = False
     for f in simple_fields:
         val = getattr(body, f)
-        if val is not None:
-            setattr(book, f, val)
+        if val is None:
+            continue
+        if f == "isbn":
+            if val != book.isbn and not write_isbn(book, val, body.isbn_edition_format):
+                isbn_refused = True
+            continue
+        setattr(book, f, val)
 
     # Replace FETCHED tags if provided — but never wipe hand-curated ones
     # (source="user"); applying a candidate used to delete the user's own tags.
@@ -2971,14 +2983,16 @@ async def apply_metadata(
     db.commit()
     db.refresh(book)
 
-    applied = [f for f in simple_fields if getattr(body, f) is not None]
+    applied = [f for f in simple_fields
+               if getattr(body, f) is not None and not (f == "isbn" and isbn_refused)]
     if body.tags is not None:
         applied.append("tags")
     if body.cover_url:
         applied.append("cover")
     audit(db, "books.metadata_applied", user_id=current_user.id, username=current_user.username,
           resource_type="book", resource_id=book.id, resource_title=book.title,
-          details={"fields": applied, **({"ai_assisted": True} if body.ai_assisted else {})})
+          details={"fields": applied, **({"ai_assisted": True} if body.ai_assisted else {}),
+                   **({"isbn_refused": "audiobook"} if isbn_refused else {})})
     return book
 
 

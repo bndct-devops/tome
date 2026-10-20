@@ -214,6 +214,30 @@ All notable changes to Tome are documented here. Format loosely follows
   next to its actual cost and time, and expands to every model call it made,
   with its tokens and price. Admins see everyone's jobs and can filter by
   user.
+- **Link with Nightlamp.** Members and admins get a Nightlamp section in
+  Settings, on by default. "Link with Nightlamp" opens
+  a one-time page in a new tab and Tome waits until you are done there, with
+  no password or email. From then on Tome sends your daily reading totals:
+  minutes read (per book type), sittings, the longest sitting and how many
+  books you finished, with days ending at midnight in the time zone you pick.
+  Each day also carries your minutes per hour of the day, which Nightlamp
+  uses for its hour-of-day view and its streaks. Your yearly books goal (or
+  hours goal) over all books goes along too, and deleting it clears it on
+  Nightlamp. Only books you have reading time on count as finished; a book
+  just marked read is not sent. Titles, authors, ISBNs and a small cover (160 px JPEG) of finished books
+  and the book you are reading go only when you turn on "Share titles and
+  covers"; turning it off again deletes the titles on Nightlamp. Nightlamp
+  looks covers up in public catalogues by ISBN first and shows the one from
+  Tome only when it finds none; each cover goes once per book, and again
+  after "Resync everything". Covers are visible to anyone who can see your
+  page. Pushes go a couple of minutes after a session
+  ends and once an hour; "Resync everything" sends all history again, and
+  "Unlink" stops sending. Your Tome user id and book ids never leave the
+  server (Nightlamp gets hashes). Linking, unlinking, resyncs and setting
+  changes are written to the audit log. Nothing is sent for a user who never
+  links. `TOME_PLATFORM_ENABLED=false` hides the section and the feature
+  entirely; `TOME_PLATFORM_URL` is only for pointing Tome at another
+  Nightlamp instance (`TOME_PLATFORM_NAME` changes the displayed name).
 
 ### Changed
 - **The reading companion only reads where you switch it on.** Nothing AI
@@ -268,6 +292,30 @@ All notable changes to Tome are documented here. Format loosely follows
   stays on the Stats page, series progress on its Library tab, and recently
   finished books are the Library's "Read" filter. The forgotten-books
   reminder is gone.
+
+### Fixed
+- **No more audiobook ISBNs on ebooks.** Fetch Metadata took the ISBN and
+  publisher of the Hardcover edition most people use, and for popular light
+  novels that is often the audiobook, so its ISBN ended up on the ebook and
+  every cover or catalogue lookup keyed on it failed. The fetch now looks at
+  the book's editions and takes the ebook edition, else a print one, in the
+  book's language (English when unknown), and never an audiobook; a book
+  with only audiobook editions gets no ISBN. The Hardcover sync picks its
+  pinned edition by the same rule. Applying a candidate, the AI fix and
+  auto-import refuse an ISBN known to be an audiobook edition, and changing a
+  book's ISBN by hand makes the Hardcover sync match it again on its next run.
+- **Wrong-edition ISBNs already in the library are corrected automatically.**
+  The Hardcover sync now checks each matched book once against the matched
+  book's editions: an audiobook edition's ISBN is replaced by the ebook or
+  print edition's (by the same rule as the fetch), and a book without an ISBN
+  gets one, with the publisher filled in where it is empty. The book stays
+  matched while this happens, a book you excluded from the sync is left
+  alone, and a book you matched by hand keeps your choice of record but still
+  loses an audiobook ISBN. The check runs in the background with every sync,
+  a hundred books at most each time, from what is left of the request budget.
+  "Clean up with AI" in Manage Series runs the same correction over the
+  series after it applies and says how many ISBNs it corrected. Every
+  correction is written to the audit log with the old and new ISBN.
 
 ## [2.7.1] - 2026-10-19
 

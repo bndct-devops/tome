@@ -993,6 +993,14 @@ msgstr "{imp} imported · {inc} incoming"
 msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 
+#: src/components/ManageSeriesModal.tsx
+msgid "{isbns, plural, one {Applied. # ISBN corrected} other {Applied. # ISBNs corrected}}"
+msgstr "{isbns, plural, one {Applied. # ISBN corrected} other {Applied. # ISBNs corrected}}"
+
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+#~ msgstr "{isbnsFixed, plural, one {# ISBN corrected} other {# ISBNs corrected}}"
+
 #: src/components/stats/GoalWidget.tsx
 msgid "{label} only"
 msgstr "{label} only"
@@ -1192,6 +1200,14 @@ msgstr "{name} is not marked read, so it is left out."
 #: src/components/MetadataFetchModal.tsx
 msgid "{name} is rate-limited — try again in a minute"
 msgstr "{name} is rate-limited — try again in a minute"
+
+#: src/components/PlatformSettings.tsx
+msgid "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles and covers only if you choose."
+msgstr "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles and covers only if you choose."
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles only if you choose."
+#~ msgstr "{name} shows your reading hours, streaks and finished books on a page you can share, with boards across Tome servers. Only daily totals leave this server; titles only if you choose."
 
 #: src/components/ThemeToggle.tsx
 msgid "{name} theme"
@@ -1978,6 +1994,10 @@ msgstr "All highlights"
 msgid "All imported books accepted"
 msgstr "All imported books accepted"
 
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "All ISBNs look right."
+#~ msgstr "All ISBNs look right."
+
 #: src/pages/BinderyPage.tsx
 msgid "All items must have a title"
 msgstr "All items must have a title"
@@ -2098,6 +2118,10 @@ msgstr "Applied to volumes you haven’t rated"
 #: src/components/ReadingImport.tsx
 msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
 msgstr "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
+
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "Applied."
+#~ msgstr "Applied."
 
 #: src/components/CoverPickerModal.tsx
 #: src/pages/StatsPage.tsx
@@ -2652,6 +2676,7 @@ msgstr "Can't find it? Add manually"
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
+#: src/components/PlatformSettings.tsx
 #: src/components/ReadingImport.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
@@ -3150,6 +3175,10 @@ msgstr "Could not look that up"
 msgid "Could not parse ({n})"
 msgstr "Could not parse ({n})"
 
+#: src/components/PlatformSettings.tsx
+msgid "Could not reach {name}"
+msgstr "Could not reach {name}"
+
 #: src/components/ReadingImport.tsx
 msgid "Could not read that file"
 msgstr "Could not read that file"
@@ -3178,6 +3207,10 @@ msgstr "Could not save the key"
 msgid "Could not save the limit"
 msgstr "Could not save the limit"
 
+#: src/components/PlatformSettings.tsx
+msgid "Could not save the setting"
+msgstr "Could not save the setting"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Could not set match"
 msgstr "Could not set match"
@@ -3202,11 +3235,16 @@ msgstr "Could not start SSO linking."
 msgid "Could not start sync"
 msgstr "Could not start sync"
 
+#: src/components/PlatformSettings.tsx
+msgid "Could not start the resync"
+msgstr "Could not start the resync"
+
 #: src/components/AiCompanionOverview.tsx
 msgid "Could not start writing the recaps"
 msgstr "Could not start writing the recaps"
 
 #: src/components/HardcoverSync.tsx
+#: src/components/PlatformSettings.tsx
 msgid "Could not unlink"
 msgstr "Could not unlink"
 
@@ -4317,6 +4355,10 @@ msgstr "Files whose place on disk no longer matches their series or author folde
 msgid "Fill missing fields only"
 msgstr "Fill missing fields only"
 
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+#~ msgstr "Fills missing ISBNs and replaces audiobook ISBNs with the ebook or print edition's"
+
 #: src/pages/HardcoverPage.tsx
 msgid "Filter books"
 msgstr "Filter books"
@@ -4412,6 +4454,14 @@ msgstr "Fit page height (W)"
 #: src/pages/ReaderPage.tsx
 msgid "Fit page width (W)"
 msgstr "Fit page width (W)"
+
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "Fix editions"
+#~ msgstr "Fix editions"
+
+#: src/components/ManageSeriesModal.tsx
+#~ msgid "Fix editions failed"
+#~ msgstr "Fix editions failed"
 
 #: src/lib/ai.ts
 msgid "Fix this book"
@@ -5016,6 +5066,10 @@ msgstr "Just synced"
 msgid "Just updated"
 msgstr "Just updated"
 
+#: src/components/PlatformSettings.tsx
+msgid "Keep"
+msgstr "Keep"
+
 #: src/pages/AdminPage.tsx
 msgid "Keep this one"
 msgstr "Keep this one"
@@ -5109,6 +5163,14 @@ msgstr "Last 30 days"
 #: src/components/AiCompanionOverview.tsx
 msgid "Last merge {when}: {merged} of {candidates} candidate pairs merged"
 msgstr "Last merge {when}: {merged} of {candidates} candidate pairs merged"
+
+#: src/components/PlatformSettings.tsx
+msgid "Last push failed: {error}"
+msgstr "Last push failed: {error}"
+
+#: src/components/PlatformSettings.tsx
+msgid "Last push: {when}"
+msgstr "Last push: {when}"
 
 #: src/components/QuickLook.tsx
 #: src/components/SeriesReadingStats.tsx
@@ -5252,6 +5314,10 @@ msgstr "Link KOReader sync"
 msgid "Link SSO"
 msgstr "Link SSO"
 
+#: src/components/PlatformSettings.tsx
+msgid "Link with {name}"
+msgstr "Link with {name}"
+
 #: src/pages/SettingsPage.tsx
 msgid "Link your identity provider to this account so you can sign in with SSO. Your existing login and password keep working."
 msgstr "Link your identity provider to this account so you can sign in with SSO. Your existing login and password keep working."
@@ -5267,6 +5333,10 @@ msgstr "Link your identity provider to this account so you can sign in with SSO.
 #: src/pages/SettingsPage.tsx
 msgid "Linked"
 msgstr "Linked"
+
+#: src/components/PlatformSettings.tsx
+msgid "Linked as"
+msgstr "Linked as"
 
 #: src/components/HardcoverSync.tsx
 msgid "Linked as @{username} — initial sync started"
@@ -6442,6 +6512,10 @@ msgstr "Nothing matched “{search}”"
 msgid "Nothing new. Tome already had everything in this code."
 msgstr "Nothing new. Tome already had everything in this code."
 
+#: src/components/PlatformSettings.tsx
+msgid "Nothing sent yet."
+msgstr "Nothing sent yet."
+
 #: src/components/ShareLinksOverview.tsx
 msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 msgstr "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
@@ -6514,6 +6588,18 @@ msgstr "Off, disabled by TOME_TELEMETRY."
 #: src/components/TelemetryConsentCard.tsx
 msgid "Off, you have not opted in."
 msgstr "Off, you have not opted in."
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and covers of the books you finish and the one you are reading."
+#~ msgstr "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and covers of the books you finish and the one you are reading."
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and ISBNs of the books you finish and the one you are reading.{name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent."
+#~ msgstr "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors and ISBNs of the books you finish and the one you are reading.{name} looks covers up in public catalogues by ISBN; nothing from this server's files is sent."
+
+#: src/components/PlatformSettings.tsx
+msgid "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors, ISBNs and a small cover image of the books you finish and the one you are reading. {name} prefers covers from public catalogues and uses yours only when it finds none. Covers are visible to anyone who can see your page."
+msgstr "Off: only daily minutes, sittings and how many books you finished leave this server. On: also the titles, authors, ISBNs and a small cover image of the books you finish and the one you are reading. {name} prefers covers from public catalogues and uses yours only when it finds none. Covers are visible to anyone who can see your page."
 
 #: src/components/AiSettings.tsx
 msgid "On"
@@ -6627,6 +6713,10 @@ msgstr "OPDS Catalog"
 #: src/pages/WishlistPage.tsx
 msgid "Open"
 msgstr "Open"
+
+#: src/components/PlatformSettings.tsx
+msgid "Open {name}"
+msgstr "Open {name}"
 
 #: src/pages/SettingsPage.tsx
 msgid "Open a book downloaded via OPDS"
@@ -7754,6 +7844,18 @@ msgstr "Resume {volLabel}"
 #~ msgid "Resume reading"
 #~ msgstr "Resume reading"
 
+#: src/components/PlatformSettings.tsx
+msgid "Resync everything"
+msgstr "Resync everything"
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "Resync sends all your reading history again, covers included. Unlinking keeps your {name} page; link again from here to continue."
+#~ msgstr "Resync sends all your reading history again, covers included. Unlinking keeps your {name} page; link again from here to continue."
+
+#: src/components/PlatformSettings.tsx
+msgid "Resync sends all your reading history again. Unlinking keeps your {name} page; link again from here to continue."
+msgstr "Resync sends all your reading history again. Unlinking keeps your {name} page; link again from here to continue."
+
 #: src/components/WordCount.tsx
 msgid "Retry {n} failed"
 msgstr "Retry {n} failed"
@@ -8201,11 +8303,16 @@ msgstr "Send via email…"
 msgid "Sending"
 msgstr "Sending"
 
+#: src/components/PlatformSettings.tsx
+msgid "Sending all your reading history again"
+msgstr "Sending all your reading history again"
+
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 #~ msgid "Sending..."
 #~ msgstr "Sending..."
 
+#: src/components/PlatformSettings.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Sending…"
@@ -8445,6 +8552,14 @@ msgstr "Share this book as a public page with its metadata only"
 #: src/pages/DashboardPage.tsx
 msgid "Share this series — a public metadata-only page"
 msgstr "Share this series — a public metadata-only page"
+
+#: src/components/PlatformSettings.tsx
+#~ msgid "Share titles"
+#~ msgstr "Share titles"
+
+#: src/components/PlatformSettings.tsx
+msgid "Share titles and covers"
+msgstr "Share titles and covers"
 
 #: src/components/Sidebar.tsx
 msgid "Share with users"
@@ -8850,6 +8965,10 @@ msgstr "Stop reading along for this series"
 msgid "Stop sending"
 msgstr "Stop sending"
 
+#: src/components/PlatformSettings.tsx
+msgid "Stop sending to {name}?"
+msgstr "Stop sending to {name}?"
+
 #: src/components/AiActivity.tsx
 #: src/components/AiCompanionOverview.tsx
 msgid "Stopped"
@@ -9151,6 +9270,10 @@ msgstr "The device clock is off by {offset}; times were corrected."
 msgid "The glossary fills in as each chapter is read."
 msgstr "The glossary fills in as each chapter is read."
 
+#: src/components/PlatformSettings.tsx
+msgid "The link was not used in time. Try again."
+msgstr "The link was not used in time. Try again."
+
 #: src/components/DigestConfirmDialog.tsx
 msgid "The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards."
 msgstr "The recap and the glossary are built from short notes on each chapter before your position. These chapters have no notes yet, so they are read once now and reused afterwards."
@@ -9331,6 +9454,10 @@ msgstr "Time reading"
 #: src/pages/StatsPage.tsx
 msgid "Time split across categories"
 msgstr "Time split across categories"
+
+#: src/components/PlatformSettings.tsx
+msgid "Time zone"
+msgstr "Time zone"
 
 #: src/pages/StatsPage.tsx
 msgid "Timeframe"
@@ -9626,8 +9753,13 @@ msgid "unlimited"
 msgstr "unlimited"
 
 #: src/components/HardcoverSync.tsx
+#: src/components/PlatformSettings.tsx
 msgid "Unlink"
 msgstr "Unlink"
+
+#: src/components/PlatformSettings.tsx
+msgid "Unlinked on {name}. Link again to continue."
+msgstr "Unlinked on {name}. Link again to continue."
 
 #: src/pages/AdminPage.tsx
 msgid "unread"
@@ -9913,6 +10045,10 @@ msgstr "Waiting for authorization…"
 #: src/components/ReadingCompanion.tsx
 msgid "Waiting for the chapters to be read. The recap is written right after."
 msgstr "Waiting for the chapters to be read. The recap is written right after."
+
+#: src/components/PlatformSettings.tsx
+msgid "Waiting for the new tab…"
+msgstr "Waiting for the new tab…"
 
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."
@@ -10240,9 +10376,17 @@ msgstr "Your average time per finished book of this type (no word count)"
 msgid "Your biggest reading day this month: {dur} with {mainTitle}."
 msgstr "Your biggest reading day this month: {dur} with {mainTitle}."
 
+#: src/components/PlatformSettings.tsx
+msgid "Your browser blocked the new tab."
+msgstr "Your browser blocked the new tab."
+
 #: src/components/AiSettings.tsx
 msgid "Your calls use the instance key below. Add your own key to bill your own {provider} account instead."
 msgstr "Your calls use the instance key below. Add your own key to bill your own {provider} account instead."
+
+#: src/components/PlatformSettings.tsx
+msgid "Your days end at midnight here. Changing it sends all days again."
+msgstr "Your days end at midnight here. Changing it sends all days again."
 
 #: src/components/HardcoverSync.tsx
 msgid "Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing."

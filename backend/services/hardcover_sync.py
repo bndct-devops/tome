@@ -38,6 +38,7 @@ Nothing is ever deleted or cleared on Hardcover: rating clears and unread/
 shelved statuses are not propagated.
 """
 import asyncio
+import contextvars
 import difflib
 import logging
 import time
@@ -55,6 +56,7 @@ from backend.models.notification import Notification
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.models.wish import Wish
+from backend.services import hardcover_editions as hc_editions
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,7 @@ STATUS_ID = {"want_to_read": 1, "reading": 2, "read": 3}
 
 MIN_REQUEST_SPACING = 1.1      # seconds between requests, all users combined (60/min limit)
 MAX_REQUESTS_PER_CYCLE = 300   # cap so a 2000-book backlog spreads over cycles
+MAX_EDITION_CHECKS_PER_CYCLE = 100  # editions checks (one request each) per cycle, from spare budget
 MAX_ROW_FAILS = 10             # park a row after this many consecutive failures
 NUDGE_DEBOUNCE = 30            # seconds of quiet after a rating nudge before syncing
 
@@ -76,7 +79,7 @@ AUTHOR_SIM_MIN = 0.7
 
 # Hardcover reading_format_id for audiobook editions. Audio editions carry
 # ISBNs too (Podium!) and have no page counts — never pin one.
-AUDIO_FORMAT_ID = 2
+AUDIO_FORMAT_ID = hc_editions.AUDIO_FORMAT_ID
 
 # Marks wishes CREATED BY the shelf pull — the only wishes the shelf mirror is
 # allowed to dismiss/reopen. Deliberately distinct from source="hardcover",
@@ -100,7 +103,10 @@ query EditionByIsbn($isbn: String!) {
         pages
         book_id
         reading_format_id
+        isbn_13
+        isbn_10
         language { code2 }
+        publisher { name }
         book { id title pages slug }
     }
 }
@@ -135,16 +141,10 @@ query BookEdition($id: Int!) {
         id
         pages
         slug
-        editions(limit: 30, order_by: {users_count: desc}) {
-            id
-            pages
-            users_count
-            reading_format_id
-            language { code2 }
-        }
+        editions(limit: 30, order_by: {users_count: desc}) {%s        }
     }
 }
-"""
+""" % hc_editions.EDITION_FIELDS
 
 Q_WTR_SHELF = """
 query WantToReadShelf($uid: Int!, $offset: Int!) {
@@ -371,37 +371,24 @@ def _lang2(raw: Optional[str]) -> Optional[str]:
 
 
 def _edition_lang(ed: dict) -> Optional[str]:
-    code = ((ed.get("language") or {}).get("code2") or "").strip().lower()
-    return code or None
+    return hc_editions.edition_lang(ed)
 
 
 def _edition_acceptable(ed: dict, want_lang: Optional[str]) -> bool:
     """Is this specific edition safe to pin? Audio editions never are (no page
     counts, and the profile shows the audiobook cover); a known language must
     not contradict the Tome book's known language."""
-    if ed.get("reading_format_id") == AUDIO_FORMAT_ID:
+    if hc_editions.is_audio(ed):
         return False
     ed_lang = _edition_lang(ed)
     return want_lang is None or ed_lang is None or ed_lang == want_lang
 
 
 def _pick_edition(editions: list[dict], want_lang: Optional[str]) -> Optional[dict]:
-    """Choose the edition to pin on a matched Hardcover book: language match
-    first (unknown language beats a contradicting one), then non-audio, then
-    the edition the community actually uses, then one with page data."""
-    def score(ed: dict) -> tuple:
-        ed_lang = _edition_lang(ed)
-        if want_lang and ed_lang == want_lang:
-            lang_rank = 2
-        elif ed_lang is None or want_lang is None:
-            lang_rank = 1
-        else:
-            lang_rank = 0
-        non_audio = 0 if ed.get("reading_format_id") == AUDIO_FORMAT_ID else 1
-        return (lang_rank, non_audio, ed.get("users_count") or 0,
-                1 if ed.get("pages") else 0)
-    candidates = [e for e in editions if e.get("id") is not None]
-    return max(candidates, key=score) if candidates else None
+    """Choose the edition to pin on a matched Hardcover book. The shared
+    ``hardcover_editions.pick_edition`` (the metadata fetch uses the same
+    one): never audio, language match first, then ebook, physical, users."""
+    return hc_editions.pick_edition(editions, language=want_lang)
 
 
 def _isbn_hit_plausible(book, hc_title: str) -> bool:
@@ -446,6 +433,8 @@ async def _adopt_best_edition(client: httpx.AsyncClient, token: str, book: Book)
     b = books[0]
     if not book.hardcover_slug:
         book.hardcover_slug = b.get("slug")
+    hc_editions.note_editions(b.get("editions") or [])
+    _remember_editions(book.hardcover_book_id, b.get("editions") or [], full=True)
     ed = _pick_edition(b.get("editions") or [], _lang2(book.language))
     if ed is None:
         book.hardcover_edition_id = None
@@ -486,6 +475,8 @@ async def match_book(client: httpx.AsyncClient, token: str, book: Book) -> bool:
             book.hardcover_book_id = ed.get("book_id") or (ed.get("book") or {}).get("id")
             book.hardcover_slug = (ed.get("book") or {}).get("slug")
             book.hardcover_match_method = "isbn13" if len(isbn) == 13 else "isbn10"
+            hc_editions.note_editions([ed])
+            _remember_editions(book.hardcover_book_id, [ed], full=False)
             # The ISBN nails the BOOK, but its own edition may be one we must
             # not pin: publishers reuse a catalogue across translations and
             # audio (observed live: Podium ISBNs on English books resolving to
@@ -594,6 +585,166 @@ async def match_book(client: httpx.AsyncClient, token: str, book: Book) -> bool:
 
     book.hardcover_match_method = "none"
     return False
+
+
+# ── Editions check (wrong-edition ISBN repair) ────────────────────────────────
+#
+# Each cycle checks the stored ISBN of the matched books against the matched
+# Hardcover book's editions and repairs it with the one rule
+# (hardcover_editions.decide_isbn): an audiobook edition's ISBN is replaced by
+# the picked text edition's, a missing one is filled. The edition list comes
+# from the matching itself when the cycle matched the book (no extra request),
+# else from one BookEdition query per book, cached for the run. A book is
+# checked once (hardcover_editions_checked_at) until its ISBN or match changes.
+
+# Hardcover book id -> (editions, full list?), for the cycle running in this
+# task (a manual "Sync now" can run beside the interval cycle).
+_run_editions: contextvars.ContextVar[Optional[dict[int, tuple[list[dict], bool]]]] = \
+    contextvars.ContextVar("hardcover_run_editions", default=None)
+
+
+def _remember_editions(hc_book_id: Optional[int], editions: list[dict], *, full: bool) -> None:
+    """Keep a Hardcover book's editions for the rest of this cycle. ``full``
+    = the book's edition list; otherwise one edition (an ISBN hit) that is
+    merged with whatever is known."""
+    cache = _run_editions.get()
+    if cache is None or hc_book_id is None:
+        return
+    known, was_full = cache.get(hc_book_id, ([], False))
+    ids = {e.get("id") for e in editions}
+    merged = list(editions) + [e for e in known if e.get("id") not in ids]
+    cache[hc_book_id] = (merged, full or was_full)
+
+
+def _stamp_checked(db: Session, book: Book) -> None:
+    """Record the editions check without bumping ``updated_at`` (a check
+    that changed nothing is not a metadata edit: it must not invalidate the
+    download cache or mark a baked file stale)."""
+    from sqlalchemy.orm.attributes import set_committed_value
+    now = datetime.utcnow()
+    if book.id is not None:
+        db.query(Book).filter(Book.id == book.id).update(
+            {"hardcover_editions_checked_at": now, "updated_at": Book.updated_at},
+            synchronize_session=False)
+    set_committed_value(book, "hardcover_editions_checked_at", now)
+
+
+def editions_check_due(book: Book) -> bool:
+    if book.hardcover_book_id is None or book.hardcover_match_method in (None, "none", "excluded"):
+        return False
+    if book.content_type == "chapter":
+        return False
+    checked = book.hardcover_editions_checked_at
+    return checked is None or (book.hardcover_matched_at is not None
+                               and checked < book.hardcover_matched_at)
+
+
+async def check_editions(db: Session, client: httpx.AsyncClient, token: str, user: User,
+                         book: Book, budget: Optional["_Budget"] = None) -> Optional[dict]:
+    """Check one matched book's stored ISBN against its Hardcover editions
+    and repair it (no commit of its own except the audit entry). Returns the
+    change ``{book_id, title, from, to, reason}`` or None.
+
+    A manual match keeps a missing ISBN missing (the user chose the record,
+    not an edition) but an audiobook ISBN is still replaced. The match itself
+    is never touched: the write keeps the pin (``keep_hardcover_match``).
+    Spends one unit of ``budget`` when the edition list has to be fetched; with
+    no budget left the book stays unchecked for the next cycle. Auth and
+    rate-limit errors propagate; a plain API error leaves it unchecked."""
+    from backend.services.book_updates import apply_isbn_fix
+
+    if not editions_check_due(book):
+        return None
+    hc_id = book.hardcover_book_id
+    cache = _run_editions.get()
+    if cache is None:
+        cache = {}
+    editions, full = cache.get(hc_id, ([], False))
+    if not full:
+        # An ISBN hit alone settles a stored ISBN it shows to be a text edition.
+        fmt = hc_editions.isbn_format(book.isbn, editions) if book.isbn else None
+        if fmt in ("ebook", "physical", "unknown"):
+            _stamp_checked(db, book)
+            return None
+        if budget is not None and not budget.spare():
+            return None
+        try:
+            data = await _gql(client, token, Q_BOOK_EDITION, {"id": hc_id})
+        except HardcoverAPIError as exc:
+            logger.info("Hardcover editions check: book %s failed (%s)", book.id, exc)
+            return None
+        found = data.get("books") or []
+        fetched = (found[0].get("editions") or []) if found else []
+        ids = {e.get("id") for e in fetched}
+        editions = list(fetched) + [e for e in editions if e.get("id") not in ids]
+        cache[hc_id] = (editions, True)
+
+    fix = hc_editions.decide_isbn(
+        book.isbn, editions, language=_lang2(book.language),
+        fill_missing=book.hardcover_match_method != "manual")
+    change = apply_isbn_fix(book, fix, keep_hardcover_match=True) if fix else None
+    if change is None:
+        _stamp_checked(db, book)
+        return None
+    book.hardcover_editions_checked_at = datetime.utcnow()
+    if fix.edition is not None and book.hardcover_match_method != "manual":
+        # The new ISBN names this edition: pin it (the language-aware pick
+        # already is, unless the stored ISBN's edition was pinned).
+        book.hardcover_edition_id = fix.edition.get("id")
+        book.hardcover_pages = fix.edition.get("pages") or book.hardcover_pages
+    from backend.services.audit import audit
+    from backend.services.fts import index_book
+    db.flush()
+    index_book(db, book)
+    audit(db, "books.isbn_corrected", user_id=user.id, username=user.username,
+          resource_type="book", resource_id=book.id, resource_title=book.title,
+          details={"from": change["from"], "to": change["to"], "reason": change["reason"],
+                   "via": "hardcover_sync"})
+    logger.info("Hardcover sync: ISBN of book %s corrected %s -> %s (%s)",
+                book.id, change["from"], change["to"], change["reason"])
+    return change
+
+
+async def check_user_editions(db: Session, client: httpx.AsyncClient, user: User,
+                              budget: "_Budget", limit: int, done: set[int]) -> int:
+    """The editions check over the matched books of one user's rows that are
+    due, at most ``limit`` and only from spare budget (never exhausting it, so
+    the check alone never puts the loop into drain mode). ``done`` holds book
+    ids checked this cycle. Returns the number of ISBNs corrected."""
+    token = user_token(user)
+    if not token or limit <= 0:
+        return 0
+    from sqlalchemy import and_, or_
+    candidates = (
+        db.query(Book)
+        .join(UserBookStatus, UserBookStatus.book_id == Book.id)
+        .filter(
+            UserBookStatus.user_id == user.id,
+            Book.status == "active",
+            Book.content_type != "chapter",
+            Book.hardcover_book_id.isnot(None),
+            Book.hardcover_match_method.notin_(("none", "excluded")),
+            or_(Book.hardcover_editions_checked_at.is_(None),
+                and_(Book.hardcover_matched_at.isnot(None),
+                     Book.hardcover_editions_checked_at < Book.hardcover_matched_at)),
+        )
+        .order_by(Book.id)
+        .limit(limit + len(done))
+        .all()
+    )
+    fixed = 0
+    seen = 0
+    for book in candidates:
+        if book.id in done or not editions_check_due(book):
+            continue
+        if seen >= limit or not budget.spare():
+            break
+        seen += 1
+        done.add(book.id)
+        if await check_editions(db, client, token, user, book, budget):
+            fixed += 1
+        db.commit()
+    return fixed
 
 
 async def search_candidates(token: str, q: str, limit: int = 8) -> list[dict]:
@@ -924,6 +1075,13 @@ class _Budget:
         self.used += 1
         return self.used <= self.limit
 
+    def spare(self) -> bool:
+        """Spend one unit only while that leaves the budget unexhausted."""
+        if self.used >= self.limit:
+            return False
+        self.used += 1
+        return True
+
     @property
     def exhausted(self) -> bool:
         return self.used > self.limit
@@ -933,7 +1091,7 @@ async def sync_user(db: Session, client: httpx.AsyncClient, user: User,
                     budget: _Budget) -> dict:
     """Reconcile one user's diffs. Returns counters."""
     token = user_token(user)
-    stats = {"pushed": 0, "failed": 0, "skipped_unmatched": 0}
+    stats = {"pushed": 0, "failed": 0, "skipped_unmatched": 0, "isbns_corrected": 0}
     if not token:
         return stats
 
@@ -997,6 +1155,10 @@ async def sync_user(db: Session, client: httpx.AsyncClient, user: User,
                     db.commit()
                     stats["skipped_unmatched"] += 1
                     continue
+                # The matching just fetched the editions: check the ISBN now.
+                if await check_editions(db, client, token, user, book, budget):
+                    stats["isbns_corrected"] += 1
+                db.commit()
             await _push_row(client, token, user, row, book)
             db.commit()
             stats["pushed"] += 1
@@ -1268,12 +1430,21 @@ async def _wishes_from_shelf(db: Session, client: httpx.AsyncClient, token: str,
 
 async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] = None) -> dict:
     """One reconcile pass over all linked, enabled users."""
+    token = _run_editions.set({})
+    try:
+        return await _run_sync_cycle(reason, only_user_id)
+    finally:
+        _run_editions.reset(token)
+
+
+async def _run_sync_cycle(reason: str, only_user_id: Optional[int]) -> dict:
     from backend.core.database import SessionLocal
 
     budget = _Budget(MAX_REQUESTS_PER_CYCLE)
     totals = {"users": 0, "pushed": 0, "failed": 0, "skipped_unmatched": 0,
               "pulled": 0, "reverted": 0, "wished": 0, "wish_dismissed": 0,
-              "wish_reopened": 0, "adopted": 0, "exhausted": False}
+              "wish_reopened": 0, "adopted": 0, "isbns_corrected": 0,
+              "exhausted": False}
     with SessionLocal() as db:
         q = db.query(User).filter(
             User.hardcover_token.isnot(None),
@@ -1294,7 +1465,7 @@ async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] =
                 except HardcoverRateLimited:
                     logger.warning("Hardcover sync: rate limited — ending cycle early")
                     break
-                for k in ("pushed", "failed", "skipped_unmatched"):
+                for k in ("pushed", "failed", "skipped_unmatched", "isbns_corrected"):
                     totals[k] += stats[k]
                 # Inbound: Want to Read shelf pull (the one bidirectional piece).
                 # Runs after the push pass so freshly-pushed rows already carry
@@ -1317,10 +1488,33 @@ async def run_sync_cycle(reason: str = "interval", only_user_id: Optional[int] =
                           "wish_reopened", "adopted"):
                     # A partial-fetch abort returns without the wish counters.
                     totals[k] += pull_stats.get(k, 0)
+            else:
+                # Editions check last, from what the pushes and pulls left of
+                # the budget (rate-limited or ended early: next cycle).
+                checks_left = MAX_EDITION_CHECKS_PER_CYCLE
+                done: set[int] = set()
+                for user in users:
+                    if user.hardcover_token_status != "ok":
+                        continue
+                    before = len(done)
+                    try:
+                        totals["isbns_corrected"] += await check_user_editions(
+                            db, client, user, budget, checks_left, done)
+                    except HardcoverRateLimited:
+                        db.rollback()
+                        logger.warning("Hardcover editions check: rate limited, ending cycle")
+                        break
+                    except HardcoverAuthError:
+                        db.rollback()
+                        mark_token_expired(db, user)
+                        continue
+                    checks_left -= len(done) - before
+                    if checks_left <= 0:
+                        break
     totals["exhausted"] = budget.exhausted
     if any(totals[k] for k in ("pushed", "failed", "pulled", "reverted",
                                "wished", "wish_dismissed", "wish_reopened",
-                               "adopted")):
+                               "adopted", "isbns_corrected")):
         logger.info("Hardcover sync (%s): %s", reason, totals)
     return totals
 

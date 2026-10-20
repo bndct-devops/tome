@@ -33,6 +33,9 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_GOOGLE_BOOKS_KEY</code></td><td>—</td><td>Google Books API key — your own quota instead of the shared anonymous pool (fixes 403/429 on busy fetch days; recommended for non-English catalogues)</td></tr>
       <tr><td><code>TOME_AI_ENABLED</code></td><td><code>true</code></td><td>Hard off switch for the <a href="#ai-features">AI features</a>; <code>false</code> hides every AI surface and endpoint</td></tr>
       <tr><td><code>TOME_ANTHROPIC_API_KEY</code></td><td>—</td><td>Anthropic API key used as the instance key for the <a href="#ai-features">AI features</a> when none is stored in Settings (optional)</td></tr>
+      <tr><td><code>TOME_PLATFORM_ENABLED</code></td><td><code>true</code></td><td>Nightlamp link in Settings: users may link their account, and Tome then pushes each linked user's daily reading totals to Nightlamp (titles only if the user opts in; nothing for users who never link). <code>false</code> = the feature does not exist (no Settings section, no API routes, no push loop)</td></tr>
+      <tr><td><code>TOME_PLATFORM_URL</code></td><td><code>https://nightlamp.page</code></td><td>Address of the Nightlamp service. Only change it to point Tome at another Nightlamp instance (development, testing)</td></tr>
+      <tr><td><code>TOME_PLATFORM_NAME</code></td><td><code>Nightlamp</code></td><td>Display name of that service in Settings</td></tr>
       <tr><td><code>TOME_RELEASE_DETECTION</code></td><td><code>false</code></td><td>Follow series + new-volume alerts (needs the Hardcover token) — see <a href={withBase("/docs/wishlist")}>Wishlist</a></td></tr>
       <tr><td><code>TOME_RELEASE_CHECK_INTERVAL</code></td><td><code>86400</code></td><td>Seconds between release checks</td></tr>
       <tr><td><code>TOME_AUTO_IMPORT</code></td><td><code>false</code></td><td>Auto-ingest from Bindery</td></tr>

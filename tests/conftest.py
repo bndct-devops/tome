@@ -71,6 +71,15 @@ def _no_real_ai(monkeypatch):
 
 
 @pytest.fixture(autouse=True, scope="function")
+def _no_real_nightlamp(monkeypatch):
+    """Autouse: Nightlamp is on by default at https://nightlamp.page, so no
+    test may start its push loop or mark users dirty against the real service.
+    tests/test_platform_push.py switches it back on against a mocked URL."""
+    from backend.core.config import settings as _settings
+    monkeypatch.setattr(_settings, "platform_enabled", False)
+
+
+@pytest.fixture(autouse=True, scope="function")
 def _companion_on_by_default(monkeypatch):
     """Autouse: the reading companion's switch answers "on" where no row
     exists, so the trigger tests keep exercising the triggers. The switch's
@@ -78,6 +87,24 @@ def _companion_on_by_default(monkeypatch):
     from backend.services.ai import optin as _optin
     monkeypatch.setattr(_optin, "_TEST_DEFAULT", True)
     yield
+
+
+@pytest.fixture(autouse=True, scope="function")
+def _no_real_editions_pass(monkeypatch):
+    """Autouse: the series editions pass (run after every AI series cleanup
+    apply) would fetch metadata from the real catalogues. It does nothing
+    here; tests/test_series_editions.py puts the real pass back against
+    mocked sources. The process-wide audiobook-ISBN memory starts empty."""
+    from backend.services import hardcover_editions as _hce
+    from backend.services import series_editions as _se
+
+    async def _noop(books):
+        return []
+
+    monkeypatch.setattr(_se, "_run", _noop)
+    _hce.forget_known_audio()
+    yield
+    _hce.forget_known_audio()
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -135,6 +162,7 @@ def _init_test_db():
     import backend.models.send_queue  # noqa: F401
     import backend.models.ko_stats  # noqa: F401
     import backend.models.download_event  # noqa: F401
+    import backend.models.platform  # noqa: F401
 
     Base.metadata.create_all(bind=test_engine)
 

@@ -112,6 +112,8 @@ class MetadataCandidateOut(BaseModel):
     tags: list[str] = []
     series: Optional[str] = None
     series_index: Optional[float] = None
+    # audiobook | ebook | physical | unknown, when the source says (Hardcover)
+    edition_format: Optional[str] = None
 
 
 class ApplyMetadataRequest(BaseModel):
@@ -123,6 +125,9 @@ class ApplyMetadataRequest(BaseModel):
     year: Optional[int] = None
     language: Optional[str] = None
     isbn: Optional[str] = None
+    # The edition_format of the candidate the isbn came from. An "audiobook"
+    # ISBN is never written (book_updates.isbn_allowed).
+    isbn_edition_format: Optional[str] = None
     tags: Optional[list[str]] = None  # if set, replace all tags
     series: Optional[str] = None
     series_index: Optional[float] = None

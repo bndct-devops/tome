@@ -422,6 +422,17 @@ export interface SeriesCleanupResult {
   books_moved: number
   status: SeriesStatus
   arcs: SeriesCleanupArc[]
+  /** The editions pass that runs after the apply (no AI). */
+  isbns_fixed?: IsbnFix[]
+}
+
+/** One ISBN the editions pass changed: filled, replaced or (to null) removed. */
+export interface IsbnFix {
+  book_id: number
+  title: string
+  from: string | null
+  to: string | null
+  reason: 'missing' | 'audiobook'
 }
 
 /** Ask the model for one cleanup diff of a series. Writes nothing. */

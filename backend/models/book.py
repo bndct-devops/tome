@@ -1,7 +1,8 @@
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, event
+from sqlalchemy.orm.base import NEVER_SET, NO_VALUE
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -56,6 +57,11 @@ class Book(Base):
     # The matched record's URL slug — lets the UI link to hardcover.app/books/{slug}
     # so users can AUDIT what their books matched to and re-match wrong ones.
     hardcover_slug: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # When the sync last checked the stored ISBN against the matched Hardcover
+    # book's editions (hardcover_sync editions check: an audiobook edition's
+    # ISBN is replaced, a missing one filled). NULL = not checked yet; any ISBN
+    # change resets it, and a check older than hardcover_matched_at is stale.
+    hardcover_editions_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     cover_path: Mapped[Optional[str]] = mapped_column(Text)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     book_type_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("book_types.id"), nullable=True)
@@ -86,6 +92,35 @@ class Book(Base):
     @property
     def library_ids(self) -> list[int]:
         return [lib.id for lib in (self.libraries or [])]
+
+
+# Hardcover match methods the sync re-derives on its own. "manual" (the user
+# picked the record) and "excluded" (never sync) are the user's word and stay.
+HARDCOVER_AUTO_METHODS = frozenset({"isbn13", "isbn10", "search", "none", "shelf"})
+
+
+def _isbn_key(v: object) -> str:
+    return "".join(ch for ch in str(v or "") if ch.isdigit() or ch in "xX").upper()
+
+
+@event.listens_for(Book.isbn, "set", active_history=True)
+def _isbn_changed(target: Book, value, oldvalue, initiator) -> None:
+    """A new ISBN moves the book to another edition, so an automatic Hardcover
+    match no longer follows it: clear the pin and let the next sync re-match
+    (ISBN first, which pins the new edition)."""
+    if oldvalue in (NO_VALUE, NEVER_SET) or _isbn_key(value) == _isbn_key(oldvalue):
+        return
+    if getattr(target, "_keep_hardcover_match", False):
+        return  # the Hardcover sync correcting the book it matched
+    target.hardcover_editions_checked_at = None
+    if target.hardcover_match_method not in HARDCOVER_AUTO_METHODS:
+        return
+    target.hardcover_book_id = None
+    target.hardcover_edition_id = None
+    target.hardcover_pages = None
+    target.hardcover_slug = None
+    target.hardcover_match_method = None
+    target.hardcover_matched_at = None
 
 
 class BookFile(Base):

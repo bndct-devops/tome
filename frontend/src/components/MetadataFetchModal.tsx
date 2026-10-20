@@ -199,7 +199,10 @@ export function MetadataFetchModal({ book, open, onClose, onApplied, aiProposal 
       if (checkedKeys.has('publisher') && selected.publisher) body.publisher = selected.publisher
       if (checkedKeys.has('year') && selected.year != null) body.year = selected.year
       if (checkedKeys.has('language') && selected.language) body.language = selected.language
-      if (checkedKeys.has('isbn') && selected.isbn) body.isbn = selected.isbn
+      if (checkedKeys.has('isbn') && selected.isbn) {
+        body.isbn = selected.isbn
+        body.isbn_edition_format = selected.edition_format ?? null
+      }
       if (checkedKeys.has('series') && selected.series) body.series = selected.series
       if (checkedKeys.has('series_index') && selected.series_index != null) body.series_index = selected.series_index
       if (checkedKeys.has('tags') && (!aiMark || selected.tags.length > 0)) body.tags = selected.tags

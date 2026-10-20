@@ -12,7 +12,7 @@ with ``ai_assisted: true`` so the audit entry records where it came from.
 
 Safety rails applied after parsing, whatever the model says:
 - tags only from the candidates' tags; an ISBN only from the matched
-  candidate; description and cover only copied from the matched candidate;
+  candidate, never one of an audiobook edition; description and cover only copied from the matched candidate;
 - a value equal to the current one becomes ``null`` (no change);
 - an empty tag list becomes ``null`` (applying it would wipe fetched tags).
 
@@ -41,6 +41,7 @@ from backend.models.user import User
 from backend.services import ai
 from backend.services.ai import settings as ai_settings
 from backend.services.ai.identify import candidate_to_dict, series_sample_titles
+from backend.services.book_updates import isbn_allowed
 from backend.services.identity_match import agrees, norm as _norm
 from backend.services.metadata_fetch import MetadataCandidate, fetch_candidates
 from backend.services.text_sample import first_pages_text
@@ -81,9 +82,11 @@ good reason to change. Never propose a value just to restate the current one.
 wrong; the library may use them across many books.
 - Tags come only from the candidates' tags. Never invent a tag. Use null when \
 the current tags are fine or no candidate has useful tags.
-- The isbn must be the matched candidate's ISBN; use null when candidate_id \
-is null. When two candidates tie, prefer the one whose ISBN matches the \
-current ISBN.
+- The isbn must be the matched candidate's ISBN, and only when that \
+candidate's edition_format is not "audiobook" (this library holds ebooks; an \
+audiobook edition's ISBN is wrong for them). Use null when candidate_id is \
+null or the matched candidate is an audiobook edition. When two candidates \
+tie, prefer the one whose ISBN matches the current ISBN.
 - Title: when series_siblings are given, follow the title pattern most of \
 them use, with this book's own volume number. Otherwise use the book's own \
 title, without the series name or volume number unless that is how the book \
@@ -172,6 +175,7 @@ def _candidate_for_model(cid: str, c: MetadataCandidate) -> dict[str, Any]:
         "series_index": c.series_index,
         "year": c.year,
         "isbn": c.isbn,
+        "edition_format": c.edition_format,
         "language": c.language,
         "publisher": c.publisher,
         "page_count": c.page_count,
@@ -319,10 +323,12 @@ def sanitize(raw: dict[str, Any], book: Book, candidates: list[MetadataCandidate
             out["series_index"] = idx
 
     # ISBN: only the matched candidate's ISBN, stored in its form. Another
-    # candidate's ISBN is another edition (or another book).
+    # candidate's ISBN is another edition (or another book). Never an
+    # audiobook edition's, whatever the model says.
     isbn = _isbn_digits(_str_or_none(raw.get("isbn")))
     if isbn and isbn != _isbn_digits(current["isbn"]) \
-            and cand is not None and cand.isbn and _isbn_digits(cand.isbn) == isbn:
+            and cand is not None and cand.isbn and _isbn_digits(cand.isbn) == isbn \
+            and isbn_allowed(cand.isbn, cand.edition_format):
         out["isbn"] = cand.isbn
 
     # Tags: candidate tags only, canonical spelling; null when nothing changes.
@@ -410,7 +416,8 @@ def fill_from_candidate(proposal: dict[str, Any], book: Book,
     out["description"] = cand.description \
         if desc and desc != (current["description"] or "").strip() else None
     isbn = _isbn_digits(cand.isbn)
-    out["isbn"] = cand.isbn if isbn and isbn != _isbn_digits(current["isbn"]) else None
+    out["isbn"] = cand.isbn if isbn and isbn != _isbn_digits(current["isbn"]) \
+        and isbn_allowed(cand.isbn, cand.edition_format) else None
     out["cover_url"] = (cand.cover_url or None) if not book.cover_path else None
     tags: list[str] = []
     for tag in cand.tags or []:
