@@ -1108,7 +1108,8 @@ assert(linkPathRefused("Screensavers/a.png") == nil)
 print("ok")
 ''')
     lua = _impl()
-    up = lua[lua.index("function TomeSync:_linkUpload("):lua.index("function TomeSync:_linkReceiveFile(")]
+    # Build 62: the PUT itself is _linkPutUpload, just above (the preview uses it too).
+    up = lua[lua.index("function TomeSync:_linkPutUpload("):lua.index("function TomeSync:_linkReceiveFile(")]
     assert "local abs, err = linkResolve(root, a.path, true)" in up
     assert 'if lfs.attributes(abs, "mode") ~= "file" then' in up
     assert "LinkSet.Media.MAX_UPLOAD" in up and "total   = LinkSet.Media.UPLOAD_SECS" in up
@@ -1212,7 +1213,7 @@ def test_build_61_wiring():
     assert _lua_build(lua) >= 61
     assert TOMESYNC_PLUGIN_BUILD >= 61
     assert ("upload = true, receive_file = true, set_sleep_image = true, set_sleep_folder = true,\n"
-            "                   wifi_add = true, wifi_remove = true, wifi_connect = true }") in lua
+            "                   wifi_add = true, wifi_remove = true, wifi_connect = true,") in lua
     for op, fn in (("upload", "_linkUpload(root, cmd)"), ("receive_file", "_linkReceiveFile(root, args, touched)"),
                    ("wifi_add", "_linkWifiAdd(args)"), ("wifi_remove", "_linkWifiRemove(args)"),
                    ("wifi_connect", "_linkWifiConnect(args)")):
@@ -1256,3 +1257,326 @@ assert(#linkParseCommands({ commands = {
     { id = 8, op = "exec", args = {} } } }) == 7)
 print("ok")
 """)
+
+
+# ── Build 62: profiles from the phone ───────────────────────────────────────
+
+def _linkprof_block() -> str:
+    lua = _impl()
+    start = lua.index("-- TOMESYNC_LINKPROF_BEGIN")
+    end = lua.index("-- TOMESYNC_LINKPROF_END")
+    return _linkset_block() + lua[start:end]
+
+
+# Dispatcher's settingsList entries as the KOReader emulator (c00df15ae) has them
+# after Dispatcher:init() and args_func (dumped through the bridge).
+_REG = r'''
+local REG = {
+    set_font = { category = "string", title = "Font face", args = { "Noto Serif", "Literata" },
+                 toggle = { "Noto Serif", "Literata" } },
+    font_size = { category = "absolutenumber", title = "Font size", min = 12, max = 44, step = 0.5, default = 22 },
+    line_spacing = { category = "absolutenumber", title = "Line Spacing", min = 50, max = 200, unit = "%" },
+    h_page_margins = { category = "string", title = "L/R Margins",
+                       args = { {5, 5}, {10, 10}, {15, 15}, {20, 20} }, toggle = { 5, 10, 15, 20 } },
+    t_page_margin = { category = "absolutenumber", title = "Top Margin", min = 0, max = 140 },
+    b_page_margin = { category = "absolutenumber", title = "Bottom Margin", min = 0, max = 140 },
+    font_base_weight = { category = "string", title = "Font Weight", args = { -1, -0.5, 0, 0.5, 1 },
+                         toggle = { "-1", "-½", "0", "+½", "+1" } },
+    zoom = { category = "string", title = "Zoom mode", args = { "page", "pagewidth" }, toggle = { "page - full", "page - width" } },
+    kopt_trim_page = { category = "string", title = "Page Crop", args = { "none", "auto" }, toggle = { "none", "auto" } },
+    set_night_mode = { category = "string", title = "Set night mode", args = { true, false }, toggle = { "on", "off" } },
+    set_frontlight = { category = "absolutenumber", title = "Set frontlight brightness", min = 0, max = 100, condition = true },
+    set_frontlight_warmth = { category = "absolutenumber", title = "Set frontlight warmth", min = 0, max = 100, condition = false },
+    rotation_mode = { category = "string", title = "Rotation", args = { 3, 0, 1, 2 } },
+    set_refresh_rate = { category = "absolutenumber", title = "Full refresh rate (always)", min = -1, max = 200 },
+    set_inverse_reading_order = { category = "string", title = "Invert page turn taps and swipes",
+                                  args = { true, false }, toggle = { "on", "off" } },
+    toggle_status_bar = { category = "none", title = "Toggle status bar" },
+    wifi_on = { category = "none", title = "Turn on Wi-Fi" },
+    wifi_off = { category = "none", title = "Turn off Wi-Fi" },
+}
+local CAT, BY = {}, {}
+for _, c in ipairs(LinkSet.Prof.CATALOGUE) do
+    local d = LinkSet.Prof.describe(c, REG[c.action])
+    if d then table.insert(CAT, d); BY[c.action] = d end
+end
+'''
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_profile_catalogue_describes_registry(tmp_path):
+    """The catalogue is the registry's entries: types, ranges and choices come
+    from KOReader; a hidden action (condition false) and gesture-only
+    categories are not offered; what a preview leaves out says why."""
+    _run_lua(tmp_path, "profcat.lua", _linkprof_block() + _REG + r'''
+assert(#CAT == 17, "17 actions, got " .. #CAT)                -- warmth hidden (condition false)
+assert(BY.set_frontlight_warmth == nil)
+assert(BY.font_size.type == "number" and BY.font_size.min == 12 and BY.font_size.max == 44 and BY.font_size.step == 0.5)
+assert(BY.set_night_mode.type == "bool" and BY.set_inverse_reading_order.type == "bool")
+assert(BY.h_page_margins.type == "choice" and BY.h_page_margins.choices[1].label == "5")
+assert(BY.toggle_status_bar.type == "run" and BY.wifi_off.type == "run")
+assert(BY.font_size.layout == "reflowable" and BY.zoom.layout == "fixed" and BY.set_night_mode.layout == nil)
+assert(BY.font_size.scope == "document" and BY.set_frontlight.scope == "device")
+for _, d in ipairs(CAT) do
+    assert(d.group == "typesetting" or d.group == "screen" or d.group == "reader" or d.group == "device", d.action)
+    if not d.preview then assert(type(d.why) == "string" and #d.why > 0, d.action) end
+end
+assert(BY.font_size.preview and BY.set_night_mode.preview and not BY.wifi_off.preview and not BY.set_frontlight.preview)
+assert(not BY.toggle_status_bar.preview and not BY.rotation_mode.preview)
+-- gesture categories and entries without a range are not described
+assert(LinkSet.Prof.describe({ action = "x" }, { category = "incrementalnumber", min = 1, max = 2 }) == nil)
+assert(LinkSet.Prof.describe({ action = "x" }, { category = "absolutenumber" }) == nil)
+assert(LinkSet.Prof.describe({ action = "x" }, { category = "string", args = {} }) == nil)
+-- every catalogue action is a Dispatcher action name (frontend/dispatcher.lua settingsList)
+local disp = io.open(os.getenv("KO_DISPATCHER") or "/nonexistent")
+if disp then
+    local src = disp:read("*a"); disp:close()
+    for _, c in ipairs(LinkSet.Prof.CATALOGUE) do
+        assert(src:find("\n    " .. c.action .. " = {", 1, true), c.action .. " is not in dispatcher.lua")
+    end
+end
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_profile_actions_validated_against_catalogue(tmp_path):
+    _run_lua(tmp_path, "profcheck.lua", _linkprof_block() + _REG + r'''
+local function ok(list) local a, b = LinkSet.Prof.checkActions(list, BY); assert(a == true, tostring(b)); return b end
+local function no(list, want)
+    local a, b = LinkSet.Prof.checkActions(list, BY)
+    assert(a == false, "should be refused: " .. want)
+    assert(type(b) == "string" and b:find(want, 1, true), tostring(b) .. " (wanted " .. want .. ")")
+end
+local r = ok({ { action = "set_night_mode", value = true }, { action = "set_frontlight", value = 20 } })
+assert(#r == 2 and r[1].action == "set_night_mode" and r[2].value == 20)
+assert(#ok({}) == 0)
+-- unknown, hidden and gesture actions
+no({ { action = "suspend", value = true } }, "unknown action: suspend")
+no({ { action = "poweroff", value = true } }, "unknown action: poweroff")
+no({ { action = "set_frontlight_warmth", value = 10 } }, "unknown action: set_frontlight_warmth")
+no({ { action = "increase_font", value = 1 } }, "unknown action: increase_font")
+no({ { action = "settings", value = {} } }, "unknown action: settings")
+no({ { value = 1 } }, "expected {action, value}")
+no("x", "expected a list")
+no({ a = { action = "font_size", value = 22 } }, "expected a list")
+no({ { action = "font_size", value = 22 }, { action = "font_size", value = 23 } }, "font_size: twice")
+-- numbers: type, step, range; never clamped
+assert(ok({ { action = "font_size", value = 22.5 } })[1].value == 22.5)
+no({ { action = "font_size", value = 22.25 } }, "steps of 0.5 only")
+no({ { action = "font_size", value = 45 } }, "out of range (12..44)")
+no({ { action = "font_size", value = "26" } }, "expected a number")
+no({ { action = "font_size", value = 0/0 } }, "expected a number")
+no({ { action = "line_spacing", value = 100.5 } }, "expected a whole number")
+assert(ok({ { action = "set_refresh_rate", value = -1 } })[1].value == -1)
+no({ { action = "t_page_margin", value = 141 } }, "out of range (0..140)")
+-- bools, runs, choices (a table choice by content)
+no({ { action = "set_night_mode", value = "on" } }, "expected true or false")
+assert(ok({ { action = "wifi_on", value = true } })[1].value == true)
+no({ { action = "toggle_status_bar", value = false } }, "expected true")
+local m = ok({ { action = "h_page_margins", value = { 10, 10 } } })[1].value
+assert(m[1] == 10 and m[2] == 10)
+no({ { action = "h_page_margins", value = { 10, 12 } } }, "not one of this reader's values")
+no({ { action = "h_page_margins", value = 10 } }, "not one of this reader's values")
+assert(ok({ { action = "set_font", value = "Literata" } })[1].value == "Literata")
+no({ { action = "set_font", value = "Comic Sans" } }, "not one of this reader's values")
+assert(ok({ { action = "rotation_mode", value = 0 } })[1].value == 0)
+no({ { action = "rotation_mode", value = 4 } }, "not one of")
+local many = {}
+for i = 1, 41 do many[i] = { action = "font_size", value = 22 } end
+no(many, "more than 40 actions")
+-- names
+assert(LinkSet.Prof.checkName("Night reading") == true)
+assert(select(2, LinkSet.Prof.checkName("")):find("missing name"))
+assert(select(2, LinkSet.Prof.checkName("a\nb")):find("control character"))
+assert(select(2, LinkSet.Prof.checkName(" x")):find("space"))
+assert(select(2, LinkSet.Prof.checkName(string.rep("x", 101))):find("longer than 100"))
+assert(select(2, LinkSet.Prof.checkName(nil, "new_name")):find("missing new_name"))
+print("ok")
+''')
+
+
+# Two profiles made on the KOReader emulator through the Profiles plugin's own
+# menu code (New -> name, Edit actions -> the Dispatcher submenu's setValue,
+# Auto-execute -> genAutoExecMenuItem), copied from settings/profiles.lua and
+# settings.reader.lua's profiles_autoexec (tome-ios proofs/step17/B-night).
+_MENU_MADE = r'''
+local MENU = {
+    ["Night reading (menu)"] = {
+        ["set_frontlight"] = 20,
+        ["set_night_mode"] = true,
+        ["settings"] = {
+            ["name"] = "Night reading (menu)",
+            ["order"] = { [1] = "set_night_mode", [2] = "set_frontlight" },
+        },
+    },
+    ["Light novel (menu)"] = {
+        ["font_size"] = 26,
+        ["h_page_margins"] = { [1] = 5, [2] = 5 },
+        ["settings"] = {
+            ["name"] = "Light novel (menu)",
+            ["order"] = { [1] = "font_size", [2] = "h_page_margins" },
+        },
+    },
+}
+local MENU_AUTOEXEC = {
+    ["ReaderReadyAll"] = { ["Light novel (menu)"] = { ["filepath"] = "/light_novel/" } },
+    ["Resume"] = { ["Morning"] = true, ["Night reading (menu)"] = true },
+}
+'''
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_saved_profile_shape_matches_profiles_plugin(tmp_path):
+    """What profile_save writes is, field for field, what the Profiles plugin's
+    menu wrote for the same actions and trigger."""
+    _run_lua(tmp_path, "profshape.lua", _linkprof_block() + _REG + _MENU_MADE + r'''
+local same = LinkSet.Prof.same
+local function save(name, acts)
+    local ok, list = LinkSet.Prof.checkActions(acts, BY)
+    assert(ok, tostring(list))
+    return (LinkSet.Prof.build(name, list, nil, BY))
+end
+local a = save("Night reading (menu)", { { action = "set_night_mode", value = true }, { action = "set_frontlight", value = 20 } })
+assert(same(a, MENU["Night reading (menu)"]), "night reading differs from the menu's")
+local b = save("Light novel (menu)", { { action = "font_size", value = 26 }, { action = "h_page_margins", value = { 5, 5 } } })
+assert(same(b, MENU["Light novel (menu)"]), "light novel differs from the menu's")
+-- one action: no order (Dispatcher._addToOrder only orders two or more)
+local c = save("One", { { action = "font_size", value = 26 } })
+assert(c.settings.order == nil and c.font_size == 26 and c.settings.name == "One")
+-- none: what "New" makes
+assert(same(save("Empty", {}), { settings = { name = "Empty" } }))
+-- triggers: the same profiles_autoexec as the menu's
+local auto = { Resume = { Morning = true } }
+local okT, t = LinkSet.Prof.checkTriggers({ { event = "Resume" } })
+assert(okT, tostring(t))
+LinkSet.Prof.setTriggers(auto, "Night reading (menu)", t)
+okT, t = LinkSet.Prof.checkTriggers({ { event = "ReaderReadyAll", conditions = { filepath = "/light_novel/" } } })
+assert(okT, tostring(t))
+LinkSet.Prof.setTriggers(auto, "Light novel (menu)", t)
+assert(same(auto, MENU_AUTOEXEC), "autoexec differs from the menu's")
+-- an edit keeps the plugin's own flags and the actions the phone cannot edit
+local old = { settings = { name = "X", order = { "toc", "font_size", "set_night_mode" }, notify = true, registered = true,
+                           quickmenu_separators = { toc = true, font_size = true } },
+              toc = true, font_size = 22, set_night_mode = true }
+local ok, list = LinkSet.Prof.checkActions({ { action = "font_size", value = 30 } }, BY)
+local p, kept = LinkSet.Prof.build("X", list, old, BY)
+assert(kept == 1 and p.toc == true and p.font_size == 30 and p.set_night_mode == nil)
+assert(p.settings.notify == true and p.settings.registered == true)
+assert(same(p.settings.order, { "font_size", "toc" }), "phone's actions first, the kept ones after")
+assert(same(p.settings.quickmenu_separators, { toc = true, font_size = true }))
+-- the order the actions run in: settings.order, else by name
+assert(same(LinkSet.Prof.order(MENU["Light novel (menu)"]), { "font_size", "h_page_margins" }))
+assert(same(LinkSet.Prof.order({ settings = { name = "y" }, b = 1, a = 2 }), { "a", "b" }))
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_profile_triggers_validated(tmp_path):
+    _run_lua(tmp_path, "proftrig.lua", _linkprof_block() + r'''
+local same = LinkSet.Prof.same
+local function ok(list) local a, b = LinkSet.Prof.checkTriggers(list); assert(a == true, tostring(b)); return b end
+local function no(list, want)
+    local a, b = LinkSet.Prof.checkTriggers(list)
+    assert(a == false, "should be refused: " .. want)
+    assert(type(b) == "string" and b:find(want, 1, true), tostring(b) .. " (wanted " .. want .. ")")
+end
+assert(same(ok({ { event = "Start" }, { event = "Resume" }, { event = "ReaderReady" } }),
+            { Start = true, Resume = true, ReaderReady = true }))
+assert(same(ok({}), {}))
+local t = ok({ { event = "ReaderReadyAll", conditions = { filepath = "/manga/", is_new = true,
+              doc_props = { authors = "Tolkien" }, collections = { "Favorites" }, orientation = { 0, 2 } } } })
+assert(same(t.ReaderReadyAll, { filepath = "/manga/", is_new = true, doc_props = { authors = "Tolkien" },
+                                collections = { Favorites = true }, orientation = { [0] = true, [2] = true } }))
+assert(same(ok({ { event = "SetRotationMode", conditions = { modes = { 1, 3 } } } }).SetRotationMode, { [1] = true, [3] = true }))
+assert(same(ok({ { event = "PathChanged", conditions = { has = "/comics" } } }).PathChanged, { has = "/comics" }))
+no({ { event = "Boot" } }, "unknown trigger: Boot")
+no({ { event = "Start", conditions = { filepath = "x" } } }, "Start takes no conditions")
+no({ { event = "Start" }, { event = "Start" } }, "Start: twice")
+no({ { event = "ReaderReady" }, { event = "ReaderReadyAll", conditions = { filepath = "x" } } }, "either always or on conditions")
+no({ { event = "CloseDocument" }, { event = "CloseDocumentAll", conditions = { filepath = "x" } } }, "either always or on conditions")
+no({ { event = "ReaderReadyAll" } }, "needs a condition")
+no({ { event = "ReaderReadyAll", conditions = { is_new = true } } }, "\"only new books\" needs another condition")
+no({ { event = "CloseDocumentAll", conditions = { is_new = true, filepath = "x" } } }, "is_new is for book opening only")
+no({ { event = "ReaderReadyAll", conditions = { filepath = "" } } }, "filepath: expected text")
+no({ { event = "ReaderReadyAll", conditions = { doc_props = { isbn = "1" } } } }, "unknown property isbn")
+no({ { event = "ReaderReadyAll", conditions = { orientation = { 5 } } } }, "rotation 5 is not 0..3")
+no({ { event = "ReaderReadyAll", conditions = { colour = "red" } } }, "unknown condition colour")
+no({ { event = "PathChanged", conditions = { contains = "x" } } }, "unknown condition contains")
+no({ { event = "SetRotationMode", conditions = { modes = {} } } }, "expected a list of rotations")
+no({ { event = "ReaderReadyAll", conditions = { filepath = string.rep("x", 301) } } }, "longer than 300")
+-- setTriggers replaces only this profile's, drops empty events, leaves unknown events
+local auto = { Resume = { A = true, B = true }, ReaderReadyAll = { A = { filepath = "x" } }, FutureEvent = { A = true } }
+LinkSet.Prof.setTriggers(auto, "A", ok({ { event = "Start" } }))
+assert(same(auto, { Resume = { B = true }, Start = { A = true }, FutureEvent = { A = true } }))
+-- rename and delete move or drop them everywhere (Profiles:updateAutoExec)
+LinkSet.Prof.renameTriggers(auto, "A", "C")
+assert(same(auto, { Resume = { B = true }, Start = { C = true }, FutureEvent = { C = true } }))
+LinkSet.Prof.renameTriggers(auto, "C", nil)
+assert(same(auto, { Resume = { B = true } }))
+-- the report form: lists for sets, in EVENTS order
+local back = LinkSet.Prof.triggersOf({ Resume = { N = true }, ReaderReadyAll = { N = { filepath = "/m/", orientation = { [2] = true, [0] = true } } },
+                                       SetRotationMode = { N = { [3] = true } }, Odd = { N = true } }, "N")
+assert(same(back, { { event = "Resume" }, { event = "SetRotationMode", conditions = { modes = { 3 } } },
+                    { event = "ReaderReadyAll", conditions = { filepath = "/m/", orientation = { 0, 2 } } },
+                    { event = "Odd", unknown = true } }))
+-- and what it reports goes back in unchanged
+local again = ok({ back[1], back[2], back[3] })
+assert(same(again.ReaderReadyAll, { filepath = "/m/", orientation = { [0] = true, [2] = true } }))
+print("ok")
+''')
+
+
+def test_build_62_wiring():
+    lua = _impl()
+    assert _lua_build(lua) >= 62
+    assert TOMESYNC_PLUGIN_BUILD >= 62
+    assert ("profile_save = true, profile_delete = true, profile_rename = true,\n"
+            "                   profile_preview = true, profile_apply_open = true }") in lua
+    for op, fn in (("profile_save", "_linkProfileSave(args)"), ("profile_delete", "_linkProfileDelete(args)"),
+                   ("profile_rename", "_linkProfileRename(args)"), ("profile_preview", "_linkProfileLive(cmd, true)"),
+                   ("profile_apply_open", "_linkProfileLive(cmd, false)")):
+        assert f'if op == "{op}" then return self:{fn} end' in lua
+    live = lua[lua.index("function TomeSync:_linkProfileLive("):lua.index("-- ── Build 60: plugins")]
+    # refused without a book in ReaderUI, before anything runs
+    assert 'return false, "No book is open on the reader. Open a book there, then "' in live
+    assert live.index("No book is open") < live.index("D.execute")
+    # the Dispatcher runs the actions, a preview puts the remembered values back the same way
+    assert "pcall(D.execute, D, profileOf(run), { qm_show = false })" in live
+    assert "pcall(D.execute, D, profileOf(run, before), { qm_show = false })" in live
+    assert 'me:_linkPutUpload(key, jpg, "image/jpeg", "preview")' in live
+    assert "restored = restored" in live
+    # results of the live ops are posted when they are done; not run twice meanwhile
+    assert 'if res == "pending" then' in lua
+    assert "local live = LinkSet.Prof.live and LinkSet.Prof.live.id == tostring(cmd.id)" in lua
+    # the report carries the catalogue and the open book
+    assert "body.profile_catalogue = arr(cl)" in lua and "body.book = LinkSet.Prof.book()" in lua
+    # the registry is Dispatcher's own settingsList
+    assert 'if n == "settingsList" and type(v) == "table" then return v, D end' in lua
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_profile_preview_refused_without_a_book(tmp_path):
+    """_linkProfileLive with no ReaderUI instance: refused with the message the
+    app shows, and nothing scheduled or executed."""
+    lua = _impl()
+    fn = lua[lua.index("function TomeSync:_linkProfileLive("):lua.index("-- ── Build 60: plugins")]
+    _run_lua(tmp_path, "profnobook.lua", _linkprof_block() + r'''
+local TomeSync = {}
+local ran = false
+LinkSet.Prof.book = function() return nil end
+LinkSet.Prof.catalogue = function() ran = true; return {}, {} end
+local rapidjson = {}
+local UIManager = { scheduleIn = function() ran = true end }
+''' + fn + r'''
+for _, restore in ipairs({ true, false }) do
+    local ok, why = TomeSync:_linkProfileLive({ id = 7, op = "profile_preview", args = { actions = { { action = "font_size", value = 30 } } } }, restore)
+    assert(ok == false, "refused")
+    assert(why:find("No book is open on the reader", 1, true), why)
+    assert(why:find(restore and "then preview again" or "then try again", 1, true), why)
+end
+assert(not ran, "nothing ran")
+assert(LinkSet.Prof.live == nil)
+print("ok")
+''')

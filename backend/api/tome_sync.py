@@ -164,7 +164,14 @@ logger = logging.getLogger(__name__)
 # into a folder), the Wi-Fi networks report (PUT /tome-sync/networks, names
 # only) and wifi_add / wifi_remove / wifi_connect; device-info adds firmware,
 # serial, screen, folders and the link's poll state.
-TOMESYNC_PLUGIN_BUILD = 61
+# BUILD 62: reader link: profiles from the phone. The reader-settings report
+# carries each profile's actions decoded against Dispatcher's registry, its
+# autoexec triggers with their conditions, the profile catalogue (the actions a
+# phone may write, with type, range or choices) and the book open in ReaderUI;
+# profile_save / profile_delete / profile_rename write what the Profiles plugin
+# writes; profile_preview applies actions to the open book, uploads a screenshot
+# (kind "preview") and puts the book back; profile_apply_open keeps them.
+TOMESYNC_PLUGIN_BUILD = 62
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

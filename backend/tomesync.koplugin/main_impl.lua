@@ -776,7 +776,7 @@ local HEARTBEAT_PAGES = 50
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
 local PLUGIN_VERSION  = "60"
-local BUILD           = 61      -- monotonic; the only thing compared
+local BUILD           = 62      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -5865,7 +5865,9 @@ local LINK_OPS = { rename = true, move = true, delete = true, mkdir = true, refr
                    plugin_enable = true, plugin_install = true, plugin_remove = true,
                    self_update = true,                          -- build 60
                    upload = true, receive_file = true, set_sleep_image = true, set_sleep_folder = true,
-                   wifi_add = true, wifi_remove = true, wifi_connect = true }   -- build 61
+                   wifi_add = true, wifi_remove = true, wifi_connect = true,    -- build 61
+                   profile_save = true, profile_delete = true, profile_rename = true,
+                   profile_preview = true, profile_apply_open = true }          -- build 62
 local function linkParseCommands(body)
     if type(body) ~= "table" then return {} end
     local list = body
@@ -6177,6 +6179,430 @@ function LinkSet.report(values, caps, fonts, profiles, limits)
              fonts = fonts or {}, profiles = profiles or {} }
 end
 -- TOMESYNC_LINKSET_END
+
+-- TOMESYNC_LINKPROF_BEGIN (pure: no requires, no I/O; extracted and run under
+-- luajit by tests/test_tomesync_reader_link.py)
+-- Build 62: KOReader's profiles from the phone. What the Profiles plugin itself
+-- does (plugins/profiles.koplugin/main.lua, c00df15ae):
+--   settings/profiles.lua: name -> { settings = { name = <name>, order = {k1, k2, ...}
+--     only with two or more actions (Dispatcher._addToOrder / _removeFromOrder),
+--     plus its own flags: notify, registered, show_as_quickmenu, auto_exec_ask,
+--     auto_exec_promptly, auto_exec_time_interval, ... }, <action> = <value>, ... }
+--   G_reader_settings profiles_autoexec: event -> name -> true | conditions
+-- The actions are Dispatcher's (frontend/dispatcher.lua settingsList, its local
+-- registry): CATALOGUE is the part a phone may write, each checked against the
+-- registry entry the reader reports (so a reader without a frontlight has no
+-- set_frontlight). Everything else in a profile is kept as it is on a save.
+-- A field (LinkSet.Prof), not a local: the 200-local budget.
+LinkSet.Prof = {
+    MAX_NAME    = 100,
+    MAX_ACTIONS = 40,
+    MAX_TEXT    = 300,
+    -- group: the phone's picker section; scope: what the action changes
+    -- (document: the open book's settings; device: the reader); layout: the
+    -- books Dispatcher runs it for (isActionEnabled: rolling = reflowable,
+    -- paging = fixed layout); preview: false with why when profile_preview
+    -- leaves it out.
+    CATALOGUE = {
+        { action = "set_font",         group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "font_size",        group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "line_spacing",     group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "h_page_margins",   group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "t_page_margin",    group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "b_page_margin",    group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "font_base_weight", group = "typesetting", scope = "document", layout = "reflowable" },
+        { action = "zoom",             group = "typesetting", scope = "document", layout = "fixed" },
+        { action = "kopt_trim_page",   group = "typesetting", scope = "document", layout = "fixed" },
+        { action = "set_night_mode",   group = "screen", scope = "device" },
+        { action = "set_frontlight",   group = "screen", scope = "device", preview = false,
+          why = "the light is not in a screenshot" },
+        { action = "set_frontlight_warmth", group = "screen", scope = "device", preview = false,
+          why = "the light is not in a screenshot" },
+        { action = "rotation_mode",    group = "screen", scope = "device", preview = false,
+          why = "rotating re-lays out the whole book twice" },
+        { action = "set_refresh_rate", group = "screen", scope = "device", preview = false,
+          why = "the refresh rate is not in a screenshot" },
+        { action = "set_inverse_reading_order", group = "reader", scope = "document", preview = false,
+          why = "page-turn direction is not in a screenshot" },
+        { action = "toggle_status_bar", group = "reader", scope = "document", preview = false,
+          why = "it steps through the status bar's modes, so running it again does not undo it" },
+        { action = "wifi_on",          group = "device", scope = "device", preview = false,
+          why = "Wi-Fi is not in a screenshot" },
+        { action = "wifi_off",         group = "device", scope = "device", preview = false,
+          why = "turning Wi-Fi off would cut the link" },
+    },
+    -- The profiles plugin's own settings keys, kept on a save.
+    OWN = { name = true, order = true },
+    -- Events (genAutoExecMenuItem): plain ones hold true.
+    PLAIN = { Start = true, Resume = true, OutOfScreenSaver = true, ReaderReady = true, CloseDocument = true },
+    EVENTS = { "Start", "Resume", "OutOfScreenSaver", "SetRotationMode", "PathChanged",
+               "ReaderReady", "ReaderReadyAll", "CloseDocument", "CloseDocumentAll" },
+    PATH_CONDS = { has = true, has_not = true, is_equal = true, is_not_equal = true },
+    -- FileManagerBookInfo.props: what "if book metadata contains" offers.
+    DOC_PROPS = { title = true, authors = true, series = true, series_index = true,
+                  language = true, keywords = true, description = true },
+    MODES = { [0] = true, [1] = true, [2] = true, [3] = true },
+}
+LinkSet.Prof.byAction = {}
+for i, c in ipairs(LinkSet.Prof.CATALOGUE) do c.pos = i; LinkSet.Prof.byAction[c.action] = c end
+LinkSet.Prof.isEvent = {}
+for _, e in ipairs(LinkSet.Prof.EVENTS) do LinkSet.Prof.isEvent[e] = true end
+
+function LinkSet.Prof.same(a, b)
+    if type(a) ~= type(b) then return false end
+    if type(a) ~= "table" then
+        if type(a) == "number" then return math.abs(a - b) < 1e-9 end
+        return a == b
+    end
+    for k, v in pairs(a) do if not LinkSet.Prof.same(v, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+end
+
+-- One catalogue action as the phone sees it, from the reader's registry entry
+-- (reg: Dispatcher's settingsList[action] with args / toggle from args_func).
+-- nil when the reader has no such action or hides it (condition == false, the
+-- Dispatcher menu's own rule).
+function LinkSet.Prof.describe(c, reg)
+    if type(c) ~= "table" or type(reg) ~= "table" or reg.condition == false then return nil end
+    local d = { action = c.action, title = reg.title or c.action, group = c.group, scope = c.scope,
+                layout = c.layout, preview = c.preview ~= false, why = c.why }
+    local cat = reg.category
+    if cat == "absolutenumber" then
+        if not (LinkSet.num(reg.min) and LinkSet.num(reg.max)) then return nil end
+        d.type, d.min, d.max, d.step, d.unit = "number", reg.min, reg.max, reg.step, reg.unit
+        d.default = LinkSet.num(reg.default) and reg.default or nil
+    elseif cat == "string" or cat == "configurable" then
+        if type(reg.args) ~= "table" or #reg.args == 0 then return nil end
+        local bool = #reg.args == 2 and reg.args[1] == true and reg.args[2] == false
+        d.type = bool and "bool" or "choice"
+        if not bool then
+            d.choices = {}
+            for i, v in ipairs(reg.args) do
+                local t = type(reg.toggle) == "table" and reg.toggle[i]
+                table.insert(d.choices, { value = v, label = t ~= nil and tostring(t) or tostring(v) })
+            end
+        end
+    elseif cat == "none" then
+        d.type = "run"
+    else
+        return nil   -- incrementalnumber, arg: gesture actions
+    end
+    return d
+end
+
+-- Is value v right for the described action? Returns true, value | false, why.
+-- Never clamps. A choice must be one of the reader's own values (a table one,
+-- such as the L/R margins {10, 10}, compared by content).
+function LinkSet.Prof.check(d, v)
+    if type(d) ~= "table" then return false, "unknown action" end
+    local a = d.action
+    if d.type == "run" then
+        if v ~= true then return false, a .. ": expected true" end
+        return true, true
+    end
+    if d.type == "bool" then
+        if type(v) ~= "boolean" then return false, a .. ": expected true or false" end
+        return true, v
+    end
+    if d.type == "number" then
+        if not LinkSet.num(v) then return false, a .. ": expected a number" end
+        local step = LinkSet.num(d.step) and d.step > 0 and d.step or 1
+        local n = v / step
+        if math.abs(n - math.floor(n + 0.5)) > 1e-9 then
+            return false, a .. (step == 1 and ": expected a whole number" or (": steps of " .. step .. " only"))
+        end
+        if v < d.min or v > d.max then
+            return false, a .. ": out of range (" .. tostring(d.min) .. ".." .. tostring(d.max) .. ")"
+        end
+        return true, v
+    end
+    if d.type == "choice" then
+        for _, ch in ipairs(d.choices or {}) do
+            if LinkSet.Prof.same(ch.value, v) then return true, ch.value end
+        end
+        return false, a .. ": not one of this reader's values"
+    end
+    return false, a .. ": unsupported"
+end
+
+-- actions: list of {action, value}; cat: action -> description (this reader's).
+-- Returns true, list (in order, values normalised) | false, why.
+function LinkSet.Prof.checkActions(actions, cat)
+    if type(actions) ~= "table" then return false, "actions: expected a list" end
+    if #actions > LinkSet.Prof.MAX_ACTIONS then return false, "more than " .. LinkSet.Prof.MAX_ACTIONS .. " actions" end
+    local out, seen = {}, {}
+    for i, it in ipairs(actions) do
+        if type(it) ~= "table" or type(it.action) ~= "string" then return false, "action " .. i .. ": expected {action, value}" end
+        local d = type(cat) == "table" and cat[it.action] or nil
+        if not d then return false, "unknown action: " .. it.action end
+        if seen[it.action] then return false, it.action .. ": twice" end
+        seen[it.action] = true
+        local ok, v = LinkSet.Prof.check(d, it.value)
+        if not ok then return false, v end
+        table.insert(out, { action = it.action, value = v })
+    end
+    for k in pairs(actions) do
+        if type(k) ~= "number" then return false, "actions: expected a list" end
+    end
+    return true, out
+end
+
+function LinkSet.Prof.checkName(n, field)
+    field = field or "name"
+    if type(n) ~= "string" or n == "" then return false, "missing " .. field end
+    if #n > LinkSet.Prof.MAX_NAME then return false, field .. ": longer than " .. LinkSet.Prof.MAX_NAME .. " bytes" end
+    if n:find("%c") then return false, field .. ": contains a control character" end
+    if n:match("^%s") or n:match("%s$") then return false, field .. ": starts or ends with a space" end
+    return true, n
+end
+
+-- The profile table the Profiles plugin keeps for `name` with these actions:
+-- old's own settings flags and its actions outside `cat` (what the phone cannot
+-- edit) are kept. Returns profile, kept (number of actions kept from old).
+function LinkSet.Prof.build(name, actions, old, cat)
+    local p = { settings = {} }
+    local kept = 0
+    if type(old) == "table" then
+        for k, v in pairs(type(old.settings) == "table" and old.settings or {}) do
+            if not LinkSet.Prof.OWN[k] then p.settings[k] = v end
+        end
+    end
+    p.settings.name = name
+    local order = {}
+    for _, it in ipairs(actions) do
+        p[it.action] = it.value
+        table.insert(order, it.action)
+    end
+    if type(old) == "table" then
+        -- Kept actions go after the phone's, in their old order.
+        local rest = {}
+        local oo = type(old.settings) == "table" and type(old.settings.order) == "table" and old.settings.order or nil
+        if oo and #oo > 1 then
+            for _, k in ipairs(oo) do
+                if old[k] ~= nil and not (cat and cat[k]) and p[k] == nil then table.insert(rest, k) end
+            end
+        end
+        local inrest = {}
+        for _, k in ipairs(rest) do inrest[k] = true end
+        local extra = {}
+        for k in pairs(old) do
+            if k ~= "settings" and not (cat and cat[k]) and p[k] == nil and not inrest[k] then table.insert(extra, k) end
+        end
+        table.sort(extra)
+        for _, k in ipairs(extra) do table.insert(rest, k) end
+        for _, k in ipairs(rest) do p[k] = old[k]; table.insert(order, k); kept = kept + 1 end
+        -- quickmenu_separators name actions: drop the ones that left.
+        if type(p.settings.quickmenu_separators) == "table" then
+            for k in pairs(p.settings.quickmenu_separators) do
+                if p[k] == nil then p.settings.quickmenu_separators[k] = nil end
+            end
+            if next(p.settings.quickmenu_separators) == nil then p.settings.quickmenu_separators = nil end
+        end
+    end
+    if #order >= 2 then p.settings.order = order end
+    return p, kept
+end
+
+-- A profile's actions in the order they run (settings.order when it has two or
+-- more, else by name: Dispatcher.iter_func runs them in pairs order then).
+function LinkSet.Prof.order(p)
+    local out = {}
+    if type(p) ~= "table" then return out end
+    local o = type(p.settings) == "table" and p.settings.order or nil
+    local seen = {}
+    if type(o) == "table" and #o > 1 then
+        for _, k in ipairs(o) do
+            if p[k] ~= nil and not seen[k] and k ~= "settings" then table.insert(out, k); seen[k] = true end
+        end
+    end
+    local rest = {}
+    for k in pairs(p) do
+        if k ~= "settings" and type(k) == "string" and not seen[k] then table.insert(rest, k) end
+    end
+    table.sort(rest)
+    for _, k in ipairs(rest) do table.insert(out, k) end
+    return out
+end
+
+-- One trigger from the phone: {event, conditions?}. Returns true, event, the
+-- value KOReader keeps under profiles_autoexec[event][name] | false, why.
+function LinkSet.Prof.checkTrigger(t)
+    if type(t) ~= "table" or type(t.event) ~= "string" then return false, "trigger: expected {event, conditions}" end
+    local e = t.event
+    if not LinkSet.Prof.isEvent[e] then return false, "unknown trigger: " .. e end
+    local c = t.conditions
+    if c ~= nil and type(c) ~= "table" then return false, e .. ": conditions must be an object" end
+    local P = LinkSet.Prof
+    local function text(v, what)
+        if type(v) ~= "string" or v == "" then return false, e .. ": " .. what .. ": expected text" end
+        if #v > P.MAX_TEXT then return false, e .. ": " .. what .. ": longer than " .. P.MAX_TEXT .. " bytes" end
+        if v:find("%z") then return false, e .. ": " .. what .. ": contains a NUL" end
+        return true, v
+    end
+    local function modes(v, what)
+        if type(v) ~= "table" or #v == 0 then return false, e .. ": " .. what .. ": expected a list of rotations" end
+        local out = {}
+        for _, m in ipairs(v) do
+            if type(m) ~= "number" or not P.MODES[m] then return false, e .. ": " .. what .. ": rotation " .. tostring(m) .. " is not 0..3" end
+            out[m] = true
+        end
+        return true, out
+    end
+    if P.PLAIN[e] then
+        if c ~= nil and next(c) ~= nil then return false, e .. " takes no conditions" end
+        return true, e, true
+    end
+    if c == nil or next(c) == nil then return false, e .. ": needs a condition" end
+    if e == "SetRotationMode" then
+        for k in pairs(c) do if k ~= "modes" then return false, e .. ": unknown condition " .. tostring(k) end end
+        local ok, m = modes(c.modes, "modes")
+        if not ok then return false, m end
+        return true, e, m
+    end
+    if e == "PathChanged" then
+        local out = {}
+        for k, v in pairs(c) do
+            if not P.PATH_CONDS[k] then return false, e .. ": unknown condition " .. tostring(k) end
+            local ok, s = text(v, k)
+            if not ok then return false, s end
+            out[k] = s
+        end
+        return true, e, out
+    end
+    -- ReaderReadyAll / CloseDocumentAll (genAutoExecDocConditionalMenuItem)
+    local out, any = {}, false
+    for k, v in pairs(c) do
+        if k == "orientation" then
+            local ok, m = modes(v, k)
+            if not ok then return false, m end
+            out.orientation, any = m, true
+        elseif k == "doc_props" then
+            if type(v) ~= "table" or next(v) == nil then return false, e .. ": doc_props: expected {prop = text}" end
+            local dp = {}
+            for pk, pv in pairs(v) do
+                if not P.DOC_PROPS[pk] then return false, e .. ": doc_props: unknown property " .. tostring(pk) end
+                local ok, s = text(pv, "doc_props." .. pk)
+                if not ok then return false, s end
+                dp[pk] = s
+            end
+            out.doc_props, any = dp, true
+        elseif k == "filepath" then
+            local ok, s = text(v, k)
+            if not ok then return false, s end
+            out.filepath, any = s, true
+        elseif k == "collections" then
+            if type(v) ~= "table" or #v == 0 then return false, e .. ": collections: expected a list of names" end
+            local cs = {}
+            for _, n in ipairs(v) do
+                local ok, s = text(n, "collection")
+                if not ok then return false, s end
+                cs[s] = true
+            end
+            out.collections, any = cs, true
+        elseif k == "is_new" then
+            if e ~= "ReaderReadyAll" then return false, e .. ": is_new is for book opening only" end
+            if v ~= true then return false, e .. ": is_new: expected true" end
+            out.is_new = true
+        else
+            return false, e .. ": unknown condition " .. tostring(k)
+        end
+    end
+    -- executeAutoExecDocConditional runs a profile on a condition that matched;
+    -- "only new books" alone never matches.
+    if not any then return false, e .. ": \"only new books\" needs another condition" end
+    return true, e, out
+end
+
+-- triggers: list from the phone. Returns true, {event -> value} | false, why.
+function LinkSet.Prof.checkTriggers(list)
+    if type(list) ~= "table" then return false, "autoexec: expected a list" end
+    local out = {}
+    for _, t in ipairs(list) do
+        local ok, e, v = LinkSet.Prof.checkTrigger(t)
+        if not ok then return false, e end
+        if out[e] ~= nil then return false, e .. ": twice" end
+        out[e] = v
+    end
+    -- The menu's "always" clears the conditional ones and disables them.
+    if out.ReaderReady ~= nil and out.ReaderReadyAll ~= nil then
+        return false, "book opening: either always or on conditions, not both"
+    end
+    if out.CloseDocument ~= nil and out.CloseDocumentAll ~= nil then
+        return false, "book closing: either always or on conditions, not both"
+    end
+    return true, out
+end
+
+-- Replaces `name`'s triggers in autoexec (profiles_autoexec, changed in place)
+-- with `want` (event -> value); events left empty are removed, as
+-- Profiles:updateAutoExec does. Unknown events are left alone.
+function LinkSet.Prof.setTriggers(autoexec, name, want)
+    for _, e in ipairs(LinkSet.Prof.EVENTS) do
+        local t = autoexec[e]
+        if type(t) == "table" then
+            t[name] = nil
+            if next(t) == nil then autoexec[e] = nil end
+        end
+    end
+    for e, v in pairs(want or {}) do
+        if type(autoexec[e]) ~= "table" then autoexec[e] = {} end
+        autoexec[e][name] = v
+    end
+    return autoexec
+end
+
+-- Moves (new_name) or removes (nil) `name`'s triggers: Profiles:updateAutoExec.
+function LinkSet.Prof.renameTriggers(autoexec, name, new_name)
+    for e, t in pairs(autoexec) do
+        if type(t) == "table" and t[name] ~= nil then
+            local v = t[name]
+            t[name] = nil
+            if new_name then t[new_name] = v elseif next(t) == nil then autoexec[e] = nil end
+        end
+    end
+    return autoexec
+end
+
+-- `name`'s triggers as the phone gets them: list of {event, conditions?}, in
+-- EVENTS order (sets as sorted lists).
+function LinkSet.Prof.triggersOf(autoexec, name)
+    local out = {}
+    if type(autoexec) ~= "table" then return out end
+    local function keys(t)
+        local l = {}
+        for k, v in pairs(type(t) == "table" and t or {}) do if v then table.insert(l, k) end end
+        table.sort(l, function(a, b) return tostring(a) < tostring(b) end)
+        return l
+    end
+    local known = {}
+    for _, e in ipairs(LinkSet.Prof.EVENTS) do
+        known[e] = true
+        local v = type(autoexec[e]) == "table" and autoexec[e][name] or nil
+        if v ~= nil and v ~= false then
+            if v == true or type(v) ~= "table" then
+                table.insert(out, { event = e })
+            elseif e == "SetRotationMode" then
+                table.insert(out, { event = e, conditions = { modes = keys(v) } })
+            elseif e == "PathChanged" then
+                table.insert(out, { event = e, conditions = v })
+            else
+                local c = {}
+                for k, x in pairs(v) do
+                    if k == "orientation" or k == "collections" then c[k] = keys(x) else c[k] = x end
+                end
+                table.insert(out, { event = e, conditions = c })
+            end
+        end
+    end
+    for e, t in pairs(autoexec) do
+        if not known[e] and type(t) == "table" and t[name] ~= nil then
+            table.insert(out, { event = e, unknown = true })
+        end
+    end
+    return out
+end
+-- TOMESYNC_LINKPROF_END
 
 -- TOMESYNC_LINKPLUG_BEGIN (pure: no requires, no I/O; extracted and run under
 -- luajit by tests/test_tomesync_reader_link.py)
@@ -6577,6 +7003,12 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
     if op == "wifi_add" then return self:_linkWifiAdd(args) end
     if op == "wifi_remove" then return self:_linkWifiRemove(args) end
     if op == "wifi_connect" then return self:_linkWifiConnect(args) end
+    -- Build 62
+    if op == "profile_save" then return self:_linkProfileSave(args) end
+    if op == "profile_delete" then return self:_linkProfileDelete(args) end
+    if op == "profile_rename" then return self:_linkProfileRename(args) end
+    if op == "profile_preview" then return self:_linkProfileLive(cmd, true) end
+    if op == "profile_apply_open" then return self:_linkProfileLive(cmd, false) end
 
     if op == "mkdir" then
         local rel = str(args.path)
@@ -7013,31 +7445,40 @@ function TomeSync:_linkPass(light, hb)
                     LinkSet.Media.deferred = tostring(cmd.id)
                     logger.info("TomeSync: link command", tostring(cmd.id), "upload waits until the book closes")
                 end
-                if not link_off.all and not defer then
+                -- Build 62: a preview still running on the open book is not run again.
+                local live = LinkSet.Prof.live and LinkSet.Prof.live.id == tostring(cmd.id)
+                if not link_off.all and not defer and not live then
                     local key = tostring(cmd.id)
                     local ok, res, err, new_path, note, applies, extra = pcall(self._linkRunCommand, self, root, cmd, touched)
                     if not ok then res, err, new_path, note, applies, extra = false, tostring(res), nil, nil, nil, nil end
-                    if cmd.op == "set_setting" or cmd.op == "run_profile" or cmd.op:find("^set_sleep_") then LinkSet.dirty = true end
-                    if cmd.op:find("^wifi_") then LinkSet.Media.dirty = true end
-                    if cmd.op:find("^plugin_") or cmd.op == "self_update" then LinkSet.Plug.dirty = true end
-                    ran = ran + 1
-                    logger.info("TomeSync: link command", key, tostring(cmd.op),
-                                res and ("ok" .. (note and (" (" .. note .. ")") or ""))
-                                or ("failed: " .. tostring(err)))
-                    local result = {
-                        ok = res and true or false,
-                        error = (not res) and (err or "failed") or nil,
-                        new_path = res and new_path or nil,
-                        note = note,
-                        applies = res and applies or nil,
-                    }
-                    -- Build 60: from_build / to_build, dir, trash.
-                    if type(extra) == "table" then
-                        for k, v in pairs(extra) do if result[k] == nil then result[k] = v end end
+                    if res == "pending" then
+                        -- Build 62: the live profile ops post their result themselves.
+                        ran = ran + 1
+                        logger.info("TomeSync: link command", key, tostring(cmd.op), "runs on the open book; its result follows")
+                    else
+                        if cmd.op == "set_setting" or cmd.op == "run_profile" or cmd.op:find("^set_sleep_")
+                                or cmd.op:find("^profile_") then LinkSet.dirty = true end
+                        if cmd.op:find("^wifi_") then LinkSet.Media.dirty = true end
+                        if cmd.op:find("^plugin_") or cmd.op == "self_update" then LinkSet.Plug.dirty = true end
+                        ran = ran + 1
+                        logger.info("TomeSync: link command", key, tostring(cmd.op),
+                                    res and ("ok" .. (note and (" (" .. note .. ")") or ""))
+                                    or ("failed: " .. tostring(err)))
+                        local result = {
+                            ok = res and true or false,
+                            error = (not res) and (err or "failed") or nil,
+                            new_path = res and new_path or nil,
+                            note = note,
+                            applies = res and applies or nil,
+                        }
+                        -- Build 60: from_build / to_build, dir, trash.
+                        if type(extra) == "table" then
+                            for k, v in pairs(extra) do if result[k] == nil then result[k] = v end end
+                        end
+                        linkRemember(key, result)
+                        pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
+                              result, net)
                     end
-                    linkRemember(key, result)
-                    pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result",
-                          result, net)
                 end
             end
             if ran > 0 then
@@ -7238,7 +7679,8 @@ function LinkSet.read(s)
 end
 
 -- The profiles plugin's profiles, with the events each runs on by itself.
-function LinkSet.profiles()
+-- by (build 62): this reader's profile catalogue, action -> description.
+function LinkSet.profiles(by)
     local ui = LinkSet.ui()
     local p = ui and ui.profiles
     if not p then return {} end
@@ -7246,13 +7688,31 @@ function LinkSet.profiles()
     local auto = type(p.autoexec) == "table" and p.autoexec
                  or G_reader_settings:readSetting("profiles_autoexec") or {}
     local out = {}
-    for name in pairs(type(p.data) == "table" and p.data or {}) do
+    local arr = rapidjson.array or function(t) return t end
+    local _, D = LinkSet.Prof.registry()
+    for name, prof in pairs(type(p.data) == "table" and p.data or {}) do
         local ev = {}
         for event, profs in pairs(auto) do
             if type(profs) == "table" and profs[name] ~= nil then table.insert(ev, event) end
         end
         table.sort(ev)
-        table.insert(out, { name = name, autoexec = rapidjson.array and rapidjson.array(ev) or ev })
+        -- Build 62: the actions decoded (Dispatcher:getNameFromItem names them as its
+        -- menu does), the triggers with their conditions, the plugin's own flags.
+        local acts, trig, opts = {}, {}, {}
+        if type(prof) == "table" then
+            for _, k in ipairs(LinkSet.Prof.order(prof)) do
+                local label
+                if D then pcall(function() label = D:getNameFromItem(k, prof) end) end
+                table.insert(acts, { action = k, value = LinkSet.Prof.json(prof[k]), label = label,
+                                     editable = (by and by[k]) and true or false })
+            end
+            for k, v in pairs(type(prof.settings) == "table" and prof.settings or {}) do
+                if not LinkSet.Prof.OWN[k] then opts[k] = LinkSet.Prof.json(v) end
+            end
+        end
+        for _, t in ipairs(LinkSet.Prof.triggersOf(auto, name)) do table.insert(trig, LinkSet.Prof.json(t)) end
+        table.insert(out, { name = name, autoexec = arr(ev), actions = arr(acts), triggers = arr(trig),
+                            options = rapidjson.object and rapidjson.object(opts) or opts })
     end
     table.sort(out, function(a, b) return a.name < b.name end)
     return out
@@ -7270,9 +7730,19 @@ function TomeSync:_linkSendSettings(net, why)
             if ok and v ~= nil then values[s.key] = v end
         end
     end
-    local fonts, profiles = LinkSet.fonts(), LinkSet.profiles()
+    -- Build 62: the actions a profile may hold here, and the book open now.
+    local plist, pby, perr = LinkSet.Prof.catalogue()
+    local fonts, profiles = LinkSet.fonts(), LinkSet.profiles(pby)
     local arr = rapidjson.array or function(t) return t end
     local body = LinkSet.report(values, caps, arr(fonts), arr(profiles), limits)
+    if plist then
+        local cl = {}
+        for _, d in ipairs(plist) do table.insert(cl, LinkSet.Prof.json(d)) end
+        body.profile_catalogue = arr(cl)
+    else
+        body.profile_catalogue_error = perr
+    end
+    body.book = LinkSet.Prof.book()
     for _, d in pairs(body.keys) do if d.values then d.values = arr(d.values) end end
     body.device = deviceName()
     -- Build 61: the sleep screen's image or folder (what set_sleep_image / _folder write).
@@ -7284,6 +7754,8 @@ function TomeSync:_linkSendSettings(net, why)
     for _ in pairs(body.settings) do n = n + 1 end
     logger.info("TomeSync: link PUT reader-settings " .. tostring(code) .. " (" .. why .. ", " .. n
                 .. " settings, " .. #fonts .. " fonts, " .. #profiles .. " profiles, "
+                .. (plist and (#plist .. " profile actions, ") or "no profile catalogue, ")
+                .. (body.book and ("book open: " .. tostring(body.book.path or body.book.file) .. ", ") or "no book open, ")
                 .. math.floor((linkNow() - t0) * 1000 + 0.5) .. " ms)")
     if linkRouteOff(code) then
         link_off.reader_settings = true
@@ -7345,6 +7817,403 @@ function TomeSync:_linkRunProfile(args)
     G_reader_settings:flush()
     logger.info("TomeSync: link ran profile " .. name)
     return true, nil, nil, nil, "now"
+end
+
+-- ── Build 62: profiles (LinkSet.Prof above holds the pure rules) ────────────
+
+-- Dispatcher's registry: settingsList is a local of frontend/dispatcher.lua that
+-- registerAction / removeAction / getNameFromItem close over; read by name with
+-- debug.getupvalue. nil when this KOReader keeps it some other way.
+function LinkSet.Prof.registry()
+    local ok, D = pcall(require, "dispatcher")
+    if not ok or type(D) ~= "table" then return nil end
+    pcall(D.init, D)
+    for _, fn in ipairs({ D.registerAction, D.removeAction, D.getNameFromItem }) do
+        if type(fn) == "function" then
+            for i = 1, 40 do
+                local n, v = debug.getupvalue(fn, i)
+                if not n then break end
+                if n == "settingsList" and type(v) == "table" then return v, D end
+            end
+        end
+    end
+    return nil, D
+end
+
+-- This reader's catalogue: the list (CATALOGUE order) and action -> description.
+function LinkSet.Prof.catalogue()
+    local sl = LinkSet.Prof.registry()
+    if not sl then return nil, nil, "this KOReader's action registry could not be read" end
+    local list, by = {}, {}
+    for _, c in ipairs(LinkSet.Prof.CATALOGUE) do
+        local reg = sl[c.action]
+        if type(reg) == "table" then
+            local r = {}
+            for k, v in pairs(reg) do r[k] = v end
+            if type(r.args_func) == "function" then
+                -- What the Dispatcher menu does before listing the choices.
+                local okf, a, t = pcall(r.args_func)
+                if okf and type(a) == "table" then r.args, r.toggle = a, t end
+            end
+            local d = LinkSet.Prof.describe(c, r)
+            if d then table.insert(list, d); by[c.action] = d end
+        end
+    end
+    return list, by
+end
+
+-- A Lua value for the JSON body: sequences become arrays.
+function LinkSet.Prof.json(v)
+    if type(v) ~= "table" then return v end
+    local arr = rapidjson.array or function(t) return t end
+    local n, seq = #v, true
+    for k in pairs(v) do if type(k) ~= "number" or k < 1 or k > n or k ~= math.floor(k) then seq = false; break end end
+    if seq and n > 0 then
+        local o = {}
+        for i = 1, n do o[i] = LinkSet.Prof.json(v[i]) end
+        return arr(o)
+    end
+    local o = {}
+    for k, x in pairs(v) do o[tostring(k)] = LinkSet.Prof.json(x) end
+    return rapidjson.object and rapidjson.object(o) or o
+end
+
+-- The book open in ReaderUI, for the report and the live ops.
+function LinkSet.Prof.book()
+    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+    local ui = ok and ReaderUI.instance
+    if not (ui and ui.document and type(ui.document.file) == "string") then return nil end
+    local root, file = linkRoot(), ui.document.file
+    local rel = (root and file:sub(1, #root + 1) == root .. "/") and file:sub(#root + 2) or nil
+    local title
+    pcall(function() title = ui.doc_props and ui.doc_props.display_title end)
+    return { path = rel, file = file, layout = ui.rolling and "reflowable" or "fixed", title = title }, ui
+end
+
+-- The value an action would have to be given to leave the open book as it is
+-- now (what a preview puts back). nil: not known, so not previewed.
+function LinkSet.Prof.current(ui, a)
+    local cfg = ui.document and ui.document.configurable
+    if a == "set_font" then return ui.rolling and ui.font and ui.font.font_face or nil end
+    if a == "set_night_mode" then return G_reader_settings:isTrue("night_mode") end
+    if a == "zoom" then return ui.paging and ui.zooming and ui.zooming.zoom_mode or nil end
+    if type(cfg) ~= "table" then return nil end
+    if a == "h_page_margins" then
+        local m = ui.rolling and cfg.h_page_margins
+        return type(m) == "table" and { m[1], m[2] } or nil
+    end
+    if a == "kopt_trim_page" then
+        -- configurable.trim_page holds KoptOptions' value; the action takes its arg.
+        local sl = LinkSet.Prof.registry()
+        local reg = sl and sl[a]
+        local c = ui.paging and reg and reg.configurable
+        if not (c and type(c.values) == "table" and type(reg.args) == "table") then return nil end
+        for i, v in ipairs(c.values) do if v == cfg.trim_page then return reg.args[i] end end
+        return nil
+    end
+    local plain = { font_size = true, line_spacing = true, t_page_margin = true, b_page_margin = true,
+                    font_base_weight = true }
+    if plain[a] and ui.rolling then return cfg[a] end
+    return nil
+end
+
+-- The profiles plugin of the UI now up (FileManager or ReaderUI), its profiles loaded.
+function LinkSet.Prof.plugin()
+    local ui = LinkSet.ui()
+    local p = ui and ui.profiles
+    if not p then return nil, "this reader has no profiles plugin" end
+    pcall(p.loadProfiles, p)
+    if type(p.data) ~= "table" then return nil, "the profiles plugin has no profiles loaded" end
+    if type(p.autoexec) ~= "table" then p.autoexec = G_reader_settings:readSetting("profiles_autoexec", {}) end
+    return p
+end
+
+-- Writes settings/profiles.lua (Profiles:onFlushSettings) and profiles_autoexec
+-- (the same table the plugin holds), then reads profiles.lua back.
+function LinkSet.Prof.flush(p)
+    p.updated = true
+    p:onFlushSettings()
+    G_reader_settings:saveSetting("profiles_autoexec", p.autoexec)
+    G_reader_settings:flush()
+    local ok, back = pcall(dofile, p.profiles_file)
+    return ok and type(back) == "table" and back or nil
+end
+
+-- Profiles:dispatcherRegisterProfile / Unregister, for a profile shown in the
+-- action list (settings.registered) that is renamed or deleted.
+function LinkSet.Prof.reregister(p, old, new)
+    local okD, D = pcall(require, "dispatcher")
+    if not okD then return end
+    local prefix = p.prefix or "profile_exec_"
+    pcall(D.removeAction, D, prefix .. old)
+    if new then
+        local title = "Profile " .. new
+        pcall(function() title = require("ffi/util").template(require("gettext")("Profile %1"), new) end)
+        pcall(D.registerAction, D, prefix .. new,
+              { category = "none", event = "ProfileExecute", arg = new, title = title, general = true })
+    end
+    UIManager:broadcastEvent(Event:new("DispatcherActionNameChanged",
+        { old_name = prefix .. old, new_name = new and (prefix .. new) or nil }))
+end
+
+-- profile_save {name, actions, autoexec?, create?}
+function TomeSync:_linkProfileSave(args)
+    local okN, name = LinkSet.Prof.checkName(args.name)
+    if not okN then return false, name end
+    local p, why = LinkSet.Prof.plugin()
+    if not p then return false, why end
+    local _, by, err = LinkSet.Prof.catalogue()
+    if not by then return false, err end
+    local okA, acts = LinkSet.Prof.checkActions(args.actions == nil and {} or args.actions, by)
+    if not okA then return false, acts end
+    local trig
+    if args.autoexec ~= nil then
+        local okT, t = LinkSet.Prof.checkTriggers(args.autoexec)
+        if not okT then return false, t end
+        trig = t
+    end
+    local old = p.data[name]
+    -- Profiles:editProfileName's own refusal for a new profile.
+    if args.create == true and old ~= nil then return false, "Profile already exists: " .. name end
+    local prof, kept = LinkSet.Prof.build(name, acts, old, by)
+    p.data[name] = prof
+    if trig then LinkSet.Prof.setTriggers(p.autoexec, name, trig) end
+    local back = LinkSet.Prof.flush(p)
+    if not (back and LinkSet.Prof.same(back[name], prof)) then
+        return false, "settings/profiles.lua does not hold the profile after the save"
+    end
+    logger.info("TomeSync: link saved profile " .. name .. " (" .. #acts .. " actions"
+                .. (kept > 0 and (", " .. kept .. " kept") or "") .. (trig and ", triggers set" or "") .. ")")
+    return true, nil, nil, kept > 0 and (kept .. " actions this phone cannot edit were kept") or nil, nil,
+           { name = name, created = old == nil, kept = kept }
+end
+
+-- profile_delete {name}: what the menu's Delete does.
+function TomeSync:_linkProfileDelete(args)
+    local okN, name = LinkSet.Prof.checkName(args.name)
+    if not okN then return false, name end
+    local p, why = LinkSet.Prof.plugin()
+    if not p then return false, why end
+    local old = p.data[name]
+    if old == nil then return false, "no profile named " .. name end
+    LinkSet.Prof.renameTriggers(p.autoexec, name, nil)
+    if type(old.settings) == "table" and old.settings.registered then LinkSet.Prof.reregister(p, name, nil) end
+    p.data[name] = nil
+    local back = LinkSet.Prof.flush(p)
+    if not back or back[name] ~= nil then return false, "settings/profiles.lua still holds the profile" end
+    logger.info("TomeSync: link deleted profile " .. name)
+    return true, nil, nil, nil, nil, { name = name }
+end
+
+-- profile_rename {name, new_name}: what the menu's Rename does.
+function TomeSync:_linkProfileRename(args)
+    local okN, name = LinkSet.Prof.checkName(args.name)
+    if not okN then return false, name end
+    local okM, new = LinkSet.Prof.checkName(args.new_name, "new_name")
+    if not okM then return false, new end
+    local p, why = LinkSet.Prof.plugin()
+    if not p then return false, why end
+    local old = p.data[name]
+    if old == nil then return false, "no profile named " .. name end
+    if new == name then return false, "new_name is the same name" end
+    if p.data[new] ~= nil then return false, "Profile already exists: " .. new end
+    local prof = util.tableDeepCopy(old)
+    prof.settings = type(prof.settings) == "table" and prof.settings or {}
+    prof.settings.name = new
+    p.data[new] = prof
+    LinkSet.Prof.renameTriggers(p.autoexec, name, new)
+    if old.settings and old.settings.registered then LinkSet.Prof.reregister(p, name, new) end
+    p.data[name] = nil
+    local back = LinkSet.Prof.flush(p)
+    if not (back and back[name] == nil and LinkSet.Prof.same(back[new], prof)) then
+        return false, "settings/profiles.lua does not show the rename"
+    end
+    logger.info("TomeSync: link renamed profile " .. name .. " to " .. new)
+    return true, nil, nil, nil, nil, { name = new, old_name = name }
+end
+
+-- A finished command's result, posted outside the pass that ran it (the live ops).
+function TomeSync:_linkPostResult(key, result)
+    logger.info("TomeSync: link command", key, "result:",
+                result.ok and "ok" or ("failed: " .. tostring(result.error)))
+    linkRemember(key, result)
+    pcall(apiRequest, "POST", "/tome-sync/commands/" .. urlEncode(key) .. "/result", result, LINK_NET_LIGHT)
+end
+
+-- How long the reader gets to re-render after the Dispatcher ran (a batched run
+-- re-renders on tickAfterNext, ReaderRolling:onBatchedUpdateDone).
+LinkSet.Prof.SETTLE = 1.0
+LinkSet.Prof.PREVIEW_PX = 1600
+
+-- profile_preview {actions, max_px?} (restore = true) and profile_apply_open
+-- {actions} (restore = false): only with a book open in ReaderUI. The actions go
+-- through Dispatcher:execute as one profile, as a profile run does. A preview
+-- remembers what each action changes first, takes Screen:shot once the page has
+-- rendered, runs the remembered values back the same way, checks they are back,
+-- and uploads the shot (kind "preview"). Returns "pending": the result is posted
+-- when it is done.
+function TomeSync:_linkProfileLive(cmd, restore)
+    local args = type(cmd.args) == "table" and cmd.args or {}
+    local key = tostring(cmd.id)
+    local verb = restore and "preview" or "apply"
+    local book, ui = LinkSet.Prof.book()
+    if not book then
+        return false, "No book is open on the reader. Open a book there, then " .. (restore and "preview" or "try") .. " again."
+    end
+    if LinkSet.Prof.live then return false, "another preview is still running on the reader" end
+    local _, by, err = LinkSet.Prof.catalogue()
+    if not by then return false, err end
+    local okA, acts = LinkSet.Prof.checkActions(args.actions, by)
+    if not okA then return false, acts end
+    if #acts == 0 then return false, "no actions to " .. verb end
+    local max_px = LinkSet.Prof.PREVIEW_PX
+    if args.max_px ~= nil then
+        local m = args.max_px
+        if type(m) ~= "number" or m ~= math.floor(m) or m < LinkSet.Media.MAX_PX_MIN or m > LinkSet.Media.MAX_PX_MAX then
+            return false, "max_px: a whole number " .. LinkSet.Media.MAX_PX_MIN .. ".." .. LinkSet.Media.MAX_PX_MAX
+        end
+        max_px = m
+    end
+    local run, skipped, before = {}, {}, {}
+    for _, it in ipairs(acts) do
+        local d = by[it.action]
+        if d.layout and d.layout ~= book.layout then
+            table.insert(skipped, { action = it.action, why = d.layout == "fixed"
+                and "for comics and PDFs only" or "for reflowable books (EPUB and the like) only" })
+        elseif restore and not d.preview then
+            table.insert(skipped, { action = it.action, why = d.why })
+        elseif restore then
+            local okv, v = pcall(LinkSet.Prof.current, ui, it.action)
+            if okv and v ~= nil then
+                before[it.action] = v
+                table.insert(run, it)
+            else
+                table.insert(skipped, { action = it.action, why = "its current value is not known, so it could not be put back" })
+            end
+        else
+            table.insert(run, it)
+        end
+    end
+    local arr = rapidjson.array or function(t) return t end
+    local function names(list) local o = {}; for _, it in ipairs(list) do table.insert(o, it.action) end; return o end
+    if #run == 0 then
+        local w = {}
+        for _, s in ipairs(skipped) do table.insert(w, s.action .. ": " .. s.why) end
+        return false, "nothing to " .. verb .. " on this book (" .. table.concat(w, "; ") .. ")"
+    end
+    local _, D = LinkSet.Prof.registry()
+    local function profileOf(list, vals)
+        local p = { settings = { name = restore and "Tome Reader preview" or "Tome Reader" } }
+        local order = {}
+        for _, it in ipairs(list) do
+            if vals then p[it.action] = vals[it.action] else p[it.action] = it.value end
+            table.insert(order, it.action)
+        end
+        if #order >= 2 then p.settings.order = order end
+        return p
+    end
+    -- A preview shows no "Font size set to" toasts (they would be in the shot);
+    -- the notification mask is put back with everything else.
+    local MASK = "notification_sources_to_show_mask"
+    local mask_had, mask = G_reader_settings:has(MASK), G_reader_settings:readSetting(MASK)
+    local function quiet(on)
+        if not restore then return end
+        if on then G_reader_settings:saveSetting(MASK, 0)
+        elseif mask_had then G_reader_settings:saveSetting(MASK, mask)
+        else G_reader_settings:delSetting(MASK) end
+    end
+    local function same_ui()
+        local b2, ui2 = LinkSet.Prof.book()
+        return b2 and ui2 == ui and b2.file == book.file
+    end
+    local function diffs(want)
+        local out = {}
+        for _, it in ipairs(run) do
+            local okv, now = pcall(LinkSet.Prof.current, ui, it.action)
+            local w = want and want[it.action]
+            if w == nil and not want then w = it.value end
+            if okv and now ~= nil and w ~= nil and not LinkSet.Prof.same(now, w) then
+                table.insert(out, it.action .. " is " .. tostring(type(now) == "table" and table.concat(now, "/") or now))
+            end
+        end
+        return out
+    end
+    LinkSet.Prof.live = { id = key }
+    quiet(true)
+    local okE, e = pcall(D.execute, D, profileOf(run), { qm_show = false })
+    if not okE then
+        quiet(false)
+        LinkSet.Prof.live = nil
+        return false, "KOReader could not run the actions: " .. tostring(e)
+    end
+    logger.info("TomeSync: link " .. verb .. " ran " .. table.concat(names(run), ", ") .. " on " .. tostring(book.path or book.file)
+                .. (#skipped > 0 and (" (left out: " .. table.concat(names(skipped), ", ") .. ")") or ""))
+    local me = self
+    local base = { book = book.path or book.file, layout = book.layout,
+                   applied = arr(names(run)), skipped = arr(skipped) }
+    local function finish(result)
+        LinkSet.Prof.live = nil
+        for k, v in pairs(base) do if result[k] == nil then result[k] = v end end
+        me:_linkPostResult(key, result)
+    end
+    UIManager:scheduleIn(LinkSet.Prof.SETTLE, function()
+        if not same_ui() then
+            quiet(false)
+            return finish({ ok = false, error = "the book closed before the page had rendered", restored = restore and false or nil })
+        end
+        pcall(UIManager.forceRePaint, UIManager)
+        if not restore then
+            local d = diffs(nil)
+            LinkSet.dirty = true
+            if #d > 0 then return finish({ ok = false, error = "KOReader kept other values: " .. table.concat(d, ", ") }) end
+            logger.info("TomeSync: link applied " .. #run .. " actions to the open book")
+            return finish({ ok = true, note = "applied to the open book" })
+        end
+        local night = Device.screen and Device.screen.night_mode and true or false
+        local tmpdir = DataStorage:getDataDir() .. "/cache/tomesync-link"
+        mkdirp(tmpdir)
+        local png = tmpdir .. "/preview-" .. key .. ".png"
+        os.remove(png)
+        local okS, eS = pcall(function() Device.screen:shot(png) end)
+        local shot = okS and lfs.attributes(png, "mode") == "file"
+        local okB, eB = pcall(D.execute, D, profileOf(run, before), { qm_show = false })
+        UIManager:scheduleIn(LinkSet.Prof.SETTLE, function()
+            if same_ui() then pcall(UIManager.forceRePaint, UIManager) end
+            quiet(false)
+            local left = same_ui() and diffs(before) or { "the book closed" }
+            local restored = okB and #left == 0
+            if restored then
+                logger.info("TomeSync: link preview put back " .. table.concat(names(run), ", "))
+            else
+                logger.warn("TomeSync: link preview could not put everything back:", tostring(eB), table.concat(left, ", "))
+            end
+            if not shot then
+                os.remove(png)
+                return finish({ ok = false, error = "the screenshot was not written: " .. tostring(eS), restored = restored })
+            end
+            -- Screen:shot is the framebuffer before night mode's inversion (hardware
+            -- or the blitter's inverse flag): the shot is inverted to show the screen.
+            local jpg = tmpdir .. "/preview-" .. key .. ".jpg"
+            local okJ, w, h, sw, sh = TomeSync._linkShrink(png, jpg, max_px, night)
+            os.remove(png)
+            if not okJ then
+                os.remove(jpg)
+                return finish({ ok = false, error = w, restored = restored })
+            end
+            local okU, code, size, ms = me:_linkPutUpload(key, jpg, "image/jpeg", "preview")
+            os.remove(jpg)
+            if not okU then
+                return finish({ ok = false, error = "upload failed: " .. tostring(code), restored = restored, kind = "preview" })
+            end
+            logger.info("TomeSync: link preview " .. key .. " " .. size .. " bytes in " .. ms .. " ms, night "
+                        .. tostring(night) .. ", restored " .. tostring(restored))
+            finish({ ok = restored, error = (not restored) and ("not everything was put back: "
+                         .. (okB and table.concat(left, ", ") or tostring(eB))) or nil,
+                     restored = restored, kind = "preview", night_mode = night, width = w, height = h,
+                     sent_width = sw, sent_height = sh, bytes = size, content_type = "image/jpeg" })
+        end)
+    end)
+    return "pending"
 end
 
 -- ── Build 60: plugins (LinkSet.Plug above holds the pure rules) ─────────────
@@ -7819,18 +8688,51 @@ end
 -- most max_px: RenderImage (MuPDF / giflib / libwebp decode, MuPDF scale,
 -- frontend/ui/renderimage.lua) and the blitbuffer's writeJPG (ffi/jpeg,
 -- libjpeg-turbo). Returns ok, w, h (original), sw, sh (sent) | false, why.
-function TomeSync._linkShrink(src, dest, max_px)
+-- invert (build 62): the pixels are inverted first (a preview in night mode).
+function TomeSync._linkShrink(src, dest, max_px, invert)
     local RenderImage = require("ui/renderimage")
     local bb = RenderImage:renderImageFile(src, false)
     if not bb then return false, "KOReader could not decode the image" end
     local w, h = bb:getWidth(), bb:getHeight()
     local sw, sh, scaled = LinkSet.Media.fit(w, h, max_px)
     if scaled then bb = RenderImage:scaleBlitBuffer(bb, sw, sh) end
+    if invert then bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end
     local ok, e = pcall(bb.writeJPG, bb, dest, 80)
     bb:free()
     if not ok then os.remove(dest); return false, "could not write the JPEG: " .. tostring(e) end
     if lfs.attributes(dest, "mode") ~= "file" then return false, "the JPEG was not written" end
     return true, w, h, sw, sh
+end
+
+-- PUT /tome-sync/upload/{command id}: the file at src streamed from disk (at
+-- most 20 MB, 2 min for the whole transfer). Returns ok, code, size, ms.
+function TomeSync:_linkPutUpload(id, src, ctype, kind)
+    local size = lfs.attributes(src, "size") or 0
+    if size > LinkSet.Media.MAX_UPLOAD then return false, "over " .. math.floor(LinkSet.Media.MAX_UPLOAD / 1048576) .. " MB", size, 0 end
+    if not NetworkMgr:isConnected() then return false, "offline", size, 0 end
+    local t0 = linkNow()
+    local chunks = {}
+    local rok, code = serverRequest({
+        method  = "PUT",
+        path    = "/api/tome-sync/upload/" .. urlEncode(id),
+        headers = {
+            ["Authorization"]   = "Bearer " .. apiKey(),
+            ["Content-Type"]    = ctype,
+            ["Content-Length"]  = tostring(size),
+            ["Accept"]          = "application/json",
+            ["X-Tome-Upload-Kind"] = kind,
+        },
+        source  = function() return ltn12.source.file(io.open(src, "rb")) end,
+        sink    = function() chunks = {}; return cappedTableSink(chunks) end,
+        block   = 15,
+        total   = LinkSet.Media.UPLOAD_SECS,
+    })
+    local ms = math.floor((linkNow() - t0) * 1000 + 0.5)
+    if not rok or type(code) ~= "number" or code < 200 or code >= 300 then
+        logger.info("TomeSync: link upload " .. id .. " failed: " .. tostring(code) .. " (" .. size .. " bytes, " .. ms .. " ms)")
+        return false, code, size, ms
+    end
+    return true, code, size, ms
 end
 
 -- upload {path?, kind, max_px?}: PUT /tome-sync/upload/{command id} with the
@@ -7888,27 +8790,9 @@ function TomeSync:_linkUpload(root, cmd)
         return false, "over " .. math.floor(LinkSet.Media.MAX_UPLOAD / 1048576) .. " MB (" .. size .. " bytes)"
     end
     if not NetworkMgr:isConnected() then cleanup(); return false, "offline" end
-    local t0 = linkNow()
-    local chunks = {}
-    local rok, code = serverRequest({
-        method  = "PUT",
-        path    = "/api/tome-sync/upload/" .. urlEncode(id),
-        headers = {
-            ["Authorization"]   = "Bearer " .. apiKey(),
-            ["Content-Type"]    = ctype,
-            ["Content-Length"]  = tostring(size),
-            ["Accept"]          = "application/json",
-            ["X-Tome-Upload-Kind"] = a.kind,
-        },
-        source  = function() return ltn12.source.file(io.open(src, "rb")) end,
-        sink    = function() chunks = {}; return cappedTableSink(chunks) end,
-        block   = 15,
-        total   = LinkSet.Media.UPLOAD_SECS,
-    })
+    local rok, code, _, ms = self:_linkPutUpload(id, src, ctype, a.kind)
     cleanup()
-    local ms = math.floor((linkNow() - t0) * 1000 + 0.5)
-    if not rok or type(code) ~= "number" or code < 200 or code >= 300 then
-        logger.info("TomeSync: link upload " .. id .. " failed: " .. tostring(code) .. " (" .. size .. " bytes, " .. ms .. " ms)")
+    if not rok then
         return false, "upload failed: " .. tostring(code), nil, nil, nil, extra
     end
     logger.info("TomeSync: link upload " .. id .. " (" .. a.kind .. ") " .. size .. " bytes " .. ctype .. " in " .. ms .. " ms")
