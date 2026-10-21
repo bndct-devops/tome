@@ -171,8 +171,8 @@ logger = logging.getLogger(__name__)
 # profile_save / profile_delete / profile_rename write what the Profiles plugin
 # writes; profile_preview applies actions to the open book, uploads a screenshot
 # (kind "preview") and puts the book back; profile_apply_open keeps them.
-TOMESYNC_PLUGIN_BUILD = 62
-TOMESYNC_PLUGIN_SEMVER = "1.19.2"
+TOMESYNC_PLUGIN_BUILD = 1063
+TOMESYNC_PLUGIN_SEMVER = "1.20.2+link.1063"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 

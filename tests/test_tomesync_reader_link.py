@@ -240,7 +240,7 @@ def test_http_leaves_tls_untouched():
     """http: tlsCreateFor returns nil, so http.request runs exactly as before.
     https always goes through the policy's create (build 56)."""
     lua = _main_impl_lua("https://tome.test", "key", "user")
-    body = lua[lua.index("local function tlsCreateFor(base)"):]
+    body = lua[lua.index("local function tlsCreateFor(base, route)"):]
     body = body[:body.index("\nend\n")]
     assert 'match("^https://") then return nil end' in body
     assert "TLS.decision(" in body
@@ -313,7 +313,7 @@ def test_tls_policy_wiring():
     assert "G_reader_settings:flush()" in trust
     # build 57: the CA renewal path unpins in both places a decision is made
     assert "TLS.unpin(base, pin, probe.digest)" in trust
-    create = lua[lua.index("local function tlsCreateFor(base)"):]
+    create = lua[lua.index("local function tlsCreateFor(base, route)"):]
     create = create[:create.index("\nend\n")]
     assert "TLS.unpin(base, pin, got)" in create
     assert "local cafile = (not link) and TLS.bundle() or nil" in create
@@ -436,8 +436,8 @@ def test_build_55_device_id_wording_and_probe_rules():
     assert "Settings > Security > Quick Connect" in lua
     # Never a probe without a pin; the pinned create is used for each host.
     probe = lua[lua.index("local function linkProbeHosts"):lua.index("-- The pass: device info")]
-    assert probe.index("if not pinnedFingerprint() then") < probe.index("http.request")
-    assert "create  = tlsCreateFor(host)," in probe
+    assert probe.index("if not pin then") < probe.index("http.request")
+    assert "create  = tlsCreateFor(host, route)," in probe
     assert "socketutil:set_timeout(2, 4)" in probe
 
 
@@ -588,10 +588,10 @@ print("ok")
 def test_heartbeat_wiring():
     lua = _impl()
     net = lua[lua.index("-- TOMESYNC_NET_BEGIN"):lua.index("-- TOMESYNC_NET_END")]
-    assert "if spec.no_backoff then return ok, code end\n    noteNetFailure()" in net
+    assert "if spec.no_backoff then return ok, code end\n    local n = noteNetFailure(link or \"tome\")" in net
     api = lua[lua.index("local function apiRequest(method, path, body, opts)"):]
     api = api[:api.index("\nend\n")]
-    assert "if inBackoff() and not (opts and opts.no_backoff) then" in api
+    assert "if inBackoff(route) and not (opts and opts.no_backoff) then" in api
     pas = lua[lua.index("function TomeSync:_linkPass(light, hb)"):]
     pas = pas[:pas.index("\nend\n")]
     # heartbeat: commands GET only (no device-info, no tree, no probe)
@@ -684,7 +684,7 @@ def test_build_58_wiring():
     pas = lua[lua.index("function TomeSync:_linkPass(light, hb)"):]
     pas = pas[:pas.index("\nend\n")]
     assert "inbox_n = LinkHB.inboxCount(list)" in pas
-    assert "self:_deliverInbox(items, true)" in pas
+    assert "self:_deliverInbox(items, true, \"link\")" in pas
     assert 'self:_linkRepair(code, raw, "device-info")' in pas
     assert 'self:_linkRepair(code, raw, "commands")' in pas
     assert "and not link_off.all and not repair" in pas
@@ -1035,7 +1035,7 @@ def test_build_60_wiring():
     assert 'G_reader_settings:saveSetting("plugins_disabled", LinkSet.Plug.setDisabled(cur, name, args.on))' in lua
     # the menu's update and the link's share one swap
     assert "local ok, _, text = self:_applyUpdate(new_build)" in lua
-    assert "local ok, e = self:_applyUpdate(avail.build)" in lua
+    assert "local ok, e = self:_applyUpdate(avail.build, \"link\")" in lua
 
 
 @pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
@@ -1580,3 +1580,66 @@ assert(not ran, "nothing ran")
 assert(LinkSet.Prof.live == nil)
 print("ok")
 ''')
+
+
+# ── Build 1063: every call site has one route; none crosses ───────────────────
+
+_LINK_MARKS = ("net)", "net,", "LINK_NET_LIGHT", "LINK_NET_TREE", "LinkSession.NET", "via(", "link and LinkSession.NET")
+
+
+def _calls(lua, fn):
+    out, i = [], 0
+    while True:
+        i = lua.find(fn, i)
+        if i < 0:
+            return out
+        j, depth = lua.index("(", i), 0
+        k = j
+        while True:
+            c = lua[k]
+            depth += c == "("
+            depth -= c == ")"
+            k += 1
+            if depth == 0:
+                break
+        out.append(lua[i:k])
+        i = k
+
+
+def test_call_site_map_link_and_sync_never_cross():
+    import re
+    lua = _impl()
+    link_paths = ("/tome-sync/device-info", "/tome-sync/files", "/tome-sync/commands",
+                  "/tome-sync/reader-settings", "/tome-sync/plugins", "/tome-sync/networks")
+    seen = {}
+    for call in _calls(lua, 'apiRequest("') + _calls(lua, 'pcall(apiRequest, "'):
+        m = re.search(r'"(/[^"?]*)', call)
+        assert m, call
+        path = m.group(1)
+        linked = any(mark in call for mark in _LINK_MARKS)
+        seen.setdefault(path, set()).add(linked)
+        if path.startswith(link_paths):
+            assert linked, "reader link call without the link route: " + call
+        elif path.startswith(("/auth/", "/plugin/api-keys")):
+            assert "via(" in call, "pairing call that cannot reach the phone link: " + call
+        elif path in ("/tome-sync/inbox", "/tome-sync/inbox/", "/plugin/version"):
+            pass   # both: checked below
+        else:
+            assert not linked, "sync call sent to the phone link: " + call
+    assert seen["/tome-sync/inbox"] == {True, False}
+    # the update check asks the phone only when "link" is passed (explicit actions)
+    assert 'pcall(apiRequest, "GET", "/plugin/version", nil,\n                                 route == "link" and LinkSession.NET or nil)' in lua
+    # the other request makers
+    for call in _calls(lua, "serverRequest({") + _calls(lua, "pcall(serverRequest, {"):
+        if "/api/tome-sync/upload/" in call or '"/api" .. api_path,\n        route   = "link"' in call:
+            assert 'route   = "link"' in call and "PluginConfig.linkKey()" in call, call
+    cap = lua[lua.index("function TomeSync._linkFetchCapped"):]
+    cap = cap[:cap.index("\nend\n")]
+    assert 'route   = "link"' in cap and "PluginConfig.linkKey()" in cap
+    cover = lua[lua.index("local function fetchToFile(api_path, dest)"):]
+    cover = cover[:cover.index("\nend\n")]
+    assert "route" not in cover and "apiKey()" in cover
+    # self-update: the server unless "link" was asked for; config.lua never from the phone
+    assert 'self:checkForUpdate(function(a, e) avail, why = a, e end, "link")' in lua
+    assert 'local body, code = fetchText("/plugin/main-impl.lua", route == "link" and "link" or nil)' in lua
+    assert 'if route ~= "link" and not readWhole(config_dir .. "/config.lua") then' in lua

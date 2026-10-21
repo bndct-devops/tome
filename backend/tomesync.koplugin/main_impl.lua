@@ -217,10 +217,104 @@ function PluginConfig.load(dir)
     PluginConfig.write(dir, baked)
     return baked, "baked"
 end
+
+-- The phone link (build 1063): link.lua beside config.lua, written by Tome
+-- Reader's install or by TomeSync > Phone link > Pair with phone, never by
+-- Tome and never by self-update. It names the phone as a second server, used
+-- only for the reader link's calls (device info, commands, reports, uploads,
+-- its inbox); every sync call stays with config.lua's server. config.lua is
+-- not touched, so a reader that had a Tome keeps syncing with it as before.
+-- Without a usable link.lua (missing, invalid, not https, no pin) there is
+-- no separate link and the plugin behaves as builds before 1063.
+PluginConfig.LINK_FIELDS = { LINK_URL = "string", LINK_KEY = "string", LINK_FINGERPRINT = "string",
+                             LINK_USERNAME = "string", LINK_HOSTS = "table" }
+PluginConfig.LINK_ORDER  = { "LINK_URL", "LINK_KEY", "LINK_USERNAME", "LINK_FINGERPRINT" }
+
+-- Same rules as config.lua (text only, no environment, a name set twice
+-- makes the file invalid). Returns the table only when it describes a usable
+-- link: an https LINK_URL, a key and a SHA-256 pin.
+function PluginConfig.parseLink(text)
+    if type(text) ~= "string" then return nil end
+    local chunk = load(text, "=link.lua", "t")
+    if not chunk then return nil end
+    local vals, dup = {}, false
+    local env = setmetatable({}, {
+        __index = vals,
+        __newindex = function(_, k, v)
+            if PluginConfig.LINK_FIELDS[k] and vals[k] ~= nil then dup = true end
+            vals[k] = v
+        end,
+    })
+    setfenv(chunk, env)
+    if not pcall(chunk) then return nil end
+    if dup then return nil end
+    local out = {}
+    for k, ty in pairs(PluginConfig.LINK_FIELDS) do
+        if type(vals[k]) == ty then out[k] = vals[k] end
+    end
+    out.LINK_HOSTS = PluginConfig.linkHosts(out.LINK_HOSTS)
+    local fp = type(out.LINK_FINGERPRINT) == "string" and (out.LINK_FINGERPRINT:gsub("[%s:]", "")):lower() or ""
+    if type(out.LINK_URL) ~= "string" or not out.LINK_URL:match("^https://[^%s/]+$")
+            or type(out.LINK_KEY) ~= "string" or out.LINK_KEY == ""
+            or #fp ~= 64 or fp:find("[^0-9a-f]") then
+        return nil
+    end
+    return out
+end
+
+function PluginConfig.renderLink(cfg)
+    local lines = { "-- TomeSync phone link (Tome Reader). config.lua's server is not affected." }
+    for _, k in ipairs(PluginConfig.LINK_ORDER) do
+        local v = cfg[k]
+        lines[#lines + 1] = k .. " = " .. string.format("%q", type(v) == "string" and v or "")
+    end
+    local hosts = PluginConfig.linkHosts(cfg.LINK_HOSTS)
+    if hosts then
+        local q = {}
+        for i, h in ipairs(hosts) do q[i] = string.format("%q", h) end
+        lines[#lines + 1] = "LINK_HOSTS = { " .. table.concat(q, ", ") .. " }"
+    end
+    return table.concat(lines, "\n") .. "\n"
+end
+
+function PluginConfig.writeLink(dir, cfg)
+    local path = dir .. "/link.lua"
+    local f = io.open(path .. ".new", "wb")
+    if not f then return false end
+    local ok = f:write(PluginConfig.renderLink(cfg))
+    f:close()
+    if not ok or not os.rename(path .. ".new", path) then
+        os.remove(path .. ".new")
+        return false
+    end
+    return true
+end
+
+-- The link table, or nil and why ("none", "invalid").
+function PluginConfig.loadLink(dir)
+    local f = io.open(dir .. "/link.lua", "rb")
+    if not f then return nil, "none" end
+    local text = f:read("*a")
+    f:close()
+    local cfg = PluginConfig.parseLink(text)
+    if cfg then return cfg, "link" end
+    return nil, "invalid"
+end
 -- TOMESYNC_CONFIG_END
 
 local PLUGIN_CONFIG, PLUGIN_CONFIG_FROM = PluginConfig.load(PluginConfig.dir())
 logger.info("TomeSync: connection config:", PLUGIN_CONFIG_FROM)
+-- The phone link (link.lua, build 1063). PluginConfig.link is nil without a
+-- usable one: then the reader link shares config.lua's server, as before.
+function PluginConfig.reloadLink()
+    local why
+    PluginConfig.link, why = PluginConfig.loadLink(PluginConfig.dir())
+    logger.info("TomeSync: phone link: " .. (PluginConfig.link
+        and ("link.lua, " .. PluginConfig.link.LINK_URL .. " (reader link calls go there; sync calls stay with "
+             .. (PLUGIN_CONFIG.SERVER_URL ~= nil and PLUGIN_CONFIG.SERVER_URL ~= "" and PLUGIN_CONFIG.SERVER_URL or "the configured server") .. ")")
+        or (why == "invalid" and "link.lua is not usable (ignored)" or "none")))
+end
+PluginConfig.reloadLink()
 
 -- Defaults from config.lua; overridable in Settings > Server.
 local DEFAULT_SERVER_URL = PLUGIN_CONFIG.SERVER_URL or ""
@@ -244,6 +338,14 @@ end
 -- pairing) writes both, and the username is only ever the server's answer to
 -- "who does this key belong to" — the key alone decides the account.
 local function apiKey()        return liveSetting("tomesync_api_key",    DEFAULT_API_KEY) end
+-- The reader link's key: link.lua's when there is a separate phone link,
+-- else the server's (one server for everything, as before build 1063).
+-- While a phone link is being paired, nothing but the pairing's own token
+-- goes to that address (never the server's key).
+function PluginConfig.linkKey()
+    if PluginConfig.pairing then return PluginConfig.pairing.LINK_KEY or "" end
+    return PluginConfig.link and PluginConfig.link.LINK_KEY or apiKey()
+end
 local function username()      return liveSetting("tomesync_username",   DEFAULT_USERNAME) end
 local function hasOverrides()
     return G_reader_settings:readSetting("tomesync_server_url") ~= nil
@@ -460,15 +562,19 @@ function TLS.markOk(base, verdict, text)
         logger.info("TomeSync: " .. text .. " for " .. base .. ", once per process")
     end
 end
-local function tlsCreateFor(base)
+-- route "link" (build 1063): the phone link's own pin (link.lua, or the one
+-- being paired), refused on a mismatch like every reader link address.
+-- Anything else: config.lua's server and its pin, exactly as before.
+local function tlsCreateFor(base, route)
     if type(base) ~= "string" or not base:lower():match("^https://") then return nil end
     local st = TLS.state[base]
     if st and st.verdict == "ask" and os.time() - st.at < TLS.RECHECK then
         TLS.noteUntrusted(base, st)
         return function() return nil, TLS.UNTRUSTED end
     end
-    local pin  = pinnedFingerprint()
-    local link = TLS.isLink(base)
+    local lcfg = route == "link" and (PluginConfig.pairing or PluginConfig.link) or nil
+    local pin  = lcfg and normFingerprint(lcfg.LINK_FINGERPRINT) or (not lcfg and pinnedFingerprint()) or nil
+    local link = lcfg ~= nil or TLS.isLink(base)
     -- A pinned ordinary server is verified against the bundle too (the
     -- result only counts when the pin no longer matches: TLS.decision).
     local cafile = (not link) and TLS.bundle() or nil
@@ -545,7 +651,8 @@ end
 
 -- TOMESYNC_NET_BEGIN (uses only liveSetting, DEFAULT_SERVER_URL,
 -- G_reader_settings, socketutil, http, ltn12, logger, tlsCreateFor,
--- PIN_REFUSED and TLS (its UNTRUSTED) — extracted and run under luajit by the
+-- PIN_REFUSED, TLS (its UNTRUSTED) and PluginConfig (its link and pairing,
+-- when defined) — extracted and run under luajit by the
 -- backend test suite with fakes for those)
 --
 -- Every request runs on KOReader's UI thread, so a server that does not
@@ -568,15 +675,52 @@ local backoff_until = 0     -- os.time() before which requests are skipped
 local function backoffSeconds(failures)
     return math.min(BACKOFF_BASE * 2 ^ (failures - 1), BACKOFF_MAX)
 end
-local function noteNetFailure()
+-- The reader link's address for this session (build 55): a LINK_HOSTS entry
+-- that answered device-info (the phone on its hotspot or its last Wi-Fi
+-- address). Dropped when it stops answering and when the network changes,
+-- and never saved, so a restart starts from the configured address again.
+-- Build 1063: with a separate phone link (link.lua, PluginConfig.link) the
+-- link has its own address, key, pin and back-off window (LinkSession.net),
+-- and only reader link calls (route "link") go there; sync calls never do,
+-- and a phone that does not answer never holds them up. Without one, the
+-- link's calls share the server's address and window, as before.
+local LinkSession = { url = nil, net = { failures = 0, till = 0 } }
+-- The separate phone link, or nil (also the one being paired, build 1063).
+function LinkSession.cfg()
+    local pc = rawget(_G, "PluginConfig") or PluginConfig
+    if type(pc) ~= "table" then return nil end
+    return pc.pairing or pc.link, pc.pairing ~= nil
+end
+-- "link" when a request of this route goes to the separate phone link.
+function LinkSession.route(route)
+    return (route == "link" and LinkSession.cfg() ~= nil) and "link" or nil
+end
+local function noteNetFailure(route)
+    if LinkSession.route(route) then
+        local n = LinkSession.net
+        n.failures = n.failures + 1
+        n.till = os.time() + backoffSeconds(n.failures)
+        return n.failures
+    end
     net_failures = net_failures + 1
     backoff_until = os.time() + backoffSeconds(net_failures)
+    return net_failures
 end
-local function resetBackoff()
-    net_failures = 0
-    backoff_until = 0
+-- No route: both windows (a user action, the network coming back).
+local function resetBackoff(route)
+    if route == nil or not LinkSession.route(route) then
+        net_failures = 0
+        backoff_until = 0
+    end
+    if route == nil or LinkSession.route(route) then
+        LinkSession.net.failures, LinkSession.net.till = 0, 0
+    end
 end
-local function inBackoff()
+local function inBackoff(route)
+    if LinkSession.route(route) then
+        local n = LinkSession.net
+        return n.failures > 0 and os.time() < n.till
+    end
     return net_failures > 0 and os.time() < backoff_until
 end
 
@@ -594,15 +738,14 @@ local function fallbackURL()
     if v == nil or v == "" or v == primaryURL() then return nil end
     return v
 end
--- The reader link's address for this session (build 55): a LINK_HOSTS entry
--- that answered device-info (the phone on its hotspot or its last Wi-Fi
--- address). While set, every request goes there and nowhere else; it is
--- dropped when it stops answering and when the network changes, and never
--- saved, so a restart starts from SERVER_URL again.
-local LinkSession = { url = nil }
 -- Addresses in the order to try them: the one that last answered first.
-local function serverURLs()
-    if LinkSession.url then return { LinkSession.url } end
+-- route "link" with a separate phone link: the phone's address only.
+local function serverURLs(route)
+    if LinkSession.route(route) then
+        local c, pairing = LinkSession.cfg()
+        return { (not pairing and LinkSession.url) or c.LINK_URL }
+    end
+    if LinkSession.url and not LinkSession.cfg() then return { LinkSession.url } end
     local primary, fallback = primaryURL(), fallbackURL()
     if not fallback then return { primary } end
     if G_reader_settings:readSetting("tomesync_active_url") == fallback then
@@ -611,7 +754,7 @@ local function serverURLs()
     return { primary, fallback }
 end
 -- The address requests go to right now (also what the menus show).
-local function serverURL() return serverURLs()[1] end
+local function serverURL(route) return serverURLs(route)[1] end
 local function rememberURL(base)
     local v = (base ~= primaryURL()) and base or nil
     if G_reader_settings:readSetting("tomesync_active_url") ~= v then
@@ -627,13 +770,15 @@ end
 -- no answer at all (an HTTP error status IS an answer and is returned as-is).
 -- spec: method, path (e.g. "/api/health"), headers, body (string or nil),
 -- sink (a function returning a fresh ltn12 sink per attempt — a failed
--- attempt may have written into the previous one), block / total timeouts.
+-- attempt may have written into the previous one), block / total timeouts,
+-- route ("link": a reader link call, build 1063; nil: a sync call).
 -- Returns ok, code exactly like http.request. Does not check the back-off
 -- window: background callers do that (apiRequest), interactive ones do not.
 local function serverRequest(spec)
     local ok, code
     local refused, missed = false, false
-    for _, base in ipairs(serverURLs()) do
+    local link = LinkSession.route(spec.route)
+    for _, base in ipairs(serverURLs(spec.route)) do
         socketutil:set_timeout(spec.block, spec.total)
         ok, code = http.request({
             url     = base .. spec.path,
@@ -643,12 +788,12 @@ local function serverRequest(spec)
             -- streamed from a file; every base URL starts it over).
             source  = spec.body and ltn12.source.string(spec.body) or (spec.source and spec.source()) or nil,
             sink    = spec.sink(),
-            create  = tlsCreateFor(base),   -- nil unless https with a pinned certificate
+            create  = tlsCreateFor(base, link),   -- nil unless https with a pinned certificate
         })
         socketutil:reset_timeout()
         if ok then
-            if base ~= LinkSession.url then rememberURL(base) end
-            resetBackoff()
+            if not link and base ~= LinkSession.url then rememberURL(base) end
+            resetBackoff(link or "tome")
             return ok, code
         end
         -- A pin refusal was logged once where it happened; it still counts
@@ -665,19 +810,20 @@ local function serverRequest(spec)
         end
     end
     if not missed then return ok, code end
-    if LinkSession.url then
+    if LinkSession.url and (link or not LinkSession.cfg()) then
         if not spec.no_backoff then
-            logger.info("TomeSync: reader link via " .. LinkSession.url .. " stopped answering; back to the configured server")
+            logger.info("TomeSync: reader link via " .. LinkSession.url .. " stopped answering; back to the configured "
+                        .. (link and "phone link address" or "server"))
         end
         LinkSession.url = nil
     end
     -- The reader link's heartbeat (build 57) is its own bounded retry: it
     -- neither opens nor waits for the back-off window.
     if spec.no_backoff then return ok, code end
-    noteNetFailure()
+    local n = noteNetFailure(link or "tome")
     if not refused then
-        logger.warn("TomeSync: server unreachable, next try in",
-                    backoffSeconds(net_failures), "s (miss " .. net_failures .. ")")
+        logger.warn("TomeSync: " .. (link and "phone link" or "server") .. " unreachable, next try in",
+                    backoffSeconds(n), "s (miss " .. n .. ")")
     end
     return ok, code
 end
@@ -775,9 +921,12 @@ local HEARTBEAT_PAGES = 50
 -- (device left awake, reader asleep) and is not booked to the session. The
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
-local PLUGIN_VERSION  = "60"
-local BUILD           = 62      -- monotonic; the only thing compared
-local SEMVER          = "1.19.2"   -- human-facing display only
+local PLUGIN_VERSION  = "1063"
+-- Build 1063: 1000 + the reader link's next number, so no Tome release builds
+-- (53 and counting) ever look newer to it, nor it older to them; it carries
+-- the reading companion of Tome's build 53 (SEMVER 1.20.2) plus the link.
+local BUILD           = 1063    -- monotonic; the only thing compared
+local SEMVER          = "1.20.2+link.1063"   -- human-facing display only
 
 local function urlEncode(s)
     return s:gsub("([^%w%-%.%_%~])", function(c)
@@ -889,8 +1038,21 @@ local function apiRequest(method, path, body, opts)
 
     -- Skip requests while the back-off window is open (see TOMESYNC_NET).
     -- Once it expires the next request goes through as the probe.
-    if inBackoff() and not (opts and opts.no_backoff) then
-        logger.dbg("TomeSync: skipping request (server unreachable, backing off)")
+    -- opts.link (build 1063): a reader link call, to the phone link when
+    -- there is a separate one, with its key; everything else is a sync call.
+    -- opts.pairing ({LINK_URL, LINK_FINGERPRINT}): Phone link > Pair, this one
+    -- request to that address with that pin and no key but opts.token.
+    local route = (opts and (opts.link or opts.pairing)) and "link" or nil
+    if opts and opts.pairing then
+        PluginConfig.pairing = { LINK_URL = opts.pairing.LINK_URL, LINK_FINGERPRINT = opts.pairing.LINK_FINGERPRINT, LINK_KEY = "" }
+        local res = { pcall(apiRequest, method, path, body,
+                            { token = opts.token, block = opts.block, total = opts.total, no_backoff = true, link = true }) }
+        PluginConfig.pairing = nil
+        if not res[1] then return nil, tostring(res[2]) end
+        return res[2], res[3], res[4]
+    end
+    if inBackoff(route) and not (opts and opts.no_backoff) then
+        logger.dbg("TomeSync: skipping request (" .. (LinkSession.route(route) and "phone link" or "server") .. " unreachable, backing off)")
         return nil, "backoff"
     end
 
@@ -898,7 +1060,7 @@ local function apiRequest(method, path, body, opts)
     local resp_chunks
 
     local headers = {
-        ["Authorization"] = "Bearer " .. ((opts and opts.token) or apiKey()),
+        ["Authorization"] = "Bearer " .. ((opts and opts.token) or (route and PluginConfig.linkKey()) or apiKey()),
         ["Content-Type"]  = "application/json",
         ["Accept"]        = "application/json",
     }
@@ -922,6 +1084,7 @@ local function apiRequest(method, path, body, opts)
         block   = (opts and opts.block) or 5,
         total   = (opts and opts.total) or 45,
         no_backoff = opts and opts.no_backoff or nil,
+        route   = route,
     })
     if not ok then return nil, code end
 
@@ -952,7 +1115,8 @@ local function pickBestFile(files)
     return files[1]
 end
 
-local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb)
+-- route "link" (build 1063): a delivery from the phone link's inbox.
+local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb, route)
     if not NetworkMgr:isConnected() then
         return false, "offline"
     end
@@ -993,7 +1157,8 @@ local function downloadFile(book_id, file_id, dest_path, total_size, progress_cb
     local rok, ok, code = pcall(serverRequest, {
         method  = "GET",
         path    = "/api/tome-sync/download/" .. urlEncode(tostring(book_id)) .. "/" .. urlEncode(tostring(file_id)),
-        headers = { ["Authorization"] = "Bearer " .. apiKey() },
+        headers = { ["Authorization"] = "Bearer " .. (route == "link" and PluginConfig.linkKey() or apiKey()) },
+        route   = route,
         sink    = makeSink,
         block   = 15,
         total   = 900,
@@ -1149,13 +1314,16 @@ local function writeWhole(path, data)
 end
 
 -- Raw (non-JSON) authenticated GET, used to fetch the new impl text.
-local function fetchText(path)
+-- route "link" (build 1063): from the phone link (its plugin, on an explicit
+-- "Update from this phone"); nil: from the server.
+local function fetchText(path, route)
     if not NetworkMgr:isConnected() then return nil, "offline" end
     local chunks
     local ok, code = serverRequest({
         method  = "GET",
         path    = "/api" .. path,
-        headers = { ["Authorization"] = "Bearer " .. apiKey() },
+        route   = route,
+        headers = { ["Authorization"] = "Bearer " .. (route == "link" and PluginConfig.linkKey() or apiKey()) },
         sink    = function()
             chunks = {}
             return cappedTableSink(chunks)
@@ -1507,6 +1675,10 @@ end
 -- every network call is scheduled, so opening a book never waits on Tome.
 function TomeSync:_afterOpen()
     self:_initSession()
+    -- Reading companion: per-book snapshot state + "Who is this?" button, and
+    -- a snapshot pull the last close/suspend of this book left for later.
+    pcall(function() self:_companionOnOpen() end)
+    pcall(function() self:_companionRunPending() end)
     -- Pull highlights from other devices (and push any local changes). This is the
     -- moment a device picks up annotations made elsewhere. Deferred a tick so the
     -- annotation module is fully settled before we merge into it.
@@ -1532,6 +1704,9 @@ function TomeSync:onPageUpdate(pageno)
         self:_tryResolve()
         if self.book_id then
             self:_initSession()
+            -- Matched late: the companion's open step never ran for this book.
+            pcall(function() self:_companionOnOpen() end)
+            pcall(function() self:_companionRunPending() end)
         end
         return
     end
@@ -1599,7 +1774,12 @@ function TomeSync:onSuspend()
         local duration, session_end = self:_sessionTotals(os.time())
         local dev      = deviceName()
 
-        self:_putPosition(self.book_id, cfi, pct, dev)
+        -- Quiet: a companion snapshot pull is only noted for later here (a
+        -- network fetch must never hold up the device going to sleep).
+        self._companion_quiet = true
+        local pok, perr = pcall(self._putPosition, self, self.book_id, cfi, pct, dev)
+        self._companion_quiet = false
+        if not pok then logger.warn("TomeSync: position push on suspend failed:", perr) end
 
         -- Sync highlights/notes alongside position (bidirectional merge with the server).
         pcall(function() self:_syncAnnotations() end)
@@ -1674,6 +1854,8 @@ function TomeSync:onResume()
 
     -- Push position on wake — catches up after offline periods
     self:_pushPosition()
+    -- A companion snapshot pull the suspend left for later (when online).
+    pcall(function() self:_companionRunPending() end)
 
     -- Flush any pending sessions / ratings from offline periods
     self:_flushPendingSessions()
@@ -1861,7 +2043,11 @@ end
 -- server for a short code, the user enters it in the Tome web UI on an
 -- already-signed-in browser, and the device exchanges the resulting JWT for a
 -- freshly minted plugin API key. No token typing on the device, ever.
-function TomeSync:_signInWithCode(trusted)
+-- link (build 1063): { LINK_URL, LINK_FINGERPRINT } pairs the phone link
+-- instead (TomeSync > Phone link > Pair with phone): every request of the
+-- pairing goes to that address with that pin, the key it gets is written to
+-- link.lua, and the server's address, key and account are not touched.
+function TomeSync:_signInWithCode(trusted, link)
     if not NetworkMgr:isConnected() then
         UIManager:show(InfoMessage:new{ text = "Connect to WiFi first.", timeout = 3 })
         return
@@ -1871,20 +2057,45 @@ function TomeSync:_signInWithCode(trusted)
     -- is not trusted yet (no pin, and no CA in the device's bundle signed it
     -- for this name; or a pinned one that changed) is shown and asked about
     -- first; Trust pins it. A CA-signed or pinned server goes on at once.
-    if not trusted then
+    if not trusted and not link then
         return TLS.trustThen(function() self:_signInWithCode(true) end)
     end
+    local function via(o)
+        if not link then return o end
+        o = o or {}
+        o.pairing = link
+        return o
+    end
+    local where = link and link.LINK_URL or serverURL()
     -- device_id and device (build 55): Tome Reader keys the reader by them, so
     -- pairing again replaces this reader's key instead of adding a second
     -- reader. Tome ignores them.
     local resp = apiRequest("POST", "/auth/quick-connect/initiate",
-                            { device_id = LinkSession.deviceID(), device = deviceName() })
+                            { device_id = LinkSession.deviceID(), device = deviceName() }, via(nil))
     if type(resp) ~= "table" or not resp.code or not resp.poll_token then
         UIManager:show(InfoMessage:new{
-            text = "Could not reach " .. serverURL()
-                   .. "\nCheck the server URL, then try again.",
+            text = "Could not reach " .. where
+                   .. (link and "\nIs Tome Reader open on the phone, on the same Wi-Fi or hotspot?"
+                            or "\nCheck the server URL, then try again."),
             timeout = 5,
         })
+        return
+    end
+    -- Build 1063: a phone never replaces a server this reader already has.
+    if not link and resp.server_kind == "tome-reader" and LinkSession.hasServer() then
+        logger.info("TomeSync: " .. where .. " is Tome Reader; not replacing the server, offering the phone link")
+        UIManager:show(ConfirmBox:new{
+            text = "This address is Tome Reader on a phone, not a Tome server.\n\n"
+                   .. "Pair it as the phone link instead? Your Tome server, its key and "
+                   .. "your account stay exactly as they are.",
+            ok_text = "Pair as phone link",
+            ok_callback = function() self:_linkPairStart(where) end,
+        })
+        return
+    end
+    if link and resp.server_kind ~= "tome-reader" then
+        UIManager:show(InfoMessage:new{
+            text = where .. " is not Tome Reader.\nNothing was changed.", timeout = 5 })
         return
     end
     local qc_code, poll_token = resp.code, resp.poll_token
@@ -1914,14 +2125,19 @@ function TomeSync:_signInWithCode(trusted)
     local function finish(jwt)
         local key_resp = apiRequest("POST", "/plugin/api-keys",
             { label = "KOReader Plugin (" .. deviceName() .. ", paired)" },
-            { token = jwt })
+            via({ token = jwt }))
         if type(key_resp) ~= "table" or not key_resp.key then
             UIManager:close(waiting)
             UIManager:show(InfoMessage:new{
                 text = "Pairing failed while creating the API key.", timeout = 5 })
             return
         end
-        local me = apiRequest("GET", "/auth/me", nil, { token = jwt })
+        local me = apiRequest("GET", "/auth/me", nil, via({ token = jwt }))
+        if link then
+            UIManager:close(waiting)
+            return self:_linkPaired(link, key_resp.key,
+                (type(me) == "table" and type(me.username) == "string") and me.username or "")
+        end
         G_reader_settings:saveSetting("tomesync_api_key", key_resp.key)
         if type(me) == "table" and type(me.username) == "string" and me.username ~= "" then
             G_reader_settings:saveSetting("tomesync_username", me.username)
@@ -1947,7 +2163,7 @@ function TomeSync:_signInWithCode(trusted)
             return
         end
         local r, c = apiRequest("POST", "/auth/quick-connect/poll",
-            { code = qc_code, poll_token = poll_token })
+            { code = qc_code, poll_token = poll_token }, via(nil))
         if type(r) == "table" and r.status == "authorized" and r.access_token then
             finish(r.access_token)
         elseif c == 410 then   -- consumed or expired server-side
@@ -2137,6 +2353,8 @@ function TomeSync:_putPosition(book_id, progress, pct, dev)
             self.pending_positions[key] = nil
             self:_saveState("tomesync_pending_positions", self.pending_positions)
         end
+        -- Reading companion: pull a new snapshot when glossary_rev moved.
+        pcall(function() self:_companionAfterPut(book_id, resp, progress, pct) end)
         return true
     end
     -- Only transport failures (offline, backoff, timeout) and server errors
@@ -2479,7 +2697,12 @@ function TomeSync:onCloseDocument()
     local duration, session_end = self:_sessionTotals(os.time())
     local dev      = deviceName()
 
-    self:_putPosition(self.book_id, cfi, pct, dev)
+    -- Quiet: a companion snapshot pull is only noted for the next open of
+    -- this book (no network fetch on the way out of it).
+    self._companion_quiet = true
+    local pok, perr = pcall(self._putPosition, self, self.book_id, cfi, pct, dev)
+    self._companion_quiet = false
+    if not pok then logger.warn("TomeSync: position push on close failed:", perr) end
 
     -- Flush + merge highlights/notes before the book closes.
     pcall(function() self:_syncAnnotations() end)
@@ -2510,6 +2733,7 @@ function TomeSync:onCloseDocument()
     self.progress_start = nil
     self.last_progress  = nil
     last_session_init.book_id = nil
+    self._companion = nil
 end
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
@@ -3463,7 +3687,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                     else
                         showProgress(string.format("%s\n%s", head, fmtMB(received)))
                     end
-                end)
+                end, self._dl_route)
             if ok then
                 downloaded = downloaded + 1
                 self.book_map[item.dest] = item.book.id
@@ -4889,8 +5113,12 @@ end
 
 -- on_result(avail) where avail is a {build, semver} table if newer, false if
 -- up to date, or nil + err message on failure.
-function TomeSync:checkForUpdate(on_result)
-    local ok, info, code = pcall(apiRequest, "GET", "/plugin/version")
+-- route "link" (build 1063): ask the phone link (only "Update from this
+-- phone" and the phone's own self_update command do); nil: the server, the
+-- update source of every automatic and menu check.
+function TomeSync:checkForUpdate(on_result, route)
+    local ok, info, code = pcall(apiRequest, "GET", "/plugin/version", nil,
+                                 route == "link" and LinkSession.NET or nil)
     if not ok or not info or (type(code) == "number" and code >= 300) then
         on_result(nil, "Could not reach server.")
         return
@@ -4909,8 +5137,8 @@ end
 
 -- The swap itself (build 60: also the link's self_update). Returns true, or
 -- false, a short reason and the text the menu shows.
-function TomeSync:_applyUpdate(new_build)
-    local body, code = fetchText("/plugin/main-impl.lua")
+function TomeSync:_applyUpdate(new_build, route)
+    local body, code = fetchText("/plugin/main-impl.lua", route == "link" and "link" or nil)
     if not body then
         return false, "download failed (" .. tostring(code) .. ")",
                "Download failed (" .. tostring(code) .. ").\nNothing changed."
@@ -4935,8 +5163,9 @@ function TomeSync:_applyUpdate(new_build)
     -- config.lua is never part of an update. An install that has none (one
     -- that came up from build 53 or older without a backup to recover the
     -- baked values from) asks the server for its own once; best effort.
+    -- Never from the phone link (build 1063): its config.lua names the phone.
     local config_dir = PluginConfig.dir()
-    if not readWhole(config_dir .. "/config.lua") then
+    if route ~= "link" and not readWhole(config_dir .. "/config.lua") then
         local text = fetchText("/plugin/config.lua")
         local cfg = PluginConfig.parse(text)
         if cfg and cfg.API_KEY and cfg.API_KEY ~= "" then
@@ -4983,7 +5212,20 @@ end
 
 -- Poll the server inbox. Sets inbox_enabled (false on 404 = feature off),
 -- inbox_items and inbox_count. Offline/transient errors keep the last state.
-function TomeSync:_refreshInbox()
+-- route "link" with a separate phone link (build 1063): the phone's inbox,
+-- kept apart (self.link_inbox) so its items and ids never mix with the
+-- server's Inbox menu. Returns that state table for the link.
+function TomeSync:_refreshInbox(route)
+    if LinkSession.route(route) then
+        self.link_inbox = self.link_inbox or { enabled = false, items = {} }
+        local data, code = apiRequest("GET", "/tome-sync/inbox", nil, LinkSession.NET)
+        if code == 404 then
+            self.link_inbox.enabled, self.link_inbox.items = false, {}
+        elseif type(data) == "table" and data.items then
+            self.link_inbox.enabled, self.link_inbox.items = true, data.items
+        end
+        return self.link_inbox
+    end
     local data, code = apiRequest("GET", "/tome-sync/inbox")
     if code == 404 then
         self.inbox_enabled = false
@@ -5000,8 +5242,11 @@ end
 
 -- Download the given inbox items (filing each by series/author via the shared
 -- downloader) and mark each delivered on success. Shows one roll-up popup.
-function TomeSync:_deliverInbox(items, auto)
+function TomeSync:_deliverInbox(items, auto, route)
     local delivered, failed = 0, 0
+    -- Build 1063: the downloads and the delivered POSTs go where the items
+    -- came from (the phone link's inbox, or the server's).
+    local link = LinkSession.route(route)
     for _, item in ipairs(items) do
         -- item.series may be JSON null, which rapidjson decodes to a truthy
         -- userdata sentinel (not nil) — so type-check rather than compare to nil.
@@ -5023,15 +5268,22 @@ function TomeSync:_deliverInbox(items, auto)
         }
         -- guarded: the server decides this path, so the reader link's
         -- refusal rules apply (TomeSync._linkDownloadRefused).
-        local res = self:_downloadSeriesBooks(series_name, { book }, nil, item.book_type, true, true)
+        self._dl_route = link
+        local dok, res = pcall(self._downloadSeriesBooks, self, series_name, { book }, nil, item.book_type, true, true)
+        self._dl_route = nil
+        if not dok then
+            logger.warn("TomeSync: inbox delivery failed:", res)
+            res = nil
+        end
         if res and res.failed == 0 then
             delivered = delivered + 1
-            pcall(apiRequest, "POST", "/tome-sync/inbox/" .. urlEncode(tostring(item.id)) .. "/delivered")
+            pcall(apiRequest, "POST", "/tome-sync/inbox/" .. urlEncode(tostring(item.id)) .. "/delivered",
+                  nil, link and LinkSession.NET or nil)
         else
             failed = failed + 1
         end
     end
-    pcall(function() self:_refreshInbox() end)
+    pcall(function() self:_refreshInbox(link) end)
     if auto then
         -- Auto-pickup: one short line per batch, nothing when nothing arrived
         -- (a failed item is retried at the next sync moment).
@@ -5141,8 +5393,11 @@ local link_done_order = {}
 local LINK_INFO_EVERY = 60
 local LINK_TREE_EVERY = 30
 local LINK_DONE_KEEP  = 1000
-local LINK_NET_LIGHT  = { block = 2, total = 2 }
-local LINK_NET_TREE   = { block = 2, total = 10 }
+-- Every reader link call carries link = true (build 1063): it goes to the
+-- phone link when there is a separate one (TOMESYNC_NET).
+local LINK_NET_LIGHT  = { block = 2, total = 2, link = true }
+local LINK_NET_TREE   = { block = 2, total = 10, link = true }
+LinkSession.NET       = { link = true }   -- full passes: default timeouts
 -- The trash is bounded so unattended deliveries and deletes cannot fill the
 -- disk: oldest purged first, the newest item always kept.
 local LINK_TRASH_MAX_BYTES = 200 * 1024 * 1024
@@ -5899,7 +6154,7 @@ end
 local LinkHB = { EVERY = 60, MINUTES = 30,
                  till = nil,     -- os.time() the heartbeat window closes (nil: none open)
                  url = nil,      -- the link host in use when the poll last answered
-                 NET = { block = 2, total = 2, no_backoff = true } }
+                 NET = { block = 2, total = 2, no_backoff = true, link = true } }
 function LinkHB.minutes(v)
     if type(v) ~= "number" or v ~= v or v < 0 or v == math.huge then return LinkHB.MINUTES end
     return math.floor(v)
@@ -7215,7 +7470,7 @@ local function linkSendTree(root, light)
     end
     local hash = linkHash(linkTreeCanon(entries, truncated))
     local ms = math.floor((os.clock() - t0) * 1000 + 0.5)
-    local net = light and LINK_NET_LIGHT or nil
+    local net = light and LINK_NET_LIGHT or LinkSession.NET
     if hash and not link_off.files_status then
         local st, code = apiRequest("GET", "/tome-sync/files/status?hash=" .. hash, nil, net)
         if linkRouteOff(code) then
@@ -7240,7 +7495,7 @@ local function linkSendTree(root, light)
         count     = #entries,
         hash      = hash,
         entries   = rapidjson.array and rapidjson.array(entries) or entries,
-    }, light and LINK_NET_TREE or nil)
+    }, light and LINK_NET_TREE or LinkSession.NET)
     logger.info("TomeSync: link PUT files", tostring(code), "(" .. #entries .. " entries, hash "
                 .. tostring(hash) .. ", " .. ms .. " ms)")
     if linkRouteOff(code) then
@@ -7269,8 +7524,20 @@ local link_host_retries = LINK_HOST_RETRIES
 local link_host_missed  = false   -- the last pass probed and found none
 local link_host_nopin   = false   -- "no pin" logged once
 
+-- The phone's addresses: link.lua's LINK_HOSTS with a separate phone link
+-- (build 1063), else config.lua's.
+function LinkSession.hosts()
+    local cfg = PluginConfig.link
+    if cfg then return cfg.LINK_HOSTS or { cfg.LINK_URL } end
+    return PLUGIN_CONFIG.LINK_HOSTS
+end
+-- The link's configured address: LINK_URL, else the server's.
+function LinkSession.primary()
+    return PluginConfig.link and PluginConfig.link.LINK_URL or primaryURL()
+end
+
 local function linkHostListed(url)
-    for _, h in ipairs(PLUGIN_CONFIG.LINK_HOSTS or {}) do
+    for _, h in ipairs(LinkSession.hosts() or {}) do
         if h == url then return true end
     end
     return false
@@ -7279,9 +7546,11 @@ end
 -- The first LINK_HOSTS entry that answers device-info 200 becomes this
 -- session's address; returns that answer, or nil and why.
 local function linkProbeHosts(root)
-    local hosts = PLUGIN_CONFIG.LINK_HOSTS
+    local hosts = LinkSession.hosts()
     if not hosts then return nil, "no link hosts" end
-    if not pinnedFingerprint() then
+    local route = LinkSession.route("link")
+    local pin = route and normFingerprint(PluginConfig.link.LINK_FINGERPRINT) or (not route and pinnedFingerprint()) or nil
+    if not pin then
         if not link_host_nopin then
             link_host_nopin = true
             logger.info("TomeSync: link hosts set but no pinned fingerprint: not probing")
@@ -7301,14 +7570,14 @@ local function linkProbeHosts(root)
                 url     = host .. "/api/tome-sync/device-info",
                 method  = "PUT",
                 headers = {
-                    ["Authorization"]  = "Bearer " .. apiKey(),
+                    ["Authorization"]  = "Bearer " .. PluginConfig.linkKey(),
                     ["Content-Type"]   = "application/json",
                     ["Accept"]         = "application/json",
                     ["Content-Length"] = tostring(#body),
                 },
                 source  = ltn12.source.string(body),
                 sink    = cappedTableSink(chunks),
-                create  = tlsCreateFor(host),
+                create  = tlsCreateFor(host, route),
             })
             socketutil:reset_timeout()
             if ok and code == 200 then
@@ -7316,7 +7585,7 @@ local function linkProbeHosts(root)
                 LinkSession.url = host
                 link_host_failed[host] = nil
                 link_host_retries = LINK_HOST_RETRIES
-                resetBackoff()
+                resetBackoff(route or "tome")
                 logger.info("TomeSync: reader link via " .. host)
                 return (dok and type(parsed) == "table") and parsed or {}
             end
@@ -7354,7 +7623,7 @@ function TomeSync:_linkPass(light, hb)
     local root = linkRoot()
     linkStore()   -- the results kept from before a restart, before any command
     local link_on = not link_off.all
-    local net = hb and LinkHB.NET or (light and LINK_NET_LIGHT or nil)
+    local net = hb and LinkHB.NET or (light and LINK_NET_LIGHT or LinkSession.NET)
     local poll = 0
     local ran = 0
     local nowhy = nil
@@ -7367,14 +7636,14 @@ function TomeSync:_linkPass(light, hb)
     end
     -- Build 58: a link that no longer knows this key is not asked again
     -- (until the key changes: a new pairing).
-    local repair = LinkHB.repaired ~= nil and LinkHB.repaired == apiKey()
+    local repair = LinkHB.repaired ~= nil and LinkHB.repaired == PluginConfig.linkKey()
     if repair then link_on = false end
     -- Link hosts: full passes in the file manager, while no host is in use.
-    local probe = not light and not hb and not reading and PLUGIN_CONFIG.LINK_HOSTS ~= nil
+    local probe = not light and not hb and not reading and LinkSession.hosts() ~= nil
                   and LinkSession.url == nil and not link_off.all and not repair
     local probed, missed = nil, false
     link_host_missed = false
-    if probe and linkHostListed(primaryURL()) then
+    if probe and linkHostListed(LinkSession.primary()) then
         -- SERVER_URL is one of them: ask them all, it included, and not
         -- the configured server a second time.
         probe = false
@@ -7528,11 +7797,17 @@ function TomeSync:_linkPass(light, hb)
             logger.info("TomeSync: link poll: " .. inbox_n .. " waiting, delivering now (file manager)")
         end
         LinkHB.noted = nil
-        pcall(function() self:_refreshInbox() end)
-        local items = self.inbox_items
-        if self.inbox_enabled and type(items) == "table" and #items > 0 then
+        -- Build 1063: the phone link's inbox when there is a separate link;
+        -- the server's Inbox (TomeSync menu) is never emptied by the link.
+        local box
+        pcall(function() box = self:_refreshInbox("link") end)
+        local items, enabled = self.inbox_items, self.inbox_enabled
+        if LinkSession.route("link") then
+            items, enabled = box and box.items, box and box.enabled
+        end
+        if enabled and type(items) == "table" and #items > 0 then
             local d0 = linkNow()
-            self:_deliverInbox(items, true)
+            self:_deliverInbox(items, true, "link")
             delivered_now = true
             link_tree_dirty = true
             logger.info("TomeSync: link inbox delivery of " .. #items .. " item(s) took "
@@ -7574,8 +7849,8 @@ function TomeSync:_linkRepair(code, raw, route)
     if not LinkHB.repair(code, raw, LinkHB.linked or link_poll_secs > 0 or LinkHB.till ~= nil) then
         return false
     end
-    if LinkHB.repaired ~= apiKey() then
-        LinkHB.repaired = apiKey()
+    if LinkHB.repaired ~= PluginConfig.linkKey() then
+        LinkHB.repaired = PluginConfig.linkKey()
         logger.info("TomeSync: reader link answered " .. route .. " 401 (" .. tostring(raw)
                     .. "): not asked again until a new pairing")
     end
@@ -7721,6 +7996,7 @@ end
 -- PUT /tome-sync/reader-settings: on full passes and after a settings
 -- command. 404/405 (a Tome without the route) turns it off for the session.
 function TomeSync:_linkSendSettings(net, why)
+    if not (net and net.link) then net = LinkSession.NET end   -- always the link (build 1063)
     local t0 = linkNow()
     local caps, limits = LinkSet.caps(), LinkSet.limits()
     local values = {}
@@ -8320,6 +8596,7 @@ end
 -- PUT /tome-sync/plugins: on full passes and after a plugin command; 404/405
 -- (a Tome without the route) turns it off for the session.
 function TomeSync:_linkSendPlugins(net, why)
+    if not (net and net.link) then net = LinkSession.NET end   -- always the link (build 1063)
     local t0 = linkNow()
     local body = self:_linkPluginReport()
     local _, code = apiRequest("PUT", "/tome-sync/plugins", body, net)
@@ -8434,7 +8711,8 @@ function TomeSync._linkFetchCapped(api_path, dest, cap)
     local ok, code = serverRequest({
         method  = "GET",
         path    = "/api" .. api_path,
-        headers = { ["Authorization"] = "Bearer " .. apiKey() },
+        route   = "link",
+        headers = { ["Authorization"] = "Bearer " .. PluginConfig.linkKey() },
         sink    = function()
             if fh then pcall(fh.close, fh) end
             fh, got, over = io.open(dest, "wb"), 0, false
@@ -8591,12 +8869,13 @@ function TomeSync:_linkPluginRemove(args)
     return true, nil, nil, "in the trash as " .. name, "restart", { trash = name }
 end
 
--- self_update {}: the update check the menu runs, against the server in use
--- (the phone serves its bundled build), without the dialogs.
+-- self_update {}: the update check the menu runs, without the dialogs.
+-- The command comes from the phone (an explicit tap there), so it asks the
+-- phone link (build 1063; with no separate link that is the server in use).
 function TomeSync:_linkSelfUpdate(_)
     local disk = TomeSync._linkDiskBuild()
     local avail, why
-    self:checkForUpdate(function(a, e) avail, why = a, e end)
+    self:checkForUpdate(function(a, e) avail, why = a, e end, "link")
     if avail == nil then return false, why or "could not reach the server", nil, nil, nil, { from_build = BUILD } end
     if avail == false or (disk and disk >= avail.build) then
         if disk and disk ~= BUILD then
@@ -8605,7 +8884,7 @@ function TomeSync:_linkSelfUpdate(_)
         end
         return true, nil, nil, "already current", nil, { from_build = BUILD, to_build = BUILD }
     end
-    local ok, e = self:_applyUpdate(avail.build)
+    local ok, e = self:_applyUpdate(avail.build, "link")
     if not ok then return false, e, nil, nil, nil, { from_build = BUILD } end
     logger.info("TomeSync: link self-update " .. BUILD .. " -> " .. avail.build .. " (restart)")
     return true, nil, nil, nil, "restart", { from_build = BUILD, to_build = avail.build }
@@ -8668,12 +8947,17 @@ function TomeSync._linkInfoExtra(info, root)
     }
     local state = (link_poll_secs > 0 and "polling") or (LinkHB.till and (LinkHB.paused and "paused" or "heartbeat")) or "idle"
     info.link = {
-        url             = LinkSession.url or primaryURL(),
-        configured_url  = primaryURL(),
+        url             = LinkSession.url or LinkSession.primary(),
+        configured_url  = LinkSession.primary(),
         state           = state,
         poll_seconds    = link_poll_secs > 0 and link_poll_secs or nil,
         heartbeat_until = LinkHB.till,
-        pinned          = pinnedFingerprint() and shortFingerprint(pinnedFingerprint(), 4) or nil,
+        pinned          = (PluginConfig.link and shortFingerprint(PluginConfig.link.LINK_FINGERPRINT, 4))
+                          or (pinnedFingerprint() and shortFingerprint(pinnedFingerprint(), 4)) or nil,
+        -- Build 1063: "dual" (a separate phone link; sync stays with sync_server)
+        -- or "single" (the phone is the only server, as before).
+        mode            = PluginConfig.link and "dual" or "single",
+        sync_server     = PluginConfig.link and primaryURL() or nil,
     }
 end
 
@@ -8715,8 +8999,9 @@ function TomeSync:_linkPutUpload(id, src, ctype, kind)
     local rok, code = serverRequest({
         method  = "PUT",
         path    = "/api/tome-sync/upload/" .. urlEncode(id),
+        route   = "link",
         headers = {
-            ["Authorization"]   = "Bearer " .. apiKey(),
+            ["Authorization"]   = "Bearer " .. PluginConfig.linkKey(),
             ["Content-Type"]    = ctype,
             ["Content-Length"]  = tostring(size),
             ["Accept"]          = "application/json",
@@ -8935,6 +9220,7 @@ end
 
 -- PUT /tome-sync/networks: names only. 404/405 turns it off for the session.
 function TomeSync:_linkSendNetworks(net, why)
+    if not (net and net.link) then net = LinkSession.NET end   -- always the link (build 1063)
     local body = TomeSync._linkNetworks()
     body.device = deviceName()
     local _, code = apiRequest("PUT", "/tome-sync/networks", body, net)
@@ -9118,6 +9404,172 @@ function TomeSync:_linkArmPoll(secs, why, noanswer)
         me:_linkArmPoll(next_secs, why, noanswer)
     end
     UIManager:scheduleIn(secs, link_poll_task)
+end
+
+-- ── Phone link (build 1063) ──────────────────────────────────────────────────
+-- TomeSync > Phone link: pair, forget and update from Tome Reader on a phone,
+-- kept apart from the server (link.lua; config.lua and the Settings > Server
+-- values are never written here).
+
+-- Does this reader have a server of its own (a key that is not the phone's)?
+function LinkSession.hasServer()
+    return apiKey() ~= "" and not TLS.isLink(primaryURL())
+end
+
+-- The hotspot address a phone link is also tried at (the iPhone's own
+-- address on its Personal Hotspot), with the port of url.
+function LinkSession.hotspotURL(url)
+    local port = type(url) == "string" and url:match(":(%d+)$") or "8899"
+    return "https://172.20.10.1:" .. port
+end
+
+function TomeSync:_linkStatusText()
+    local cfg = PluginConfig.link
+    if cfg then
+        return "Paired: " .. (LinkSession.url or cfg.LINK_URL)
+            .. ((cfg.LINK_USERNAME or "") ~= "" and (" (" .. cfg.LINK_USERNAME .. ")") or "")
+    end
+    if TLS.isLink(primaryURL()) then return "The phone is this reader's only server" end
+    return "Not paired"
+end
+
+-- Pair with phone: the address (the hotspot one by default), then its
+-- certificate, shown and trusted once, then the code flow against it.
+function TomeSync:_linkPairStart(default_url)
+    local dialog
+    dialog = InputDialog:new{
+        title = "Tome Reader address",
+        input = default_url or (PluginConfig.link and PluginConfig.link.LINK_URL) or LinkSession.hotspotURL(),
+        description = "Shown in Tome Reader under Settings > Readers.",
+        buttons = {{
+            { text = "Cancel", id = "close", callback = function() UIManager:close(dialog) end },
+            { text = "Next", is_enter_default = true, callback = function()
+                local url = (dialog:getInputText() or ""):gsub("%s+", ""):gsub("/+$", "")
+                UIManager:close(dialog)
+                self:_linkPairTrust(url)
+            end },
+        }},
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function TomeSync:_linkPairTrust(url)
+    if not url:match("^https://[^%s/]+$") then
+        UIManager:show(InfoMessage:new{ text = "The address must look like https://172.20.10.1:8899", timeout = 5 })
+        return
+    end
+    if not NetworkMgr:isConnected() then
+        UIManager:show(InfoMessage:new{ text = "Connect to WiFi first.", timeout = 3 })
+        return
+    end
+    local probe, why = TLS.probe(url)
+    if not probe or not normFingerprint(probe.digest) then
+        UIManager:show(InfoMessage:new{
+            text = "No answer from " .. url .. " (" .. tostring(why) .. ").\n"
+                   .. "Is Tome Reader open on the phone, on the same Wi-Fi or hotspot?", timeout = 6 })
+        return
+    end
+    local digest = probe.digest
+    logger.info("TomeSync: phone link pairing: " .. url .. " shows " .. shortFingerprint(digest))
+    UIManager:show(ConfirmBox:new{
+        text = "Pair with Tome Reader at\n" .. url .. "\n\n"
+               .. "Fingerprint (SHA-256):\n" .. shortFingerprint(digest, 8) .. "\u{2026}\n"
+               .. edgeFingerprint(digest) .. "\n\n"
+               .. "Tome Reader shows the same fingerprint under Settings > Readers. "
+               .. "Your Tome server is not changed.",
+        ok_text = "Trust and pair",
+        ok_callback = function()
+            self:_signInWithCode(true, { LINK_URL = url, LINK_FINGERPRINT = shortFingerprint(digest) })
+        end,
+    })
+end
+
+-- A pairing finished: link.lua written, the link switched to it.
+function TomeSync:_linkPaired(link, key, account)
+    local hosts = { link.LINK_URL }
+    if LinkSession.hotspotURL(link.LINK_URL) ~= link.LINK_URL then
+        hosts[2] = LinkSession.hotspotURL(link.LINK_URL)
+    end
+    local cfg = { LINK_URL = link.LINK_URL, LINK_KEY = key, LINK_USERNAME = account,
+                  LINK_FINGERPRINT = link.LINK_FINGERPRINT, LINK_HOSTS = hosts }
+    if not PluginConfig.writeLink(PluginConfig.dir(), cfg) then
+        UIManager:show(InfoMessage:new{ text = "Could not write link.lua. Nothing was changed.", timeout = 5 })
+        return
+    end
+    TomeSync._linkReset("paired")
+    logger.info("TomeSync: phone link paired with " .. link.LINK_URL .. "; the server stays " .. primaryURL())
+    UIManager:show(InfoMessage:new{
+        text = "Paired with Tome Reader\n" .. link.LINK_URL
+               .. (LinkSession.hasServer() and ("\n\nReading sync stays with\n" .. primaryURL()) or ""),
+        timeout = 6,
+    })
+    if self._scheduleLinkSync then self:_scheduleLinkSync("paired", 1) end
+end
+
+-- link.lua read again (paired, forgotten): the session's address, the
+-- link's back-off and the routes it switched off start over.
+function TomeSync._linkReset(why)
+    linkStopPoll(why)
+    PluginConfig.reloadLink()
+    LinkSession.url = nil
+    LinkHB.url = nil
+    LinkHB.repaired = nil
+    LinkSession.net.failures, LinkSession.net.till = 0, 0
+    for k in pairs(link_off) do link_off[k] = nil end
+end
+
+function TomeSync:_linkForget()
+    UIManager:show(ConfirmBox:new{
+        text = "Forget the phone link?\n\nThis reader stops talking to Tome Reader. "
+               .. "Your Tome server is not changed. Remove the reader on the phone too.",
+        ok_text = "Forget",
+        ok_callback = function()
+            os.remove(PluginConfig.dir() .. "/link.lua")
+            TomeSync._linkReset("phone link forgotten")
+            logger.info("TomeSync: phone link forgotten (link.lua removed)")
+            UIManager:show(InfoMessage:new{ text = "Phone link forgotten.", timeout = 3 })
+        end,
+    })
+end
+
+-- Update from this phone: only on this explicit tap, only to a higher build.
+function TomeSync:_linkUpdateFromPhone()
+    whenConnected(function()
+        self:checkForUpdate(function(avail, err)
+            if avail == nil then
+                UIManager:show(InfoMessage:new{ text = "Could not reach the phone: " .. tostring(err), timeout = 5 })
+            elseif avail == false then
+                UIManager:show(InfoMessage:new{
+                    text = "TomeSync build " .. BUILD .. " is not older than the phone's.\nNothing to update.", timeout = 5 })
+            else
+                UIManager:show(ConfirmBox:new{
+                    text = string.format("The phone has TomeSync %s (build %d); this reader runs build %d.\n"
+                                         .. "Install it from the phone?", avail.semver or "?", avail.build, BUILD),
+                    ok_text = "Install",
+                    ok_callback = function()
+                        local ok, _, text = self:_applyUpdate(avail.build, "link")
+                        UIManager:show(InfoMessage:new{
+                            text = ok and ("TomeSync updated to build " .. avail.build .. " from the phone.\nRestart KOReader to apply.")
+                                   or text, timeout = 8 })
+                    end,
+                })
+            end
+        end, "link")
+    end)
+end
+
+function TomeSync:_linkMenuItems()
+    local items = {
+        { text_func = function() return self:_linkStatusText() end, keep_menu_open = true, callback = function() end },
+        { text = PluginConfig.link and "Pair again\u{2026}" or "Pair with phone\u{2026}",
+          callback = function() self:_linkPairStart() end },
+    }
+    if PluginConfig.link then
+        table.insert(items, { text = "Update from this phone", callback = function() self:_linkUpdateFromPhone() end })
+        table.insert(items, { text = "Forget phone link", callback = function() self:_linkForget() end })
+    end
+    return items
 end
 
 -- Ask for a pass `delay` seconds from now (debounced: several moments close
@@ -9310,6 +9762,776 @@ function TomeSync:_editDownloadTemplate()
     dialog:onShowKeyboard()
 end
 
+-- ── Reading companion (offline snapshot, build 48) ──────────────────────────
+-- The glossary and the recaps of the book, as of the last synced position,
+-- kept on the device so they work without a connection. One JSON file per
+-- book in the document's sidecar folder (tome_companion.json): {book_id,
+-- series_key, rev, fetched_at, snapshot}. It travels with the book and is
+-- never read for another one (a book_id that is not the document's mapped
+-- Tome id is ignored and refetched). Pulled after a position PUT whose
+-- glossary_rev differs from the stored one; failures only log. No model call
+-- from the device. Everything here is gated on the toggle
+-- "tomesync_companion" (default on) and on a snapshot being present, so a
+-- server without the feature never shows any of it.
+-- All helpers live in one table: the main chunk is close to Lua's limit of
+-- 200 locals.
+local Companion = {
+    FILE  = "tome_companion.json",
+    DAY   = 86400,
+    KIND_ORDER = { person = 1, place = 2, term = 3 },
+    FACTS = {
+        { "status",        "Status" },
+        { "rank",          "Rank" },
+        { "powers",        "Powers and titles" },
+        { "affiliations",  "Affiliations" },
+        { "relationships", "Relationships" },
+        { "location",      "Location" },
+        { "appearance",    "Appearance" },
+    },
+    TIMELINE_SHOWN = 5,
+    -- The server's POSITION_MARGIN: a page fraction can trail the word
+    -- fraction near a chapter boundary, so the trim decision reads ahead by
+    -- this much (never past what the snapshot holds: that is cut server-side).
+    POSITION_MARGIN = 0.03,
+    -- A pull that failed (not 403/404/422) is not retried for the same rev
+    -- before this many seconds.
+    RETRY_SECONDS = 1800,
+    -- Stripped from both ends of a "Who is this?" selection (literal UTF-8).
+    QUOTES = { "“", "”", "‘", "’", "«", "»", "—", "–", "…" },
+    -- doc path -> { book_id, rev, pct, progress }: a pull the suspend or
+    -- close path left for the next open / resume.
+    pending = {},
+    -- book id -> { rev, at }: the last failed pull.
+    errors = {},
+}
+
+function Companion.enabled()
+    return G_reader_settings:nilOrTrue("tomesync_companion")
+end
+
+function Companion.str(v)
+    v = jval(v)
+    if type(v) == "string" and v:match("%S") then return v end
+    return nil
+end
+
+function Companion.lower(s)
+    if type(s) ~= "string" then return "" end
+    local ok, U = pcall(require, "ffi/utf8proc")
+    if ok and U and U.lowercase then
+        local ok2, out = pcall(U.lowercase, s)
+        if ok2 and type(out) == "string" then return out end
+    end
+    return s:lower()
+end
+
+-- JSON literal for a string or nil (rapidjson encodes values inside tables).
+function Companion.lit(v)
+    v = jval(v)
+    if type(v) == "number" then return tostring(v) end
+    if type(v) ~= "string" then return "null" end
+    local ok, out = pcall(rapidjson.encode, { v })
+    if not ok or type(out) ~= "string" then return "null" end
+    return out:sub(2, -2)
+end
+
+function Companion.paths(doc_path)
+    if type(doc_path) ~= "string" or doc_path == "" then return nil end
+    local ok, dir = pcall(function()
+        return require("docsettings"):getSidecarDir(doc_path)
+    end)
+    if not ok or type(dir) ~= "string" or dir == "" then return nil end
+    return dir, dir .. "/" .. Companion.FILE
+end
+
+function Companion.load(doc_path, book_id)
+    local _, file = Companion.paths(doc_path)
+    if not file then return nil end
+    local body = readWhole(file)
+    if not body then return nil end
+    local ok, data = pcall(rapidjson.decode, body)
+    if not ok or type(data) ~= "table" or type(data.snapshot) ~= "table" then
+        logger.warn("TomeSync: companion snapshot unreadable, ignoring:", file)
+        return nil
+    end
+    if jval(data.book_id) ~= book_id then
+        logger.info("TomeSync: companion snapshot is for book", tostring(jval(data.book_id)),
+                    "not", tostring(book_id), "- ignoring")
+        return nil
+    end
+    return data
+end
+
+function Companion.remove(doc_path)
+    local _, file = Companion.paths(doc_path)
+    if file and lfs.attributes(file, "mode") == "file" then os.remove(file) end
+end
+
+-- Wraps the raw response body (never re-encoded, so the JSON stays exactly as
+-- the server sent it) and swaps it in atomically: tmp + rename, as the impl
+-- self-update does.
+function Companion.store(doc_path, book_id, body, snap)
+    local dir, file = Companion.paths(doc_path)
+    if not file then return nil, "no sidecar folder" end
+    if lfs.attributes(dir, "mode") ~= "directory" then mkdirp(dir) end
+    if lfs.attributes(dir, "mode") ~= "directory" then return nil, "cannot create " .. dir end
+    local book = type(snap.book) == "table" and snap.book or {}
+    local now = os.time()
+    local text = '{"book_id":' .. tostring(book_id)
+        .. ',"series_key":' .. Companion.lit(book.series_key)
+        .. ',"rev":' .. Companion.lit(snap.rev)
+        .. ',"fetched_at":' .. tostring(now)
+        .. ',"snapshot":' .. body .. "}"
+    local tmp = file .. ".tmp"
+    if not writeWhole(tmp, text) then
+        os.remove(tmp)
+        return nil, "cannot write " .. tmp
+    end
+    -- writeWhole does not report a short write (a full disk): check the size
+    -- before the swap, so a cut file never replaces a good one.
+    local f = io.open(tmp, "rb")
+    local size = f and f:seek("end") or nil
+    if f then f:close() end
+    if size ~= #text then
+        os.remove(tmp)
+        return nil, string.format("short write to %s (%s of %d bytes)", tmp, tostring(size), #text)
+    end
+    local ok, err = os.rename(tmp, file)
+    if not ok then
+        os.remove(tmp)
+        return nil, tostring(err)
+    end
+    return { book_id = book_id, series_key = jval(book.series_key), rev = jval(snap.rev),
+              fetched_at = now, snapshot = snap }
+end
+
+function Companion.fetch(book_id, pct, progress)
+    local params = {}
+    if type(pct) == "number" then
+        table.insert(params, "pct=" .. string.format("%.6f", pct))
+    end
+    if type(progress) == "string" and progress ~= "" then
+        table.insert(params, "progress=" .. urlEncode(progress))
+    end
+    local path = "/tome-sync/ai/books/" .. tostring(book_id) .. "/snapshot"
+    if #params > 0 then path = path .. "?" .. table.concat(params, "&") end
+    return fetchText(path)
+end
+
+-- "vol N, ch M" (chapter_idx is 0-based), "ch M" without a series index.
+function Companion.place(loc)
+    if type(loc) ~= "table" then return nil end
+    local ci = tonumber(jval(loc.chapter_idx))
+    if not ci then return nil end
+    local si = tonumber(jval(loc.series_index))
+    if si then
+        return string.format("vol %s, ch %d", string.format("%g", si), ci + 1)
+    end
+    return string.format("ch %d", ci + 1)
+end
+
+-- The current chapter from the page fraction and the snapshot's chapter
+-- table: the last chapter starting at or before it (rounded down, as the
+-- server does).
+function Companion.currentChapter(snap, pct)
+    local cur = 0
+    if type(snap.chapters) ~= "table" then return cur end
+    for _, ch in ipairs(snap.chapters) do
+        if type(ch) == "table" then
+            local s = tonumber(jval(ch.start_fraction))
+            local idx = tonumber(jval(ch.idx))
+            if s and idx and pct + 1e-9 >= s then cur = idx end
+        end
+    end
+    return cur
+end
+
+-- The snapshot as the reader may see it at `pct`. The server cut it at the
+-- last synced position; reading behind that (a re-read) hides entries first
+-- seen at or past the current chapter of this book and drops the aliases,
+-- identity, facts, timeline lines and the recap past it. Reading ahead
+-- shows it as is, and so does a finished book (the whole-book window,
+-- as_of = chapter count: the reader has read all of it).
+function Companion.view(snap, pct)
+    local book = type(snap.book) == "table" and snap.book or {}
+    local this_id = jval(book.id)
+    local as_of = type(snap.as_of) == "table" and tonumber(jval(snap.as_of.chapter_idx)) or nil
+    local nch = type(snap.chapters) == "table" and #snap.chapters or 0
+    -- The margin is for this trim decision only (see POSITION_MARGIN).
+    local cur = Companion.currentChapter(snap, math.min(1, (pct or 0) + Companion.POSITION_MARGIN))
+    local limit = (as_of and as_of < nch and cur < as_of) and cur or nil
+    local function past(loc)
+        if not limit or type(loc) ~= "table" then return false end
+        if jval(loc.book_id) ~= this_id then return false end
+        local ci = tonumber(jval(loc.chapter_idx))
+        return ci ~= nil and ci >= limit
+    end
+    local entries = {}
+    for i, e in ipairs(type(snap.entries) == "table" and snap.entries or {}) do
+        if type(e) == "table" and Companion.str(e.name) and not past(jval(e.first_seen)) then
+            local v = {}
+            for k, val in pairs(e) do v[k] = val end
+            v._order = i
+            v.aliases = Companion.aliases(e)    -- strings, for the dialog and the matching
+            if limit then
+                -- Aliases learned at or past the page go; one without a place stays.
+                local hidden = {}
+                if type(e.alias_places) == "table" then
+                    for _, ap in ipairs(e.alias_places) do
+                        local n = type(ap) == "table" and past(ap) and Companion.str(ap.name) or nil
+                        if n then hidden[Companion.lower(n)] = true end
+                    end
+                end
+                local kept = {}
+                for _, a in ipairs(v.aliases) do
+                    if not hidden[Companion.lower(a)] then table.insert(kept, a) end
+                end
+                v.aliases = kept
+                -- An identity written past the page: the row and the dialog
+                -- fall back to the trimmed line.
+                if past(jval(e.identity_at)) then v.identity = nil end
+                local facts = {}
+                if type(e.facts) == "table" then
+                    for k, f in pairs(e.facts) do
+                        if type(f) == "table" and not past(f) then facts[k] = f end
+                    end
+                end
+                v.facts = facts
+                -- The plain status is the latest one: never show it in place of
+                -- a status fact that lies past the page.
+                if type(e.facts) == "table" and e.facts.status ~= nil and facts.status == nil then
+                    v.status = nil
+                end
+                local tl = {}
+                if type(e.timeline) == "table" then
+                    for _, t in ipairs(e.timeline) do
+                        if type(t) == "table" and not past(t) then table.insert(tl, t) end
+                    end
+                end
+                v.timeline = tl
+                v.line = (#tl > 0 and jval(tl[#tl].line)) or nil
+                if past(jval(e.last_seen)) then v.last_seen = nil end
+            end
+            table.insert(entries, v)
+        end
+    end
+    table.sort(entries, function(a, b)
+        local ka = Companion.KIND_ORDER[jval(a.kind)] or 9
+        local kb = Companion.KIND_ORDER[jval(b.kind)] or 9
+        if ka ~= kb then return ka < kb end
+        return a._order < b._order
+    end)
+    local recaps = type(snap.recaps) == "table" and snap.recaps or {}
+    local current = jval(recaps.current)
+    if type(current) == "table" and limit then
+        local ci = tonumber(jval(current.chapter_idx))
+        if ci and ci > limit then current = nil end
+    end
+    return {
+        entries = entries,
+        volumes = type(recaps.volumes) == "table" and recaps.volumes or {},
+        current = type(current) == "table" and current or nil,
+        limit   = limit,
+    }
+end
+
+function Companion.aliases(e)
+    local out = {}
+    if type(e.aliases) ~= "table" then return out end
+    for _, a in ipairs(e.aliases) do
+        local name = type(a) == "table" and Companion.str(a.name) or Companion.str(a)
+        if name then table.insert(out, name) end
+    end
+    return out
+end
+
+function Companion.rowText(e)
+    local name = Companion.str(e.name) or "?"
+    local ident = Companion.str(e.identity) or Companion.str(e.line)
+    if ident then
+        ident = ident:gsub("%s+", " ")
+        return name .. " · " .. ident
+    end
+    return name
+end
+
+function Companion.entryText(e)
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+    local ident = Companion.str(e.identity)
+    if ident then add(ident); add("") end
+    local aliases = Companion.aliases(e)
+    if #aliases > 0 then add("Also called: " .. table.concat(aliases, ", ")) end
+    local facts = type(e.facts) == "table" and e.facts or {}
+    local any_fact = false
+    for _, ff in ipairs(Companion.FACTS) do
+        local f = jval(facts[ff[1]])
+        local value = type(f) == "table" and Companion.str(f.value) or nil
+        if not value and ff[1] == "status" then value = Companion.str(e.status) end
+        if value then
+            local where = type(f) == "table" and Companion.place(f) or nil
+            add(ff[2] .. ": " .. value .. (where and (" · as of " .. where) or ""))
+            any_fact = true
+        end
+    end
+    if any_fact or #aliases > 0 then add("") end
+    local tl = type(e.timeline) == "table" and e.timeline or {}
+    if #tl > 0 then
+        add("Timeline")
+        -- Newest first, like the web dialog: the latest lines lead.
+        local from = math.max(1, #tl - Companion.TIMELINE_SHOWN + 1)
+        for i = #tl, from, -1 do
+            local t = tl[i]
+            local line = type(t) == "table" and Companion.str(t.line) or nil
+            if line then
+                local where = Companion.place(t)
+                add((where and (where .. " · ") or "") .. line)
+            end
+        end
+        add("")
+    elseif Companion.str(e.line) then
+        add(Companion.str(e.line)); add("")
+    end
+    local first = Companion.place(jval(e.first_seen))
+    if first then add("First seen " .. first) end
+    while #lines > 0 and lines[#lines] == "" do table.remove(lines) end
+    if #lines == 0 then return "Nothing more about this yet." end
+    return table.concat(lines, "\n")
+end
+
+-- Search: name and alias matches first, then identity text.
+function Companion.search(entries, q)
+    q = Companion.lower(q):match("^%s*(.-)%s*$")
+    if q == "" then return entries end
+    local first, second = {}, {}
+    for _, e in ipairs(entries) do
+        local hit = Companion.lower(Companion.str(e.name)):find(q, 1, true)
+        if not hit then
+            for _, a in ipairs(Companion.aliases(e)) do
+                if Companion.lower(a):find(q, 1, true) then hit = true; break end
+            end
+        end
+        if hit then
+            table.insert(first, e)
+        elseif Companion.lower(Companion.str(e.identity) or Companion.str(e.line))
+                :find(q, 1, true) then
+            table.insert(second, e)
+        end
+    end
+    for _, e in ipairs(second) do table.insert(first, e) end
+    return first
+end
+
+-- "Who is this?": exact name/alias (case-insensitive) first, then a
+-- whole-word prefix, then containment. The first tier with hits wins.
+function Companion.lookup(entries, text)
+    local sel = Companion.lower(text or ""):gsub("%s+", " ")
+    sel = sel:match("^%s*(.-)%s*$") or ""
+    -- Curly quotes, guillemets, dashes and ellipses (multi-byte, so compared
+    -- as whole sequences, never in a character class) and ASCII punctuation,
+    -- off both ends until nothing changes; then the possessive.
+    local changed = true
+    while changed and sel ~= "" do
+        changed = false
+        for _, q in ipairs(Companion.QUOTES) do
+            if sel:sub(1, #q) == q then sel = sel:sub(#q + 1); changed = true end
+            if #sel >= #q and sel:sub(-#q) == q then sel = sel:sub(1, -#q - 1); changed = true end
+        end
+        local t = sel:gsub("^[%p%s]+", ""):gsub("[%p%s]+$", "")
+        if t ~= sel then sel = t; changed = true end
+    end
+    sel = sel:gsub("'s$", ""):gsub("’s$", "")
+    if sel == "" then return {} end
+    local tiers = { {}, {}, {} }
+    for _, e in ipairs(entries) do
+        local best
+        local names = { Companion.str(e.name) }
+        for _, a in ipairs(Companion.aliases(e)) do table.insert(names, a) end
+        for _, n in ipairs(names) do
+            local name = Companion.lower(n)
+            local tier
+            if name == sel then
+                tier = 1
+            elseif name:sub(1, #sel + 1) == sel .. " " or sel:sub(1, #name + 1) == name .. " " then
+                tier = 2
+            elseif (#sel >= 3 and name:find(sel, 1, true))
+                    or (#name >= 3 and sel:find(name, 1, true)) then
+                tier = 3
+            end
+            if tier and (not best or tier < best) then best = tier end
+        end
+        if best then table.insert(tiers[best], e) end
+    end
+    for _, t in ipairs(tiers) do
+        if #t > 0 then return t end
+    end
+    return {}
+end
+
+-- Per open document: { path, book_id, loaded, data, unavailable, pulling,
+-- failed_rev }. Reset on open, dropped on close.
+function TomeSync:_companionState()
+    local doc = self.ui and self.ui.document
+    if not doc or not doc.file or not self.book_id then return nil end
+    local c = self._companion
+    if not c or c.path ~= doc.file or c.book_id ~= self.book_id then
+        c = { path = doc.file, book_id = self.book_id, loaded = false }
+        self._companion = c
+    end
+    if not c.loaded then
+        c.loaded = true
+        local ok, data = pcall(Companion.load, c.path, c.book_id)
+        if ok then c.data = data else logger.warn("TomeSync: companion load failed:", data) end
+    end
+    return c
+end
+
+-- The snapshot of the open book, or nil (no snapshot, toggle off, or the
+-- server said the companion is not available for this book).
+function TomeSync:_companionData()
+    if not Companion.enabled() then return nil end
+    local c = self:_companionState()
+    if not c or c.unavailable or not c.data then return nil end
+    return c.data
+end
+
+function TomeSync:_companionView()
+    local data = self:_companionData()
+    if not data then return nil end
+    local ok, view = pcall(Companion.view, data.snapshot, self:_getCurrentPercentage())
+    if not ok then
+        logger.warn("TomeSync: companion view failed:", view)
+        return nil
+    end
+    return view, data
+end
+
+-- Fetch and swap the snapshot of `book_id` (document `doc_path`). Returns
+-- "updated" | "current" | "offline" | "unavailable" | "error", detail.
+-- Touches the in-memory state only when that document is still the open one.
+function TomeSync:_companionPull(doc_path, book_id, pct, progress)
+    local body, code = Companion.fetch(book_id, pct, progress)
+    local doc = self.ui and self.ui.document
+    local c = (doc and doc.file == doc_path and self._companion
+               and self._companion.path == doc_path) and self._companion or nil
+    if not body then
+        -- 404 (no chapters / feature off), 422 (not an epub, no chapter map)
+        -- and 403 all mean: no companion for this book.
+        if code == 404 or code == 422 or code == 403 then
+            Companion.remove(doc_path)
+            if c then c.data = nil; c.unavailable = true; c.loaded = true end
+            logger.info("TomeSync: companion not available for book", book_id)
+            return "unavailable"
+        end
+        if code == "offline" then return "offline" end
+        logger.warn("TomeSync: companion snapshot fetch failed:", tostring(code))
+        return "error", tostring(code)
+    end
+    if body:byte(1) == 0x1f then
+        logger.warn("TomeSync: companion snapshot came compressed, ignoring")
+        return "error", "compressed response"
+    end
+    local ok, snap = pcall(rapidjson.decode, body)
+    if not ok or type(snap) ~= "table" or type(snap.entries) ~= "table" then
+        logger.warn("TomeSync: companion snapshot unparseable")
+        return "error", "bad response"
+    end
+    local old = c and c.data or Companion.load(doc_path, book_id)
+    local function recapSig(s)
+        local r = type(s) == "table" and type(s.recaps) == "table" and s.recaps or {}
+        local cur = jval(r.current)
+        return tostring(type(r.volumes) == "table" and #r.volumes or 0) .. "|"
+            .. tostring(type(cur) == "table" and jval(cur.created_at) or "")
+    end
+    local same = old and jval(old.rev) ~= nil and jval(old.rev) == jval(snap.rev)
+        and recapSig(old.snapshot) == recapSig(snap)
+    local stored, err = Companion.store(doc_path, book_id, body, snap)
+    if not stored then
+        logger.warn("TomeSync: companion snapshot not stored:", err)
+        return "error", err
+    end
+    if c then c.data = stored; c.unavailable = false; c.loaded = true end
+    Companion.errors[book_id] = nil
+    logger.info("TomeSync: companion snapshot", same and "unchanged" or "updated",
+                "for book", book_id, "rev", tostring(jval(snap.rev)))
+    return same and "current" or "updated"
+end
+
+-- Schedules a background pull of `rev` (2 s out, on the UI loop) unless one
+-- is running, the server said the book has no companion, or the same rev
+-- failed less than RETRY_SECONDS ago.
+function TomeSync:_companionSchedule(c, book_id, rev, pct, progress)
+    if c.pulling or c.failed_rev == rev then return end
+    local err = Companion.errors[book_id]
+    if err and err.rev == rev and os.time() - err.at < Companion.RETRY_SECONDS then return end
+    c.pulling = true
+    local path = c.path
+    UIManager:scheduleIn(2, function()
+        local ok, res, detail = pcall(self._companionPull, self, path, book_id, pct, progress)
+        c.pulling = false
+        if not ok then
+            Companion.errors[book_id] = { rev = rev, at = os.time() }
+            logger.warn("TomeSync: companion pull crashed:", res)
+        elseif res == "unavailable" then
+            c.failed_rev = rev
+        elseif res == "error" then
+            Companion.errors[book_id] = { rev = rev, at = os.time() }
+            logger.warn("TomeSync: companion pull failed:", detail)
+        end
+    end)
+end
+
+-- Hooked into _putPosition's success path. Schedules a background pull when
+-- the server's glossary_rev differs from the stored one (or none is stored).
+-- From the suspend and close paths (self._companion_quiet) it only notes the
+-- pull for the next open / resume / heartbeat. Never shows anything;
+-- failures only log.
+function TomeSync:_companionAfterPut(book_id, resp, progress, pct)
+    if not Companion.enabled() then return end
+    local rev = type(resp) == "table" and jval(resp.glossary_rev) or nil
+    if type(rev) ~= "string" or rev == "" then return end
+    local c = self:_companionState()
+    if not c or c.book_id ~= book_id then return end
+    if c.data and jval(c.data.rev) == rev then
+        Companion.pending[c.path] = nil
+        return
+    end
+    if self._companion_quiet then
+        Companion.pending[c.path] = { book_id = book_id, rev = rev, pct = pct, progress = progress }
+        return
+    end
+    Companion.pending[c.path] = nil
+    self:_companionSchedule(c, book_id, rev, pct, progress)
+end
+
+-- Runs a pull the suspend or close path noted (open, late match, resume),
+-- when online; offline it stays noted.
+function TomeSync:_companionRunPending()
+    if not Companion.enabled() then return end
+    local c = self:_companionState()
+    if not c then return end
+    local p = Companion.pending[c.path]
+    if not p then return end
+    if p.book_id ~= c.book_id or (c.data and jval(c.data.rev) == p.rev) then
+        Companion.pending[c.path] = nil
+        return
+    end
+    if not NetworkMgr:isConnected() then return end
+    Companion.pending[c.path] = nil
+    self:_companionSchedule(c, p.book_id, p.rev, p.pct, p.progress)
+end
+
+-- Document open (or a late book match): reset the per-book state and offer
+-- "Who is this?" in the selection bar (shown only with a snapshot and the
+-- toggle on). The button is registered once per reader (flag on its
+-- highlight module, which lives as long as the document).
+function TomeSync:_companionOnOpen()
+    self._companion = nil
+    local hl = self.ui and self.ui.highlight
+    if not (hl and hl.addToHighlightDialog) or hl._tomesync_who then return end
+    hl._tomesync_who = true
+    pcall(function()
+        self.ui.highlight:addToHighlightDialog("12_2_tomesync_who", function(this)
+            return {
+                text = "Who is this?",
+                show_in_highlight_dialog_func = function()
+                    local ok, data = pcall(self._companionData, self)
+                    return ok and data ~= nil
+                end,
+                callback = function()
+                    local text = this.selected_text and this.selected_text.text
+                    pcall(function() self:_companionWho(text) end)
+                    this:onClose()
+                end,
+            }
+        end)
+    end)
+end
+
+function TomeSync:_companionShowEntry(e)
+    local TextViewer = require("ui/widget/textviewer")
+    UIManager:show(TextViewer:new{
+        title = Companion.str(e.name) or "Glossary",
+        text  = Companion.entryText(e),
+    })
+end
+
+function TomeSync:_companionWho(text)
+    local view = self:_companionView()
+    if not view then return end
+    local cleaned = text
+    pcall(function() cleaned = util.cleanupSelectedText(text) end)
+    local hits = Companion.lookup(view.entries, cleaned)
+    if #hits == 0 then
+        UIManager:show(InfoMessage:new{
+            text = "Nothing about that before this page.",
+            timeout = 3,
+        })
+    elseif #hits == 1 then
+        self:_companionShowEntry(hits[1])
+    else
+        self:_companionEntryMenu("Who is this?", hits)
+    end
+end
+
+function TomeSync:_companionEntryMenu(title, entries, with_search)
+    local items = {}
+    local menu
+    if with_search then
+        table.insert(items, {
+            text = "Search the glossary",
+            callback = function() self:_companionSearch(entries) end,
+            separator = true,
+        })
+    end
+    for _, e in ipairs(entries) do
+        table.insert(items, {
+            text     = Companion.rowText(e),
+            callback = function() self:_companionShowEntry(e) end,
+        })
+    end
+    menu = Menu:new{
+        title      = title,
+        item_table = items,
+        width      = Device.screen:getWidth() - 20,
+        height     = Device.screen:getHeight() - 20,
+    }
+    UIManager:show(menu)
+end
+
+function TomeSync:_companionSearch(entries)
+    local dialog
+    dialog = InputDialog:new{
+        title = "Search the glossary",
+        input_hint = "name, alias or description",
+        buttons = {{
+            { text = "Cancel", id = "close",
+              callback = function() UIManager:close(dialog) end },
+            { text = "Search", is_enter_default = true,
+              callback = function()
+                  local q = dialog:getInputText()
+                  if not (q and q:match("%S")) then return end
+                  UIManager:close(dialog)
+                  local hits = Companion.search(entries, q)
+                  if #hits == 0 then
+                      UIManager:show(InfoMessage:new{
+                          text = "Nothing in the glossary matches \"" .. q .. "\".",
+                          timeout = 3,
+                      })
+                  else
+                      self:_companionEntryMenu("Glossary: " .. q, hits)
+                  end
+              end },
+        }},
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function TomeSync:_companionGlossary()
+    local view = self:_companionView()
+    if not view then return end
+    if #view.entries == 0 then
+        UIManager:show(InfoMessage:new{
+            text = "The glossary has nothing before this page yet.",
+            timeout = 3,
+        })
+        return
+    end
+    self:_companionEntryMenu("Glossary so far", view.entries, true)
+end
+
+function TomeSync:_companionRecaps()
+    local view, data = self:_companionView()
+    if not view then return end
+    local stale = ""
+    local fetched = tonumber(jval(data.fetched_at))
+    if fetched and os.time() - fetched > Companion.DAY then
+        stale = "\n\nWritten on the web; refresh to see newer ones."
+    end
+    local TextViewer = require("ui/widget/textviewer")
+    local function show(title, text)
+        UIManager:show(TextViewer:new{ title = title, text = text .. stale })
+    end
+    local items = {}
+    for _, v in ipairs(view.volumes) do
+        local text = type(v) == "table" and Companion.str(v.text) or nil
+        if text then
+            local si = tonumber(jval(v.series_index))
+            local title = Companion.str(v.title) or "Earlier volume"
+            local label = si and string.format("Vol %g · %s", si, title) or title
+            table.insert(items, { text = label, callback = function() show(label, text) end })
+        end
+    end
+    local cur = view.current
+    if cur and Companion.str(cur.text) then
+        local ci = tonumber(jval(cur.chapter_idx))
+        local label = ci and string.format("This book, to chapter %d", ci + 1) or "This book so far"
+        table.insert(items, { text = label, callback = function() show(label, Companion.str(cur.text)) end })
+    end
+    if #items == 0 then
+        UIManager:show(InfoMessage:new{
+            text = "No recaps on this device yet. Write them on the web, then refresh."
+                .. stale,
+            timeout = 4,
+        })
+        return
+    end
+    UIManager:show(Menu:new{
+        title      = "Recaps",
+        item_table = items,
+        width      = Device.screen:getWidth() - 20,
+        height     = Device.screen:getHeight() - 20,
+    })
+end
+
+function TomeSync:_companionRefresh()
+    whenConnected(function()
+        local c = self:_companionState()
+        if not c then return end
+        local pct = self:_getCurrentPercentage()
+        local progress = self:_getCurrentProgress()
+        local ok, res, detail = pcall(self._companionPull, self, c.path, c.book_id, pct, progress)
+        local msg
+        if not ok then
+            logger.warn("TomeSync: companion refresh crashed:", res)
+            msg = "Glossary refresh failed."
+        elseif res == "updated" then
+            msg = "Glossary updated"
+        elseif res == "current" then
+            msg = "Already current"
+        elseif res == "offline" then
+            msg = "Offline"
+        elseif res == "unavailable" then
+            msg = "The reading companion is not available for this book."
+        else
+            msg = "Glossary refresh failed: " .. tostring(detail)
+        end
+        UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
+    end)
+end
+
+-- TomeSync menu entries (in a book, with a snapshot and the toggle on).
+function TomeSync:_companionMenuItems()
+    if not self:_companionData() then return nil end
+    return {
+        {
+            text     = "Glossary so far",
+            callback = function() pcall(function() self:_companionGlossary() end) end,
+        },
+        {
+            text     = "Recaps",
+            callback = function() pcall(function() self:_companionRecaps() end) end,
+        },
+        {
+            text      = "Refresh glossary now",
+            help_text = "Fetch the glossary and recaps up to this page from Tome. "
+                     .. "This also happens on its own after each position sync.",
+            callback  = function() self:_companionRefresh() end,
+        },
+    }
+end
+
 function TomeSync:_menuItems()
     local in_book = self.ui and self.ui.document
     -- The menu opening is a user-visible moment: a certificate a background
@@ -9330,6 +10552,18 @@ function TomeSync:_menuItems()
         callback     = function()
             G_reader_settings:saveSetting("tomesync_auto_connect",
                 not G_reader_settings:isTrue("tomesync_auto_connect"))
+        end,
+    })
+    table.insert(settings_items, {
+        text         = "Reading companion on this device",
+        help_text    = "Keep the glossary and recaps Tome wrote for the open book "
+                       .. "on this device (read offline, refreshed after each "
+                       .. "position sync) and offer \"Who is this?\" when you "
+                       .. "select a name. Needs the reading companion on the server.",
+        checked_func = function() return G_reader_settings:nilOrTrue("tomesync_companion") end,
+        callback     = function()
+            G_reader_settings:saveSetting("tomesync_companion",
+                not G_reader_settings:nilOrTrue("tomesync_companion"))
         end,
     })
     -- Position pull strategy (like stock kosync): what to do when the server
@@ -9808,6 +11042,15 @@ function TomeSync:_menuItems()
                 end)
             end,
         })
+        -- Reading companion (offline snapshot): only with a snapshot on the
+        -- device and the toggle on.
+        local ok_c, companion_items = pcall(self._companionMenuItems, self)
+        if ok_c and companion_items then
+            table.insert(sub_items, {
+                text           = "Reading companion",
+                sub_item_table = companion_items,
+            })
+        end
         table.insert(sub_items, {
             text = self.enabled and "Tracking: on (tap to pause)"
                 or "Tracking: paused (tap to resume)",
@@ -9869,6 +11112,11 @@ function TomeSync:_menuItems()
                  .. "Nothing is removed here; the next WiFi sync still runs "
                  .. "and Tome ignores what it already has.",
         callback = function() self:_showSyncCode() end,
+    })
+    -- Build 1063: Tome Reader on a phone, apart from the server.
+    table.insert(sub_items, {
+        text = "Phone link",
+        sub_item_table_func = function() return self:_linkMenuItems() end,
     })
     table.insert(sub_items, {
         text           = "Settings",

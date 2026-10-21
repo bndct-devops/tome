@@ -254,4 +254,4 @@ def test_build_bumped_for_rebake():
     # 1.19.2 / build 52: pairing, server URLs and reset are written to disk
     # at once, so a crash no longer loses a fresh pairing.
     assert TOMESYNC_PLUGIN_BUILD >= 52
-    assert TOMESYNC_PLUGIN_SEMVER == "1.19.2"
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.2+link.1063"

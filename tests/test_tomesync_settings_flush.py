@@ -56,7 +56,9 @@ end }
 NetworkMgr = { isConnected = function() return true end }
 local function resetBackoff() end
 local function deviceName() return "Kindle" end
-local LinkSession = { deviceID = function() return "00000000-0000-4000-8000-000000000000" end }
+local LinkSession = { deviceID = function() return "00000000-0000-4000-8000-000000000000" end,
+                      hasServer = function() return HAS_SERVER == true end }
+ConfirmBox = { new = function(_, t) return t end }
 -- The TLS policy is tested on its own (test_tomesync_reader_link); http here.
 local TLS = { trustThen = function(fn) return fn() end }
 local logger = { info = function() end, warn = function() end, dbg = function() end }
@@ -143,3 +145,18 @@ def test_pairing_dialog_names_the_phone_only_for_tome_reader():
     for tome in (_first_dialog(None), _first_dialog("tome")):
         assert "Settings > Security > Quick Connect" in tome
         assert "Tome Reader" not in tome
+
+
+# Build 1063: Sign in with code that reaches Tome Reader while this reader has
+# a server of its own never replaces the server's key; it offers the phone link.
+def test_tome_reader_never_replaces_a_configured_server():
+    assert _disk_after(r"""
+        HAS_SERVER = true
+        responses["/auth/quick-connect/initiate"].server_kind = "tome-reader"
+        self:_signInWithCode()
+    """) == {}
+    assert _disk_after(r"""
+        HAS_SERVER = false
+        responses["/auth/quick-connect/initiate"].server_kind = "tome-reader"
+        self:_signInWithCode()
+    """) == {"tomesync_api_key": "tk_paired", "tomesync_username": "reader"}

@@ -337,3 +337,64 @@ def test_config_example_parses_like_a_config():
     text = (PLUGIN / "config.lua.example").read_text()
     for name in ("SERVER_URL", "API_KEY", "USERNAME", "AUTO_DELIVER", "SERVER_FINGERPRINT"):
         assert f"\n{name} = " in text
+
+
+# ── Build 1063: link.lua, the phone link next to the server ──────────────────
+
+_FP = "AB:" * 31 + "AB"
+
+
+@needs_luajit
+def test_link_lua_round_trip_and_refusals(tmp_path):
+    good = tmp_path / "good"
+    good.mkdir()
+    for name, text in {
+        "nourl": 'LINK_KEY = "k"\nLINK_FINGERPRINT = "' + _FP + '"\n',
+        "plain": 'LINK_URL = "http://10.0.0.2:8899"\nLINK_KEY = "k"\nLINK_FINGERPRINT = "' + _FP + '"\n',
+        "nopin": 'LINK_URL = "https://10.0.0.2:8899"\nLINK_KEY = "k"\nLINK_FINGERPRINT = "ab"\n',
+        "nokey": 'LINK_URL = "https://10.0.0.2:8899"\nLINK_KEY = ""\nLINK_FINGERPRINT = "' + _FP + '"\n',
+        "dup": 'LINK_URL = "https://a:1"\nLINK_URL = "https://b:1"\nLINK_KEY = "k"\nLINK_FINGERPRINT = "' + _FP + '"\n',
+    }.items():
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "link.lua").write_text(text)
+    _run_lua(tmp_path, _config_block() + f'''
+local cfg = {{ LINK_URL = "https://192.168.1.20:8899", LINK_KEY = 'k"\\n1', LINK_USERNAME = "demo",
+               LINK_FINGERPRINT = "{_FP}", LINK_HOSTS = {{ "https://192.168.1.20:8899", "https://172.20.10.1:8899", "http://x" }} }}
+assert(PluginConfig.writeLink("{good}", cfg), "written")
+local c, from = PluginConfig.loadLink("{good}")
+assert(from == "link", from)
+assert(c.LINK_URL == cfg.LINK_URL and c.LINK_KEY == cfg.LINK_KEY and c.LINK_USERNAME == "demo", "values")
+assert(#c.LINK_HOSTS == 2 and c.LINK_HOSTS[2] == "https://172.20.10.1:8899", "https hosts only")
+assert(io.open("{good}/config.lua") == nil, "config.lua is never written by the link")
+for _, name in ipairs({{ "nourl", "plain", "nopin", "nokey", "dup" }}) do
+    local l, why = PluginConfig.loadLink("{tmp_path}/" .. name)
+    assert(l == nil and why == "invalid", name)
+end
+local l, why = PluginConfig.loadLink("{tmp_path}/none")
+assert(l == nil and why == "none", "absent")
+print("ok")
+''')
+
+
+# The owner's reader runs Tome's build 53 (feat/ai-provider), which bakes the
+# connection into main_impl.lua as three plain literals; build 52 (main) the
+# same. The plugin's own migration and Tome Reader's install read them back.
+@needs_luajit
+def test_baked_build_53_and_52_constants_parse(tmp_path):
+    baked = (
+        "-- ── Config (defaults baked in at download time) ──\n\n"
+        "-- Defaults baked in at download time; overridable in Settings > Server.\n"
+        'local DEFAULT_SERVER_URL = "https://tome.example.org"\n'
+        'local DEFAULT_API_KEY    = "tk_AbC-123_xyz"\n'
+        'local DEFAULT_USERNAME   = "ben"\n\n'
+        "local function liveSetting(key, default)\nend\n"
+        "local BUILD           = 53      -- monotonic; the only thing compared\n"
+    )
+    (tmp_path / "impl.lua").write_text(baked)
+    _run_lua(tmp_path, _config_block() + f'''
+local f = io.open("{tmp_path}/impl.lua", "rb"); local t = f:read("*a"); f:close()
+local c = PluginConfig.fromBakedImpl(t)
+assert(c.SERVER_URL == "https://tome.example.org" and c.API_KEY == "tk_AbC-123_xyz" and c.USERNAME == "ben", "baked")
+assert(c.SERVER_FINGERPRINT == nil and c.AUTO_DELIVER == nil, "53 bakes no pin and no auto-delivery")
+print("ok")
+''')
