@@ -3550,9 +3550,16 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
     end
 
     -- Build reverse lookup: book_id → local path (to skip already-downloaded books)
+    -- Build 1063: a delivery from a separate phone link carries the phone's
+    -- book ids, which need not be the server's: never matched against
+    -- book_map nor written to it (the server resolves such a file by its
+    -- name and hash when it is opened, as any book copied by hand).
+    local foreign_ids = self._dl_route == "link"
     local id_to_path = {}
-    for path, bid in pairs(self.book_map) do
-        id_to_path[bid] = path
+    if not foreign_ids then
+        for path, bid in pairs(self.book_map) do
+            id_to_path[bid] = path
+        end
     end
 
     -- Pre-compute the download queue so progress counts only real work.
@@ -3690,7 +3697,7 @@ function TomeSync:_downloadSeriesBooks(series_name, books, min_index, book_type,
                 end, self._dl_route)
             if ok then
                 downloaded = downloaded + 1
-                self.book_map[item.dest] = item.book.id
+                if not foreign_ids then self.book_map[item.dest] = item.book.id end
             else
                 logger.warn("TomeSync: download failed for", item.book.title, err)
                 failed = failed + 1
@@ -5436,9 +5443,12 @@ local function linkNow()
 end
 
 -- Inbox auto-pickup: off unless the user (or the bake) turned it on.
+-- Build 1063: with a separate phone link this is the phone's inbox only (the
+-- server's Inbox stays in the menu), on unless turned off: sending a book to
+-- the reader is what the phone is for.
 local function autoDeliver()
     local v = G_reader_settings:readSetting("tomesync_auto_deliver")
-    if v == nil then return DEFAULT_AUTO_DELIVER end
+    if v == nil then return DEFAULT_AUTO_DELIVER or PluginConfig.link ~= nil end
     return v == true
 end
 
@@ -10752,10 +10762,13 @@ function TomeSync:_menuItems()
         end,
     })
     table.insert(settings_items, {
-        text         = "Download inbox automatically",
+        text_func    = function()
+            return PluginConfig.link and "Download books from the phone automatically" or "Download inbox automatically"
+        end,
         help_text    = "Books sent to this device are downloaded at the next sync "
                        .. "(launch, WiFi on, wake, opening or closing a book, Sync now) "
-                       .. "without opening the Inbox.",
+                       .. "without opening the Inbox. With a phone link, this is the "
+                       .. "phone's inbox; Tome's Inbox stays in the menu.",
         checked_func = function() return TomeSync._linkAutoDeliver() end,
         callback     = function()
             G_reader_settings:saveSetting("tomesync_auto_deliver",

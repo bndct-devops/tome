@@ -1643,3 +1643,21 @@ def test_call_site_map_link_and_sync_never_cross():
     assert 'self:checkForUpdate(function(a, e) avail, why = a, e end, "link")' in lua
     assert 'local body, code = fetchText("/plugin/main-impl.lua", route == "link" and "link" or nil)' in lua
     assert 'if route ~= "link" and not readWhole(config_dir .. "/config.lua") then' in lua
+
+
+def test_phone_deliveries_never_touch_the_servers_book_map():
+    # Build 1063: the phone's book ids need not be the server's; a delivery from
+    # the phone link is neither matched against book_map nor written to it.
+    lua = _impl()
+    dl = lua[lua.index("function TomeSync:_downloadSeriesBooks"):]
+    dl = dl[:dl.index("\nend\n")]
+    assert 'local foreign_ids = self._dl_route == "link"' in dl
+    assert "if not foreign_ids then self.book_map[item.dest] = item.book.id end" in dl
+    assert dl.count("self.book_map[") == 1
+    inbox = lua[lua.index("function TomeSync:_deliverInbox(items, auto, route)"):]
+    inbox = inbox[:inbox.index("\nend\n")]
+    assert "self._dl_route = link" in inbox and "self._dl_route = nil" in inbox
+    # the phone's inbox is picked up by default only with a separate phone link
+    ad = lua[lua.index("local function autoDeliver()"):]
+    ad = ad[:ad.index("\nend\n")]
+    assert "if v == nil then return DEFAULT_AUTO_DELIVER or PluginConfig.link ~= nil end" in ad
