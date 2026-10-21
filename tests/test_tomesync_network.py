@@ -47,6 +47,9 @@ local ltn12 = {
     source = { string = function(s) return s end },
     sink = { table = function(t) return function(c) if c then t[#t + 1] = c end return 1 end end },
 }
+local PIN_REFUSED = "certificate fingerprint mismatch"
+local TLS = { UNTRUSTED = "certificate not trusted yet" }
+local function tlsCreateFor() return nil end
 local hosts, calls = {}, {}
 local http = {
     request = function(req)
@@ -263,3 +266,153 @@ def test_each_attempt_gets_a_fresh_sink():
         emit(table.concat(chunks))
     """)
     assert out == ["full"]
+
+
+def test_reader_link_session_url_takes_every_request_and_is_dropped_on_a_miss():
+    # Build 55: a LINK_HOSTS entry that answered is used for the session only,
+    # never saved; when it stops answering the configured server is back.
+    out = _run(r"""
+        hosts["http://main.example:8080"] = "down"
+        hosts["https://172.20.10.1:8899"] = "up"
+        LinkSession.url = "https://172.20.10.1:8899"
+        local ok, code = get("/api/x")
+        emit(code)
+        emit(calls)
+        emit(settings.tomesync_active_url)
+        hosts["https://172.20.10.1:8899"] = "down"
+        calls = {}
+        get("/api/y")
+        emit(calls)
+        emit(LinkSession.url)
+        resetBackoff()
+        calls = {}
+        get("/api/z")
+        emit(calls)
+    """)
+    assert out == [
+        200,
+        ["https://172.20.10.1:8899"],
+        None,
+        ["https://172.20.10.1:8899"],
+        None,
+        ["http://main.example:8080"],
+    ]
+
+
+def test_untrusted_certificate_is_not_a_miss():
+    # Build 56 (TLS policy): a certificate not trusted yet sends nothing and
+    # opens no back-off window; the next request is tried as usual. A pin
+    # refusal (the reader link) still counts as a miss.
+    out = _run(r"""
+        http.request = function(req)
+            calls[#calls + 1] = req.url:match("^(https?://[^/]+)")
+            return nil, hosts.mode == "pin" and PIN_REFUSED or TLS.UNTRUSTED
+        end
+        hosts.mode = "untrusted"
+        local ok, code = get("/api/x")
+        emit(code)
+        emit(net_failures)
+        emit(inBackoff())
+        get("/api/y")
+        emit(#calls)
+        hosts.mode = "pin"
+        get("/api/z")
+        emit(net_failures)
+        emit(inBackoff())
+    """)
+    assert out == ["certificate not trusted yet", 0, False, 2, 1, True]
+
+
+# ── Build 1063: a separate phone link (link.lua) ──────────────────────────────
+
+_DUAL = r"""
+PluginConfig = { link = { LINK_URL = "https://192.168.1.20:8899", LINK_KEY = "lk",
+                          LINK_FINGERPRINT = string.rep("ab", 32) } }
+local seen_route = {}
+tlsCreateFor = function(base, route) seen_route[#seen_route + 1] = (route or "-") .. " " .. base; return nil end
+local function copy(t) local o = {} for i, v in ipairs(t) do o[i] = v end return o end
+local function getr(path, route)
+    local chunks
+    return serverRequest({
+        method = "GET", path = path, headers = {}, route = route,
+        sink = function() chunks = {} return ltn12.sink.table(chunks) end,
+        block = 5, total = 45,
+    })
+end
+"""
+
+
+def test_dual_link_calls_go_to_the_phone_and_sync_calls_never_do():
+    out = _run(_DUAL + r"""
+        hosts["http://main.example:8080"] = "up"
+        hosts["https://192.168.1.20:8899"] = "up"
+        getr("/api/tome-sync/position/1")
+        getr("/api/tome-sync/device-info", "link")
+        emit(copy(calls))
+        emit(copy(seen_route))
+        -- a session address the probe found applies to the link only
+        LinkSession.url = "https://172.20.10.1:8899"
+        hosts["https://172.20.10.1:8899"] = "up"
+        calls = {}
+        getr("/api/tome-sync/session")
+        getr("/api/tome-sync/commands", "link")
+        emit(copy(calls))
+        emit(settings.tomesync_active_url)
+    """)
+    assert out == [
+        ["http://main.example:8080", "https://192.168.1.20:8899"],
+        ["- http://main.example:8080", "link https://192.168.1.20:8899"],
+        ["http://main.example:8080", "https://172.20.10.1:8899"],
+        None,
+    ]
+
+
+def test_dual_a_phone_that_does_not_answer_never_holds_up_sync():
+    out = _run(_DUAL + r"""
+        hosts["http://main.example:8080"] = "up"
+        hosts["https://192.168.1.20:8899"] = "down"
+        getr("/api/tome-sync/commands", "link")
+        emit(inBackoff("link"))
+        emit(inBackoff())
+        emit(net_failures)
+        calls = {}
+        local ok, code = getr("/api/tome-sync/position/1")
+        emit(code)
+        emit(copy(calls))
+        -- a success on the server does not clear the link's window
+        emit(inBackoff("link"))
+        -- and the server's misses do not open the link's
+        resetBackoff()
+        hosts["http://main.example:8080"] = "down"
+        hosts["https://192.168.1.20:8899"] = "up"
+        getr("/api/tome-sync/position/1")
+        emit(inBackoff())
+        emit(inBackoff("link"))
+    """)
+    assert out == [True, False, 0, 200, ["http://main.example:8080"], True, True, False]
+
+
+def test_without_link_lua_the_link_shares_the_server_as_before():
+    out = _run(r"""
+        PluginConfig = { }
+        local function copy(t) local o = {} for i, v in ipairs(t) do o[i] = v end return o end
+        hosts["http://main.example:8080"] = "down"
+        local chunks
+        serverRequest({ method = "GET", path = "/api/tome-sync/device-info", headers = {}, route = "link",
+                        sink = function() chunks = {} return ltn12.sink.table(chunks) end })
+        emit(copy(calls))
+        emit(inBackoff())
+        emit(inBackoff("link"))
+    """)
+    assert out == [["http://main.example:8080"], True, True]
+
+
+def test_pairing_goes_only_to_the_address_being_paired():
+    out = _run(_DUAL + r"""
+        PluginConfig.pairing = { LINK_URL = "https://10.0.0.9:8899", LINK_FINGERPRINT = string.rep("cd", 32), LINK_KEY = "" }
+        LinkSession.url = "https://172.20.10.1:8899"
+        hosts["https://10.0.0.9:8899"] = "up"
+        getr("/api/auth/quick-connect/initiate", "link")
+        emit(copy(calls))
+    """)
+    assert out == [["https://10.0.0.9:8899"]]

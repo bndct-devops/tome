@@ -30,6 +30,10 @@ jobs:
       - name: Install dependencies
         run: pip install '.[dev]'
 
+      # The KOReader plugin tests run its Lua under luajit and skip without it.
+      - name: Install luajit
+        run: sudo apt-get update && sudo apt-get install -y luajit
+
       - name: Run tests
         run: pytest tests/ -q
 

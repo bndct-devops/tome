@@ -317,6 +317,75 @@ All notable changes to Tome are documented here. Format loosely follows
   series after it applies and says how many ISBNs it corrected. Every
   correction is written to the audit log with the old and new ISBN.
 
+### Changed
+- **The KOReader plugin keeps its connection in its own file.** The TomeSync
+  download now holds four files: the plugin itself is the same for everyone,
+  and `config.lua` holds the server address, key and user name it starts
+  with. Updates replace the plugin and never touch `config.lua`. A device on
+  an older build moves its connection into `config.lua` by itself on its
+  first start after the update; nothing to re-download, and the server URL
+  and key set in TomeSync's settings still win. Plugin build 54.
+
+### Fixed
+- **The KOReader plugin checks https certificates.** With an https server
+  address and no trusted fingerprint, TomeSync now checks the server's
+  certificate against the device's certificate authorities (KOReader's own
+  list, else the system's) and that it is for the server's name; builds
+  before sent the request without any check. A certificate no known
+  authority signed (a self-signed one, or a device without such a list) is
+  not silently used and not silently refused: the next time you use
+  TomeSync (Sign in with code, Sync now or any other action, or opening
+  the TomeSync menu) it shows the certificate's fingerprint and asks once;
+  Trust remembers it and from then on only that certificate is accepted.
+  Until then, background syncs skip the server with one log line and do
+  not back off. If a trusted certificate later changes, TomeSync asks
+  again. A server signed by a known authority works as before, with no
+  prompt. Plain http is unchanged. Plugin build 56.
+- **Books sent to a reader whose title starts with a dot arrive.** Such a
+  title (".hack//SIGN") would have made a hidden file, so the delivery was
+  refused; the dot is now dropped from the file and folder names
+  ("hack__SIGN.epub"), and a name of only dots becomes the book's id.
+  Plugin build 56.
+- **The reader link keeps KOReader's sidecar backup on a move.** Renaming
+  or moving a book from Tome Reader carried `metadata.epub.lua` over but
+  lost its `.old` backup; it now moves too. A file name that is not valid
+  UTF-8 is left out of the file list sent to the phone (with a log line)
+  instead of making the whole list unreadable. Deleted files in the
+  reader's trash are removed for good after 30 days (TomeSync > Settings >
+  Keep deleted files: 7, 30, 90 days or never), besides the existing
+  50 items / 200 MB bound. Plugin build 56.
+- **A renewed https certificate no longer asks again.** When a server you
+  once trusted by fingerprint shows a new certificate that a known
+  authority signed for its name (a Let's Encrypt renewal), TomeSync drops
+  the old fingerprint and checks the authority from then on, instead of
+  asking. A certificate no authority vouches for still asks. TomeSync's
+  `config.lua` is read as text only, and one that sets a name twice is
+  ignored. The reader link keeps asking the phone once a minute for 30
+  minutes after it stops answering, so reopening Tome Reader picks up
+  within a minute; it refuses file names ending in a dot or a space (the
+  card drops them), and sends no file list when it cannot read the
+  library folder. Plugin build 57.
+- **Books sent from Tome Reader arrive within seconds.** While the reader
+  sits in KOReader's file browser, the reader link's next poll fetches a
+  book sent from the phone instead of waiting for the next sync moment; with
+  a book open it waits until the book closes. The once-a-minute knock after
+  the phone stops answering pauses while a book is open, and a phone that
+  no longer knows the reader (forgotten in Tome Reader) is no longer asked:
+  TomeSync says once to pair again. Plugin build 58.
+- **KOReader's settings from Tome Reader.** The reader link reports a short,
+  curated list of KOReader settings (night mode, frontlight and warmth where
+  the device has them, refresh rate, sleep, standby and shutdown timers, the
+  sleep screen, Wi-Fi restore and power saving, and the font, size, spacing,
+  margins and page-turn direction for new books), the font list and the
+  profiles, and the phone can change them or run a profile. Every value is
+  checked against KOReader's own range; the running KOReader follows where it
+  can, and the answer says when a change takes effect. Plugin build 59.
+- **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
+  new pairing (Sign in with code), a changed server URL and a connection
+  reset in memory until KOReader next closed normally, so a crash before
+  that lost them and the device asked to sign in again. They are now
+  written to disk right away. Plugin build 52. (#259)
+
 ## [2.7.1] - 2026-10-19
 
 ### Fixed

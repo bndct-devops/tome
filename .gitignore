@@ -63,3 +63,6 @@ graphify-out/
 # Local-only personal data: copied KOReader stats + prod DB for stats-expansion work (never commit)
 .statsdb/
 frontend/dist-classic/
+
+# A real TomeSync connection (config.lua.example is the template)
+backend/tomesync.koplugin/config.lua

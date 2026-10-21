@@ -15,6 +15,7 @@ from backend.models.user import User, UserPermission
 from backend.api.tome_sync import (
     TOMESYNC_PLUGIN_BUILD,
     TOMESYNC_PLUGIN_SEMVER,
+    _config_lua,
     _main_shim_lua,
     _main_impl_lua,
 )
@@ -65,7 +66,7 @@ def test_plugin_version_returns_build_and_semver(app_client):
     assert body["semver"] == TOMESYNC_PLUGIN_SEMVER
 
 
-# ── Plugin zip: three files, config only in impl ─────────────────────────────
+# ── Plugin zip: four files, config only in config.lua ────────────────────────
 
 def test_plugin_zip_has_shim_and_impl(app_client):
     c, db = app_client
@@ -77,16 +78,23 @@ def test_plugin_zip_has_shim_and_impl(app_client):
     assert "tomesync.koplugin/_meta.lua" in names
     assert "tomesync.koplugin/main.lua" in names
     assert "tomesync.koplugin/main_impl.lua" in names
+    assert "tomesync.koplugin/config.lua" in names
+    assert len(names) == 4
 
     shim = zf.read("tomesync.koplugin/main.lua").decode()
     impl = zf.read("tomesync.koplugin/main_impl.lua").decode()
-    # Config is baked into the impl, never the frozen shim.
-    assert "local DEFAULT_API_KEY" in impl and "local DEFAULT_SERVER_URL" in impl
-    assert "DEFAULT_API_KEY" not in shim or "local DEFAULT_API_KEY" not in shim
+    config = zf.read("tomesync.koplugin/config.lua").decode()
+    # Config lives in config.lua only: never in the frozen shim or the impl.
+    key = next(l for l in config.splitlines() if l.startswith("API_KEY = "))
+    key = key.split('"')[1]
+    assert key.startswith("tk_")
+    assert key not in impl and key not in shim
+    assert 'USERNAME = "zipuser"' in config
+    assert impl == _main_impl_lua()
     assert "main_impl.lua" in shim  # shim loads the impl
 
 
-# ── /plugin/main-impl.lua: authenticated, config-baked, self-validating ──────
+# ── /plugin/main-impl.lua: authenticated, config-free, self-validating ───────
 
 def test_main_impl_requires_auth(app_client):
     c, _ = app_client
@@ -95,7 +103,7 @@ def test_main_impl_requires_auth(app_client):
     assert r.status_code in (401, 422)
 
 
-def test_main_impl_served_with_baked_config(app_client):
+def test_main_impl_served_without_config(app_client):
     c, db = app_client
     _, token = _make_user(db, "impluser", "member")
     # Mint an API key for this user.
@@ -110,13 +118,32 @@ def test_main_impl_served_with_baked_config(app_client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/plain")
     body = r.text
-    # The caller's key is baked in so config survives the update.
-    assert key in body
-    assert "impluser" in body
+    # Build 54+: the impl carries no config; the device's config.lua keeps it.
+    assert key not in body
+    assert "impluser" not in body
+    assert body == _main_impl_lua()
     # Passes the same sentinels the plugin checks before swapping.
     assert len(body) > 15000
     assert "function TomeSync:init" in body
     assert "return TomeSync" in body
+
+
+def test_config_lua_requires_api_key(app_client):
+    c, _ = app_client
+    assert c.get("/api/plugin/config.lua").status_code in (401, 422)
+    r = c.get("/api/plugin/config.lua", headers={"Authorization": "Bearer tk_nope"})
+    assert r.status_code == 401
+
+
+def test_config_lua_served_for_callers_key(app_client):
+    c, db = app_client
+    _, token = _make_user(db, "cfguser", "member")
+    key = c.post("/api/plugin/api-keys", json={"label": "KO"},
+                 headers={"Authorization": f"Bearer {token}"}).json()["key"]
+    r = c.get("/api/plugin/config.lua", headers={"Authorization": f"Bearer {key}"})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/plain")
+    assert r.text == _config_lua("http://testserver", key, "cfguser")
 
 
 # ── Generated Lua invariants ─────────────────────────────────────────────────
@@ -132,8 +159,11 @@ def test_shim_is_config_free_and_loads_impl():
     assert "main_impl.lua" in shim
     assert "dofile" in shim
     assert "tomesync_update" in shim
-    # Impl bakes config and carries the build/semver constants.
-    assert "tome_secret_key" in impl
+    # Impl carries no config (config.lua does) but the build/semver constants,
+    # which must match what /plugin/version reports.
+    assert "tome_secret_key" not in impl
+    assert "tome_secret_key" in _config_lua("https://tome.example", "tome_secret_key", "alice")
+    assert f'local PLUGIN_VERSION  = "{TOMESYNC_PLUGIN_BUILD}"' in impl
     assert f"local BUILD           = {TOMESYNC_PLUGIN_BUILD}" in impl
     assert f'local SEMVER          = "{TOMESYNC_PLUGIN_SEMVER}"' in impl
 

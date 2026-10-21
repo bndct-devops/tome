@@ -53,18 +53,20 @@ def app_client(db: Session):
     app.dependency_overrides.clear()
 
 
-def _baked_url(impl_text: str) -> str:
-    m = re.search(r'local DEFAULT_SERVER_URL\s*=\s*"([^"]+)"', impl_text)
-    assert m, "DEFAULT_SERVER_URL not found in baked impl"
+def _baked_url(config_text: str) -> str:
+    # Build 54+: the URL lives in config.lua, not in the impl.
+    m = re.search(r'^SERVER_URL\s*=\s*"([^"]+)"', config_text, re.M)
+    assert m, "SERVER_URL not found in config.lua"
     return m.group(1)
 
 
 def _impl_via_self_update(c: TestClient, token: str, **kwargs) -> str:
-    """Mint a key, hit /plugin/main-impl.lua, return the baked impl text."""
+    """Mint a key, hit /plugin/config.lua (what an install without a
+    config.lua fetches during self-update), return the config text."""
     rk = c.post("/api/plugin/api-keys", json={"label": "KO"},
                 headers={"Authorization": f"Bearer {token}"})
     key = rk.json()["key"]
-    r = c.get("/api/plugin/main-impl.lua",
+    r = c.get("/api/plugin/config.lua",
               headers={"Authorization": f"Bearer {key}", **kwargs.get("headers", {})},
               params=kwargs.get("params"))
     assert r.status_code == 200, r.text
@@ -135,8 +137,8 @@ def test_zip_download_bakes_https_with_forwarded_proto(app_client):
               headers={"Authorization": f"Bearer {token}", "X-Forwarded-Proto": "https"})
     assert r.status_code == 200
     zf = zipfile.ZipFile(io.BytesIO(r.content))
-    impl = zf.read("tomesync.koplugin/main_impl.lua").decode()
-    assert _baked_url(impl) == "https://testserver"
+    config = zf.read("tomesync.koplugin/config.lua").decode()
+    assert _baked_url(config) == "https://testserver"
 
 
 # ── Release guard: the build MUST be bumped or devices won't re-bake ──────────
@@ -254,5 +256,10 @@ def test_build_bumped_for_rebake():
     # longer crashes a single-book or author/search-list download.
     # 1.20.1 / build 52: the AI branch's 51 merged with main's 51.
     # 1.20.2 / build 53: companion entry timeline newest first.
-    assert TOMESYNC_PLUGIN_BUILD >= 53
-    assert TOMESYNC_PLUGIN_SEMVER == "1.20.2"
+    # 1.19.1 / build 51 (issue #259): a null book_type no longer crashes a
+    # single-book or author/search-list download.
+    # 1.19.2 / build 52: pairing, server URLs and reset are written to disk
+    # at once, so a crash no longer loses a fresh pairing.
+    # 1.20.2+link.1063 / build 1063: AI build 53 plus the reader link (dual mode).
+    assert TOMESYNC_PLUGIN_BUILD >= 1063
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.2+link.1063"
