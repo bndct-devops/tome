@@ -157,7 +157,14 @@ logger = logging.getLogger(__name__)
 # as KOReader's PluginLoader sees it, enabled from plugins_disabled) and the
 # plugin_enable / plugin_install (a zip from GET /tome-sync/plugins/{id}/download)
 # / plugin_remove / self_update commands.
-TOMESYNC_PLUGIN_BUILD = 60
+# BUILD 61: reader link: upload (PUT /tome-sync/upload/{command_id}: a file,
+# a downsized image or a screenshot, at most 20 MB), images in the file tree
+# (kind "image"), set_sleep_image / set_sleep_folder (screensaver_type
+# document_cover / random_image), receive_file (GET /tome-sync/outbox/{id}
+# into a folder), the Wi-Fi networks report (PUT /tome-sync/networks, names
+# only) and wifi_add / wifi_remove / wifi_connect; device-info adds firmware,
+# serial, screen, folders and the link's poll state.
+TOMESYNC_PLUGIN_BUILD = 61
 TOMESYNC_PLUGIN_SEMVER = "1.19.2"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 

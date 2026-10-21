@@ -639,7 +639,9 @@ local function serverRequest(spec)
             url     = base .. spec.path,
             method  = spec.method,
             headers = spec.headers,
-            source  = spec.body and ltn12.source.string(spec.body) or nil,
+            -- Build 61: spec.source() makes a fresh source per attempt (an upload
+            -- streamed from a file; every base URL starts it over).
+            source  = spec.body and ltn12.source.string(spec.body) or (spec.source and spec.source()) or nil,
             sink    = spec.sink(),
             create  = tlsCreateFor(base),   -- nil unless https with a pinned certificate
         })
@@ -774,7 +776,7 @@ local HEARTBEAT_PAGES = 50
 -- user can change or disable this in settings; 0 = off.
 local IDLE_CAP_DEFAULT_MINUTES = 10
 local PLUGIN_VERSION  = "60"
-local BUILD           = 60      -- monotonic; the only thing compared
+local BUILD           = 61      -- monotonic; the only thing compared
 local SEMVER          = "1.19.2"   -- human-facing display only
 
 local function urlEncode(s)
@@ -5236,6 +5238,12 @@ local function linkDeviceInfo(root)
             info.total_bytes = du.total
         end)
     end
+    -- Build 61: firmware, serial, screen, folders, link state (defined further
+    -- down, where the link's own state is in scope).
+    if TomeSync._linkInfoExtra then
+        local ok, e = pcall(TomeSync._linkInfoExtra, info, root)
+        if not ok then logger.warn("TomeSync: link device info extra failed:", e) end
+    end
     return info
 end
 
@@ -5309,6 +5317,8 @@ local function linkFileTree(root)
                 table.insert(entries, {
                     path = r, type = "file", size = attr.size,
                     mtime = attr.modification, sdr = linkHasSidecar(p),
+                    -- Build 61: images KOReader shows (sleep screens, thumbnails).
+                    kind = (TomeSync._linkIsImage and TomeSync._linkIsImage(name)) and "image" or nil,
                 })
             end
         end
@@ -5853,7 +5863,9 @@ end
 local LINK_OPS = { rename = true, move = true, delete = true, mkdir = true, refresh = true,
                    set_setting = true, run_profile = true,     -- build 59
                    plugin_enable = true, plugin_install = true, plugin_remove = true,
-                   self_update = true }                         -- build 60
+                   self_update = true,                          -- build 60
+                   upload = true, receive_file = true, set_sleep_image = true, set_sleep_folder = true,
+                   wifi_add = true, wifi_remove = true, wifi_connect = true }   -- build 61
 local function linkParseCommands(body)
     if type(body) ~= "table" then return {} end
     local list = body
@@ -5928,6 +5940,7 @@ local function linkTreeCanon(entries, truncated)
     for _, e in ipairs(entries) do
         lines[#lines + 1] = tostring(e.path) .. "\t" .. (e.type == "dir" and "d" or "f")
             .. "\t" .. int(e.size) .. "\t" .. int(e.mtime) .. "\t" .. (e.sdr and "1" or "")
+            .. (e.kind == "image" and "\ti" or "")   -- build 61: a tree the phone has without kinds is sent again
     end
     table.sort(lines)
     if truncated then lines[#lines + 1] = "truncated" end
@@ -6338,6 +6351,177 @@ function LinkSet.Plug.report(rows, removed, install_dir, can_install, running_bu
 end
 -- TOMESYNC_LINKPLUG_END
 
+-- TOMESYNC_LINKMEDIA_BEGIN (pure: no requires, no I/O; extracted and run under
+-- luajit by tests/test_tomesync_reader_link.py)
+-- Build 61: files from the reader to the phone (upload), images and sleep
+-- screens, Wi-Fi networks. A field (LinkSet.Media), not a local: the
+-- 200-local budget.
+LinkSet.Media = {
+    MAX_UPLOAD  = 20 * 1024 * 1024,   -- what one upload may send
+    UPLOAD_SECS = 120,                -- its whole transfer
+    -- DocumentRegistry.image_ext (frontend/document/documentregistry.lua, c00df15ae):
+    -- what the screensaver's random_image (DocumentRegistry:isImageFile) and
+    -- document_cover (renderImageFile / renderSVGImageFile) accept.
+    IMAGE_EXT   = { gif = true, jpeg = true, jpg = true, png = true, svg = true,
+                    tif = true, tiff = true, webp = true },
+    -- What RenderImage can decode to a blitbuffer for a thumbnail (MuPDF,
+    -- giflib, libwebp); svg is sent as it is.
+    RASTER_EXT  = { gif = true, jpeg = true, jpg = true, png = true, tif = true, tiff = true, webp = true },
+    UPLOAD_KINDS = { file = true, image = true, screenshot = true },
+    MAX_PX_MIN  = 16,
+    MAX_PX_MAX  = 4096,
+    MAX_NAME    = 200,
+    dirty       = nil,                -- a Wi-Fi command ran: report the networks on this pass
+}
+
+function LinkSet.Media.ext(path)
+    if type(path) ~= "string" then return nil end
+    local e = path:match("%.([^%./]+)$")
+    return e and e:lower() or nil
+end
+function LinkSet.Media.isImage(path) return LinkSet.Media.IMAGE_EXT[LinkSet.Media.ext(path) or ""] == true end
+
+-- upload {path?, kind, max_px?}: returns true, {path, kind, max_px} | false, why.
+function LinkSet.Media.checkUpload(args)
+    if type(args) ~= "table" then return false, "missing args" end
+    local kind = args.kind
+    if kind == nil then kind = "file" end
+    if type(kind) ~= "string" or not LinkSet.Media.UPLOAD_KINDS[kind] then
+        return false, "unknown kind: " .. tostring(kind)
+    end
+    local out = { kind = kind }
+    if args.max_px ~= nil then
+        local m = args.max_px
+        if type(m) ~= "number" or m ~= m or m ~= math.floor(m)
+                or m < LinkSet.Media.MAX_PX_MIN or m > LinkSet.Media.MAX_PX_MAX then
+            return false, "max_px: a whole number " .. LinkSet.Media.MAX_PX_MIN .. ".." .. LinkSet.Media.MAX_PX_MAX
+        end
+        if kind == "file" then return false, "max_px is for images and screenshots" end
+        out.max_px = m
+    end
+    if kind == "screenshot" then
+        if args.path ~= nil then return false, "a screenshot takes no path" end
+        return true, out
+    end
+    if type(args.path) ~= "string" or args.path == "" then return false, "missing path" end
+    if kind == "image" and not LinkSet.Media.isImage(args.path) then
+        return false, "not an image KOReader shows: " .. args.path
+    end
+    out.path = args.path
+    return true, out
+end
+
+-- The size an image is sent at: the long side at most max, aspect kept, never
+-- larger than it is. Returns w, h, scaled (true when smaller than the original).
+function LinkSet.Media.fit(w, h, max)
+    if type(w) ~= "number" or type(h) ~= "number" or w < 1 or h < 1 then return nil end
+    if type(max) ~= "number" or max <= 0 or (w <= max and h <= max) then return w, h, false end
+    local s = max / math.max(w, h)
+    return math.max(1, math.floor(w * s + 0.5)), math.max(1, math.floor(h * s + 0.5)), true
+end
+
+-- receive_file {id, dest, name}: returns true, {id, dest, name} | false, why.
+-- The name and folder go through linkPathRefused on the reader as well.
+function LinkSet.Media.checkReceive(args)
+    if type(args) ~= "table" then return false, "missing args" end
+    local id = args.id
+    if type(id) == "number" and id >= 0 and id == math.floor(id) then id = string.format("%d", id) end
+    if type(id) ~= "string" or not id:match("^[%w%-_]+$") or #id > 64 then return false, "bad id" end
+    local name = args.name
+    if type(name) ~= "string" or name == "" then return false, "missing name" end
+    if #name > LinkSet.Media.MAX_NAME then return false, "name longer than " .. LinkSet.Media.MAX_NAME .. " bytes" end
+    if name:find("/", 1, true) or name:find("\\", 1, true) or name:find("[%z\1-\31\127]") then
+        return false, "bad name: " .. name
+    end
+    local dest = args.dest
+    if dest == nil then dest = "" end
+    if type(dest) ~= "string" or dest:find("[%z\1-\31\127]") then return false, "bad dest" end
+    return true, { id = id, dest = dest, name = name }
+end
+
+-- A free name in a folder: name, "name (2).ext", ... up to (99). exists(n) -> bool.
+function LinkSet.Media.freeName(name, exists)
+    if not exists(name) then return name end
+    local stem, ext = name:match("^(.+)(%.[^%.]+)$")
+    if not stem then stem, ext = name, "" end
+    for i = 2, 99 do
+        local n = stem .. " (" .. i .. ")" .. ext
+        if not exists(n) then return n end
+    end
+    return nil
+end
+
+-- Wi-Fi. What KOReader keeps for a network it saved itself
+-- (NetworkMgr:saveNetwork, frontend/ui/network/manager.lua): {ssid, password,
+-- psk, flags}; flags matter only for "WPA" in them (kindleSaveNetwork stores
+-- secured = yes and the psk then; networksetting.lua refuses an empty
+-- password on a WPA network). The phone never knows the flags (no scan), so
+-- a password means WPA2-PSK, none means an open network.
+LinkSet.Media.WPA_FLAGS  = "[WPA2-PSK-CCMP][ESS]"
+LinkSet.Media.OPEN_FLAGS = "[ESS]"
+
+-- ssid: 1..32 bytes, no control characters. Returns true, ssid | false, why.
+function LinkSet.Media.checkSSID(ssid)
+    if type(ssid) ~= "string" or ssid == "" then return false, "missing ssid" end
+    if #ssid > 32 then return false, "ssid longer than 32 bytes" end
+    if ssid:find("[%z\1-\31\127]") then return false, "ssid has control characters" end
+    return true, ssid
+end
+
+-- wifi_add {ssid, password, hidden?}: returns true, {ssid, password, flags, hidden} | false, why.
+-- A WPA passphrase is 8..63 printable ASCII characters (IEEE 802.11i); KOReader
+-- turns it into the psk itself (wpa_supplicant.lua calculatePsk), so a raw
+-- 64-hex psk is refused rather than hashed a second time. "" = open network.
+function LinkSet.Media.checkWifiAdd(args)
+    if type(args) ~= "table" then return false, "missing args" end
+    local ok, why = LinkSet.Media.checkSSID(args.ssid)
+    if not ok then return false, why end
+    local pw = args.password
+    if pw == nil then pw = "" end
+    if type(pw) ~= "string" then return false, "password must be text" end
+    if pw ~= "" then
+        if #pw < 8 or #pw > 63 then return false, "password must be 8 to 63 characters" end
+        if pw:find("[^\32-\126]") then return false, "password must be printable ASCII" end
+    end
+    if args.hidden ~= nil and type(args.hidden) ~= "boolean" then return false, "hidden must be true or false" end
+    return true, { ssid = args.ssid, password = pw, hidden = args.hidden == true,
+                   flags = (pw == "") and LinkSet.Media.OPEN_FLAGS or LinkSet.Media.WPA_FLAGS }
+end
+
+-- The networks report: names only, sorted; never a password or psk.
+-- saved: ssid -> anything (KOReader's network.lua table) or a list of ssids.
+function LinkSet.Media.networkList(saved)
+    local out, seen = {}, {}
+    if type(saved) ~= "table" then return out end
+    for k, v in pairs(saved) do
+        local s = (type(k) == "string") and k or (type(v) == "string" and v) or (type(v) == "table" and (v.ssid or v.essid))
+        if type(s) == "string" and s ~= "" and not seen[s] then
+            seen[s] = true
+            table.insert(out, s)
+        end
+    end
+    table.sort(out)
+    return out
+end
+
+-- Sleep screen (frontend/ui/screensaver.lua, elements/screensaver_menu.lua):
+-- "Show custom image or cover" is screensaver_type = "document_cover" with
+-- the file in screensaver_document_cover (Screensaver:chooseFile), "Show
+-- random image from folder" is "random_image" with screensaver_dir
+-- (Screensaver:chooseFolder). For the report: the paths relative to the
+-- library when inside it.
+function LinkSet.Media.sleepReport(stype, image, dir, root)
+    local function rel(p)
+        if type(p) ~= "string" or p == "" then return nil end
+        if type(root) == "string" and p:sub(1, #root + 1) == root .. "/" then return p:sub(#root + 2) end
+        return nil
+    end
+    return { type = stype, image = image, image_path = rel(image),
+             image_name = type(image) == "string" and image:match("[^/]+$") or nil,
+             folder = dir, folder_path = rel(dir) }
+end
+-- TOMESYNC_LINKMEDIA_END
+
 -- MD5 hex of a string with KOReader's bundled ffi/sha2; nil when missing
 -- (then the tree is sent as before, on full passes only).
 local function linkHash(str)
@@ -6385,6 +6569,14 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
     if op == "plugin_install" then return self:_linkPluginInstall(args) end
     if op == "plugin_remove" then return self:_linkPluginRemove(args) end
     if op == "self_update" then return self:_linkSelfUpdate(args) end
+    -- Build 61
+    if op == "upload" then return self:_linkUpload(root, cmd) end
+    if op == "receive_file" then return self:_linkReceiveFile(root, args, touched) end
+    if op == "set_sleep_image" then return self:_linkSetSleep(root, args, false) end
+    if op == "set_sleep_folder" then return self:_linkSetSleep(root, args, true) end
+    if op == "wifi_add" then return self:_linkWifiAdd(args) end
+    if op == "wifi_remove" then return self:_linkWifiRemove(args) end
+    if op == "wifi_connect" then return self:_linkWifiConnect(args) end
 
     if op == "mkdir" then
         local rel = str(args.path)
@@ -6812,11 +7004,21 @@ function TomeSync:_linkPass(light, hb)
             end
             local touched = {}
             for _, cmd in ipairs(fresh) do
-                if not link_off.all then
+                -- Build 61: an upload decodes and sends a file; never while a book
+                -- is open (page turns would wait on it). Not run and not answered:
+                -- the phone hands it out again (after its 60 s in flight) and a pass
+                -- in the file manager runs it.
+                local defer = reading and cmd.op == "upload"
+                if defer and LinkSet.Media.deferred ~= tostring(cmd.id) then
+                    LinkSet.Media.deferred = tostring(cmd.id)
+                    logger.info("TomeSync: link command", tostring(cmd.id), "upload waits until the book closes")
+                end
+                if not link_off.all and not defer then
                     local key = tostring(cmd.id)
                     local ok, res, err, new_path, note, applies, extra = pcall(self._linkRunCommand, self, root, cmd, touched)
                     if not ok then res, err, new_path, note, applies, extra = false, tostring(res), nil, nil, nil, nil end
-                    if cmd.op == "set_setting" or cmd.op == "run_profile" then LinkSet.dirty = true end
+                    if cmd.op == "set_setting" or cmd.op == "run_profile" or cmd.op:find("^set_sleep_") then LinkSet.dirty = true end
+                    if cmd.op:find("^wifi_") then LinkSet.Media.dirty = true end
                     if cmd.op:find("^plugin_") or cmd.op == "self_update" then LinkSet.Plug.dirty = true end
                     ran = ran + 1
                     logger.info("TomeSync: link command", key, tostring(cmd.op),
@@ -6862,6 +7064,14 @@ function TomeSync:_linkPass(light, hb)
         LinkSet.Plug.dirty = nil
         local ok, e = pcall(self._linkSendPlugins, self, net, was and "after a change" or "full pass")
         if not ok then logger.warn("TomeSync: link plugins report failed:", e) end
+    end
+    -- Build 61: the Wi-Fi networks report (names only), on full passes and after a Wi-Fi command.
+    if link_on and not link_off.all and not link_off.networks and not repair
+            and (not light or LinkSet.Media.dirty) then
+        local was = LinkSet.Media.dirty
+        LinkSet.Media.dirty = nil
+        local ok, e = pcall(self._linkSendNetworks, self, net, was and "after a change" or "full pass")
+        if not ok then logger.warn("TomeSync: link networks report failed:", e) end
     end
 
     link_host_missed = missed
@@ -7065,6 +7275,10 @@ function TomeSync:_linkSendSettings(net, why)
     local body = LinkSet.report(values, caps, arr(fonts), arr(profiles), limits)
     for _, d in pairs(body.keys) do if d.values then d.values = arr(d.values) end end
     body.device = deviceName()
+    -- Build 61: the sleep screen's image or folder (what set_sleep_image / _folder write).
+    body.sleep = LinkSet.Media.sleepReport(G_reader_settings:readSetting("screensaver_type"),
+        G_reader_settings:readSetting("screensaver_document_cover"),
+        G_reader_settings:readSetting("screensaver_dir"), linkRoot())
     local _, code = apiRequest("PUT", "/tome-sync/reader-settings", body, net)
     local n = 0
     for _ in pairs(body.settings) do n = n + 1 end
@@ -7526,6 +7740,395 @@ function TomeSync:_linkSelfUpdate(_)
     if not ok then return false, e, nil, nil, nil, { from_build = BUILD } end
     logger.info("TomeSync: link self-update " .. BUILD .. " -> " .. avail.build .. " (restart)")
     return true, nil, nil, nil, "restart", { from_build = BUILD, to_build = avail.build }
+end
+
+-- ── Build 61: device details, uploads, images and sleep screens, Wi-Fi ──────
+-- (LinkSet.Media above holds the pure rules.)
+
+-- Is name an image KOReader shows? DocumentRegistry:isImageFile, what the
+-- screensaver's random image uses; the table above when it cannot be loaded.
+function TomeSync._linkIsImage(name)
+    local ok, DR = pcall(require, "document/documentregistry")
+    if ok and DR and DR.isImageFile then
+        local ok2, yes = pcall(DR.isImageFile, DR, name)
+        if ok2 then return yes == true end
+    end
+    return LinkSet.Media.isImage(name)
+end
+
+-- The first line of a small text file, or nil.
+function TomeSync._linkFirstLine(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local line = f:read("*l")
+    f:close()
+    if type(line) ~= "string" then return nil end
+    line = line:gsub("%s+$", "")
+    return line ~= "" and line or nil
+end
+
+-- Device-info fields added in build 61. Firmware: Device.firmware_rev, which
+-- KOReader sets on Kobo (field 3 of /mnt/onboard/.kobo/version) and Android;
+-- on a Kindle, where KOReader reads none, /etc/prettyversion.txt. Serial:
+-- /proc/usid on a Kindle (what KOReader reads to tell the model), field 1 of
+-- the Kobo version file on a Kobo. Neither exists on the emulator.
+function TomeSync._linkInfoExtra(info, root)
+    local fw = Device.firmware_rev
+    if (type(fw) == "string" and fw ~= "" and fw ~= "none") or type(fw) == "number" then
+        info.firmware = tostring(fw)
+    end
+    local kindle = Device.isKindle and Device:isKindle()
+    local kobo = Device.isKobo and Device:isKobo()
+    if not info.firmware and kindle then info.firmware = TomeSync._linkFirstLine("/etc/prettyversion.txt") end
+    if kindle then
+        info.serial = TomeSync._linkFirstLine("/proc/usid")
+    elseif kobo then
+        local v = TomeSync._linkFirstLine("/mnt/onboard/.kobo/version")
+        info.serial = v and v:match("^([^,]+)") or nil
+    end
+    pcall(function()
+        local scr = Device.screen
+        info.screen = { width = scr:getWidth(), height = scr:getHeight(), dpi = scr:getDPI() }
+    end)
+    local function real(p) return p and (linkRealpath(p) or p) or nil end
+    info.folders = {
+        data     = real(DataStorage:getDataDir()),
+        settings = real(DataStorage:getSettingsDir()),
+        plugins  = real(TomeSync._linkPluginUserDir()),
+        koreader = real(lfs.currentdir()),
+    }
+    local state = (link_poll_secs > 0 and "polling") or (LinkHB.till and (LinkHB.paused and "paused" or "heartbeat")) or "idle"
+    info.link = {
+        url             = LinkSession.url or primaryURL(),
+        configured_url  = primaryURL(),
+        state           = state,
+        poll_seconds    = link_poll_secs > 0 and link_poll_secs or nil,
+        heartbeat_until = LinkHB.till,
+        pinned          = pinnedFingerprint() and shortFingerprint(pinnedFingerprint(), 4) or nil,
+    }
+end
+
+function TomeSync._linkMime(ext)
+    local m = { jpg = "image/jpeg", jpeg = "image/jpeg", png = "image/png", gif = "image/gif", webp = "image/webp",
+                svg = "image/svg+xml", tif = "image/tiff", tiff = "image/tiff", pdf = "application/pdf",
+                epub = "application/epub+zip", txt = "text/plain" }
+    return m[ext or ""] or "application/octet-stream"
+end
+
+-- A decoded image (or the screen) re-encoded as JPEG with the long side at
+-- most max_px: RenderImage (MuPDF / giflib / libwebp decode, MuPDF scale,
+-- frontend/ui/renderimage.lua) and the blitbuffer's writeJPG (ffi/jpeg,
+-- libjpeg-turbo). Returns ok, w, h (original), sw, sh (sent) | false, why.
+function TomeSync._linkShrink(src, dest, max_px)
+    local RenderImage = require("ui/renderimage")
+    local bb = RenderImage:renderImageFile(src, false)
+    if not bb then return false, "KOReader could not decode the image" end
+    local w, h = bb:getWidth(), bb:getHeight()
+    local sw, sh, scaled = LinkSet.Media.fit(w, h, max_px)
+    if scaled then bb = RenderImage:scaleBlitBuffer(bb, sw, sh) end
+    local ok, e = pcall(bb.writeJPG, bb, dest, 80)
+    bb:free()
+    if not ok then os.remove(dest); return false, "could not write the JPEG: " .. tostring(e) end
+    if lfs.attributes(dest, "mode") ~= "file" then return false, "the JPEG was not written" end
+    return true, w, h, sw, sh
+end
+
+-- upload {path?, kind, max_px?}: PUT /tome-sync/upload/{command id} with the
+-- file's bytes streamed from disk (at most 20 MB, 2 min for the whole
+-- transfer), before the command's result is posted. kind "screenshot":
+-- Screen:shot (fb:shot, ffi/framebuffer.lua: a PNG of the framebuffer) to a
+-- temp file, sent, deleted. Paths go through linkResolve like every file op.
+function TomeSync:_linkUpload(root, cmd)
+    local ok, a = LinkSet.Media.checkUpload(type(cmd.args) == "table" and cmd.args or {})
+    if not ok then return false, a end
+    local id = tostring(cmd.id)
+    local tmpdir = DataStorage:getDataDir() .. "/cache/tomesync-link"
+    mkdirp(tmpdir)
+    local src, tmp, tmp2, ctype
+    local extra = { kind = a.kind }
+    local function cleanup()
+        if tmp then os.remove(tmp) end
+        if tmp2 then os.remove(tmp2) end
+    end
+    if a.kind == "screenshot" then
+        tmp = tmpdir .. "/shot-" .. id .. ".png"
+        os.remove(tmp)
+        local sok, e = pcall(function() Device.screen:shot(tmp) end)
+        if not sok or lfs.attributes(tmp, "mode") ~= "file" then
+            cleanup(); return false, "the screenshot was not written: " .. tostring(e)
+        end
+        src, ctype = tmp, "image/png"
+        pcall(function() extra.width, extra.height = Device.screen:getWidth(), Device.screen:getHeight() end)
+        if a.max_px then
+            tmp2 = tmpdir .. "/shot-" .. id .. ".jpg"
+            local okS, w, h, sw, sh = TomeSync._linkShrink(tmp, tmp2, a.max_px)
+            if not okS then cleanup(); return false, w end
+            src, ctype = tmp2, "image/jpeg"
+            extra.width, extra.height, extra.sent_width, extra.sent_height = w, h, sw, sh
+        end
+    else
+        if not root then return false, "no library folder" end
+        local abs, err = linkResolve(root, a.path, true)
+        if not abs then return false, err end
+        if lfs.attributes(abs, "mode") ~= "file" then return false, "not a file: " .. a.path end
+        local ext = LinkSet.Media.ext(abs)
+        src, ctype = abs, TomeSync._linkMime(ext)
+        extra.path = a.path
+        if a.kind == "image" and a.max_px and LinkSet.Media.RASTER_EXT[ext or ""] then
+            tmp = tmpdir .. "/img-" .. id .. ".jpg"
+            local okS, w, h, sw, sh = TomeSync._linkShrink(abs, tmp, a.max_px)
+            if not okS then cleanup(); return false, w end
+            src, ctype = tmp, "image/jpeg"
+            extra.width, extra.height, extra.sent_width, extra.sent_height = w, h, sw, sh
+        end
+    end
+    local size = lfs.attributes(src, "size") or 0
+    if size > LinkSet.Media.MAX_UPLOAD then
+        cleanup()
+        return false, "over " .. math.floor(LinkSet.Media.MAX_UPLOAD / 1048576) .. " MB (" .. size .. " bytes)"
+    end
+    if not NetworkMgr:isConnected() then cleanup(); return false, "offline" end
+    local t0 = linkNow()
+    local chunks = {}
+    local rok, code = serverRequest({
+        method  = "PUT",
+        path    = "/api/tome-sync/upload/" .. urlEncode(id),
+        headers = {
+            ["Authorization"]   = "Bearer " .. apiKey(),
+            ["Content-Type"]    = ctype,
+            ["Content-Length"]  = tostring(size),
+            ["Accept"]          = "application/json",
+            ["X-Tome-Upload-Kind"] = a.kind,
+        },
+        source  = function() return ltn12.source.file(io.open(src, "rb")) end,
+        sink    = function() chunks = {}; return cappedTableSink(chunks) end,
+        block   = 15,
+        total   = LinkSet.Media.UPLOAD_SECS,
+    })
+    cleanup()
+    local ms = math.floor((linkNow() - t0) * 1000 + 0.5)
+    if not rok or type(code) ~= "number" or code < 200 or code >= 300 then
+        logger.info("TomeSync: link upload " .. id .. " failed: " .. tostring(code) .. " (" .. size .. " bytes, " .. ms .. " ms)")
+        return false, "upload failed: " .. tostring(code), nil, nil, nil, extra
+    end
+    logger.info("TomeSync: link upload " .. id .. " (" .. a.kind .. ") " .. size .. " bytes " .. ctype .. " in " .. ms .. " ms")
+    extra.bytes, extra.content_type = size, ctype
+    return true, nil, nil, nil, nil, extra
+end
+
+-- receive_file {id, dest, name}: GET /tome-sync/outbox/{id} into
+-- <home>/<dest>/<name> (dest made one level at a time, like mkdir; a name in
+-- use gets " (2)"), through a hidden .part file renamed in at the end.
+function TomeSync:_linkReceiveFile(root, args, touched)
+    local ok, a = LinkSet.Media.checkReceive(args)
+    if not ok then return false, a end
+    if not root then return false, "no library folder" end
+    local why = linkPartRefused(a.name)
+    if why then return false, why end
+    local dir, built = root, ""
+    if a.dest ~= "" then
+        why = linkPathRefused(a.dest)
+        if why then return false, why end
+        for part in a.dest:gmatch("[^/]+") do
+            built = (built == "") and part or (built .. "/" .. part)
+            local abs, err = linkResolve(root, built, false)
+            if not abs then return false, err end
+            local mode = lfs.attributes(abs, "mode")
+            if mode == nil then
+                local okm, e = lfs.mkdir(abs)
+                if not okm then return false, "could not create " .. built .. ": " .. tostring(e) end
+                touched[linkParent(abs)] = true
+            elseif mode ~= "directory" then
+                return false, "a file is in the way: " .. built
+            end
+            dir = abs
+        end
+    end
+    local name = LinkSet.Media.freeName(a.name, function(n) return lfs.attributes(dir .. "/" .. n, "mode") ~= nil end)
+    if not name then return false, "no free name for " .. a.name end
+    local rel = (built == "") and name or (built .. "/" .. name)
+    local dest, err = linkResolve(root, rel, false)
+    if not dest then return false, err end
+    local part = dir .. "/.tomesync-part-" .. a.id
+    local okf, got = TomeSync._linkFetchCapped("/tome-sync/outbox/" .. urlEncode(a.id), part, LinkSet.Media.MAX_UPLOAD)
+    if not okf then
+        os.remove(part)
+        return false, "download failed: " .. tostring(got):gsub("the zip", "the file")
+    end
+    local okr, e = os.rename(part, dest)
+    if not okr then os.remove(part); return false, "could not place the file: " .. tostring(e) end
+    touched[dir] = true
+    logger.info("TomeSync: link received " .. rel .. " (" .. tostring(got) .. " bytes)")
+    return true, nil, rel, nil, nil, { bytes = got, kind = TomeSync._linkIsImage(name) and "image" or nil }
+end
+
+-- set_sleep_image {path} / set_sleep_folder {path}: what the screensaver menu
+-- writes (screensaver_menu.lua): "Show custom image or cover on sleep screen"
+-- is screensaver_type "document_cover" + screensaver_document_cover (the
+-- file, Screensaver:chooseFile); "Show random image from folder" is
+-- "random_image" + screensaver_dir (Screensaver:chooseFolder). Read when the
+-- reader goes to sleep. A folder path "" is the home folder.
+function TomeSync:_linkSetSleep(root, args, folder)
+    if not root then return false, "no library folder" end
+    local rel = args.path
+    local abs, err
+    if folder and rel == "" then
+        abs = root
+    else
+        abs, err = linkResolve(root, rel, true)
+        if not abs then return false, err end
+    end
+    local mode = lfs.attributes(abs, "mode")
+    if folder and mode ~= "directory" then return false, "not a folder: " .. tostring(rel) end
+    if not folder then
+        if mode ~= "file" then return false, "not a file: " .. tostring(rel) end
+        if not TomeSync._linkIsImage(abs) then return false, "not an image KOReader shows: " .. tostring(rel) end
+    end
+    local stype = folder and "random_image" or "document_cover"
+    local key = folder and "screensaver_dir" or "screensaver_document_cover"
+    G_reader_settings:saveSetting("screensaver_type", stype)
+    G_reader_settings:saveSetting(key, abs)
+    G_reader_settings:flush()
+    if G_reader_settings:readSetting("screensaver_type") ~= stype or G_reader_settings:readSetting(key) ~= abs then
+        return false, "KOReader did not keep the sleep screen"
+    end
+    logger.info("TomeSync: link sleep screen " .. stype .. " " .. abs)
+    return true, nil, nil, nil, "now"
+end
+
+-- Wi-Fi. KOReader's store (frontend/ui/network/manager.lua, saveNetwork /
+-- deleteNetwork / getAllSavedNetworks) is settings/network.lua, ssid ->
+-- { ssid, password, psk, flags }, used by its wpa_supplicant backend (Kobo,
+-- Cervantes, PocketBook, reMarkable...). On a Kindle saveNetwork is replaced by
+-- kindleSaveNetwork (frontend/device/kindle/device.lua): a wifid profile
+-- through lipc (createProfile); the saved list is wifid's profileData there,
+-- and KOReader has no way to forget a Kindle profile.
+function TomeSync._linkKindleProfiles()
+    local ok, lipc = pcall(require, "libopenlipclua")
+    if not ok or not lipc then return nil end
+    local h = lipc.open_no_name()
+    if not h then return nil end
+    local ok2, list = pcall(function()
+        local ha_input = h:new_hasharray()
+        local ha_result = h:access_hash_property("com.lab126.wifid", "profileData", ha_input)
+        local t = ha_result:to_table()
+        ha_result:destroy()
+        ha_input:destroy()
+        return t
+    end)
+    h:close()
+    return ok2 and list or nil
+end
+
+function TomeSync._linkSavedNetworks()
+    if Device:isKindle() then return TomeSync._linkKindleProfiles() end
+    -- The file itself, not NetworkMgr's copy in memory: the end state.
+    local st = LuaSettings:open(DataStorage:getSettingsDir() .. "/network.lua")
+    return st.data
+end
+
+function TomeSync._linkNetworks()
+    local kindle = Device:isKindle()
+    local saved = TomeSync._linkSavedNetworks()
+    local out = {
+        backend     = kindle and "kindle-wifid" or "koreader",
+        store       = kindle and "com.lab126.wifid profileData"
+                      or ((linkRealpath(DataStorage:getSettingsDir()) or DataStorage:getSettingsDir()) .. "/network.lua"),
+        known       = rapidjson.array and rapidjson.array(LinkSet.Media.networkList(saved)) or LinkSet.Media.networkList(saved),
+        readable    = saved ~= nil,
+        can_remove  = not kindle,
+        can_connect = not Device:isEmulator(),
+        emulator    = Device:isEmulator() or nil,
+    }
+    pcall(function() out.wifi_on = NetworkMgr:isWifiOn() and true or false end)
+    pcall(function() out.connected = NetworkMgr:isConnected() and true or false end)
+    pcall(function()
+        local cur = NetworkMgr:getCurrentNetwork()
+        if type(cur) == "table" and type(cur.ssid) == "string" and cur.ssid ~= "" then out.current = cur.ssid end
+    end)
+    return out
+end
+
+-- PUT /tome-sync/networks: names only. 404/405 turns it off for the session.
+function TomeSync:_linkSendNetworks(net, why)
+    local body = TomeSync._linkNetworks()
+    body.device = deviceName()
+    local _, code = apiRequest("PUT", "/tome-sync/networks", body, net)
+    logger.info("TomeSync: link PUT networks " .. tostring(code) .. " (" .. why .. ", " .. #body.known
+                .. " known, current " .. tostring(body.current) .. ")")
+    if linkRouteOff(code) then
+        link_off.networks = true
+        logger.info("TomeSync: link networks", code, "- report off")
+    end
+end
+
+-- wifi_add {ssid, password, hidden?}: NetworkMgr:saveNetwork, exactly what
+-- the network list's "Connect" with a new password calls
+-- (networksetting.lua NetworkItem:saveAndConnectToNetwork: password set, psk
+-- nil), then read back from the store. The password is never logged.
+function TomeSync:_linkWifiAdd(args)
+    local ok, a = LinkSet.Media.checkWifiAdd(args)
+    if not ok then return false, a end
+    NetworkMgr:saveNetwork({ ssid = a.ssid, password = a.password, psk = nil, flags = a.flags })
+    local saved = TomeSync._linkSavedNetworks()
+    local found = false
+    if Device:isKindle() then
+        for _, s in ipairs(LinkSet.Media.networkList(saved)) do if s == a.ssid then found = true end end
+    else
+        local e = type(saved) == "table" and saved[a.ssid]
+        found = type(e) == "table" and e.password == a.password
+    end
+    if not found then return false, "KOReader did not keep the network " .. a.ssid end
+    logger.info("TomeSync: link saved Wi-Fi network " .. a.ssid .. (a.flags == LinkSet.Media.OPEN_FLAGS and " (open)" or " (WPA)"))
+    local note = a.hidden and "KOReader joins networks it finds in a scan; a hidden one may not be found" or nil
+    return true, nil, nil, note, "now"
+end
+
+-- wifi_remove {ssid}: NetworkMgr:deleteNetwork, the network list's "Forget".
+function TomeSync:_linkWifiRemove(args)
+    local ok, ssid = LinkSet.Media.checkSSID(args.ssid)
+    if not ok then return false, ssid end
+    if Device:isKindle() then
+        return false, "KOReader cannot forget a Kindle network; use the Kindle's own Wi-Fi settings"
+    end
+    local saved = TomeSync._linkSavedNetworks()
+    if type(saved) ~= "table" or saved[ssid] == nil then
+        return true, nil, nil, "was not saved"
+    end
+    NetworkMgr:deleteNetwork({ ssid = ssid })
+    saved = TomeSync._linkSavedNetworks()
+    if type(saved) == "table" and saved[ssid] ~= nil then return false, "KOReader kept the network " .. ssid end
+    logger.info("TomeSync: link forgot Wi-Fi network " .. ssid)
+    return true, nil, nil, nil, "now"
+end
+
+-- wifi_connect {ssid}: NetworkMgr:authenticateNetwork with the saved entry,
+-- what the network list's "Connect" runs (wpa_supplicant: add, set psk,
+-- enable; Kindle: lipc ensureConnection), then obtainIP. Run 2 s after this
+-- command's result is posted: the reader leaves the network the phone is on.
+function TomeSync:_linkWifiConnect(args)
+    local ok, ssid = LinkSet.Media.checkSSID(args.ssid)
+    if not ok then return false, ssid end
+    if Device:isEmulator() then return false, "the emulator has no Wi-Fi to join" end
+    local network
+    if Device:isKindle() then
+        local found = false
+        for _, s in ipairs(LinkSet.Media.networkList(TomeSync._linkSavedNetworks())) do if s == ssid then found = true end end
+        if not found then return false, "no saved network named " .. ssid end
+        network = { ssid = ssid }
+    else
+        local saved = TomeSync._linkSavedNetworks()
+        local e = type(saved) == "table" and saved[ssid]
+        if type(e) ~= "table" then return false, "no saved network named " .. ssid end
+        network = { ssid = ssid, password = e.password, psk = e.psk, flags = e.flags }
+    end
+    UIManager:scheduleIn(2, function()
+        logger.info("TomeSync: link joining Wi-Fi network " .. ssid)
+        local okA, done, msg = pcall(NetworkMgr.authenticateNetwork, NetworkMgr, network)
+        if okA and done then pcall(NetworkMgr.obtainIP, NetworkMgr) end
+        logger.info("TomeSync: link join " .. ssid .. ": " .. tostring(okA and done) .. (msg and (" (" .. tostring(msg) .. ")") or ""))
+    end)
+    return true, nil, nil, "joining in 2 s; the reader leaves this network", "now"
 end
 
 local function linkStopPoll(why)

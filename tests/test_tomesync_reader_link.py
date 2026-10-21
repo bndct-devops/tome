@@ -20,6 +20,11 @@ def _impl() -> str:
     return IMPL_PATH.read_text(encoding="utf-8")
 
 
+def _lua_build(lua: str) -> int:
+    import re
+    return int(re.search(r"^local BUILD\s+= (\d+)", lua, re.M).group(1))
+
+
 def test_build_is_53_or_later():
     assert TOMESYNC_PLUGIN_BUILD >= 53
 
@@ -420,7 +425,7 @@ def test_download_and_delivered_hardening_in_render():
 def test_build_55_device_id_wording_and_probe_rules():
     assert TOMESYNC_PLUGIN_BUILD >= 55
     lua = _main_impl_lua()
-    assert "local BUILD           = 60" in lua
+    assert _lua_build(lua) >= 60
     # A persistent id, sent in device-info and in the initiate body.
     assert "device_id    = LinkSession.deviceID()," in lua
     assert "{ device_id = LinkSession.deviceID(), device = deviceName() }" in lua
@@ -672,7 +677,7 @@ print("ok")
 
 def test_build_58_wiring():
     lua = _impl()
-    assert "local BUILD           = 60" in lua
+    assert _lua_build(lua) >= 60
     api = lua[lua.index("local function apiRequest(method, path, body, opts)"):]
     api = api[:api.index("\nend\n")]
     assert "return nil, code, resp_body" in api
@@ -844,8 +849,8 @@ print("ok")
 
 def test_build_59_wiring():
     lua = _impl()
-    assert "local BUILD           = 60" in lua
-    assert TOMESYNC_PLUGIN_BUILD == 60
+    assert _lua_build(lua) >= 60
+    assert TOMESYNC_PLUGIN_BUILD >= 60
     assert "set_setting = true, run_profile = true" in lua
     assert '"/tome-sync/reader-settings"' in lua
     assert 'if op == "set_setting" then return self:_linkSetSetting(args) end' in lua
@@ -1015,10 +1020,10 @@ print("ok")
 
 def test_build_60_wiring():
     lua = _impl()
-    assert "local BUILD           = 60" in lua
-    assert TOMESYNC_PLUGIN_BUILD == 60
+    assert _lua_build(lua) >= 60
+    assert TOMESYNC_PLUGIN_BUILD >= 60
     assert "plugin_enable = true, plugin_install = true, plugin_remove = true" in lua
-    assert "self_update = true }" in lua
+    assert "self_update = true," in lua
     for op in ("plugin_enable", "plugin_install", "plugin_remove", "self_update"):
         assert f'if op == "{op}" then return self:' in lua
     assert '"/tome-sync/plugins"' in lua
@@ -1042,5 +1047,212 @@ assert(#linkParseCommands({ commands = {
     { id = 3, op = "plugin_remove", args = { dir = "hello.koplugin" } },
     { id = 4, op = "self_update", args = {} },
     { id = 5, op = "plugin_exec", args = {} } } }) == 4)
+print("ok")
+""")
+
+
+# ── Build 61: uploads, images and sleep screens, Wi-Fi ──────────────────────
+
+def _linkmedia_block() -> str:
+    lua = _impl()
+    start = lua.index("-- TOMESYNC_LINKMEDIA_BEGIN")
+    end = lua.index("-- TOMESYNC_LINKMEDIA_END")
+    # LinkSet.Media is a field of LinkSet (the 200-local budget).
+    return "local LinkSet = {}\n" + lua[start:end]
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_upload_args(tmp_path):
+    """Only file, image and screenshot; a path for files and images (an image by
+    KOReader's own extensions), none for a screenshot; max_px whole and bounded."""
+    _run_lua(tmp_path, "upload.lua", _linkmedia_block() + r'''
+local C = LinkSet.Media.checkUpload
+local function ok(a) local y, r = C(a); assert(y == true, tostring(r)); return r end
+local function no(a, want) local y, r = C(a); assert(y == false, "should refuse"); assert(r:find(want, 1, true), r) end
+assert(ok({ path = "book/A.epub" }).kind == "file")
+assert(ok({ path = "Screensavers/a.JPG", kind = "image", max_px = 256 }).max_px == 256)
+assert(ok({ kind = "screenshot" }).path == nil)
+assert(ok({ kind = "screenshot", max_px = 400 }).max_px == 400)
+no({ kind = "shell", path = "x" }, "unknown kind")
+no({ kind = "image", path = "book/A.epub" }, "not an image")
+no({ kind = "image" }, "missing path")
+no({ kind = "file", path = "" }, "missing path")
+no({ kind = "screenshot", path = "x.png" }, "takes no path")
+no({ kind = "image", path = "a.png", max_px = 8 }, "max_px")
+no({ kind = "image", path = "a.png", max_px = 5000 }, "max_px")
+no({ kind = "image", path = "a.png", max_px = 12.5 }, "max_px")
+no({ kind = "file", path = "a.epub", max_px = 100 }, "for images")
+for _, e in ipairs({ "gif", "jpeg", "jpg", "png", "svg", "tif", "tiff", "webp" }) do
+    assert(LinkSet.Media.isImage("x." .. e) and LinkSet.Media.isImage("x." .. e:upper()), e)
+end
+assert(not LinkSet.Media.isImage("x.epub") and not LinkSet.Media.isImage("png") and not LinkSet.Media.isImage(nil))
+local w, h, s = LinkSet.Media.fit(4000, 3000, 256); assert(w == 256 and h == 192 and s)
+w, h, s = LinkSet.Media.fit(100, 50, 256); assert(w == 100 and h == 50 and not s)
+w, h, s = LinkSet.Media.fit(1, 5000, 100); assert(w == 1 and h == 100 and s)
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_upload_paths_are_contained(tmp_path):
+    """An upload path goes through the same refusals as every file op (the
+    upload op resolves it with linkResolve(root, path, true), which runs these
+    first and then the realpath / KOReader-folder checks)."""
+    _run_lua(tmp_path, "upguard.lua", _linkguard_block() + r'''
+for _, p in ipairs({ "../outside.txt", "book/../../etc/passwd", ".adds/koreader/settings.reader.lua",
+                     ".tomesync-trash/a.epub", "plugins/tomesync.koplugin/config.lua", "x/run.sh",
+                     "x/evil.lua", "Screensavers/a.png." }) do
+    assert(linkPathRefused(p) ~= nil, p .. " should be refused")
+end
+assert(linkPathRefused("Screensavers/a.png") == nil)
+print("ok")
+''')
+    lua = _impl()
+    up = lua[lua.index("function TomeSync:_linkUpload("):lua.index("function TomeSync:_linkReceiveFile(")]
+    assert "local abs, err = linkResolve(root, a.path, true)" in up
+    assert 'if lfs.attributes(abs, "mode") ~= "file" then' in up
+    assert "LinkSet.Media.MAX_UPLOAD" in up and "total   = LinkSet.Media.UPLOAD_SECS" in up
+    assert '"/api/tome-sync/upload/" .. urlEncode(id)' in up
+    assert "Device.screen:shot(tmp)" in up
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_receive_file_args(tmp_path):
+    _run_lua(tmp_path, "receive.lua", _linkmedia_block() + r'''
+local C = LinkSet.Media.checkReceive
+local y, r = C({ id = 7, dest = "Screensavers", name = "Sea.jpg" })
+assert(y and r.id == "7" and r.dest == "Screensavers" and r.name == "Sea.jpg")
+assert(C({ id = "a/b", name = "x.jpg" }) == false)
+assert(C({ id = 1, name = "a/b.jpg" }) == false)
+assert(C({ id = 1, name = "a\nb.jpg" }) == false)
+assert(C({ id = 1, name = "" }) == false)
+assert(C({ id = 1, name = string.rep("a", 201) }) == false)
+assert(select(2, C({ id = 1, name = "x.jpg" })).dest == "")
+local have = { ["Sea.jpg"] = true, ["Sea (2).jpg"] = true }
+assert(LinkSet.Media.freeName("Sea.jpg", function(n) return have[n] end) == "Sea (3).jpg")
+assert(LinkSet.Media.freeName("new.png", function(n) return have[n] end) == "new.png")
+assert(LinkSet.Media.freeName("noext", function(n) return n == "noext" end) == "noext (2)")
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_wifi_payload_validation(tmp_path):
+    """SSID 1..32 bytes without control characters; a WPA passphrase 8..63
+    printable ASCII (KOReader derives the psk itself), "" for an open network;
+    the report carries names only."""
+    _run_lua(tmp_path, "wifi.lua", _linkmedia_block() + r'''
+local A = LinkSet.Media.checkWifiAdd
+local y, r = A({ ssid = "Benedict's iPhone", password = "correct horse" })
+assert(y and r.flags == "[WPA2-PSK-CCMP][ESS]" and r.password == "correct horse" and r.hidden == false)
+y, r = A({ ssid = "Cafe", password = "" }); assert(y and r.flags == "[ESS]")
+y, r = A({ ssid = "Cafe" }); assert(y and r.password == "")
+y, r = A({ ssid = "Hidden", password = "12345678", hidden = true }); assert(y and r.hidden == true)
+local function no(a, want) local ok, why = A(a); assert(ok == false, "should refuse"); assert(why:find(want, 1, true), why) end
+no({ password = "12345678" }, "missing ssid")
+no({ ssid = "", password = "12345678" }, "missing ssid")
+no({ ssid = string.rep("x", 33), password = "12345678" }, "32 bytes")
+no({ ssid = "a\0b", password = "12345678" }, "control")
+no({ ssid = "a\nb", password = "12345678" }, "control")
+no({ ssid = "x", password = "short" }, "8 to 63")
+no({ ssid = "x", password = string.rep("a", 64) }, "8 to 63")
+no({ ssid = "x", password = "pässwörd1" }, "printable ASCII")
+no({ ssid = "x", password = 12345678 }, "text")
+no({ ssid = "x", password = "12345678", hidden = "yes" }, "hidden")
+-- The report: names only, whatever the store holds next to them.
+local list = LinkSet.Media.networkList({
+    Home = { ssid = "Home", password = "secret-1", psk = "abcd" },
+    ["Benedict's iPhone"] = { ssid = "Benedict's iPhone", password = "secret-2" } })
+assert(#list == 2 and list[1] == "Benedict's iPhone" and list[2] == "Home")
+-- A Kindle's wifid profileData: a list of {essid, ...}.
+list = LinkSet.Media.networkList({ { essid = "Home", psk = "x" }, { essid = "Home" }, { essid = "Office" } })
+assert(#list == 2 and list[1] == "Home" and list[2] == "Office")
+assert(#LinkSet.Media.networkList(nil) == 0)
+print("ok")
+''')
+    lua = _impl()
+    wifi = lua[lua.index("function TomeSync._linkKindleProfiles("):lua.index("local function linkStopPoll(")]
+    # KOReader's own store and calls
+    assert "NetworkMgr:saveNetwork({ ssid = a.ssid, password = a.password, psk = nil, flags = a.flags })" in wifi
+    assert "NetworkMgr:deleteNetwork({ ssid = ssid })" in wifi
+    assert 'LuaSettings:open(DataStorage:getSettingsDir() .. "/network.lua")' in wifi
+    assert 'access_hash_property("com.lab126.wifid", "profileData", ha_input)' in wifi
+    assert "NetworkMgr.authenticateNetwork, NetworkMgr, network" in wifi
+    # no log line carries a password
+    for line in wifi.splitlines():
+        if "logger." in line:
+            assert "password" not in line, line
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_sleep_screen_settings(tmp_path):
+    """What the screensaver menu writes: document_cover + screensaver_document_cover
+    for one image, random_image + screensaver_dir for a folder."""
+    _run_lua(tmp_path, "sleep.lua", _linkmedia_block() + r'''
+local r = LinkSet.Media.sleepReport("document_cover", "/lib/Screensavers/Sea.jpg", "/lib/Screensavers", "/lib")
+assert(r.type == "document_cover" and r.image_path == "Screensavers/Sea.jpg" and r.image_name == "Sea.jpg")
+assert(r.folder_path == "Screensavers")
+r = LinkSet.Media.sleepReport("random_image", "/elsewhere/x.png", "/lib2/x", "/lib")
+assert(r.image_path == nil and r.image_name == "x.png" and r.folder_path == nil and r.folder == "/lib2/x")
+r = LinkSet.Media.sleepReport("disable", nil, nil, "/lib")
+assert(r.image_name == nil and r.image_path == nil)
+print("ok")
+''')
+    lua = _impl()
+    sleep = lua[lua.index("function TomeSync:_linkSetSleep("):lua.index("function TomeSync._linkKindleProfiles(")]
+    assert 'local stype = folder and "random_image" or "document_cover"' in sleep
+    assert 'local key = folder and "screensaver_dir" or "screensaver_document_cover"' in sleep
+    assert 'G_reader_settings:saveSetting("screensaver_type", stype)' in sleep
+    assert "G_reader_settings:flush()" in sleep
+    assert "TomeSync._linkIsImage(abs)" in sleep
+
+
+def test_build_61_wiring():
+    lua = _impl()
+    assert _lua_build(lua) >= 61
+    assert TOMESYNC_PLUGIN_BUILD >= 61
+    assert ("upload = true, receive_file = true, set_sleep_image = true, set_sleep_folder = true,\n"
+            "                   wifi_add = true, wifi_remove = true, wifi_connect = true }") in lua
+    for op, fn in (("upload", "_linkUpload(root, cmd)"), ("receive_file", "_linkReceiveFile(root, args, touched)"),
+                   ("wifi_add", "_linkWifiAdd(args)"), ("wifi_remove", "_linkWifiRemove(args)"),
+                   ("wifi_connect", "_linkWifiConnect(args)")):
+        assert f'if op == "{op}" then return self:{fn} end' in lua
+    assert '"/tome-sync/networks"' in lua and '"/tome-sync/outbox/" .. urlEncode(a.id)' in lua
+    assert 'local defer = reading and cmd.op == "upload"' in lua
+    assert "(not light or LinkSet.Media.dirty)" in lua and "link_off.networks = true" in lua
+    # images are flagged in the tree, and change its hash
+    assert 'kind = (TomeSync._linkIsImage and TomeSync._linkIsImage(name)) and "image" or nil' in lua
+    assert '(e.kind == "image" and "\\ti" or "")' in lua
+    # uploads stream from disk, one fresh source per server address
+    assert "(spec.source and spec.source())" in lua
+    assert 'source  = function() return ltn12.source.file(io.open(src, "rb")) end' in lua
+    # the settings report carries the sleep screen's file and folder
+    assert 'body.sleep = LinkSet.Media.sleepReport(G_reader_settings:readSetting("screensaver_type"),' in lua
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_tree_canon_marks_images(tmp_path):
+    _run_lua(tmp_path, "canonimg.lua", _linkpoll_block() + r'''
+local a = { { path = "Screensavers/a.png", type = "file", size = 1, mtime = 2, sdr = false } }
+local b = { { path = "Screensavers/a.png", type = "file", size = 1, mtime = 2, sdr = false, kind = "image" } }
+assert(linkTreeCanon(a, false) ~= linkTreeCanon(b, false))
+local c = { { path = "x.epub", type = "file", size = 1, mtime = 2, sdr = false } }
+assert(linkTreeCanon(c, false) == "x.epub\tf\t1\t2\t", "a book's line is unchanged")
+print("ok")
+''')
+
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_parser_takes_media_ops(tmp_path):
+    _run_lua(tmp_path, "mediaops.lua", _linkcmd_block() + r"""
+assert(#linkParseCommands({ commands = {
+    { id = 1, op = "upload", args = { kind = "screenshot" } },
+    { id = 2, op = "receive_file", args = { id = 3, dest = "Screensavers", name = "a.jpg" } },
+    { id = 3, op = "set_sleep_image", args = { path = "Screensavers/a.jpg" } },
+    { id = 4, op = "set_sleep_folder", args = { path = "Screensavers" } },
+    { id = 5, op = "wifi_add", args = { ssid = "x", password = "12345678" } },
+    { id = 6, op = "wifi_remove", args = { ssid = "x" } },
+    { id = 7, op = "wifi_connect", args = { ssid = "x" } },
+    { id = 8, op = "exec", args = {} } } }) == 7)
 print("ok")
 """)
