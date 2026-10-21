@@ -176,6 +176,8 @@ logger = logging.getLogger(__name__)
 # phone as a separate link for the reader link's calls only; config.lua's server keeps every
 # sync call and is never rewritten. Numbered past any Tome release so neither side's updater
 # ever offers the other's build by accident; a Tome that ships the link must build above it.
+# Also in 1063 (never released): read_log (the tail of crash.log, read-only) and device-info
+# started_at / ops, so the phone sees a restart and knows which commands a reader runs.
 TOMESYNC_PLUGIN_BUILD = 1063
 TOMESYNC_PLUGIN_SEMVER = "1.20.2+link.1063"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)

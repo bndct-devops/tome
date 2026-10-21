@@ -6132,7 +6132,8 @@ local LINK_OPS = { rename = true, move = true, delete = true, mkdir = true, refr
                    upload = true, receive_file = true, set_sleep_image = true, set_sleep_folder = true,
                    wifi_add = true, wifi_remove = true, wifi_connect = true,    -- build 61
                    profile_save = true, profile_delete = true, profile_rename = true,
-                   profile_preview = true, profile_apply_open = true }          -- build 62
+                   profile_preview = true, profile_apply_open = true,           -- build 62
+                   read_log = true }                                            -- build 1063
 local function linkParseCommands(body)
     if type(body) ~= "table" then return {} end
     local list = body
@@ -7211,7 +7212,38 @@ function LinkSet.Media.sleepReport(stype, image, dir, root)
              image_name = type(image) == "string" and image:match("[^/]+$") or nil,
              folder = dir, folder_path = rel(dir) }
 end
+
+-- Build 1063: read_log {}. The one file the link reads outside the library:
+-- crash.log in KOReader's data folder (what koreader.sh writes the process's
+-- output to), the last LOG_MAX bytes of it, never written. It takes no
+-- arguments at all, so no path can be asked for.
+LinkSet.Media.LOG_NAME = "crash.log"
+LinkSet.Media.LOG_MAX  = 256 * 1024
+function LinkSet.Media.checkLog(args)
+    if args ~= nil and type(args) ~= "table" then return false, "read_log takes no arguments" end
+    for k in pairs(args or {}) do
+        return false, "read_log takes no arguments (got " .. tostring(k) .. ")"
+    end
+    return true
+end
+-- Where the tail starts in a file of `size` bytes: offset, truncated.
+function LinkSet.Media.logWindow(size, max)
+    max = max or LinkSet.Media.LOG_MAX
+    if type(size) ~= "number" or size <= max then return 0, false end
+    return size - max, true
+end
+-- A cut tail starts at its first whole line.
+function LinkSet.Media.logTrim(text, truncated)
+    if not truncated or type(text) ~= "string" then return text end
+    local nl = text:find("\n", 1, true)
+    if nl and nl < #text then return text:sub(nl + 1) end
+    return text
+end
 -- TOMESYNC_LINKMEDIA_END
+
+-- Build 1063: when this KOReader process loaded TomeSync (device-info
+-- started_at), so the phone can tell a restart from another report.
+LinkSet.started = os.time()
 
 -- MD5 hex of a string with KOReader's bundled ffi/sha2; nil when missing
 -- (then the tree is sent as before, on full passes only).
@@ -7274,6 +7306,8 @@ function TomeSync:_linkRunCommand(root, cmd, touched)
     if op == "profile_rename" then return self:_linkProfileRename(args) end
     if op == "profile_preview" then return self:_linkProfileLive(cmd, true) end
     if op == "profile_apply_open" then return self:_linkProfileLive(cmd, false) end
+    -- Build 1063
+    if op == "read_log" then return self:_linkReadLog(cmd) end
 
     if op == "mkdir" then
         local rel = str(args.path)
@@ -8969,6 +9003,12 @@ function TomeSync._linkInfoExtra(info, root)
         mode            = PluginConfig.link and "dual" or "single",
         sync_server     = PluginConfig.link and primaryURL() or nil,
     }
+    -- Build 1063: when this process started, and the commands it runs.
+    info.started_at = LinkSet.started
+    local ops = {}
+    for op in pairs(LINK_OPS) do table.insert(ops, op) end
+    table.sort(ops)
+    info.ops = ops
 end
 
 function TomeSync._linkMime(ext)
@@ -9092,6 +9132,48 @@ function TomeSync:_linkUpload(root, cmd)
     end
     logger.info("TomeSync: link upload " .. id .. " (" .. a.kind .. ") " .. size .. " bytes " .. ctype .. " in " .. ms .. " ms")
     extra.bytes, extra.content_type = size, ctype
+    return true, nil, nil, nil, nil, extra
+end
+
+-- read_log {}: the tail of crash.log in KOReader's data folder (LinkSet.Media
+-- LOG_*), copied to a temp file and sent like an upload (kind "log",
+-- text/plain). Opened read-only; a symlink or anything but a plain file is
+-- refused; no crash.log yet is a success with missing = true and no upload.
+function TomeSync:_linkReadLog(cmd)
+    local ok, why = LinkSet.Media.checkLog(cmd.args)
+    if not ok then return false, why end
+    local M = LinkSet.Media
+    local path = DataStorage:getDataDir() .. "/" .. M.LOG_NAME
+    local extra = { kind = "log", file = M.LOG_NAME, max_bytes = M.LOG_MAX }
+    local mode = lfs.symlinkattributes(path, "mode")
+    if mode == nil then
+        extra.missing, extra.bytes = true, 0
+        return true, nil, nil, "KOReader has not written crash.log", nil, extra
+    end
+    if mode ~= "file" then return false, M.LOG_NAME .. " is not a plain file" end
+    local size = lfs.attributes(path, "size") or 0
+    local from, truncated = M.logWindow(size, M.LOG_MAX)
+    local f = io.open(path, "rb")
+    if not f then return false, "could not open " .. M.LOG_NAME end
+    if from > 0 then f:seek("set", from) end
+    local text = f:read(M.LOG_MAX) or ""
+    f:close()
+    text = M.logTrim(text, truncated)
+    local id = tostring(cmd.id)
+    local tmpdir = DataStorage:getDataDir() .. "/cache/tomesync-link"
+    mkdirp(tmpdir)
+    local tmp = tmpdir .. "/log-" .. id .. ".txt"
+    local out = io.open(tmp, "wb")
+    if not out then return false, "could not write a temp copy" end
+    out:write(text)
+    out:close()
+    extra.file_bytes, extra.truncated = size, truncated
+    if not NetworkMgr:isConnected() then os.remove(tmp); return false, "offline" end
+    local rok, code, sent, ms = self:_linkPutUpload(id, tmp, "text/plain; charset=utf-8", "log")
+    os.remove(tmp)
+    if not rok then return false, "upload failed: " .. tostring(code), nil, nil, nil, extra end
+    logger.info("TomeSync: link read_log " .. id .. ": " .. tostring(sent) .. " of " .. size .. " bytes in " .. ms .. " ms")
+    extra.bytes = sent
     return true, nil, nil, nil, nil, extra
 end
 

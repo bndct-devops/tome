@@ -1533,7 +1533,7 @@ def test_build_62_wiring():
     assert _lua_build(lua) >= 62
     assert TOMESYNC_PLUGIN_BUILD >= 62
     assert ("profile_save = true, profile_delete = true, profile_rename = true,\n"
-            "                   profile_preview = true, profile_apply_open = true }") in lua
+            "                   profile_preview = true, profile_apply_open = true,") in lua
     for op, fn in (("profile_save", "_linkProfileSave(args)"), ("profile_delete", "_linkProfileDelete(args)"),
                    ("profile_rename", "_linkProfileRename(args)"), ("profile_preview", "_linkProfileLive(cmd, true)"),
                    ("profile_apply_open", "_linkProfileLive(cmd, false)")):
@@ -1661,3 +1661,50 @@ def test_phone_deliveries_never_touch_the_servers_book_map():
     ad = lua[lua.index("local function autoDeliver()"):]
     ad = ad[:ad.index("\nend\n")]
     assert "if v == nil then return DEFAULT_AUTO_DELIVER or PluginConfig.link ~= nil end" in ad
+
+
+# ── Build 1063: reader log, process start ───────────────────────────────────
+
+@pytest.mark.skipif(shutil.which("luajit") is None, reason="luajit not installed")
+def test_read_log_args_and_window(tmp_path):
+    """read_log takes no arguments at all (so no path can be asked for); the
+    tail is the last LOG_MAX bytes, cut to its first whole line."""
+    _run_lua(tmp_path, "readlog.lua", _linkmedia_block() + r"""
+local M = LinkSet.Media
+assert(M.LOG_NAME == "crash.log" and M.LOG_MAX == 256 * 1024)
+assert(M.checkLog({}) == true)
+assert(M.checkLog(nil) == true)
+for _, a in ipairs({ { path = "../settings.reader.lua" }, { path = "crash.log" }, { file = "x" },
+                     { "crash.log" }, "crash.log" }) do
+    local y, why = M.checkLog(a)
+    assert(y == false and why:find("takes no arguments", 1, true), tostring(why))
+end
+local o, t = M.logWindow(100, 256); assert(o == 0 and t == false)
+o, t = M.logWindow(256, 256); assert(o == 0 and t == false)
+o, t = M.logWindow(1000, 256); assert(o == 744 and t == true)
+o, t = M.logWindow(10 * 1024 * 1024); assert(o == 10 * 1024 * 1024 - 256 * 1024 and t == true)
+assert(M.logTrim("tail of a line\nwhole 1\nwhole 2\n", true) == "whole 1\nwhole 2\n")
+assert(M.logTrim("whole 1\nwhole 2\n", false) == "whole 1\nwhole 2\n")
+assert(M.logTrim("no newline at all", true) == "no newline at all")
+print("ok")
+""")
+
+
+def test_read_log_wiring():
+    lua = _impl()
+    assert "                   read_log = true }" in lua
+    assert 'if op == "read_log" then return self:_linkReadLog(cmd) end' in lua
+    fn = lua[lua.index("function TomeSync:_linkReadLog("):lua.index("-- receive_file {id, dest, name}: GET")]
+    # the one fixed file in the data folder, checked before anything is read
+    assert 'local path = DataStorage:getDataDir() .. "/" .. M.LOG_NAME' in fn
+    assert fn.index("LinkSet.Media.checkLog(cmd.args)") < fn.index("io.open(path")
+    assert 'lfs.symlinkattributes(path, "mode")' in fn and 'if mode ~= "file" then return false' in fn
+    # opened for reading only, never written; the copy goes to the link's temp folder
+    assert fn.count("io.open(path") == 1 and 'io.open(path, "rb")' in fn
+    assert 'io.open(tmp, "wb")' in fn and fn.count('"wb"') == 1
+    assert '_linkPutUpload(id, tmp, "text/plain; charset=utf-8", "log")' in fn
+    assert "os.remove(tmp)" in fn and "os.remove(path" not in fn
+    # device-info: process start and the ops this build runs
+    extra = lua[lua.index("function TomeSync._linkInfoExtra("):lua.index("function TomeSync._linkMime(")]
+    assert "info.started_at = LinkSet.started" in extra and "info.ops = ops" in extra
+    assert "LinkSet.started = os.time()" in lua
