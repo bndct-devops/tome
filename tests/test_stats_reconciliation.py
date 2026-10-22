@@ -4,7 +4,7 @@ Book-level rule: a book with any page-stats uses page-stats (page-stats win, its
 sessions are ignored to avoid double-counting); books with no page-stats fall back to
 sessions. When no page-stats exist, behaviour is identical to before (covered elsewhere).
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from backend.models.tome_sync import ReadingSession
 from backend.models.ko_stats import PageStat
@@ -57,11 +57,13 @@ def test_pagestat_only_history_appears(client, db, admin_user, make_book):
     user, _ = admin_user
     book = make_book(title="Old History")
     # reading recorded only in page-stats, months before any session existed
-    _add_pagestats(db, user, book, [300, 300], day=(2025, 10, 20))
+    # (relative, so the day stays inside the heatmap's rolling 365-day window)
+    day = (datetime.now(timezone.utc) - timedelta(days=200)).date()
+    _add_pagestats(db, user, book, [300, 300], day=(day.year, day.month, day.day))
     db.flush()
     stats = client.get("/api/stats?days=0").json()
     assert stats["headline"]["total_reading_seconds"] == 600
-    assert any(d["date"] == "2025-10-20" and d["seconds"] == 600 for d in stats["heatmap_daily"])
+    assert any(d["date"] == day.isoformat() and d["seconds"] == 600 for d in stats["heatmap_daily"])
 
 
 def test_top_books_reconciled_ordering(client, db, admin_user, make_book):
