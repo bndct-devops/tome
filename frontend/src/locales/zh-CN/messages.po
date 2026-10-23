@@ -5323,7 +5323,11 @@ msgid "On this day"
 msgstr ""
 
 #: src/components/TelemetryConsentCard.tsx
-msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
+#~ msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
+#~ msgstr ""
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
 msgstr ""
 
 #: src/pages/StatsPage.tsx

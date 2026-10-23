@@ -48,7 +48,8 @@ def _connect() -> smtplib.SMTP:
             conn = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
             if settings.smtp_use_tls:
                 conn.starttls()
-        conn.login(settings.smtp_user, settings.smtp_password)
+        if settings.smtp_user:
+            conn.login(settings.smtp_user, settings.smtp_password)
         return conn
     except Exception as exc:
         raise SmtpSendError(f"SMTP connection failed: {exc}") from exc

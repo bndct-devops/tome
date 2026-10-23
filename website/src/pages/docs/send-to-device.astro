@@ -91,8 +91,9 @@ TOME_SMTP_FROM=tome@example.com   # optional, defaults to TOME_SMTP_USER`
     </tbody>
   </table>
   <p>
-    The feature is considered "configured" once <code>TOME_SMTP_HOST</code>,
-    <code>TOME_SMTP_USER</code>, and <code>TOME_SMTP_PASSWORD</code> are all set. See the full env
+    The feature is considered "configured" once <code>TOME_SMTP_HOST</code> is set together with
+    either <code>TOME_SMTP_USER</code> and <code>TOME_SMTP_PASSWORD</code>, or
+    <code>TOME_SMTP_FROM</code> for a server that needs no authentication. See the full env
     var list in <a href={withBase("/docs/configuration")}>Configuration</a>.
   </p>
 

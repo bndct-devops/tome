@@ -17,6 +17,13 @@ All notable changes to Tome are documented here. Format loosely follows
   for Docker and Kubernetes secrets. Setting both the variable and its `_FILE`
   variant is an error. (#267)
 
+### Changed
+- **The update check asks Tome's own endpoint.** Tome now checks
+  `upgrades.bndct.dev` once a day for a newer version, in the background
+  instead of only when an admin opens Settings. The request carries the
+  version number and nothing else. `TOME_UPDATE_CHECK=false` turns it off,
+  as before.
+
 ### Fixed
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
   new pairing (Sign in with code), a changed server URL and a connection
@@ -28,6 +35,10 @@ All notable changes to Tome are documented here. Format loosely follows
   back (or "method not allowed" for anything but a read). It now gets a
   plain 404, so the KOReader plugin and other clients can tell that a server
   does not have a feature yet instead of choking on a web page.
+- **Send to Device works with SMTP servers that need no authentication.**
+  `TOME_SMTP_USER` and `TOME_SMTP_PASSWORD` may both be left empty; Tome
+  then skips the login step. `TOME_SMTP_FROM` is required in that case, so
+  the sender address is never blank. (#271)
 
 ## [2.7.1] - 2026-10-19
 

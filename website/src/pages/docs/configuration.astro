@@ -47,7 +47,8 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_SMTP_USE_TLS</code></td><td><code>true</code></td><td>STARTTLS (port 587)</td></tr>
       <tr><td><code>TOME_SMTP_USE_SSL</code></td><td><code>false</code></td><td>Implicit SSL (port 465)</td></tr>
       <tr><td><code>TOME_SMTP_DAILY_LIMIT</code></td><td><code>50</code></td><td>Per-user sends/day (0 = unlimited)</td></tr>
-      <tr><td><code>TOME_UPDATE_CHECK</code></td><td><code>true</code></td><td>Admin "update available" indicator in Settings → About via a daily-cached GitHub releases lookup. Set <code>false</code> for air-gapped installs — nothing else phones home; the post-upgrade "What's new" panel is local and unaffected</td></tr>
+      <tr><td><code>TOME_UPDATE_CHECK</code></td><td><code>true</code></td><td>Admin "update available" indicator in Settings → About. Once a day Tome asks <code>upgrades.bndct.dev</code> for the latest release, sending only the version number. Set <code>false</code> for air-gapped installs; the post-upgrade "What's new" panel is local and unaffected</td></tr>
+      <tr><td><code>TOME_UPDATE_CHECK_URL</code></td><td><code>https://upgrades.bndct.dev/latest.json</code></td><td>Where the update check asks. Forks and test instances point this elsewhere</td></tr>
       <tr><td><code>TOME_OUTBOUND_NOTIFY</code></td><td><code>true</code></td><td>Kill switch for per-user outbound notification channels (ntfy / Gotify / webhook). Nothing is ever sent unless a user configures a channel</td></tr>
       <tr><td><code>TOME_ALLOW_INFILE_BAKE</code></td><td><code>true</code></td><td>Hard off-switch for the admin "Bake to File" action that rewrites library files with Tome's metadata</td></tr>
       <tr><td><code>TOME_WISHLIST_ENABLED</code></td><td><code>true</code></td><td>Kill switch for the <a href={withBase("/docs/wishlist")}>Wishlist</a></td></tr>
@@ -158,8 +159,9 @@ import { withBase } from '../../lib/path'
   <p>
     The <code>TOME_SMTP_*</code> variables enable <a href={withBase("/docs/send-to-device")}>Send to
     Device</a> — emailing books to e-readers. The feature stays hidden until
-    <code>TOME_SMTP_HOST</code>, <code>TOME_SMTP_USER</code>, and <code>TOME_SMTP_PASSWORD</code> are
-    all set. Credentials live only in the environment, never the database. See the
+    <code>TOME_SMTP_HOST</code> is set together with either <code>TOME_SMTP_USER</code> and
+    <code>TOME_SMTP_PASSWORD</code>, or <code>TOME_SMTP_FROM</code> for a server that needs no
+    authentication. Credentials live only in the environment, never the database. See the
     <a href={withBase("/docs/send-to-device")}>Send to Device</a> page for provider-specific
     examples (Gmail, Fastmail) and the Kindle approved-sender step.
   </p>

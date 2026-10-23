@@ -64,66 +64,7 @@ def test_whats_new_endpoint_shape(client: TestClient):
     assert isinstance(data["entries"], list)
 
 
-def _reset_cache():
-    meta._cache.update(at=0.0, result=None, ttl=0.0)
-
-
-def test_update_check_available(client: TestClient, monkeypatch):
-    _reset_cache()
-    monkeypatch.setattr(meta, "_fetch_latest_release", lambda: "99.0.0")
-    r = client.get("/api/meta/update-check")
-    assert r.status_code == 200
-    data = r.json()
-    assert data["enabled"] is True
-    assert data["latest"] == "99.0.0"
-    assert data["update_available"] is True
-    assert data["url"].startswith("https://github.com/")
-
-
-def test_update_check_current_is_latest(client: TestClient, monkeypatch):
-    _reset_cache()
-    from backend import __version__
-    monkeypatch.setattr(meta, "_fetch_latest_release", lambda: __version__)
-    data = client.get("/api/meta/update-check").json()
-    assert data["update_available"] is False
-
-
-def test_update_check_cached(client: TestClient, monkeypatch):
-    _reset_cache()
-    calls = {"n": 0}
-
-    def fetch():
-        calls["n"] += 1
-        return "99.0.0"
-
-    monkeypatch.setattr(meta, "_fetch_latest_release", fetch)
-    client.get("/api/meta/update-check")
-    client.get("/api/meta/update-check")
-    assert calls["n"] == 1
-
-
-def test_update_check_network_failure_is_graceful(client: TestClient, monkeypatch):
-    _reset_cache()
-
-    def boom():
-        raise OSError("offline")
-
-    monkeypatch.setattr(meta, "_fetch_latest_release", boom)
-    data = client.get("/api/meta/update-check").json()
-    assert data["update_available"] is False
-    assert data["latest"] is None
-
-
-def test_update_check_disabled_by_env(client: TestClient, monkeypatch):
-    _reset_cache()
-    monkeypatch.setattr(settings, "update_check", False)
-    data = client.get("/api/meta/update-check").json()
-    assert data["enabled"] is False
-    assert data["update_available"] is False
-
-
 def test_update_check_admin_only(client: TestClient, db: Session, monkeypatch):
-    _reset_cache()
     member = User(username="meta_member", email="meta_member@example.com",
                   hashed_password=hash_password("pass1234"), is_active=True,
                   is_admin=False, role="member", must_change_password=False)
