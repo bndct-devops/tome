@@ -44,6 +44,8 @@ TOME_OIDC_DEFAULT_ROLE=guest
 TOME_PUBLIC_URL=https://tome.example.com
 ```
 
+To keep the secret out of the environment, set `TOME_OIDC_CLIENT_SECRET_FILE` to a file containing it (e.g. a Docker secret) instead of `TOME_OIDC_CLIENT_SECRET`.
+
 | Variable | Purpose |
 |---|---|
 | `TOME_OIDC_ENABLED` | Master switch (default `false`). |
