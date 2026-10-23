@@ -16,6 +16,10 @@ All notable changes to Tome are documented here. Format loosely follows
   holds the value, e.g. `TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key`,
   for Docker and Kubernetes secrets. Setting both the variable and its `_FILE`
   variant is an error. (#267)
+- **French translation.** The web UI is available in French (Settings →
+  Appearance → Language). Machine-translated first pass, corrected in the
+  running UI by the contributor; wording fixes are welcome as pull requests.
+  Contributed by llaumgui. (#272)
 
 ### Changed
 - **The update check asks Tome's own endpoint.** Tome now checks
