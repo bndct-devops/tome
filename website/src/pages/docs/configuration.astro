@@ -159,8 +159,9 @@ import { withBase } from '../../lib/path'
   <p>
     The <code>TOME_SMTP_*</code> variables enable <a href={withBase("/docs/send-to-device")}>Send to
     Device</a> — emailing books to e-readers. The feature stays hidden until
-    <code>TOME_SMTP_HOST</code>, <code>TOME_SMTP_USER</code>, and <code>TOME_SMTP_PASSWORD</code> are
-    all set. Credentials live only in the environment, never the database. See the
+    <code>TOME_SMTP_HOST</code> is set together with either <code>TOME_SMTP_USER</code> and
+    <code>TOME_SMTP_PASSWORD</code>, or <code>TOME_SMTP_FROM</code> for a server that needs no
+    authentication. Credentials live only in the environment, never the database. See the
     <a href={withBase("/docs/send-to-device")}>Send to Device</a> page for provider-specific
     examples (Gmail, Fastmail) and the Kindle approved-sender step.
   </p>

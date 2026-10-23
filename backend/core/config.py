@@ -208,7 +208,17 @@ class Settings(BaseSettings):
 
     @property
     def smtp_configured(self) -> bool:
-        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+        """True when a host is set, a sender exists, and auth is all-or-nothing.
+
+        User and password must be both set or both empty: a half-set pair
+        stays "not configured" so a typo in one variable keeps the clear setup
+        message instead of surfacing as a server auth error.
+        """
+        if not self.smtp_host:
+            return False
+        if not (self.smtp_from or self.smtp_user):
+            return False
+        return bool(self.smtp_user) == bool(self.smtp_password)
 
     @property
     def smtp_from_address(self) -> str:
