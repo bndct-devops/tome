@@ -59,10 +59,14 @@ class Settings(BaseSettings):
     # channels. Off = the kill-switch; per-user channels also toggle.
     outbound_notify: bool = True
 
-    # Update awareness (env TOME_UPDATE_CHECK): lets admins see "new version
-    # available" in Settings via a daily-cached GitHub releases lookup. Set
-    # false to never call out (air-gapped installs); nothing else phones home.
+    # Update check (env TOME_UPDATE_CHECK): once a day Tome asks update_check_url
+    # for the latest release, sending only the version number, so admins see
+    # "new version available" in Settings. Set false to never call out
+    # (air-gapped installs).
     update_check: bool = True
+    # Where the update check asks (env TOME_UPDATE_CHECK_URL). Forks and test
+    # instances point this elsewhere.
+    update_check_url: str = "https://upgrades.bndct.dev/latest.json"
 
     # Opt-in telemetry (env TOME_TELEMETRY): false pins the monthly report off
     # and hides the question entirely. True only means the admin may be asked;

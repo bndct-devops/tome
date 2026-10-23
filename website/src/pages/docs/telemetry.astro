@@ -114,4 +114,11 @@ import { withBase } from '../../lib/path'
     Point <code>TOME_TELEMETRY_URL</code> at your own receiver, or leave it at the default to count
     toward Tome's numbers. The receiver's source is the repository above.
   </Callout>
+
+  <h2>Update check</h2>
+  <p>
+    Once a day Tome asks <code>upgrades.bndct.dev/latest.json</code> for the latest release. The
+    request carries the version number and nothing else. This is Tome's own endpoint, not GitHub.
+    <code>TOME_UPDATE_CHECK=false</code> turns it off.
+  </p>
 </DocsLayout>

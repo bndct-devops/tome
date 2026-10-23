@@ -68,7 +68,7 @@ export function TelemetryConsentCard({ telemetry }: { telemetry: ReturnType<type
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground"><Trans>Help count Tome installs?</Trans></p>
           <p className="mt-0.5 text-muted-foreground">
-            <Trans>Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes.</Trans>
+            <Trans>Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent.</Trans>
           </p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setOpen(true)}
