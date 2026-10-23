@@ -10,6 +10,12 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Supporters on the About page.** Settings > About lists the people who
   sponsor Tome on GitHub Sponsors. The repo also shows a Sponsor button.
   Sponsoring is a thank-you; nothing in Tome is locked behind it.
+- **Secrets can be read from files.** `TOME_SECRET_KEY`, `TOME_HARDCOVER_TOKEN`,
+  `TOME_GOOGLE_BOOKS_KEY`, `TOME_SMTP_USER`, `TOME_SMTP_PASSWORD` and
+  `TOME_OIDC_CLIENT_SECRET` each accept a `_FILE` variant naming a file that
+  holds the value, e.g. `TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key`,
+  for Docker and Kubernetes secrets. Setting both the variable and its `_FILE`
+  variant is an error. (#267)
 
 ### Fixed
 - **A KOReader crash no longer undoes a fresh sign-in.** The plugin kept a
