@@ -5301,8 +5301,12 @@ msgid "On this day"
 msgstr "À cette date"
 
 #: src/components/TelemetryConsentCard.tsx
-msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
-msgstr "Une fois par mois, Tome peut envoyer un petit rapport anonyme : version, plateforme, comptages par tranches et fonctionnalités utilisées. Jamais de titre, de nom ni de nom d’hôte. Désactivé sans votre accord."
+#~ msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
+#~ msgstr "Une fois par mois, Tome peut envoyer un petit rapport anonyme : version, plateforme, comptages par tranches et fonctionnalités utilisées. Jamais de titre, de nom ni de nom d’hôte. Désactivé sans votre accord."
+
+#: src/components/TelemetryConsentCard.tsx
+msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
+msgstr "Une fois par mois, Tome peut envoyer un petit rapport anonyme : version, plateforme, comptages par tranches et fonctionnalités utilisées. Jamais de titre, de nom ni de nom d’hôte. Désactivé sans votre accord. Par ailleurs, Tome vérifie une fois par jour sur upgrades.bndct.dev si une nouvelle version existe ; seul le numéro de version est envoyé."
 
 #: src/pages/StatsPage.tsx
 msgid "One series front and center — you pick which"
