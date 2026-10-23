@@ -6946,11 +6946,11 @@ msgstr "Cible"
 
 #: src/pages/StatsPage.tsx
 msgid "Taste"
-msgstr "Goûts"
+msgstr "Préférences"
 
 #: src/pages/StatsPage.tsx
 msgid "Taste by Genre"
-msgstr "Goûts par genre"
+msgstr "Préférences par genre"
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Temporary password"
