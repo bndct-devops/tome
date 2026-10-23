@@ -75,10 +75,26 @@ def test_file_var_from_dotenv(tmp_path):
     assert Settings(_env_file=env).smtp_user == "from-file"
 
 
+def test_file_var_from_dotenv_is_case_insensitive(tmp_path):
+    f = tmp_path / "secret"
+    f.write_text("from-file\n")
+    env = tmp_path / ".env"
+    env.write_text(f"tome_smtp_user_file={f}\n")
+    assert Settings(_env_file=env).smtp_user == "from-file"
+
+
+def test_empty_file_var_is_none_not_cwd(monkeypatch):
+    # Path("") would be Path("."), the current directory.
+    monkeypatch.setenv("TOME_SMTP_USER_FILE", "")
+    s = Settings(_env_file=None)
+    assert s.smtp_user_file is None
+    assert s.smtp_user is None
+
+
 def test_secret_key_env_beats_data_dir_file(tmp_path, monkeypatch):
     monkeypatch.setenv("TOME_SECRET_KEY", "from-env")
     s = _settings(tmp_path)
-    s.secret_key_file.write_text("from-data-dir")
+    s.generated_key_path.write_text("from-data-dir")
     assert s.resolve_secret_key() == "from-env"
 
 
@@ -87,13 +103,13 @@ def test_secret_key_file_beats_data_dir_file(tmp_path, monkeypatch):
     f.write_text("from-file\n")
     monkeypatch.setenv("TOME_SECRET_KEY_FILE", str(f))
     s = _settings(tmp_path)
-    s.secret_key_file.write_text("from-data-dir")
+    s.generated_key_path.write_text("from-data-dir")
     assert s.resolve_secret_key() == "from-file"
 
 
 def test_secret_key_data_dir_file_without_env(tmp_path):
     s = _settings(tmp_path)
-    s.secret_key_file.write_text("from-data-dir")
+    s.generated_key_path.write_text("from-data-dir")
     assert s.resolve_secret_key() == "from-data-dir"
 
 

@@ -1,14 +1,16 @@
 import os
 import secrets
 import logging
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 # Secrets that may also be supplied as a file (Docker/Kubernetes secrets):
-# TOME_<NAME>_FILE=/run/secrets/... is read in place of TOME_<NAME>.
+# TOME_<NAME>_FILE=/run/secrets/... is read in place of TOME_<NAME>. Each has
+# a <name>_file field below, so the _FILE variable is resolved from the
+# environment and .env like every other TOME_* variable.
 FILE_SECRETS = (
     "secret_key",
     "hardcover_token",
@@ -152,33 +154,43 @@ class Settings(BaseSettings):
     oidc_allowed_group: str | None = None  # if set, membership required to log in at all
     oidc_post_login_redirect: str = "/auth/callback"  # frontend route that receives #token
 
-    @model_validator(mode="before")
+    # Files to read the FILE_SECRETS from (env TOME_<NAME>_FILE). Paths, not
+    # secrets: the contents land in the plain field, see _read_file_secrets.
+    secret_key_file: Path | None = None
+    hardcover_token_file: Path | None = None
+    google_books_key_file: Path | None = None
+    smtp_user_file: Path | None = None
+    smtp_password_file: Path | None = None
+    oidc_client_secret_file: Path | None = None
+
+    @field_validator(*(f"{name}_file" for name in FILE_SECRETS), mode="before")
     @classmethod
-    def _read_file_secrets(cls, data):
+    def _empty_file_var_is_unset(cls, value):
+        # TOME_<NAME>_FILE= would otherwise become Path("."), the current dir.
+        return None if value == "" else value
+
+    @model_validator(mode="after")
+    def _read_file_secrets(self):
         """Fill each FILE_SECRETS field from TOME_<NAME>_FILE when set.
 
-        The _FILE variable is read from the process environment first, then
-        from .env (pydantic-settings passes unknown .env keys through as
-        lowercase extras). Setting both TOME_<NAME> and TOME_<NAME>_FILE is an
-        error rather than a guess.
+        Setting both TOME_<NAME> and TOME_<NAME>_FILE is an error rather than
+        a guess.
         """
-        if not isinstance(data, dict):
-            return data
         for name in FILE_SECRETS:
-            var = f"TOME_{name.upper()}_FILE"
-            path = os.environ.get(var) or data.pop(var.lower(), None)
-            if not path:
+            path = getattr(self, f"{name}_file")
+            if path is None:
                 continue
-            if data.get(name):
+            var = f"TOME_{name.upper()}_FILE"
+            if getattr(self, name):
                 raise RuntimeError(
                     f"Both TOME_{name.upper()} and {var} are set. "
                     f"Set only one of them."
                 )
             try:
-                data[name] = Path(path).read_text().rstrip("\r\n")
+                setattr(self, name, path.read_text().rstrip("\r\n"))
             except OSError as exc:
                 raise RuntimeError(f"Cannot read {var}={path}: {exc}") from exc
-        return data
+        return self
 
     @property
     def oidc_configured(self) -> bool:
@@ -211,7 +223,7 @@ class Settings(BaseSettings):
         return self.data_dir / "cover_thumbs"
 
     @property
-    def secret_key_file(self) -> Path:
+    def generated_key_path(self) -> Path:
         return self.data_dir / "secret.key"
 
     def resolve_secret_key(self) -> str:
@@ -234,7 +246,7 @@ class Settings(BaseSettings):
                 )
             return self.secret_key.strip()
 
-        key_file = self.secret_key_file
+        key_file = self.generated_key_path
         if key_file.exists():
             try:
                 return key_file.read_text().strip()
