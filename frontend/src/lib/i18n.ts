@@ -13,9 +13,10 @@ export interface LocaleDefinition {
 }
 
 export const LOCALES: LocaleDefinition[] = [
-  { code: 'en', label: 'English' },
-  { code: 'zh-CN', label: '简体中文' },
-]
+  { code: "en", label: "English" },
+  { code: "fr", label: "Français" },
+  { code: "zh-CN", label: "简体中文" },
+];
 
 export const DEFAULT_LOCALE = 'en'
 const STORAGE_KEY = 'tome_locale'
