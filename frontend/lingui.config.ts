@@ -9,7 +9,7 @@ export default defineConfig({
   // File origins without line numbers: an unrelated edit above a string must not
   // rewrite the catalog (keeps translation PRs and the CI freshness check quiet).
   format: formatter({ lineNumbers: false }),
-  locales: ['en', 'zh-CN'],
+  locales: ['en', 'fr', 'zh-CN'],
   catalogs: [
     {
       path: '<rootDir>/src/locales/{locale}/messages',
