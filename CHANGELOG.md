@@ -35,6 +35,10 @@ All notable changes to Tome are documented here. Format loosely follows
   back (or "method not allowed" for anything but a read). It now gets a
   plain 404, so the KOReader plugin and other clients can tell that a server
   does not have a feature yet instead of choking on a web page.
+- **Send to Device works with SMTP servers that need no authentication.**
+  `TOME_SMTP_USER` and `TOME_SMTP_PASSWORD` may both be left empty; Tome
+  then skips the login step. `TOME_SMTP_FROM` is required in that case, so
+  the sender address is never blank. (#271)
 
 ## [2.7.1] - 2026-10-19
 
