@@ -114,7 +114,8 @@ msgstr " · moyenne {avg}"
 msgid " · books without a word count use your average for that type"
 msgstr " · pour les livres sans nombre de mots, votre moyenne pour ce type est utilisée"
 
-#: src/components/ReadingImport.tsx src/components/stats/TimelineRibbon.tsx
+#: src/components/ReadingImport.tsx
+#: src/components/stats/TimelineRibbon.tsx
 #: src/pages/SharePage.tsx
 msgid " · finished {d}"
 msgstr " · terminé le {d}"
@@ -293,7 +294,8 @@ msgstr "{0, plural, one {# entrée de livre supprimée} other {# entrées de liv
 
 #. placeholder {0}: d.books_finished
 #. placeholder {0}: data.totals.books_finished
-#: src/components/stats/widgets/habits.tsx src/pages/ReadingCalendarPage.tsx
+#: src/components/stats/widgets/habits.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# book finished} other {# books finished}}"
 msgstr "{0, plural, one {# livre terminé} other {# livres terminés}}"
 
@@ -315,7 +317,8 @@ msgstr "{0, plural, one {# livre, aucun encore estimé.} other {# livres, aucun 
 #. placeholder {0}: data.books
 #. placeholder {0}: data.totals.books
 #. placeholder {0}: row.books
-#: src/components/stats/BacklogEstimate.tsx src/pages/DashboardPage.tsx
+#: src/components/stats/BacklogEstimate.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
 msgstr "{0, plural, one {# livre} other {# livres}}"
@@ -329,6 +332,10 @@ msgstr "{0, plural, one {# proposition — cliquez pour sélectionner} other {# 
 #: src/components/CoverPickerModal.tsx
 msgid "{0, plural, one {# cover found — click to apply} other {# covers found — click to apply}}"
 msgstr "{0, plural, one {# couverture trouvée — cliquez pour appliquer} other {# couvertures trouvées — cliquez pour appliquer}}"
+
+#. placeholder {0}: s.current_days
+#~ msgid "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
+#~ msgstr "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
 
 #. placeholder {0}: hover.b.days.length
 #: src/components/stats/TimelineRibbon.tsx
@@ -371,7 +378,8 @@ msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr "{0, plural, one {# non estimé} other {# non estimés}}"
 
 #. placeholder {0}: b.pages
-#: src/components/ScanSyncCodeModal.tsx src/pages/ReadingCalendarPage.tsx
+#: src/components/ScanSyncCodeModal.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# page} other {# pages}}"
 msgstr "{0, plural, one {# page} other {# pages}}"
 
@@ -392,7 +400,8 @@ msgstr "{0, plural, one {# note} other {# notes}}"
 
 #. placeholder {0}: aggregate.distinct_readers
 #. placeholder {0}: c.users_count
-#: src/components/SeriesReadingStats.tsx src/pages/BookDetailPage.tsx
+#: src/components/SeriesReadingStats.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "{0, plural, one {# reader} other {# readers}}"
 msgstr "{0, plural, one {# lecteur} other {# lecteurs}}"
@@ -430,7 +439,8 @@ msgstr "{0, plural, one {# session · {pages} pages} other {# sessions · {pages
 #. placeholder {0}: aggregate.total_sessions
 #. placeholder {0}: b.sessions_added
 #. placeholder {0}: d.sessions
-#: src/components/ScanSyncCodeModal.tsx src/components/SeriesReadingStats.tsx
+#: src/components/ScanSyncCodeModal.tsx
+#: src/components/SeriesReadingStats.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# session} other {# sessions}}"
 msgstr "{0, plural, one {# session} other {# sessions}}"
@@ -454,6 +464,14 @@ msgstr "{0, plural, one {# utilisateur} other {# utilisateurs}}"
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# volume} other {# volumes}}"
 msgstr "{0, plural, one {# tome} other {# tomes}}"
+
+#. placeholder {0}: s.current_weeks
+#~ msgid "{0, plural, one {# week streak} other {# week streak}}"
+#~ msgstr "{0, plural, one {# week streak} other {# week streak}}"
+
+#. placeholder {0}: s.current_weeks
+#~ msgid "{0, plural, one {# week} other {# weeks}}"
+#~ msgstr "{0, plural, one {# week} other {# weeks}}"
 
 #. placeholder {0}: s.current_days
 #: src/pages/ReadingCalendarPage.tsx
@@ -645,8 +663,11 @@ msgstr "{daily} terminés · {count} au total"
 msgid "{days, plural, one {across # reading day in {monthName}} other {across # reading days in {monthName}}}"
 msgstr "{days, plural, one {sur # jour de lecture en {monthName}} other {sur # jours de lecture en {monthName}}}"
 
-#: src/components/NotificationBell.tsx src/components/SyncStatusBadge.tsx
-#: src/lib/deviceBooks.ts src/pages/AdminPage.tsx src/pages/SettingsPage.tsx
+#: src/components/NotificationBell.tsx
+#: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "{days}d ago"
 msgstr "Il y a {days} j"
@@ -731,7 +752,8 @@ msgstr "{fin} commencés sur {st} · depuis le début"
 msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
 msgstr "{flagged} livres signalés sur {scanned} (basse résolution = largeur inférieure à {minW} px)."
 
-#: src/components/stats/widgets/insights.tsx src/pages/StatsPage.tsx
+#: src/components/stats/widgets/insights.tsx
+#: src/pages/StatsPage.tsx
 msgid "{from} to {to}"
 msgstr "De {from} à {to}"
 
@@ -747,13 +769,15 @@ msgstr "{h} h"
 msgid "{h} hours ago"
 msgstr "Il y a {h} heures"
 
-#: src/pages/DashboardPage.tsx src/pages/SharePage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "{h}h"
 msgstr "{h} h"
 
 #: src/components/stats/AuthorAffinity.tsx
 #: src/components/stats/HourDowHeatmap.tsx
-#: src/components/stats/widgets/library.tsx src/pages/DashboardPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{h}h {m}m"
 msgstr "{h} h {m} min"
@@ -786,8 +810,10 @@ msgstr "{hours} h {rest} min"
 msgid "{hours}h ago"
 msgstr "Il y a {hours} h"
 
-#: src/components/NotificationBell.tsx src/components/SyncStatusBadge.tsx
-#: src/lib/deviceBooks.ts src/pages/AdminPage.tsx
+#: src/components/NotificationBell.tsx
+#: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
+#: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr "Il y a {hrs} h"
 
@@ -807,11 +833,13 @@ msgstr "{label} uniquement"
 msgid "{m} min"
 msgstr "{m} min"
 
-#: src/components/home/FocusMode.tsx src/components/PositionHistoryModal.tsx
+#: src/components/home/FocusMode.tsx
+#: src/components/PositionHistoryModal.tsx
 msgid "{m} min ago"
 msgstr "Il y a {m} min"
 
-#: src/pages/DashboardPage.tsx src/pages/SharePage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "{m}m"
 msgstr "{m} min"
 
@@ -827,8 +855,10 @@ msgstr "{matched} correspondances trouvées"
 msgid "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 msgstr "{mergeCount, plural, one {fusionner # groupe} other {fusionner # groupes}}"
 
-#: src/components/NotificationBell.tsx src/components/SyncStatusBadge.tsx
-#: src/lib/deviceBooks.ts src/pages/AdminPage.tsx
+#: src/components/NotificationBell.tsx
+#: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
+#: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr "Il y a {mins} min"
 
@@ -844,7 +874,8 @@ msgstr "Il y a {minutes} min"
 msgid "{misplaced} of {total} files need reorganization"
 msgstr "{misplaced} fichiers sur {total} doivent être réorganisés"
 
-#: src/pages/AdminPage.tsx src/pages/WishlistPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "{months}mo ago"
 msgstr "Il y a {months} mois"
 
@@ -868,7 +899,8 @@ msgstr "{n, plural, one {# tome accepté} other {# tomes acceptés}}"
 msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
 msgstr "{n, plural, one {Confirmer — appliquer # décision} other {Confirmer — appliquer # décisions}}"
 
-#: src/components/AppShell.tsx src/components/MetadataManager.tsx
+#: src/components/AppShell.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish — review in Admin > Wishlist} other {This upload satisfies # wishes — review in Admin > Wishlist}}"
 msgstr "{n, plural, one {Ce téléversement satisfait # souhait — à vérifier dans Administration > Liste de souhaits} other {Ce téléversement satisfait # souhaits — à vérifier dans Administration > Liste de souhaits}}"
@@ -889,7 +921,8 @@ msgstr "{n} chapitres téléversés"
 msgid "{n} of {total} books would change"
 msgstr "{n} livres sur {total} seraient modifiés"
 
-#: src/components/MetadataManager.tsx src/pages/DashboardPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/DashboardPage.tsx
 msgid "{n} selected"
 msgstr "{n} sélectionnés"
 
@@ -1085,7 +1118,8 @@ msgstr "{words} mots"
 msgid "{y} Challenge"
 msgstr "Défi {y}"
 
-#: src/pages/AdminPage.tsx src/pages/WishlistPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "{years}y ago"
 msgstr "Il y a {years} ans"
 
@@ -1241,7 +1275,8 @@ msgstr "Un lien de partage ouvre une page en lecture seule accessible à toute p
 msgid "A short visit. {p} pages still count."
 msgstr "Une courte visite. {p} pages, c’est déjà ça."
 
-#: src/components/HardcoverSync.tsx src/pages/HardcoverPage.tsx
+#: src/components/HardcoverSync.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "A sync is already running"
 msgstr "Une synchronisation est déjà en cours"
 
@@ -1309,7 +1344,8 @@ msgstr "Jours actifs"
 msgid "Activity"
 msgstr "Activité"
 
-#: src/pages/BookDetailPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Add"
 msgstr "Ajouter"
 
@@ -1317,7 +1353,8 @@ msgstr "Ajouter"
 msgid "Add a device in Settings to start sending books."
 msgstr "Ajoutez un appareil dans les paramètres pour commencer à envoyer des livres."
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Add a note"
 msgstr "Ajouter une note"
 
@@ -1369,7 +1406,8 @@ msgstr "Ajouter une étagère"
 msgid "Add Shelf"
 msgstr "Ajouter une étagère"
 
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Add tag…"
 msgstr "Ajouter une étiquette…"
 
@@ -1413,7 +1451,8 @@ msgstr "Ajoutez votre liseuse ou votre adresse e-mail personnelle. Les livres so
 msgid "Add your SMTP sender address to Amazon's <0>Approved Personal Document E-mail List</0>, or emails will be silently dropped."
 msgstr "Ajoutez votre adresse d’expédition SMTP à la <0>liste des adresses e-mail approuvées pour les documents personnels</0> d’Amazon, sinon les e-mails seront ignorés sans notification."
 
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Added"
 msgstr "Ajouté"
 
@@ -1425,7 +1464,8 @@ msgstr "Ajouté {timeAgo}"
 msgid "Added to Want to Read"
 msgstr "Ajouté à « À lire »"
 
-#: src/components/CommandPalette.tsx src/components/Sidebar.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 msgid "Admin"
 msgstr "Administration"
@@ -1438,8 +1478,10 @@ msgstr "Accès administrateur requis."
 msgid "all"
 msgstr "tous"
 
-#: src/components/MetadataManager.tsx src/pages/DashboardPage.tsx
-#: src/pages/HardcoverPage.tsx src/pages/StatsPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "All"
 msgstr "Tous"
 
@@ -1463,11 +1505,13 @@ msgstr "Tous →"
 msgid "All actions"
 msgstr "Toutes les actions"
 
-#: src/components/stats/GoalWidget.tsx src/pages/HardcoverPage.tsx
+#: src/components/stats/GoalWidget.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "All books"
 msgstr "Tous les livres"
 
-#: src/components/CommandPalette.tsx src/components/Sidebar.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/Sidebar.tsx
 msgid "All Books"
 msgstr "Tous les livres"
 
@@ -1511,7 +1555,8 @@ msgstr "Toutes les séries"
 msgid "All types"
 msgstr "Tous les types"
 
-#: src/pages/DashboardPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "All users"
 msgstr "Tous les utilisateurs"
 
@@ -1535,7 +1580,8 @@ msgstr "Déjà dans votre boîte de réception KOReader"
 msgid "Already in your library — will be skipped."
 msgstr "Déjà dans votre bibliothèque — sera ignoré."
 
-#: src/components/Sidebar.tsx src/components/ThemeToggle.tsx
+#: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Amber"
 msgstr "Ambre"
 
@@ -1579,7 +1625,8 @@ msgstr "Appliqué aux tomes que vous n’avez pas notés"
 msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates, {reviews} reviews."
 msgstr "Appliqué : {statuses} statuts, {ratings} notes, {finishes} dates de fin, {reviews} avis."
 
-#: src/components/CoverPickerModal.tsx src/pages/StatsPage.tsx
+#: src/components/CoverPickerModal.tsx
+#: src/pages/StatsPage.tsx
 msgid "Apply"
 msgstr "Appliquer"
 
@@ -1631,8 +1678,12 @@ msgstr "Appliquer à {n} chapitres"
 msgid "Apply to all"
 msgstr "Appliquer à tous"
 
+#~ msgid "Applying {done}/{total}..."
+#~ msgstr "Applying {done}/{total}..."
+
 #: src/components/BulkMetadataReviewModal.tsx
-#: src/components/MetadataManager.tsx src/pages/AdminPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/AdminPage.tsx
 msgid "Applying {done}/{total}…"
 msgstr "Application {done}/{total}…"
 
@@ -1680,9 +1731,12 @@ msgstr "Journal d’audit"
 msgid "Auth"
 msgstr "Authentification"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/components/stats/widgets/library.tsx src/components/WishlistModal.tsx
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Author"
 msgstr "Auteur"
@@ -1691,7 +1745,8 @@ msgstr "Auteur"
 msgid "Author applied to {n} files"
 msgstr "Auteur appliqué à {n} fichiers"
 
-#: src/components/WishlistModal.tsx src/pages/BinderyPage.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Author name"
 msgstr "Nom de l’auteur"
 
@@ -1839,6 +1894,12 @@ msgstr "Meilleure correspondance appliquée aux {matched} fichiers"
 msgid "Best-Rated Series"
 msgstr "Séries les mieux notées"
 
+#~ msgid "Best: {best} days"
+#~ msgstr "Best: {best} days"
+
+#~ msgid "Best: {best} weeks"
+#~ msgstr "Best: {best} weeks"
+
 #: src/pages/StatsPage.tsx
 msgid "Best: {best}w"
 msgstr "Record : {best} sem"
@@ -1855,7 +1916,8 @@ msgstr "Journée la plus productive du mois"
 msgid "Biggest reading day"
 msgstr "Journée avec le plus de lecture"
 
-#: src/components/Sidebar.tsx src/pages/BinderyPage.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Bindery"
 msgstr "Dossier d’import"
 
@@ -1863,7 +1925,8 @@ msgstr "Dossier d’import"
 msgid "Bindery flow explained — open docs"
 msgstr "Comprendre le fonctionnement du dossier d’import — ouvrir la documentation"
 
-#: src/components/Sidebar.tsx src/components/ThemeToggle.tsx
+#: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Black"
 msgstr "Noir"
 
@@ -1875,8 +1938,10 @@ msgstr "vide = illimité, 0 = téléchargements désactivés"
 msgid "book"
 msgstr "livre"
 
-#: src/components/CoverAudit.tsx src/components/SendToDeviceModal.tsx
-#: src/components/stats/SessionLog.tsx src/components/WishlistModal.tsx
+#: src/components/CoverAudit.tsx
+#: src/components/SendToDeviceModal.tsx
+#: src/components/stats/SessionLog.tsx
+#: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Book"
 msgstr "Livre"
@@ -1917,11 +1982,13 @@ msgstr "Livre introuvable."
 msgid "Book rejected and removed"
 msgstr "Livre rejeté et supprimé"
 
-#: src/components/WishlistModal.tsx src/pages/BinderyPage.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Book title"
 msgstr "Titre du livre"
 
-#: src/components/MetadataManager.tsx src/pages/BinderyPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Book Type"
 msgstr "Type de livre"
 
@@ -1937,8 +2004,10 @@ msgstr "Types de livres"
 msgid "books"
 msgstr "livres"
 
-#: src/components/CommandPalette.tsx src/components/SendToDeviceModal.tsx
-#: src/pages/AdminPage.tsx src/pages/DashboardPage.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/SendToDeviceModal.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Books"
 msgstr "Livres"
 
@@ -1951,7 +2020,8 @@ msgid "Books downloaded through the OPDS catalog are automatically mapped to the
 msgstr "Les livres téléchargés via le catalogue OPDS sont automatiquement associés à leur identifiant de livre Tome. Ouvrez-en un et TomeSync commencera immédiatement à suivre votre session."
 
 #: src/components/stats/widgets/insights.tsx
-#: src/components/stats/widgets/library.tsx src/pages/StatsPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/StatsPage.tsx
 msgid "Books Finished"
 msgstr "Livres terminés"
 
@@ -2003,7 +2073,8 @@ msgstr "Parcourir votre bibliothèque"
 msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
 msgstr "Navigateurs et téléphones connectés à votre compte. Ils restent connectés jusqu’à ce que vous vous y déconnectiez ou que vous révoquiez leur accès ici, ce qui les déconnecte immédiatement."
 
-#: src/components/KeyboardShortcutsModal.tsx src/components/Sidebar.tsx
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/components/Sidebar.tsx
 msgid "Calendar"
 msgstr "Calendrier"
 
@@ -2011,17 +2082,28 @@ msgstr "Calendrier"
 msgid "Can't find it? Add manually"
 msgstr "Vous ne le trouvez pas ? Ajoutez-le manuellement"
 
-#: src/components/BulkMetadataReviewModal.tsx src/components/EntityModal.tsx
-#: src/components/InstanceBackup.tsx src/components/LibraryHealth.tsx
-#: src/components/ManageSeriesModal.tsx src/components/MetadataFetchModal.tsx
-#: src/components/MetadataManager.tsx src/components/ReadingImport.tsx
-#: src/components/Sidebar.tsx src/components/stats/GoalWidget.tsx
-#: src/components/stats/SessionLog.tsx src/components/TelemetryConsentCard.tsx
-#: src/components/UploadModal.tsx src/components/WishlistModal.tsx
-#: src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
-#: src/pages/HighlightsPage.tsx src/pages/LoginPage.tsx
-#: src/pages/ReaderPage.tsx src/pages/SettingsPage.tsx
+#: src/components/BulkMetadataReviewModal.tsx
+#: src/components/EntityModal.tsx
+#: src/components/InstanceBackup.tsx
+#: src/components/LibraryHealth.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/components/ReadingImport.tsx
+#: src/components/Sidebar.tsx
+#: src/components/stats/GoalWidget.tsx
+#: src/components/stats/SessionLog.tsx
+#: src/components/TelemetryConsentCard.tsx
+#: src/components/UploadModal.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HighlightsPage.tsx
+#: src/pages/LoginPage.tsx
+#: src/pages/ReaderPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -2061,7 +2143,8 @@ msgstr "Changer le mot de passe"
 msgid "chapter"
 msgstr "chapitre"
 
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Chapter"
 msgstr "Chapitre"
 
@@ -2093,8 +2176,10 @@ msgstr "Choisir un fichier…"
 msgid "Choose icon"
 msgstr "Choisir une icône"
 
-#: src/components/MetadataManager.tsx src/pages/AdminPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/StatsPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Clear"
 msgstr "Effacer"
 
@@ -2114,7 +2199,8 @@ msgstr "Vider le cache des couvertures"
 msgid "Clear imported history — remove this book's KOReader page data"
 msgstr "Effacer l’historique importé — supprimer les données de pages KOReader de ce livre"
 
-#: src/components/AppHeader.tsx src/components/KeyboardShortcutsModal.tsx
+#: src/components/AppHeader.tsx
+#: src/components/KeyboardShortcutsModal.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Clear search"
 msgstr "Effacer la recherche"
@@ -2152,12 +2238,18 @@ msgid "Click: only books on {name}"
 msgstr "Cliquer : uniquement les livres présents sur {name}"
 
 #: src/components/BulkMetadataReviewModal.tsx
-#: src/components/ConnectPhoneModal.tsx src/components/ManageSeriesModal.tsx
-#: src/components/PositionHistoryModal.tsx src/components/ScanSyncCodeModal.tsx
-#: src/components/ShareShelfModal.tsx src/components/stats/GoalWidget.tsx
-#: src/components/TelemetryConsentCard.tsx src/components/UploadModal.tsx
-#: src/pages/BookDetailPage.tsx src/pages/HardcoverPage.tsx
-#: src/pages/ReaderPage.tsx src/pages/ReadingCalendarPage.tsx
+#: src/components/ConnectPhoneModal.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/components/PositionHistoryModal.tsx
+#: src/components/ScanSyncCodeModal.tsx
+#: src/components/ShareShelfModal.tsx
+#: src/components/stats/GoalWidget.tsx
+#: src/components/TelemetryConsentCard.tsx
+#: src/components/UploadModal.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HardcoverPage.tsx
+#: src/pages/ReaderPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Close"
 msgstr "Fermer"
@@ -2250,7 +2342,8 @@ msgstr "Configurer"
 msgid "Configured"
 msgstr "Configuré"
 
-#: src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Confirm"
 msgstr "Confirmer"
@@ -2259,7 +2352,8 @@ msgstr "Confirmer"
 msgid "Confirm & Reorganize"
 msgstr "Confirmer et réorganiser"
 
-#: src/components/ForcePasswordChange.tsx src/pages/SettingsPage.tsx
+#: src/components/ForcePasswordChange.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Confirm new password"
 msgstr "Confirmer le nouveau mot de passe"
 
@@ -2267,7 +2361,8 @@ msgstr "Confirmer le nouveau mot de passe"
 msgid "Confirm password"
 msgstr "Confirmer le mot de passe"
 
-#: src/components/ConnectPhoneModal.tsx src/pages/SettingsPage.tsx
+#: src/components/ConnectPhoneModal.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Connect a phone"
 msgstr "Connecter un téléphone"
 
@@ -2303,7 +2398,8 @@ msgstr "{n} éléments copiés depuis « {title} »"
 msgid "Copied {n} highlights as Markdown"
 msgstr "{n} surlignages copiés au format Markdown"
 
-#: src/pages/HighlightsPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/HighlightsPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Copy"
 msgstr "Copier"
 
@@ -2311,7 +2407,8 @@ msgstr "Copier"
 msgid "Copy all as Markdown"
 msgstr "Tout copier au format Markdown"
 
-#: src/components/ShareLinksOverview.tsx src/components/ShareShelfModal.tsx
+#: src/components/ShareLinksOverview.tsx
+#: src/components/ShareShelfModal.tsx
 msgid "Copy link"
 msgstr "Copier le lien"
 
@@ -2387,7 +2484,8 @@ msgstr "Impossible de définir la correspondance"
 msgid "Could not start SSO linking."
 msgstr "Impossible de lancer l’association SSO."
 
-#: src/components/HardcoverSync.tsx src/pages/HardcoverPage.tsx
+#: src/components/HardcoverSync.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Could not start sync"
 msgstr "Impossible de lancer la synchronisation"
 
@@ -2423,7 +2521,8 @@ msgstr "Comptage… {done} / {total}"
 msgid "Counts"
 msgstr "Totaux"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Cover"
 msgstr "Couverture"
@@ -2444,7 +2543,8 @@ msgstr "URL de la couverture"
 msgid "Covers"
 msgstr "Couvertures"
 
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Create"
 msgstr "Créer"
 
@@ -2476,11 +2576,13 @@ msgstr "Cumul des livres ajoutés — 24 derniers mois"
 msgid "Cumulative finishes over time"
 msgstr "Cumul des livres terminés au fil du temps"
 
-#: src/components/PositionHistoryModal.tsx src/pages/StatsPage.tsx
+#: src/components/PositionHistoryModal.tsx
+#: src/pages/StatsPage.tsx
 msgid "current"
 msgstr "actuel"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Current"
 msgstr "Actuel"
 
@@ -2528,11 +2630,15 @@ msgstr "Pages par jour"
 msgid "Daily sessions on a 24h track"
 msgstr "Sessions quotidiennes sur une échelle de 24 h"
 
+#~ msgid "Daily streak"
+#~ msgstr "Daily streak"
+
 #: src/pages/AdminPage.tsx
 msgid "Danger Zone"
 msgstr "Zone sensible"
 
-#: src/components/Sidebar.tsx src/components/ThemeToggle.tsx
+#: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 #: src/pages/ReaderPage.tsx
 msgid "Dark"
 msgstr "Sombre"
@@ -2541,7 +2647,8 @@ msgstr "Sombre"
 msgid "Dark theme"
 msgstr "Thème sombre"
 
-#: src/components/KeyboardShortcutsModal.tsx src/pages/DashboardPage.tsx
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Dashboard"
 msgstr "Tableau de bord"
 
@@ -2585,9 +2692,13 @@ msgstr "Entrées obsolètes supprimées"
 msgid "Default"
 msgstr "Par défaut"
 
-#: src/components/Sidebar.tsx src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
-#: src/pages/HighlightsPage.tsx src/pages/ReaderPage.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HighlightsPage.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Delete"
 msgstr "Supprimer"
 
@@ -2611,7 +2722,8 @@ msgstr "Supprimer l’arc"
 msgid "Delete board"
 msgstr "Supprimer le tableau"
 
-#: src/pages/AdminPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Delete failed"
 msgstr "Échec de la suppression"
@@ -2640,7 +2752,8 @@ msgstr "Supprimer ce livre de la bibliothèque ? Le fichier sera supprimé et ce
 msgid "Delete this goal"
 msgstr "Supprimer cet objectif"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Delete this highlight"
 msgstr "Supprimer ce surlignage"
 
@@ -2652,7 +2765,11 @@ msgstr "Supprimer cette séance importée"
 msgid "Deleted board “{name}”"
 msgstr "Tableau « {name} » supprimé"
 
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#~ msgid "Deleting..."
+#~ msgstr "Deleting..."
+
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Deleting…"
 msgstr "Suppression…"
 
@@ -2660,9 +2777,12 @@ msgstr "Suppression…"
 msgid "Desc"
 msgstr "Desc"
 
-#: src/components/ManageSeriesModal.tsx src/components/MetadataFetchModal.tsx
-#: src/components/MetadataManager.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "Description"
 msgstr "Description"
@@ -2679,8 +2799,10 @@ msgstr "Détails"
 msgid "Details:"
 msgstr "Détails :"
 
-#: src/components/SendToDeviceModal.tsx src/components/stats/SessionLog.tsx
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx
+#: src/components/SendToDeviceModal.tsx
+#: src/components/stats/SessionLog.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Device"
 msgstr "Appareil"
 
@@ -2691,6 +2813,9 @@ msgstr "Appareil autorisé — le nouvel appareil est maintenant connecté."
 #: src/pages/SettingsPage.tsx
 msgid "Device name"
 msgstr "Nom de l’appareil"
+
+#~ msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
+#~ msgstr "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
 
 #: src/pages/SettingsPage.tsx
 msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it."
@@ -2708,9 +2833,12 @@ msgstr "Appareils"
 msgid "Directories"
 msgstr "Répertoires"
 
-#: src/components/LibraryHealth.tsx src/components/WhatsNewPanel.tsx
-#: src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
-#: src/pages/DashboardPage.tsx src/pages/StatsPage.tsx
+#: src/components/LibraryHealth.tsx
+#: src/components/WhatsNewPanel.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Dismiss"
 msgstr "Ignorer"
 
@@ -2734,8 +2862,13 @@ msgstr "Notez-vous mieux les livres auxquels vous consacrez plus de temps ?"
 msgid "Docs"
 msgstr "Documentation"
 
-#: src/components/ScanSyncCodeModal.tsx src/components/WordCount.tsx
-#: src/pages/DashboardPage.tsx src/pages/SettingsPage.tsx
+#~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
+#~ msgstr "Don't have it yet? Tome Reader is in open beta for iPhone."
+
+#: src/components/ScanSyncCodeModal.tsx
+#: src/components/WordCount.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Done"
 msgstr "Terminé"
@@ -2752,7 +2885,8 @@ msgstr "Télécharger au format Markdown"
 msgid "Download backup"
 msgstr "Télécharger la sauvegarde"
 
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Download failed"
 msgstr "Échec du téléchargement"
 
@@ -2872,8 +3006,10 @@ msgstr "Chaque appareil envoie la liste des livres Tome qu’il contient lors de
 msgid "Each row is one reading session."
 msgstr "Chaque ligne correspond à une session de lecture."
 
-#: src/components/Sidebar.tsx src/pages/AdminPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/StatsPage.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Edit"
 msgstr "Modifier"
 
@@ -2889,7 +3025,8 @@ msgstr "Modifier la bibliothèque"
 msgid "Edit Metadata"
 msgstr "Modifier les métadonnées"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 #: src/pages/ReaderPage.tsx
 msgid "Edit note"
 msgstr "Modifier la note"
@@ -2910,7 +3047,9 @@ msgstr "Modifier l’utilisateur"
 msgid "Elapsed {el} · ~{eta} left"
 msgstr "Écoulé : {el} · ~{eta} restantes"
 
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx src/pages/SetupPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Email"
 msgstr "E-mail"
 
@@ -2926,7 +3065,8 @@ msgstr "L’envoi par e-mail n’est pas encore configuré"
 msgid "Email delivery is not set up yet."
 msgstr "L’envoi par e-mail n’est pas encore configuré."
 
-#: src/components/Sidebar.tsx src/components/ThemeToggle.tsx
+#: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Ember"
 msgstr "Braise"
 
@@ -2969,6 +3109,9 @@ msgstr "Temps de lecture estimé"
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
 msgstr "Temps restant estimé"
+
+#~ msgid "Every day you read, and what it looked like."
+#~ msgstr "Every day you read, and what it looked like."
 
 #: src/components/WordCount.tsx
 msgid "Every EPUB is counted"
@@ -3046,7 +3189,8 @@ msgstr "Expire le {d}"
 msgid "Expires in {timeLeft}"
 msgstr "Expire dans {timeLeft}"
 
-#: src/pages/HighlightsPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/HighlightsPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Export"
 msgstr "Exporter"
@@ -3071,8 +3215,10 @@ msgstr "Exportation..."
 msgid "failed"
 msgstr "échec"
 
-#: src/components/WordCount.tsx src/pages/AdminPage.tsx
-#: src/pages/BinderyPage.tsx src/pages/DashboardPage.tsx
+#: src/components/WordCount.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Failed"
 msgstr "Échec"
 
@@ -3112,7 +3258,8 @@ msgstr "Impossible de compléter la série"
 msgid "Failed to create token"
 msgstr "Impossible de créer le jeton"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Failed to delete highlight"
 msgstr "Impossible de supprimer le surlignage"
 
@@ -3188,7 +3335,8 @@ msgstr "Impossible de charger l’état de synchronisation"
 msgid "Failed to load users"
 msgstr "Impossible de charger les utilisateurs"
 
-#: src/pages/AdminPage.tsx src/pages/WishlistPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Failed to load wishlist"
 msgstr "Impossible de charger la liste de souhaits"
 
@@ -3212,8 +3360,10 @@ msgstr "Échec de l’inscription"
 msgid "Failed to remove wish"
 msgstr "Impossible de supprimer le souhait"
 
-#: src/components/EntityModal.tsx src/components/Sidebar.tsx
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx
+#: src/components/EntityModal.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Failed to save"
 msgstr "Échec de l’enregistrement"
 
@@ -3290,7 +3440,8 @@ msgid "Fetch failed"
 msgstr "Échec de la récupération"
 
 #: src/components/BulkMetadataReviewModal.tsx
-#: src/components/MetadataFetchModal.tsx src/pages/BookDetailPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Fetch Metadata"
 msgstr "Récupérer les métadonnées"
 
@@ -3298,7 +3449,8 @@ msgstr "Récupérer les métadonnées"
 msgid "Fetching metadata..."
 msgstr "Récupération des métadonnées..."
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Field"
 msgstr "Champ"
 
@@ -3346,12 +3498,17 @@ msgstr "Taux d’achèvement par type de livre"
 msgid "Finish Rate per Book Category"
 msgstr "Taux d’achèvement par catégorie de livre"
 
-#: src/components/ScanSyncCodeModal.tsx src/pages/DashboardPage.tsx
+#: src/components/ScanSyncCodeModal.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "finished"
 msgstr "terminé"
 
-#: src/pages/BookDetailPage.tsx src/pages/ReadingCalendarPage.tsx
+#~ msgid "Finished"
+#~ msgstr "Finished"
+
+#: src/pages/BookDetailPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 #: src/pages/StatsPage.tsx
 msgctxt "reading"
 msgid "Finished"
@@ -3382,7 +3539,11 @@ msgstr "{l} terminé"
 msgid "finished a book"
 msgstr "a terminé un livre"
 
-#: src/components/SeriesReadingStats.tsx src/pages/BookDetailPage.tsx
+#~ msgid "Finished a book"
+#~ msgstr "Finished a book"
+
+#: src/components/SeriesReadingStats.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "First read"
 msgstr "Première lecture"
 
@@ -3414,7 +3575,8 @@ msgstr "Suivre"
 msgid "Follow a series — search Hardcover…"
 msgstr "Suivre une série — rechercher sur Hardcover…"
 
-#: src/components/SeriesFollowButton.tsx src/pages/WishlistPage.tsx
+#: src/components/SeriesFollowButton.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Following"
 msgstr "Suivies"
 
@@ -3446,8 +3608,10 @@ msgstr "Oublier {name}"
 msgid "Forgot {name}"
 msgstr "{name} oublié"
 
-#: src/components/SendToDeviceModal.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/components/SendToDeviceModal.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Format"
 msgstr "Format"
 
@@ -3484,7 +3648,8 @@ msgstr "Impossible de satisfaire le souhait"
 msgid "Fulfill: {title}"
 msgstr "Satisfaire : {title}"
 
-#: src/pages/AdminPage.tsx src/pages/WishlistPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Fulfilled"
 msgstr "Satisfait"
 
@@ -3524,8 +3689,10 @@ msgstr "Recevoir une notification à la sortie d’un nouveau tome d’une séri
 msgid "Get token"
 msgstr "Obtenir un jeton"
 
-#: src/components/KeyboardShortcutsModal.tsx src/pages/AdminPage.tsx
-#: src/pages/ReaderPage.tsx src/pages/WishlistPage.tsx
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/ReaderPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Go back"
 msgstr "Retour"
 
@@ -3557,11 +3724,13 @@ msgstr "Vue en grille"
 msgid "Group by series"
 msgstr "Regrouper par série"
 
-#: src/pages/DashboardPage.tsx src/pages/HardcoverPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Group series"
 msgstr "Regrouper les séries"
 
-#: src/pages/DashboardPage.tsx src/pages/HardcoverPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Group volumes by series"
 msgstr "Regrouper les tomes par série"
 
@@ -3581,7 +3750,8 @@ msgstr "Hardcover"
 msgid "Hardcover sync is disabled on this server."
 msgstr "La synchronisation Hardcover est désactivée sur ce serveur."
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Has cover"
 msgstr "Avec couverture"
 
@@ -3593,11 +3763,16 @@ msgstr "La hauteur s’ajuste automatiquement au contenu — seule la largeur es
 msgid "Help count Tome installs?"
 msgstr "Aider à compter les installations de Tome ?"
 
+#. placeholder {0}: user?.username
+#~ msgid "Hi <0>{0}</0> — your account was created by an admin. Please set a personal password before continuing."
+#~ msgstr "Hi <0>{0}</0> — your account was created by an admin. Please set a personal password before continuing."
+
 #: src/components/ForcePasswordChange.tsx
 msgid "Hi <0>{username}</0> — your account was created by an admin. Please set a personal password before continuing."
 msgstr "Bonjour <0>{username}</0> — votre compte a été créé par un administrateur. Veuillez définir un mot de passe personnel avant de continuer."
 
-#: src/pages/DashboardPage.tsx src/pages/SharePage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "hiatus"
 msgstr "en pause"
 
@@ -3629,7 +3804,8 @@ msgstr "Meilleures et moins bonnes notes"
 msgid "Highlight"
 msgstr "Surlignage"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Highlight deleted"
 msgstr "Surlignage supprimé"
 
@@ -3641,8 +3817,10 @@ msgstr "Surlignage en {c}"
 msgid "Highlighted {when}"
 msgstr "Surligné {when}"
 
-#: src/components/CommandPalette.tsx src/components/KeyboardShortcutsModal.tsx
-#: src/components/Sidebar.tsx src/pages/HighlightsPage.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Highlights"
 msgstr "Surlignages"
 
@@ -3662,7 +3840,8 @@ msgstr "Surlignages créés à cette date les années précédentes"
 msgid "Hit Edit, then Add tile."
 msgstr "Cliquez sur Modifier, puis sur Ajouter une tuile."
 
-#: src/components/CommandPalette.tsx src/components/Sidebar.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/Sidebar.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Home"
 msgstr "Accueil"
@@ -3707,7 +3886,8 @@ msgstr "Comment configurer"
 msgid "How you spread your 1–5 stars"
 msgstr "La répartition de vos notes de 1 à 5 étoiles"
 
-#: src/components/EntityModal.tsx src/components/Sidebar.tsx
+#: src/components/EntityModal.tsx
+#: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
 msgid "Icon"
 msgstr "Icône"
@@ -3744,7 +3924,11 @@ msgstr "Importer l’historique de lecture"
 msgid "Imported board"
 msgstr "Tableau importé"
 
-#: src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
+#~ msgid "Importing..."
+#~ msgstr "Importing..."
+
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Importing…"
 msgstr "Importation…"
 
@@ -3772,7 +3956,8 @@ msgstr "Inactif"
 msgid "Include"
 msgstr "Inclure"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
 msgid "Incoming"
 msgstr "Arrivées"
@@ -3789,8 +3974,10 @@ msgstr "Sauvegarde de l’instance"
 msgid "IP:"
 msgstr "IP :"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/components/ReadingImport.tsx src/pages/BookDetailPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/components/ReadingImport.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "ISBN"
 msgstr "ISBN"
 
@@ -3810,8 +3997,10 @@ msgstr "Accéder à un livre, une série, un auteur ou une page…"
 msgid "Jump to today"
 msgstr "Aller à aujourd’hui"
 
-#: src/components/home/FocusMode.tsx src/components/NotificationBell.tsx
-#: src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
+#: src/components/home/FocusMode.tsx
+#: src/components/NotificationBell.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 msgid "just now"
 msgstr "à l’instant"
 
@@ -3819,11 +4008,13 @@ msgstr "à l’instant"
 msgid "Just now"
 msgstr "À l’instant"
 
-#: src/components/home/FocusMode.tsx src/components/stats/widgets/habits.tsx
+#: src/components/home/FocusMode.tsx
+#: src/components/stats/widgets/habits.tsx
 msgid "Just started"
 msgstr "Tout juste commencé"
 
-#: src/components/SyncStatusBadge.tsx src/lib/deviceBooks.ts
+#: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 msgid "Just synced"
 msgstr "Tout juste synchronisé"
 
@@ -3875,6 +4066,10 @@ msgstr "Libellé"
 msgid "Label (e.g. KOReader)"
 msgstr "Libellé (par ex. KOReader)"
 
+#. placeholder {0}: result.device ?? 'KOReader'
+#~ msgid "Landed from {0}."
+#~ msgstr "Landed from {0}."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Landed from {deviceName}."
 msgstr "Reçu depuis {deviceName}."
@@ -3883,9 +4078,12 @@ msgstr "Reçu depuis {deviceName}."
 msgid "Lang"
 msgstr "Langue"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
-#: src/pages/DashboardPage.tsx src/pages/SettingsPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Language"
 msgstr "Langue"
 
@@ -3893,7 +4091,8 @@ msgstr "Langue"
 msgid "Language: {filterLanguageLabel}"
 msgstr "Langue : {filterLanguageLabel}"
 
-#: src/components/SeriesReadingStats.tsx src/pages/BookDetailPage.tsx
+#: src/components/SeriesReadingStats.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Last read"
 msgstr "Dernière lecture"
 
@@ -3929,13 +4128,15 @@ msgstr "Dernier paru : tome {v}"
 msgid "Latest: Vol {v} · {d}"
 msgstr "Dernier paru : tome {v} · {d}"
 
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Learn more"
 msgstr "En savoir plus"
 
 #: src/components/stats/widgets/habits.tsx
-#: src/components/stats/widgets/overview.tsx src/pages/SharePage.tsx
+#: src/components/stats/widgets/overview.tsx
+#: src/pages/SharePage.tsx
 msgid "Less"
 msgstr "Moins"
 
@@ -3943,8 +4144,11 @@ msgstr "Moins"
 msgid "librarian"
 msgstr "bibliothécaire"
 
-#: src/components/Sidebar.tsx src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/StatsPage.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Libraries"
 msgstr "Bibliothèques"
 
@@ -3952,8 +4156,10 @@ msgstr "Bibliothèques"
 msgid "Libraries applied to {n} files"
 msgstr "Bibliothèques appliquées à {n} fichiers"
 
-#: src/pages/AdminPage.tsx src/pages/BookDetailPage.tsx
-#: src/pages/DashboardPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Library"
 msgstr "Bibliothèque"
@@ -3974,7 +4180,8 @@ msgstr "Taille de la bibliothèque au fil du temps"
 msgid "Library: {filterLibraryChipName}"
 msgstr "Bibliothèque : {filterLibraryChipName}"
 
-#: src/components/stats/TimelineRibbon.tsx src/pages/StatsPage.tsx
+#: src/components/stats/TimelineRibbon.tsx
+#: src/pages/StatsPage.tsx
 msgid "lifetime"
 msgstr "depuis le début"
 
@@ -3986,7 +4193,8 @@ msgstr "Totaux depuis le début"
 msgid "Lifetime words read, by year"
 msgstr "Total des mots lus, par année"
 
-#: src/components/Sidebar.tsx src/components/ThemeToggle.tsx
+#: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 #: src/pages/ReaderPage.tsx
 msgid "Light"
 msgstr "Clair"
@@ -4051,12 +4259,21 @@ msgstr "Chargement des livres…"
 msgid "Loading your reading life…"
 msgstr "Chargement de votre parcours de lecture…"
 
-#: src/components/ConnectPhoneModal.tsx src/components/HardcoverSync.tsx
+#~ msgid "Loading..."
+#~ msgstr "Loading..."
+
+#: src/components/ConnectPhoneModal.tsx
+#: src/components/HardcoverSync.tsx
 #: src/components/PositionHistoryModal.tsx
-#: src/components/ShareLinksOverview.tsx src/components/ShareShelfModal.tsx
-#: src/components/stats/BacklogEstimate.tsx src/components/stats/GoalWidget.tsx
-#: src/pages/BinderyPage.tsx src/pages/HardcoverPage.tsx
-#: src/pages/SettingsPage.tsx src/pages/SharePage.tsx src/pages/StatsPage.tsx
+#: src/components/ShareLinksOverview.tsx
+#: src/components/ShareShelfModal.tsx
+#: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/GoalWidget.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/HardcoverPage.tsx
+#: src/pages/SettingsPage.tsx
+#: src/pages/SharePage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Loading…"
 msgstr "Chargement…"
 
@@ -4101,7 +4318,8 @@ msgid "Longest session, biggest day, most pages"
 msgstr "Session la plus longue, journée la plus productive, nombre maximal de pages"
 
 #: src/components/stats/widgets/insights.tsx
-#: src/components/stats/widgets/library.tsx src/pages/StatsPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/StatsPage.tsx
 msgid "Longest Streak"
 msgstr "Plus longue série consécutive"
 
@@ -4116,6 +4334,9 @@ msgstr "Plus longue série de semaines consécutives"
 #: src/pages/StatsPage.tsx
 msgid "Longest: {d}d"
 msgstr "Record : {d} j"
+
+#~ msgid "Longest: {d}d · Weekly: {w}w"
+#~ msgstr "Longest: {d}d · Weekly: {w}w"
 
 #: src/components/CoverAudit.tsx
 msgid "Low resolution"
@@ -4145,7 +4366,8 @@ msgstr "Gérer les séries"
 msgid "Manual"
 msgstr "Manuel"
 
-#: src/components/NotificationBell.tsx src/pages/DashboardPage.tsx
+#: src/components/NotificationBell.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Mark all read"
 msgstr "Tout marquer comme lu"
 
@@ -4221,7 +4443,8 @@ msgstr "Suggestions de métadonnées"
 msgid "Metric"
 msgstr "Indicateur"
 
-#: src/components/stats/SessionLog.tsx src/lib/goals.ts
+#: src/components/stats/SessionLog.tsx
+#: src/lib/goals.ts
 msgid "min"
 msgstr "min"
 
@@ -4245,7 +4468,8 @@ msgstr "Minutes par semaine"
 msgid "Minutes read per day"
 msgstr "Minutes de lecture par jour"
 
-#: src/components/MetadataManager.tsx src/pages/DashboardPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Missing"
 msgstr "Manquant"
 
@@ -4323,11 +4547,13 @@ msgstr "Ma note"
 msgid "My Theme"
 msgstr "Mon thème"
 
-#: src/components/ManageSeriesModal.tsx src/pages/SettingsPage.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Name"
 msgstr "Nom"
 
-#: src/components/EntityModal.tsx src/components/Sidebar.tsx
+#: src/components/EntityModal.tsx
+#: src/components/Sidebar.tsx
 msgid "Name…"
 msgstr "Nom…"
 
@@ -4335,7 +4561,8 @@ msgstr "Nom…"
 msgid "Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync."
 msgstr "Module natif KOReader — suit les sessions de lecture et les synchronise par identifiant de livre. Plus fiable que KOSync."
 
-#: src/components/SyncStatusBadge.tsx src/lib/deviceBooks.ts
+#: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
 #: src/pages/SettingsPage.tsx
 msgid "Never"
 msgstr "Jamais"
@@ -4347,6 +4574,9 @@ msgstr "n’expire jamais"
 #: src/components/ShareShelfModal.tsx
 msgid "Never expires"
 msgstr "N’expire jamais"
+
+#~ msgid "Never sync this book"
+#~ msgstr "Never sync this book"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Never sync this book. Nothing is removed from Hardcover."
@@ -4388,7 +4618,8 @@ msgstr "Nouvelle bibliothèque"
 msgid "New Library"
 msgstr "Nouvelle bibliothèque"
 
-#: src/components/ForcePasswordChange.tsx src/pages/SettingsPage.tsx
+#: src/components/ForcePasswordChange.tsx
+#: src/pages/SettingsPage.tsx
 msgid "New password"
 msgstr "Nouveau mot de passe"
 
@@ -4424,7 +4655,8 @@ msgstr "Suivant"
 msgid "Next book"
 msgstr "Livre suivant"
 
-#: src/pages/ReadingCalendarPage.tsx src/pages/StatsPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Next month"
 msgstr "Mois suivant"
 
@@ -4516,7 +4748,8 @@ msgstr "Aucune donnée de comparaison."
 msgid "No completion data by type."
 msgstr "Aucune donnée d’achèvement par type."
 
-#: src/components/CoverAudit.tsx src/components/MetadataFetchModal.tsx
+#: src/components/CoverAudit.tsx
+#: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
 msgid "No cover"
 msgstr "Sans couverture"
@@ -4737,7 +4970,8 @@ msgstr "aucune lecture pour le moment"
 msgid "No reading-time data yet."
 msgstr "Aucune donnée de temps de lecture pour le moment."
 
-#: src/components/stats/BacklogEstimate.tsx src/lib/backlog.ts
+#: src/components/stats/BacklogEstimate.tsx
+#: src/lib/backlog.ts
 msgid "no recent reading, so no day estimate"
 msgstr "aucune lecture récente, donc aucune estimation en jours"
 
@@ -4826,7 +5060,8 @@ msgstr "Aucun titre à normaliser."
 msgid "No Tome account is linked to this identity, and self-signup is disabled."
 msgstr "Aucun compte Tome n’est associé à cette identité et l’inscription autonome est désactivée."
 
-#: src/components/UploadModal.tsx src/pages/BinderyPage.tsx
+#: src/components/UploadModal.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "No type"
 msgstr "Sans type"
@@ -4855,8 +5090,10 @@ msgstr "Aucun widget sur ce tableau pour le moment."
 msgid "No word counts yet."
 msgstr "Aucun nombre de mots pour le moment."
 
-#: src/components/MetadataManager.tsx src/pages/BookDetailPage.tsx
-#: src/pages/DashboardPage.tsx src/pages/StatsPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "None"
 msgstr "Aucun"
 
@@ -4891,6 +5128,9 @@ msgstr "Absents de votre bibliothèque ({n})"
 #: src/pages/HardcoverPage.tsx
 msgid "Not matched"
 msgstr "Sans correspondance"
+
+#~ msgid "Not on {filterNotOnDevice}"
+#~ msgstr "Not on {filterNotOnDevice}"
 
 #: src/pages/DashboardPage.tsx
 msgid "Not on {name}"
@@ -4932,11 +5172,13 @@ msgstr "Note"
 msgid "Note on KOSync coexistence"
 msgstr "Remarque sur la coexistence avec KOSync"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Note removed"
 msgstr "Note supprimée"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Note saved — syncs to your devices"
 msgstr "Note enregistrée — synchronisée avec vos appareils"
 
@@ -4956,7 +5198,8 @@ msgstr "Rien ici pour le moment."
 msgid "Nothing highlighted on this day — yet."
 msgstr "Aucun surlignage à cette date — pour le moment."
 
-#: src/components/home/FocusMode.tsx src/pages/DashboardPage.tsx
+#: src/components/home/FocusMode.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Nothing in progress"
 msgstr "Rien en cours"
 
@@ -4976,7 +5219,8 @@ msgstr "Aucun partage pour le moment. Utilisez l’icône de partage d’une ét
 msgid "Nothing to remove."
 msgstr "Rien à supprimer."
 
-#: src/components/NotificationBell.tsx src/pages/SettingsPage.tsx
+#: src/components/NotificationBell.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Notifications"
 msgstr "Notifications"
 
@@ -5003,6 +5247,9 @@ msgstr "Désactivé par TOME_TELEMETRY."
 #: src/components/TelemetryConsentCard.tsx
 msgid "Off, you have not opted in."
 msgstr "Désactivé, vous n’avez pas donné votre accord."
+
+#~ msgid "On {filterOnDevice}"
+#~ msgstr "On {filterOnDevice}"
 
 #: src/components/DevicePills.tsx
 msgid "On {name}"
@@ -5048,7 +5295,8 @@ msgstr "Activé depuis le {since}. Dernier envoi : {last}, prochain : {next}."
 msgid "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 msgstr "Sur l’appareil KOReader, ouvrez TomeSync et touchez « Afficher le code de synchronisation ». Pointez la caméra vers le code ou prenez une photo et sélectionnez-la ci-dessous. Un code de plusieurs pages se lit page par page."
 
-#: src/pages/DashboardPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "On this day"
 msgstr "À cette date"
 
@@ -5060,7 +5308,8 @@ msgstr "Une fois par mois, Tome peut envoyer un petit rapport anonyme : version,
 msgid "One series front and center — you pick which"
 msgstr "Une série mise à l’honneur — à vous de choisir laquelle"
 
-#: src/pages/DashboardPage.tsx src/pages/SharePage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "ongoing"
 msgstr "en cours"
 
@@ -5088,7 +5337,8 @@ msgstr "Uniquement les notes"
 msgid "OPDS Catalog"
 msgstr "Catalogue OPDS"
 
-#: src/components/ShareLinksOverview.tsx src/pages/AdminPage.tsx
+#: src/components/ShareLinksOverview.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Open"
 msgstr "Ouvrir"
@@ -5201,13 +5451,15 @@ msgstr "Page {n}"
 msgid "Page thumbnails (T)"
 msgstr "Miniatures des pages (T)"
 
-#: src/components/SeriesReadingStats.tsx src/lib/goals.ts
+#: src/components/SeriesReadingStats.tsx
+#: src/lib/goals.ts
 #: src/pages/BookDetailPage.tsx
 msgid "pages"
 msgstr "pages"
 
 #: src/components/stats/widgets/insights.tsx
-#: src/components/stats/widgets/library.tsx src/pages/ReadingCalendarPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "Pages"
 msgstr "Pages"
 
@@ -5247,12 +5499,15 @@ msgstr "Analyse chaque EPUB pour enregistrer son nombre de mots. Les nouveaux t�
 msgid "password"
 msgstr "mot de passe"
 
-#: src/pages/AdminPage.tsx src/pages/LoginPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/LoginPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/SetupPage.tsx
 msgid "Password"
 msgstr "Mot de passe"
 
-#: src/pages/SettingsPage.tsx src/pages/SetupPage.tsx
+#: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Password must be at least 8 characters"
 msgstr "Le mot de passe doit comporter au moins 8 caractères"
 
@@ -5264,7 +5519,8 @@ msgstr "Le mot de passe doit comporter au moins 8 caractères."
 msgid "Password updated successfully"
 msgstr "Mot de passe mis à jour avec succès"
 
-#: src/pages/SettingsPage.tsx src/pages/SetupPage.tsx
+#: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Passwords do not match"
 msgstr "Les mots de passe ne correspondent pas"
 
@@ -5307,6 +5563,9 @@ msgstr "Records personnels"
 #: src/components/ConnectPhoneModal.tsx
 msgid "Phone connected"
 msgstr "Téléphone connecté"
+
+#~ msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
+#~ msgstr "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
 
 #: src/pages/HardcoverPage.tsx
 msgid "Pick"
@@ -5364,11 +5623,16 @@ msgstr "position conservée, plus récente ici"
 msgid "Prefix"
 msgstr "Préfixe"
 
-#: src/components/InstanceBackup.tsx src/pages/SettingsPage.tsx
+#~ msgid "Preparing..."
+#~ msgstr "Preparing..."
+
+#: src/components/InstanceBackup.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Preparing…"
 msgstr "Préparation…"
 
-#: src/components/MetadataFetchModal.tsx src/pages/SettingsPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Preview"
 msgstr "Aperçu"
 
@@ -5376,7 +5640,8 @@ msgstr "Aperçu"
 msgid "Preview:"
 msgstr "Aperçu :"
 
-#: src/components/MetadataManager.tsx src/pages/AdminPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/AdminPage.tsx
 msgid "Previous"
 msgstr "Précédent"
 
@@ -5388,7 +5653,8 @@ msgstr "Jour précédent / suivant"
 msgid "Previous book"
 msgstr "Livre précédent"
 
-#: src/pages/ReadingCalendarPage.tsx src/pages/StatsPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Previous month"
 msgstr "Mois précédent"
 
@@ -5420,10 +5686,20 @@ msgstr "Traiter les fichiers déposés dans le répertoire <0>incoming/</0> et l
 msgid "Profile updated"
 msgstr "Profil mis à jour"
 
-#: src/components/home/FocusMode.tsx src/pages/AdminPage.tsx
+#: src/components/home/FocusMode.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Progress"
 msgstr "Progression"
+
+#. placeholder {0}: pct(b.progress_after)
+#~ msgid "Progress {0}"
+#~ msgstr "Progress {0}"
+
+#. placeholder {0}: pct(b.progress_before)
+#. placeholder {1}: pct(b.progress_after)
+#~ msgid "Progress {0} → {1}"
+#~ msgstr "Progress {0} → {1}"
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Progress {after}"
@@ -5449,8 +5725,10 @@ msgstr "Bibliothèque publique"
 msgid "Publication status"
 msgstr "Statut de publication"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Publisher"
 msgstr "Éditeur"
 
@@ -5502,7 +5780,8 @@ msgstr "Progression de l’acceptation rapide"
 msgid "Quick Accept: {done}/{total} done"
 msgstr "Acceptation rapide : {done}/{total} traités"
 
-#: src/pages/LoginPage.tsx src/pages/SettingsPage.tsx
+#: src/pages/LoginPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Quick Connect"
 msgstr "Connexion rapide"
 
@@ -5529,6 +5808,10 @@ msgstr "Noter ce livre"
 #: src/pages/DashboardPage.tsx
 msgid "Rated"
 msgstr "Noté"
+
+#. placeholder {0}: b.rating
+#~ msgid "rated {0}"
+#~ msgstr "rated {0}"
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "rated {rating}"
@@ -5582,17 +5865,23 @@ msgstr "Rechercher à nouveau une correspondance"
 msgid "Re-reads"
 msgstr "Relectures"
 
-#: src/pages/AdminPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "read"
 msgstr "lu"
 
-#: src/components/BookCard.tsx src/pages/BookDetailPage.tsx
+#~ msgid "Read"
+#~ msgstr "Read"
+
+#: src/components/BookCard.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgctxt "action"
 msgid "Read"
 msgstr "Lire"
 
-#: src/pages/DashboardPage.tsx src/pages/SharePage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgctxt "status"
 msgid "Read"
 msgstr "Lu"
@@ -5641,11 +5930,13 @@ msgstr "Lecteur"
 msgid "Reader settings"
 msgstr "Paramètres du lecteur"
 
-#: src/pages/AdminPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "reading"
 msgstr "en cours de lecture"
 
-#: src/pages/DashboardPage.tsx src/pages/SharePage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/SharePage.tsx
 msgid "Reading"
 msgstr "En cours de lecture"
 
@@ -5665,6 +5956,9 @@ msgstr "Lectures par langue"
 msgid "Reading by Weekday"
 msgstr "Lectures par jour de la semaine"
 
+#~ msgid "Reading Calendar"
+#~ msgstr "Reading Calendar"
+
 #: src/pages/StatsPage.tsx
 msgid "Reading Clock"
 msgstr "Horloge de lecture"
@@ -5673,7 +5967,8 @@ msgstr "Horloge de lecture"
 msgid "Reading days"
 msgstr "Jours de lecture"
 
-#: src/components/stats/ReadingDNACard.tsx src/pages/StatsPage.tsx
+#: src/components/stats/ReadingDNACard.tsx
+#: src/pages/StatsPage.tsx
 msgid "Reading DNA"
 msgstr "ADN de lecture"
 
@@ -5721,8 +6016,11 @@ msgstr "Évolution de la vitesse de lecture"
 msgid "Reading speed up {up}%"
 msgstr "Vitesse de lecture en hausse de {up} %"
 
-#: src/components/CommandPalette.tsx src/components/SeriesReadingStats.tsx
-#: src/pages/BookDetailPage.tsx src/pages/SetupPage.tsx src/pages/StatsPage.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/SeriesReadingStats.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/SetupPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Reading Stats"
 msgstr "Statistiques de lecture"
 
@@ -5746,7 +6044,8 @@ msgstr "Temps de lecture par jour"
 msgid "Reading time split by language"
 msgstr "Répartition du temps de lecture par langue"
 
-#: src/components/stats/TimelineRibbon.tsx src/pages/StatsPage.tsx
+#: src/components/stats/TimelineRibbon.tsx
+#: src/pages/StatsPage.tsx
 msgid "Reading Timeline"
 msgstr "Chronologie de lecture"
 
@@ -5758,7 +6057,8 @@ msgstr "Sessions récentes"
 msgid "Recently Added"
 msgstr "Ajouts récents"
 
-#: src/pages/DashboardPage.tsx src/pages/StatsPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Recently Finished"
 msgstr "Terminés récemment"
 
@@ -5770,7 +6070,8 @@ msgstr "Importés récemment"
 msgid "Recognized a <0>{dialect}</0> export: {matched} matched, {unmatched} not in your library, {skipped} to-read rows skipped."
 msgstr "Export <0>{dialect}</0> reconnu : {matched} correspondances, {unmatched} absents de votre bibliothèque, {skipped} lignes « À lire » ignorées."
 
-#: src/pages/AdminPage.tsx src/pages/BinderyPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Refresh"
 msgstr "Actualiser"
 
@@ -5829,6 +6130,9 @@ msgstr "Supprimer les dossiers contenant uniquement des fichiers cachés (.DS_St
 #: src/pages/BookDetailPage.tsx
 msgid "Remove from library"
 msgstr "Retirer de la bibliothèque"
+
+#~ msgid "Remove our entry from Hardcover and re-match automatically"
+#~ msgstr "Remove our entry from Hardcover and re-match automatically"
 
 #: src/pages/HardcoverPage.tsx
 msgid "Remove the entry Tome created on Hardcover and re-match automatically. An entry that was already on your profile is kept."
@@ -5974,11 +6278,19 @@ msgstr "Vérification de {n} fichiers"
 msgid "Revoke"
 msgstr "Révoquer"
 
+#. placeholder {0}: d.name
+#~ msgid "Revoke \"{0}\"? It is signed out immediately and has to connect again."
+#~ msgstr "Revoke \"{0}\"? It is signed out immediately and has to connect again."
+
+#~ msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+#~ msgstr "Revoke \"{name}\"? It is signed out immediately and has to connect again."
+
 #: src/pages/SettingsPage.tsx
 msgid "Revoke \"{name}\"? It is signed out immediately and has to sign in again."
 msgstr "Révoquer « {name} » ? Il sera immédiatement déconnecté et devra se reconnecter."
 
-#: src/components/ShareLinksOverview.tsx src/components/ShareShelfModal.tsx
+#: src/components/ShareLinksOverview.tsx
+#: src/components/ShareShelfModal.tsx
 msgid "Revoke link"
 msgstr "Révoquer le lien"
 
@@ -6027,9 +6339,12 @@ msgstr "Sans empattement"
 msgid "Sat"
 msgstr "Sam"
 
-#: src/components/EntityModal.tsx src/components/ManageSeriesModal.tsx
-#: src/components/Sidebar.tsx src/components/stats/GoalWidget.tsx
-#: src/pages/AdminPage.tsx src/pages/BookDetailPage.tsx
+#: src/components/EntityModal.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/components/Sidebar.tsx
+#: src/components/stats/GoalWidget.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/ReaderPage.tsx
 msgid "Save"
 msgstr "Enregistrer"
@@ -6050,12 +6365,14 @@ msgstr "Enregistrer les modifications"
 msgid "Save current filters as a shelf"
 msgstr "Enregistrer les filtres actuels comme étagère"
 
-#: src/components/ManageSeriesModal.tsx src/pages/BookDetailPage.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Save failed"
 msgstr "Échec de l’enregistrement"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Save note"
 msgstr "Enregistrer la note"
 
@@ -6071,7 +6388,8 @@ msgstr "Enregistrez d’abord la bibliothèque, puis rouvrez-la pour la partager
 msgid "Save this board as an image"
 msgstr "Enregistrer ce tableau comme image"
 
-#: src/pages/AdminPage.tsx src/pages/StatsPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Saved"
 msgstr "Enregistré"
 
@@ -6079,13 +6397,19 @@ msgstr "Enregistré"
 msgid "Saving"
 msgstr "Enregistrement"
 
-#: src/components/ForcePasswordChange.tsx src/pages/AdminPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#~ msgid "Saving..."
+#~ msgstr "Saving..."
+
+#: src/components/ForcePasswordChange.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Saving…"
 msgstr "Enregistrement…"
 
-#: src/components/ScanSyncCodeModal.tsx src/pages/SettingsPage.tsx
+#: src/components/ScanSyncCodeModal.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Scan a sync code"
 msgstr "Scanner un code de synchronisation"
 
@@ -6101,7 +6425,8 @@ msgstr "Analyse terminée"
 msgid "Scan failed"
 msgstr "Échec de l’analyse"
 
-#: src/components/LibraryHealth.tsx src/pages/AdminPage.tsx
+#: src/components/LibraryHealth.tsx
+#: src/pages/AdminPage.tsx
 msgid "Scan Library"
 msgstr "Analyser la bibliothèque"
 
@@ -6121,11 +6446,16 @@ msgstr "Scanner"
 msgid "Scanning covers…"
 msgstr "Analyse des couvertures…"
 
-#: src/components/LibraryHealth.tsx src/pages/AdminPage.tsx
+#~ msgid "Scanning..."
+#~ msgstr "Scanning..."
+
+#: src/components/LibraryHealth.tsx
+#: src/pages/AdminPage.tsx
 msgid "Scanning…"
 msgstr "Analyse…"
 
-#: src/pages/SettingsPage.tsx src/pages/StatsPage.tsx
+#: src/pages/SettingsPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Scope"
 msgstr "Périmètre"
 
@@ -6141,7 +6471,8 @@ msgstr "Faire défiler vers la gauche"
 msgid "Scroll right"
 msgstr "Faire défiler vers la droite"
 
-#: src/components/MetadataFetchModal.tsx src/pages/HardcoverPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Search"
 msgstr "Rechercher"
 
@@ -6153,7 +6484,8 @@ msgstr "Rechercher des livres"
 msgid "Search books… (/)"
 msgstr "Rechercher des livres… (/)"
 
-#: src/components/MetadataFetchModal.tsx src/pages/HardcoverPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Search failed"
 msgstr "Échec de la recherche"
 
@@ -6217,7 +6549,8 @@ msgstr "Recherche dans {n} livres…"
 msgid "Searching for: <0>{title}</0>"
 msgstr "Recherche de : <0>{title}</0>"
 
-#: src/components/MetadataFetchModal.tsx src/pages/HardcoverPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Searching…"
 msgstr "Recherche…"
 
@@ -6245,7 +6578,8 @@ msgstr "Sélectionnez <0>1 an</0> ou <1>Tout</1> pour voir votre bilan annuel."
 msgid "Select a book first."
 msgstr "Sélectionnez d’abord un livre."
 
-#: src/components/MetadataFetchModal.tsx src/pages/DashboardPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Select all"
 msgstr "Tout sélectionner"
 
@@ -6281,7 +6615,8 @@ msgstr "Envoyer un e-mail de test"
 msgid "Send this report monthly"
 msgstr "Envoyer ce rapport chaque mois"
 
-#: src/components/SendButton.tsx src/components/SendToDeviceModal.tsx
+#: src/components/SendButton.tsx
+#: src/components/SendToDeviceModal.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Send to Device"
 msgstr "Envoyer à un appareil"
@@ -6298,7 +6633,11 @@ msgstr "Envoyer par e-mail…"
 msgid "Sending"
 msgstr "Envoi"
 
-#: src/components/SendToDeviceModal.tsx src/pages/AdminPage.tsx
+#~ msgid "Sending..."
+#~ msgstr "Sending..."
+
+#: src/components/SendToDeviceModal.tsx
+#: src/pages/AdminPage.tsx
 msgid "Sending…"
 msgstr "Envoi…"
 
@@ -6318,15 +6657,20 @@ msgstr "{sent}/{total} envoyés. {failedN} échecs."
 msgid "Sepia"
 msgstr "Sépia"
 
-#: src/components/CommandPalette.tsx src/components/ManageSeriesModal.tsx
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/components/Sidebar.tsx src/components/WishlistModal.tsx
-#: src/pages/BinderyPage.tsx src/pages/DashboardPage.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/ManageSeriesModal.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/components/Sidebar.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Series"
 msgstr "Séries"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Series #"
 msgstr "N° dans la série"
@@ -6343,8 +6687,10 @@ msgstr "Achèvement des séries"
 msgid "Series index"
 msgstr "Numéro dans la série"
 
-#: src/components/WishlistModal.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Series name"
 msgstr "Nom de la série"
 
@@ -6392,12 +6738,14 @@ msgstr "Serveur"
 msgid "Session Timeline"
 msgstr "Chronologie des sessions"
 
-#: src/components/SeriesReadingStats.tsx src/pages/BookDetailPage.tsx
+#: src/components/SeriesReadingStats.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "sessions"
 msgstr "sessions"
 
 #: src/components/stats/widgets/insights.tsx
-#: src/components/stats/widgets/library.tsx src/pages/StatsPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/StatsPage.tsx
 msgid "Sessions"
 msgstr "Sessions"
 
@@ -6453,8 +6801,10 @@ msgstr "Définissez les variables d’environnement suivantes pour activer l’e
 msgid "Set your password"
 msgstr "Définir votre mot de passe"
 
-#: src/components/CommandPalette.tsx src/components/Sidebar.tsx
-#: src/pages/ReaderPage.tsx src/pages/SettingsPage.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/ReaderPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Settings"
 msgstr "Paramètres"
 
@@ -6470,7 +6820,8 @@ msgstr "Échec de la configuration"
 msgid "Setup instructions"
 msgstr "Instructions de configuration"
 
-#: src/components/Sidebar.tsx src/pages/BookDetailPage.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Share"
 msgstr "Partager"
 
@@ -6510,7 +6861,8 @@ msgstr "Bibliothèque partagée"
 msgid "shelved"
 msgstr "mis de côté"
 
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Shelved"
 msgstr "Mis de côté"
 
@@ -6522,7 +6874,8 @@ msgstr "Mis de côté — votre progression est conservée"
 msgid "Shelved — set aside, keeps your progress"
 msgstr "Mis de côté — lecture suspendue, progression conservée"
 
-#: src/components/Sidebar.tsx src/pages/StatsPage.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/StatsPage.tsx
 msgid "Shelves"
 msgstr "Étagères"
 
@@ -6542,16 +6895,19 @@ msgstr "Afficher un autre surlignage"
 msgid "Show details"
 msgstr "Afficher les détails"
 
-#: src/pages/DashboardPage.tsx src/pages/HardcoverPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Show individual volumes"
 msgstr "Afficher les tomes individuellement"
 
-#: src/components/stats/widgets/library.tsx src/pages/BookDetailPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Show less"
 msgstr "Afficher moins"
 
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Show more"
 msgstr "Afficher plus"
 
@@ -6611,6 +6967,9 @@ msgstr "Connexion en cours…"
 msgid "Similar Title"
 msgstr "Titre similaire"
 
+#~ msgid "since {from}"
+#~ msgstr "since {from}"
+
 #: src/pages/ReaderPage.tsx
 msgid "Single page (S)"
 msgstr "Page unique (S)"
@@ -6623,11 +6982,13 @@ msgstr "Authentification unique"
 msgid "Sittings"
 msgstr "Séances"
 
-#: src/components/CoverAudit.tsx src/pages/BinderyPage.tsx
+#: src/components/CoverAudit.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Size"
 msgstr "Taille"
 
-#: src/components/MetadataManager.tsx src/pages/BinderyPage.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Skip"
 msgstr "Ignorer"
 
@@ -6767,7 +7128,8 @@ msgstr "Démarrage de la caméra…"
 msgid "Stats"
 msgstr "Statistiques"
 
-#: src/pages/AdminPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Status"
 msgstr "Statut"
 
@@ -6844,7 +7206,8 @@ msgstr "Synchroniser automatiquement"
 msgid "Sync code applied"
 msgstr "Code de synchronisation appliqué"
 
-#: src/components/HardcoverSync.tsx src/pages/HardcoverPage.tsx
+#: src/components/HardcoverSync.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Sync now"
 msgstr "Synchroniser maintenant"
 
@@ -6864,7 +7227,8 @@ msgstr "Synchronisation lancée — envoi des notes et de la progression, synchr
 msgid "Sync Status"
 msgstr "État de synchronisation"
 
-#: src/components/home/FocusMode.tsx src/pages/HardcoverPage.tsx
+#: src/components/home/FocusMode.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Synced"
 msgstr "Synchronisé"
 
@@ -6888,7 +7252,8 @@ msgstr "Synchronisé depuis Kindle"
 msgid "Synced from Kobo"
 msgstr "Synchronisé depuis Kobo"
 
-#: src/components/home/FocusMode.tsx src/pages/ReaderPage.tsx
+#: src/components/home/FocusMode.tsx
+#: src/pages/ReaderPage.tsx
 msgid "Synced from KOReader"
 msgstr "Synchronisé depuis KOReader"
 
@@ -6896,7 +7261,8 @@ msgstr "Synchronisé depuis KOReader"
 msgid "Synced to Tome {when}"
 msgstr "Synchronisé avec Tome {when}"
 
-#: src/components/HardcoverSync.tsx src/pages/HardcoverPage.tsx
+#: src/components/HardcoverSync.tsx
+#: src/pages/HardcoverPage.tsx
 msgid "Syncing…"
 msgstr "Synchronisation…"
 
@@ -6920,7 +7286,8 @@ msgstr "Étiquette"
 msgid "Tag: {filterTag}"
 msgstr "Étiquette : {filterTag}"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
 msgid "Tags"
 msgstr "Étiquettes"
 
@@ -6992,13 +7359,23 @@ msgstr "Cette identité SSO est déjà associée à un autre compte."
 msgid "The book type's own library is always added automatically."
 msgstr "La bibliothèque propre au type de livre est toujours ajoutée automatiquement."
 
+#~ msgid "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
+#~ msgstr "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "the device"
 msgstr "l’appareil"
 
+#. placeholder {0}: Math.round(Math.abs(result.clock_offset_seconds) / 60)
+#~ msgid "The device clock is off by {0} min; times were corrected."
+#~ msgstr "The device clock is off by {0} min; times were corrected."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "The device clock is off by {offset}; times were corrected."
 msgstr "L’horloge de l’appareil est décalée de {offset} ; les horaires ont été corrigés."
+
+#~ msgid "The device clock is off by {offsetMinutes} min; times were corrected."
+#~ msgstr "The device clock is off by {offsetMinutes} min; times were corrected."
 
 #: src/pages/SettingsPage.tsx
 msgid "the sync password set above"
@@ -7008,7 +7385,8 @@ msgstr "le mot de passe de synchronisation défini ci-dessus"
 msgid "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
 msgstr "Le triangle signale une session d’une durée anormalement longue. Les ciseaux raccourcissent une session, la corbeille la supprime."
 
-#: src/components/Sidebar.tsx src/components/ThemeToggle.tsx
+#: src/components/Sidebar.tsx
+#: src/components/ThemeToggle.tsx
 msgid "Theme"
 msgstr "Thème"
 
@@ -7043,6 +7421,9 @@ msgstr "C’est la seule fois que vous verrez ce jeton. Conservez-le en lieu sû
 #: src/components/TelemetryConsentCard.tsx
 msgid "This is the report"
 msgstr "Voici le rapport"
+
+#~ msgid "this month"
+#~ msgstr "this month"
 
 #: src/pages/StatsPage.tsx
 msgid "This Month"
@@ -7101,7 +7482,8 @@ msgstr "Ce souhait couvre toute la série et reste en attente au fil de l’arri
 msgid "Thu"
 msgstr "Jeu"
 
-#: src/components/stats/widgets/library.tsx src/pages/AdminPage.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Time"
 msgstr "Temps"
@@ -7150,9 +7532,12 @@ msgstr "Chronologie"
 msgid "title"
 msgstr "titre"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/components/stats/widgets/library.tsx src/pages/BinderyPage.tsx
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/components/stats/widgets/library.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Title"
 msgstr "Titre"
 
@@ -7176,8 +7561,10 @@ msgstr "Le titre est obligatoire."
 msgid "To count"
 msgstr "À compter"
 
-#: src/pages/AdminPage.tsx src/pages/DashboardPage.tsx
-#: src/pages/ReadingCalendarPage.tsx src/pages/WishlistPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/DashboardPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Today"
 msgstr "Aujourd’hui"
 
@@ -7205,7 +7592,8 @@ msgstr "Changer de thème"
 msgid "Token name"
 msgstr "Nom du jeton"
 
-#: src/pages/LoginPage.tsx src/pages/SetupPage.tsx
+#: src/pages/LoginPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Tome · Your personal library"
 msgstr "Tome · Votre bibliothèque personnelle"
 
@@ -7281,7 +7669,8 @@ msgstr "Le raccourcissement réduit uniquement la durée et l’heure de fin de 
 msgid "Try adjusting your filters"
 msgstr "Essayez d’ajuster vos filtres"
 
-#: src/components/ConnectPhoneModal.tsx src/pages/LoginPage.tsx
+#: src/components/ConnectPhoneModal.tsx
+#: src/pages/LoginPage.tsx
 msgid "Try again"
 msgstr "Réessayer"
 
@@ -7306,7 +7695,8 @@ msgstr "Tourner les pages uniquement par balayage"
 msgid "Two-page spread (S)"
 msgstr "Double page (S)"
 
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Type"
 msgstr "Type"
@@ -7323,7 +7713,8 @@ msgstr "Non attribué"
 msgid "under a day"
 msgstr "moins d’un jour"
 
-#: src/pages/BookDetailPage.tsx src/pages/StatsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/StatsPage.tsx
 msgid "Undo"
 msgstr "Annuler"
 
@@ -7351,7 +7742,8 @@ msgstr "auteur inconnu"
 msgid "Unknown author"
 msgstr "Auteur inconnu"
 
-#: src/components/PositionHistoryModal.tsx src/pages/BookDetailPage.tsx
+#: src/components/PositionHistoryModal.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "unknown device"
 msgstr "appareil inconnu"
 
@@ -7363,7 +7755,8 @@ msgstr "illimité"
 msgid "Unlink"
 msgstr "Dissocier"
 
-#: src/pages/AdminPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "unread"
 msgstr "non lu"
 
@@ -7415,7 +7808,8 @@ msgstr "Mettre à jour le mot de passe de synchronisation"
 msgid "Update to v{v}"
 msgstr "Mettre à jour vers la v{v}"
 
-#: src/components/AppHeader.tsx src/components/MetadataManager.tsx
+#: src/components/AppHeader.tsx
+#: src/components/MetadataManager.tsx
 msgid "Upload"
 msgstr "Téléverser"
 
@@ -7483,7 +7877,9 @@ msgstr "Utilisateur"
 msgid "User menu"
 msgstr "Menu utilisateur"
 
-#: src/pages/AdminPage.tsx src/pages/SettingsPage.tsx src/pages/SetupPage.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
+#: src/pages/SetupPage.tsx
 msgid "Username"
 msgstr "Nom d’utilisateur"
 
@@ -7499,7 +7895,8 @@ msgstr "Utilisateurs"
 msgid "Verify it's working"
 msgstr "Vérifier le fonctionnement"
 
-#: src/components/UploadModal.tsx src/pages/AdminPage.tsx
+#: src/components/UploadModal.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "View book"
 msgstr "Voir le livre"
@@ -7512,7 +7909,8 @@ msgstr "Affichage en tant que <0>{impersonatedUsername}</0>"
 msgid "Vol {firstIdx}"
 msgstr "Tome {firstIdx}"
 
-#: src/components/SeriesReadingStats.tsx src/pages/BinderyPage.tsx
+#: src/components/SeriesReadingStats.tsx
+#: src/pages/BinderyPage.tsx
 msgid "Vol {idx}"
 msgstr "Tome {idx}"
 
@@ -7532,7 +7930,8 @@ msgstr "Tome {v} · "
 msgid "Vol. {a}–{b}"
 msgstr "Tomes {a}–{b}"
 
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Vol. {idx}"
 msgstr "Tome {idx}"
 
@@ -7544,7 +7943,8 @@ msgstr "Tome {volIdx}"
 msgid "volume"
 msgstr "tome"
 
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Volume"
 msgstr "Tome"
 
@@ -7576,7 +7976,8 @@ msgstr "Parcourir le répertoire de la bibliothèque et ajouter tous les nouveau
 msgid "want to read"
 msgstr "à lire"
 
-#: src/pages/BookDetailPage.tsx src/pages/DashboardPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Want to Read"
 msgstr "À lire"
@@ -7613,6 +8014,9 @@ msgstr "Minutes par semaine"
 #: src/lib/goals.ts
 msgid "Weekly pages"
 msgstr "Pages par semaine"
+
+#~ msgid "Weekly streak"
+#~ msgstr "Weekly streak"
 
 #: src/pages/StatsPage.tsx
 msgid "Weekly Streak"
@@ -7670,7 +8074,8 @@ msgstr "Où vous lisez"
 msgid "Which weekday you read most"
 msgstr "Le jour de la semaine où vous lisez le plus"
 
-#: src/components/WishlistModal.tsx src/pages/AdminPage.tsx
+#: src/components/WishlistModal.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Whole series"
 msgstr "Série entière"
@@ -7687,8 +8092,10 @@ msgstr "Souhait ajouté"
 msgid "Wish removed"
 msgstr "Souhait supprimé"
 
-#: src/components/CommandPalette.tsx src/components/Sidebar.tsx
-#: src/pages/AdminPage.tsx src/pages/WishlistPage.tsx
+#: src/components/CommandPalette.tsx
+#: src/components/Sidebar.tsx
+#: src/pages/AdminPage.tsx
+#: src/pages/WishlistPage.tsx
 msgid "Wishlist"
 msgstr "Liste de souhaits"
 
@@ -7736,8 +8143,10 @@ msgstr "Mots trouvés"
 msgid "Words Read"
 msgstr "Mots lus"
 
-#: src/components/MetadataFetchModal.tsx src/components/MetadataManager.tsx
-#: src/pages/BinderyPage.tsx src/pages/BookDetailPage.tsx
+#: src/components/MetadataFetchModal.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/BinderyPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Year"
 msgstr "Année"
@@ -7750,8 +8159,10 @@ msgstr "Défi annuel"
 msgid "Year in Review"
 msgstr "Bilan annuel"
 
-#: src/components/SyncStatusBadge.tsx src/lib/deviceBooks.ts
-#: src/pages/AdminPage.tsx src/pages/DashboardPage.tsx
+#: src/components/SyncStatusBadge.tsx
+#: src/lib/deviceBooks.ts
+#: src/pages/AdminPage.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Yesterday"
 msgstr "Hier"
@@ -7812,7 +8223,8 @@ msgstr "Votre bibliothèque"
 msgid "Your library is empty"
 msgstr "Votre bibliothèque est vide"
 
-#: src/pages/BookDetailPage.tsx src/pages/HighlightsPage.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
 msgid "Your note — syncs back to KOReader on the next sync"
 msgstr "Votre note — renvoyée vers KOReader à la prochaine synchronisation"
 
@@ -7871,134 +8283,3 @@ msgstr "Zoom arrière"
 #: src/pages/ReaderPage.tsx
 msgid "Zoom out (-)"
 msgstr "Zoom arrière (-)"
-
-#. placeholder {0}: s.current_days
-#~ msgid "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
-#~ msgstr "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
-
-#. placeholder {0}: s.current_weeks
-#~ msgid "{0, plural, one {# week streak} other {# week streak}}"
-#~ msgstr "{0, plural, one {# week streak} other {# week streak}}"
-
-#. placeholder {0}: s.current_weeks
-#~ msgid "{0, plural, one {# week} other {# weeks}}"
-#~ msgstr "{0, plural, one {# week} other {# weeks}}"
-
-#~ msgid "Applying {done}/{total}..."
-#~ msgstr "Applying {done}/{total}..."
-
-#~ msgid "Best: {best} days"
-#~ msgstr "Best: {best} days"
-
-#~ msgid "Best: {best} weeks"
-#~ msgstr "Best: {best} weeks"
-
-#~ msgid "Daily streak"
-#~ msgstr "Daily streak"
-
-#~ msgid "Deleting..."
-#~ msgstr "Deleting..."
-
-#~ msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
-#~ msgstr "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
-
-#~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
-#~ msgstr "Don't have it yet? Tome Reader is in open beta for iPhone."
-
-#~ msgid "Every day you read, and what it looked like."
-#~ msgstr "Every day you read, and what it looked like."
-
-#~ msgid "Finished"
-#~ msgstr "Finished"
-
-#~ msgid "Finished a book"
-#~ msgstr "Finished a book"
-
-#. placeholder {0}: user?.username
-#~ msgid "Hi <0>{0}</0> — your account was created by an admin. Please set a personal password before continuing."
-#~ msgstr "Hi <0>{0}</0> — your account was created by an admin. Please set a personal password before continuing."
-
-#~ msgid "Importing..."
-#~ msgstr "Importing..."
-
-#. placeholder {0}: result.device ?? 'KOReader'
-#~ msgid "Landed from {0}."
-#~ msgstr "Landed from {0}."
-
-#~ msgid "Loading..."
-#~ msgstr "Loading..."
-
-#~ msgid "Longest: {d}d · Weekly: {w}w"
-#~ msgstr "Longest: {d}d · Weekly: {w}w"
-
-#~ msgid "Never sync this book"
-#~ msgstr "Never sync this book"
-
-#~ msgid "Not on {filterNotOnDevice}"
-#~ msgstr "Not on {filterNotOnDevice}"
-
-#~ msgid "On {filterOnDevice}"
-#~ msgstr "On {filterOnDevice}"
-
-#~ msgid "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
-#~ msgstr "Phones signed in with the Tome app. Revoking a device signs it out immediately; it can connect again with a new code."
-
-#~ msgid "Preparing..."
-#~ msgstr "Preparing..."
-
-#. placeholder {0}: pct(b.progress_after)
-#~ msgid "Progress {0}"
-#~ msgstr "Progress {0}"
-
-#. placeholder {0}: pct(b.progress_before)
-#. placeholder {1}: pct(b.progress_after)
-#~ msgid "Progress {0} → {1}"
-#~ msgstr "Progress {0} → {1}"
-
-#. placeholder {0}: b.rating
-#~ msgid "rated {0}"
-#~ msgstr "rated {0}"
-
-#~ msgid "Read"
-#~ msgstr "Read"
-
-#~ msgid "Reading Calendar"
-#~ msgstr "Reading Calendar"
-
-#~ msgid "Remove our entry from Hardcover and re-match automatically"
-#~ msgstr "Remove our entry from Hardcover and re-match automatically"
-
-#. placeholder {0}: d.name
-#~ msgid "Revoke \"{0}\"? It is signed out immediately and has to connect again."
-#~ msgstr "Revoke \"{0}\"? It is signed out immediately and has to connect again."
-
-#~ msgid "Revoke \"{name}\"? It is signed out immediately and has to connect again."
-#~ msgstr "Revoke \"{name}\"? It is signed out immediately and has to connect again."
-
-#~ msgid "Saving..."
-#~ msgstr "Saving..."
-
-#~ msgid "Scanning..."
-#~ msgstr "Scanning..."
-
-#~ msgid "Sending..."
-#~ msgstr "Sending..."
-
-#~ msgid "since {from}"
-#~ msgstr "since {from}"
-
-#~ msgid "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
-#~ msgstr "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
-
-#. placeholder {0}: Math.round(Math.abs(result.clock_offset_seconds) / 60)
-#~ msgid "The device clock is off by {0} min; times were corrected."
-#~ msgstr "The device clock is off by {0} min; times were corrected."
-
-#~ msgid "The device clock is off by {offsetMinutes} min; times were corrected."
-#~ msgstr "The device clock is off by {offsetMinutes} min; times were corrected."
-
-#~ msgid "this month"
-#~ msgstr "this month"
-
-#~ msgid "Weekly streak"
-#~ msgstr "Weekly streak"
