@@ -21,15 +21,15 @@ def _fresh_settings(tmp_path: Path, **env) -> Settings:
 def test_env_var_wins(tmp_path, monkeypatch):
     s = _fresh_settings(tmp_path, TOME_SECRET_KEY="operator-supplied-key")
     assert s.resolve_secret_key() == "operator-supplied-key"
-    assert not s.secret_key_file.exists()
+    assert not s.generated_key_path.exists()
 
 
 def test_auto_generate_on_first_boot(tmp_path):
     s = _fresh_settings(tmp_path)
     key = s.resolve_secret_key()
     assert len(key) >= 32
-    assert s.secret_key_file.exists()
-    assert s.secret_key_file.read_text().strip() == key
+    assert s.generated_key_path.exists()
+    assert s.generated_key_path.read_text().strip() == key
 
 
 def test_auto_generate_is_stable_across_calls(tmp_path):
