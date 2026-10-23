@@ -1,10 +1,22 @@
 import os
 import secrets
 import logging
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
 log = logging.getLogger(__name__)
+
+# Secrets that may also be supplied as a file (Docker/Kubernetes secrets):
+# TOME_<NAME>_FILE=/run/secrets/... is read in place of TOME_<NAME>.
+FILE_SECRETS = (
+    "secret_key",
+    "hardcover_token",
+    "google_books_key",
+    "smtp_user",
+    "smtp_password",
+    "oidc_client_secret",
+)
 
 
 class Settings(BaseSettings):
@@ -140,6 +152,34 @@ class Settings(BaseSettings):
     oidc_allowed_group: str | None = None  # if set, membership required to log in at all
     oidc_post_login_redirect: str = "/auth/callback"  # frontend route that receives #token
 
+    @model_validator(mode="before")
+    @classmethod
+    def _read_file_secrets(cls, data):
+        """Fill each FILE_SECRETS field from TOME_<NAME>_FILE when set.
+
+        The _FILE variable is read from the process environment first, then
+        from .env (pydantic-settings passes unknown .env keys through as
+        lowercase extras). Setting both TOME_<NAME> and TOME_<NAME>_FILE is an
+        error rather than a guess.
+        """
+        if not isinstance(data, dict):
+            return data
+        for name in FILE_SECRETS:
+            var = f"TOME_{name.upper()}_FILE"
+            path = os.environ.get(var) or data.pop(var.lower(), None)
+            if not path:
+                continue
+            if data.get(name):
+                raise RuntimeError(
+                    f"Both TOME_{name.upper()} and {var} are set. "
+                    f"Set only one of them."
+                )
+            try:
+                data[name] = Path(path).read_text().rstrip("\r\n")
+            except OSError as exc:
+                raise RuntimeError(f"Cannot read {var}={path}: {exc}") from exc
+        return data
+
     @property
     def oidc_configured(self) -> bool:
         """True only when SSO is enabled AND fully configured."""
@@ -179,13 +219,16 @@ class Settings(BaseSettings):
 
         Precedence:
           1. TOME_SECRET_KEY env var (if set and non-empty).
-          2. Contents of {data_dir}/secret.key.
-          3. Generate a new 64-byte key, persist to {data_dir}/secret.key (mode 0600).
+          2. Contents of the file named by TOME_SECRET_KEY_FILE (read into
+             secret_key at construction, see _read_file_secrets; setting
+             both 1 and 2 is an error).
+          3. Contents of {data_dir}/secret.key (Tome's own generated key).
+          4. Generate a new 64-byte key, persist to {data_dir}/secret.key (mode 0600).
         """
         if self.secret_key and self.secret_key.strip():
             if self.secret_key.strip() == "change-me-in-production":
                 raise RuntimeError(
-                    "TOME_SECRET_KEY is set to the historical default literal "
+                    "TOME_SECRET_KEY (or TOME_SECRET_KEY_FILE) is set to the historical default literal "
                     "'change-me-in-production'. Unset it (to auto-generate) or "
                     "set it to a real random value."
                 )

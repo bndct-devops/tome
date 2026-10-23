@@ -54,6 +54,12 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_SEND_TO_KOREADER</code></td><td><code>false</code></td><td>Enable the <a href={withBase("/docs/koreader#send-to-koreader")}>Send to KOReader</a> inbox (beta) — queue books to the device, no email</td></tr>
     </tbody>
   </table>
+  <p>
+    Secrets can also be read from a file (Docker/Kubernetes secrets): <code>TOME_SECRET_KEY</code>,
+    <code>TOME_HARDCOVER_TOKEN</code>, <code>TOME_GOOGLE_BOOKS_KEY</code>, <code>TOME_SMTP_USER</code>,
+    <code>TOME_SMTP_PASSWORD</code> and <code>TOME_OIDC_CLIENT_SECRET</code> each accept a <code>_FILE</code>
+    variant, e.g. <code>TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key</code>. Set one or the other, not both.
+  </p>
 
   <h2>The secret key</h2>
   <p>

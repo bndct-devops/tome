@@ -158,6 +158,8 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 | `TOME_SCAN_WORKERS` | No | `1` | Parallel scan workers (>1 = multi-process; ~60–80 MB each) |
 | `TOME_KOSYNC_POSITION_BRIDGE` | No | `false` | Experimental: let TomeSync plugin devices pick up progress pushed by third-party KOSync clients (read-only bridge) |
 
+Secrets can also be read from a file (Docker/Kubernetes secrets): `TOME_SECRET_KEY`, `TOME_HARDCOVER_TOKEN`, `TOME_GOOGLE_BOOKS_KEY`, `TOME_SMTP_USER`, `TOME_SMTP_PASSWORD` and `TOME_OIDC_CLIENT_SECRET` each accept a `_FILE` variant, e.g. `TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key`. Set one or the other, not both.
+
 ### Supported Formats
 
 | Format | Reader | Notes |

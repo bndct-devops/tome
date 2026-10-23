@@ -28,6 +28,8 @@ services:
       # Optional. If unset, Tome generates a long random key on first start
       # and saves it to /data/secret.key.
       # - TOME_SECRET_KEY=
+      # Or read it from a file (Docker secrets); any secret takes a _FILE variant.
+      # - TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key
       # Optional. Get a free API token at https://hardcover.app/account/api
       # - TOME_HARDCOVER_TOKEN=
       # Optional. Set to true to automatically import files from /bindery.
