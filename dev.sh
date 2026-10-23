@@ -29,7 +29,9 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
   set +a
 fi
 
+# Update check off: a dev server must not count as an installation
 TOME_SECRET_KEY=dev TOME_DATA_DIR=./data TOME_LIBRARY_DIR=./library TOME_INCOMING_DIR=./bindery \
+  TOME_UPDATE_CHECK=false \
   python -m uvicorn backend.main:app --host 0.0.0.0 --port 8080 --reload --log-level info > /tmp/tome-backend.log 2>&1 < /dev/null &
 BACKEND_PID=$!
 disown $BACKEND_PID
