@@ -10,6 +10,12 @@ import os
 # extraction, and in-process keeps tests fast and deterministic.
 os.environ.setdefault("TOME_SCAN_WORKERS", "1")
 
+# The update check must never run under pytest: lifespan would start the
+# background loop, and every request to the real endpoint counts as an
+# installation. Tests that need the endpoint enabled patch settings.
+os.environ["TOME_UPDATE_CHECK"] = "false"
+os.environ["TOME_UPDATE_CHECK_URL"] = "http://update-check.invalid/latest.json"
+
 # Belt-and-suspenders: neutralise any real SMTP credentials so tests can
 # never accidentally open a live connection even if .env is present.
 for _smtp_var in (

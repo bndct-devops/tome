@@ -440,10 +440,18 @@ async def lifespan(app: FastAPI):
         from backend.services.hardcover_sync import hardcover_sync_loop
         hardcover_task = asyncio.create_task(hardcover_sync_loop())
 
+    # Update check: once a day, ask update_check_url for the latest release
+    # (sends only the version number). /meta/update-check reads the result.
+    update_check_task: asyncio.Task | None = None
+    if settings.update_check:
+        from backend.services.update_check import update_check_loop
+        update_check_task = asyncio.create_task(update_check_loop())
+
     yield
 
     # Shutdown: cancel the background tasks cleanly
-    for task in (auto_import_task, release_task, hardcover_task, telemetry_task):
+    for task in (auto_import_task, release_task, hardcover_task, telemetry_task,
+                 update_check_task):
         if task is not None:
             task.cancel()
             try:
