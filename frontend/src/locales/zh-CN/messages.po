@@ -1254,6 +1254,14 @@ msgstr ""
 msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "A folder per author, with a folder per series inside it."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "A folder per author; series books keep their volume number in the file name."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "A lot"
 msgstr ""
@@ -1475,6 +1483,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Admin access required."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Advanced: custom template"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -1752,6 +1764,14 @@ msgstr ""
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 msgid "Author name"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Author only"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Author, then series"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -3156,6 +3176,10 @@ msgstr ""
 msgid "Exact Match"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Examples use sample books until the library has some."
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Exclude"
 msgstr ""
@@ -3558,6 +3582,14 @@ msgstr ""
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "Finished a book"
 #~ msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "first author, series, title (volume marker removed for series books)"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "first one that is not empty; the last item may be plain text"
+msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
@@ -4150,6 +4182,10 @@ msgstr ""
 
 #: src/components/SeriesFollowButton.tsx
 msgid "Latest: Vol {v} · {d}"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Layout"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -4754,6 +4790,10 @@ msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "No books match the current filters."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "No books of this type yet; examples use other books from the library."
 msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
@@ -5414,6 +5454,10 @@ msgid "Optional note (e.g. 'the new one')"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
+msgid "optional part, left out when a field inside is empty"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 msgid "Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health."
 msgstr ""
 
@@ -5574,6 +5618,10 @@ msgstr ""
 msgid "Paste your Hardcover API token"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Path"
+msgstr ""
+
 #: src/components/NotificationChannels.tsx
 msgid "Pause"
 msgstr ""
@@ -5656,6 +5704,10 @@ msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "position kept, newer here"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -6449,6 +6501,10 @@ msgstr ""
 msgid "Saving"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 #~ msgid "Saving..."
 #~ msgstr ""
@@ -6735,8 +6791,16 @@ msgstr ""
 msgid "Series applied to {n} files"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "Series books in a folder per series, other books in a folder per author."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Series Completion"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Series first"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
@@ -7181,6 +7245,10 @@ msgstr ""
 msgid "Starting the camera…"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "starts a new folder; the template must end with {ext}"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Stats"
 msgstr ""
@@ -7374,6 +7442,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Taste by Genre"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Template"
 msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
@@ -8015,6 +8087,10 @@ msgstr ""
 
 #: src/components/home/FocusMode.tsx
 msgid "Volume <0>{v}</0>"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "volume as 01 or 10.5, year, file extension with the dot"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
