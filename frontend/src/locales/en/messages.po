@@ -1254,6 +1254,14 @@ msgstr "A bit"
 msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
 msgstr "A browser that is not used for {webIdleDays} days is signed out on its own."
 
+#: src/pages/AdminPage.tsx
+msgid "A folder per author, with a folder per series inside it."
+msgstr "A folder per author, with a folder per series inside it."
+
+#: src/pages/AdminPage.tsx
+msgid "A folder per author; series books keep their volume number in the file name."
+msgstr "A folder per author; series books keep their volume number in the file name."
+
 #: src/pages/StatsPage.tsx
 msgid "A lot"
 msgstr "A lot"
@@ -1476,6 +1484,10 @@ msgstr "Admin"
 #: src/pages/AdminPage.tsx
 msgid "Admin access required."
 msgstr "Admin access required."
+
+#: src/pages/AdminPage.tsx
+msgid "Advanced: custom template"
+msgstr "Advanced: custom template"
 
 #: src/pages/StatsPage.tsx
 msgid "all"
@@ -1753,6 +1765,14 @@ msgstr "Author applied to {n} files"
 #: src/pages/BinderyPage.tsx
 msgid "Author name"
 msgstr "Author name"
+
+#: src/pages/AdminPage.tsx
+msgid "Author only"
+msgstr "Author only"
+
+#: src/pages/AdminPage.tsx
+msgid "Author, then series"
+msgstr "Author, then series"
 
 #: src/pages/DashboardPage.tsx
 msgid "Author: {filterAuthor}"
@@ -3156,6 +3176,10 @@ msgstr "Everywhere"
 msgid "Exact Match"
 msgstr "Exact Match"
 
+#: src/pages/AdminPage.tsx
+msgid "Examples use sample books until the library has some."
+msgstr "Examples use sample books until the library has some."
+
 #: src/pages/HardcoverPage.tsx
 msgid "Exclude"
 msgstr "Exclude"
@@ -3473,6 +3497,10 @@ msgstr "Field"
 msgid "Field diff"
 msgstr "Field diff"
 
+#: src/pages/AdminPage.tsx
+msgid "Fields"
+msgstr "Fields"
+
 #: src/components/LibraryHealth.tsx
 msgid "File {id}: {err}"
 msgstr "File {id}: {err}"
@@ -3480,6 +3508,10 @@ msgstr "File {id}: {err}"
 #: src/components/LibraryHealth.tsx
 msgid "file entry only"
 msgstr "file entry only"
+
+#: src/pages/AdminPage.tsx
+msgid "File extension with the dot; must come last"
+msgstr "File extension with the dot; must come last"
 
 #: src/pages/AdminPage.tsx
 msgid "File is missing from disk"
@@ -3558,6 +3590,14 @@ msgstr "finished a book"
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "Finished a book"
 #~ msgstr "Finished a book"
+
+#: src/pages/AdminPage.tsx
+msgid "First author"
+msgstr "First author"
+
+#: src/pages/AdminPage.tsx
+msgid "First one that is not empty; the last item may be plain text"
+msgstr "First one that is not empty; the last item may be plain text"
 
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
@@ -3989,6 +4029,11 @@ msgstr "Incoming"
 msgid "Index"
 msgstr "Index"
 
+#. placeholder {0}: row.token
+#: src/pages/AdminPage.tsx
+msgid "Insert {0}"
+msgstr "Insert {0}"
+
 #: src/components/InstanceBackup.tsx
 msgid "Instance backup"
 msgstr "Instance backup"
@@ -4151,6 +4196,10 @@ msgstr "Latest: vol {v}"
 #: src/components/SeriesFollowButton.tsx
 msgid "Latest: Vol {v} · {d}"
 msgstr "Latest: Vol {v} · {d}"
+
+#: src/pages/AdminPage.tsx
+msgid "Layout"
+msgstr "Layout"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -4755,6 +4804,10 @@ msgstr "No books in this view."
 #: src/components/MetadataManager.tsx
 msgid "No books match the current filters."
 msgstr "No books match the current filters."
+
+#: src/pages/AdminPage.tsx
+msgid "No books of this type yet; examples use other books from the library."
+msgstr "No books of this type yet; examples use other books from the library."
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead."
@@ -5414,6 +5467,10 @@ msgid "Optional note (e.g. 'the new one')"
 msgstr "Optional note (e.g. 'the new one')"
 
 #: src/pages/AdminPage.tsx
+msgid "Optional part, left out when a field inside is empty"
+msgstr "Optional part, left out when a field inside is empty"
+
+#: src/pages/AdminPage.tsx
 msgid "Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health."
 msgstr "Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health."
 
@@ -5574,6 +5631,10 @@ msgstr "Past midnight"
 msgid "Paste your Hardcover API token"
 msgstr "Paste your Hardcover API token"
 
+#: src/pages/AdminPage.tsx
+msgid "Path"
+msgstr "Path"
+
 #: src/components/NotificationChannels.tsx
 msgid "Pause"
 msgstr "Pause"
@@ -5657,6 +5718,10 @@ msgstr "Position history — restore a bad sync"
 #: src/components/ScanSyncCodeModal.tsx
 msgid "position kept, newer here"
 msgstr "position kept, newer here"
+
+#: src/pages/AdminPage.tsx
+msgid "Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series."
+msgstr "Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series."
 
 #: src/pages/SettingsPage.tsx
 msgid "Prefix"
@@ -5766,6 +5831,10 @@ msgstr "Public library"
 #: src/components/ManageSeriesModal.tsx
 msgid "Publication status"
 msgstr "Publication status"
+
+#: src/pages/AdminPage.tsx
+msgid "Publication year"
+msgstr "Publication year"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -6449,6 +6518,10 @@ msgstr "Saved"
 msgid "Saving"
 msgstr "Saving"
 
+#: src/pages/AdminPage.tsx
+msgid "Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them."
+msgstr "Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them."
+
 #: src/pages/SettingsPage.tsx
 #~ msgid "Saving..."
 #~ msgstr "Saving..."
@@ -6735,15 +6808,24 @@ msgstr "Series #"
 msgid "Series applied to {n} files"
 msgstr "Series applied to {n} files"
 
+#: src/pages/AdminPage.tsx
+msgid "Series books in a folder per series, other books in a folder per author."
+msgstr "Series books in a folder per series, other books in a folder per author."
+
 #: src/pages/StatsPage.tsx
 msgid "Series Completion"
 msgstr "Series Completion"
+
+#: src/pages/AdminPage.tsx
+msgid "Series first"
+msgstr "Series first"
 
 #: src/pages/BinderyPage.tsx
 msgid "Series index"
 msgstr "Series index"
 
 #: src/components/WishlistModal.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -7181,6 +7263,14 @@ msgstr "Started vs finished ratio"
 msgid "Starting the camera…"
 msgstr "Starting the camera…"
 
+#: src/pages/AdminPage.tsx
+msgid "Starts a new folder"
+msgstr "Starts a new folder"
+
+#: src/pages/AdminPage.tsx
+#~ msgid "starts a new folder; the template must end with {ext}"
+#~ msgstr "starts a new folder; the template must end with {ext}"
+
 #: src/components/Sidebar.tsx
 msgid "Stats"
 msgstr "Stats"
@@ -7327,6 +7417,10 @@ msgstr "Syncing…"
 msgid "Synopsis or description"
 msgstr "Synopsis or description"
 
+#: src/pages/AdminPage.tsx
+msgid "Syntax"
+msgstr "Syntax"
+
 #: src/pages/SettingsPage.tsx
 msgid "System"
 msgstr "System"
@@ -7375,6 +7469,14 @@ msgstr "Taste"
 #: src/pages/StatsPage.tsx
 msgid "Taste by Genre"
 msgstr "Taste by Genre"
+
+#: src/pages/AdminPage.tsx
+msgid "Template"
+msgstr "Template"
+
+#: src/pages/AdminPage.tsx
+msgid "Template reference"
+msgstr "Template reference"
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Temporary password"
@@ -7617,6 +7719,10 @@ msgstr "Title is required"
 #: src/components/WishlistModal.tsx
 msgid "Title is required."
 msgstr "Title is required."
+
+#: src/pages/AdminPage.tsx
+msgid "Title, volume marker removed for series books"
+msgstr "Title, volume marker removed for series books"
 
 #: src/components/WordCount.tsx
 msgid "To count"
@@ -8016,6 +8122,10 @@ msgstr "Volume {n} — not in the library"
 #: src/components/home/FocusMode.tsx
 msgid "Volume <0>{v}</0>"
 msgstr "Volume <0>{v}</0>"
+
+#: src/pages/AdminPage.tsx
+msgid "Volume number, as 01 or 10.5"
+msgstr "Volume number, as 01 or 10.5"
 
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"

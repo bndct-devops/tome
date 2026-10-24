@@ -943,7 +943,7 @@ def library_health(
         .all()
     )
 
-    from backend.services.book_types import type_folder
+    from backend.services.book_types import type_layout
     issues = []
     missing = []
     for book in books:
@@ -972,7 +972,7 @@ def library_health(
                 })
                 continue
 
-            expected_rel = get_library_path(meta, actual_path.name, type_folder(book.book_type))
+            expected_rel = get_library_path(meta, actual_path.name, type_layout(book.book_type))
             expected_abs = settings.library_dir / expected_rel
 
             if actual_path.resolve() != expected_abs.resolve():
@@ -1072,7 +1072,7 @@ def reorganize_files(
     files = db.query(BookFile).filter(BookFile.id.in_(req.file_ids)).all()
     book_ids = {bf.book_id for bf in files}
     from sqlalchemy.orm import joinedload as _jl
-    from backend.services.book_types import type_folder
+    from backend.services.book_types import type_layout
     books = {
         b.id: b
         for b in db.query(Book).options(_jl(Book.book_type)).filter(Book.id.in_(book_ids)).all()
@@ -1092,7 +1092,7 @@ def reorganize_files(
             "year": book.year,
         }
         actual = Path(bf.file_path)
-        expected_rel = get_library_path(meta, actual.name, type_folder(book.book_type))
+        expected_rel = get_library_path(meta, actual.name, type_layout(book.book_type))
         expected_abs = settings.library_dir / expected_rel
 
         if actual.resolve() == expected_abs.resolve():
@@ -2544,8 +2544,8 @@ def upload_book(
         if not already_file:
             meta = extract_metadata(tmp_path, settings.covers_dir)
             # An extra format of an existing book goes with that book's type
-            from backend.services.book_types import folder_for_type_id
-            rel = get_library_path(meta, file.filename, folder_for_type_id(db, existing.book_type_id))
+            from backend.services.book_types import layout_for_type_id
+            rel = get_library_path(meta, file.filename, layout_for_type_id(db, existing.book_type_id))
             dest = resolve_unique_path(settings.library_dir, rel)
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp_path), str(dest))
@@ -2568,13 +2568,13 @@ def upload_book(
 
     # The type comes first: its folder (#270) is part of the destination.
     # Auto-detect it if not explicitly provided.
-    from backend.services.book_types import detect_book_type, folder_for_type_id
+    from backend.services.book_types import detect_book_type, layout_for_type_id
     if not book_type_id:
         auto_type = detect_book_type(db, fmt=suffix, is_manga=bool(meta.get("_is_manga")))
         if auto_type is not None:
             book_type_id = auto_type.id
 
-    rel = get_library_path(meta, file.filename, folder_for_type_id(db, book_type_id))
+    rel = get_library_path(meta, file.filename, layout_for_type_id(db, book_type_id))
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))
@@ -2799,8 +2799,8 @@ def ingest_book(
         "series_index": meta.series_index,
         "year": meta.year,
     }
-    from backend.services.book_types import folder_for_type_id
-    rel = get_library_path(path_meta, file.filename, folder_for_type_id(db, meta.book_type_id))
+    from backend.services.book_types import layout_for_type_id
+    rel = get_library_path(path_meta, file.filename, layout_for_type_id(db, meta.book_type_id))
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))

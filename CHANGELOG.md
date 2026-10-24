@@ -25,6 +25,13 @@ All notable changes to Tome are documented here. Format loosely follows
   `Comics/Saga/…`. Empty by default, so nothing moves on upgrade. Existing
   books move only when you run Reorganize in Library Health; a library scan
   takes a matching top-level folder as a hint for the book type. (#270)
+- **A layout per book type.** Each book type picks how its books are laid
+  out (Admin → Types): Series first (the layout so far, still the default),
+  Author, then series (`Harlan Coben/Myron Bolitar/Deal Breaker v01.epub`), or
+  Author only, each with an example from your own books. Advanced takes a
+  template such as `{author}/{title}[ ({year})]{ext}`, with a live preview.
+  Saving never moves files: changed books show as misplaced in Library Health,
+  and Dry Run All / Reorganize All moves them. (#276)
 
 ### Changed
 - **The update check asks Tome's own endpoint.** Tome now checks

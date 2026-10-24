@@ -1251,6 +1251,14 @@ msgstr "Un peu"
 msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
 msgstr "Un navigateur inutilisé pendant {webIdleDays} jours est automatiquement déconnecté."
 
+#: src/pages/AdminPage.tsx
+msgid "A folder per author, with a folder per series inside it."
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "A folder per author; series books keep their volume number in the file name."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "A lot"
 msgstr "Beaucoup"
@@ -1473,6 +1481,10 @@ msgstr "Administration"
 #: src/pages/AdminPage.tsx
 msgid "Admin access required."
 msgstr "Accès administrateur requis."
+
+#: src/pages/AdminPage.tsx
+msgid "Advanced: custom template"
+msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "all"
@@ -1749,6 +1761,14 @@ msgstr "Auteur appliqué à {n} fichiers"
 #: src/pages/BinderyPage.tsx
 msgid "Author name"
 msgstr "Nom de l’auteur"
+
+#: src/pages/AdminPage.tsx
+msgid "Author only"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Author, then series"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Author: {filterAuthor}"
@@ -3145,6 +3165,10 @@ msgstr "Partout"
 msgid "Exact Match"
 msgstr "Correspondance exacte"
 
+#: src/pages/AdminPage.tsx
+msgid "Examples use sample books until the library has some."
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Exclude"
 msgstr "Exclure"
@@ -3462,6 +3486,10 @@ msgstr "Champ"
 msgid "Field diff"
 msgstr "Différences du champ"
 
+#: src/pages/AdminPage.tsx
+msgid "Fields"
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid "File {id}: {err}"
 msgstr "Fichier {id} : {err}"
@@ -3469,6 +3497,10 @@ msgstr "Fichier {id} : {err}"
 #: src/components/LibraryHealth.tsx
 msgid "file entry only"
 msgstr "entrée du fichier uniquement"
+
+#: src/pages/AdminPage.tsx
+msgid "File extension with the dot; must come last"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "File is missing from disk"
@@ -3545,6 +3577,14 @@ msgstr "a terminé un livre"
 
 #~ msgid "Finished a book"
 #~ msgstr "Finished a book"
+
+#: src/pages/AdminPage.tsx
+msgid "First author"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "First one that is not empty; the last item may be plain text"
+msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
@@ -3974,6 +4014,11 @@ msgstr "Arrivées"
 msgid "Index"
 msgstr "Index"
 
+#. placeholder {0}: row.token
+#: src/pages/AdminPage.tsx
+msgid "Insert {0}"
+msgstr ""
+
 #: src/components/InstanceBackup.tsx
 msgid "Instance backup"
 msgstr "Sauvegarde de l’instance"
@@ -4135,6 +4180,10 @@ msgstr "Dernier paru : tome {v}"
 #: src/components/SeriesFollowButton.tsx
 msgid "Latest: Vol {v} · {d}"
 msgstr "Dernier paru : tome {v} · {d}"
+
+#: src/pages/AdminPage.tsx
+msgid "Layout"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -4735,6 +4784,10 @@ msgstr "Aucun livre dans cette vue."
 #: src/components/MetadataManager.tsx
 msgid "No books match the current filters."
 msgstr "Aucun livre ne correspond aux filtres actuels."
+
+#: src/pages/AdminPage.tsx
+msgid "No books of this type yet; examples use other books from the library."
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead."
@@ -5392,6 +5445,10 @@ msgid "Optional note (e.g. 'the new one')"
 msgstr "Note facultative (par ex. « le nouveau »)"
 
 #: src/pages/AdminPage.tsx
+msgid "Optional part, left out when a field inside is empty"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 msgid "Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health."
 msgstr ""
 
@@ -5552,6 +5609,10 @@ msgstr "Après minuit"
 msgid "Paste your Hardcover API token"
 msgstr "Collez votre jeton API Hardcover"
 
+#: src/pages/AdminPage.tsx
+msgid "Path"
+msgstr ""
+
 #: src/components/NotificationChannels.tsx
 msgid "Pause"
 msgstr "Suspendre"
@@ -5634,6 +5695,10 @@ msgstr "Historique des positions — corriger une mauvaise synchronisation"
 #: src/components/ScanSyncCodeModal.tsx
 msgid "position kept, newer here"
 msgstr "position conservée, plus récente ici"
+
+#: src/pages/AdminPage.tsx
+msgid "Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series."
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Prefix"
@@ -5740,6 +5805,10 @@ msgstr "Bibliothèque publique"
 #: src/components/ManageSeriesModal.tsx
 msgid "Publication status"
 msgstr "Statut de publication"
+
+#: src/pages/AdminPage.tsx
+msgid "Publication year"
+msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -6413,6 +6482,10 @@ msgstr "Enregistré"
 msgid "Saving"
 msgstr "Enregistrement"
 
+#: src/pages/AdminPage.tsx
+msgid "Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them."
+msgstr ""
+
 #~ msgid "Saving..."
 #~ msgstr "Saving..."
 
@@ -6695,15 +6768,24 @@ msgstr "N° dans la série"
 msgid "Series applied to {n} files"
 msgstr "Série appliquée à {n} fichiers"
 
+#: src/pages/AdminPage.tsx
+msgid "Series books in a folder per series, other books in a folder per author."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Series Completion"
 msgstr "Achèvement des séries"
+
+#: src/pages/AdminPage.tsx
+msgid "Series first"
+msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Series index"
 msgstr "Numéro dans la série"
 
 #: src/components/WishlistModal.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -7140,6 +7222,14 @@ msgstr "Ratio livres commencés / terminés"
 msgid "Starting the camera…"
 msgstr "Démarrage de la caméra…"
 
+#: src/pages/AdminPage.tsx
+msgid "Starts a new folder"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+#~ msgid "starts a new folder; the template must end with {ext}"
+#~ msgstr ""
+
 #: src/components/Sidebar.tsx
 msgid "Stats"
 msgstr "Statistiques"
@@ -7286,6 +7376,10 @@ msgstr "Synchronisation…"
 msgid "Synopsis or description"
 msgstr "Synopsis ou description"
 
+#: src/pages/AdminPage.tsx
+msgid "Syntax"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "System"
 msgstr "Système"
@@ -7334,6 +7428,14 @@ msgstr "Préférences"
 #: src/pages/StatsPage.tsx
 msgid "Taste by Genre"
 msgstr "Préférences par genre"
+
+#: src/pages/AdminPage.tsx
+msgid "Template"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Template reference"
+msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Temporary password"
@@ -7572,6 +7674,10 @@ msgstr "Le titre est obligatoire"
 #: src/components/WishlistModal.tsx
 msgid "Title is required."
 msgstr "Le titre est obligatoire."
+
+#: src/pages/AdminPage.tsx
+msgid "Title, volume marker removed for series books"
+msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "To count"
@@ -7971,6 +8077,10 @@ msgstr "Tome {n} — absent de la bibliothèque"
 #: src/components/home/FocusMode.tsx
 msgid "Volume <0>{v}</0>"
 msgstr "Tome <0>{v}</0>"
+
+#: src/pages/AdminPage.tsx
+msgid "Volume number, as 01 or 10.5"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"

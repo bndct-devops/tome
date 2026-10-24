@@ -24,7 +24,7 @@ from backend.models.book import Book, BookFile
 from backend.services.metadata import SUPPORTED_FORMATS, extract_metadata, get_format, sha256_file
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash
 from backend.services.organizer import get_library_path, move_into_library, resolve_unique_path
-from backend.services.book_types import detect_book_type, type_folder, type_for_top_folder
+from backend.services.book_types import detect_book_type, type_layout, type_for_top_folder
 
 # Below this many new files, the serial path wins (process-pool startup isn't
 # worth it). Above it, scan_library fans the CPU-bound extract/hash out to a
@@ -240,11 +240,11 @@ def _import_file(
     # Extract metadata (while still at original path)
     meta = extract_metadata(src, covers_dir, content_hash=content_hash)
 
-    # Decide the type BEFORE the move: its folder is part of the destination.
+    # Decide the type BEFORE the move: its folder and layout are part of the destination.
     book_type = default_type or detect_book_type(db, fmt=fmt, is_manga=bool(meta.get("_is_manga")))
 
     # Determine destination inside library
-    rel_path = get_library_path(meta, src.name, type_folder(book_type))
+    rel_path = get_library_path(meta, src.name, type_layout(book_type))
     dest = resolve_unique_path(library_dir, rel_path)
 
     # Move the file (cleans up a half-finished cross-device copy on failure)

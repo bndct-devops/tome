@@ -91,6 +91,8 @@ export interface BookType {
   color: string | null
   sort_order: number
   folder?: string
+  layout_preset?: string
+  layout_template?: string
   library_id: number | null
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { Fragment, useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Users, Plus, Pencil, Trash2, Shield, Check, X,
@@ -736,10 +736,278 @@ interface TypeFormState {
   color: ColorOption
   sort_order: number
   folder: string
+  layout_preset: string
+  layout_template: string
+  // Advanced on: layout_template is sent. Kept apart from the template text so
+  // an emptied input stays in Advanced (and invalid) instead of switching off.
+  advanced: boolean
 }
 
 function defaultForm(): TypeFormState {
-  return { label: '', icon: 'Tag', color: 'blue', sort_order: 0, folder: '' }
+  return {
+    label: '', icon: 'Tag', color: 'blue', sort_order: 0, folder: '',
+    layout_preset: 'series_first', layout_template: '', advanced: false,
+  }
+}
+
+/** What the API takes: the template only when Advanced is on, "" otherwise. */
+function typePayload(f: TypeFormState) {
+  const { advanced, ...rest } = f
+  return { ...rest, layout_template: advanced ? f.layout_template.trim() : '' }
+}
+
+/** Advanced on but the template is empty or the server rejected it. */
+function layoutInvalid(f: TypeFormState, error: string | null): boolean {
+  return f.advanced && (!f.layout_template.trim() || error !== null)
+}
+
+interface LayoutPreviewRow { title: string; path: string }
+interface LayoutPreview {
+  paths: LayoutPreviewRow[]
+  error: string | null
+  source: 'type' | 'library' | 'sample'
+  presets: Record<string, { label: string; description: string; template: string; paths: LayoutPreviewRow[] }>
+}
+
+const LAYOUT_PRESETS = ['series_first', 'author_series', 'author_only'] as const
+
+function TypeLayoutField({
+  form, bookTypeId, onChange, onError,
+}: {
+  form: TypeFormState
+  bookTypeId: number | null
+  onChange: (patch: Partial<TypeFormState>) => void
+  onError: (error: string | null) => void
+}) {
+  const { t } = useLingui()
+  const [preview, setPreview] = useState<LayoutPreview | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const template = form.advanced ? form.layout_template : ''
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+  const templateRef = useRef<HTMLInputElement>(null)
+  const [showReference, setShowReference] = useState(false)
+
+  const fieldRows = [
+    { token: '{author}', description: t`First author` },
+    { token: '{series}', description: t`Series name` },
+    { token: '{title}', description: t`Title, volume marker removed for series books` },
+    { token: '{index}', description: t`Volume number, as 01 or 10.5` },
+    { token: '{year}', description: t`Publication year` },
+    { token: '{ext}', description: t`File extension with the dot; must come last` },
+  ]
+  const syntaxRows = [
+    { token: '{series|author}', description: t`First one that is not empty; the last item may be plain text` },
+    { token: '[ v{index}]', description: t`Optional part, left out when a field inside is empty` },
+    { token: '/', description: t`Starts a new folder` },
+  ]
+
+  /** Insert a token at the cursor, keep focus, and let the preview update. */
+  function insertToken(token: string) {
+    const el = templateRef.current
+    const value = form.layout_template
+    const start = el?.selectionStart ?? value.length
+    const end = el?.selectionEnd ?? value.length
+    const next = (value.slice(0, start) + token + value.slice(end)).slice(0, 255)
+    onChange({ layout_template: next })
+    const caret = Math.min(start + token.length, next.length)
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(caret, caret)
+    })
+  }
+
+  // Labels and descriptions live here so they are translated; the server
+  // sends its own English copy along with the example paths.
+  const presetText: Record<string, { label: string; description: string }> = {
+    series_first: {
+      label: t`Series first`,
+      description: t`Series books in a folder per series, other books in a folder per author.`,
+    },
+    author_series: {
+      label: t`Author, then series`,
+      description: t`A folder per author, with a folder per series inside it.`,
+    },
+    author_only: {
+      label: t`Author only`,
+      description: t`A folder per author; series books keep their volume number in the file name.`,
+    },
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const handle = setTimeout(() => {
+      api.post<LayoutPreview>('/book-types/layout-preview', {
+        preset: form.layout_preset,
+        template,
+        book_type_id: bookTypeId,
+        folder: form.folder,
+      })
+        .then(p => {
+          if (cancelled) return
+          setPreview(p)
+          setError(p.error)
+          onErrorRef.current(p.error)
+        })
+        .catch(() => {
+          if (cancelled) return
+          // A bad folder makes the preview 400; the folder field's own save
+          // error covers that, the layout is not what is wrong.
+          setError(null)
+          onErrorRef.current(null)
+        })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(handle) }
+  }, [form.layout_preset, template, bookTypeId, form.folder])
+
+  function toggleAdvanced(on: boolean) {
+    if (on) {
+      const prefill = preview?.presets[form.layout_preset]?.template ?? ''
+      onChange({ advanced: true, layout_template: form.layout_template || prefill })
+    } else {
+      onChange({ advanced: false, layout_template: '' })
+      setError(null)
+      onErrorRef.current(null)
+    }
+  }
+
+  const sampleNote = preview?.source === 'sample'
+    ? t`Examples use sample books until the library has some.`
+    : preview?.source === 'library'
+      ? t`No books of this type yet; examples use other books from the library.`
+      : null
+
+  return (
+    <div className="col-span-2 space-y-2">
+      <label className="text-xs text-muted-foreground block"><Trans>Layout</Trans></label>
+      <div className={cn('space-y-1.5', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
+        {LAYOUT_PRESETS.map(name => {
+          const example = preview?.presets[name]?.paths[0]?.path
+          return (
+            <label
+              key={name}
+              className={cn(
+                'flex items-start gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors',
+                form.layout_preset === name ? 'border-primary/60 bg-primary/5' : 'border-border hover:bg-muted/50',
+              )}
+            >
+              <input
+                type="radio"
+                name={`layout-${bookTypeId ?? 'new'}`}
+                value={name}
+                checked={form.layout_preset === name}
+                onChange={() => onChange({ layout_preset: name })}
+                className="mt-0.5 accent-primary"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="text-sm font-medium block">{presetText[name].label}</span>
+                <span className="text-xs text-muted-foreground block">{presetText[name].description}</span>
+                <span className="text-xs font-mono text-foreground/80 block mt-0.5 break-all">
+                  {example ?? '\u00a0'}
+                </span>
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      {sampleNote && <p className="text-xs text-muted-foreground">{sampleNote}</p>}
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
+        <input
+          type="checkbox"
+          checked={form.advanced}
+          onChange={e => toggleAdvanced(e.target.checked)}
+          className="accent-primary"
+        />
+        <Trans>Advanced: custom template</Trans>
+      </label>
+
+      {form.advanced && (
+        <div className="space-y-2 pl-6">
+          <input
+            ref={templateRef}
+            value={form.layout_template}
+            onChange={e => onChange({ layout_template: e.target.value })}
+            maxLength={255}
+            spellCheck={false}
+            aria-label={t`Template`}
+            aria-invalid={error !== null}
+            className={cn(
+              'w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring font-mono',
+              error && 'border-destructive focus:ring-destructive',
+            )}
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowReference(v => !v)}
+              aria-expanded={showReference}
+              className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Trans>Template reference</Trans>
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
+            </button>
+          </div>
+          {showReference && (
+            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              {[
+                { heading: t`Fields`, rows: fieldRows },
+                { heading: t`Syntax`, rows: syntaxRows },
+              ].map((group, gi) => (
+                <Fragment key={group.heading}>
+                  <p className={cn('col-span-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground', gi > 0 && 'pt-1.5')}>
+                    {group.heading}
+                  </p>
+                  {group.rows.map(row => (
+                    <Fragment key={row.token}>
+                      <button
+                        type="button"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => insertToken(row.token)}
+                        title={t`Insert ${row.token}`}
+                        className="justify-self-start font-mono text-[11px] leading-none px-1.5 py-1 rounded border border-border bg-muted text-foreground/90 hover:border-primary/50 hover:bg-primary/10 transition-colors"
+                      >
+                        {row.token}
+                      </button>
+                      <span className="text-xs text-muted-foreground">{row.description}</span>
+                    </Fragment>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          )}
+          {!error && preview && preview.paths.length > 0 && (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-xs table-fixed">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr>
+                    <th className="text-left font-medium px-3 py-1.5 w-1/3"><Trans>Book</Trans></th>
+                    <th className="text-left font-medium px-3 py-1.5"><Trans>Path</Trans></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {preview.paths.map((row, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-1.5 truncate" title={row.title}>{row.title}</td>
+                      <td className="px-3 py-1.5 font-mono break-all">{row.path}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        <Trans>Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them.</Trans>
+      </p>
+    </div>
+  )
 }
 
 function TypeFolderField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -775,6 +1043,8 @@ function TypesTab() {
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [addLayoutError, setAddLayoutError] = useState<string | null>(null)
+  const [editLayoutError, setEditLayoutError] = useState<string | null>(null)
 
   function load() {
     setLoading(true)
@@ -791,7 +1061,7 @@ function TypesTab() {
     setAddSaving(true)
     setAddError(null)
     try {
-      await api.post('/book-types', addForm)
+      await api.post('/book-types', typePayload(addForm))
       invalidateBookTypesCache()
       load()
       setAddForm(defaultForm())
@@ -805,8 +1075,15 @@ function TypesTab() {
 
   function startEdit(bt: BookType) {
     setEditId(bt.id)
-    setEditForm({ label: bt.label, icon: bt.icon ?? 'Tag', color: (bt.color ?? 'blue') as ColorOption, sort_order: bt.sort_order, folder: bt.folder ?? '' })
+    setEditForm({
+      label: bt.label, icon: bt.icon ?? 'Tag', color: (bt.color ?? 'blue') as ColorOption,
+      sort_order: bt.sort_order, folder: bt.folder ?? '',
+      layout_preset: bt.layout_preset || 'series_first',
+      layout_template: bt.layout_template ?? '',
+      advanced: !!bt.layout_template,
+    })
     setEditError(null)
+    setEditLayoutError(null)
   }
 
   async function handleEdit() {
@@ -814,7 +1091,7 @@ function TypesTab() {
     setEditSaving(true)
     setEditError(null)
     try {
-      await api.put(`/book-types/${editId}`, editForm)
+      await api.put(`/book-types/${editId}`, typePayload(editForm))
       invalidateBookTypesCache()
       load()
       setEditId(null)
@@ -889,13 +1166,19 @@ function TypesTab() {
               />
             </div>
             <TypeFolderField value={addForm.folder} onChange={v => setAddForm(f => ({ ...f, folder: v }))} />
+            <TypeLayoutField
+              form={addForm}
+              bookTypeId={null}
+              onChange={patch => setAddForm(f => ({ ...f, ...patch }))}
+              onError={setAddLayoutError}
+            />
           </div>
           {addError && <p className="text-xs text-destructive">{addError}</p>}
           <div className="flex items-center gap-2 justify-end">
             <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Trans>Cancel</Trans></button>
             <button
               onClick={handleAdd}
-              disabled={addSaving || !addForm.label.trim()}
+              disabled={addSaving || !addForm.label.trim() || layoutInvalid(addForm, addLayoutError)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
             >
               {addSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
@@ -949,13 +1232,19 @@ function TypesTab() {
                       />
                     </div>
                     <TypeFolderField value={editForm.folder} onChange={v => setEditForm(f => ({ ...f, folder: v }))} />
+                    <TypeLayoutField
+                      form={editForm}
+                      bookTypeId={bt.id}
+                      onChange={patch => setEditForm(f => ({ ...f, ...patch }))}
+                      onError={setEditLayoutError}
+                    />
                   </div>
                   {editError && <p className="text-xs text-destructive">{editError}</p>}
                   <div className="flex items-center gap-2 justify-end">
                     <button onClick={() => setEditId(null)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Trans>Cancel</Trans></button>
                     <button
                       onClick={handleEdit}
-                      disabled={editSaving || !editForm.label.trim()}
+                      disabled={editSaving || !editForm.label.trim() || layoutInvalid(editForm, editLayoutError)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                     >
                       {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
