@@ -840,7 +840,6 @@ function TypeLayoutField({
     }
   }
 
-  const inputClass = 'tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring'
   const sampleNote = preview?.source === 'sample'
     ? t`Examples use sample books until the library has some.`
     : preview?.source === 'library'
@@ -901,19 +900,29 @@ function TypeLayoutField({
             spellCheck={false}
             aria-label={t`Template`}
             aria-invalid={error !== null}
-            className={cn(inputClass, 'font-mono', error && 'border-destructive focus:ring-destructive')}
+            className={cn(
+              'w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring font-mono',
+              error && 'border-destructive focus:ring-destructive',
+            )}
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <p className="text-xs text-muted-foreground">
             <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
           </p>
-          <ul className="text-xs text-muted-foreground space-y-0.5">
-            <li><code className="font-mono text-foreground/80">{'{author} {series} {title}'}</code> <Trans>first author, series, title (volume marker removed for series books)</Trans></li>
-            <li><code className="font-mono text-foreground/80">{'{index} {year} {ext}'}</code> <Trans>volume as 01 or 10.5, year, file extension with the dot</Trans></li>
-            <li><code className="font-mono text-foreground/80">{'{series|author|Unknown}'}</code> <Trans>first one that is not empty; the last item may be plain text</Trans></li>
-            <li><code className="font-mono text-foreground/80">{'[ v{index}]'}</code> <Trans>optional part, left out when a field inside is empty</Trans></li>
-            <li><code className="font-mono text-foreground/80">/</code> <Trans>starts a new folder; the template must end with {'{ext}'}</Trans></li>
-          </ul>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <dt className="font-mono text-foreground/80">{'{author} {series} {title}'}</dt>
+            <dd><Trans>first author, series, title (volume marker removed for series books)</Trans></dd>
+            <dt className="font-mono text-foreground/80">{'{index} {year} {ext}'}</dt>
+            <dd><Trans>volume as 01 or 10.5, year, file extension with the dot</Trans></dd>
+            <dt className="font-mono text-foreground/80">{'{series|author|Unknown}'}</dt>
+            <dd><Trans>first one that is not empty; the last item may be plain text</Trans></dd>
+            <dt className="font-mono text-foreground/80">{'[ v{index}]'}</dt>
+            <dd><Trans>optional part, left out when a field inside is empty</Trans></dd>
+            <dt className="font-mono text-foreground/80">/</dt>
+            <dd><Trans>starts a new folder</Trans></dd>
+            <dt className="font-mono text-foreground/80">{'{ext}'}</dt>
+            <dd><Trans>must come last</Trans></dd>
+          </dl>
           {!error && preview && preview.paths.length > 0 && (
             <div className="border border-border rounded-lg overflow-hidden">
               <table className="w-full text-xs table-fixed">

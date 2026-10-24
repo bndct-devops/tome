@@ -4575,6 +4575,10 @@ msgstr "{n} fichiers déplacés"
 msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
 msgstr "Doit contenir exactement 10 valeurs hexadécimales séparées par des virgules (par ex. #1E1E2E)"
 
+#: src/pages/AdminPage.tsx
+msgid "must come last"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "My Books"
 msgstr "Mes livres"
@@ -7205,8 +7209,12 @@ msgid "Starting the camera…"
 msgstr "Démarrage de la caméra…"
 
 #: src/pages/AdminPage.tsx
-msgid "starts a new folder; the template must end with {ext}"
+msgid "starts a new folder"
 msgstr ""
+
+#: src/pages/AdminPage.tsx
+#~ msgid "starts a new folder; the template must end with {ext}"
+#~ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Stats"

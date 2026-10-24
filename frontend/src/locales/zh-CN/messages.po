@@ -4594,6 +4594,10 @@ msgstr ""
 msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "must come last"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "My Books"
 msgstr ""
@@ -7246,8 +7250,12 @@ msgid "Starting the camera…"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
-msgid "starts a new folder; the template must end with {ext}"
+msgid "starts a new folder"
 msgstr ""
+
+#: src/pages/AdminPage.tsx
+#~ msgid "starts a new folder; the template must end with {ext}"
+#~ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Stats"
