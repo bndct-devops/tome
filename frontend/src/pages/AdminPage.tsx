@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { Fragment, useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Users, Plus, Pencil, Trash2, Shield, Check, X,
@@ -785,6 +785,37 @@ function TypeLayoutField({
   const template = form.advanced ? form.layout_template : ''
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
+  const templateRef = useRef<HTMLInputElement>(null)
+  const [showReference, setShowReference] = useState(false)
+
+  const fieldRows = [
+    { token: '{author}', description: t`First author` },
+    { token: '{series}', description: t`Series name` },
+    { token: '{title}', description: t`Title, volume marker removed for series books` },
+    { token: '{index}', description: t`Volume number, as 01 or 10.5` },
+    { token: '{year}', description: t`Publication year` },
+    { token: '{ext}', description: t`File extension with the dot; must come last` },
+  ]
+  const syntaxRows = [
+    { token: '{series|author}', description: t`First one that is not empty; the last item may be plain text` },
+    { token: '[ v{index}]', description: t`Optional part, left out when a field inside is empty` },
+    { token: '/', description: t`Starts a new folder` },
+  ]
+
+  /** Insert a token at the cursor, keep focus, and let the preview update. */
+  function insertToken(token: string) {
+    const el = templateRef.current
+    const value = form.layout_template
+    const start = el?.selectionStart ?? value.length
+    const end = el?.selectionEnd ?? value.length
+    const next = (value.slice(0, start) + token + value.slice(end)).slice(0, 255)
+    onChange({ layout_template: next })
+    const caret = Math.min(start + token.length, next.length)
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(caret, caret)
+    })
+  }
 
   // Labels and descriptions live here so they are translated; the server
   // sends its own English copy along with the example paths.
@@ -894,6 +925,7 @@ function TypeLayoutField({
       {form.advanced && (
         <div className="space-y-2 pl-6">
           <input
+            ref={templateRef}
             value={form.layout_template}
             onChange={e => onChange({ layout_template: e.target.value })}
             maxLength={255}
@@ -906,23 +938,48 @@ function TypeLayoutField({
             )}
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
-          <p className="text-xs text-muted-foreground">
-            <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
-          </p>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            <dt className="font-mono text-foreground/80">{'{author} {series} {title}'}</dt>
-            <dd><Trans>first author, series, title (volume marker removed for series books)</Trans></dd>
-            <dt className="font-mono text-foreground/80">{'{index} {year} {ext}'}</dt>
-            <dd><Trans>volume as 01 or 10.5, year, file extension with the dot</Trans></dd>
-            <dt className="font-mono text-foreground/80">{'{series|author|Unknown}'}</dt>
-            <dd><Trans>first one that is not empty; the last item may be plain text</Trans></dd>
-            <dt className="font-mono text-foreground/80">{'[ v{index}]'}</dt>
-            <dd><Trans>optional part, left out when a field inside is empty</Trans></dd>
-            <dt className="font-mono text-foreground/80">/</dt>
-            <dd><Trans>starts a new folder</Trans></dd>
-            <dt className="font-mono text-foreground/80">{'{ext}'}</dt>
-            <dd><Trans>must come last</Trans></dd>
-          </dl>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowReference(v => !v)}
+              aria-expanded={showReference}
+              className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Trans>Template reference</Trans>
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
+            </button>
+          </div>
+          {showReference && (
+            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              {[
+                { heading: t`Fields`, rows: fieldRows },
+                { heading: t`Syntax`, rows: syntaxRows },
+              ].map((group, gi) => (
+                <Fragment key={group.heading}>
+                  <p className={cn('col-span-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground', gi > 0 && 'pt-1.5')}>
+                    {group.heading}
+                  </p>
+                  {group.rows.map(row => (
+                    <Fragment key={row.token}>
+                      <button
+                        type="button"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => insertToken(row.token)}
+                        title={t`Insert ${row.token}`}
+                        className="justify-self-start font-mono text-[11px] leading-none px-1.5 py-1 rounded border border-border bg-muted text-foreground/90 hover:border-primary/50 hover:bg-primary/10 transition-colors"
+                      >
+                        {row.token}
+                      </button>
+                      <span className="text-xs text-muted-foreground">{row.description}</span>
+                    </Fragment>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          )}
           {!error && preview && preview.paths.length > 0 && (
             <div className="border border-border rounded-lg overflow-hidden">
               <table className="w-full text-xs table-fixed">

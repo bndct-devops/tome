@@ -3486,6 +3486,10 @@ msgstr "Champ"
 msgid "Field diff"
 msgstr "Différences du champ"
 
+#: src/pages/AdminPage.tsx
+msgid "Fields"
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid "File {id}: {err}"
 msgstr "Fichier {id} : {err}"
@@ -3493,6 +3497,10 @@ msgstr "Fichier {id} : {err}"
 #: src/components/LibraryHealth.tsx
 msgid "file entry only"
 msgstr "entrée du fichier uniquement"
+
+#: src/pages/AdminPage.tsx
+msgid "File extension with the dot; must come last"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "File is missing from disk"
@@ -3571,11 +3579,11 @@ msgstr "a terminé un livre"
 #~ msgstr "Finished a book"
 
 #: src/pages/AdminPage.tsx
-msgid "first author, series, title (volume marker removed for series books)"
+msgid "First author"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
-msgid "first one that is not empty; the last item may be plain text"
+msgid "First one that is not empty; the last item may be plain text"
 msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
@@ -4005,6 +4013,11 @@ msgstr "Arrivées"
 #: src/components/MetadataManager.tsx
 msgid "Index"
 msgstr "Index"
+
+#. placeholder {0}: row.token
+#: src/pages/AdminPage.tsx
+msgid "Insert {0}"
+msgstr ""
 
 #: src/components/InstanceBackup.tsx
 msgid "Instance backup"
@@ -4574,10 +4587,6 @@ msgstr "{n} fichiers déplacés"
 #: src/pages/SettingsPage.tsx
 msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
 msgstr "Doit contenir exactement 10 valeurs hexadécimales séparées par des virgules (par ex. #1E1E2E)"
-
-#: src/pages/AdminPage.tsx
-msgid "must come last"
-msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "My Books"
@@ -5436,7 +5445,7 @@ msgid "Optional note (e.g. 'the new one')"
 msgstr "Note facultative (par ex. « le nouveau »)"
 
 #: src/pages/AdminPage.tsx
-msgid "optional part, left out when a field inside is empty"
+msgid "Optional part, left out when a field inside is empty"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5796,6 +5805,10 @@ msgstr "Bibliothèque publique"
 #: src/components/ManageSeriesModal.tsx
 msgid "Publication status"
 msgstr "Statut de publication"
+
+#: src/pages/AdminPage.tsx
+msgid "Publication year"
+msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -6772,6 +6785,7 @@ msgid "Series index"
 msgstr "Numéro dans la série"
 
 #: src/components/WishlistModal.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -7209,7 +7223,7 @@ msgid "Starting the camera…"
 msgstr "Démarrage de la caméra…"
 
 #: src/pages/AdminPage.tsx
-msgid "starts a new folder"
+msgid "Starts a new folder"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -7362,6 +7376,10 @@ msgstr "Synchronisation…"
 msgid "Synopsis or description"
 msgstr "Synopsis ou description"
 
+#: src/pages/AdminPage.tsx
+msgid "Syntax"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "System"
 msgstr "Système"
@@ -7413,6 +7431,10 @@ msgstr "Préférences par genre"
 
 #: src/pages/AdminPage.tsx
 msgid "Template"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Template reference"
 msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
@@ -7652,6 +7674,10 @@ msgstr "Le titre est obligatoire"
 #: src/components/WishlistModal.tsx
 msgid "Title is required."
 msgstr "Le titre est obligatoire."
+
+#: src/pages/AdminPage.tsx
+msgid "Title, volume marker removed for series books"
+msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "To count"
@@ -8053,7 +8079,7 @@ msgid "Volume <0>{v}</0>"
 msgstr "Tome <0>{v}</0>"
 
 #: src/pages/AdminPage.tsx
-msgid "volume as 01 or 10.5, year, file extension with the dot"
+msgid "Volume number, as 01 or 10.5"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx

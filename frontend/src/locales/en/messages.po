@@ -3497,6 +3497,10 @@ msgstr "Field"
 msgid "Field diff"
 msgstr "Field diff"
 
+#: src/pages/AdminPage.tsx
+msgid "Fields"
+msgstr "Fields"
+
 #: src/components/LibraryHealth.tsx
 msgid "File {id}: {err}"
 msgstr "File {id}: {err}"
@@ -3504,6 +3508,10 @@ msgstr "File {id}: {err}"
 #: src/components/LibraryHealth.tsx
 msgid "file entry only"
 msgstr "file entry only"
+
+#: src/pages/AdminPage.tsx
+msgid "File extension with the dot; must come last"
+msgstr "File extension with the dot; must come last"
 
 #: src/pages/AdminPage.tsx
 msgid "File is missing from disk"
@@ -3584,12 +3592,12 @@ msgstr "finished a book"
 #~ msgstr "Finished a book"
 
 #: src/pages/AdminPage.tsx
-msgid "first author, series, title (volume marker removed for series books)"
-msgstr "first author, series, title (volume marker removed for series books)"
+msgid "First author"
+msgstr "First author"
 
 #: src/pages/AdminPage.tsx
-msgid "first one that is not empty; the last item may be plain text"
-msgstr "first one that is not empty; the last item may be plain text"
+msgid "First one that is not empty; the last item may be plain text"
+msgstr "First one that is not empty; the last item may be plain text"
 
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/BookDetailPage.tsx
@@ -4020,6 +4028,11 @@ msgstr "Incoming"
 #: src/components/MetadataManager.tsx
 msgid "Index"
 msgstr "Index"
+
+#. placeholder {0}: row.token
+#: src/pages/AdminPage.tsx
+msgid "Insert {0}"
+msgstr "Insert {0}"
 
 #: src/components/InstanceBackup.tsx
 msgid "Instance backup"
@@ -4593,10 +4606,6 @@ msgstr "Moved {n} files"
 #: src/pages/SettingsPage.tsx
 msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
 msgstr "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
-
-#: src/pages/AdminPage.tsx
-msgid "must come last"
-msgstr "must come last"
 
 #: src/pages/DashboardPage.tsx
 msgid "My Books"
@@ -5458,8 +5467,8 @@ msgid "Optional note (e.g. 'the new one')"
 msgstr "Optional note (e.g. 'the new one')"
 
 #: src/pages/AdminPage.tsx
-msgid "optional part, left out when a field inside is empty"
-msgstr "optional part, left out when a field inside is empty"
+msgid "Optional part, left out when a field inside is empty"
+msgstr "Optional part, left out when a field inside is empty"
 
 #: src/pages/AdminPage.tsx
 msgid "Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health."
@@ -5822,6 +5831,10 @@ msgstr "Public library"
 #: src/components/ManageSeriesModal.tsx
 msgid "Publication status"
 msgstr "Publication status"
+
+#: src/pages/AdminPage.tsx
+msgid "Publication year"
+msgstr "Publication year"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -6812,6 +6825,7 @@ msgid "Series index"
 msgstr "Series index"
 
 #: src/components/WishlistModal.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -7250,8 +7264,8 @@ msgid "Starting the camera…"
 msgstr "Starting the camera…"
 
 #: src/pages/AdminPage.tsx
-msgid "starts a new folder"
-msgstr "starts a new folder"
+msgid "Starts a new folder"
+msgstr "Starts a new folder"
 
 #: src/pages/AdminPage.tsx
 #~ msgid "starts a new folder; the template must end with {ext}"
@@ -7403,6 +7417,10 @@ msgstr "Syncing…"
 msgid "Synopsis or description"
 msgstr "Synopsis or description"
 
+#: src/pages/AdminPage.tsx
+msgid "Syntax"
+msgstr "Syntax"
+
 #: src/pages/SettingsPage.tsx
 msgid "System"
 msgstr "System"
@@ -7455,6 +7473,10 @@ msgstr "Taste by Genre"
 #: src/pages/AdminPage.tsx
 msgid "Template"
 msgstr "Template"
+
+#: src/pages/AdminPage.tsx
+msgid "Template reference"
+msgstr "Template reference"
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Temporary password"
@@ -7697,6 +7719,10 @@ msgstr "Title is required"
 #: src/components/WishlistModal.tsx
 msgid "Title is required."
 msgstr "Title is required."
+
+#: src/pages/AdminPage.tsx
+msgid "Title, volume marker removed for series books"
+msgstr "Title, volume marker removed for series books"
 
 #: src/components/WordCount.tsx
 msgid "To count"
@@ -8098,8 +8124,8 @@ msgid "Volume <0>{v}</0>"
 msgstr "Volume <0>{v}</0>"
 
 #: src/pages/AdminPage.tsx
-msgid "volume as 01 or 10.5, year, file extension with the dot"
-msgstr "volume as 01 or 10.5, year, file extension with the dot"
+msgid "Volume number, as 01 or 10.5"
+msgstr "Volume number, as 01 or 10.5"
 
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
