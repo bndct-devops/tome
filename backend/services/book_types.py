@@ -118,16 +118,19 @@ def detect_book_type(
     fmt: Optional[str],
     is_manga: bool = False,
     in_chapters_dir: bool = False,
+    by_extension: bool = True,
 ) -> Optional[BookType]:
     """The type an incoming file gets automatically, before it is placed.
 
     Same rule the importers have always used: a chapters/ drop or a
     ComicInfo manga flag → manga, a cbz/cbr → comic, anything else none.
+    ``by_extension=False`` keeps only the explicit manga signal, so the scan
+    hint can decide before the bare cbz/cbr default does.
     """
     slug: Optional[str] = None
     if in_chapters_dir or is_manga:
         slug = "manga"
-    elif (fmt or "").lower() in ("cbz", "cbr"):
+    elif by_extension and (fmt or "").lower() in ("cbz", "cbr"):
         slug = "comic"
     if slug is None:
         return None

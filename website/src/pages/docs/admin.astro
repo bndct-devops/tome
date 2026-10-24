@@ -195,7 +195,8 @@ import { withBase } from '../../lib/path'
   <p>
     <strong>New install:</strong> set the folders before the first scan. A scan never moves
     files, but it uses them as a hint: a file whose top-level folder matches a type's folder or
-    label (case-insensitive) gets that type, unless the CBZ/manga rule already decided it. So a
+    label (case-insensitive) gets that type, even a plain CBZ; only a manga flag in the file
+    itself overrides the folder. So a
     library that already has a <code>Manga/</code> folder keeps those books as manga.
   </p>
   <p>
