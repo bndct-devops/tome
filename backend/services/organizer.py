@@ -10,6 +10,9 @@ Rules (in priority order):
 When the book's type has a folder (BookType.folder, #270), the whole layout
 sits one level down: library/{Type folder}/{Series}/... and so on.
 
+The rules above are the ``series_first`` layout preset, the default. A book
+type can pick another preset or a free template (#276, services/layout.py).
+
 All path components are sanitized to be filesystem-safe.
 """
 import re
@@ -72,17 +75,32 @@ def _strip_vol_from_title(title: str) -> str:
     return _VOL_IN_TITLE.sub('', title).strip().rstrip(',- ').strip()
 
 
-def get_library_path(meta: dict, original_filename: str, type_folder: str | None = None) -> Path:
+def get_library_path(
+    meta: dict,
+    original_filename: str,
+    type_folder=None,
+    layout_preset: str = 'series_first',
+    layout_template: str = '',
+) -> Path:
     """
     Return a *relative* path (no leading slash) for a book inside library_dir.
     The caller is responsible for resolving it against library_dir and ensuring
     no collisions before moving the file.
 
-    ``type_folder`` is the folder of the book's type (BookType.folder); empty or
-    None keeps the original layout. It is validated when it is saved, and
-    sanitized again here so a bad stored value can never escape the library.
+    ``type_folder`` is either the folder of the book's type (BookType.folder,
+    #270) as a string, or a ``TypeLayout`` carrying folder, preset and
+    template together (#276; see ``book_types.type_layout``). Empty folder,
+    the ``series_first`` preset and no template keep the original layout.
+    The folder is validated when it is saved, and sanitized again here so a
+    bad stored value can never escape the library.
     """
-    rel = _layout_path(meta, original_filename)
+    from backend.services.layout import TypeLayout, render_layout
+
+    if isinstance(type_folder, TypeLayout):
+        layout_preset = type_folder.preset
+        layout_template = type_folder.template
+        type_folder = type_folder.folder
+    rel = render_layout(meta, original_filename, layout_preset, layout_template)
     folder = (type_folder or '').strip()
     if folder:
         return Path(sanitize_name(folder)) / rel
