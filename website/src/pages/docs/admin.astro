@@ -120,7 +120,7 @@ import { withBase } from '../../lib/path'
     read-write first.
   </Callout>
 
-  <h2 id="type-folders">Folders per book type</h2>
+  <h2 id="type-folders">Folders and layout per book type</h2>
   <p>
     By default every book sits directly under the library root: series in
     <code>Series/</code>, standalones in <code>Author/</code>. Each book type can instead
@@ -136,6 +136,62 @@ import { withBase } from '../../lib/path'
     choose, or automatically: CBZ/CBR are Comics, files marked as manga are Manga) and then
     moves the file into that type's folder.
   </p>
+  <h3>Layout</h3>
+  <p>
+    Inside its folder, each type also has a <strong>Layout</strong> that decides the folders and
+    the file name. Pick one of three presets in the type editor; each shows an example path
+    rendered from one of your own books:
+  </p>
+  <ul>
+    <li><strong>Series first</strong> (default, the layout Tome always had): series books in a
+      folder per series, <code>Myron Bolitar/Deal Breaker v01.epub</code>; other books in a folder
+      per author, <code>Harlan Coben/Tell No One (2001).epub</code>; books without either in
+      <code>Unknown/</code>.</li>
+    <li><strong>Author, then series</strong>: a folder per author with a folder per series inside,
+      <code>Harlan Coben/Myron Bolitar/Deal Breaker v01.epub</code> and
+      <code>Harlan Coben/Mickey Bolitar/Shelter v01.epub</code>; books without a series as
+      <code>Harlan Coben/Tell No One (2001).epub</code>. An author with several series stays in
+      one folder.</li>
+    <li><strong>Author only</strong>: a folder per author, series books keep their volume number
+      in the file name, <code>Harlan Coben/Deal Breaker v01.epub</code>.</li>
+  </ul>
+  <p>
+    The author presets use the first author when a book has several, and <code>Unknown</code>
+    when it has none.
+  </p>
+  <p>
+    <strong>Advanced: custom template.</strong> Tick it to write the path yourself. The field is
+    prefilled with the closest template for the selected preset (close, not identical: the
+    presets also add the year to books without a series), and a preview of your own books
+    updates as you type. The template language:
+  </p>
+  <ul>
+    <li>Fields: <code>{'{author}'}</code> (first author), <code>{'{series}'}</code>,
+      <code>{'{title}'}</code> (volume marker removed for series books),
+      <code>{'{index}'}</code> (<code>01</code>, <code>10.5</code>), <code>{'{year}'}</code>,
+      <code>{'{ext}'}</code> (with the dot, <code>.epub</code>).</li>
+    <li>Fallback: <code>{'{series|author}'}</code> takes the first field that is not empty; the
+      last item may be plain text, <code>{'{series|author|Unknown}'}</code>.</li>
+    <li>Optional part: text in square brackets is kept only when every field inside it has a
+      value, <code>{'[ v{index}]'}</code>, <code>{'[ ({year})]'}</code>. Brackets do not nest
+      and may contain <code>/</code>.</li>
+    <li><code>/</code> starts a new folder. The template must end with <code>{'{ext}'}</code>,
+      the file name needs a field outside brackets, and it cannot start with <code>/</code> or
+      contain <code>..</code>. Each part is cleaned of characters that are not allowed in file
+      names, an empty part becomes <code>Unknown</code>, and nothing can leave the type's
+      folder.</li>
+  </ul>
+  <p>Two examples:</p>
+  <ul>
+    <li><code>{'{author}/{title}[ ({year})]{ext}'}</code> gives
+      <code>Harlan Coben/Deal Breaker (1995).epub</code>.</li>
+    <li><code>{'{author|Unknown}/[{series}/]{title}[ v{index}]{ext}'}</code> gives
+      <code>Harlan Coben/Myron Bolitar/Deal Breaker v01.epub</code> and
+      <code>Harlan Coben/Tell No One.epub</code>.</li>
+  </ul>
+  <p>
+    Unticking Advanced clears the template and goes back to the selected preset.
+  </p>
   <p>
     <strong>New install:</strong> set the folders before the first scan. A scan never moves
     files, but it uses them as a hint: a file whose top-level folder matches a type's folder or
@@ -143,13 +199,13 @@ import { withBase } from '../../lib/path'
     library that already has a <code>Manga/</code> folder keeps those books as manga.
   </p>
   <p>
-    <strong>Existing install:</strong> books are never moved automatically. Changing a type's
-    folder, or a book's type, only makes the affected books show up as misplaced in Library
-    Health. To move them:
+    <strong>Existing install:</strong> books are never moved automatically, and saving a type
+    never moves files. Changing a type's folder or layout, or a book's type, only makes the
+    affected books show up as misplaced in Library Health. To move them:
   </p>
   <ol>
     <li>Back up your library folder first.</li>
-    <li>Set the folders in <strong>Admin → Types</strong>.</li>
+    <li>Set the folders and layouts in <strong>Admin → Types</strong>.</li>
     <li>Check that your books have the right type (bulk-edit the book type from a selection in
       the library if needed).</li>
     <li>Open <strong>Admin → Library</strong> (Library Health), click <strong>Dry Run All</strong>
