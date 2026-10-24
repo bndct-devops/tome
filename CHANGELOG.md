@@ -20,6 +20,11 @@ All notable changes to Tome are documented here. Format loosely follows
   Appearance → Language). Machine-translated first pass, corrected in the
   running UI by the contributor; wording fixes are welcome as pull requests.
   Contributed by llaumgui. (#272)
+- **A folder per book type.** Each book type can have a folder (Admin → Types),
+  so books of that type are stored under it, e.g. `Manga/Berserk/…` or
+  `Comics/Saga/…`. Empty by default, so nothing moves on upgrade. Existing
+  books move only when you run Reorganize in Library Health; a library scan
+  takes a matching top-level folder as a hint for the book type. (#270)
 
 ### Changed
 - **The update check asks Tome's own endpoint.** Tome now checks

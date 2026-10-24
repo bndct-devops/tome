@@ -735,10 +735,30 @@ interface TypeFormState {
   icon: string
   color: ColorOption
   sort_order: number
+  folder: string
 }
 
 function defaultForm(): TypeFormState {
-  return { label: '', icon: 'Tag', color: 'blue', sort_order: 0 }
+  return { label: '', icon: 'Tag', color: 'blue', sort_order: 0, folder: '' }
+}
+
+function TypeFolderField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useLingui()
+  return (
+    <div className="col-span-2">
+      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Folder</Trans></label>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={t`e.g. Manga`}
+        maxLength={64}
+        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+      />
+      <p className="text-xs text-muted-foreground mt-1">
+        <Trans>Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health.</Trans>
+      </p>
+    </div>
+  )
 }
 
 function TypesTab() {
@@ -785,7 +805,7 @@ function TypesTab() {
 
   function startEdit(bt: BookType) {
     setEditId(bt.id)
-    setEditForm({ label: bt.label, icon: bt.icon ?? 'Tag', color: (bt.color ?? 'blue') as ColorOption, sort_order: bt.sort_order })
+    setEditForm({ label: bt.label, icon: bt.icon ?? 'Tag', color: (bt.color ?? 'blue') as ColorOption, sort_order: bt.sort_order, folder: bt.folder ?? '' })
     setEditError(null)
   }
 
@@ -868,6 +888,7 @@ function TypesTab() {
                 className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+            <TypeFolderField value={addForm.folder} onChange={v => setAddForm(f => ({ ...f, folder: v }))} />
           </div>
           {addError && <p className="text-xs text-destructive">{addError}</p>}
           <div className="flex items-center gap-2 justify-end">
@@ -927,6 +948,7 @@ function TypesTab() {
                         className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
+                    <TypeFolderField value={editForm.folder} onChange={v => setEditForm(f => ({ ...f, folder: v }))} />
                   </div>
                   {editError && <p className="text-xs text-destructive">{editError}</p>}
                   <div className="flex items-center gap-2 justify-end">
@@ -946,6 +968,7 @@ function TypesTab() {
                   <div className={cn('w-3 h-3 rounded-full shrink-0', COLOR_DOT[(bt.color ?? 'blue') as ColorOption] ?? 'bg-gray-400')} />
                   <span className="text-sm font-medium flex-1">{bt.label}</span>
                   <span className="text-xs text-muted-foreground hidden sm:block">{bt.icon}</span>
+                  {bt.folder && <span className="text-xs text-muted-foreground hidden sm:block font-mono">{`${bt.folder}/`}</span>}
                   <span className="text-xs text-muted-foreground hidden sm:block font-mono">{bt.slug}</span>
                   {deleteConfirmId === bt.id ? (
                     <div className="flex items-center gap-1.5 shrink-0">

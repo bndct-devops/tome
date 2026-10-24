@@ -2991,6 +2991,10 @@ msgid "e.g. en"
 msgstr "par ex. fr"
 
 #: src/pages/AdminPage.tsx
+msgid "e.g. Manga"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
 msgid "e.g. Novel"
 msgstr "par ex. Roman"
 
@@ -3566,6 +3570,10 @@ msgstr "Concentration"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Focus search"
 msgstr "Activer le champ de recherche"
+
+#: src/pages/AdminPage.tsx
+msgid "Folder"
+msgstr ""
 
 #: src/components/SeriesFollowButton.tsx
 msgid "Follow"
@@ -5382,6 +5390,10 @@ msgstr "Facultatif"
 #: src/components/WishlistModal.tsx
 msgid "Optional note (e.g. 'the new one')"
 msgstr "Note facultative (par ex. « le nouveau »)"
+
+#: src/pages/AdminPage.tsx
+msgid "Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health."
+msgstr ""
 
 #: src/components/CoverPickerModal.tsx
 msgid "or use a custom source"

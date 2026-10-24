@@ -63,6 +63,7 @@ def trigger_import(
         covers_dir=settings.covers_dir,
         db=db,
         added_by=current_user.id,
+        default_type_id=opts.default_type_id,
     )
     _apply_default_type(db, result.added_ids, opts.default_type_id)
     return result
@@ -937,11 +938,12 @@ def library_health(
     from sqlalchemy.orm import joinedload as _jl
     books = (
         db.query(Book)
-        .options(_jl(Book.files))
+        .options(_jl(Book.files), _jl(Book.book_type))
         .filter(Book.status == "active")
         .all()
     )
 
+    from backend.services.book_types import type_folder
     issues = []
     missing = []
     for book in books:
@@ -970,7 +972,7 @@ def library_health(
                 })
                 continue
 
-            expected_rel = get_library_path(meta, actual_path.name)
+            expected_rel = get_library_path(meta, actual_path.name, type_folder(book.book_type))
             expected_abs = settings.library_dir / expected_rel
 
             if actual_path.resolve() != expected_abs.resolve():
@@ -1069,7 +1071,12 @@ def reorganize_files(
 
     files = db.query(BookFile).filter(BookFile.id.in_(req.file_ids)).all()
     book_ids = {bf.book_id for bf in files}
-    books = {b.id: b for b in db.query(Book).filter(Book.id.in_(book_ids)).all()}
+    from sqlalchemy.orm import joinedload as _jl
+    from backend.services.book_types import type_folder
+    books = {
+        b.id: b
+        for b in db.query(Book).options(_jl(Book.book_type)).filter(Book.id.in_(book_ids)).all()
+    }
 
     moved: list[dict] = []
     errors: list[dict] = []
@@ -1085,7 +1092,7 @@ def reorganize_files(
             "year": book.year,
         }
         actual = Path(bf.file_path)
-        expected_rel = get_library_path(meta, actual.name)
+        expected_rel = get_library_path(meta, actual.name, type_folder(book.book_type))
         expected_abs = settings.library_dir / expected_rel
 
         if actual.resolve() == expected_abs.resolve():
@@ -2536,7 +2543,9 @@ def upload_book(
         already_file = db.query(BookFile).filter(BookFile.content_hash == content_hash).first()
         if not already_file:
             meta = extract_metadata(tmp_path, settings.covers_dir)
-            rel = get_library_path(meta, file.filename)
+            # An extra format of an existing book goes with that book's type
+            from backend.services.book_types import folder_for_type_id
+            rel = get_library_path(meta, file.filename, folder_for_type_id(db, existing.book_type_id))
             dest = resolve_unique_path(settings.library_dir, rel)
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp_path), str(dest))
@@ -2554,24 +2563,21 @@ def upload_book(
         db.refresh(existing)
         return existing
 
-    # New book — extract metadata, determine library path, move
+    # New book — extract metadata, decide the type, determine library path, move
     meta = extract_metadata(tmp_path, settings.covers_dir)
-    rel = get_library_path(meta, file.filename)
+
+    # The type comes first: its folder (#270) is part of the destination.
+    # Auto-detect it if not explicitly provided.
+    from backend.services.book_types import detect_book_type, folder_for_type_id
+    if not book_type_id:
+        auto_type = detect_book_type(db, fmt=suffix, is_manga=bool(meta.get("_is_manga")))
+        if auto_type is not None:
+            book_type_id = auto_type.id
+
+    rel = get_library_path(meta, file.filename, folder_for_type_id(db, book_type_id))
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))
-
-    # Auto-detect book type if not explicitly provided
-    if not book_type_id:
-        from backend.models.library import BookType
-        if meta.get("_is_manga"):
-            manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
-            if manga_type:
-                book_type_id = manga_type.id
-        elif suffix in ("cbz", "cbr"):
-            comic_type = db.query(BookType).filter(BookType.slug == "comic").first()
-            if comic_type:
-                book_type_id = comic_type.id
 
     book = Book(
         title=meta.get("title", Path(file.filename).stem),
@@ -2793,7 +2799,8 @@ def ingest_book(
         "series_index": meta.series_index,
         "year": meta.year,
     }
-    rel = get_library_path(path_meta, file.filename)
+    from backend.services.book_types import folder_for_type_id
+    rel = get_library_path(path_meta, file.filename, folder_for_type_id(db, meta.book_type_id))
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))

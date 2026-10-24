@@ -7,6 +7,9 @@ Rules (in priority order):
   2. Has author  → library/{Author}/{Title} ({Year}).{ext}
   3. Fallback    → library/Unknown/{Title}.{ext}
 
+When the book's type has a folder (BookType.folder, #270), the whole layout
+sits one level down: library/{Type folder}/{Series}/... and so on.
+
 All path components are sanitized to be filesystem-safe.
 """
 import re
@@ -69,12 +72,24 @@ def _strip_vol_from_title(title: str) -> str:
     return _VOL_IN_TITLE.sub('', title).strip().rstrip(',- ').strip()
 
 
-def get_library_path(meta: dict, original_filename: str) -> Path:
+def get_library_path(meta: dict, original_filename: str, type_folder: str | None = None) -> Path:
     """
     Return a *relative* path (no leading slash) for a book inside library_dir.
     The caller is responsible for resolving it against library_dir and ensuring
     no collisions before moving the file.
+
+    ``type_folder`` is the folder of the book's type (BookType.folder); empty or
+    None keeps the original layout. It is validated when it is saved, and
+    sanitized again here so a bad stored value can never escape the library.
     """
+    rel = _layout_path(meta, original_filename)
+    folder = (type_folder or '').strip()
+    if folder:
+        return Path(sanitize_name(folder)) / rel
+    return rel
+
+
+def _layout_path(meta: dict, original_filename: str) -> Path:
     suffix = Path(original_filename).suffix.lower() or '.epub'
     title  = sanitize_name(meta.get('title') or Path(original_filename).stem)
     series = meta.get('series')

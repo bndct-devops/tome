@@ -24,6 +24,7 @@ from backend.models.book import Book, BookFile
 from backend.services.metadata import SUPPORTED_FORMATS, extract_metadata, get_format, sha256_file
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash
 from backend.services.organizer import get_library_path, move_into_library, resolve_unique_path
+from backend.services.book_types import detect_book_type, type_folder, type_for_top_folder
 
 # Below this many new files, the serial path wins (process-pool startup isn't
 # worth it). Above it, scan_library fans the CPU-bound extract/hash out to a
@@ -52,14 +53,21 @@ def import_incoming(
     covers_dir: Path,
     db: Session,
     added_by: Optional[int] = None,
+    default_type_id: Optional[int] = None,
 ) -> ScanResult:
     """
     Process all supported files in incoming_dir:
-      1. extract metadata
-      2. move to library_dir using organised path
+      1. extract metadata and decide the book type
+      2. move to library_dir using organised path (inside the type's folder)
       3. create DB entry
+
+    ``default_type_id`` (the import dialog's "default type") wins over the
+    automatic type, and is known before the move so the file lands in that
+    type's folder straight away.
     """
     result = ScanResult()
+    from backend.models.library import BookType
+    default_type = db.get(BookType, default_type_id) if default_type_id else None
 
     if not incoming_dir.exists():
         logger.warning("incoming_dir does not exist: %s", incoming_dir)
@@ -71,7 +79,8 @@ def import_incoming(
 
     for file_path in sorted(all_files):
         try:
-            _import_file(file_path, library_dir, covers_dir, db, added_by, result)
+            _import_file(file_path, library_dir, covers_dir, db, added_by, result,
+                         default_type=default_type)
         except Exception as e:
             result.errors += 1
             result.error_details.append(f"{file_path.name}: {e}")
@@ -103,7 +112,7 @@ def _extract_for_file(args: tuple[str, str]) -> dict:
 
 
 def _persist_extract(extract: dict, db: Session, added_by: Optional[int],
-                     result: ScanResult) -> None:
+                     result: ScanResult, library_dir: Optional[Path] = None) -> None:
     """Main-process DB work for one extract result: dedup + create. Always runs
     serially in the single writer process, inside the caller's transaction."""
     if extract.get("error"):
@@ -118,7 +127,8 @@ def _persist_extract(extract: dict, db: Session, added_by: Optional[int],
     try:
         if _handle_duplicate(file_path, ch, fmt, size, db, result):
             return
-        _create_book_entry(file_path, meta, ch, fmt, size, db, added_by, result)
+        _create_book_entry(file_path, meta, ch, fmt, size, db, added_by, result,
+                           folder_hint=_top_folder(file_path, library_dir))
         result.added += 1
     except Exception as e:
         result.errors += 1
@@ -174,10 +184,10 @@ def scan_library(
         ctx = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
             for extract in pool.map(_extract_for_file, tasks, chunksize=16):
-                _persist_extract(extract, db, added_by, result)
+                _persist_extract(extract, db, added_by, result, library_dir)
     else:
         for t in tasks:
-            _persist_extract(_extract_for_file(t), db, added_by, result)
+            _persist_extract(_extract_for_file(t), db, added_by, result, library_dir)
 
     db.commit()
     return result
@@ -191,6 +201,18 @@ def _collect_files(directory: Path) -> list[Path]:
     return [p for p in directory.rglob("*") if p.suffix.lower() in SUPPORTED_FORMATS]
 
 
+def _top_folder(file_path: Path, library_dir: Optional[Path]) -> Optional[str]:
+    """The first folder of file_path inside library_dir, or None for a file
+    sitting directly in the library root (or outside it)."""
+    if library_dir is None:
+        return None
+    try:
+        parts = file_path.resolve().relative_to(library_dir.resolve()).parts
+    except ValueError:
+        return None
+    return parts[0] if len(parts) > 1 else None
+
+
 def _import_file(
     src: Path,
     library_dir: Path,
@@ -198,6 +220,7 @@ def _import_file(
     db: Session,
     added_by: Optional[int],
     result: ScanResult,
+    default_type=None,
 ) -> None:
     fmt = get_format(src)
     if not fmt:
@@ -217,8 +240,11 @@ def _import_file(
     # Extract metadata (while still at original path)
     meta = extract_metadata(src, covers_dir, content_hash=content_hash)
 
+    # Decide the type BEFORE the move: its folder is part of the destination.
+    book_type = default_type or detect_book_type(db, fmt=fmt, is_manga=bool(meta.get("_is_manga")))
+
     # Determine destination inside library
-    rel_path = get_library_path(meta, src.name)
+    rel_path = get_library_path(meta, src.name, type_folder(book_type))
     dest = resolve_unique_path(library_dir, rel_path)
 
     # Move the file (cleans up a half-finished cross-device copy on failure)
@@ -228,7 +254,8 @@ def _import_file(
     # Clean up empty parent dirs in incoming
     _remove_empty_parents(src.parent, stop_at=src.parent.parent)
 
-    _create_book_entry(dest, meta, content_hash, fmt, file_size, db, added_by, result)
+    _create_book_entry(dest, meta, content_hash, fmt, file_size, db, added_by, result,
+                       book_type=book_type)
     result.added += 1
 
 
@@ -279,7 +306,16 @@ def _create_book_entry(
     db: Session,
     added_by: Optional[int],
     result: Optional[ScanResult] = None,
+    book_type=None,
+    folder_hint: Optional[str] = None,
 ) -> Book:
+    """Create the Book + BookFile rows for a file already in place.
+
+    ``book_type`` is the type the importer already decided (and placed the
+    file by). Without it the automatic rule applies, and failing that the
+    scan hint: a file under a top-level folder that matches a type's folder
+    or label gets that type (#270).
+    """
     book = Book(
         title=meta.get("title", file_path.stem),
         author=meta.get("author"),
@@ -315,18 +351,14 @@ def _create_book_entry(
     ))
     record_ko_hash(db, book.id, ko_partial_md5(file_path), "raw")
 
-    # Auto-assign book type based on metadata
-    if not book.book_type_id:
-        from backend.models.library import BookType
-
-        if meta.get("_is_manga"):
-            manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
-            if manga_type:
-                book.book_type_id = manga_type.id
-        elif fmt in ("cbz", "cbr"):
-            comic_type = db.query(BookType).filter(BookType.slug == "comic").first()
-            if comic_type:
-                book.book_type_id = comic_type.id
+    # Book type: as decided by the importer, else the automatic rule, else
+    # the scan hint from the file's top-level folder.
+    if book_type is None:
+        book_type = detect_book_type(db, fmt=fmt, is_manga=bool(meta.get("_is_manga")))
+    if book_type is None and folder_hint:
+        book_type = type_for_top_folder(db, folder_hint)
+    if book_type is not None:
+        book.book_type_id = book_type.id
 
     # (Library-default book type is applied when a book is added to a library.
     # A freshly-created book has no library associations yet, so the old
