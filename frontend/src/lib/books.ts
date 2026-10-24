@@ -90,6 +90,7 @@ export interface BookType {
   icon: string | null
   color: string | null
   sort_order: number
+  folder?: string
   library_id: number | null
 }
 
