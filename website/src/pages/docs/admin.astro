@@ -120,6 +120,45 @@ import { withBase } from '../../lib/path'
     read-write first.
   </Callout>
 
+  <h2 id="type-folders">Folders per book type</h2>
+  <p>
+    By default every book sits directly under the library root: series in
+    <code>Series/</code>, standalones in <code>Author/</code>. Each book type can instead
+    have a <strong>Folder</strong> (<strong>Admin → Types</strong>, edit a type). Books of that
+    type are then stored one level down, for example <code>Manga/Berserk/Berserk v01.cbz</code>
+    or <code>Comics/Saga/Saga v01.cbz</code>. Leave the field empty for no folder; that is the
+    default for every type, so upgrading changes nothing on disk. Several types may share one
+    folder, and the folder name is independent of the type's label.
+  </p>
+  <p>
+    The folder applies whenever Tome places a file: Bindery accept, auto-import, uploads,
+    Scribe ingest and Import from the bindery folder. Tome decides the type first (the type you
+    choose, or automatically: CBZ/CBR are Comics, files marked as manga are Manga) and then
+    moves the file into that type's folder.
+  </p>
+  <p>
+    <strong>New install:</strong> set the folders before the first scan. A scan never moves
+    files, but it uses them as a hint: a file whose top-level folder matches a type's folder or
+    label (case-insensitive) gets that type, unless the CBZ/manga rule already decided it. So a
+    library that already has a <code>Manga/</code> folder keeps those books as manga.
+  </p>
+  <p>
+    <strong>Existing install:</strong> books are never moved automatically. Changing a type's
+    folder, or a book's type, only makes the affected books show up as misplaced in Library
+    Health. To move them:
+  </p>
+  <ol>
+    <li>Back up your library folder first.</li>
+    <li>Set the folders in <strong>Admin → Types</strong>.</li>
+    <li>Check that your books have the right type (bulk-edit the book type from a selection in
+      the library if needed).</li>
+    <li>Open <strong>Admin → Library</strong> (Library Health), click <strong>Dry Run All</strong>
+      and read the list of moves.</li>
+    <li>Click <strong>Reorganize All</strong> (or select some files and reorganize only those).</li>
+    <li>Other tools that watch the library folder (Calibre, Komga, a sync client) see the files
+      at new paths and need a rescan.</li>
+  </ol>
+
   <h2>Cover audit</h2>
   <p>
     <strong>Admin → Covers</strong> lists books whose covers are missing, unreadable, or
