@@ -312,9 +312,10 @@ def _create_book_entry(
     """Create the Book + BookFile rows for a file already in place.
 
     ``book_type`` is the type the importer already decided (and placed the
-    file by). Without it the automatic rule applies, and failing that the
-    scan hint: a file under a top-level folder that matches a type's folder
-    or label gets that type (#270).
+    file by). Without it: a manga flag makes it manga; else the scan hint, a
+    top-level folder matching a type's folder or label, gives that type
+    (#270); else the extension rule (cbz/cbr → comic). The hint beats the
+    bare extension so a plain cbz in a user's own ``Manga/`` stays manga.
     """
     book = Book(
         title=meta.get("title", file_path.stem),
@@ -351,12 +352,14 @@ def _create_book_entry(
     ))
     record_ko_hash(db, book.id, ko_partial_md5(file_path), "raw")
 
-    # Book type: as decided by the importer, else the automatic rule, else
-    # the scan hint from the file's top-level folder.
+    # Book type: as decided by the importer, else the manga flag, else the
+    # scan hint from the file's top-level folder, else the extension rule.
+    if book_type is None and folder_hint:
+        book_type = (detect_book_type(db, fmt=fmt, is_manga=bool(meta.get("_is_manga")),
+                                      by_extension=False)
+                     or type_for_top_folder(db, folder_hint))
     if book_type is None:
         book_type = detect_book_type(db, fmt=fmt, is_manga=bool(meta.get("_is_manga")))
-    if book_type is None and folder_hint:
-        book_type = type_for_top_folder(db, folder_hint)
     if book_type is not None:
         book.book_type_id = book_type.id
 

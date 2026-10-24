@@ -10,7 +10,8 @@ Covers:
   Library Health lists them, reorganize dry run lists the move, the real run
   performs it and updates the stored path
 - scan hint: a file under a top-level folder matching a type's folder or
-  label gets that type, unless the cbz/manga rule already decided
+  label gets that type; it beats the bare cbz → comic default but not a
+  manga flag
 - two types sharing one folder
 """
 from pathlib import Path
@@ -329,13 +330,31 @@ class TestScanHint:
         # The scan never moves files
         assert (lib / "manga/Frieren/Frieren v01.epub").is_file()
 
-    def test_rule_wins_over_hint(self, db, dirs, types, monkeypatch):
+    def test_hint_beats_cbz_default(self, db, dirs, types, monkeypatch):
         lib = dirs["lib"]
         _fake_meta(monkeypatch, "backend.services.scanner.extract_metadata", {})
         (lib / "Manga/Saga").mkdir(parents=True)
         (lib / "Manga/Saga/Saga v01.cbz").write_bytes(b"cbz")
         scan_library(lib, dirs["covers"], db, workers=1)
-        assert db.query(Book).one().book_type_id == types["comic"].id
+        assert db.query(Book).one().book_type_id == types["manga"].id
+
+    def test_manga_flag_beats_hint(self, db, dirs, types, monkeypatch):
+        lib = dirs["lib"]
+        _fake_meta(monkeypatch, "backend.services.scanner.extract_metadata",
+                   {"Akira v01.cbz": {"title": "Akira v01", "_is_manga": True}})
+        (lib / "Comics/Akira").mkdir(parents=True)
+        (lib / "Comics/Akira/Akira v01.cbz").write_bytes(b"cbz")
+        scan_library(lib, dirs["covers"], db, workers=1)
+        assert db.query(Book).one().book_type_id == types["manga"].id
+
+    def test_cbz_without_matching_folder_stays_comic(self, db, dirs, types, monkeypatch):
+        lib = dirs["lib"]
+        _fake_meta(monkeypatch, "backend.services.scanner.extract_metadata", {})
+        for rel in ("Downloads/Saga/Saga v01.cbz", "Loose.cbz"):
+            (lib / rel).parent.mkdir(parents=True, exist_ok=True)
+            (lib / rel).write_bytes(rel.encode())
+        scan_library(lib, dirs["covers"], db, workers=1)
+        assert {b.book_type_id for b in db.query(Book).all()} == {types["comic"].id}
 
     def test_folder_match_beats_label_match(self, db, dirs, types, monkeypatch):
         # "Comics" is the comic type's label but the book type's folder.
