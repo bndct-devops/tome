@@ -128,6 +128,12 @@ async def lifespan(app: FastAPI):
                 "WHERE id IN (SELECT DISTINCT book_id FROM book_chapters)"
             ))
             conn.commit()
+        # Per-type library folder (#270). Empty keeps the original layout, so
+        # an upgrade changes nothing on disk.
+        bt_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(book_types)")).fetchall()}
+        if bt_cols and "folder" not in bt_cols:
+            conn.execute(text("ALTER TABLE book_types ADD COLUMN folder VARCHAR(64) NOT NULL DEFAULT ''"))
+            conn.commit()
         # Web browsers became device logins too; every existing row is an app.
         cd_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(client_devices)")).fetchall()}
         if cd_cols and "kind" not in cd_cols:
@@ -602,8 +608,15 @@ async def _run_auto_import() -> None:
             # cards), where its proposal is editable before anything commits.
             # Revisit if/when LLM-assisted matching (option C) earns auto-apply.
 
+            # Decide the type BEFORE the move: its folder (#270) is part of
+            # the destination.
+            from backend.services.book_types import detect_book_type, type_folder
+            auto_type = detect_book_type(
+                db, fmt=suffix, is_manga=bool(meta.get("_is_manga")), in_chapters_dir=in_chapters_dir,
+            )
+
             # Determine destination in library
-            rel_lib = get_library_path(meta, file_path.name)
+            rel_lib = get_library_path(meta, file_path.name, type_folder(auto_type))
             dest = resolve_unique_path(settings.library_dir, rel_lib)
             dest.parent.mkdir(parents=True, exist_ok=True)
 
@@ -649,21 +662,9 @@ async def _run_auto_import() -> None:
                 content_hash=content_hash,
             ))
 
-            # Auto-assign book type
-            if not book.book_type_id:
-                from backend.models.library import BookType
-                if in_chapters_dir:
-                    manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
-                    if manga_type:
-                        book.book_type_id = manga_type.id
-                elif meta.get("_is_manga"):
-                    manga_type = db.query(BookType).filter(BookType.slug == "manga").first()
-                    if manga_type:
-                        book.book_type_id = manga_type.id
-                elif suffix in ("cbz", "cbr"):
-                    comic_type = db.query(BookType).filter(BookType.slug == "comic").first()
-                    if comic_type:
-                        book.book_type_id = comic_type.id
+            # Auto-assign book type (decided above, before the move)
+            if auto_type is not None:
+                book.book_type_id = auto_type.id
 
             # Genre tags from ComicInfo
             if meta.get("_genres"):

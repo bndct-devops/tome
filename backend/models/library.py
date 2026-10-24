@@ -34,6 +34,10 @@ class BookType(Base):
     # The auto-created library for this type (set on first use)
     library_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("libraries.id", ondelete="SET NULL"), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Folder inside the library that books of this type are stored under
+    # (e.g. "Manga" → Manga/<Series>/...). Empty = no folder, the original
+    # layout. Several types may share one folder.
+    folder: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
 
     library: Mapped[Optional["Library"]] = relationship("Library", foreign_keys=[library_id])
     books: Mapped[List["Book"]] = relationship("Book", back_populates="book_type")

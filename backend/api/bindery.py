@@ -239,6 +239,7 @@ def bindery_groups(
     import re as _re
     from backend.services.organizer import get_library_path
     from backend.services.sibling_match import find_series_identity
+    from backend.services.book_types import folder_for_type_id
 
     def norm(s: str) -> str:
         return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9]+", " ", s.lower())).strip()
@@ -259,6 +260,7 @@ def bindery_groups(
 
         proposed_series = identity.series if identity else series_guess
         proposed_author = (identity.author if identity else None) or author_guess
+        proposed_folder = folder_for_type_id(db, identity.book_type_id if identity else None)
         files = []
         for m in members:
             dest = get_library_path({
@@ -266,7 +268,7 @@ def bindery_groups(
                 "author": proposed_author,
                 "series": proposed_series,
                 "series_index": m.series_index,
-            }, m.filename)
+            }, m.filename, proposed_folder)
             files.append({
                 "path": m.path,
                 "filename": m.filename,
@@ -415,8 +417,9 @@ def bindery_accept(
                 "year": item.year,
             }
 
-            # Determine destination path
-            rel = get_library_path(path_meta, full_path.name)
+            # Determine destination path — inside the chosen type's folder (#270)
+            from backend.services.book_types import folder_for_type_id
+            rel = get_library_path(path_meta, full_path.name, folder_for_type_id(db, item.book_type_id))
             dest = resolve_unique_path(settings.library_dir, rel)
 
             # Move the file (cleans up a half-finished cross-device copy on failure)
