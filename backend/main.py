@@ -134,6 +134,14 @@ async def lifespan(app: FastAPI):
         if bt_cols and "folder" not in bt_cols:
             conn.execute(text("ALTER TABLE book_types ADD COLUMN folder VARCHAR(64) NOT NULL DEFAULT ''"))
             conn.commit()
+        # Per-type layout (#276). series_first and no template is the original
+        # layout, so an upgrade changes nothing on disk.
+        if bt_cols and "layout_preset" not in bt_cols:
+            conn.execute(text("ALTER TABLE book_types ADD COLUMN layout_preset VARCHAR(32) NOT NULL DEFAULT 'series_first'"))
+            conn.commit()
+        if bt_cols and "layout_template" not in bt_cols:
+            conn.execute(text("ALTER TABLE book_types ADD COLUMN layout_template VARCHAR(255) NOT NULL DEFAULT ''"))
+            conn.commit()
         # Web browsers became device logins too; every existing row is an app.
         cd_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(client_devices)")).fetchall()}
         if cd_cols and "kind" not in cd_cols:
@@ -610,13 +618,13 @@ async def _run_auto_import() -> None:
 
             # Decide the type BEFORE the move: its folder (#270) is part of
             # the destination.
-            from backend.services.book_types import detect_book_type, type_folder
+            from backend.services.book_types import detect_book_type, type_layout
             auto_type = detect_book_type(
                 db, fmt=suffix, is_manga=bool(meta.get("_is_manga")), in_chapters_dir=in_chapters_dir,
             )
 
             # Determine destination in library
-            rel_lib = get_library_path(meta, file_path.name, type_folder(auto_type))
+            rel_lib = get_library_path(meta, file_path.name, type_layout(auto_type))
             dest = resolve_unique_path(settings.library_dir, rel_lib)
             dest.parent.mkdir(parents=True, exist_ok=True)
 

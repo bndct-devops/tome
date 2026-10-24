@@ -38,6 +38,11 @@ class BookType(Base):
     # (e.g. "Manga" → Manga/<Series>/...). Empty = no folder, the original
     # layout. Several types may share one folder.
     folder: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    # How books are laid out inside that folder (#276): a preset name from
+    # services/layout.py, or a free template when layout_template is set
+    # (Advanced). Defaults keep the original layout.
+    layout_preset: Mapped[str] = mapped_column(String(32), nullable=False, default="series_first", server_default="series_first")
+    layout_template: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
 
     library: Mapped[Optional["Library"]] = relationship("Library", foreign_keys=[library_id])
     books: Mapped[List["Book"]] = relationship("Book", back_populates="book_type")

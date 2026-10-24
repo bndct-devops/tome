@@ -6,9 +6,11 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.models.library import BookType, Library
+from backend.services.layout import DEFAULT_PRESET, TypeLayout
 
-# Every default type starts without a folder: the layout of an existing
-# library must not change on upgrade (#270).
+# Every default type starts without a folder and with the series_first
+# layout: the layout of an existing library must not change on upgrade
+# (#270, #276).
 DEFAULT_TYPES = [
     {"slug": "book",        "label": "Books",        "icon": "BookOpen",   "color": "blue",   "sort_order": 0, "folder": ""},
     {"slug": "manga",       "label": "Manga",        "icon": "BookMarked", "color": "pink",   "sort_order": 1, "folder": ""},
@@ -90,6 +92,24 @@ def folder_for_type_id(db: Session, book_type_id: Optional[int]) -> str:
     if not book_type_id:
         return ""
     return type_folder(db.get(BookType, book_type_id))
+
+
+def type_layout(book_type: Optional[BookType]) -> TypeLayout:
+    """Folder, layout preset and template of a type (#276). No type, or a
+    type left at the defaults, is the original layout."""
+    if book_type is None:
+        return TypeLayout()
+    return TypeLayout(
+        folder=book_type.folder or "",
+        preset=book_type.layout_preset or DEFAULT_PRESET,
+        template=book_type.layout_template or "",
+    )
+
+
+def layout_for_type_id(db: Session, book_type_id: Optional[int]) -> TypeLayout:
+    if not book_type_id:
+        return TypeLayout()
+    return type_layout(db.get(BookType, book_type_id))
 
 
 def detect_book_type(
