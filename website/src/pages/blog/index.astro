@@ -4,6 +4,13 @@ import SiteHeader from '../../components/SiteHeader.astro'
 
 const posts = [
   {
+    slug: 'ios-app-on-testflight',
+    title: 'The Tome iPhone app is on TestFlight',
+    date: '2026-10-25',
+    readTime: '4 min read',
+    summary: 'Tome now has a native iPhone app that pairs with your own Tome server, in open beta on TestFlight with a built-in sample library to try it without one.',
+  },
+  {
     slug: 'building-a-koreader-plugin',
     title: 'Building a KOReader plugin from scratch',
     date: '2026-05-25',
@@ -43,6 +50,9 @@ const posts = [
     background: var(--card);
     text-decoration: none;
     transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .blog-post-card + .blog-post-card {
+    margin-top: 16px;
   }
   .blog-post-card:hover {
     transform: translateY(-2px);

@@ -1,0 +1,318 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import SiteHeader from '../../components/SiteHeader.astro'
+
+const img = (name: string) => `/blog/2026-10-ios-testflight/${name}.png`
+const testflight = 'https://testflight.apple.com/join/JrHyntNU'
+---
+<BaseLayout
+  title="The Tome iPhone app is on TestFlight — Tome"
+  description="Tome now has a native iPhone app that pairs with your own Tome server, in open beta on TestFlight."
+>
+  <SiteHeader />
+
+  <article class="blog-article">
+    <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
+      <div class="accent-glow"></div>
+      <a href="/blog" class="blog-back">&larr; Blog</a>
+      <h1 class="text-3xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.1]">
+        The Tome iPhone app is on TestFlight
+      </h1>
+      <div class="blog-meta">
+        <time class="blog-date">2026-10-25</time>
+        <span class="blog-date">&middot;</span>
+        <span class="blog-date">4 min read</span>
+      </div>
+    </header>
+
+    <div class="blog-body">
+
+      <p>
+        Tome now has a native iPhone app: it pairs with your own Tome server and gives you the
+        library, the series, your reading stats and a reader on the phone. It is in open beta on
+        TestFlight; a paid App Store release comes later. The beta stays free through the end of 2026.
+      </p>
+
+      <p class="blog-badge">
+        <a href={testflight}><img src={img('testflight-badge')} alt="Available on TestFlight" height="60" /></a>
+      </p>
+
+      <p>
+        No server at hand? "Try a sample library" on the first screen pairs with a small library
+        built into the app: fourteen public-domain books from Standard Ebooks with a made-up reading
+        history. Every screen below is that sample library.
+      </p>
+
+      <p>
+        Most of the last weeks went into one complaint: screens that loaded in pieces. Covers popped
+        in, sections pushed each other down, Series and Library could come back half empty for a
+        moment. Each screen now opens with what it showed last time and updates in place, so what
+        you see first is what stays.
+      </p>
+
+      <p>Every pair below is the Dark theme on the left and Amber on the right.</p>
+
+      <!-- ── HOME ── -->
+
+      <h2 id="home">Home</h2>
+
+      <div class="blog-shot"><img src={img('home')} alt="Home in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>The cover fan and Continue reading are there at launch, whole. Covers come from the phone's disk first instead of waiting on the network.</li>
+        <li>Pulling down at the top bounces, and the cover wash behind it follows instead of ending in a hard edge.</li>
+        <li>If the server is down, your avatar and the last state of Home are still there.</li>
+      </ul>
+
+      <!-- ── LIBRARY ── -->
+
+      <h2 id="library">Library</h2>
+
+      <div class="blog-shot"><img src={img('library')} alt="Library in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>A Reading now shelf at the top with a progress ring on each cover.</li>
+        <li>Grouped series show as a small fanned stack of the next volumes.</li>
+        <li>The page takes its colour from the first cover on screen.</li>
+      </ul>
+
+      <!-- ── SERIES ── -->
+
+      <h2 id="series">Series</h2>
+
+      <div class="blog-shot"><img src={img('series')} alt="Series in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>Each series is a card: the volume you are on (or the next unread one) in front, the read ones behind it, and how far you are.</li>
+        <li>Series with two or more volumes get a strip of all their covers under the card, with the current one marked.</li>
+        <li>The series you are in the middle of gets the large card at the top with a Continue button.</li>
+      </ul>
+
+      <!-- ── SERIES PAGE ── -->
+
+      <h2 id="series-page">A series page</h2>
+
+      <div class="blog-shot"><img src={img('series-page')} alt="A series page in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>Progress, the series rating and a Continue button for the right volume, then every volume with its read state.</li>
+        <li>The page opens drawn from what the phone remembers and does not shift when the server answers.</li>
+      </ul>
+
+      <!-- ── STATS ── -->
+
+      <h2 id="stats">Stats</h2>
+
+      <div class="blog-shot"><img src={img('stats-overview')} alt="Stats Overview in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <p>Stats is rebuilt and split into four tabs: Overview, Books, Habits and Calendar.</p>
+
+      <ul>
+        <li>Overview: total reading time for the range, a year of days as a grid, the last seven days, and the headline tiles.</li>
+        <li>Every chart has a readout: hold and drag across it to read the exact value.</li>
+        <li>Calendar: tap a day in the year grid to see what you read that day. It also shows reading by weekday and your best month and best day.</li>
+        <li>Books: completion by type and re-reads, next to what was already there.</li>
+        <li>It scrolls smoothly now, which it did not before.</li>
+      </ul>
+
+      <div class="blog-shot"><img src={img('stats-habits')} alt="Stats Habits in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>Habits: reading time and pages per week, weekdays and time of day, recent sessions hour by hour, your streaks with the dates they ran, and reading time by language.</li>
+      </ul>
+
+      <!-- ── READING ── -->
+
+      <h2 id="reading">Reading</h2>
+
+      <div class="blog-shot"><img src={img('reader')} alt="The reader in Dark and Amber, with the reader's dark and sepia themes" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>EPUB and PDF are read with Readium; comics (CBZ) have their own pager with left-to-right, right-to-left and vertical modes.</li>
+        <li>Opening a book is one move now: the reader appears at the tap on the cover's colour with the title, and the page fades in once it is laid out, instead of a black screen with a spinner.</li>
+        <li>The reader's own themes (dark, sepia, light) are separate from the app theme; the right-hand shot uses sepia.</li>
+      </ul>
+
+      <!-- ── SETTINGS ── -->
+
+      <h2 id="settings">Settings</h2>
+
+      <div class="blog-shot"><img src={img('settings')} alt="Settings in Dark and Amber" width="1200" height="1260" loading="lazy" /></div>
+
+      <ul>
+        <li>Five app themes: Dark, Ember, Black, Light and Amber.</li>
+        <li>Storage shows what is on the phone right away, plus the size of the cache and a button to clear it.</li>
+      </ul>
+
+      <div class="blog-shot blog-shot-single"><img src={img('home-light')} alt="Home in the Light theme" width="600" height="1304" loading="lazy" /></div>
+      <p class="blog-caption">Home in the Light theme.</p>
+
+      <!-- ── ALSO NEW ── -->
+
+      <h2 id="also-new">Also new and improved</h2>
+
+      <ul>
+        <li>When the server cannot be reached, screens keep showing what the phone remembers, with a small notice saying so, how old it is, and a retry.</li>
+        <li>After you change a status or a rating, screens no longer show the older copy from the phone's memory.</li>
+        <li>Caches stay bounded: covers and backgrounds are capped at 200 MB, oldest first, and remembered data for servers other than the one you are using is dropped after 30 days.</li>
+        <li>Dynamic Type: text scales with your system text size, and the larger accessibility sizes rearrange headers and tiles instead of cutting them off.</li>
+        <li>VoiceOver: charts, the year grid, stars, covers and buttons that were silent have labels and summaries.</li>
+        <li>Reduce Motion is respected across the app: pulses, parallax, rolling numbers and springs calm down.</li>
+        <li>Better contrast on accented buttons and coloured cards in all themes.</li>
+        <li>Highlights on a book page sit below the details, so nothing jumps when they arrive.</li>
+      </ul>
+
+      <!-- ── KNOWN LIMITS ── -->
+
+      <h2 id="known-limits">Known limits</h2>
+
+      <ul>
+        <li>iPhone only. No iPad layout yet.</li>
+        <li>You need your own Tome server. Parts that a server does not support yet (series arcs, some of the newer stats) stay hidden or show a note; keep Tome up to date to get all of it.</li>
+        <li>TestFlight builds expire after 90 days. New builds replace them before that.</li>
+      </ul>
+
+      <!-- ── FEEDBACK ── -->
+
+      <h2 id="feedback">Feedback</h2>
+
+      <p>
+        Bugs, ideas and questions go to the <a href="https://github.com/bndct-devops/tome/discussions/categories/tome-reader-ios">Tome Reader (iOS)</a> category
+        in GitHub Discussions; Settings in the app has a link to it. If you would rather not
+        post publicly, mail <a href="mailto:tome@bndct.dev">tome@bndct.dev</a>. Please mention the
+        version and build number from Settings &rsaquo; About.
+      </p>
+
+      <p class="blog-badge">
+        <a href={testflight}><img src={img('testflight-badge')} alt="Available on TestFlight" height="60" /></a>
+      </p>
+
+      <div class="blog-footer-links">
+        <a href={testflight}>Join the beta</a>
+        <a href="/why">Why Tome?</a>
+        <a href="https://github.com/bndct-devops/tome">GitHub</a>
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .blog-back {
+    display: inline-block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-decoration: none;
+    margin-bottom: 16px;
+    transition: color 0.15s;
+  }
+  .blog-back:hover { color: var(--accent); }
+  .blog-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .blog-date {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .blog-body {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+    font-size: 1.05rem;
+    line-height: 1.8;
+  }
+  .blog-body p {
+    margin-bottom: 18px;
+    color: var(--fg);
+  }
+  .blog-body h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-top: 56px;
+    margin-bottom: 16px;
+  }
+  .blog-body h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 8px;
+  }
+  .blog-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-color: var(--accent-soft);
+    text-underline-offset: 2px;
+    transition: text-decoration-color 0.15s;
+  }
+  .blog-body a:hover {
+    text-decoration-color: var(--accent);
+  }
+  .blog-body ul {
+    list-style: disc;
+    padding-left: 1.5em;
+    margin-bottom: 18px;
+  }
+  .blog-body li {
+    margin-bottom: 6px;
+  }
+  .blog-body li::marker {
+    color: var(--accent);
+  }
+  .blog-body code {
+    font-size: 0.85em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .blog-body em {
+    font-style: italic;
+  }
+  .blog-shot {
+    margin: 28px 0;
+  }
+  .blog-caption {
+    font-size: 0.82rem !important;
+    color: var(--muted) !important;
+    text-align: center;
+    margin-top: -8px !important;
+    margin-bottom: 32px !important;
+  }
+  .blog-shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .blog-shot-single {
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .blog-badge {
+    text-align: center;
+    margin: 28px 0 !important;
+  }
+  .blog-badge img {
+    display: inline-block;
+    height: 60px;
+    width: auto;
+  }
+  .blog-body .blog-badge a {
+    text-decoration: none;
+  }
+  .blog-footer-links {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 20px;
+    font-size: 0.9rem;
+  }
+  @media (max-width: 640px) {
+    .blog-body h2 { font-size: 1.35rem; }
+  }
+</style>
