@@ -10,7 +10,7 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends unrar-free gosu && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends unrar-free gosu curl && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
 COPY backend/__init__.py ./backend/
@@ -40,5 +40,6 @@ RUN chmod +x /usr/local/bin/tome-entrypoint
 VOLUME ["/data", "/books", "/bindery"]
 EXPOSE 8080
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD ["curl", "-fsS", "http://127.0.0.1:8080/api/health", "|", "grep", "-Eq", "'\"status\"[[:space:]]*:[[:space:]]*\"ok\"'", "||", "exit 1"]
 ENTRYPOINT ["tome-entrypoint"]
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080"]
