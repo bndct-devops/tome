@@ -92,8 +92,19 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
+  hadolint:
+    runs-on: ubuntu-latest
+    name: Linters for Dockerfile
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v7
+      
+    - name: hadolint
+      uses: hadolint/hadolint-action@v3.5.0
+
   build:
-    needs: [test, e2e]
+    needs: [test, e2e, hadolint]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

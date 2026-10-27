@@ -40,6 +40,6 @@ RUN chmod +x /usr/local/bin/tome-entrypoint
 VOLUME ["/data", "/books", "/bindery"]
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD ["sh", "-c", "curl -fsS --max-time 3 http://127.0.0.1:8080/api/health | grep -Eq '\"status\"[[:space:]]*:[[:space:]]*\"ok\"' || exit 1"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD ["curl", "-fsS", "http://127.0.0.1:8080/api/health", "|", "grep", "-Eq", "'\"status\"[[:space:]]*:[[:space:]]*\"ok\"'", "||", "exit 1"]
 ENTRYPOINT ["tome-entrypoint"]
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080"]
