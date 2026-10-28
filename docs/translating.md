@@ -35,7 +35,7 @@ Rules of thumb:
 2. Add it to `locales` in `frontend/lingui.config.ts` and to `LOCALES` in
    `frontend/src/lib/i18n.ts` (the label is the language's own name, e.g.
    `Deutsch`, shown untranslated in the picker).
-3. Run `npm run i18n:extract` in `frontend/`. This creates
+3. Run `pnpm run i18n:extract` in `frontend/`. This creates
    `src/locales/<code>/messages.po` with every source string and empty
    `msgstr`s.
 4. Translate, then open a pull request. Please mention in the PR whether you
@@ -48,7 +48,7 @@ Rules of thumb:
 - Interpolate with template variables, never concatenate: `` t`${n} books selected` ``.
 - Plurals: `<Plural value={n} one="# book" other="# books" />`.
 - Label maps outside components: `` msg`Unread` `` descriptors, rendered with `i18n._()`.
-- After adding or changing strings run `npm run i18n:extract` and commit the
+- After adding or changing strings run `pnpm run i18n:extract` and commit the
   updated `src/locales/*/messages.po`. CI fails on stale catalogs.
-- `npm run lint` warns on user-facing strings that bypass Lingui
+- `pnpm run lint` warns on user-facing strings that bypass Lingui
   (`lingui/no-unlocalized-strings`).

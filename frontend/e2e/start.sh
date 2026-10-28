@@ -7,7 +7,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."   # frontend/
-npm run build
+pnpm run build
 
 E2E_DIR="$(pwd)/e2e/.data"
 rm -rf "$E2E_DIR"
