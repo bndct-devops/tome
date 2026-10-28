@@ -21,7 +21,7 @@ cd tome
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-cd frontend && npm install && cd ..
+cd frontend && pnpm install && cd ..
 
 # Run backend + frontend with hot reload
 ./dev.sh
@@ -67,7 +67,7 @@ Run the test suite and the frontend build:
 
 ```bash
 pytest tests/ -q             # full backend suite
-cd frontend && npm run build # typechecks + production build
+cd frontend && pnpm run build # typechecks + production build
 ```
 
 Both should be green. If you've added a feature, add tests. If you've

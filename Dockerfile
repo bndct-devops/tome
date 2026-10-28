@@ -1,10 +1,12 @@
 # Build frontend
-FROM node:22-alpine AS frontend-build
+FROM node:lts-alpine AS frontend-build
+
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
-RUN npm run build
+RUN corepack enable && \
+    pnpm install --frozen-lockfile && \
+    pnpm run build
+
 
 # Runtime
 FROM python:3.12-slim

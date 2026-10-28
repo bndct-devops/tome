@@ -40,7 +40,7 @@ TOME_INCOMING_DIR=./bindery/showcase \
 BACKEND_PID=$!
 
 echo "Starting showcase frontend on :5174 (proxying to :8090)"
-( cd frontend && VITE_PORT=5174 VITE_API_TARGET=http://localhost:8090 npx vite ) &
+( cd frontend && VITE_PORT=5174 VITE_API_TARGET=http://localhost:8090 pnpm exec vite ) &
 FRONTEND_PID=$!
 
 echo

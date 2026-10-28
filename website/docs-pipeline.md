@@ -92,9 +92,9 @@ into `website/public/shots/{theme}/` for use on the marketing/docs site.
 ```bash
 # Against the showcase stack (preferred — themed, populated, deterministic):
 cd frontend
-npm run screenshots:showcase                                       # light theme
-TOME_SCREENSHOT_THEME=dark   npm run screenshots:showcase          # dark theme
-TOME_SCREENSHOT_THEME=amber  npm run screenshots:showcase          # amber theme
+pnpm run screenshots:showcase                                       # light theme
+TOME_SCREENSHOT_THEME=dark   pnpm run screenshots:showcase          # dark theme
+TOME_SCREENSHOT_THEME=amber  pnpm run screenshots:showcase          # amber theme
 ```
 
 The showcase stack must be running first (`./scripts/run-showcase.sh` in
@@ -103,14 +103,14 @@ another terminal).
 ### Filter to specific shots
 
 ```bash
-TOME_SCREENSHOT_ONLY=stats,book-detail npm run screenshots:showcase
+TOME_SCREENSHOT_ONLY=stats,book-detail pnpm run screenshots:showcase
 ```
 
 ### Capture all 3 themes at once
 
 ```bash
 for theme in light dark amber; do
-  TOME_SCREENSHOT_THEME=$theme npm run screenshots:showcase
+  TOME_SCREENSHOT_THEME=$theme pnpm run screenshots:showcase
 done
 ```
 
@@ -221,13 +221,13 @@ For each docs page that needs screenshots:
 1. **Pick the shots** from `docs-outline.md`
 2. **Boot the showcase** in terminal A: `./scripts/run-showcase.sh`
 3. **Add shot definitions** to `SHOTS` in `frontend/scripts/screenshots.mjs`
-4. **Iterate**: `TOME_SCREENSHOT_ONLY=new-shot-name npm run screenshots:showcase`
+4. **Iterate**: `TOME_SCREENSHOT_ONLY=new-shot-name pnpm run screenshots:showcase`
    in terminal B until the shot looks right
 5. **Re-run for all themes**:
    ```bash
    for theme in light dark amber; do
      TOME_SCREENSHOT_THEME=$theme TOME_SCREENSHOT_ONLY=new-shot-name \
-       npm run screenshots:showcase
+       pnpm run screenshots:showcase
    done
    ```
 6. **Move into website**: `cp docs/screenshots/new-shot-name.png
@@ -259,7 +259,7 @@ docs/
 frontend/
 ├── scripts/screenshots.mjs   # The Playwright runner
 ├── vite.config.ts            # Env-driven proxy (respects VITE_API_TARGET, VITE_PORT)
-└── package.json              # npm scripts: screenshots, screenshots:showcase
+└── package.json              # pnpm scripts: screenshots, screenshots:showcase
 
 website/
 ├── docs-outline.md           # ← Read first for what to write

@@ -39,7 +39,7 @@ echo "  ✓ Backend PID $BACKEND_PID → http://localhost:8080/api/docs"
 
 # Frontend (Vite HMR handles live reload)
 cd "$SCRIPT_DIR/frontend"
-npm run dev -- --port 5173 > /tmp/tome-vite.log 2>&1 < /dev/null &
+pnpm run dev -- --port 5173 > /tmp/tome-vite.log 2>&1 < /dev/null &
 FRONTEND_PID=$!
 disown $FRONTEND_PID
 echo "  ✓ Frontend PID $FRONTEND_PID → http://localhost:5173"
