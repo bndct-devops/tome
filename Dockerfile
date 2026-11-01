@@ -40,5 +40,7 @@ RUN chmod +x /usr/local/bin/tome-entrypoint
 VOLUME ["/data", "/books", "/bindery"]
 EXPOSE 8080
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
+    CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=5) else 1)"]
 ENTRYPOINT ["tome-entrypoint"]
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080"]
