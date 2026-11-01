@@ -32,6 +32,7 @@
     "react-dom": "^19.2.4",
     "react-grid-layout": "^2.2.3",
     "react-is": "^19.2.4",
+    "react-resizable": "^3.2.0",
     "react-router-dom": "^7.18.0",
     "recharts": "^3.8.1",
     "tailwind-merge": "^3.5.0",
