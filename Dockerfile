@@ -1,9 +1,17 @@
 # Build frontend
 FROM node:lts-alpine AS frontend-build
 
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+ENV \
+    NODE_ENV=production \
+    PNPM_VERSION=12 \
+    PNPM_HOME="/root/.local/share/pnpm" \
+    PATH="/root/.local/share/pnpm/bin/:$PATH"
+
 WORKDIR /app/frontend
 COPY frontend/ ./
-RUN corepack enable && \
+
+RUN wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.shrc" SHELL="$(which sh)" sh - && \
     pnpm install --frozen-lockfile && \
     pnpm run build
 
