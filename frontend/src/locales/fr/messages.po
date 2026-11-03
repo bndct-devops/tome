@@ -2882,6 +2882,10 @@ msgstr "Notez-vous mieux les livres auxquels vous consacrez plus de temps ?"
 msgid "Docs"
 msgstr "Documentation"
 
+#: src/pages/BookDetailPage.tsx
+msgid "Does not update progress or stats"
+msgstr ""
+
 #~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
 #~ msgstr "Don't have it yet? Tome Reader is in open beta for iPhone."
 
@@ -4560,6 +4564,10 @@ msgstr "Plus"
 msgid "More send options"
 msgstr "Autres options d’envoi"
 
+#: src/pages/BookDetailPage.tsx
+msgid "More ways to read"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Morning vs evening reader?"
 msgstr "Plutôt lecture du matin ou du soir ?"
@@ -5713,6 +5721,8 @@ msgid "Preparing…"
 msgstr "Préparation…"
 
 #: src/components/MetadataFetchModal.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/ReaderPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Preview"
 msgstr "Aperçu"
@@ -5720,6 +5730,10 @@ msgstr "Aperçu"
 #: src/pages/SettingsPage.tsx
 msgid "Preview:"
 msgstr "Aperçu :"
+
+#: src/pages/ReaderPage.tsx
+msgid "Preview: progress and stats are not updated"
+msgstr ""
 
 #: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx

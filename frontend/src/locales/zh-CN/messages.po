@@ -2891,6 +2891,10 @@ msgstr ""
 msgid "Docs"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "Does not update progress or stats"
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 #~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
 #~ msgstr ""
@@ -4579,6 +4583,10 @@ msgstr ""
 msgid "More send options"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
+msgid "More ways to read"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Morning vs evening reader?"
 msgstr ""
@@ -5737,12 +5745,18 @@ msgid "Preparing…"
 msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/ReaderPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Preview"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Preview:"
+msgstr ""
+
+#: src/pages/ReaderPage.tsx
+msgid "Preview: progress and stats are not updated"
 msgstr ""
 
 #: src/components/MetadataManager.tsx
