@@ -6,7 +6,7 @@ import {
   Calendar, Globe, Hash, Building2, FileText, Trash2, Loader2,
   Sparkles, Library, Check, BookMarked, ChevronLeft, ChevronRight, Home,
   Tag as TagIcon, StickyNote, ChevronDown, Archive, AlignLeft,
-  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Timer
+  Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Timer, Eye
 } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -190,6 +190,8 @@ export function BookDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
+  const [readMenuOpen, setReadMenuOpen] = useState(false)
+  const readMenuRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState<Partial<BookDetail>>({})
   const [draftBookTypeId, setDraftBookTypeId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -256,6 +258,17 @@ export function BookDetailPage() {
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [isDirty])
+
+  useEffect(() => {
+    if (!readMenuOpen) return
+    function onMouseDown(e: MouseEvent) {
+      if (readMenuRef.current && !readMenuRef.current.contains(e.target as Node)) {
+        setReadMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [readMenuOpen])
 
   useEffect(() => {
     if (!libMenuOpen) return
@@ -552,14 +565,41 @@ export function BookDetailPage() {
     </div>
   )
 
+  // Split button, same shape as Send: the primary half opens the reader, the
+  // caret offers Preview, which opens the book without touching progress or
+  // stats (#289). No hover lift here, it would lift the halves independently.
   const readButton = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format)) ? (
-    <button
-      onClick={() => navigate(`/reader/${book.id}`)}
-      className="mt-4 flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-    >
-      <BookMarked className="w-4 h-4" />
-      <Trans context="action">Read</Trans>
-    </button>
+    <div ref={readMenuRef} className="relative mt-4 flex w-full">
+      <button
+        onClick={() => navigate(`/reader/${book.id}`)}
+        className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-l-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+      >
+        <BookMarked className="w-4 h-4" />
+        <Trans context="action">Read</Trans>
+      </button>
+      <button
+        onClick={() => setReadMenuOpen(o => !o)}
+        aria-label={t`More ways to read`}
+        aria-expanded={readMenuOpen}
+        className="flex items-center px-2 rounded-r-lg border-l border-primary-foreground/20 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+      >
+        <ChevronDown className="w-3.5 h-3.5" />
+      </button>
+      {readMenuOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-lg border border-border bg-card shadow-lg py-1">
+          <button
+            onClick={() => { setReadMenuOpen(false); navigate(`/reader/${book.id}?preview=1`) }}
+            className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+            <span className="flex flex-col">
+              <span className="text-xs font-medium text-foreground"><Trans>Preview</Trans></span>
+              <span className="text-[11px] text-muted-foreground"><Trans>Does not update progress or stats</Trans></span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
   ) : null
 
   const downloadButtons = book.files.length > 0 ? (

@@ -6,6 +6,15 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Preview a book without touching your progress.** The Read button on the
+  book page now has a small menu with "Preview": the book opens in the web
+  reader as usual, but nothing is written back. Reading status, position, the
+  position synced to your devices, reading time and stats all stay as they
+  were, so you can check a file's formatting or flip through a book to decide
+  on it without it turning up as started. The reader shows a "Preview" tag
+  while this is on. Highlights and notes still work. (#289)
+
 ## [2.8.0] - 2026-10-24 - "Folio"
 
 ### Added

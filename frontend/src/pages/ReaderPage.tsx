@@ -3,7 +3,7 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, BookOpen, Settings, Rows4,
   ChevronLeft, ChevronRight, Minus, Plus, X,
@@ -715,6 +715,9 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
 export default function ReaderPage() {
   const { bookId } = useParams<{ bookId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Preview (?preview=1): open the book without writing anything back (#289).
+  const preview = searchParams.get('preview') === '1'
 
   const [book, setBook] = useState<Book | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -817,6 +820,14 @@ export default function ReaderPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initialCfi = useRef<string | null>(null)
   const readyToSave = useRef(false)
+
+  // Every write the reader makes is this one call. In preview it is skipped,
+  // which leaves status, progress, the synced device position, the derived
+  // web reading session and everything downstream exactly as they were.
+  const saveStatus = useCallback((body: { status: string; progress_pct?: number | null; cfi?: string | null }) => {
+    if (!bookId || preview) return
+    api.put(`/books/${bookId}/status`, body).catch(() => {})
+  }, [bookId, preview])
   // Holds the latest applyStyles so the foliate 'load' listener (registered
   // once at init) always re-applies the CURRENT theme/font on each new
   // chapter, instead of the stale values captured when the book opened.
@@ -845,23 +856,23 @@ export default function ReaderPage() {
     const isLastPage = page >= total - 1
     const fraction = isLastPage ? 1 : (page + 1) / total
     saveTimer.current = setTimeout(() => {
-      api.put(`/books/${bookId}/status`, {
+      saveStatus({
         status: isLastPage ? 'read' : 'reading',
         progress_pct: fraction,
         cfi: `comic:${page}`,
-      }).catch(() => {})
+      })
     }, 1500)
-  }, [bookId])
+  }, [bookId, saveStatus])
 
   const handleComicReadComplete = useCallback(() => {
     if (!bookId || comicTotalPages <= 0) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    api.put(`/books/${bookId}/status`, {
+    saveStatus({
       status: 'read',
       progress_pct: 1,
       cfi: `comic:${comicTotalPages - 1}`,
-    }).catch(() => {})
-  }, [bookId, comicTotalPages])
+    })
+  }, [bookId, comicTotalPages, saveStatus])
 
   // 1-based progress so the last page (index total-1) reads as 100%.
   const comicPctFor = (page: number, total: number) =>
@@ -888,13 +899,13 @@ export default function ReaderPage() {
     const isLast = page >= total - 1
     const fraction = isLast ? 1 : (page + 1) / total
     saveTimer.current = setTimeout(() => {
-      api.put(`/books/${bookId}/status`, {
+      saveStatus({
         status: isLast ? 'read' : 'reading',
         progress_pct: fraction,
         cfi: `pdf:${page}`,
-      }).catch(() => {})
+      })
     }, 1500)
-  }, [bookId])
+  }, [bookId, saveStatus])
 
   const handlePdfProgress = useCallback((page: number, total: number) => {
     setPdfCurrentPage(page)
@@ -905,12 +916,12 @@ export default function ReaderPage() {
   const handlePdfReadComplete = useCallback(() => {
     if (!bookId || pdfTotalPages <= 0) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    api.put(`/books/${bookId}/status`, {
+    saveStatus({
       status: 'read',
       progress_pct: 1,
       cfi: `pdf:${pdfTotalPages - 1}`,
-    }).catch(() => {})
-  }, [bookId, pdfTotalPages])
+    })
+  }, [bookId, pdfTotalPages, saveStatus])
 
   // ── Toolbar auto-hide for comic mode ────────────────────────────────────────
 
@@ -963,7 +974,7 @@ export default function ReaderPage() {
             // Will refine once we know totalPages
             savedPage = 0 // will be set below after we know total
           }
-          api.put(`/books/${bookId}/status`, { status: 'reading' }).catch(() => {})
+          saveStatus({ status: 'reading' })
         } catch { /* no saved position */ }
 
         try {
@@ -1002,7 +1013,7 @@ export default function ReaderPage() {
             setPdfInitialFraction(s.progress_pct)
           }
         } catch { /* no saved position */ }
-        api.put(`/books/${bookId}/status`, { status: 'reading' }).catch(() => {})
+        saveStatus({ status: 'reading' })
         // PdfReader loads the document itself; clear the page-level spinner.
         setLoading(false)
         return
@@ -1025,7 +1036,7 @@ export default function ReaderPage() {
         }
       } catch { /* no saved position */ }
 
-      api.put(`/books/${bookId}/status`, { status: 'reading' }).catch(() => {})
+      saveStatus({ status: 'reading' })
 
       if (!customElements.get('foliate-view')) {
         await new Promise<void>((resolve, reject) => {
@@ -1131,7 +1142,7 @@ export default function ReaderPage() {
         const fraction = detail.fraction ?? 0
         if (detail.cfi) saveCfi(detail.cfi, fraction)
         if (pct >= 95) {
-          api.put(`/books/${bookId}/status`, { status: 'read', progress_pct: 1, cfi: detail.cfi ?? null }).catch(() => {})
+          saveStatus({ status: 'read', progress_pct: 1, cfi: detail.cfi ?? null })
         }
       })
 
@@ -1196,13 +1207,13 @@ export default function ReaderPage() {
     if (!bookId) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      api.put(`/books/${bookId}/status`, {
+      saveStatus({
         status: 'reading',
         progress_pct: fraction,
         cfi,
-      }).catch(() => {})
+      })
     }, 1500)
-  }, [bookId])
+  }, [bookId, saveStatus])
 
   // ── EPUB navigation ────────────────────────────────────────────────────────
 
@@ -1418,6 +1429,15 @@ export default function ReaderPage() {
           <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
             {book?.title ?? ''}
           </span>
+          {preview && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
+              style={{ color: themeColors.text, opacity: 0.6, borderColor: isDarkTheme ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }}
+              title={t`Preview: progress and stats are not updated`}
+            >
+              <Trans>Preview</Trans>
+            </span>
+          )}
 
           {/* RTL toggle */}
           <button
@@ -1665,6 +1685,15 @@ export default function ReaderPage() {
           <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
             {book?.title ?? ''}
           </span>
+          {preview && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
+              style={{ color: themeColors.text, opacity: 0.6, borderColor: isDarkTheme ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }}
+              title={t`Preview: progress and stats are not updated`}
+            >
+              <Trans>Preview</Trans>
+            </span>
+          )}
 
           {/* Fit mode toggle */}
           <button
@@ -1839,6 +1868,15 @@ export default function ReaderPage() {
         <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
           {book?.title ?? ''}
         </span>
+        {preview && (
+          <span
+            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
+            style={{ color: themeColors.text, opacity: 0.6, borderColor: isDarkTheme ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }}
+            title={t`Preview: progress and stats are not updated`}
+          >
+            <Trans>Preview</Trans>
+          </span>
+        )}
 
         <button
           onClick={() => { setShowToc((o) => !o); setShowSettings(false) }}
