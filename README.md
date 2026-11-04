@@ -113,6 +113,10 @@ Open `http://localhost:8080` and follow the setup wizard to create your admin ac
 
 Or with Docker Compose -- the canonical `docker-compose.yml` in this repo is portable; clone and `docker compose up -d`. See `docs/examples/` for setups specific to Unraid and similar.
 
+### One-click deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Tome/)
+
 ### Try it in 60 seconds
 
 Want to kick the tires before committing it to your homelab? This installer spins Tome up in a fresh `~/Tome` folder on a free port and prints the URL -- all it needs is Docker installed and running:
