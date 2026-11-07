@@ -9,7 +9,7 @@ import {
   getWordCountStatus, getWordCountPreflight, startWordCount, cancelWordCount, dismissWordCount,
   type WordCountState, type WordCountPreflight,
 } from '@/lib/wordcount'
-import { Pill } from '@/components/page'
+import { Pill, Stat, StatStrip } from '@/components/page'
 
 const POLL_MS = 1000
 
@@ -121,36 +121,31 @@ export function WordCountTab() {
     : 0
 
   return (
-    <div className="flex flex-col gap-4 max-w-2xl">
-      <div>
-        <div>
-          <p className="text-[14px] text-muted-foreground leading-relaxed">
-
-            <Trans>Parse each EPUB to store its word count. New uploads get this automatically — this
-            backfills books added before the feature. It only reads the files and writes one
-            number per book; nothing on disk is modified. Word counts power words-read and
-            reading-speed stats. PDF and CBZ are skipped.</Trans>
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <p className="text-[14px] text-muted-foreground leading-relaxed max-w-[70ch]">
+        <Trans>Parse each EPUB to store its word count. New uploads get this automatically; this
+        backfills books added before the feature. It only reads the files and writes one
+        number per book; nothing on disk is modified. Word counts power words-read and
+        reading-speed stats. PDF and CBZ are skipped.</Trans>
+      </p>
 
       {error && (
-        <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center justify-between gap-2">
+        <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive flex items-center justify-between gap-2">
           {error}
-          <button onClick={() => setError(null)} className="shrink-0 hover:opacity-70"><X className="w-3.5 h-3.5" /></button>
+          <button onClick={() => setError(null)} aria-label={t`Dismiss`} className="shrink-0 hover:opacity-70"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
-      {/* ── Idle: pre-flight + start ───────────────────────────────────────── */}
+      {/* Idle: pre-flight + start */}
       {!running && !terminal && (
-        <div className="border border-border rounded-xl bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border grid grid-cols-3 gap-2 text-center">
-            <Stat label={t`EPUBs`} value={preflight ? formatCount(preflight.epub_total) : '—'} />
-            <Stat label={t`Already counted`} value={preflight ? formatCount(preflight.already_counted) : '—'} />
-            <Stat label={t`To count`} value={preflight ? formatCount(pending) : '—'} accent={pending > 0}
-              sub={preflight ? formatBytes(preflight.pending_bytes) : undefined} />
-          </div>
-          <div className="px-4 py-3">
+        <>
+          <StatStrip cols={3}>
+            <Stat size={30} label={t`EPUBs`} value={preflight ? formatCount(preflight.epub_total) : '—'} />
+            <Stat size={30} label={t`Already counted`} value={preflight ? formatCount(preflight.already_counted) : '—'} />
+            <Stat size={30} label={t`To count`} value={preflight ? formatCount(pending) : '—'} tone={pending > 0 ? 'primary' : 'foreground'}
+              foot={preflight ? formatBytes(preflight.pending_bytes) : undefined} />
+          </StatStrip>
+          <div>
             <Pill
               onClick={handleStart}
               disabled={busy || pending === 0}
@@ -159,85 +154,84 @@ export function WordCountTab() {
               {pending === 0 ? t`Every EPUB is counted` : plural(pending, { one: 'Count # EPUB', other: 'Count # EPUBs' })}
             </Pill>
           </div>
-        </div>
+        </>
       )}
 
-      {/* ── Running: progress ──────────────────────────────────────────────── */}
+      {/* Running: progress */}
       {running && state && (
-        <div className="border border-border rounded-xl bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium flex items-center gap-2">
+        <>
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-[15px] font-medium flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 {(() => { const done = formatCount(state.done_files); const total = formatCount(state.total_files); return <Trans>Counting… {done} / {total}</Trans> })()}
               </span>
-              <span className="text-xs text-muted-foreground tabular-nums">{pct.toFixed(1)}%</span>
+              <span className="text-[14px] font-bold tabular-nums">{pct.toFixed(1)}%</span>
             </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+              <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
-            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 mt-2 text-[13px] text-muted-foreground">
               <span>{formatBytes(state.done_bytes)} / {formatBytes(state.total_bytes)}</span>
               {(() => { const el = formatDuration(state.elapsed_seconds); const eta = formatDuration(state.eta_seconds); return <span><Trans>Elapsed {el} · ~{eta} left</Trans></span> })()}
             </div>
-          </div>
-          <div className="px-4 py-3 flex flex-col gap-3">
-            <div className="text-xs text-muted-foreground truncate">
+            <div className="mt-1 text-[13px] text-muted-foreground truncate">
               <span className="text-foreground/70"><Trans>Current:</Trans></span>{' '}
               <span className="font-mono">{state.current_file?.split('/').pop() ?? '…'}</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <Stat label={t`Counted`} value={formatCount(state.counted)} accent />
-              <Stat label={t`Words found`} value={formatCount(state.words_total)} />
-              <Stat label={t`Failed`} value={formatCount(state.failed)} danger={state.failed > 0} />
-            </div>
-            <Pill onClick={handleCancel} disabled={busy}
-              variant="destructive" className="self-start">
+          </div>
+          <StatStrip cols={3}>
+            <Stat size={30} label={t`Counted`} value={formatCount(state.counted)} tone="primary" />
+            <Stat size={30} label={t`Words found`} value={formatCount(state.words_total)} />
+            <Stat size={30} label={t`Failed`} value={formatCount(state.failed)} tone={state.failed > 0 ? 'warning' : 'foreground'} />
+          </StatStrip>
+          <div>
+            <Pill onClick={handleCancel} disabled={busy} variant="destructive">
               <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
             </Pill>
           </div>
-        </div>
+        </>
       )}
 
-      {/* ── Terminal: end summary ──────────────────────────────────────────── */}
+      {/* Terminal: end summary */}
       {terminal && state && (
-        <div className="border border-border rounded-xl bg-card overflow-hidden">
-          <div className={cn('px-4 py-3 border-b border-border flex items-center gap-2',
-            state.status === 'error' ? 'text-destructive' : state.status === 'cancelled' ? 'text-amber-600' : 'text-emerald-600')}>
+        <>
+          <div className={cn('flex flex-wrap items-center gap-2',
+            state.status === 'error' ? 'text-destructive' : state.status === 'cancelled' ? 'text-warning' : 'text-success')}>
             {state.status === 'done' && <Check className="w-4 h-4" />}
             {state.status === 'cancelled' && <Ban className="w-4 h-4" />}
             {state.status === 'error' && <FileWarning className="w-4 h-4" />}
-            <span className="text-sm font-semibold">
+            <span className="text-[15px] font-semibold">
               {state.status === 'done' && t`Word count complete`}
               {state.status === 'cancelled' && t`Word count stopped`}
               {state.status === 'error' && t`Word count failed`}
             </span>
-            {(() => { const dur = formatDuration(state.elapsed_seconds); return <span className="ml-auto text-xs text-muted-foreground"><Trans>Took {dur}</Trans></span> })()}
+            {(() => { const dur = formatDuration(state.elapsed_seconds); return <span className="ml-auto text-[13px] text-muted-foreground"><Trans>Took {dur}</Trans></span> })()}
           </div>
-          <div className="px-4 py-3 grid grid-cols-3 gap-2 text-center border-b border-border">
-            <Stat label={t`Counted`} value={formatCount(state.counted)} accent />
-            <Stat label={t`Words found`} value={formatCount(state.words_total)} />
-            <Stat label={t`Failed`} value={formatCount(state.failed)} danger={state.failed > 0} />
-          </div>
+          <StatStrip cols={3}>
+            <Stat size={30} label={t`Counted`} value={formatCount(state.counted)} tone="primary" />
+            <Stat size={30} label={t`Words found`} value={formatCount(state.words_total)} />
+            <Stat size={30} label={t`Failed`} value={formatCount(state.failed)} tone={state.failed > 0 ? 'warning' : 'foreground'} />
+          </StatStrip>
           {state.error && (
-            <div className="px-4 py-2 text-xs text-destructive border-b border-border">{state.error}</div>
+            <p className="text-[13px] text-destructive">{state.error}</p>
           )}
           {state.issues.length > 0 && (
-            <div className="px-4 py-3 border-b border-border">
-              <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <div>
+              <p className="text-[13px] font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
                 <FileWarning className="w-3.5 h-3.5" /> {(() => { const n = state.issues.length; return <Trans>Could not parse ({n})</Trans> })()}
               </p>
-              <div className="max-h-64 overflow-y-auto flex flex-col gap-1">
+              <div className="max-h-64 overflow-y-auto border-y border-border/70 divide-y divide-border/70">
                 {state.issues.map((it, i) => (
-                  <div key={i} className="text-[11px] flex items-center gap-2 py-1 border-b border-border/40 last:border-0">
+                  <div key={i} className="text-[13px] flex items-center gap-2 py-1.5">
                     <span className="font-mono truncate" title={it.path}>{it.path.split('/').pop()}</span>
-                    {it.reason && <span className="text-muted-foreground/70 truncate ml-auto">{it.reason}</span>}
+                    {it.reason && <span className="text-muted-foreground truncate ml-auto">{it.reason}</span>}
                   </div>
                 ))}
               </div>
             </div>
           )}
-          <div className="px-4 py-3 flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Pill onClick={handleDismiss} disabled={busy}
               variant="primary">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} <Trans>Done</Trans>
@@ -250,23 +244,8 @@ export function WordCountTab() {
               </Pill>
             )}
           </div>
-        </div>
+        </>
       )}
-    </div>
-  )
-}
-
-function Stat({ label, value, sub, accent, danger }: {
-  label: string; value: number | string; sub?: string; accent?: boolean; danger?: boolean
-}) {
-  return (
-    <div>
-      <p className={cn('text-lg font-semibold tabular-nums',
-        danger ? 'text-destructive' : accent ? 'text-primary' : 'text-foreground')}>
-        {value}
-      </p>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      {sub && <p className="text-[10px] text-muted-foreground/70">{sub}</p>}
     </div>
   )
 }
