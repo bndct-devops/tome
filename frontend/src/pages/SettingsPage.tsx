@@ -2,7 +2,7 @@ import { TelemetrySettings } from '@/components/TelemetryConsentCard'
 import { useState, useEffect, useMemo } from 'react'
 import {
   ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
-  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp,
+  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp, ChevronRight,
   AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
@@ -17,7 +17,8 @@ import { HardcoverSync } from '@/components/HardcoverSync'
 import { SettingsNav } from '@/components/SettingsNav'
 import { SectionLayout, SectionSidebar, PanelSection } from '@/components/SectionNav'
 import { AppShell } from '@/components/AppShell'
-import { Pill } from '@/components/page'
+import { Pill, Input, Select, Checkbox, FormLabel, Textarea } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { api } from '@/lib/api'
 import { SUPPORTERS } from '@/lib/supporters'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,7 @@ import {
   type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
 } from '@/lib/theme'
 import { useAuth } from '@/contexts/AuthContext'
-import { Trans, useLingui } from '@lingui/react/macro'
+import { Trans, Plural, useLingui } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
@@ -41,6 +42,13 @@ interface ApiKey {
   key_preview: string
   created_at: string
   last_used_at: string | null
+}
+
+interface ConfirmAsk {
+  title: string
+  body: string
+  action: string
+  run: () => void | Promise<void>
 }
 
 interface OpdsPin {
@@ -188,6 +196,7 @@ export function SettingsPage() {
   const [clientDevices, setClientDevices] = useState<ClientDevice[] | null>(null) // null = loading
   const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
   const [clientDevicesTick, setClientDevicesTick] = useState(0)
+  const [clientDevicesAll, setClientDevicesAll] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -197,20 +206,35 @@ export function SettingsPage() {
     return () => { alive = false }
   }, [clientDevicesAllUsers, clientDevicesTick, showConnectPhone])
 
-  async function handleRevokeClientDevice(d: ClientDevice) {
+  // One small confirm dialog for every destructive action on this page.
+  const [confirmAsk, setConfirmAsk] = useState<ConfirmAsk | null>(null)
+
+  function handleRevokeClientDevice(d: ClientDevice) {
     const name = d.name
     if (d.current) {
-      if (!confirm(t`Sign out of this browser?`)) return
-      await revokeDevice(d.id).catch(() => {})
-      logout()
+      setConfirmAsk({
+        title: t`Sign out of this browser?`,
+        body: t`You will have to sign in again here.`,
+        action: t`Sign out`,
+        run: async () => {
+          await revokeDevice(d.id).catch(() => {})
+          logout()
+        },
+      })
       return
     }
-    if (!confirm(t`Revoke "${name}"? It is signed out immediately and has to sign in again.`)) return
-    try {
-      await revokeDevice(d.id)
-    } finally {
-      setClientDevicesTick(n => n + 1)
-    }
+    setConfirmAsk({
+      title: t`Revoke "${name}"?`,
+      body: t`It is signed out immediately and has to sign in again.`,
+      action: t`Revoke`,
+      run: async () => {
+        try {
+          await revokeDevice(d.id)
+        } finally {
+          setClientDevicesTick(n => n + 1)
+        }
+      },
+    })
   }
 
   async function handleQcAuthorize(e: React.FormEvent) {
@@ -293,7 +317,8 @@ export function SettingsPage() {
   interface KOSyncStatus {
     linked: boolean
     synced_documents?: number
-    last_sync?: number | null
+    /** ISO string from the API; older servers sent epoch seconds. */
+    last_sync?: string | number | null
     last_device?: string | null
   }
   const [kosyncStatus, setKosyncStatus] = useState<KOSyncStatus | null>(null)
@@ -329,6 +354,7 @@ export function SettingsPage() {
   const [newKeyResult, setNewKeyResult] = useState<string | null>(null)
   const [keyCreating, setKeyCreating] = useState(false)
   const [keyRevoking, setKeyRevoking] = useState<number | null>(null)
+  const [apiKeysAll, setApiKeysAll] = useState(false)
   const [pluginDownloading, setPluginDownloading] = useState(false)
 
   useEffect(() => {
@@ -474,6 +500,16 @@ export function SettingsPage() {
     }
   }
 
+  function askDeleteDevice(d: UserDeviceItem) {
+    const name = d.name
+    setConfirmAsk({
+      title: t`Remove "${name}"?`,
+      body: t`Books can no longer be sent to this address until you add it again.`,
+      action: t`Remove`,
+      run: () => handleDeleteDevice(d.id),
+    })
+  }
+
   async function handleDeleteDevice(id: number) {
     setDeviceDeleting(id)
     try {
@@ -525,8 +561,16 @@ export function SettingsPage() {
     }
   }
 
+  function askRevokeApiToken(id: number) {
+    setConfirmAsk({
+      title: t`Revoke this token?`,
+      body: t`Any scripts or tools using it will stop working immediately.`,
+      action: t`Revoke`,
+      run: () => handleRevokeApiToken(id),
+    })
+  }
+
   async function handleRevokeApiToken(id: number) {
-    if (!confirm(t`Revoke this token? Any scripts or tools using it will stop working immediately.`)) return
     setTokenRevoking(id)
     try {
       await revokeToken(id)
@@ -615,16 +659,16 @@ export function SettingsPage() {
   // Jump list: the same sections, in page order, with the same conditions
   // the page uses to render them.
   const navSections = [
-    { id: 'account', label: t`Account & Security` },
+    { id: 'account', label: t`Account and security` },
     ...((nativeApp || (clientDevices?.length ?? 0) > 0) ? [{ id: 'devices', label: t`Connected devices` }] : []),
     { id: 'appearance', label: t`Appearance` },
     { id: 'language', label: t`Language` },
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     { id: 'koreader', label: 'KOReader' },
-    { id: 'send-to-device', label: t`Send to Device` },
+    { id: 'send-to-device', label: t`Send to device` },
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     ...(hardcoverAvailable ? [{ id: 'hardcover', label: 'Hardcover' }] : []),
-    { id: 'api-tokens', label: t`API Tokens` },
+    { id: 'api-tokens', label: t`API tokens` },
     { id: 'notifications', label: t`Notifications` },
     { id: 'share-links', label: t`Share links` },
     { id: 'import', label: t`Import reading history` },
@@ -649,7 +693,7 @@ export function SettingsPage() {
         <div className="flex flex-col gap-12">
 
         {/* ── Account & Security ────────────────────────────────────────── */}
-        <PanelSection id="account" title={t`Account & Security`}>
+        <PanelSection id="account" title={t`Account and security`}>
           <div className="divide-y divide-border/70">
 
             {/* Profile */}
@@ -657,23 +701,23 @@ export function SettingsPage() {
               <form onSubmit={handleProfileSubmit} className="flex flex-col sm:flex-row gap-3 sm:items-end">
                 <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Username</Trans></label>
-                    <input
+                    <FormLabel htmlFor="profile-username"><Trans>Username</Trans></FormLabel>
+                    <Input
+                      id="profile-username"
                       type="text"
                       value={profileUsername}
                       onChange={e => setProfileUsername(e.target.value)}
                       required
-                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Email</Trans></label>
-                    <input
+                    <FormLabel htmlFor="profile-email"><Trans>Email</Trans></FormLabel>
+                    <Input
+                      id="profile-email"
                       type="email"
                       value={profileEmail}
                       onChange={e => setProfileEmail(e.target.value)}
                       required
-                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
@@ -686,17 +730,17 @@ export function SettingsPage() {
                   {profileSaving ? t`Saving…` : t`Save changes`}
                 </Pill>
               </form>
-              {profileError && <p className="text-xs text-destructive mt-2">{profileError}</p>}
-              {profileSuccess && <p className="text-xs text-success mt-2"><Trans>Profile updated</Trans></p>}
+              {profileError && <p className="text-[13px] text-destructive mt-2">{profileError}</p>}
+              {profileSuccess && <p className="text-[13px] text-success mt-2"><Trans>Profile updated</Trans></p>}
             </div>
 
             {/* Password */}
             <div className="py-6 first:pt-0 last:pb-0">
-              <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Change Password</Trans></p>
+              <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Change password</Trans></p>
               {user?.auth_source === 'oidc' ? (
                 <p className="text-sm text-muted-foreground max-w-sm">
                   <Trans>You're signed in via SSO. Manage your credentials at your identity
-                  provider — there's no Tome password to change.</Trans>
+                  provider; there's no Tome password to change.</Trans>
                 </p>
               ) : (
               <form onSubmit={handlePasswordSubmit} className="space-y-3 max-w-sm">
@@ -716,13 +760,13 @@ export function SettingsPage() {
                   show={showPasswords}
                   error={!!(pwError && confirmPassword && newPassword !== confirmPassword)}
                 />
-                {pwError && <p className="text-xs text-destructive pt-0.5">{pwError}</p>}
-                {pwSuccess && <p className="text-xs text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
+                {pwError && <p className="text-[13px] text-destructive pt-0.5">{pwError}</p>}
+                {pwSuccess && <p className="text-[13px] text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
                 <div className="pt-1">
                   <Pill
                     type="submit"
                     disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}
-                    variant="primary"
+                    variant="secondary"
                   >
                     {pwSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                     {pwSaving ? t`Saving…` : t`Update password`}
@@ -735,7 +779,7 @@ export function SettingsPage() {
             {/* SSO linking */}
             {ssoEnabled && (
               <div className="py-6 first:pt-0 last:pb-0">
-                <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Single Sign-On</Trans></p>
+                <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Single sign-on</Trans></p>
                 {ssoMsg && (
                   <div className={cn(
                     'flex items-center gap-2 text-sm p-3 rounded-lg mb-3 border',
@@ -750,7 +794,7 @@ export function SettingsPage() {
                 {user?.oidc_linked ? (
                   <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Check className="w-4 h-4 text-success" />
-                    <Trans>Your account is linked to SSO — you can sign in with your identity provider.</Trans>
+                    <Trans>Your account is linked to SSO. You can sign in with your identity provider.</Trans>
                   </p>
                 ) : (
                   <div className="space-y-3 max-w-sm">
@@ -799,31 +843,32 @@ export function SettingsPage() {
               )}
               <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
-                  <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Code from new device</Trans></label>
-                  <input
+                  <FormLabel htmlFor="qc-code"><Trans>Code from new device</Trans></FormLabel>
+                  <Input
+                    id="qc-code"
                     type="text"
                     value={qcCode}
                     onChange={e => setQcCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
                     placeholder="ABC123"
                     maxLength={6}
                     spellCheck={false}
-                    className="w-full font-mono tracking-widest uppercase h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="font-mono tracking-widest uppercase"
                   />
                 </div>
                 <Pill
                   type="submit"
                   disabled={qcAuthorizing || qcCode.trim().length !== 6}
-                  variant="primary" className="shrink-0"
+                  variant="secondary" className="shrink-0"
                 >
                   {qcAuthorizing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {qcAuthorizing ? t`Authorizing...` : t`Authorize`}
                 </Pill>
               </form>
-              {qcError && <p className="text-xs text-destructive mt-2">{qcError}</p>}
+              {qcError && <p className="text-[13px] text-destructive mt-2">{qcError}</p>}
               {qcSuccess && (
-                <div className="flex items-center gap-1.5 text-xs text-success mt-2">
+                <div className="flex items-center gap-1.5 text-[13px] text-success mt-2">
                   <CheckCircle className="w-3.5 h-3.5" />
-                  <Trans>Device authorized — the new device is now signed in.</Trans>
+                  <Trans>Device authorized. The new device is now signed in.</Trans>
                 </div>
               )}
             </div>
@@ -886,7 +931,7 @@ export function SettingsPage() {
                       <span>{clientDevicesAllUsers && user?.is_admin && <Trans>Owner</Trans>}</span>
                       <span />
                     </div>
-                    {clientDevices.map(d => {
+                    {(clientDevicesAll ? clientDevices : clientDevices.slice(0, LIST_PREVIEW)).map(d => {
                       const isRevoked = d.revoked_at !== null
                       return (
                         <div
@@ -906,7 +951,7 @@ export function SettingsPage() {
                               <span className="sm:hidden text-muted-foreground font-normal shrink-0">{d.platform}</span>
                             )}
                             {d.current && (
-                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-primary/10 text-primary border border-primary/20">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary">
                                 <Trans>This browser</Trans>
                               </span>
                             )}
@@ -917,7 +962,7 @@ export function SettingsPage() {
                               </span>
                             )}
                             {isRevoked && (
-                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
                                 <Trans>Revoked</Trans>
                               </span>
                             )}
@@ -934,19 +979,25 @@ export function SettingsPage() {
                           </span>
                           <span className="flex justify-end shrink-0">
                             {!isRevoked && (
-                              <button
+                              <Pill
+                                icon
+                                variant="destructive"
                                 onClick={() => handleRevokeClientDevice(d)}
                                 title={d.current ? t`Sign out` : t`Revoke`}
-                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                aria-label={d.current ? t`Sign out` : t`Revoke`}
+                                className="h-8 w-8"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              </Pill>
                             )}
                           </span>
                         </div>
                       )
                     })}
                   </div>
+                )}
+                {clientDevices && clientDevices.length > LIST_PREVIEW && (
+                  <ShowMore all={clientDevicesAll} hidden={clientDevices.length - LIST_PREVIEW} onToggle={() => setClientDevicesAll(v => !v)} />
                 )}
               </div>
             </div>
@@ -979,11 +1030,11 @@ export function SettingsPage() {
                         <div className="flex-1 h-4 rounded opacity-90" style={{ background: theme.preview.card }} />
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: theme.preview.primary }} />
                       </div>
-                      <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: theme.preview.card }}>
-                        <span className="text-[10px] font-medium leading-tight truncate" style={{ color: theme.preview.text }}>
+                      <div className="px-2 py-1.5 flex items-center justify-between gap-1" style={{ background: theme.preview.card }}>
+                        <span className="text-[13px] font-medium leading-tight truncate" style={{ color: theme.preview.text }}>
                           {theme.label}
                         </span>
-                        {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: theme.preview.primary }} />}
+                        {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: theme.preview.primary }} />}
                       </div>
                     </button>
                   )
@@ -1018,19 +1069,20 @@ export function SettingsPage() {
                         <div className="flex-1 h-4 rounded opacity-90" style={{ background: card }} />
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: primary }} />
                       </div>
-                      <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: card }}>
-                        <span className="text-[10px] font-medium leading-tight truncate" style={{ color: text }}>
+                      <div className="px-2 py-1.5 flex items-center justify-between gap-1" style={{ background: card }}>
+                        <span className="text-[13px] font-medium leading-tight truncate" style={{ color: text }}>
                           {theme.label}
                         </span>
-                        {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: primary }} />}
+                        {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: primary }} />}
                       </div>
                     </button>
                     <button
                       onClick={() => handleDeleteCustomTheme(theme.id)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity shadow-sm"
                       title={t`Delete theme`}
+                      aria-label={t`Delete theme`}
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   </div>
                 )
@@ -1051,44 +1103,41 @@ export function SettingsPage() {
 
             {customFormOpen && (
               <div className="mt-5 space-y-4 max-w-2xl">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4 sm:items-end">
                   <div>
-                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Theme name</Trans></label>
-                    <input
+                    <FormLabel htmlFor="custom-theme-name"><Trans>Theme name</Trans></FormLabel>
+                    <Input
+                      id="custom-theme-name"
                       type="text"
                       value={customName}
                       onChange={e => setCustomName(e.target.value)}
-                      placeholder={t`My Theme`}
-                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder={t`My theme`}
                     />
                   </div>
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={customDark}
-                        onChange={e => setCustomDark(e.target.checked)}
-                        className="w-4 h-4 rounded accent-primary"
-                      />
-                      <Trans>Dark theme</Trans>
-                      <span className="text-[13px] text-muted-foreground"><Trans>(enables dark: variants)</Trans></span>
-                    </label>
-                  </div>
+                  <Checkbox
+                    checked={customDark}
+                    onChange={e => setCustomDark(e.target.checked)}
+                    label={<Trans>Dark theme</Trans>}
+                    description={<Trans>Turn on when the background is dark, so the parts made for dark mode use their dark look.</Trans>}
+                    className="sm:pb-0.5"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-[13px] text-muted-foreground mb-1.5">
-                    <Trans>Colors <span className="font-normal">(10 hex values, comma-separated)</span></Trans>
-                  </label>
-                  <input
-                    type="text"
+                  <FormLabel htmlFor="custom-theme-colors" hint={<Trans>10 hex values, comma-separated</Trans>}>
+                    <Trans>Colors</Trans>
+                  </FormLabel>
+                  <Textarea
+                    id="custom-theme-colors"
                     value={customColors}
                     onChange={e => { setCustomColors(e.target.value); setCustomError(null) }}
-                    placeholder="#1E1E2E,#CDD6F4,#313244,#CBA6F7,#1E1E2E,#45475A,#A6ADC8,#313244,#585B70,#F38BA8"
-                    className="w-full font-mono h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    // eslint-disable-next-line lingui/no-unlocalized-strings -- example hex values
+                    placeholder="#1E1E2E, #CDD6F4, #313244, #CBA6F7, #1E1E2E, #45475A, #A6ADC8, #313244, #585B70, #F38BA8"
+                    rows={2}
+                    className="min-h-[60px] font-mono text-[13px] resize-none"
                     spellCheck={false}
                   />
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-[13px] text-muted-foreground mt-1.5">
                     <Trans>Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive</Trans>
                   </p>
                 </div>
@@ -1113,14 +1162,14 @@ export function SettingsPage() {
                   </div>
                 )}
 
-                {customError && <p className="text-xs text-destructive">{customError}</p>}
+                {customError && <p className="text-[13px] text-destructive">{customError}</p>}
 
                 <Pill
                   onClick={handleAddCustomTheme}
                   variant="primary"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <Trans>Add Theme</Trans>
+                  <Trans>Add theme</Trans>
                 </Pill>
               </div>
             )}
@@ -1168,7 +1217,7 @@ export function SettingsPage() {
             <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>OPDS Catalog</Trans></p>
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>OPDS catalog</Trans></p>
                   <p className="text-[13px] text-muted-foreground">
                     <Trans>Browse and download your library from KOReader or any OPDS client.</Trans>
                   </p>
@@ -1186,19 +1235,20 @@ export function SettingsPage() {
                 <Trans>In KOReader: Search &rarr; OPDS catalog &rarr; add catalog with the URL above.</Trans>
               </p>
 
-              {/* OPDS PINs — nested under OPDS */}
+              {/* OPDS PINs, nested under OPDS */}
               <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3 h-3" /> <Trans>App-specific PINs</Trans>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5" /> <Trans>App-specific PINs</Trans>
                   </p>
                   <div className="flex items-center gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={pinLabel}
                       onChange={e => setPinLabel(e.target.value)}
                       placeholder={t`Label (e.g. KOReader)`}
-                      className="w-36 h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      aria-label={t`PIN label`}
+                      className="w-44"
                     />
                     <Pill
                       onClick={handleCreatePin}
@@ -1211,12 +1261,12 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <p className="text-[13px] text-muted-foreground">
-                  <Trans>Short app-specific passwords for OPDS — easier to type on an e-reader than your full password.</Trans>
+                  <Trans>Short app-specific passwords for OPDS, easier to type on an e-reader than your full password.</Trans>
                 </p>
 
                 {newPinResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-xs text-success font-medium"><Trans>PIN created — copy it now, it won't be shown again.</Trans></p>
+                    <p className="text-[13px] text-success font-medium"><Trans>PIN created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
                       <code className="text-xs font-mono text-foreground break-all flex-1">{newPinResult}</code>
                       <button
@@ -1260,13 +1310,13 @@ export function SettingsPage() {
             <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Progress Sync</Trans></p>
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Progress sync</Trans></p>
                   <p className="text-[13px] text-muted-foreground">
                     <Trans>Sync reading position between KOReader and Tome.</Trans>
                   </p>
                 </div>
                 {kosyncStatus?.linked && (
-                  <span className="flex items-center gap-1 text-xs text-success shrink-0 mt-0.5">
+                  <span className="flex items-center gap-1 text-[13px] text-success shrink-0 mt-0.5">
                     <Check className="w-3 h-3" /> <Trans>Linked</Trans>
                     {kosyncStatus.synced_documents != null && (
                       <span className="text-muted-foreground ml-1">{(() => { const n = kosyncStatus.synced_documents; return t`· ${n} docs` })()}</span>
@@ -1277,35 +1327,35 @@ export function SettingsPage() {
 
               {kosyncStatus?.last_sync && (
                 <p className="text-[13px] text-muted-foreground">
-                  {(() => { const d = new Date(kosyncStatus.last_sync * 1000).toLocaleString(i18n.locale); return t`Last sync: ${d}` })()}
+                  {(() => { const d = formatSyncTime(kosyncStatus.last_sync, i18n.locale); return t`Last sync: ${d}` })()}
                   {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
                 </p>
               )}
 
               <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
-                  <label className="block text-[13px] text-muted-foreground mb-1.5">
+                  <FormLabel htmlFor="kosync-password">
                     {kosyncStatus?.linked ? t`Update sync password` : t`Set sync password`}
-                  </label>
-                  <input
+                  </FormLabel>
+                  <Input
+                    id="kosync-password"
                     type="password"
                     value={kosyncPassword}
                     onChange={e => setKosyncPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
                 <Pill
                   type="submit"
                   disabled={kosyncSaving || !kosyncPassword}
-                  variant="primary" className="shrink-0"
+                  variant="secondary" className="shrink-0"
                 >
                   {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
                 </Pill>
               </form>
-              {kosyncError && <p className="text-xs text-destructive">{kosyncError}</p>}
-              {kosyncSuccess && <p className="text-xs text-success"><Trans>KOSync registered successfully</Trans></p>}
+              {kosyncError && <p className="text-[13px] text-destructive">{kosyncError}</p>}
+              {kosyncSuccess && <p className="text-[13px] text-success"><Trans>KOSync registered successfully</Trans></p>}
 
               <ConnectBlock rows={[
                 { label: t`URL`, value: kosyncUrl, copy: true },
@@ -1321,9 +1371,9 @@ export function SettingsPage() {
             <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>TomeSync Plugin</Trans></p>
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>TomeSync plugin</Trans></p>
                   <p className="text-[13px] text-muted-foreground">
-                    <Trans>Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync.</Trans>
+                    <Trans>Native KOReader plugin. Tracks reading sessions and syncs by book ID. More reliable than KOSync.</Trans>
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -1366,8 +1416,8 @@ export function SettingsPage() {
               {/* API Keys */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3 h-3" /> <Trans>API Keys</Trans>
+                  <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5" /> <Trans>API keys</Trans>
                   </p>
                   <Pill
                     onClick={handleCreateKey}
@@ -1381,7 +1431,7 @@ export function SettingsPage() {
 
                 {newKeyResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-xs text-success font-medium"><Trans>Key created — copy it now, it won't be shown again.</Trans></p>
+                    <p className="text-[13px] text-success font-medium"><Trans>Key created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
                       <code className="text-xs font-mono text-foreground break-all flex-1">{newKeyResult}</code>
                       <button onClick={() => navigator.clipboard.writeText(newKeyResult)}
@@ -1393,8 +1443,9 @@ export function SettingsPage() {
                 )}
 
                 {apiKeys.length > 0 ? (
+                  <div>
                   <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
-                    {apiKeys.map(k => (
+                    {(apiKeysAll ? apiKeys : apiKeys.slice(0, LIST_PREVIEW)).map(k => (
                       <div key={k.id} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground flex-1">{k.key_preview}</span>
                         <span className="text-muted-foreground hidden sm:block">
@@ -1411,6 +1462,10 @@ export function SettingsPage() {
                       </div>
                     ))}
                   </div>
+                  {apiKeys.length > LIST_PREVIEW && (
+                    <ShowMore all={apiKeysAll} hidden={apiKeys.length - LIST_PREVIEW} onToggle={() => setApiKeysAll(v => !v)} />
+                  )}
+                  </div>
                 ) : (
                   <p className="text-[13px] text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
                 )}
@@ -1423,15 +1478,15 @@ export function SettingsPage() {
         </PanelSection>
 
         {/* ── Send to Device ──────────────────────────────────────────── */}
-        <PanelSection id="send-to-device" title={t`Send to Device`}>
+        <PanelSection id="send-to-device" title={t`Send to device`}>
           <div>
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div>
-                    <p className="text-[15px] font-semibold text-foreground"><Trans>E-Reader Devices</Trans></p>
+                    <p className="text-[15px] font-semibold text-foreground"><Trans>E-reader devices</Trans></p>
                     <p className="text-[13px] text-muted-foreground mt-0.5">
-                      <Trans>Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.</Trans>
+                      <Trans>Add your e-reader or personal email. Books are sent as attachments; works with Kindle, Kobo, or any email address.</Trans>
                     </p>
                   </div>
                 </div>
@@ -1442,40 +1497,36 @@ export function SettingsPage() {
 
               {smtpConfigured === false ? (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-warning dark:text-warning shrink-0" />
-                    <p className="text-xs text-warning font-medium"><Trans>Email delivery is not set up yet.</Trans></p>
-                  </div>
-                  <div className="rounded-lg border border-border overflow-hidden text-xs">
-                    <button
-                      onClick={() => setSetupGuideOpen(v => !v)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
-                    >
-                      <span className="font-medium text-foreground"><Trans>How to set it up</Trans></span>
-                      {setupGuideOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                    </button>
+                  <p className="flex items-center gap-2 text-[13px] text-warning font-medium">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <Trans>Email delivery is not set up yet.</Trans>
+                  </p>
+                  <div>
+                    <Disclosure open={setupGuideOpen} onToggle={() => setSetupGuideOpen(v => !v)}>
+                      <Trans>How to set it up</Trans>
+                    </Disclosure>
                     {setupGuideOpen && (
-                      <div className="border-t border-border px-3 py-3 space-y-3 text-[13px] text-muted-foreground">
-                        <p><Trans>Your server admin needs to set SMTP environment variables:</Trans></p>
+                      <div className="pb-1 pt-2 space-y-3 text-[13px] text-muted-foreground">
+                        <p><Trans>Your server admin sets these environment variables. TOME_SMTP_HOST is required. User and password are optional; set both when the mail server needs a login. Without a user, TOME_SMTP_FROM is required as the sender address.</Trans></p>
                         <div className="space-y-2">
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
                           <p className="font-medium text-foreground">Gmail</p>
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- env config example */}
-                          <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.gmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@gmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
+                          <code className="block bg-secondary rounded-lg px-3 py-2 text-[12px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.gmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@gmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
                           <p><Trans>Use a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google App Password</a>, not your regular password.</Trans></p>
                         </div>
                         <div className="space-y-2">
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
                           <p className="font-medium text-foreground">Fastmail</p>
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- env config example */}
-                          <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.fastmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@fastmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
+                          <code className="block bg-secondary rounded-lg px-3 py-2 text-[12px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.fastmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@fastmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
                         </div>
                         <div className="space-y-2">
                           <p className="font-medium text-foreground"><Trans>Other providers</Trans></p>
-                          <p><Trans>Set <code className="text-foreground">TOME_SMTP_HOST</code>, <code className="text-foreground">TOME_SMTP_PORT</code>, <code className="text-foreground">TOME_SMTP_USER</code>, and <code className="text-foreground">TOME_SMTP_PASSWORD</code>.</Trans></p>
+                          <p><Trans>Set <code className="text-foreground">TOME_SMTP_HOST</code> and <code className="text-foreground">TOME_SMTP_PORT</code>. Add <code className="text-foreground">TOME_SMTP_USER</code> and <code className="text-foreground">TOME_SMTP_PASSWORD</code> if the server needs a login, otherwise set <code className="text-foreground">TOME_SMTP_FROM</code>.</Trans></p>
                         </div>
-                        <div className="rounded-lg bg-muted/60 border border-border p-2.5">
-                          <p className="font-medium text-foreground mb-1"><Trans>Kindle users</Trans></p>
+                        <div className="space-y-2">
+                          <p className="font-medium text-foreground"><Trans>Kindle users</Trans></p>
                           <p><Trans>Add your SMTP sender address to Amazon's <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Approved Personal Document E-mail List</a>, or emails will be silently dropped.</Trans></p>
                         </div>
                         <p className="text-muted-foreground/70"><Trans>Ask your server admin if you don't manage the Tome installation yourself.</Trans></p>
@@ -1486,25 +1537,25 @@ export function SettingsPage() {
               ) : smtpConfigured ? (
                 <div className="space-y-3">
                   {/* Add device form */}
-                  <form onSubmit={handleAddDevice} className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Device name</Trans></label>
-                      <input
+                  <form onSubmit={handleAddDevice} className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-[10rem]">
+                      <FormLabel htmlFor="device-name"><Trans>Device name</Trans></FormLabel>
+                      <Input
+                        id="device-name"
                         type="text"
                         value={newDeviceName}
                         onChange={e => setNewDeviceName(e.target.value)}
                         placeholder={t`My Kindle`}
-                        className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
-                    <div className="flex-1">
-                      <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Email address</Trans></label>
-                      <input
+                    <div className="flex-1 min-w-[12rem]">
+                      <FormLabel htmlFor="device-email"><Trans>Email address</Trans></FormLabel>
+                      <Input
+                        id="device-email"
                         type="email"
                         value={newDeviceEmail}
                         onChange={e => setNewDeviceEmail(e.target.value)}
                         placeholder="user_abc@kindle.com"
-                        className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
                     <Pill
@@ -1516,7 +1567,7 @@ export function SettingsPage() {
                       <Trans>Add</Trans>
                     </Pill>
                   </form>
-                  {deviceError && <p className="text-xs text-destructive">{deviceError}</p>}
+                  {deviceError && <p className="text-[13px] text-destructive">{deviceError}</p>}
 
                   {/* Device list */}
                   {devices.length > 0 ? (
@@ -1527,7 +1578,7 @@ export function SettingsPage() {
                           <span className="text-foreground font-medium flex-1 truncate">{d.name}</span>
                           <span className="text-muted-foreground hidden sm:block truncate max-w-48">{d.email}</span>
                           <button
-                            onClick={() => handleDeleteDevice(d.id)}
+                            onClick={() => askDeleteDevice(d)}
                             disabled={deviceDeleting === d.id}
                             className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                             title={t`Remove device`}
@@ -1557,7 +1608,7 @@ export function SettingsPage() {
         {/* ── API Tokens ───────────────────────────────────────────────── */}
         <PanelSection
           id="api-tokens"
-          title={t`API Tokens`}
+          title={t`API tokens`}
           description={<>
             <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
             <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
@@ -1570,7 +1621,7 @@ export function SettingsPage() {
               variant="secondary"
             >
               <Plus className="w-3.5 h-3.5" />
-              <Trans>New Token</Trans>
+              <Trans>New token</Trans>
             </Pill>
           }
         >
@@ -1578,42 +1629,39 @@ export function SettingsPage() {
             <div className="space-y-4">
               {user?.is_admin && apiTokens.length > 0 && (
                 <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={apiTokensAllUsers}
-                        onChange={e => setApiTokensAllUsers(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded accent-primary"
-                      />
-                      <Trans>All users</Trans>
-                    </label>
+                    <Checkbox
+                      checked={apiTokensAllUsers}
+                      onChange={e => setApiTokensAllUsers(e.target.checked)}
+                      label={<span className="text-[13px] text-muted-foreground"><Trans>All users</Trans></span>}
+                    />
                 </div>
               )}
 
               {/* Create form */}
               {tokenFormOpen && (
                 <form onSubmit={handleCreateToken} className="flex flex-wrap items-end gap-2">
-                  <div className="flex-1">
-                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Token name</Trans></label>
-                    <input
+                  <div className="flex-1 min-w-[12rem]">
+                    <FormLabel htmlFor="token-name"><Trans>Token name</Trans></FormLabel>
+                    <Input
+                      id="token-name"
                       type="text"
                       value={tokenNewName}
                       onChange={e => { setTokenNewName(e.target.value); setTokenCreateError(null) }}
                       placeholder={t`e.g. scribe-laptop`}
                       autoFocus
-                      className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div className="shrink-0">
-                    <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Scope</Trans></label>
-                    <select
+                    <FormLabel htmlFor="token-scope"><Trans>Scope</Trans></FormLabel>
+                    <Select
+                      id="token-scope"
                       value={tokenNewScope}
                       onChange={e => setTokenNewScope(e.target.value as 'full' | 'readonly')}
-                      className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-auto min-w-[9.5rem]"
                     >
                       <option value="full">{t`Full access`}</option>
                       <option value="readonly">{t`Read-only`}</option>
-                    </select>
+                    </Select>
                   </div>
                   <Pill
                     type="submit"
@@ -1632,15 +1680,15 @@ export function SettingsPage() {
                   </Pill>
                 </form>
               )}
-              {tokenCreateError && <p className="text-xs text-destructive">{tokenCreateError}</p>}
+              {tokenCreateError && <p className="text-[13px] text-destructive">{tokenCreateError}</p>}
 
               {/* One-time token reveal */}
               {tokenRevealPlaintext && (
                 <div className="rounded-lg bg-warning/10 border border-warning/30 p-4 space-y-3">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-warning dark:text-warning shrink-0 mt-0.5" />
-                    <p className="text-xs font-medium text-warning">
-                      <Trans>This is the only time you will see this token. Store it somewhere safe — it cannot be recovered.</Trans>
+                    <p className="text-[13px] font-medium text-warning">
+                      <Trans>This is the only time you will see this token. Store it somewhere safe; it cannot be recovered.</Trans>
                     </p>
                   </div>
                   <div className="flex items-center gap-2 rounded-md bg-background border border-border px-3 py-2">
@@ -1702,12 +1750,12 @@ export function SettingsPage() {
                         <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
                           {tok.name}
                           {(tok.scope ?? 'full') === 'readonly' && (
-                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-info/10 text-info border border-info/20">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-info/10 text-info">
                               <Trans>Read-only</Trans>
                             </span>
                           )}
                           {isRevoked && (
-                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
                               <Trans>Revoked</Trans>
                             </span>
                           )}
@@ -1729,7 +1777,7 @@ export function SettingsPage() {
                         <div className="flex items-center justify-end shrink-0">
                           {!isRevoked && (
                             <button
-                              onClick={() => handleRevokeApiToken(tok.id)}
+                              onClick={() => askRevokeApiToken(tok.id)}
                               disabled={tokenRevoking === tok.id}
                               className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                               title={t`Revoke token`}
@@ -1769,7 +1817,7 @@ export function SettingsPage() {
         <PanelSection
           id="export"
           title={t`Export`}
-          description={<Trans>Download your entire library catalog — all titles, authors, series, tags and formats.</Trans>}
+          description={<Trans>Download your entire library catalog: all titles, authors, series, tags and formats.</Trans>}
         >
           <div>
 
@@ -1786,7 +1834,7 @@ export function SettingsPage() {
           title={t`Backup`}
           description={<Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
               every reading session, sync positions, shelves, and your local preferences.
-              Book files themselves are not included — Tome only references them on disk.
+              Book files themselves are not included, since Tome only references them on disk.
               API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>}
         >
           <div>
@@ -1839,7 +1887,7 @@ export function SettingsPage() {
             </div>
             {updateInfo && (
               <p className="mt-3 text-[13px] text-muted-foreground">
-                <Trans>A newer release is available — the link opens the release notes.
+                <Trans>A newer release is available. The link opens the release notes.
                 Update by pulling the new image and restarting the container.</Trans>
               </p>
             )}
@@ -1857,11 +1905,68 @@ export function SettingsPage() {
 
         </div>
       </SectionLayout>
+      <ConfirmDialog ask={confirmAsk} onClose={() => setConfirmAsk(null)} />
     </AppShell>
   )
 }
 
+/** Small confirm for a destructive action: what happens, Cancel, the action. */
+function ConfirmDialog({ ask, onClose }: { ask: ConfirmAsk | null; onClose: () => void }) {
+  const [busy, setBusy] = useState(false)
+  // Keep the last ask while the dialog animates out.
+  const [shown, setShown] = useState<ConfirmAsk | null>(ask)
+  if (ask && ask !== shown) setShown(ask)
+  async function go() {
+    if (!ask) return
+    setBusy(true)
+    try { await ask.run() } finally { setBusy(false); onClose() }
+  }
+  return (
+    <ModalShell
+      open={ask !== null}
+      onClose={busy ? undefined : onClose}
+      size="sm"
+      title={shown?.title}
+      footer={
+        <>
+          <Pill variant="quiet" onClick={onClose} disabled={busy}><Trans>Cancel</Trans></Pill>
+          <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={go} disabled={busy}>
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            {shown?.action}
+          </Pill>
+        </>
+      }
+    >
+      <p className="text-[14px] text-muted-foreground">{shown?.body}</p>
+    </ModalShell>
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** The KOSync last-sync time: the API sends an ISO string; accept epoch
+ *  seconds too. Unparseable input comes back as it was, never "Invalid Date". */
+function formatSyncTime(value: string | number, locale: string): string {
+  const d = typeof value === 'number'
+    ? new Date(value < 1e12 ? value * 1000 : value)
+    : new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`)
+  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString(locale)
+}
+
+/** Long lists show this many rows, then "Show more". */
+const LIST_PREVIEW = 8
+
+function ShowMore({ all, hidden, onToggle }: { all: boolean; hidden: number; onToggle: () => void }) {
+  return (
+    <div className="pt-2">
+      <Pill variant="quiet" onClick={onToggle} className="-ml-4">
+        {all
+          ? <><ChevronUp className="w-3.5 h-3.5" /><Trans>Show less</Trans></>
+          : <><ChevronDown className="w-3.5 h-3.5" /><Plural value={hidden} one="Show # more" other="Show # more" /></>}
+      </Pill>
+    </div>
+  )
+}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -1966,7 +2071,7 @@ function PluginVersion() {
 const SETUP_STEPS: { title: MessageDescriptor; body: MessageDescriptor; mono?: string }[] = [
   {
     title: msg`Download the plugin`,
-    body: msg`Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin — no manual configuration needed.`,
+    body: msg`Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin, so there is nothing to configure by hand.`,
   },
   {
     title: msg`Copy to KOReader`,
@@ -1997,26 +2102,22 @@ function SetupGuide() {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden text-xs">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
-      >
-        <span className="font-medium text-foreground"><Trans>Setup instructions</Trans></span>
-        <span className="text-muted-foreground text-[10px]">{open ? '▲' : '▼'}</span>
-      </button>
+    <div>
+      <Disclosure open={open} onToggle={() => setOpen(v => !v)}>
+        <Trans>Setup instructions</Trans>
+      </Disclosure>
       {open && (
-        <ol className="divide-y divide-border border-t border-border">
+        <ol className="divide-y divide-border/70 border-b border-border/70">
           {SETUP_STEPS.map((step, i) => (
-            <li key={i} className="flex gap-3 px-3 py-3">
-              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 text-[10px] mt-0.5">
+            <li key={i} className="flex gap-3 py-3">
+              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5 tabular-nums">
                 {i + 1}
               </span>
-              <div className="space-y-1">
-                <p className="font-medium text-foreground">{i18n._(step.title)}</p>
+              <div className="min-w-0 space-y-1 text-[13px]">
+                <p className="text-[14px] font-medium text-foreground">{i18n._(step.title)}</p>
                 <p className="text-muted-foreground leading-relaxed">{i18n._(step.body)}</p>
                 {step.mono && (
-                  <p className="font-mono text-muted-foreground/70">{step.mono}</p>
+                  <p className="font-mono text-[12px] text-muted-foreground/80 break-all">{step.mono}</p>
                 )}
               </div>
             </li>
@@ -2024,6 +2125,21 @@ function SetupGuide() {
         </ol>
       )}
     </div>
+  )
+}
+
+/** A plain disclosure row: the label and a chevron on a hairline, no box. */
+function Disclosure({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="group flex w-full items-center gap-2 border-y border-border/70 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:text-primary"
+    >
+      <ChevronRight className={cn('w-4 h-4 text-muted-foreground transition-transform group-hover:text-primary', open && 'rotate-90')} />
+      {children}
+    </button>
   )
 }
 

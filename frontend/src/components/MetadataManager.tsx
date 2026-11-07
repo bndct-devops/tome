@@ -18,6 +18,8 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from './CoverImage'
 import { useToast } from '@/contexts/ToastContext'
 import { coverSrc } from '@/lib/covers'
+import { Checkbox, FormLabel, Input, Pill, Select, Textarea } from '@/components/page'
+import { ModalShell, useEscape } from '@/components/ModalShell'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -64,6 +66,57 @@ const MISSING_FIELD_OPTIONS = [
   { key: 'publisher', label: msg`Publisher` },
 ]
 
+/** Header cell text: 12px small caps, like every hairline table. */
+// eslint-disable-next-line lingui/no-unlocalized-strings -- class names
+const HEAD = 'text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
+
+/** "Missing" filter: a pill that opens a small checklist. */
+function MissingFilter({ open, setOpen, selected, onToggle }: {
+  open: boolean
+  setOpen: (fn: (o: boolean) => boolean) => void
+  selected: string[]
+  onToggle: (key: string) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEscape(open, () => setOpen(() => false))
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(() => false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open, setOpen])
+  return (
+    <div ref={ref} className="relative">
+      <Pill
+        variant="secondary"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className={cn(selected.length > 0 && 'text-primary')}
+      >
+        <Filter className="w-3.5 h-3.5" />
+        <Trans>Missing</Trans>
+        {selected.length > 0 && <span className="font-semibold">({selected.length})</span>}
+        <ChevronDown className="w-3.5 h-3.5" />
+      </Pill>
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 z-20 min-w-[180px] rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5">
+          {MISSING_FIELD_OPTIONS.map(opt => (
+            <Checkbox
+              key={opt.key}
+              checked={selected.includes(opt.key)}
+              onChange={() => onToggle(opt.key)}
+              label={i18n._(opt.label)}
+              className="flex w-full px-3 py-1.5 hover:bg-secondary"
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── FieldRow (shared with review flow) ───────────────────────────────────────
 
 interface FieldRow {
@@ -95,7 +148,7 @@ function buildFieldRows(book: BookDetail, c: MetadataCandidate): FieldRow[] {
 function CompletenessBadge({ score, total }: { score: number; total: number }) {
   const pct = score / total
   const color = pct >= 0.8 ? 'text-success' : pct >= 0.5 ? 'text-warning' : 'text-destructive'
-  return <span className={cn('text-xs font-mono font-medium', color)}>{score}/{total}</span>
+  return <span className={cn('text-[13px] font-mono font-medium tabular-nums', color)}>{score}/{total}</span>
 }
 
 // ── Presence dot ─────────────────────────────────────────────────────────────
@@ -157,7 +210,7 @@ function EditCell({ value, bookId, field, onSaved }: EditCellProps) {
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={onKeyDown}
-        className="w-full bg-background border border-primary rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full bg-secondary rounded-md px-1.5 py-0.5 text-[13px] text-foreground ring-1 ring-ring focus:outline-none"
       />
     )
   }
@@ -165,7 +218,7 @@ function EditCell({ value, bookId, field, onSaved }: EditCellProps) {
   return (
     <span
       onClick={startEdit}
-      className="cursor-pointer hover:bg-accent rounded px-1 py-0.5 text-xs block truncate group relative"
+      className="cursor-pointer hover:bg-secondary rounded-md px-1.5 py-0.5 text-[13px] block truncate group relative"
       title={value || undefined}
     >
       {saving && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
@@ -338,14 +391,11 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
         <Check className="w-12 h-12 text-success" />
         <h2 className="text-lg font-semibold"><Trans>Review complete</Trans></h2>
         <p className="text-sm text-muted-foreground">
-          {(() => { const total = queue.length; const applied = summary.applied; const skipped = summary.skipped; return <Trans>Reviewed {total} books — applied changes to {applied}, skipped {skipped}.</Trans> })()}
+          {(() => { const total = queue.length; const applied = summary.applied; const skipped = summary.skipped; return <Trans>Reviewed {total} books. Applied changes to {applied}, skipped {skipped}.</Trans> })()}
         </p>
-        <button
-          onClick={onBack}
-          className="mt-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-all"
-        >
-          <Trans>Back to Table</Trans>
-        </button>
+        <Pill variant="primary" onClick={onBack} className="mt-4">
+          <Trans>Back to table</Trans>
+        </Pill>
       </div>
     )
   }
@@ -358,7 +408,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           onClick={onBack}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> <Trans>Back to Table</Trans>
+          <ArrowLeft className="w-4 h-4" /> <Trans>Back to table</Trans>
         </button>
         <div className="flex items-center gap-3 flex-1 max-w-xs">
           <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -412,20 +462,22 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
               ].map(({ field, label, value }) => (
                 <div key={field} className="grid grid-cols-[80px_1fr] gap-2 items-center">
                   <span className="text-xs text-muted-foreground">{i18n._(label)}</span>
-                  <input
+                  <Input
                     value={draft[field as keyof BookDetail] as string ?? value}
                     onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
-                    className="text-xs bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
+                    aria-label={i18n._(label)}
+                    className="h-8 text-[13px]"
                   />
                 </div>
               ))}
               <div className="grid grid-cols-[80px_1fr] gap-2">
                 <span className="text-xs text-muted-foreground pt-1"><Trans>Description</Trans></span>
-                <textarea
+                <Textarea
                   value={(draft.description as string | undefined) ?? book.description ?? ''}
                   onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
                   rows={4}
-                  className="text-xs bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                  aria-label={t`Description`}
+                  className="text-[13px] resize-none"
                 />
               </div>
             </div>
@@ -435,21 +487,17 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {/* Fetch again bar */}
             <div className="flex gap-2">
-              <input
+              <Input
                 value={customQuery}
                 onChange={e => setCustomQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && fetchCandidates(book.id, customQuery)}
                 placeholder={t`Override search query…`}
-                className="flex-1 h-8 text-xs bg-background border border-border rounded px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                className="flex-1"
               />
-              <button
-                onClick={() => fetchCandidates(book.id, customQuery)}
-                disabled={loadingCandidates}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted hover:bg-accent border border-border transition-all disabled:opacity-50"
-              >
-                {loadingCandidates ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              <Pill variant="secondary" onClick={() => fetchCandidates(book.id, customQuery)} disabled={loadingCandidates} className="shrink-0">
+                {loadingCandidates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 <Trans>Fetch</Trans>
-              </button>
+              </Pill>
             </div>
 
             {loadingCandidates && (
@@ -465,7 +513,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             {/* Candidate list */}
             {candidates.length > 0 && !loadingCandidates && (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">{plural(candidates.length, { one: '# candidate — click to select', other: '# candidates — click to select' })}</p>
+                <p className="text-xs text-muted-foreground">{plural(candidates.length, { one: '# candidate. Click to select.', other: '# candidates. Click to select.' })}</p>
                 {candidates.map(c => (
                   <button
                     key={`${c.source}-${c.source_id}`}
@@ -504,15 +552,11 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide"><Trans>Field diff</Trans></p>
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={fields.every(f => f.checked)}
-                      onChange={toggleAll}
-                      className="rounded border-border"
-                    />
-                    <Trans>All</Trans>
-                  </label>
+                  <Checkbox
+                    checked={fields.every(f => f.checked)}
+                    onChange={toggleAll}
+                    label={<span className="text-[13px]"><Trans>All</Trans></span>}
+                  />
                 </div>
                 <div className="rounded-lg border border-border overflow-hidden">
                   <div className="grid grid-cols-[20px_60px_1fr_1fr] sm:grid-cols-[20px_80px_1fr_1fr] gap-2 items-center bg-muted px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
@@ -532,12 +576,11 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                           !hasChange && 'opacity-40'
                         )}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={f.checked}
                           onChange={() => toggleField(f.key)}
                           disabled={!hasChange}
-                          className="mt-0.5 rounded border-border"
+                          aria-label={i18n._(f.label)}
                         />
                         <span className="text-muted-foreground text-[11px] mt-0.5">{i18n._(f.label)}</span>
                         {f.key === 'cover' ? (
@@ -578,29 +621,18 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
       {/* Footer nav */}
       {book && !loadingBook && (
         <div className="border-t border-border px-6 py-3 flex items-center justify-between">
-          <button
-            onClick={prev}
-            disabled={idx === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-all"
-          >
+          <Pill variant="quiet" onClick={prev} disabled={idx === 0}>
             <ArrowLeft className="w-3.5 h-3.5" /> <Trans>Previous</Trans>
-          </button>
+          </Pill>
           <div className="flex items-center gap-2">
-            {applyError && <span className="text-xs text-destructive">{applyError}</span>}
-            <button
-              onClick={skip}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-            >
+            {applyError && <span className="text-[13px] text-destructive">{applyError}</span>}
+            <Pill variant="secondary" onClick={skip}>
               <SkipForward className="w-3.5 h-3.5" /> <Trans>Skip</Trans>
-            </button>
-            <button
-              onClick={applyAndNext}
-              disabled={applying}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-            >
+            </Pill>
+            <Pill variant="primary" onClick={applyAndNext} disabled={applying}>
               {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
-              <Trans>Apply & Next</Trans>
-            </button>
+              <Trans>Apply and next</Trans>
+            </Pill>
           </div>
         </div>
       )}
@@ -676,99 +708,76 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <div>
-            <div className="flex items-center gap-2 font-semibold text-sm">
-              <Wand2 className="w-4 h-4 text-primary" />
-              <Trans>Standardize Titles</Trans>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {(() => { const n = changed.length; const total = proposals.length; return <Trans>{n} of {total} books would change</Trans> })()}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* List */}
-        <div className="overflow-y-auto flex-1 divide-y divide-border/50">
-          {changed.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-12">
-              <Trans>No titles need standardizing.</Trans>
-            </p>
-          )}
-          {changed.length > 0 && (
-            <div className="flex items-center gap-2 px-5 py-2 bg-muted/40">
-              <input
-                type="checkbox"
-                checked={checked.size === changed.length}
-                onChange={toggleAll}
-                className="rounded border-border"
-              />
-              {(() => { const n = changed.length; return <span className="text-xs text-muted-foreground"><Trans>Select all ({n})</Trans></span> })()}
-            </div>
-          )}
-          {changed.map(p => (
-            <label key={p.book_id} className="flex items-start gap-3 px-5 py-3 hover:bg-accent/30 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={checked.has(p.book_id)}
-                onChange={() => toggle(p.book_id)}
-                className="rounded border-border mt-0.5 shrink-0"
-              />
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-xs text-muted-foreground line-through truncate">{p.current_title}{p.current_subtitle ? ` — ${p.current_subtitle}` : ''}</p>
-                <div className="text-xs space-y-0.5">
-                  {p.proposed_title !== p.current_title && (
-                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Title</Trans></span><span className="font-medium">{p.proposed_title}</span></p>
-                  )}
-                  {p.proposed_subtitle !== p.current_subtitle && (
-                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Subtitle</Trans></span><span className="font-medium">{p.proposed_subtitle ?? <span className="italic text-muted-foreground/50"><Trans>cleared</Trans></span>}</span></p>
-                  )}
-                  {p.proposed_series !== p.current_series && (
-                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Series</Trans></span><span className="font-medium">{p.proposed_series ?? <span className="italic text-muted-foreground/50"><Trans>cleared</Trans></span>}</span></p>
-                  )}
-                  {p.proposed_series_index !== p.current_series_index && (
-                    <p><span className="text-muted-foreground w-16 inline-block"><Trans>Index</Trans></span><span className="font-medium">{p.proposed_series_index ?? <span className="italic text-muted-foreground/50"><Trans>cleared</Trans></span>}</span></p>
-                  )}
-                </div>
-              </div>
-            </label>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-border shrink-0 gap-3">
+    <ModalShell
+      open
+      onClose={applying ? undefined : onClose}
+      size="lg"
+      title={<Trans>Standardize titles</Trans>}
+      subtitle={(() => { const n = changed.length; const total = proposals.length; return <Trans>{n} of {total} books would change</Trans> })()}
+      footer={
+        <>
           {applying && (
-            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="mr-auto flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
               <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
           )}
-          {error && <p className="text-xs text-destructive flex-1">{error}</p>}
-          {!applying && !error && <div className="flex-1" />}
-          <button
-            onClick={onClose}
-            disabled={applying}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-          >
+          {error && <p className="mr-auto flex-1 text-[13px] text-destructive">{error}</p>}
+          <Pill variant="quiet" onClick={onClose} disabled={applying}>
             <Trans>Cancel</Trans>
-          </button>
-          <button
-            onClick={apply}
-            disabled={applying || checked.size === 0}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-          >
+          </Pill>
+          <Pill variant="primary" onClick={apply} disabled={applying || checked.size === 0}>
             {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-            {(() => { const n = checked.size; return n > 0 ? <Trans>Apply {n} Changes</Trans> : <Trans>Apply Changes</Trans> })()}
-          </button>
+            {(() => { const n = checked.size; return n > 0 ? <Trans>Apply {n} changes</Trans> : <Trans>Apply changes</Trans> })()}
+          </Pill>
+        </>
+      }
+    >
+      {changed.length === 0 ? (
+        <p className="text-[14px] text-muted-foreground text-center py-12">
+          <Trans>No titles need standardizing.</Trans>
+        </p>
+      ) : (
+        <div className="border-y border-border/70 divide-y divide-border/70">
+          <div className="py-2.5">
+            {(() => { const n = changed.length; return (
+              <Checkbox
+                checked={checked.size === changed.length}
+                onChange={toggleAll}
+                label={<span className="text-muted-foreground"><Trans>Select all ({n})</Trans></span>}
+              />
+            ) })()}
+          </div>
+          {changed.map(p => (
+            <div key={p.book_id} className="py-3">
+              <Checkbox
+                checked={checked.has(p.book_id)}
+                onChange={() => toggle(p.book_id)}
+                className="flex w-full"
+                label={
+                  <span className="block min-w-0 space-y-1">
+                    <span className="block text-[13px] text-muted-foreground line-through truncate">{p.current_title}{p.current_subtitle ? `: ${p.current_subtitle}` : ''}</span>
+                    <span className="block text-[14px] space-y-0.5">
+                      {p.proposed_title !== p.current_title && (
+                        <span className="block"><span className="text-muted-foreground w-20 inline-block"><Trans>Title</Trans></span><span className="font-medium">{p.proposed_title}</span></span>
+                      )}
+                      {p.proposed_subtitle !== p.current_subtitle && (
+                        <span className="block"><span className="text-muted-foreground w-20 inline-block"><Trans>Subtitle</Trans></span><span className="font-medium">{p.proposed_subtitle ?? <span className="italic text-muted-foreground/60"><Trans>cleared</Trans></span>}</span></span>
+                      )}
+                      {p.proposed_series !== p.current_series && (
+                        <span className="block"><span className="text-muted-foreground w-20 inline-block"><Trans>Series</Trans></span><span className="font-medium">{p.proposed_series ?? <span className="italic text-muted-foreground/60"><Trans>cleared</Trans></span>}</span></span>
+                      )}
+                      {p.proposed_series_index !== p.current_series_index && (
+                        <span className="block"><span className="text-muted-foreground w-20 inline-block"><Trans>Index</Trans></span><span className="font-medium">{p.proposed_series_index ?? <span className="italic text-muted-foreground/60"><Trans>cleared</Trans></span>}</span></span>
+                      )}
+                    </span>
+                  </span>
+                }
+              />
+            </div>
+          ))}
         </div>
-      </div>
-    </div>
+      )}
+    </ModalShell>
   )
 }
 
@@ -868,119 +877,90 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
     onClose()
   }
 
-  if (!open) return null
-
   const detected = books.filter(b => extractChapterNum(b.title) !== null).length
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
-      <div className="relative z-10 bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md mx-4 flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold"><Trans>Assign Chapter Metadata</Trans></h2>
-          <button onClick={handleClose} disabled={applying} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <p className="text-xs text-muted-foreground">
-            {(() => { const n = bookIds.length; return t`${n} chapters uploaded` })()}{detected > 0 ? t` — ${detected} chapter numbers detected` : ''}
-          </p>
-
-          {/* Series picker */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground"><Trans>Series</Trans></label>
-            <input
-              list="chapter-series-list"
-              value={series}
-              onChange={e => setSeries(e.target.value)}
-              placeholder={t`Start typing to search...`}
-              className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <datalist id="chapter-series-list">
-              {facets.series.map(s => <option key={s} value={s} />)}
-            </datalist>
-          </div>
-
-          {/* Author */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground"><Trans>Author</Trans></label>
-            <input
-              list="chapter-author-list"
-              value={author}
-              onChange={e => setAuthor(e.target.value)}
-              placeholder={t`Auto-filled from series`}
-              className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <datalist id="chapter-author-list">
-              {facets.authors.map(a => <option key={a} value={a} />)}
-            </datalist>
-          </div>
-
-          {/* Book type */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground"><Trans>Book Type</Trans></label>
-            <select
-              value={bookTypeId}
-              onChange={e => setBookTypeId(e.target.value)}
-              className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">{t`None`}</option>
-              {bookTypes.map(bt => <option key={bt.id} value={String(bt.id)}>{bt.label}</option>)}
-            </select>
-          </div>
-
-          {/* Preview */}
-          {books.length > 0 && series && (
-            <div className="rounded-lg border border-border bg-muted/30 max-h-40 overflow-y-auto">
-              <div className="divide-y divide-border/50">
-                {books.map(b => {
-                  const num = extractChapterNum(b.title)
-                  return (
-                    <div key={b.id} className="flex items-center gap-2 px-3 py-1.5 text-xs">
-                      <span className="text-muted-foreground truncate flex-1">{b.title}</span>
-                      <span className="shrink-0 font-medium">
-                        {num !== null ? t`Ch. ${num}` : <span className="text-warning">?</span>}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex items-center justify-between">
-          {applying && progress ? (() => {
+    <ModalShell
+      open={open}
+      onClose={applying ? undefined : handleClose}
+      size="sm"
+      title={<Trans>Assign chapter metadata</Trans>}
+      subtitle={(() => {
+        const n = bookIds.length
+        return detected > 0
+          ? t`${n} chapters uploaded, ${detected} chapter numbers detected`
+          : t`${n} chapters uploaded`
+      })()}
+      footer={
+        <>
+          {applying && progress && (() => {
             const done = progress.done, total = progress.total
-            return <span className="text-xs text-muted-foreground"><Trans>Applying {done}/{total}…</Trans></span>
-          })() : (
-            <span />
-          )}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleClose}
-              disabled={applying}
-              className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-            >
-              <Trans>Cancel</Trans>
-            </button>
-            <button
-              onClick={apply}
-              disabled={applying || !series || books.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-            >
-              {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              {(() => { const n = bookIds.length; return <Trans>Apply to {n} Chapters</Trans> })()}
-            </button>
-          </div>
+            return <span className="mr-auto text-[13px] text-muted-foreground"><Trans>Applying {done}/{total}…</Trans></span>
+          })()}
+          <Pill variant="quiet" onClick={handleClose} disabled={applying}>
+            <Trans>Cancel</Trans>
+          </Pill>
+          <Pill variant="primary" onClick={apply} disabled={applying || !series || books.length === 0}>
+            {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            {(() => { const n = bookIds.length; return <Trans>Apply to {n} chapters</Trans> })()}
+          </Pill>
+        </>
+      }
+    >
+      <div className="space-y-4 pt-1">
+        <div>
+          <FormLabel htmlFor="chapter-series"><Trans>Series</Trans></FormLabel>
+          <Input
+            id="chapter-series"
+            list="chapter-series-list"
+            value={series}
+            onChange={e => setSeries(e.target.value)}
+            placeholder={t`Start typing to search...`}
+          />
+          <datalist id="chapter-series-list">
+            {facets.series.map(s => <option key={s} value={s} />)}
+          </datalist>
         </div>
+
+        <div>
+          <FormLabel htmlFor="chapter-author"><Trans>Author</Trans></FormLabel>
+          <Input
+            id="chapter-author"
+            list="chapter-author-list"
+            value={author}
+            onChange={e => setAuthor(e.target.value)}
+            placeholder={t`Auto-filled from series`}
+          />
+          <datalist id="chapter-author-list">
+            {facets.authors.map(a => <option key={a} value={a} />)}
+          </datalist>
+        </div>
+
+        <div>
+          <FormLabel htmlFor="chapter-type"><Trans>Book type</Trans></FormLabel>
+          <Select id="chapter-type" value={bookTypeId} onChange={e => setBookTypeId(e.target.value)}>
+            <option value="">{t`None`}</option>
+            {bookTypes.map(bt => <option key={bt.id} value={String(bt.id)}>{bt.label}</option>)}
+          </Select>
+        </div>
+
+        {books.length > 0 && series && (
+          <div className="max-h-40 overflow-y-auto border-y border-border/70 divide-y divide-border/70">
+            {books.map(b => {
+              const num = extractChapterNum(b.title)
+              return (
+                <div key={b.id} className="flex items-center gap-2 py-1.5 text-[13px]">
+                  <span className="text-muted-foreground truncate flex-1">{b.title}</span>
+                  <span className="shrink-0 font-medium">
+                    {num !== null ? t`Ch. ${num}` : <span className="text-warning">?</span>}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
-    </div>
+    </ModalShell>
   )
 }
 
@@ -1165,7 +1145,7 @@ export function MetadataManager() {
     return (
       <button
         onClick={() => toggleSort(col)}
-        className={cn('flex items-center gap-0.5 text-[11px] font-medium uppercase tracking-wide hover:text-foreground transition-colors', active ? 'text-foreground' : 'text-muted-foreground')}
+        className={cn('flex items-center gap-0.5 text-[12px] font-bold uppercase tracking-[0.1em] hover:text-foreground transition-colors', active ? 'text-foreground' : 'text-muted-foreground')}
       >
         {label}
         {active ? (sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : <ChevronUp className="w-3 h-3 opacity-20" />}
@@ -1223,8 +1203,8 @@ export function MetadataManager() {
         onWishMatches={(wishIds) => {
           const n = wishIds.length
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish — review in Admin > Wishlist',
-            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+            one: 'This upload satisfies # wish. Review it in Admin > Wishlist.',
+            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist.',
           }))
         }}
       />
@@ -1240,226 +1220,157 @@ export function MetadataManager() {
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input
+        <div className="relative w-full sm:w-56">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
             value={search}
             onChange={e => handleSearchChange(e.target.value)}
             placeholder={t`Search title, author…`}
-            className="pl-8 pr-3 h-8 w-52 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label={t`Search title, author…`}
+            className="pl-8 pr-8"
           />
           {search && (
-            <button onClick={() => handleSearchChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="w-3 h-3" />
+            <button onClick={() => handleSearchChange('')} aria-label={t`Clear search`} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Series */}
-        <select
-          value={filterSeries}
-          onChange={e => setFilterSeries(e.target.value)}
-          className="h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
-        >
+        <Select value={filterSeries} onChange={e => setFilterSeries(e.target.value)} aria-label={t`Series`} className="w-auto max-w-[14rem]">
           <option value="">{t`All series`}</option>
           {allSeries.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        </Select>
 
-        {/* Book type */}
-        <select
-          value={filterTypeId}
-          onChange={e => setFilterTypeId(e.target.value)}
-          className="h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
-        >
+        <Select value={filterTypeId} onChange={e => setFilterTypeId(e.target.value)} aria-label={t`Type`} className="w-auto">
           <option value="">{t`All types`}</option>
           {bookTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-        </select>
+        </Select>
 
-        {/* Library */}
-        <select
-          value={filterLibId}
-          onChange={e => setFilterLibId(e.target.value)}
-          className="h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
-        >
+        <Select value={filterLibId} onChange={e => setFilterLibId(e.target.value)} aria-label={t`Library`} className="w-auto">
           <option value="">{t`All libraries`}</option>
           {libraries.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
+        </Select>
 
-        {/* Missing fields multi-select */}
-        <div className="relative">
-          <button
-            onClick={() => setMissingDropOpen(o => !o)}
-            className={cn(
-              'flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-lg border transition-colors',
-              missingFields.length > 0 ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-background text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Filter className="w-3 h-3" />
-            <Trans>Missing</Trans>
-            {missingFields.length > 0 && <span className="font-medium">({missingFields.length})</span>}
-            <ChevronDown className="w-3 h-3" />
-          </button>
-          {missingDropOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMissingDropOpen(false)} />
-              <div className="absolute top-full left-0 mt-1 z-20 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[160px]">
-                {MISSING_FIELD_OPTIONS.map(opt => (
-                  <label key={opt.key} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={missingFields.includes(opt.key)}
-                      onChange={() => toggleMissingField(opt.key)}
-                      className="rounded border-border"
-                    />
-                    {i18n._(opt.label)}
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <MissingFilter
+          open={missingDropOpen}
+          setOpen={setMissingDropOpen}
+          selected={missingFields}
+          onToggle={toggleMissingField}
+        />
 
         {hasFilters && (
-          <button onClick={clearFilters} className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors">
+          <Pill variant="quiet" onClick={clearFilters}>
             <Trans>Clear</Trans>
-          </button>
+          </Pill>
         )}
 
-        <span className="text-xs text-muted-foreground ml-1">
-          {filtered.length !== books.length ? `${filtered.length} of ${books.length}` : `${books.length}`} books
+        <span className="text-[13px] text-muted-foreground ml-1 tabular-nums">
+          {(() => {
+            const shown = filtered.length, all = books.length
+            return shown !== all
+              ? t`${shown} of ${all} books`
+              : plural(all, { one: '# book', other: '# books' })
+          })()}
         </span>
+      </div>
 
-        <div className="flex-1" />
-
-        {/* Upload */}
-        <button
-          onClick={() => { setChapterMode(false); setUploadModalOpen(true) }}
-          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-all"
-        >
+      {/* Actions */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Pill variant="secondary" onClick={() => { setChapterMode(false); setUploadModalOpen(true) }}>
           <Upload className="w-3.5 h-3.5" />
           <Trans>Upload</Trans>
-        </button>
-        <button
-          onClick={() => { setChapterMode(true); setUploadModalOpen(true) }}
-          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-all"
-        >
+        </Pill>
+        <Pill variant="secondary" onClick={() => { setChapterMode(true); setUploadModalOpen(true) }}>
           <BookMarked className="w-3.5 h-3.5" />
-          <Trans>Upload Chapters</Trans>
-        </button>
-
-        {/* Batch Fetch */}
-        <button
-          onClick={() => startBatchFetch(sorted.map(b => b.id))}
-          disabled={sorted.length === 0}
-          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 transition-all"
-        >
+          <Trans>Upload chapters</Trans>
+        </Pill>
+        <Pill variant="secondary" onClick={() => startBatchFetch(sorted.map(b => b.id))} disabled={sorted.length === 0}>
           <Sparkles className="w-3.5 h-3.5" />
-          {(() => { const n = Math.min(sorted.length, 100); return <Trans>Batch Fetch ({n})</Trans> })()}
-        </button>
-
-        {/* Review all filtered */}
-        <button
+          {(() => { const n = Math.min(sorted.length, 100); return <Trans>Batch fetch ({n})</Trans> })()}
+        </Pill>
+        <Pill
+          variant={selected.size > 0 ? 'secondary' : 'primary'}
           onClick={() => startReview(sorted.map(b => b.id))}
           disabled={sorted.length === 0}
-          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 transition-all"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          {(() => { const n = sorted.length; return <Trans>Review All Filtered ({n})</Trans> })()}
-        </button>
-        <button
-          onClick={() => startStandardize(sorted.map(b => b.id))}
-          disabled={sorted.length === 0 || standardizeLoading}
-          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 transition-all"
-        >
+          {(() => { const n = sorted.length; return <Trans>Review all filtered ({n})</Trans> })()}
+        </Pill>
+        <Pill variant="secondary" onClick={() => startStandardize(sorted.map(b => b.id))} disabled={sorted.length === 0 || standardizeLoading}>
           {standardizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-          <Trans>Standardize Titles</Trans>
-        </button>
+          <Trans>Standardize titles</Trans>
+        </Pill>
       </div>
 
       {/* Bulk bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
-          {(() => { const n = selected.size; return <span className="text-xs font-medium text-primary">{t`${n} selected`}</span> })()}
+        <div className="flex flex-wrap items-center gap-2 border-y border-border/70 py-2">
+          {(() => { const n = selected.size; return <span className="text-[14px] font-medium text-foreground">{t`${n} selected`}</span> })()}
           <div className="flex-1" />
-          <button
-            onClick={() => startBatchFetch([...selected])}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted transition-all"
-          >
+          <Pill variant="secondary" onClick={() => startBatchFetch([...selected])}>
             <Sparkles className="w-3.5 h-3.5" />
-            <Trans>Batch Fetch</Trans>
-          </button>
-          <button
-            onClick={() => startReview([...selected])}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-          >
+            <Trans>Batch fetch</Trans>
+          </Pill>
+          <Pill variant="primary" onClick={() => startReview([...selected])}>
             <Sparkles className="w-3.5 h-3.5" />
-            <Trans>Review Selected</Trans>
-          </button>
-          <button
-            onClick={() => startStandardize([...selected])}
-            disabled={standardizeLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-          >
+            <Trans>Review selected</Trans>
+          </Pill>
+          <Pill variant="secondary" onClick={() => startStandardize([...selected])} disabled={standardizeLoading}>
             {standardizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
             <Trans>Standardize</Trans>
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
+          </Pill>
+          <Pill variant="quiet" icon onClick={() => setSelected(new Set())} aria-label={t`Clear selection`} title={t`Clear selection`}>
             <X className="w-4 h-4" />
-          </button>
+          </Pill>
         </div>
       )}
 
       {/* Error / loading */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-[14px] text-destructive">{error}</p>}
       {loading && (
         <div className="flex items-center justify-center py-16">
           <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
         </div>
       )}
 
-      {/* Table */}
+      {/* Table: rows on hairlines */}
       {!loading && (
-        <div className="rounded-lg border border-border overflow-auto max-h-[calc(100vh-220px)]">
-          <table className="w-full min-w-[900px] text-xs">
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-muted border-b border-border">
-                <th className="w-8 px-2 py-2 text-left">
-                  <input
-                    type="checkbox"
+        <div className="overflow-auto max-h-[calc(100vh-220px)] border-y border-border/70">
+          <table className="w-full min-w-[960px] table-fixed text-[13px]">
+            <thead className="sticky top-0 z-10 bg-background">
+              <tr className="border-b border-border/70">
+                <th className="w-9 pl-0 pr-2 py-2.5 text-left">
+                  <Checkbox
                     checked={selected.size === sorted.length && sorted.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-border"
+                    aria-label={t`Select all`}
                   />
                 </th>
-                <th className="w-10 px-2 py-2" />
-                <th className="px-2 py-2 text-left"><SortHeader col="title" label={t`Title`} /></th>
-                <th className="w-28 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Subtitle</Trans></th>
-                <th className="w-36 px-2 py-2 text-left"><SortHeader col="author" label={t`Author`} /></th>
-                <th className="w-36 px-2 py-2 text-left"><SortHeader col="series" label={t`Series`} /></th>
-                <th className="w-10 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">#</th>
-                <th className="w-16 px-2 py-2 text-left"><SortHeader col="year" label={t`Year`} /></th>
-                <th className="w-12 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Desc</Trans></th>
-                <th className="w-12 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Cover</Trans></th>
-                <th className="w-24 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">ISBN</th>
-                <th className="w-12 px-2 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide"><Trans>Lang</Trans></th>
-                <th className="w-14 px-2 py-2 text-left"><SortHeader col="completeness" label={t`Score`} /></th>
+                <th className="w-10 px-2 py-2.5" />
+                <th className="px-2 py-2.5 text-left"><SortHeader col="title" label={t`Title`} /></th>
+                <th className={cn('w-28 px-2 py-2.5 text-left', HEAD)}><Trans>Subtitle</Trans></th>
+                <th className="w-36 px-2 py-2.5 text-left"><SortHeader col="author" label={t`Author`} /></th>
+                <th className="w-36 px-2 py-2.5 text-left"><SortHeader col="series" label={t`Series`} /></th>
+                <th className={cn('w-10 px-2 py-2.5 text-left', HEAD)}>#</th>
+                <th className="w-[4.5rem] px-2 py-2.5 text-left"><SortHeader col="year" label={t`Year`} /></th>
+                <th className={cn('w-14 px-2 py-2.5 text-center', HEAD)}><Trans>Desc</Trans></th>
+                <th className={cn('w-14 px-2 py-2.5 text-center', HEAD)}><Trans>Cover</Trans></th>
+                <th className={cn('w-28 px-2 py-2.5 text-left', HEAD)}>ISBN</th>
+                <th className={cn('w-14 px-2 py-2.5 text-left', HEAD)}><Trans>Lang</Trans></th>
+                <th className="w-16 pl-2 pr-0 py-2.5 text-left"><SortHeader col="completeness" label={t`Score`} /></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border/70">
               {sorted.map(book => (
                 <tr
                   key={book.id}
-                  className={cn('border-b border-border/50 hover:bg-accent/30 transition-colors', selected.has(book.id) && 'bg-primary/5')}
+                  className={cn('hover:bg-secondary/50 transition-colors', selected.has(book.id) && 'bg-primary/5')}
                 >
-                  <td className="px-2 py-1.5">
-                    <input
-                      type="checkbox"
+                  <td className="pl-0 pr-2 py-1.5">
+                    <Checkbox
                       checked={selected.has(book.id)}
                       onChange={e => toggleSelect(book.id, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
-                      className="rounded border-border"
+                      aria-label={t`Select`}
                     />
                   </td>
                   <td className="px-2 py-1.5">
@@ -1467,10 +1378,10 @@ export function MetadataManager() {
                       <img
                         src={API + coverSrc(book.id, { w: 160 })}
                         alt=""
-                        className="w-7 h-9 object-cover rounded border border-border"
+                        className="w-7 h-10 object-cover rounded-[4px]"
                       />
                     ) : (
-                      <div className="w-7 h-9 rounded border border-border bg-muted flex items-center justify-center">
+                      <div className="w-7 h-10 rounded-[4px] bg-secondary flex items-center justify-center">
                         <BookOpen className="w-3 h-3 text-muted-foreground" />
                       </div>
                     )}
@@ -1512,7 +1423,7 @@ export function MetadataManager() {
               ))}
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground text-sm">
+                  <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground text-[14px]">
                     <Trans>No books match the current filters.</Trans>
                   </td>
                 </tr>

@@ -55,7 +55,7 @@ export function SetupPage() {
       <ThemeToggle className="fixed top-4 right-4" />
 
       <AuthPanel
-        eyebrow={<Trans>Step 1 of 2</Trans>}
+        eyebrow={<Trans>First run</Trans>}
         title={<Trans>Welcome to Tome</Trans>}
         subtitle={<Trans>Create your admin account to get started</Trans>}
       >
@@ -125,15 +125,15 @@ export function SetupPage() {
         </form>
 
         <p className="mt-6 text-[13px] text-muted-foreground">
-          <Trans>Next: Your library</Trans>
+          <Trans>After this, add books by scanning your library folder or uploading files.</Trans>
         </p>
       </AuthPanel>
 
       {/* What Tome does, setup page only */}
       <div className="mt-6 flex items-center justify-center gap-6 text-[13px] text-muted-foreground">
-        <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /><Trans>Your Library</Trans></span>
-        <span className="flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /><Trans>KOReader Sync</Trans></span>
-        <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /><Trans>Reading Stats</Trans></span>
+        <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /><Trans>Your library</Trans></span>
+        <span className="flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /><Trans>KOReader sync</Trans></span>
+        <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /><Trans>Reading stats</Trans></span>
       </div>
 
       <p className="text-center text-[13px] text-muted-foreground mt-4">

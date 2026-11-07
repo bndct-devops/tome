@@ -10,10 +10,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import jsQR from 'jsqr'
-import { Camera, CheckCircle, ImageUp, Loader2, ScanLine, X } from 'lucide-react'
+import { Camera, CheckCircle, ImageUp, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
+import { Pill } from '@/components/page'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
@@ -226,122 +227,112 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
   const missingList = missing.join(', ')
 
   return createPortal(
-    <ModalShell open onClose={onClose} className="w-full max-w-md">
-      <div className="rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
-          <ScanLine className="h-4 w-4 text-primary" />
-          <h2 className="font-display text-base text-foreground">
-            {result ? <Trans>Sync code applied</Trans> : <Trans>Scan a sync code</Trans>}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label={t`Close`}
-            className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      title={result ? <Trans>Sync code applied</Trans> : <Trans>Scan a sync code</Trans>}
+      footer={result ? (
+        <>
+          <Pill variant="secondary" onClick={reset}>
+            <Trans>Scan another</Trans>
+          </Pill>
+          <Pill variant="primary" onClick={onClose}>
+            <Trans>Done</Trans>
+          </Pill>
+        </>
+      ) : (
+        <>
+          {header && (
+            <Pill variant="quiet" onClick={reset} disabled={busy}>
+              <Trans>Start over</Trans>
+            </Pill>
+          )}
+          <Pill variant="secondary" onClick={() => fileRef.current?.click()} disabled={busy}>
+            <ImageUp className="h-3.5 w-3.5" /> <Trans>Use a photo</Trans>
+          </Pill>
+        </>
+      )}
+    >
+      {result ? (
+        <SyncCodeOverview result={result} />
+      ) : (
+        <div>
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
+            <Trans>On the KOReader device open TomeSync and tap "Show sync code". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page.</Trans>
+          </p>
 
-        {result ? (
-          <SyncCodeOverview result={result} onAgain={reset} onDone={onClose} />
-        ) : (
-          <div className="px-5 py-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              <Trans>On the KOReader device open TomeSync and tap "Show sync code". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page.</Trans>
-            </p>
-
-            <div className="relative mt-4 overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '4 / 3' }}>
-              <video ref={videoRef} playsInline muted className={cn('h-full w-full object-cover', cameraState !== 'live' && 'hidden')} />
-              <canvas ref={canvasRef} className="hidden" />
-              {cameraState !== 'live' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-xs text-white/80">
-                  {cameraState === 'starting'
-                    ? <><Loader2 className="h-5 w-5 animate-spin" /><Trans>Starting the camera…</Trans></>
-                    : <><Camera className="h-6 w-6 opacity-70" /><Trans>No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead.</Trans></>}
-                </div>
-              )}
-              {cameraState === 'live' && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="h-48 w-48 rounded-2xl border-[3px] border-white/85" />
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 min-h-[2.5rem] text-center text-sm">
-              {busy ? (
-                <span className="inline-flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> <Trans>Applying…</Trans></span>
-              ) : error ? (
-                <span className="text-destructive">{error}</span>
-              ) : header && collected < total ? (
-                <span className="text-foreground">
-                  <Trans>Page {collected} of {total} read. Tap the device for the next page.</Trans>
-                  {missing.length > 0 && missing.length < total && (
-                    <span className="ml-1 text-muted-foreground">(<Trans>missing: {missingList}</Trans>)</span>
-                  )}
-                </span>
-              ) : status ? (
-                <span className="text-muted-foreground">{status}</span>
-              ) : (
-                <span className="text-muted-foreground"><Trans>Waiting for a code…</Trans></span>
-              )}
-            </div>
-
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={e => {
-                  const f = e.target.files?.[0]
-                  if (f) void decodeFile(f)
-                  e.target.value = ''
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-              >
-                <ImageUp className="h-3.5 w-3.5" /> <Trans>Use a photo</Trans>
-              </button>
-              {header && (
-                <button
-                  type="button"
-                  onClick={reset}
-                  disabled={busy}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                >
-                  <Trans>Start over</Trans>
-                </button>
-              )}
-            </div>
+          <div className="relative mt-4 overflow-hidden rounded-xl bg-black" style={{ aspectRatio: '4 / 3' }}>
+            <video ref={videoRef} playsInline muted className={cn('h-full w-full object-cover', cameraState !== 'live' && 'hidden')} />
+            <canvas ref={canvasRef} className="hidden" />
+            {cameraState !== 'live' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-[13px] text-white/80">
+                {cameraState === 'starting'
+                  ? <><Loader2 className="h-5 w-5 animate-spin" /><Trans>Starting the camera…</Trans></>
+                  : <><Camera className="h-6 w-6 opacity-70" /><Trans>No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead.</Trans></>}
+              </div>
+            )}
+            {cameraState === 'live' && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="h-48 w-48 rounded-2xl border-[3px] border-white/85" />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          <div className="mt-3 min-h-[2.5rem] text-center text-[14px]">
+            {busy ? (
+              <span className="inline-flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> <Trans>Applying…</Trans></span>
+            ) : error ? (
+              <span className="text-destructive">{error}</span>
+            ) : header && collected < total ? (
+              <span className="text-foreground">
+                <Trans>Page {collected} of {total} read. Tap the device for the next page.</Trans>
+                {missing.length > 0 && missing.length < total && (
+                  <span className="ml-1 text-muted-foreground">(<Trans>missing: {missingList}</Trans>)</span>
+                )}
+              </span>
+            ) : status ? (
+              <span className="text-muted-foreground">{status}</span>
+            ) : (
+              <span className="text-muted-foreground"><Trans>Waiting for a code…</Trans></span>
+            )}
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) void decodeFile(f)
+              e.target.value = ''
+            }}
+          />
+        </div>
+      )}
     </ModalShell>,
     document.body,
   )
 }
 
 /** What the scan changed, per book. Shared shape with the iOS app's overview. */
-export function SyncCodeOverview({ result, onAgain, onDone }: { result: SyncCodeResult; onAgain: () => void; onDone: () => void }) {
+export function SyncCodeOverview({ result }: { result: SyncCodeResult }) {
   const nothingNew = result.sessions_added === 0 && result.positions_applied === 0 && result.ratings_applied === 0
   const deviceName = result.device ?? t`the device`
   const offset = formatOffset(result.clock_offset_seconds)
   return (
-    <div className="px-5 py-4">
+    <div>
       <div className="flex items-start gap-3">
         <CheckCircle className={cn('mt-0.5 h-5 w-5 shrink-0', nothingNew ? 'text-muted-foreground' : 'text-success')} />
-        <div className="text-sm text-foreground">
+        <div className="text-[15px] text-foreground">
           {nothingNew ? (
             <Trans>Nothing new. Tome already had everything in this code.</Trans>
           ) : (
             <Trans>Landed from {deviceName}.</Trans>
           )}
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-[13px] text-muted-foreground">
             <Plural value={result.sessions_added} _0="No new sessions" one="# new session" other="# new sessions" />
             {result.sessions_known > 0 && <>{', '}<Plural value={result.sessions_known} one="# already known" other="# already known" /></>}
             {result.positions_applied > 0 && <>{', '}<Plural value={result.positions_applied} one="# position updated" other="# positions updated" /></>}
@@ -350,7 +341,7 @@ export function SyncCodeOverview({ result, onAgain, onDone }: { result: SyncCode
             {result.unknown_books > 0 && <>{', '}<Plural value={result.unknown_books} one="# book not in your library" other="# books not in your library" /></>}
           </p>
           {result.clock_offset_seconds !== 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-[13px] text-muted-foreground">
               <Trans>The device clock is off by {offset}; times were corrected.</Trans>
             </p>
           )}
@@ -358,18 +349,18 @@ export function SyncCodeOverview({ result, onAgain, onDone }: { result: SyncCode
       </div>
 
       {result.books.length > 0 && (
-        <ul className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+        <ul className="mt-4 border-y border-border/70 divide-y divide-border/70">
           {result.books.map(b => {
             const before = pct(b.progress_before)
             const after = pct(b.progress_after)
             const rating = b.rating
             return (
-            <li key={b.book_id} className="flex gap-3 rounded-lg border border-border bg-background/50 p-2.5">
-              <div className="h-16 w-11 shrink-0 overflow-hidden rounded bg-muted">
+            <li key={b.book_id} className="flex gap-3 py-3">
+              <div className="h-16 w-11 shrink-0 overflow-hidden rounded-[6px] bg-secondary" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
                 {b.has_cover && <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="h-full w-full object-cover" />}
               </div>
-              <div className="min-w-0 flex-1 text-xs">
-                <p className="truncate text-sm font-medium text-foreground">{b.title}</p>
+              <div className="min-w-0 flex-1 text-[13px]">
+                <p className="truncate text-[15px] font-medium text-foreground">{b.title}</p>
                 <p className="truncate text-muted-foreground">
                   {b.series ? (b.series_index !== null ? `${b.series} #${b.series_index}` : b.series) : b.author}
                 </p>
@@ -399,14 +390,6 @@ export function SyncCodeOverview({ result, onAgain, onDone }: { result: SyncCode
         </ul>
       )}
 
-      <div className="mt-4 flex justify-end gap-2">
-        <button onClick={onAgain} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-          <Trans>Scan another</Trans>
-        </button>
-        <button onClick={onDone} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">
-          <Trans>Done</Trans>
-        </button>
-      </div>
     </div>
   )
 }
