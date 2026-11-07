@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { BookOpen, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle2, Smartphone, BarChart3 } from 'lucide-react'
+import { BookOpen, UserPlus, AlertCircle, CheckCircle2, Smartphone, BarChart3 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { TomeMark } from '@/components/TomeMark'
+import { Pill } from '@/components/page'
+import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -50,191 +51,94 @@ export function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-top">
-      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
-      <style>{`
-        @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes jiggle {
-          0%, 100% { transform: rotate(0deg); }
-          20% { transform: rotate(-12deg); }
-          40% { transform: rotate(10deg); }
-          60% { transform: rotate(-6deg); }
-          80% { transform: rotate(4deg); }
-        }
-        .animate-fade-in-up { animation: fade-in-up 0.4s ease-out both; }
-        .logo-jiggle:hover .logo-icon { animation: jiggle 0.5s ease-in-out; }
-      `}</style>
-
+    <AuthFrame>
       <ThemeToggle className="fixed top-4 right-4" />
 
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-6 cursor-default logo-jiggle">
-          <div className="p-2.5 rounded-xl bg-primary/10 ring-1 ring-primary/20 logo-icon">
-            <TomeMark className="w-6 h-6 text-primary" strokeWidth={6} />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tome</h1>
-        </div>
+      <AuthPanel
+        eyebrow={<Trans>Step 1 of 2</Trans>}
+        title={<Trans>Welcome to Tome</Trans>}
+        subtitle={<Trans>Create your admin account to get started</Trans>}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <AuthField label={<Trans>Username</Trans>}>
+            <AuthInput
+              type="text"
+              value={form.username}
+              onChange={e => set('username', e.target.value)}
+              placeholder={t`librarian`}
+              required
+              autoComplete="username"
+            />
+          </AuthField>
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 mb-5">
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-[10px] font-semibold text-primary-foreground">1</span>
-            </div>
-            <span className="text-xs font-medium text-foreground"><Trans>Create admin account</Trans></span>
-          </div>
-          <div className="w-8 h-px bg-border mx-1" />
-          <div className="flex items-center gap-1.5 opacity-40">
-            <div className="w-5 h-5 rounded-full border border-border flex items-center justify-center">
-              <span className="text-[10px] text-muted-foreground">2</span>
-            </div>
-            <span className="text-xs text-muted-foreground"><Trans>Your library</Trans></span>
-          </div>
-        </div>
+          <AuthField label={<Trans>Email</Trans>}>
+            <AuthInput
+              type="email"
+              value={form.email}
+              onChange={e => set('email', e.target.value)}
+              placeholder="you@example.com"
+              required
+              autoComplete="email"
+            />
+          </AuthField>
 
-        {/* Card — fade in on mount */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-lg shadow-black/5 animate-fade-in-up">
-          <h2 className="text-lg font-medium text-foreground mb-1"><Trans>Welcome to Tome</Trans></h2>
-          <p className="text-sm text-muted-foreground mb-6"><Trans>Create your admin account to get started</Trans></p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Trans>Username</Trans>
-              </label>
-              <input
-                type="text"
-                value={form.username}
-                onChange={e => set('username', e.target.value)}
-                placeholder={t`librarian`}
-                required
-                autoComplete="username"
-                className="w-full px-3 py-2.5 rounded-lg text-sm bg-background border border-input text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01] transition-all duration-200"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Trans>Email</Trans>
-              </label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={e => set('email', e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-                className="w-full px-3 py-2.5 rounded-lg text-sm bg-background border border-input text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01] transition-all duration-200"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Trans>Password</Trans>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={e => set('password', e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm bg-background border border-input text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01] transition-all duration-200"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {form.password.length > 0 && (
-                <p className={cn('text-xs flex items-center gap-1', passwordStrong ? 'text-success' : 'text-muted-foreground')}>
-                  {passwordStrong ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                  {passwordStrong ? t`Strong enough` : t`Minimum 8 characters`}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Trans>Confirm password</Trans>
-              </label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={form.confirm}
-                onChange={e => set('confirm', e.target.value)}
-                placeholder="••••••••"
-                required
-                autoComplete="new-password"
-                className={cn(
-                  'w-full px-3 py-2.5 rounded-lg text-sm bg-background border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent focus:scale-[1.01] transition-all duration-200',
-                  form.confirm.length > 0
-                    ? passwordsMatch ? 'border-success/50' : 'border-destructive'
-                    : 'border-input'
-                )}
-              />
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 text-destructive text-sm p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                {error}
-              </div>
+          <AuthField
+            label={<Trans>Password</Trans>}
+            hint={form.password.length > 0 && (
+              <span className={cn('mt-1.5 text-[13px] flex items-center gap-1', passwordStrong ? 'text-success' : 'text-muted-foreground')}>
+                {passwordStrong ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                {passwordStrong ? t`Strong enough` : t`Minimum 8 characters`}
+              </span>
             )}
+          >
+            <AuthPasswordInput
+              value={form.password}
+              onChange={e => set('password', e.target.value)}
+              placeholder="••••••••"
+              required
+              autoComplete="new-password"
+              shown={showPassword}
+              onToggle={() => setShowPassword(s => !s)}
+            />
+          </AuthField>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg',
-                'bg-primary text-primary-foreground text-sm font-medium',
-                'hover:opacity-90 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/20',
-                'active:translate-y-0 active:shadow-none',
-                'transition-all duration-200',
-                'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none'
-              )}
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4" />
-                  <Trans>Create admin account</Trans>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
+          <AuthField label={<Trans>Confirm password</Trans>}>
+            <AuthInput
+              type={showPassword ? 'text' : 'password'}
+              value={form.confirm}
+              onChange={e => set('confirm', e.target.value)}
+              placeholder="••••••••"
+              required
+              autoComplete="new-password"
+              invalid={form.confirm.length > 0 && !passwordsMatch}
+              className={cn(form.confirm.length > 0 && passwordsMatch && 'ring-1 ring-success/50')}
+            />
+          </AuthField>
 
-        {/* Feature highlights — setup page only */}
-        <div className="mt-5 flex items-center justify-center gap-6">
-          <div className="flex flex-col items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60"><Trans>Your Library</Trans></span>
-          </div>
-          <div className="w-px h-6 bg-border/60" />
-          <div className="flex flex-col items-center gap-1.5">
-            <Smartphone className="w-3.5 h-3.5 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60"><Trans>KOReader Sync</Trans></span>
-          </div>
-          <div className="w-px h-6 bg-border/60" />
-          <div className="flex flex-col items-center gap-1.5">
-            <BarChart3 className="w-3.5 h-3.5 text-muted-foreground/60" />
-            <span className="text-xs text-muted-foreground/60"><Trans>Reading Stats</Trans></span>
-          </div>
-        </div>
+          {error && <AuthError>{error}</AuthError>}
 
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          <Trans>Tome · Your personal library</Trans>
+          <div className="pt-2">
+            <Pill type="submit" variant="primary" size="lg" disabled={loading} className="w-full">
+              {loading ? <Spinner /> : <><UserPlus className="w-4 h-4" /><Trans>Create admin account</Trans></>}
+            </Pill>
+          </div>
+        </form>
+
+        <p className="mt-6 text-[13px] text-muted-foreground">
+          <Trans>Next: Your library</Trans>
         </p>
+      </AuthPanel>
+
+      {/* What Tome does, setup page only */}
+      <div className="mt-6 flex items-center justify-center gap-6 text-[13px] text-muted-foreground">
+        <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /><Trans>Your Library</Trans></span>
+        <span className="flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /><Trans>KOReader Sync</Trans></span>
+        <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /><Trans>Reading Stats</Trans></span>
       </div>
-    </div>
+
+      <p className="text-center text-[13px] text-muted-foreground mt-4">
+        <Trans>Tome · Your personal library</Trans>
+      </p>
+    </AuthFrame>
   )
 }

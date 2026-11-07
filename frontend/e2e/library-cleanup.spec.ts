@@ -23,7 +23,7 @@ test.describe('library cleanup (issue #165)', () => {
 
   test('library health lists orphans and removes them without touching real files', async ({ page, request }) => {
     await page.goto('/admin')
-    await page.click('button:has-text("Library")')
+    await page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Library', exact: true }).click()
     await page.click('button:has-text("Scan Library")')
 
     // Three dead entries: two whole-book ghosts + AoT's stale extra file.
@@ -61,7 +61,7 @@ test.describe('library cleanup (issue #165)', () => {
     // A second scan right after cleanup must find nothing to remove — and a
     // library whose files all exist shows no orphan section at all.
     await page.goto('/admin')
-    await page.click('button:has-text("Library")')
+    await page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Library', exact: true }).click()
     await page.click('button:has-text("Scan Library")')
     await page.click('button:has-text("Remove Dead Entries")')
     await page.click('button:has-text("Confirm — remove 4 entries")')

@@ -5,6 +5,7 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, ChevronRight, Trash, FileX } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Pill } from '@/components/page'
 
 interface HealthIssue {
   book_id: number
@@ -216,12 +217,14 @@ export function LibraryHealthTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-semibold"><Trans>Library Health</Trans></h2>
+      <div>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[14px] text-muted-foreground max-w-[60ch]">
+              <Trans>Files whose place on disk no longer matches their series or author folder.</Trans>
+            </p>
             {healthData && (
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-[14px] text-foreground mt-1">
                 {(() => {
                   const total = healthData.total_files
                   if (healthData.misplaced_count === 0 && healthData.missing_count === 0) return t`All ${total} files are correctly placed.`
@@ -236,23 +239,24 @@ export function LibraryHealthTab() {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             {healthData && healthData.misplaced_count > 0 && (
+
               <>
-                <button
+                <Pill
                   onClick={() => runReorganize(allFileIds, true)}
                   disabled={reorganizing}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                  variant="secondary"
                 >
                   <Trans>Dry Run All</Trans>
-                </button>
-                <button
+                </Pill>
+                <Pill
                   onClick={() => selected.size > 0
                     ? runReorganize([...selected], false)
                     : runReorganize(allFileIds, false)
                   }
                   disabled={reorganizing}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                  variant="primary"
                 >
                   {reorganizing
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -260,26 +264,26 @@ export function LibraryHealthTab() {
                     ? (() => { const n = selected.size; return t`Reorganize Selected (${n})` })()
                     : t`Reorganize All`
                   }
-                </button>
+                </Pill>
               </>
             )}
-            <button
+            <Pill
               onClick={purgeEmpty}
               disabled={purging}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              variant="secondary"
               title={t`Remove folders that contain only hidden files (.DS_Store, etc.)`}
             >
               {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
               {purging ? t`Purging...` : t`Purge Empty Folders`}
-            </button>
-            <button
+            </Pill>
+            <Pill
               onClick={scan}
               disabled={loading}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              variant="secondary"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
               {loading ? t`Scanning…` : t`Scan Library`}
-            </button>
+            </Pill>
           </div>
         </div>
 
@@ -363,18 +367,18 @@ export function LibraryHealthTab() {
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-auto">
               {confirmRemoveMissing && (
-                <button
+                <Pill
                   onClick={() => setConfirmRemoveMissing(false)}
                   disabled={removingMissing}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                  variant="secondary"
                 >
                   <Trans>Cancel</Trans>
-                </button>
+                </Pill>
               )}
-              <button
+              <Pill
                 onClick={() => confirmRemoveMissing ? removeMissing() : setConfirmRemoveMissing(true)}
                 disabled={removingMissing}
-                className="px-3 py-1.5 text-xs rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+                variant="destructive" className="bg-destructive/10 text-destructive"
                 title={t`Removes the database entries only — no files are touched`}
               >
                 {removingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
@@ -383,7 +387,7 @@ export function LibraryHealthTab() {
                   : confirmRemoveMissing
                   ? plural(healthData.missing.length, { one: 'Confirm — remove # entry', other: 'Confirm — remove # entries' })
                   : t`Remove Dead Entries`}
-              </button>
+              </Pill>
             </div>
           </div>
           <ul className="divide-y divide-border">
@@ -442,19 +446,19 @@ export function LibraryHealthTab() {
             ))}
           </ul>
           <div className="flex justify-end gap-2 pt-1 border-t border-border">
-            <button
+            <Pill
               onClick={() => setDryRunResult(null)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors"
+              variant="secondary"
             >
               <Trans>Cancel</Trans>
-            </button>
-            <button
+            </Pill>
+            <Pill
               onClick={() => runReorganize(dryRunResult.moved.map(m => m.file_id), false)}
               disabled={reorganizing}
-              className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+              variant="primary"
             >
               <Trans>Confirm & Reorganize</Trans>
-            </button>
+            </Pill>
           </div>
         </div>
       )}

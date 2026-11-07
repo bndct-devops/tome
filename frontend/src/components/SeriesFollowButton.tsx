@@ -3,7 +3,8 @@ import { BellPlus, BellRing, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getFollows, invalidateFollows, type FollowOut } from '@/lib/follows'
 import { useToast } from '@/contexts/ToastContext'
-import { cn, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { Pill } from '@/components/page'
 import { t } from '@lingui/core/macro'
 
 /**
@@ -13,7 +14,11 @@ import { t } from '@lingui/core/macro'
  * release date under the button — labelled "Next" when the date is upcoming.
  */
 
-export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
+export function SeriesFollowButton({ seriesName, onLatest }: {
+  seriesName: string
+  /** The tracker's latest-volume line ("Latest: Vol 43 · 24 Jul"), for the page to place; null when there is none. */
+  onLatest?: (text: string | null) => void
+}) {
   const { toast } = useToast()
   // undefined = follows not resolved yet (render NOTHING — an optimistic
   // button flickered on instances where release detection is disabled).
@@ -23,8 +28,23 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
   const load = useCallback(() => { getFollows().then(setRows) }, [seriesName])
   useEffect(load, [load])
 
-  if (rows == null || seriesName === '__unserialized__') return null
-  const follow = rows.find(f => f.name.toLowerCase() === seriesName.toLowerCase()) ?? null
+  const hidden = rows == null || seriesName === '__unserialized__'
+  const follow = hidden ? null : (rows.find(f => f.name.toLowerCase() === seriesName.toLowerCase()) ?? null)
+
+  const date = follow?.latest_release_date ?? null
+  const vol = follow?.latest_known_index ?? null
+  const upcoming = date != null && date >= new Date().toISOString().slice(0, 10)
+  let latest: string | null = null
+  if (follow && vol != null && date) {
+    const v = Number.isInteger(vol) ? vol : vol.toFixed(1)
+    const d = formatDate(date)
+    latest = upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}`
+  }
+  // The page shows the line where it fits (the header's crumb line); the pill
+  // carries it as its tooltip. Hooks stay above the early return.
+  useEffect(() => { onLatest?.(latest) }, [latest, onLatest])
+
+  if (hidden) return null
 
   const toggle = async () => {
     if (busy) return
@@ -45,33 +65,19 @@ export function SeriesFollowButton({ seriesName }: { seriesName: string }) {
     }
   }
 
-  const date = follow?.latest_release_date ?? null
-  const vol = follow?.latest_known_index ?? null
-  const upcoming = date != null && date >= new Date().toISOString().slice(0, 10)
-
+  const hint = follow ? t`Stop following this series` : t`Get notified when a new volume is released`
   return (
-    <div className="relative">
-      <button
-        onClick={toggle}
-        disabled={busy}
-        className={cn(
-          'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all disabled:opacity-50',
-          follow
-            ? 'border-primary/40 bg-primary/10 text-foreground hover:bg-primary/15'
-            : 'border-border bg-card text-foreground hover:bg-muted',
-        )}
-        title={follow ? t`Stop following this series` : t`Get notified when a new volume is released`}
-      >
-        {busy
-          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          : follow ? <BellRing className="w-3.5 h-3.5 text-primary" /> : <BellPlus className="w-3.5 h-3.5" />}
-        {follow ? t`Following` : t`Follow`}
-      </button>
-      {follow && vol != null && date && (
-        <p className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap text-[10px] text-muted-foreground text-center">
-          {(() => { const v = Number.isInteger(vol) ? vol : vol.toFixed(1); const d = formatDate(date); return upcoming ? t`Next: Vol ${v} · ${d}` : t`Latest: Vol ${v} · ${d}` })()}
-        </p>
-      )}
-    </div>
+    <Pill
+      variant={follow ? 'secondary' : 'quiet'}
+      onClick={toggle}
+      disabled={busy}
+      aria-pressed={!!follow}
+      title={latest ? `${hint} · ${latest}` : hint}
+    >
+      {busy
+        ? <Loader2 className="w-4 h-4 animate-spin" />
+        : follow ? <BellRing className="w-4 h-4 text-primary" /> : <BellPlus className="w-4 h-4" />}
+      {follow ? t`Following` : t`Follow`}
+    </Pill>
   )
 }

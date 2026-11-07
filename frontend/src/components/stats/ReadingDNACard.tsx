@@ -1,10 +1,7 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, Moon, Sunrise, Zap, BookMarked, Compass, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react'
+import { Sparkles, Moon, Sunrise, Zap, BookMarked, Compass, type LucideIcon } from 'lucide-react'
 import type { ReadingDNA, ReadingDNATrait } from './shared'
 import { Trans } from '@lingui/react/macro'
-
-const COLLAPSE_KEY = 'tome_dna_collapsed'
 
 /** A pole-to-pole spectrum bar with the reader's position marked. Rendered as a
  *  center-origin gauge — no thumb — because the round dot on a track read as a
@@ -78,49 +75,5 @@ export function ReadingDNABody({ dna, showLink = false }: { dna: ReadingDNA; sho
         </Link>
       )}
     </div>
-  )
-}
-
-export function ReadingDNACard({ dna }: { dna: ReadingDNA }) {
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
-
-  if (!dna.ready || dna.traits.length === 0) return null
-
-  const toggle = () => {
-    setCollapsed((c) => {
-      const next = !c
-      localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
-      return next
-    })
-  }
-
-  return (
-    <section className="p-4">
-      <button
-        type="button"
-        onClick={toggle}
-        className="flex w-full items-center justify-between gap-2"
-        aria-expanded={!collapsed}
-      >
-        <span className="flex items-center gap-2 text-sm font-semibold min-w-0">
-          <Sparkles className="w-[15px] h-[15px] text-primary/75 shrink-0" />
-          <span className="shrink-0"><Trans>Reading DNA</Trans></span>
-          {collapsed && dna.archetype && (
-            <span className="text-[13px] text-muted-foreground truncate">
-              · <span className="text-foreground font-semibold">{dna.archetype}</span>
-            </span>
-          )}
-        </span>
-        {collapsed
-          ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          : <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />}
-      </button>
-
-      {!collapsed && (
-        <div className="mt-4">
-          <ReadingDNABody dna={dna} showLink />
-        </div>
-      )}
-    </section>
   )
 }

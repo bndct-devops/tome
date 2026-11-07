@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
-  Plus, Trash2, ChevronDown, ChevronUp,
-  BookOpen, Loader2, Sparkles, Layers, ExternalLink,
+  Plus, Trash2, ChevronDown,
+  BookOpen, Loader2, Layers, ExternalLink, Search,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { useAuth, isMember } from '@/contexts/AuthContext'
@@ -12,23 +12,24 @@ import { api } from '@/lib/api'
 import { getFollows, invalidateFollows, type FollowOut } from '@/lib/follows'
 import { WishlistModal } from '@/components/WishlistModal'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
+import { CoverImage } from '@/components/CoverImage'
+import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
 import { docsLink, DOCS } from '@/lib/docs'
 import { cn } from '@/lib/utils'
 import { Trans, Plural } from '@lingui/react/macro'
-import { t } from '@lingui/core/macro'
+import { t, plural } from '@lingui/core/macro'
 
-function WishCover({ coverUrl }: { coverUrl: string | null }) {
+function RowCover({ url, fallback = 'book' }: { url: string | null; fallback?: 'book' | 'series' }) {
   return (
-    <div className="w-12 h-16 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
-      {coverUrl ? (
-        <img
-          src={coverUrl}
-          alt=""
-          className="w-full h-full object-cover"
-          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
+    <div className="relative w-11 h-16 rounded-[8px] overflow-hidden bg-muted shrink-0" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
+      {url ? (
+        <CoverImage src={url} alt="" iconClassName="w-4 h-4" />
       ) : (
-        <BookOpen className="w-4 h-4 text-muted-foreground" />
+        <span className="absolute inset-0 grid place-items-center">
+          {fallback === 'series'
+            ? <Layers className="w-4 h-4 text-muted-foreground/60" />
+            : <BookOpen className="w-4 h-4 text-muted-foreground/60" />}
+        </span>
       )}
     </div>
   )
@@ -44,6 +45,11 @@ function ageLabel(iso: string): string {
   if (months < 12) return t`${months}mo ago`
   { const years = Math.floor(months / 12); return t`${years}y ago` }
 }
+
+const openDocs = () => window.open(docsLink(DOCS.wishlist), '_blank', 'noopener,noreferrer')
+
+// Revealed on hover / keyboard focus on pointer devices; always visible on touch.
+const ROW_TOOL = 'shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100'
 
 // ── Following (release detection) ─────────────────────────────────────────────
 // Renders nothing when TOME_RELEASE_DETECTION is off (the follows endpoint 403s).
@@ -104,38 +110,41 @@ function FollowingSection() {
   if (follows == null) return null
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-foreground"><Trans>Following</Trans></h2>
-        <span className="text-xs text-muted-foreground"><Plural value={follows.length} one="# series" other="# series" /></span>
-      </div>
-      <p className="text-xs text-muted-foreground mb-3">
+    <section>
+      <SectionTitle
+        size={20}
+        action={<span className="text-[14px] font-normal text-muted-foreground"><Plural value={follows.length} one="# series" other="# series" /></span>}
+      >
+        <Trans>Following</Trans>
+      </SectionTitle>
+      <p className="mt-2 text-[14px] text-muted-foreground">
         <Trans>Get notified when a new volume of a followed series is released.</Trans>
       </p>
 
-      <div className="relative mb-3">
+      <div className="relative mt-4">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder={t`Follow a series — search Hardcover…`}
-          className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          placeholder={t`Follow a series: search Hardcover…`}
+          className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        {searching && <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />}
+        {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
         {results.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-xl overflow-hidden">
+          <div className="absolute z-10 mt-2 w-full rounded-[14px] bg-card shadow-xl overflow-hidden p-1">
             {results.slice(0, 5).map(r => (
               <button
                 key={r.source_id}
                 onClick={() => follow(r)}
                 disabled={busy}
-                className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors disabled:opacity-50"
+                className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-secondary transition-colors disabled:opacity-50"
               >
                 {r.cover_url
-                  ? <img src={r.cover_url} alt="" className="w-7 h-10 rounded object-cover shrink-0" />
-                  : <span className="w-7 h-10 rounded bg-muted grid place-items-center shrink-0"><BookOpen className="w-3.5 h-3.5 text-muted-foreground/50" /></span>}
+                  ? <img src={r.cover_url} alt="" className="w-7 h-10 rounded-[6px] object-cover shrink-0" />
+                  : <span className="w-7 h-10 rounded-[6px] bg-muted grid place-items-center shrink-0"><BookOpen className="w-3.5 h-3.5 text-muted-foreground/50" /></span>}
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm text-foreground truncate">{r.name}</span>
-                  <span className="block text-xs text-muted-foreground truncate">
+                  <span className="block text-[14px] font-medium text-foreground truncate">{r.name}</span>
+                  <span className="block text-[13px] text-muted-foreground truncate">
                     {r.author ?? t`Unknown author`}{(() => { const n = r.total; return n ? t` · ${n} volumes` : '' })()}
                   </span>
                 </span>
@@ -147,38 +156,39 @@ function FollowingSection() {
       </div>
 
       {follows.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {follows.map(f => (
-            <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-card">
-              {f.cover_url
-                ? <img src={f.cover_url} alt="" className="w-9 h-[54px] rounded object-cover shrink-0" />
-                : <span className="w-9 h-[54px] rounded bg-muted grid place-items-center shrink-0"><Layers className="w-4 h-4 text-muted-foreground/50" /></span>}
+        <div className="mt-3">
+          {follows.map((f, i) => (
+            <div key={f.id} className={cn('group flex items-center gap-4 py-3.5', i > 0 && 'border-t border-border/70')}>
+              <RowCover url={f.cover_url} fallback="series" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground truncate">{f.name}</p>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-[16px] font-semibold text-foreground truncate">{f.name}</p>
+                <p className="mt-0.5 text-[14px] text-muted-foreground truncate">
                   {f.latest_known_index != null && (() => { const v = fmtVol(f.latest_known_index); return <Trans>Latest: vol {v}</Trans> })()}
                   {f.owned_max_index != null && (() => { const v = fmtVol(f.owned_max_index); return <Trans> · you have vol {v}</Trans> })()}
                 </p>
               </div>
-              <button
+              <Pill
+                variant="destructive"
+                icon
                 onClick={() => unfollow(f.id)}
                 title={t`Unfollow`}
                 aria-label={(() => { const name = f.name; return t`Unfollow ${name}` })()}
-                className="p-1.5 rounded text-muted-foreground/60 hover:text-destructive transition-colors"
+                className={ROW_TOOL}
               >
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </Pill>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
 export function WishlistPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [wishes, setWishes] = useState<WishOut[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -226,183 +236,178 @@ export function WishlistPage() {
     }
   }
 
+  const openAdd = () => { setAddEpoch(e => e + 1); setAddOpen(true) }
+
   const openWishes = wishes.filter(w => w.status === 'open')
   const fulfilledWishes = wishes.filter(w => w.status === 'fulfilled')
 
   if (!canWish) {
     return (
       <AppShell>
-        <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-          <Sparkles className="w-10 h-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground"><Trans>Members can add books to their wishlist.</Trans></p>
-          <Link to="/" className="text-sm text-primary hover:underline"><Trans>Go back</Trans></Link>
-        </div>
+        <PageBody width="reading">
+          <PageHeader title={<Trans>Wishlist</Trans>} />
+          <div className="flex flex-col items-center gap-4 py-16 text-center">
+            <p className="text-[15px] text-muted-foreground"><Trans>Members can add books to their wishlist.</Trans></p>
+            <Pill variant="secondary" onClick={() => navigate('/')}><Trans>Go back</Trans></Pill>
+          </div>
+        </PageBody>
       </AppShell>
     )
   }
 
+  // Wishes loaded once stay on screen (dimmed) while a reload runs.
+  const firstLoad = loading && wishes.length === 0
+
   return (
-    <AppShell
-      actions={
-        <button
-          onClick={() => { setAddEpoch(e => e + 1); setAddOpen(true) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline"><Trans>Wish</Trans></span>
-        </button>
-      }
-    >
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        <h1 className="font-display text-xl text-foreground"><Trans>Wishlist</Trans></h1>
-        {loading ? (
+    <AppShell>
+      <PageBody width="reading">
+        <PageHeader
+          eyebrow={!firstLoad && !error ? plural(openWishes.length, { one: '# open', other: '# open' }) : undefined}
+          title={<Trans>Wishlist</Trans>}
+          actions={
+            <>
+              <Pill variant="quiet" onClick={openDocs}>
+                <Trans>Learn more</Trans>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Pill>
+              <Pill variant="primary" onClick={openAdd}>
+                <Plus className="w-4 h-4" />
+                <Trans>Wish</Trans>
+              </Pill>
+            </>
+          }
+        />
+
+        {firstLoad ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-            {error}
-          </div>
+          <p className="text-[15px] text-destructive">{error}</p>
         ) : (
           <>
             {/* Open wishes */}
-            <div>
-              {/* The top bar already says "Wishlist" — only label the section when there's a list to label */}
-              {openWishes.length > 0 && (
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-foreground">
-                    <Trans>Open</Trans>
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">({openWishes.length})</span>
-                  </h2>
-                  <a
-                    href={docsLink(DOCS.wishlist)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
-                  </a>
+            {openWishes.length === 0 ? (
+              <div className="flex flex-col items-center gap-4 py-12 text-center">
+                <div>
+                  <p className="text-[17px] font-semibold text-foreground"><Trans>Your wishlist is empty</Trans></p>
+                  <p className="mt-1.5 text-[15px] text-muted-foreground">
+                    <Trans>Add books you'd like to see in the library.</Trans>
+                  </p>
                 </div>
-              )}
-
-              {openWishes.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 py-12 text-center">
-                  <Sparkles className="w-12 h-12 text-muted-foreground/30" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground mb-1"><Trans>Your wishlist is empty</Trans></p>
-                    <p className="text-xs text-muted-foreground">
-                      <Trans>Add books you'd like to see in the library.</Trans>{' '}
-                      <a
-                        href={docsLink(DOCS.wishlist)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-2 hover:text-primary transition-colors"
-                      >
-                        <Trans>Learn more</Trans>
-                      </a>
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => { setAddEpoch(e => e + 1); setAddOpen(true) }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <Trans>Add a wish</Trans>
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {openWishes.map(w => (
-                    <div key={w.id} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-card">
-                      <WishCover coverUrl={w.cover_url} />
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{w.title}</p>
-                        {w.author && <p className="text-xs text-muted-foreground truncate">{w.author}</p>}
+                <Pill variant="secondary" onClick={openAdd}>
+                  <Plus className="w-4 h-4" />
+                  <Trans>Add a wish</Trans>
+                </Pill>
+              </div>
+            ) : (
+              <section className={cn('transition-opacity', loading && 'opacity-50')}>
+                <SectionTitle
+                  size={20}
+                  action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{openWishes.length}</span>}
+                >
+                  <Trans>Open</Trans>
+                </SectionTitle>
+                <div className="mt-3">
+                  {openWishes.map((w, i) => (
+                    <div key={w.id} className={cn('group flex items-start gap-4 py-4', i > 0 && 'border-t border-border/70')}>
+                      <RowCover url={w.cover_url} fallback={w.series && w.series_index == null ? 'series' : 'book'} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[16px] font-semibold text-foreground leading-snug line-clamp-2">{w.title}</p>
+                        {w.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{w.author}</p>}
                         {w.series && w.series_index != null && (
-                          <p className="text-xs text-muted-foreground/70">
+                          <p className="mt-0.5 text-[13px] text-muted-foreground">
                             {w.series} #{w.series_index}
                           </p>
                         )}
                         {w.series && w.series_index == null && (
-                          <span className="mt-0.5 self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
-                            <Layers className="w-2.5 h-2.5" />
+                          <span className="mt-2 inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-foreground">
+                            <Layers className="w-3 h-3 text-muted-foreground" />
                             <Trans>Whole series</Trans>
                           </span>
                         )}
                         {w.series && w.series_index == null && w.series_coverage && w.series_coverage.length > 0 && (
-                          <SeriesCoverageStrip coverage={w.series_coverage} total={w.series_total} />
+                          <SeriesCoverageStrip coverage={w.series_coverage} total={w.series_total} look="chips" />
                         )}
                         {w.note && (
-                          <p className="text-xs text-muted-foreground italic mt-0.5 line-clamp-2">{w.note}</p>
+                          <p className="mt-1.5 text-[14px] text-muted-foreground italic line-clamp-2">{w.note}</p>
                         )}
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">{ageLabel(w.created_at)}</p>
+                        <p className="mt-1 text-[13px] text-muted-foreground">{ageLabel(w.created_at)}</p>
                       </div>
-                      <button
+                      <Pill
+                        variant="destructive"
+                        icon
                         onClick={() => handleDelete(w)}
                         disabled={deleting === w.id}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 disabled:opacity-40"
                         title={t`Remove wish`}
                         aria-label={t`Remove wish`}
+                        className={cn(ROW_TOOL, deleting === w.id && 'opacity-100')}
                       >
                         {deleting === w.id
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <Trash2 className="w-4 h-4" />}
+                      </Pill>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
+              </section>
+            )}
 
             {/* Fulfilled wishes */}
             {fulfilledWishes.length > 0 && (
-              <div>
-                <button
-                  onClick={() => setFulfilledOpen(o => !o)}
-                  className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors mb-3"
+              <section className={cn('transition-opacity', loading && 'opacity-50')}>
+                <SectionTitle
+                  size={20}
+                  action={
+                    <Pill
+                      variant="quiet"
+                      onClick={() => setFulfilledOpen(o => !o)}
+                      aria-expanded={fulfilledOpen}
+                      title={fulfilledOpen ? t`Collapse` : t`Expand`}
+                      className="px-3 tabular-nums"
+                    >
+                      {fulfilledWishes.length}
+                      <ChevronDown className={cn('w-4 h-4 transition-transform', !fulfilledOpen && '-rotate-90')} />
+                    </Pill>
+                  }
+                  className="items-center"
                 >
-                  {fulfilledOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  <Trans>Fulfilled</Trans>
-                  <span className="text-xs font-normal">({fulfilledWishes.length})</span>
-                </button>
+                  <button type="button" onClick={() => setFulfilledOpen(o => !o)} className="text-left hover:text-primary transition-colors">
+                    <Trans>Fulfilled</Trans>
+                  </button>
+                </SectionTitle>
 
                 {fulfilledOpen && (
-                  <div className="flex flex-col gap-2">
-                    {fulfilledWishes.map(w => (
-                      <div
-                        key={w.id}
-                        className={cn(
-                          'flex items-start gap-3 p-3 rounded-xl border border-border bg-card',
-                          'opacity-70'
-                        )}
-                      >
-                        <WishCover coverUrl={w.cover_url} />
-                        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                          <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{w.title}</p>
-                          {w.author && <p className="text-xs text-muted-foreground truncate">{w.author}</p>}
-                          <span className="mt-1 self-start text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/20 font-medium">
-                            <Trans>Fulfilled</Trans>
-                          </span>
-                          {w.fulfilled_book_id && (
-                            <Link
-                              to={`/books/${w.fulfilled_book_id}`}
-                              className="mt-1 text-xs text-primary hover:underline"
-                            >
-                              <Trans>View book</Trans>
-                            </Link>
-                          )}
+                  <div className="mt-3">
+                    {fulfilledWishes.map((w, i) => (
+                      <div key={w.id} className={cn('flex items-center gap-4 py-3.5', i > 0 && 'border-t border-border/70')}>
+                        <div className="opacity-70"><RowCover url={w.cover_url} /></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[16px] font-semibold text-foreground/80 leading-snug line-clamp-2">{w.title}</p>
+                          <p className="mt-0.5 text-[14px] text-muted-foreground truncate">
+                            {w.author && <>{w.author} · </>}
+                            <span className="text-success font-medium"><Trans>Fulfilled</Trans></span>
+                          </p>
                         </div>
+                        {w.fulfilled_book_id && (
+                          <Link
+                            to={`/books/${w.fulfilled_book_id}`}
+                            className="shrink-0 inline-flex items-center h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          >
+                            <Trans>View book</Trans>
+                          </Link>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </section>
             )}
           </>
         )}
 
-        {!loading && !error && <FollowingSection />}
-      </div>
+        {!firstLoad && !error && <FollowingSection />}
+      </PageBody>
 
       <WishlistModal
         key={addEpoch}

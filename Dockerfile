@@ -6,6 +6,16 @@ RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
 RUN npm run build
 
+# Build the classic frontend: the look of the last 2.x release, frozen at its
+# tag, for servers that set TOME_UI=classic. It talks to the same API.
+FROM node:22-alpine AS frontend-classic-build
+ARG CLASSIC_UI_TAG=v2.7.0
+WORKDIR /src
+ADD https://github.com/bndct-devops/tome/archive/refs/tags/${CLASSIC_UI_TAG}.tar.gz /src/classic.tar.gz
+RUN tar -xzf classic.tar.gz --strip-components=1 && rm classic.tar.gz
+WORKDIR /src/frontend
+RUN npm ci --legacy-peer-deps && npm run build
+
 # Runtime
 FROM python:3.12-slim
 WORKDIR /app
@@ -22,6 +32,7 @@ COPY alembic/ ./alembic/
 # What's-New panel reads release notes from the changelog at runtime
 COPY CHANGELOG.md ./
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+COPY --from=frontend-classic-build /src/frontend/dist ./frontend/dist-classic
 
 ENV TOME_DATA_DIR=/data \
     TOME_LIBRARY_DIR=/books \

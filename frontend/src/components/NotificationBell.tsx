@@ -121,15 +121,15 @@ export function NotificationBell() {
         title={t`Notifications`}
         aria-label={t`Notifications`}
         className={cn(
-          'relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
+          'relative flex items-center justify-center w-9 h-9 rounded-full transition-colors',
           open
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+            ? 'bg-background text-foreground'
+            : 'text-muted-foreground hover:text-foreground hover:bg-background/70'
         )}
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] rounded-full bg-primary text-primary-foreground text-[9px] font-bold leading-none px-0.5">
+          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none px-1 tabular-nums">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -143,64 +143,62 @@ export function NotificationBell() {
           exit={{ opacity: 0, scale: 0.95, y: -4 }}
           transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
           style={{ transformOrigin: 'top right' }}
-          className="absolute right-0 top-full mt-1.5 z-50 w-80 max-h-96 flex flex-col bg-card border border-border rounded-xl shadow-xl shadow-accent-soft overflow-hidden">
+          className="absolute right-0 top-full mt-2 z-50 w-[380px] max-h-[480px] flex flex-col bg-card rounded-[var(--radius-panel)] shadow-2xl shadow-black/30 ring-1 ring-panel-ring overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
-            <span className="text-xs font-semibold text-foreground"><Trans>Notifications</Trans></span>
+          <div className="flex items-center justify-between pl-5 pr-3 pt-4 pb-2 shrink-0">
+            <span className="font-display text-[17px] font-bold text-foreground"><Trans>Notifications</Trans></span>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAll}
                 disabled={markingAll}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
               >
-                <Check className="w-3 h-3" />
+                <Check className="w-3.5 h-3.5" />
                 <Trans>Mark all read</Trans>
               </button>
             )}
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto px-2 pb-2">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <Bell className="w-8 h-8 text-muted-foreground/30" />
-                <p className="text-xs text-muted-foreground"><Trans>No notifications yet</Trans></p>
+              <div className="py-10 text-center">
+                <p className="text-[15px] font-medium text-foreground"><Trans>No notifications yet</Trans></p>
               </div>
             ) : (
-              notifications.map(n => (
+              <div className="divide-y divide-border/70">
+              {notifications.map(n => (
                 <button
                   key={n.id}
                   onClick={() => handleClickNotification(n)}
-                  className={cn(
-                    'w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent/50 border-b border-border last:border-0',
-                    !n.read && 'bg-primary/5'
-                  )}
+                  className="w-full flex items-start gap-3.5 px-3 py-3.5 text-left rounded-lg transition-colors hover:bg-secondary/60"
                 >
                   <div className={cn(
-                    'mt-0.5 flex items-center justify-center w-6 h-6 rounded-full shrink-0',
+                    'mt-0.5 flex items-center justify-center w-9 h-9 rounded-full shrink-0',
                     n.kind === 'wish_fulfilled' || n.kind === 'goal_reached'
-                      ? 'bg-success/10 text-success'
-                      : 'bg-muted text-muted-foreground'
+                      ? 'bg-success/15 text-success'
+                      : 'bg-secondary text-muted-foreground'
                   )}>
-                    {n.kind === 'goal_reached' ? <Target className="w-3 h-3" /> : n.kind === 'session_suspect' ? <Timer className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
+                    {n.kind === 'goal_reached' ? <Target className="w-4 h-4" /> : n.kind === 'session_suspect' ? <Timer className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn(
-                      'text-xs leading-snug line-clamp-2',
-                      !n.read ? 'font-medium text-foreground' : 'text-foreground/80'
+                      'text-[14px] leading-snug line-clamp-2',
+                      !n.read ? 'font-semibold text-foreground' : 'text-foreground/80'
                     )}>
                       {n.title}
                     </p>
                     {n.body && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{n.body}</p>
+                      <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1 leading-snug">{n.body}</p>
                     )}
-                    <p className="text-[10px] text-muted-foreground/60 mt-1">{relativeTime(n.created_at)}</p>
+                    <p className="text-[12px] text-muted-foreground/70 mt-1.5">{relativeTime(n.created_at)}</p>
                   </div>
                   {!n.read && (
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                    <span className="mt-2 w-2 h-2 rounded-full bg-primary shrink-0" />
                   )}
                 </button>
-              ))
+              ))}
+              </div>
             )}
           </div>
         </m.div>

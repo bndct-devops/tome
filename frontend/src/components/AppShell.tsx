@@ -6,6 +6,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import { Sidebar } from '@/components/Sidebar'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
+import { ShellFrame } from '@/components/ShellFrame'
 import { UploadModal } from '@/components/UploadModal'
 import { Trans } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
@@ -27,10 +28,13 @@ export function AppShell({
   children,
   actions,
   onUploaded,
+  sidebar,
 }: {
   children: ReactNode
   actions?: ReactNode
   onUploaded?: () => void
+  /** Replaces the app sidebar on desktop (Settings and Admin bring their section list). The phone drawer stays. */
+  sidebar?: ReactNode
 }) {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -92,14 +96,30 @@ export function AppShell({
   // freshens the lists in the background, it never blanks them.
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
-  // h-dvh, not h-screen: 100vh overshoots the visible area under mobile
-  // browser toolbars, leaving the page itself pannable by the overhang.
   return (
-    <div className="h-dvh bg-background flex flex-col overflow-hidden">
+    <ShellFrame
+      sidebar={
+        <>
+        {sidebar}
+        <Sidebar
+          desktopHidden={!!sidebar}
+          libraries={libraries}
+          savedFilters={savedFilters}
+          activeTab="none"
+          onLibrariesChange={loadLibraries}
+          onSavedFiltersChange={loadSavedFilters}
+          onOpenSeriesView={() => navigate('/?tab=series')}
+          onOpenHomeView={() => navigate('/')}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={() => setMobileSidebarOpen(false)}
+        />
+        </>
+      }
+      header={
       <AppHeader
         onMenuClick={() => setMobileSidebarOpen(true)}
         search={
-          <div className="relative flex-1 sm:max-w-md">
+          <div className="relative flex-1 sm:max-w-[360px]">
             <HeaderSearch
               value={searchInput}
               onChange={setSearchInput}
@@ -141,7 +161,8 @@ export function AppShell({
         actions={actions}
         onUploadClick={isMember(user) ? () => setUploadOpen(true) : undefined}
       />
-
+      }
+    >
       <UploadModal
         isOpen={uploadOpen}
         onClose={() => setUploadOpen(false)}
@@ -155,22 +176,7 @@ export function AppShell({
         }}
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          libraries={libraries}
-          savedFilters={savedFilters}
-          activeTab="none"
-          onLibrariesChange={loadLibraries}
-          onSavedFiltersChange={loadSavedFilters}
-          onOpenSeriesView={() => navigate('/?tab=series')}
-          onOpenHomeView={() => navigate('/')}
-          mobileOpen={mobileSidebarOpen}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-        />
-        {/* overflow-x-hidden: see DashboardPage's main — WebKit pans pre-transform
-            layout overflow sideways; keep the app clamped to the viewport. */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 overscroll-contain">{children}</main>
-      </div>
-    </div>
+      {children}
+    </ShellFrame>
   )
 }

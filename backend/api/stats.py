@@ -58,6 +58,18 @@ def _fill_daily_map(day_map: dict, start_date, end_date) -> list[dict]:
     return result
 
 
+def _memoized_db(db: Session = Depends(get_db)):
+    """The stats answer asks for the same gap-clustered sessions up to ten
+    times. Turn on ``reconciled_reading``'s per-session memo for this request
+    only: nothing here writes, and the memo is gone before the next request
+    (tests share one session across requests, so it must not linger)."""
+    db.info["rr_clusters"] = {}
+    try:
+        yield db
+    finally:
+        db.info.pop("rr_clusters", None)
+
+
 @router.get("/stats")
 def get_stats(
     days: int = Query(30, ge=0),
@@ -65,7 +77,7 @@ def get_stats(
     end: Optional[str] = Query(None, description="Custom range end (YYYY-MM-DD, local, inclusive)."),
     tz_offset: int = Query(0, description="Client timezone offset in minutes (JS getTimezoneOffset)"),
     tz: Optional[str] = Query(None, description="IANA timezone name for DST-correct day bucketing"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(_memoized_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     now = datetime.utcnow()

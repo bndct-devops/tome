@@ -8,19 +8,20 @@ const FRESH_MS = 5 * 60_000
 const RECENT_MS = 30 * 60_000
 
 function formatRelative(iso: string | null): string {
-  if (!iso) return t`Never`
+  if (!iso) return t`Never synced`
   const ts = new Date(iso).getTime()
-  if (Number.isNaN(ts)) return t`Never`
+  if (Number.isNaN(ts)) return t`Never synced`
   const diff = Date.now() - ts
   if (diff < 60_000) return t`Just synced`
   const mins = Math.floor(diff / 60_000)
-  if (mins < 60) return t`${mins}m ago`
+  if (mins < 60) return t`Synced ${mins}m ago`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return t`${hrs}h ago`
+  if (hrs < 24) return t`Synced ${hrs}h ago`
   const days = Math.floor(hrs / 24)
-  if (days === 1) return t`Yesterday`
-  if (days < 7) return t`${days}d ago`
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  if (days === 1) return t`Synced yesterday`
+  if (days < 7) return t`Synced ${days}d ago`
+  const d = new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return t`Synced ${d}`
 }
 
 // Freshness tints the sync glyph itself — a bare colored dot next to "12h ago"
@@ -54,11 +55,11 @@ export function SyncStatusBadge() {
   return (
     <div
       title={`${label} — ${tooltip}`}
-      className="inline-flex items-center gap-1.5 h-7 px-1.5 sm:px-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-default select-none"
+      className="inline-flex items-center gap-1.5 h-9 px-2 sm:px-3 rounded-full text-[13px] text-muted-foreground hover:text-foreground hover:bg-background/70 transition-colors cursor-default select-none"
       aria-label={t`KOReader sync: ${label}. ${tooltip}`}
     >
       <RefreshCw className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', iconColor(diff))} />
-      <span className="font-medium tabular-nums hidden sm:inline">{label}</span>
+      <span className="tabular-nums hidden sm:inline">{label}</span>
     </div>
   )
 }

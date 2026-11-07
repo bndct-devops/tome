@@ -12,6 +12,7 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
+import { Pill } from '@/components/page'
 
 interface FlaggedBook {
   book_id: number
@@ -97,7 +98,7 @@ export function CoverAudit() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[14px] text-muted-foreground">
           {(() => {
             const scanned = data.scanned
             if (data.books.length === 0) return t`All ${scanned} covers look healthy.`
@@ -107,29 +108,29 @@ export function CoverAudit() {
         </p>
         <div className="ml-auto flex items-center gap-2">
           {missingCount > 0 && (
-            <button
+            <Pill
               onClick={autoFixAllMissing}
               disabled={bulkRunning}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
+              variant="primary"
             >
               {bulkRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
               <Trans>Auto-fix {missingCount} missing</Trans>
-            </button>
+            </Pill>
           )}
-          <button
+          <Pill
             onClick={load}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted disabled:opacity-50 transition-all"
+            variant="secondary"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             <Trans>Rescan</Trans>
-          </button>
+          </Pill>
         </div>
       </div>
 
       {data.books.length > 0 && (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <div className="grid grid-cols-[3rem_1fr_8rem_7rem_6rem] items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="border-y border-border/70">
+          <div className="grid grid-cols-[3rem_1fr_8rem_7rem_6rem] items-center gap-2 border-b border-border/70 px-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <span />
             <span><Trans>Book</Trans></span>
             <span><Trans>Problem</Trans></span>

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import {
-  AlignLeft, Loader2, Check, X, FileWarning, Play, Ban, RotateCcw,
+  Loader2, Check, X, FileWarning, Play, Ban, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   getWordCountStatus, getWordCountPreflight, startWordCount, cancelWordCount, dismissWordCount,
   type WordCountState, type WordCountPreflight,
 } from '@/lib/wordcount'
+import { Pill } from '@/components/page'
 
 const POLL_MS = 1000
 
@@ -121,13 +122,10 @@ export function WordCountTab() {
 
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <AlignLeft className="w-4 h-4" />
-        </div>
+      <div>
         <div>
-          <h2 className="text-sm font-semibold"><Trans>Word counts</Trans></h2>
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+          <p className="text-[14px] text-muted-foreground leading-relaxed">
+
             <Trans>Parse each EPUB to store its word count. New uploads get this automatically — this
             backfills books added before the feature. It only reads the files and writes one
             number per book; nothing on disk is modified. Word counts power words-read and
@@ -153,13 +151,13 @@ export function WordCountTab() {
               sub={preflight ? formatBytes(preflight.pending_bytes) : undefined} />
           </div>
           <div className="px-4 py-3">
-            <button
+            <Pill
               onClick={handleStart}
               disabled={busy || pending === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              variant="primary">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               {pending === 0 ? t`Every EPUB is counted` : plural(pending, { one: 'Count # EPUB', other: 'Count # EPUBs' })}
-            </button>
+            </Pill>
           </div>
         </div>
       )}
@@ -193,10 +191,10 @@ export function WordCountTab() {
               <Stat label={t`Words found`} value={formatCount(state.words_total)} />
               <Stat label={t`Failed`} value={formatCount(state.failed)} danger={state.failed > 0} />
             </div>
-            <button onClick={handleCancel} disabled={busy}
-              className="self-start flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50">
+            <Pill onClick={handleCancel} disabled={busy}
+              variant="destructive" className="self-start">
               <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
-            </button>
+            </Pill>
           </div>
         </div>
       )}
@@ -240,16 +238,16 @@ export function WordCountTab() {
             </div>
           )}
           <div className="px-4 py-3 flex items-center gap-2">
-            <button onClick={handleDismiss} disabled={busy}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
+            <Pill onClick={handleDismiss} disabled={busy}
+              variant="primary">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} <Trans>Done</Trans>
-            </button>
+            </Pill>
             {state.failed > 0 && (
-              <button onClick={handleStart} disabled={busy}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50">
+              <Pill onClick={handleStart} disabled={busy}
+                variant="secondary">
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
                 {(() => { const n = formatCount(state.failed); return <Trans>Retry {n} failed</Trans> })()}
-              </button>
+              </Pill>
             )}
           </div>
         </div>

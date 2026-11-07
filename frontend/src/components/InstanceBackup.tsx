@@ -2,10 +2,13 @@
 // covers + manifest; library files stay on disk), and stage a restore that
 // applies at the next server start — never under a live database.
 import { useEffect, useRef, useState } from 'react'
-import { Archive, Download, Loader2, RotateCcw, X } from 'lucide-react'
+import { Download, Loader2, RotateCcw, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
+import { Pill } from '@/components/page'
+import { PanelSection } from '@/components/SectionNav'
+
 
 interface RestoreStatus {
   staged: boolean
@@ -71,28 +74,24 @@ export function InstanceBackup() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-2 flex items-center gap-2">
-        <Archive className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground"><Trans>Instance backup</Trans></h3>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">
-        <Trans>Everything Tome knows in one archive: the database (all users, statuses,
+    <PanelSection
+      title={<Trans>Instance backup</Trans>}
+      description={<Trans>Everything Tome knows in one archive: the database (all users, statuses,
         sessions, highlights, settings) plus the cover cache. Book files are not
         included — they live on disk and belong to your own backups. Restoring
         stages the archive and applies it at the next server restart; the
-        current database is kept alongside as a safety copy.</Trans>
-      </p>
+        current database is kept alongside as a safety copy.</Trans>}
+    >
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
+        <Pill
           onClick={download}
           disabled={downloading}
-          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-all hover:bg-muted disabled:opacity-50"
+          variant="secondary"
         >
           {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
           {downloading ? t`Preparing…` : t`Download backup`}
-        </button>
+        </Pill>
 
         {!status?.staged && (
           <>
@@ -103,20 +102,20 @@ export function InstanceBackup() {
               className="hidden"
               onChange={e => { setPendingFile(e.target.files?.[0] ?? null); e.target.value = '' }}
             />
-            <button
+            <Pill
               onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-all hover:bg-muted"
+              variant="secondary"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               {pendingFile ? pendingFile.name : t`Restore from backup…`}
-            </button>
+            </Pill>
           </>
         )}
       </div>
 
       {pendingFile && !status?.staged && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5">
-          <p className="w-full text-xs text-muted-foreground">
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-destructive/10 px-4 py-3">
+          <p className="w-full text-[13px] text-muted-foreground">
             <Trans>This replaces <span className="font-semibold text-foreground">the entire database</span> at
             the next restart. Type <span className="font-mono font-semibold text-destructive">RESTORE</span> to arm it.</Trans>
           </p>
@@ -124,44 +123,45 @@ export function InstanceBackup() {
             value={confirmText}
             onChange={e => setConfirmText(e.target.value)}
             placeholder="RESTORE"
-            className="w-32 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-32 font-mono h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          <button
+          <Pill
             onClick={stage}
             disabled={confirmText !== 'RESTORE' || staging}
-            className="flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-destructive/90 disabled:opacity-50"
+            variant="destructive"
+            className="bg-destructive text-white hover:bg-destructive/90 hover:text-white"
           >
             {staging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
             <Trans>Stage restore</Trans>
-          </button>
-          <button
+          </Pill>
+          <Pill
             onClick={() => { setPendingFile(null); setConfirmText('') }}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            variant="secondary"
           >
             <Trans>Cancel</Trans>
-          </button>
+          </Pill>
         </div>
       )}
 
       {status?.staged && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning/50 bg-warning/5 px-3 py-2.5">
-          <p className="min-w-0 flex-1 text-xs text-foreground">
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-warning/10 px-4 py-3">
+          <p className="min-w-0 flex-1 text-[13px] text-foreground">
             <Trans>Restore staged</Trans>
             {status.summary
               ? (() => { const when = status.summary.created_at; const v = status.summary.version; const users = status.summary.users; const books = status.summary.books; return t` — backup from ${when} (v${v}, ${users} users, ${books} books).` })()
               : '.'}{' '}
             <span className="text-muted-foreground"><Trans>It applies at the next server restart.</Trans></span>
           </p>
-          <button
+          <Pill
             onClick={() => api.delete('/admin/backup/restore').then(loadStatus)}
-            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            variant="secondary"
           >
             <X className="h-3 w-3" /> <Trans>Cancel restore</Trans>
-          </button>
+          </Pill>
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-    </div>
+      {error && <p className="mt-2 text-[13px] text-destructive">{error}</p>}
+    </PanelSection>
   )
 }

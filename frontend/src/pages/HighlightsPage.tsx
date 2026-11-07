@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  Search, Quote, StickyNote, Loader2, BookOpen,
+  Search, StickyNote, Loader2,
   CalendarHeart, Copy, X, ChevronDown, Info, ChevronsDownUp, ChevronsUpDown, Trash2, Pencil,
   Download,
 } from 'lucide-react'
@@ -11,6 +10,9 @@ import { cn } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { AppShell } from '@/components/AppShell'
+import { CoverImage } from '@/components/CoverImage'
+import { QuickLook } from '@/components/QuickLook'
+import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
 
 interface Highlight {
   id: number
@@ -113,7 +115,9 @@ function fullInfo(h: Highlight): string {
   return parts.join('  ·  ')
 }
 
-function HighlightCard({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: string; showDot: boolean; onDelete: (h: Highlight) => void; onEdited: (h: Highlight, note: string | null) => void }) {
+const ROW_TOOL = 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 h-8 w-8'
+
+function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: string; showDot: boolean; onDelete: (h: Highlight) => void; onEdited: (h: Highlight, note: string | null) => void }) {
   const tint = h.color ? (COLOR_TINT[h.color.toLowerCase()] ?? 'bg-primary/50') : 'bg-primary/40'
   const date = shortDate(h.datetime)
   const [confirming, setConfirming] = useState(false)
@@ -135,89 +139,84 @@ function HighlightCard({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q:
   }
 
   return (
-    <li className="group rounded-lg border border-border bg-muted/40 px-3.5 py-3">
-      <div className="flex items-start justify-between gap-3 mb-1.5">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {showDot && <span className={cn('w-2 h-2 rounded-full shrink-0', tint)} />}
-          {h.chapter && (
-            <p className="text-xs text-muted-foreground/70 truncate">{q ? mark(h.chapter, q) : h.chapter}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {date && (
-            <span
-              className="flex items-center gap-1 text-[11px] text-muted-foreground/50 cursor-help"
-              title={fullInfo(h)}
-            >
-              {date}
-              <Info className="w-3 h-3" />
-            </span>
-          )}
-          {confirming ? (
-            <span className="flex items-center gap-1.5 text-[11px]">
-              <button
-                onClick={() => onDelete(h)}
-                className="font-medium text-destructive hover:underline"
-              >
-                <Trans>Delete</Trans>
-              </button>
-              <button
-                onClick={() => setConfirming(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Trans>Cancel</Trans>
-              </button>
-            </span>
-          ) : (
-            <>
-              <button
-                onClick={() => { setDraft(h.note ?? ''); setEditing(e => !e) }}
-                title={h.note ? t`Edit note` : t`Add a note`}
-                aria-label={h.note ? t`Edit note` : t`Add a note`}
-                className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-foreground transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setConfirming(true)}
-                title={t`Delete this highlight`}
-                aria-label={t`Delete this highlight`}
-                className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-destructive transition-all opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+    <li className="group border-t border-border/70 py-4">
       {h.highlighted_text && (
-        <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-2.5">
+        <p className="text-[15px] text-foreground leading-relaxed">
           {q ? mark(h.highlighted_text, q) : h.highlighted_text}
         </p>
       )}
       {editing ? (
-        <div className="mt-2 flex flex-col gap-1.5">
+        <div className="mt-3 flex flex-col gap-2">
           <textarea
             value={draft}
             onChange={e => setDraft(e.target.value)}
             autoFocus
             rows={2}
-            placeholder={t`Your note — syncs back to KOReader on the next sync`}
-            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder={t`Your note. It syncs back to KOReader on the next sync.`}
+            className="w-full rounded-lg bg-secondary px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <span className="flex items-center gap-2 text-xs">
-            <button onClick={saveNote} disabled={saving} className="font-medium text-primary hover:underline disabled:opacity-50">
+          <div className="flex items-center gap-1">
+            <Pill variant="secondary" onClick={saveNote} disabled={saving}>
+              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {saving ? t`Saving…` : t`Save note`}
-            </button>
-            <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground"><Trans>Cancel</Trans></button>
-          </span>
+            </Pill>
+            <Pill variant="quiet" onClick={() => setEditing(false)}><Trans>Cancel</Trans></Pill>
+          </div>
         </div>
       ) : h.note ? (
-        <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
-          <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <p className="mt-2 flex items-start gap-2 text-[14px] text-muted-foreground">
+          <StickyNote className="w-3.5 h-3.5 mt-[3px] shrink-0" />
           <span className="leading-relaxed">{q ? mark(h.note, q) : h.note}</span>
         </p>
       ) : null}
+      <div className="mt-2 flex items-center justify-between gap-3 min-h-8">
+        <div className="flex items-center gap-1.5 min-w-0 text-[12px] text-muted-foreground">
+          {showDot && <span className={cn('w-2 h-2 rounded-full shrink-0', tint)} />}
+          {h.chapter && <span className="truncate">{q ? mark(h.chapter, q) : h.chapter}</span>}
+          {h.chapter && date && <span aria-hidden="true">·</span>}
+          {date && (
+            <span className="inline-flex items-center gap-1 shrink-0 cursor-help" title={fullInfo(h)}>
+              {date}
+              <Info className="w-3 h-3" />
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {confirming ? (
+            <>
+              <Pill variant="destructive" className="h-8 px-3 text-[13px] text-destructive" onClick={() => onDelete(h)}>
+                <Trans>Delete</Trans>
+              </Pill>
+              <Pill variant="quiet" className="h-8 px-3 text-[13px]" onClick={() => setConfirming(false)}>
+                <Trans>Cancel</Trans>
+              </Pill>
+            </>
+          ) : (
+            <>
+              <Pill
+                variant="quiet"
+                icon
+                onClick={() => { setDraft(h.note ?? ''); setEditing(e => !e) }}
+                title={h.note ? t`Edit note` : t`Add a note`}
+                aria-label={h.note ? t`Edit note` : t`Add a note`}
+                className={ROW_TOOL}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Pill>
+              <Pill
+                variant="destructive"
+                icon
+                onClick={() => setConfirming(true)}
+                title={t`Delete this highlight`}
+                aria-label={t`Delete this highlight`}
+                className={ROW_TOOL}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Pill>
+            </>
+          )}
+        </div>
+      </div>
     </li>
   )
 }
@@ -235,6 +234,8 @@ export function HighlightsPage() {
   const [onThisDay, setOnThisDay] = useState(false)
   const [onlyNotes, setOnlyNotes] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  const [peek, setPeek] = useState<number | null>(null)
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -252,13 +253,14 @@ export function HighlightsPage() {
     return p
   }, [debounced, onThisDay, onlyNotes])
 
-  // Reset + first page whenever the query/filter changes.
+  // Reset + first page whenever the query/filter changes. The old list stays
+  // on screen, dimmed, until the new one lands.
   useEffect(() => {
     const ctrl = new AbortController()
     setLoading(true)
     setError(null)
     api.get<HighlightsResponse>(`/annotations?${buildParams(0).toString()}`, ctrl.signal)
-      .then(d => { setItems(d.items); setTotal(d.total); setBooks(d.books) })
+      .then(d => { setItems(d.items); setTotal(d.total); setBooks(d.books); setLoadedOnce(true) })
       .catch(e => { if (e.name !== 'AbortError') setError(e.message ?? t`Failed to load`) })
       .finally(() => setLoading(false))
     return () => ctrl.abort()
@@ -350,7 +352,7 @@ export function HighlightsPage() {
 
   function noteEdited(h: Highlight, note: string | null) {
     setItems(prev => prev.map(x => (x.id === h.id ? { ...x, note } : x)))
-    toast.success(note ? t`Note saved — syncs to your devices` : t`Note removed`)
+    toast.success(note ? t`Note saved. It syncs to your devices.` : t`Note removed`)
   }
 
   async function deleteHighlight(h: Highlight) {
@@ -392,7 +394,7 @@ export function HighlightsPage() {
         searchRef.current?.blur()
         return
       }
-      if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || peek != null) return
       if (e.key === '/') {
         e.preventDefault()
         searchRef.current?.focus()
@@ -411,175 +413,173 @@ export function HighlightsPage() {
   const isEmpty = !loading && !error && groups.length === 0
   const neverSynced = isEmpty && !debounced && !onThisDay && !onlyNotes
 
+  function clearFilters() {
+    setSearch('')
+    setDebounced('')
+    setOnThisDay(false)
+    setOnlyNotes(false)
+  }
+
   return (
-    <AppShell
-      actions={groups.length > 0 ? (
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={copyAll}
-            title={t`Copy all as Markdown`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline"><Trans>Copy</Trans></span>
-          </button>
-          <button
-            onClick={downloadAll}
-            title={t`Download as Markdown file`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline"><Trans>Export</Trans></span>
-          </button>
-        </div>
-      ) : undefined}
-    >
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="font-display text-xl text-foreground"><Trans>Highlights</Trans></h1>
-          {total > 0 && (
-            <span className="text-xs text-muted-foreground/60">
-              {plural(books, { one: `${total} from # book`, other: `${total} from # books` })}
-            </span>
-          )}
-        </div>
-        {/* Controls — on phones the search input gets its own full-width row;
-            squeezed next to three labelled buttons it shrank to a ~90px
-            keyhole ("Se…") (UX sweep finding). */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative basis-full sm:basis-auto sm:flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+    <AppShell>
+      <PageBody width="reading">
+        <PageHeader
+          eyebrow={total > 0 ? plural(books, { one: `${total} from # book`, other: `${total} from # books` }) : undefined}
+          title={<Trans>Highlights</Trans>}
+          actions={groups.length > 0 ? (
+            <>
+              <Pill variant="quiet" onClick={copyAll} title={t`Copy all as Markdown`}>
+                <Copy className="w-4 h-4" />
+                <Trans>Copy</Trans>
+              </Pill>
+              <Pill variant="quiet" onClick={downloadAll} title={t`Download as Markdown file`}>
+                <Download className="w-4 h-4" />
+                <Trans>Export</Trans>
+              </Pill>
+            </>
+          ) : undefined}
+        />
+
+        {/* Controls. On phones the search gets its own full-width row; squeezed
+            next to three labelled pills it shrank to a keyhole. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="relative basis-full sm:basis-auto sm:flex-1 sm:mr-1.5">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               ref={searchRef}
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t`Search your highlights…`}
-              className="w-full pl-9 pr-9 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground"
+                aria-label={t`Clear search`}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 grid place-items-center rounded-full text-muted-foreground hover:text-foreground"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-          <button
+          <Pill
+            variant={onThisDay ? 'secondary' : 'quiet'}
             onClick={() => setOnThisDay(v => !v)}
+            aria-pressed={onThisDay}
             title={t`Highlights you made on this day in past years`}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap',
-              onThisDay
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'border-border text-muted-foreground hover:bg-muted'
-            )}
+            className={cn(onThisDay && 'text-foreground')}
           >
-            <CalendarHeart className="w-3.5 h-3.5" />
+            <CalendarHeart className="w-4 h-4" />
             <Trans>On this day</Trans>
-          </button>
-          <button
+          </Pill>
+          <Pill
+            variant={onlyNotes ? 'secondary' : 'quiet'}
             onClick={() => setOnlyNotes(v => !v)}
+            aria-pressed={onlyNotes}
             title={t`Only highlights that carry one of your notes`}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap',
-              onlyNotes
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'border-border text-muted-foreground hover:bg-muted'
-            )}
           >
-            <StickyNote className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline"><Trans>Only notes</Trans></span>
-          </button>
+            <StickyNote className="w-4 h-4" />
+            <Trans>Only notes</Trans>
+          </Pill>
           {groups.length > 0 && !searching && (
-            <button
+            <Pill
+              variant={allCollapsed ? 'secondary' : 'quiet'}
               onClick={toggleAll}
+              aria-pressed={allCollapsed}
               title={allCollapsed ? t`Expand all` : t`Collapse all`}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-all whitespace-nowrap"
             >
-              {allCollapsed ? <ChevronsUpDown className="w-3.5 h-3.5" /> : <ChevronsDownUp className="w-3.5 h-3.5" />}
-              {allCollapsed ? t`Expand` : t`Collapse`}
-            </button>
+              {allCollapsed ? <ChevronsUpDown className="w-4 h-4" /> : <ChevronsDownUp className="w-4 h-4" />}
+              {allCollapsed ? t`Expand all` : t`Collapse all`}
+            </Pill>
           )}
         </div>
 
-        {loading ? (
+        {loading && !loadedOnce ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-            {error}
-          </div>
+          <p className="text-[15px] text-destructive">{error}</p>
         ) : isEmpty ? (
-          <div className="flex flex-col items-center justify-center text-center py-20 gap-3 text-muted-foreground">
-            <Quote className="w-8 h-8 opacity-40" />
+          <div className="flex flex-col items-center text-center py-16 gap-4">
             {neverSynced ? (
-              <>
-                <p className="text-sm font-medium text-foreground"><Trans>No highlights yet</Trans></p>
-                <p className="text-xs max-w-xs leading-relaxed">
+              <div className="max-w-sm">
+                <p className="text-[17px] font-semibold text-foreground"><Trans>No highlights yet</Trans></p>
+                <p className="mt-1.5 text-[15px] text-muted-foreground leading-relaxed">
                   <Trans>Highlights and notes you make in KOReader sync here automatically.
-                  Highlight a passage on your device, then sync — it’ll show up in this
+                  Highlight a passage on your device, then sync. It shows up in this
                   commonplace book.</Trans>
                 </p>
-              </>
+              </div>
             ) : (
-              <p className="text-sm">
-                {onThisDay ? t`Nothing highlighted on this day — yet.` : t`No highlights match your search.`}
-              </p>
+              <>
+                <p className="text-[15px] text-muted-foreground">
+                  {onThisDay ? t`Nothing highlighted on this day yet.` : t`No highlights match your search.`}
+                </p>
+                <Pill variant="secondary" onClick={clearFilters}><Trans>Show all highlights</Trans></Pill>
+              </>
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className={cn('flex flex-col gap-9 transition-opacity', loading && 'opacity-50')}>
             {groups.map(g => {
               const isCollapsed = !searching && collapsed.has(g.book_id)
               return (
-                <section key={g.book_id} className="animate-card-appear">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Link to={`/books/${g.book_id}`} className="shrink-0">
-                      <div className="w-10 h-14 rounded bg-muted overflow-hidden flex items-center justify-center">
-                        {g.cover ? (
-                          <img
-                            src={g.cover}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                          />
-                        ) : (
-                          <BookOpen className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </Link>
+                <section key={g.book_id}>
+                  <div className="flex items-center gap-4">
                     <button
-                      onClick={() => toggleBook(g.book_id)}
-                      className="flex-1 min-w-0 flex items-center gap-2 text-left group"
+                      type="button"
+                      onClick={() => setPeek(g.book_id)}
+                      aria-label={(() => { const title = g.title; return t`Quick look at ${title}` })()}
+                      className="relative w-11 h-16 rounded-[8px] overflow-hidden bg-muted shrink-0"
+                      style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                     >
-                      <ChevronDown
-                        className={cn('w-4 h-4 text-muted-foreground/60 shrink-0 transition-transform', isCollapsed && '-rotate-90')}
-                      />
-                      <span className="min-w-0">
-                        <span className="block font-display text-base text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                      <CoverImage src={g.cover} alt="" iconClassName="w-4 h-4" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <SectionTitle
+                        size={20}
+                        className="items-center"
+                        action={
+                          <div className="flex items-center">
+                            <Pill
+                              variant="quiet"
+                              onClick={() => toggleBook(g.book_id)}
+                              aria-expanded={!isCollapsed}
+                              title={isCollapsed ? t`Expand` : t`Collapse`}
+                              className="px-3 tabular-nums"
+                            >
+                              {g.items.length}
+                              <ChevronDown className={cn('w-4 h-4 transition-transform', isCollapsed && '-rotate-90')} />
+                            </Pill>
+                            <Pill
+                              variant="quiet"
+                              icon
+                              onClick={() => copyGroup(g)}
+                              title={t`Copy this book’s highlights as Markdown`}
+                              aria-label={t`Copy this book’s highlights as Markdown`}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Pill>
+                          </div>
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleBook(g.book_id)}
+                          className="text-left leading-tight line-clamp-2 hover:text-primary transition-colors"
+                        >
                           {g.title}
-                        </span>
-                        {g.author && <span className="block text-xs text-muted-foreground truncate">{g.author}</span>}
-                      </span>
-                      <span className="text-xs text-muted-foreground/60 shrink-0 ml-auto">
-                        {g.items.length}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => copyGroup(g)}
-                      title={t`Copy this book’s highlights as Markdown`}
-                      className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
+                        </button>
+                      </SectionTitle>
+                      {g.author && <p className="mt-1 text-[14px] text-muted-foreground truncate">{g.author}</p>}
+                    </div>
                   </div>
                   {/* grid-rows 1fr↔0fr gives a smooth height collapse without measuring. */}
                   <div className={cn('grid transition-[grid-template-rows] duration-300 ease-out', isCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
                     <div className="overflow-hidden">
-                      <ul className="space-y-2.5">
-                        {g.items.map(h => <HighlightCard key={h.id} h={h} q={debounced} showDot={showDots} onDelete={deleteHighlight} onEdited={noteEdited} />)}
+                      <ul className="mt-3">
+                        {g.items.map(h => <HighlightRow key={h.id} h={h} q={debounced} showDot={showDots} onDelete={deleteHighlight} onEdited={noteEdited} />)}
                       </ul>
                     </div>
                   </div>
@@ -588,20 +588,17 @@ export function HighlightsPage() {
             })}
 
             {hasMore && (
-              <div className="flex justify-center pt-1">
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-all disabled:opacity-60"
-                >
-                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              <div className="flex justify-center">
+                <Pill variant="secondary" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
                   {(() => { const left = total - items.length; return t`Load more (${left} left)` })()}
-                </button>
+                </Pill>
               </div>
             )}
           </div>
         )}
-      </div>
+      </PageBody>
+      {peek != null && <QuickLook bookId={peek} onClose={() => setPeek(null)} />}
     </AppShell>
   )
 }

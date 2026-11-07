@@ -1,50 +1,71 @@
 // Jump list for the Settings page. One long page stays one long page: the
-// list only scrolls to a section and follows the scroll position back. At
-// desktop width it is a sticky column on the left; on phones it is a row of
-// chips under the header that scrolls sideways.
+// list only scrolls to a section and follows the scroll position back. It
+// renders through SectionNav, the same nav the Admin page uses: a left
+// column at desktop width, a sideways pill row on phones.
 import { useEffect, useRef, useState } from 'react'
 import { useLingui } from '@lingui/react/macro'
-import { cn } from '@/lib/utils'
+import { SectionNav, type SectionNavItem } from '@/components/SectionNav'
 
-export interface SettingsNavSection {
-  id: string
-  label: string
-}
+export type SettingsNavSection = SectionNavItem
 
-// Keep in step with the sticky header (h-14) plus breathing room: a section
-// counts as "current" once its top passes this line.
-const TOP_LINE_PX = 96
+// A section counts as "current" once its top passes this line, measured from
+// the top of the scrolling content panel (clears the phone pill row).
+const TOP_LINE_PX = 72
 
-export function SettingsNav({ sections }: { sections: SettingsNavSection[] }) {
+export function SettingsNav({ sections, onActiveChange, placement }: {
+  sections: SettingsNavSection[]
+  onActiveChange?: (id: string | null) => void
+  placement?: 'column' | 'sidebar'
+}) {
   const { t } = useLingui()
   const [active, setActive] = useState<string | null>(sections[0]?.id ?? null)
-  const chipRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
+  const anchorRef = useRef<HTMLSpanElement>(null)
   // A click pins the highlight on the clicked section until the user scrolls
   // on their own; the last sections can never reach the top line, so the
   // scroll rule alone would highlight the wrong one after a jump.
   const pinnedRef = useRef<string | null>(null)
   const ids = sections.map(s => s.id).join('|')
 
-  // Follow the scroll: the current section is the last one whose top is
-  // above the top line. Cheaper and steadier than an IntersectionObserver
-  // with many thresholds, and it handles sections taller than the viewport.
+  useEffect(() => { onActiveChange?.(active) }, [active])
+
+  // Deep link (/settings#api-tokens): the panel is not the document, so the
+  // browser's own hash scroll does not reach it. Jump once on arrival.
+  useEffect(() => {
+    const id = window.location.hash.slice(1)
+    if (!id) return
+    const timer = setTimeout(() => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.scrollIntoView({ block: 'start' })
+      pinnedRef.current = id
+      setActive(id)
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Follow the scroll of the shell's content panel (<main>), not the window:
+  // the shell scrolls inside it.
   useEffect(() => {
     const list = ids.split('|').filter(Boolean)
     if (list.length === 0) return
+    const scroller: HTMLElement | null = anchorRef.current?.closest('main') ?? null
     let frame = 0
     function update() {
       frame = 0
       if (pinnedRef.current) return
+      const top = scroller ? scroller.getBoundingClientRect().top : 0
       let current = list[0]
       for (const id of list) {
         const el = document.getElementById(id)
         if (!el) continue
-        if (el.getBoundingClientRect().top <= TOP_LINE_PX) current = id
+        if (el.getBoundingClientRect().top - top <= TOP_LINE_PX) current = id
         else break
       }
       // At the very bottom the last section may never reach the line.
-      const doc = document.documentElement
-      if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) current = list[list.length - 1]
+      const atBottom = scroller
+        ? scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+        : window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2
+      if (atBottom && (scroller ? scroller.scrollTop > 0 : window.scrollY > 0)) current = list[list.length - 1]
       setActive(prev => (prev === current ? prev : current))
     }
     function onScroll() {
@@ -55,14 +76,15 @@ export function SettingsNav({ sections }: { sections: SettingsNavSection[] }) {
       pinnedRef.current = null
       onScroll()
     }
+    const target: HTMLElement | Window = scroller ?? window
     update()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    target.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
     window.addEventListener('wheel', unpin, { passive: true })
     window.addEventListener('touchmove', unpin, { passive: true })
     window.addEventListener('keydown', unpin)
     return () => {
-      window.removeEventListener('scroll', onScroll)
+      target.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
       window.removeEventListener('wheel', unpin)
       window.removeEventListener('touchmove', unpin)
@@ -71,14 +93,7 @@ export function SettingsNav({ sections }: { sections: SettingsNavSection[] }) {
     }
   }, [ids])
 
-  // Keep the active chip in view on phones.
-  useEffect(() => {
-    if (!active) return
-    const chip = chipRefs.current[active]
-    chip?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
-  }, [active])
-
-  function jump(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
+  function jump(id: string, e: React.MouseEvent) {
     e.preventDefault()
     const el = document.getElementById(id)
     if (!el) return
@@ -92,60 +107,15 @@ export function SettingsNav({ sections }: { sections: SettingsNavSection[] }) {
 
   return (
     <>
-      {/* Desktop: sticky column */}
-      <nav aria-label={t`Settings sections`} className="hidden lg:block sticky top-24 self-start">
-        <ul className="space-y-0.5 border-l border-border">
-          {sections.map(s => {
-            const isActive = s.id === active
-            return (
-              <li key={s.id}>
-                <a
-                  href={`#${s.id}`}
-                  onClick={e => jump(e, s.id)}
-                  aria-current={isActive ? 'location' : undefined}
-                  className={cn(
-                    '-ml-px block border-l-2 py-1 pl-3 pr-2 text-sm transition-colors',
-                    isActive
-                      ? 'border-primary text-foreground font-medium'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border',
-                  )}
-                >
-                  {s.label}
-                </a>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
-
-      {/* Phone and tablet: chip row under the header */}
-      <nav
-        aria-label={t`Settings sections`}
-        className="lg:hidden sticky top-14 z-10 -mx-4 border-b border-border bg-background/90 backdrop-blur-sm"
-      >
-        <div className="flex gap-1.5 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {sections.map(s => {
-            const isActive = s.id === active
-            return (
-              <a
-                key={s.id}
-                ref={el => { chipRefs.current[s.id] = el }}
-                href={`#${s.id}`}
-                onClick={e => jump(e, s.id)}
-                aria-current={isActive ? 'location' : undefined}
-                className={cn(
-                  'shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors',
-                  isActive
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {s.label}
-              </a>
-            )
-          })}
-        </div>
-      </nav>
+      <span ref={anchorRef} hidden />
+      <SectionNav
+        items={sections}
+        active={active}
+        onSelect={jump}
+        label={t`Settings sections`}
+        hrefFor={id => `#${id}`}
+        placement={placement}
+      />
     </>
   )
 }

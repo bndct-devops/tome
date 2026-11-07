@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # Where the update check asks (env TOME_UPDATE_CHECK_URL). Forks and test
     # instances point this elsewhere.
     update_check_url: str = "https://upgrades.bndct.dev/latest.json"
+    # Which web UI the server serves (env TOME_UI): "new" is the refreshed
+    # interface; "classic" serves the frozen pre-3.0 look built from the last
+    # 2.x release (frontend/dist-classic in the Docker image). The AI features
+    # have no surface in classic; it is a visual hatch, not a second product.
+    ui: str = "new"
 
     # Opt-in telemetry (env TOME_TELEMETRY): false pins the monthly report off
     # and hides the question entirely. True only means the admin may be asked;
