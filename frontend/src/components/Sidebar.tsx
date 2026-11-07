@@ -1,10 +1,10 @@
-import { Fragment, useState, useRef, useEffect, useMemo } from 'react'
+import { Fragment, useCallback, useId, useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import {
   BookOpen, Plus, Pencil, Share2, Trash2,
   PanelLeftClose, PanelLeftOpen, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
-  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays,
+  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays, Loader2,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -12,6 +12,8 @@ import { ShareModal } from '@/components/ShareShelfModal'
 import type { Library, SavedFilter } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
+import { ModalShell, useEscape } from '@/components/ModalShell'
+import { Pill, Input, FormLabel, Checkbox } from '@/components/page'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isAdmin, isMember, type AuthUser } from '@/contexts/AuthContext'
 import { applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
@@ -27,7 +29,11 @@ export function getIcon(name?: string | null, className = 'w-3.5 h-3.5') {
   return <NamedIcon icon={name} className={className} />
 }
 
-export function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/** Lucide icon picker. `inline` (dialogs) opens the grid in the flow under
+ *  the trigger, so it pushes the rows below down instead of covering them;
+ *  the default is a popover (Admin). While the full icon set loads it holds
+ *  its height with a quiet loading line. */
+export function IconPicker({ value, onChange, inline = false }: { value: string; onChange: (v: string) => void; inline?: boolean }) {
   const { t } = useLingui()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -37,12 +43,13 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
   useEffect(() => {
     if (!open) return
     setTimeout(() => searchRef.current?.focus(), 0)
+    if (inline) return
     function onDown(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+  }, [open, inline])
 
   const [allIcons, setAllIcons] = useState<[string, LucideIcon][] | null>(null)
   useEffect(() => {
@@ -56,6 +63,63 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
     return results.slice(0, 96)
   }, [search, allIcons])
 
+  const panel = (
+    <>
+      <input
+        ref={searchRef}
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape' && inline) { e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); setOpen(false) } }}
+        placeholder={t`Search icons…`}
+        aria-label={t`Search icons`}
+        className={inline ? 'w-full h-9 mb-2 rounded-lg bg-secondary px-3 text-[14px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring' : 'w-full mb-2 px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring'}
+      />
+      {!allIcons ? (
+        <div className={cn('flex items-center justify-center gap-2 text-[13px] text-muted-foreground', inline ? 'h-[156px]' : 'h-[120px]')}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <Trans>Loading icons</Trans>
+        </div>
+      ) : (
+        <div className={cn('grid gap-1 overflow-y-auto', inline ? 'grid-cols-[repeat(auto-fill,minmax(32px,1fr))] h-[156px]' : 'grid-cols-8 max-h-[300px]')}>
+          {filtered.map(([name, Comp]) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => { onChange(name); setOpen(false) }}
+              className={cn(
+                'flex items-center justify-center rounded-md hover:bg-secondary transition-colors',
+                inline ? 'h-8' : 'w-7 h-7',
+                value === name && 'bg-primary/15 text-primary'
+              )}
+              title={name}
+              aria-label={name}
+            >
+              <Comp className={inline ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+            </button>
+          ))}
+        </div>
+      )}
+      {!search && allIcons && <p className={cn('text-muted-foreground text-center mt-1.5', inline ? 'text-[12px]' : 'text-[10px]')}><Trans>Search to find more icons</Trans></p>}
+    </>
+  )
+
+  if (inline) {
+    return (
+      <div ref={ref} className="min-w-0">
+        <button
+          type="button"
+          onClick={() => { setOpen(o => !o); setSearch('') }}
+          aria-expanded={open}
+          className="inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-lg bg-secondary text-[14px] text-foreground hover:bg-surface-hover transition-colors"
+        >
+          <span className="grid place-items-center w-6 h-6 rounded-md bg-background/60"><NamedIcon icon={value} className="w-4 h-4" /></span>
+          {open ? <Trans>Close icons</Trans> : <Trans>Change icon</Trans>}
+        </button>
+        {open && <div className="mt-2 rounded-xl bg-secondary/50 p-2.5">{panel}</div>}
+      </div>
+    )
+  }
+
   return (
     <div className="relative shrink-0" ref={ref}>
       <button
@@ -68,31 +132,8 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (v: s
         <NamedIcon icon={value} className="w-3.5 h-3.5" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-xl shadow-accent-soft p-2 w-72">
-          <input
-            ref={searchRef}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t`Search icons…`}
-            className="w-full mb-2 px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <div className="grid grid-cols-8 gap-1 max-h-[300px] overflow-y-auto">
-            {filtered.map(([name, Comp]) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => { onChange(name); setOpen(false) }}
-                className={cn(
-                  'flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors',
-                  value === name && 'bg-primary/15 text-primary'
-                )}
-                title={name}
-              >
-                <Comp className="w-3.5 h-3.5" />
-              </button>
-            ))}
-          </div>
-          {!search && <p className="text-[10px] text-muted-foreground text-center mt-1.5"><Trans>Search to find more icons</Trans></p>}
+        <div className="absolute left-0 top-full mt-1 z-50 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-2 w-72">
+          {panel}
         </div>
       )}
     </div>
@@ -147,6 +188,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     onMobileClose()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search])
+
+  // The phone drawer closes on Escape like any overlay.
+  useEscape(mobileOpen, onMobileClose)
 
   // Lock body scroll when mobile drawer is open
   useEffect(() => {
@@ -236,7 +280,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   })
 
   function openCreateLibModal() {
-    setLibModalTitle(t`New Library`)
+    setLibModalTitle(t`New library`)
     setLibModalInitialName('')
     setLibModalInitialIcon('Library')
     setLibModalInitialPublic(true)
@@ -250,7 +294,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   }
 
   function openEditLibModal(lib: Library) {
-    setLibModalTitle(t`Edit Library`)
+    setLibModalTitle(t`Edit library`)
     setLibModalInitialName(lib.name)
     setLibModalInitialIcon(lib.icon ?? 'Library')
     setLibModalInitialPublic(lib.is_public ?? true)
@@ -266,7 +310,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   const [shareShelf, setShareShelf] = useState<SavedFilter | null>(null)
 
   function openEditFilterModal(sf: SavedFilter) {
-    setModalTitle(t`Edit Shelf`)
+    setModalTitle(t`Edit shelf`)
     setModalInitialName(sf.name)
     setModalInitialIcon(sf.icon ?? 'Bookmark')
     setModalDefaultIcon('Bookmark')
@@ -689,8 +733,10 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+  const close = useCallback(() => setOpen(false), [])
+  useEscape(open, close)
 
-  const menuItem = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-[13px] rounded-md transition-colors hover:bg-accent text-foreground/80 hover:text-foreground'
+  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground'
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
@@ -714,7 +760,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
         </div>
       </button>
       {open && (
-        <div className="absolute bottom-full left-1 right-1 mb-1 bg-card border border-border rounded-xl shadow-lg shadow-accent-soft py-1.5 z-50 w-40">
+        <div className="absolute bottom-full left-1 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50 w-48">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -730,9 +776,9 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
             <span className="flex-1"><Trans>Docs</Trans></span>
             <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
           </a>
-          <div className="my-1 h-px bg-border mx-2" />
+          <div className="my-1 h-px bg-border/70 mx-2" />
           <ThemeMenuItems itemClass={menuItem} />
-          <div className="my-1 h-px bg-border mx-2" />
+          <div className="my-1 h-px bg-border/70 mx-2" />
           <button onClick={logout} className={destructive}>
             <LogOut className="w-4 h-4 shrink-0" />
             <Trans>Log out</Trans>
@@ -755,8 +801,10 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+  const close = useCallback(() => setOpen(false), [])
+  useEscape(open, close)
 
-  const menuItem = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-[13px] rounded-md transition-colors hover:bg-accent text-foreground/80 hover:text-foreground'
+  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground'
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
@@ -784,7 +832,7 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 bg-card border border-border rounded-xl shadow-lg shadow-accent-soft py-1.5 z-50">
+        <div className="absolute bottom-full left-3 right-3 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -800,9 +848,9 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
             <span className="flex-1"><Trans>Docs</Trans></span>
             <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
           </a>
-          <div className="my-1 h-px bg-border mx-2" />
+          <div className="my-1 h-px bg-border/70 mx-2" />
           <ThemeMenuItems itemClass={menuItem} />
-          <div className="my-1 h-px bg-border mx-2" />
+          <div className="my-1 h-px bg-border/70 mx-2" />
           <button onClick={logout} className={destructive}>
             <LogOut className="w-4 h-4 shrink-0" />
             <Trans>Log out</Trans>
@@ -981,11 +1029,7 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
   }
 
   useEffect(() => { inputRef.current?.focus() }, [])
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const nameId = useId()
 
   async function handleSave() {
     if (!name.trim() || saving) return
@@ -1002,98 +1046,73 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      title={title}
+      footer={
+        <>
+          <Pill variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
+          <Pill variant="primary" onClick={handleSave} disabled={saving || !name.trim()}>
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            <Trans>Save</Trans>
+          </Pill>
+        </>
+      }
     >
-      <div className="bg-card text-foreground rounded-2xl shadow-xl shadow-accent-soft max-w-sm w-full mx-4 p-6 space-y-4">
-        <h2 className="text-base font-semibold">{title}</h2>
-        <input
-          ref={inputRef}
-          value={name}
-          onChange={e => { setName(e.target.value); setError('') }}
-          onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
-          placeholder={t`Name…`}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+      <div className="flex flex-col gap-4 pt-1">
+        <div>
+          <FormLabel htmlFor={nameId}><Trans>Name</Trans></FormLabel>
+          <Input
+            id={nameId}
+            ref={inputRef}
+            value={name}
+            onChange={e => { setName(e.target.value); setError('') }}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+            invalid={!!error}
+          />
+        </div>
+        <div>
+          <FormLabel><Trans>Icon</Trans></FormLabel>
+          <IconPicker value={icon} onChange={setIcon} inline />
+        </div>
+        <Checkbox
+          checked={isPublic}
+          onChange={e => setIsPublic(e.target.checked)}
+          label={<Trans>Public library</Trans>}
+          description={isPublic
+            ? <Trans>Everyone on this server can see its books.</Trans>
+            : <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" /><Trans>Private. Only assigned users can access it.</Trans></span>}
         />
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground"><Trans>Icon</Trans></span>
-          <IconPicker value={icon} onChange={setIcon} />
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground flex-1"><Trans>Public library</Trans></span>
-          <button
-            type="button"
-            onClick={() => setIsPublic(v => !v)}
-            className={cn(
-              'relative w-10 h-6 rounded-full transition-colors flex-shrink-0',
-              isPublic ? 'bg-primary' : 'bg-muted-foreground/30'
-            )}
-          >
-            <span className={cn(
-              'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
-              isPublic ? 'translate-x-4' : 'translate-x-0'
-            )} />
-          </button>
-        </div>
-        {!isPublic && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Lock className="w-3 h-3" /> <Trans>Private — only assigned users can access</Trans>
-          </p>
-        )}
         {canShare && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Users className="w-3.5 h-3.5" /> <Trans>Share with users</Trans>
-            </div>
+          <div>
+            <FormLabel className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /><Trans>Share with users</Trans></FormLabel>
             {users.length === 0 ? (
-              <p className="text-xs text-muted-foreground"><Trans>No other users to share with.</Trans></p>
+              <p className="text-[13px] text-muted-foreground"><Trans>No other users to share with.</Trans></p>
             ) : (
-              <div className="max-h-40 overflow-y-auto rounded-lg border border-border divide-y divide-border">
-                {users.map(u => {
-                  const assigned = assignedIds.has(u.id)
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => toggleUser(u.id)}
+              <div className="max-h-48 overflow-y-auto">
+                {users.map(u => (
+                  <div key={u.id} className="flex items-center py-2.5 border-b border-border/70 last:border-0">
+                    <Checkbox
+                      checked={assignedIds.has(u.id)}
+                      onChange={() => toggleUser(u.id)}
                       disabled={busyUserId === u.id}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors disabled:opacity-50"
-                    >
-                      <span className="truncate">{u.username}</span>
-                      <span className={cn(
-                        'flex items-center justify-center w-5 h-5 rounded border flex-shrink-0',
-                        assigned ? 'bg-primary border-primary text-primary-foreground' : 'border-border'
-                      )}>
-                        {assigned && <Check className="w-3.5 h-3.5" />}
-                      </span>
-                    </button>
-                  )
-                })}
+                      label={u.username}
+                      className="flex-1 min-w-0"
+                    />
+                    {busyUserId === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
         {!isPublic && libraryId == null && (
-          <p className="text-xs text-muted-foreground"><Trans>Save the library first, then reopen it to share with users.</Trans></p>
+          <p className="text-[13px] text-muted-foreground"><Trans>Save the library first, then reopen it to share with users.</Trans></p>
         )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <Trans>Cancel</Trans>
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !name.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-          >
-            <Trans>Save</Trans>
-          </button>
-        </div>
+        {error && <p className="text-[13px] text-destructive">{error}</p>}
       </div>
-    </div>
+    </ModalShell>
   )
 }

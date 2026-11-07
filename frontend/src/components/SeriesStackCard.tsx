@@ -6,6 +6,7 @@ import type { ViewMode } from '@/components/BookCard'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { coverSrc } from '@/lib/covers'
+import { coverRing } from '@/lib/tilt'
 
 interface SeriesStackCardProps {
   book: Book
@@ -121,9 +122,8 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
             className={cn(
               'relative aspect-[2/3] bg-muted overflow-hidden rounded-[8px]',
               'transition-transform duration-300 ease-out group-hover:-translate-y-0.5',
-              focused && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
             )}
-            style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+            style={{ boxShadow: coverRing(false, !!focused) }}
           >
             <CoverImage
               src={coverUrl}

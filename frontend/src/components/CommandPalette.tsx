@@ -17,6 +17,7 @@ import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { coverSrc } from '@/lib/covers'
+import { useRegisterOverlay, useShellInset } from '@/components/ModalShell'
 
 interface BookHit {
   id: number
@@ -47,9 +48,9 @@ const GROUP_LABEL: Record<string, MessageDescriptor> = {
 
 const NAV_ACTIONS = (admin: boolean): { label: string; to: string; icon: React.ReactNode }[] => [
   { label: i18n._(msg`Home`), to: '/', icon: <Compass className="h-4 w-4" /> },
-  { label: i18n._(msg`All Books`), to: '/?tab=books', icon: <LibraryIcon className="h-4 w-4" /> },
+  { label: i18n._(msg`All books`), to: '/?tab=books', icon: <LibraryIcon className="h-4 w-4" /> },
   { label: i18n._(msg`Series`), to: '/?tab=series', icon: <Layers className="h-4 w-4" /> },
-  { label: i18n._(msg`Reading Stats`), to: '/stats', icon: <ChartColumn className="h-4 w-4" /> },
+  { label: i18n._(msg`Reading stats`), to: '/stats', icon: <ChartColumn className="h-4 w-4" /> },
   { label: i18n._(msg`Highlights`), to: '/highlights', icon: <Quote className="h-4 w-4" /> },
   { label: i18n._(msg`Wishlist`), to: '/wishlist', icon: <Sparkles className="h-4 w-4" /> },
   { label: i18n._(msg`Settings`), to: '/settings', icon: <Settings className="h-4 w-4" /> },
@@ -182,6 +183,9 @@ export function CommandPalette() {
     [navigate],
   )
 
+  const inset = useShellInset()
+  useRegisterOverlay(open)
+
   if (!open) return null
 
   // eslint-disable-next-line lingui/no-unlocalized-strings -- group keys, labels via GROUP_LABEL
@@ -190,9 +194,11 @@ export function CommandPalette() {
   return createPortal(
     <>
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-      <div className="fixed inset-x-0 top-[15vh] z-50 mx-auto w-full max-w-xl px-4">
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-          <div className="flex items-center gap-2 border-b border-border px-4">
+      {/* Centred over the content panel, like the dialogs; the veil still
+          covers the whole viewport. */}
+      <div className="pointer-events-none fixed inset-y-0 right-0 z-50 flex justify-center px-4 pt-[15vh]" style={{ left: inset }}>
+        <div className="pointer-events-auto h-fit w-full max-w-xl overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring">
+          <div className="flex items-center gap-2 border-b border-border/70 px-4">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
@@ -211,22 +217,22 @@ export function CommandPalette() {
                 }
               }}
               placeholder={t`Jump to a book, series, author, or page…`}
-              className="h-12 w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+              className="h-12 w-full bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
-            <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+            <kbd className="hidden rounded-md bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground sm:block">
               esc
             </kbd>
           </div>
           <div className="max-h-[50vh] overflow-y-auto overscroll-contain py-1.5">
             {items.length === 0 && (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t`No matches.`}</p>
+              <p className="px-4 py-6 text-center text-[14px] text-muted-foreground">{t`No matches.`}</p>
             )}
             {groups.map((g) => {
               const groupItems = items.filter((i) => i.group === g)
               if (!groupItems.length) return null
               return (
                 <div key={g}>
-                  <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                     {i18n._(GROUP_LABEL[g])}
                   </p>
                   {groupItems.map((item) => {
@@ -237,8 +243,8 @@ export function CommandPalette() {
                         onClick={() => go(item)}
                         onMouseMove={() => setSelected(idx)}
                         className={cn(
-                          'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
-                          idx === selected ? 'bg-muted text-foreground' : 'text-muted-foreground',
+                          'flex w-full items-center gap-3 px-4 py-2 text-left text-[14px]',
+                          idx === selected ? 'bg-secondary text-foreground' : 'text-muted-foreground',
                         )}
                       >
                         {item.bookId != null ? (
@@ -252,7 +258,7 @@ export function CommandPalette() {
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-foreground">{item.label}</span>
-                          {item.sub && <span className="block truncate text-xs">{item.sub}</span>}
+                          {item.sub && <span className="block truncate text-[13px]">{item.sub}</span>}
                         </span>
                       </button>
                     )

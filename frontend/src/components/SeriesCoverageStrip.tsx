@@ -54,7 +54,7 @@ export function SeriesCoverageStrip({ coverage, total, look = 'boxed' }: { cover
               #{n}
             </Link>
           ) : (
-            <span key={n} title={t`Volume ${n} — not in the library`} className={missing}>
+            <span key={n} title={t`Volume ${n}, not in the library`} className={missing}>
               #{n}
             </span>
           )
@@ -66,7 +66,7 @@ export function SeriesCoverageStrip({ coverage, total, look = 'boxed' }: { cover
         ))}
       </div>
       {maxN > 0 && (
-        <p className={chips ? 'text-[13px] text-muted-foreground mt-2' : 'text-[10px] text-muted-foreground mt-1.5'}>
+        <p className="text-[13px] text-muted-foreground mt-2">
           {t`${presentCount} of ${maxN} present`}
         </p>
       )}

@@ -26,7 +26,7 @@ export function SaveFilterButton({ params, onSaved }: Props) {
     <>
       {modalOpen && (
         <EntityModal
-          title={t`Add Shelf`}
+          title={t`Add shelf`}
           defaultIcon="Bookmark"
           onSave={handleSave}
           onClose={() => setModalOpen(false)}

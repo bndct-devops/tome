@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
@@ -7,11 +7,11 @@ import {
   SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
   Play, CheckCheck, Trash2, Settings2, Layers, Star, Share2,
-  Tablet,
+  Tablet, Check,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { ShellFrame } from '@/components/ShellFrame'
-import { ModalShell } from '@/components/ModalShell'
+import { ModalShell, isModalOpen, useEscape } from '@/components/ModalShell'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { plural, msg } from '@lingui/core/macro'
@@ -39,14 +39,14 @@ import type { Book, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/b
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useShiftSelect } from '@/lib/useShiftSelect'
-import { cn } from '@/lib/utils'
+import { cn, progressPercent } from '@/lib/utils'
 import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { QuickLook } from '@/components/QuickLook'
 import { SortMenu } from '@/components/library/SortMenu'
-import { PageBody, PageHeader, SectionTitle, Pill } from '@/components/page'
+import { PageBody, PageHeader, SectionTitle, Pill, Select, FormLabel, INPUT_CLASS } from '@/components/page'
 // Library / Series tab icons, kept apart from the shared import above.
 import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
@@ -100,12 +100,12 @@ interface Facets {
 }
 
 const SORT_LABELS: Record<SortField, MessageDescriptor> = {
-  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date Added`, rating: msg`My Rating`,
+  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date added`, rating: msg`My rating`,
 }
 
 // Reading-status + series-status display names, shared by filter buttons and chips.
 const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
-  unread: msg`Unread`, want_to_read: msg`Want to Read`, reading: msg`Reading`,
+  unread: msg`Unread`, want_to_read: msg`Want to read`, reading: msg`Reading`,
   read: msg({ message: 'Read', context: 'status' }), shelved: msg`Shelved`,
 }
 const MISSING_LABELS: Record<string, MessageDescriptor> = {
@@ -147,96 +147,72 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
   }
 
   return (
-    <ModalShell open={open} onClose={() => { if (!deleting) onCancel() }} className="w-full max-w-md">
-        <div className="bg-card border border-border rounded-2xl shadow-2xl shadow-accent-soft flex flex-col max-h-[80vh]">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-            <div className="flex items-center gap-2">
-              <Trash2 className="w-4 h-4 text-destructive" />
-              <h2 className="text-base font-semibold text-foreground">
-                <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
-              </h2>
+    <ModalShell
+      open={open}
+      onClose={() => { if (!deleting) onCancel() }}
+      size="sm"
+      title={<Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />}
+      subtitle={<Trans>This permanently removes the selected books and their files from disk. This cannot be undone.</Trans>}
+      bodyClassName="pb-2"
+      footer={
+        <>
+          {deleting && (
+            <span className="mr-auto text-[13px] text-muted-foreground">
+              <Plural value={selectedIds.size} one="Deleting # book..." other="Deleting # books..." />
+            </span>
+          )}
+          <Pill variant="quiet" onClick={onCancel} disabled={deleting}>
+            <Trans>Cancel</Trans>
+          </Pill>
+          <Pill
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="bg-destructive/10 text-destructive font-semibold"
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
+          </Pill>
+        </>
+      }
+    >
+      <div>
+        {selectedBooks.map(book => {
+          const primaryFile = book.files[0] ?? null
+          return (
+            <div key={book.id} className="flex items-center gap-3 py-2.5 border-b border-border/70 last:border-0">
+              <div className="relative w-8 h-12 rounded-[6px] overflow-hidden shrink-0 bg-muted">
+                <CoverImage
+                  src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
+                  alt={book.title}
+                  iconClassName="w-3.5 h-3.5"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-medium text-foreground truncate leading-tight">{book.title}</p>
+                {(book.author || primaryFile) && (
+                  <p className="mt-0.5 text-[13px] text-muted-foreground truncate">
+                    {book.author}
+                    {book.author && primaryFile ? ' · ' : ''}
+                    {primaryFile && primaryFile.format.toUpperCase()}
+                    {primaryFile?.file_size ? ` · ${formatBytes(primaryFile.file_size)}` : ''}
+                  </p>
+                )}
+              </div>
             </div>
-            <button
-              onClick={onCancel}
-              disabled={deleting}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Warning */}
-          <div className="px-6 pb-3 shrink-0">
-            <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-              <Trans>This permanently removes the selected books and their files from disk. This cannot be undone.</Trans>
-            </p>
-          </div>
-
-          {/* Book list */}
-          <div className="overflow-y-auto flex-1 px-6 pb-3">
-            <div className="flex flex-col gap-1">
-              {selectedBooks.map(book => {
-                const primaryFile = book.files[0] ?? null
-                return (
-                  <div key={book.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                    <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
-                      <CoverImage
-                        src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
-                        alt={book.title}
-                        iconClassName="w-3.5 h-3.5"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate leading-tight">{book.title}</p>
-                      {book.author && (
-                        <p className="text-xs text-muted-foreground truncate">{book.author}</p>
-                      )}
-                      {primaryFile && (
-                        <p className="text-[10px] text-muted-foreground/70 truncate">
-                          {primaryFile.format.toUpperCase()}
-                          {primaryFile.file_size ? ` · ${formatBytes(primaryFile.file_size)}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-              {selectedIds.size > selectedBooks.length && (
-                <p className="text-xs text-muted-foreground py-2">
-                  {(() => { const more = selectedIds.size - selectedBooks.length; return t`…and ${more} more not shown` })()}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
-            {deleting && (
-              <span className="text-xs text-muted-foreground mr-auto">
-                <Plural value={selectedIds.size} one="Deleting # book..." other="Deleting # books..." />
-              </span>
-            )}
-            <button
-              onClick={onCancel}
-              disabled={deleting}
-              className="px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-            >
-              <Trans>Cancel</Trans>
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-            >
-              {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
-            </button>
-          </div>
-        </div>
+          )
+        })}
+        {selectedIds.size > selectedBooks.length && (
+          <p className="text-[13px] text-muted-foreground py-2.5">
+            {(() => { const more = selectedIds.size - selectedBooks.length; return t`and ${more} more not shown` })()}
+          </p>
+        )}
+      </div>
     </ModalShell>
   )
 }
+
+const seriesScroll = new Map<string, number>()
 
 type StatusMap = Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>
 
@@ -314,6 +290,7 @@ export function DashboardPage() {
       const next = new URLSearchParams(prev)
       if (value === 'home') next.delete('tab')
       else next.set('tab', value)
+      if (value !== 'series') next.delete('series_detail')
       return next
     })
   }
@@ -327,7 +304,12 @@ export function DashboardPage() {
   }
 
   function openSeriesTab() {
-    setTab('series')
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'series')
+      next.delete('series_detail')
+      return next
+    })
     setExpandedSeries(null)
     setSeriesDetail(null)
     setSeriesLoading(true)
@@ -364,11 +346,29 @@ export function DashboardPage() {
       .finally(() => setSeriesDetailLoading(false))
   }
 
+  // A series' detail is a URL (?tab=series&series_detail=Name), so the way
+  // back from a book returns to it. The grid pushes it, the Series crumb
+  // drops it, and this effect follows the URL either way.
+  function showSeries(name: string | null) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'series')
+      if (name) next.set('series_detail', name)
+      else next.delete('series_detail')
+      return next
+    })
+  }
+
   // Auto-open series detail when navigating via ?tab=series&series_detail=Name
   useEffect(() => {
     if (tab !== 'series') return
     const detailName = searchParams.get('series_detail')
-    if (!detailName || detailName === expandedSeries) return
+    if (!detailName) {
+      if (expandedSeries) { setExpandedSeries(null); setSeriesDetail(null); setSeriesArcs([]) }
+      return
+    }
+    if (detailName === expandedSeries) return
+    if (seriesList.length > 0) { openSeriesDetail(detailName); return }
     // Load series list first, then open the detail
     setSeriesLoading(true)
     api.get<SeriesItem[]>('/books/series')
@@ -625,6 +625,7 @@ export function DashboardPage() {
   const [bulkMetaTypeId, setBulkMetaTypeId] = useState<number | ''>('')
   const [bulkMetaSaving, setBulkMetaSaving] = useState(false)
   const bookTypes = useBookTypes()
+  useEscape(bulkLibMenu, useCallback(() => setBulkLibMenu(false), []))
 
   function toggleSelect(id: number, shiftKey: boolean) {
     setSelected(prev => {
@@ -917,6 +918,51 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Series grid and series detail: the <main> scroll position per history
+  // entry, so Back from a book lands where the volumes were. Saved whenever
+  // the entry is left (another URL or another page), restored on a POP once
+  // the content it measured is back.
+  const seriesReady = tab === 'series'
+    && expandedSeries === (searchParams.get('series_detail') || null)
+    && (expandedSeries
+    ? !!seriesDetail && !seriesDetailLoading
+    : !seriesLoading && seriesList.length > 0)
+  useLayoutEffect(() => {
+    const main = bodyRef.current?.closest('main') ?? null
+    if (!main) return
+    const key = location.key
+    // Recorded as it moves, never on cleanup: a remount's own cleanup (dev
+    // StrictMode, a re-run) would overwrite the saved spot with 0.
+    const onScroll = () => { seriesScroll.set(key, main.scrollTop) }
+    main.addEventListener('scroll', onScroll, { passive: true })
+    return () => main.removeEventListener('scroll', onScroll)
+  }, [location.key])
+  const restoredKeyRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (!seriesReady || restoredKeyRef.current === location.key) return
+    restoredKeyRef.current = location.key
+    const main = bodyRef.current?.closest('main')
+    if (!main) return
+    const saved = seriesScroll.get(location.key)
+    const target = navigationType === 'POP' && saved != null ? saved : 0
+    main.scrollTop = target
+    if (main.scrollTop >= target - 1) return
+    // The page is still growing (stats, covers): keep applying the position
+    // until it fits, for at most 2s, and give up as soon as the user scrolls.
+    let stop = false
+    const giveUp = () => { stop = true }
+    main.addEventListener('wheel', giveUp, { once: true, passive: true })
+    main.addEventListener('touchstart', giveUp, { once: true, passive: true })
+    const started = Date.now()
+    const tick = () => {
+      if (stop || Date.now() - started > 2000) return
+      main.scrollTop = target
+      if (main.scrollTop < target - 1) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+    return () => { stop = true; main.removeEventListener('wheel', giveUp); main.removeEventListener('touchstart', giveUp) }
+  }, [seriesReady, location.key, navigationType])
+
   // Reset focused index when book list changes
   useEffect(() => { setFocusedIndex(null) }, [books])
 
@@ -970,8 +1016,18 @@ export function DashboardPage() {
   useEffect(() => { groupActiveRef.current = groupActive }, [groupActive])
 
 
+  // The focused card lives in a ref too, so the key handler reads and writes
+  // it directly: side effects (navigate, blur) inside a state updater ran
+  // during render and React warned "Cannot update a component while rendering".
+  const focusedRef = useRef<number | null>(null)
+  useEffect(() => { focusedRef.current = focusedIndex }, [focusedIndex])
   useEffect(() => {
+    function moveFocus(next: number | null) {
+      focusedRef.current = next
+      setFocusedIndex(next)
+    }
     function handleKeyDown(e: KeyboardEvent) {
+      if (isModalOpen()) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
@@ -981,47 +1037,35 @@ export function DashboardPage() {
         return
       }
 
+      const n = booksRef.current.length
+      const prev = focusedRef.current
       if (e.key === 'j' || e.key === 'ArrowDown') {
         e.preventDefault()
-        setFocusedIndex(prev => {
-          if (booksRef.current.length === 0) return null
-          if (prev === null) return 0
-          return (prev + 1) % booksRef.current.length
-        })
+        moveFocus(n === 0 ? null : prev === null ? 0 : (prev + 1) % n)
         return
       }
 
       if (e.key === 'k' || e.key === 'ArrowUp') {
         e.preventDefault()
-        setFocusedIndex(prev => {
-          if (booksRef.current.length === 0) return null
-          if (prev === null) return booksRef.current.length - 1
-          return (prev - 1 + booksRef.current.length) % booksRef.current.length
-        })
+        moveFocus(n === 0 ? null : prev === null ? n - 1 : (prev - 1 + n) % n)
         return
       }
 
       if (e.key === 'Enter') {
-        setFocusedIndex(prev => {
-          if (prev !== null && booksRef.current[prev]) {
-            const b = booksRef.current[prev]
-            if (groupActiveRef.current && b.series) {
-              navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
-            } else {
-              navigate(`/books/${b.id}`)
-            }
+        if (prev !== null && booksRef.current[prev]) {
+          const b = booksRef.current[prev]
+          if (groupActiveRef.current && b.series) {
+            navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
+          } else {
+            navigate(`/books/${b.id}`)
           }
-          return prev
-        })
+        }
         return
       }
 
       if (e.key === 'Escape') {
-        setFocusedIndex(prev => {
-          if (prev !== null) return null
-          searchInputRef.current?.blur()
-          return null
-        })
+        if (prev === null) searchInputRef.current?.blur()
+        moveFocus(null)
         return
       }
     }
@@ -1043,7 +1087,7 @@ export function DashboardPage() {
   const activeFilterChips: { label: string; key: string }[] = [
     ...(filterLibrary ? [{ label: t`Library: ${filterLibraryChipName}`, key: 'library_id' }] : []),
     ...(filterSeries ? [{ label: t`Series: ${filterSeries}`, key: 'series' }] : []),
-    ...(filterNoSeries ? [{ label: t`No Series`, key: 'no_series' }] : []),
+    ...(filterNoSeries ? [{ label: t`No series`, key: 'no_series' }] : []),
     ...(filterAuthor ? [{ label: t`Author: ${filterAuthor}`, key: 'author' }] : []),
     ...(filterTag ? [{ label: t`Tag: ${filterTag}`, key: 'tag' }] : []),
     ...(filterFormat ? [{ label: t`Format: ${filterFormatUpper}`, key: 'format' }] : []),
@@ -1051,7 +1095,7 @@ export function DashboardPage() {
     ...(filterReadingStatus ? [{ label: t`Status: ${filterStatusLabel}`, key: 'reading_status' }] : []),
     ...(filterMinRating ? [{ label: filterMinRating === 5 ? t`Rated: 5 stars` : t`Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
     ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
-    ...(filterOwnership === 'mine' ? [{ label: t`My Books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared Library`, key: 'ownership' }] : []),
+    ...(filterOwnership === 'mine' ? [{ label: t`My books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared library`, key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
     ...(onDevices.length ? [{ label: (() => { const names = onDevices.join(', '); return t`On ${names}` })(), key: 'on_device' }] : []),
     ...(notOnDevices.length ? [{ label: (() => { const names = notOnDevices.join(', '); return t`Not on ${names}` })(), key: 'not_on_device' }] : []),
@@ -1136,8 +1180,8 @@ export function DashboardPage() {
         onWishMatches={(wishIds) => {
           const n = wishIds.length
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish — review in Admin > Wishlist',
-            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
+            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
           }))
         }}
       />
@@ -1192,14 +1236,14 @@ export function DashboardPage() {
                     eyebrow={
                       <button
                         type="button"
-                        onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
+                        onClick={() => showSeries(null)}
                         className="inline-flex items-center gap-1 uppercase hover:text-foreground transition-colors"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <Trans>Series</Trans>
                       </button>
                     }
-                    title={expandedSeries === '__unserialized__' ? t`No Series` : expandedSeries}
+                    title={expandedSeries === '__unserialized__' ? t`No series` : expandedSeries}
                   />
                   <div className="flex justify-center py-16">
                     <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -1228,7 +1272,7 @@ export function DashboardPage() {
                     <div className="text-[13px] text-muted-foreground flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
+                        onClick={() => showSeries(null)}
                         className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
@@ -1248,7 +1292,7 @@ export function DashboardPage() {
                               <Pill
                                 variant="quiet"
                                 onClick={() => setShareSeries(seriesDetail.name)}
-                                title={t`Share this series — a public metadata-only page`}
+                                title={t`Share this series as a public metadata-only page`}
                               >
                                 <Share2 className="w-4 h-4" />
                                 <Trans>Share</Trans>
@@ -1286,7 +1330,7 @@ export function DashboardPage() {
 
                     <div className="min-w-0 flex flex-col gap-6">
                       <div>
-                        <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{isUnserialized ? t`No Series` : seriesDetail.name}</h1>
+                        <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{isUnserialized ? t`No series` : seriesDetail.name}</h1>
                         {seriesDetail.author && <div className="mt-2 text-[16px] text-muted-foreground">{seriesDetail.author}</div>}
                       </div>
 
@@ -1451,12 +1495,22 @@ export function DashboardPage() {
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
-                              {/* Status dot */}
-                              {vol.reading_status !== 'unread' && (
-                                <div className={cn(
-                                  'absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-background transition-opacity group-hover:opacity-0 group-focus-within:opacity-0',
-                                  vol.reading_status === 'read' ? 'bg-primary' : 'bg-primary/60'
-                                )} />
+                              {/* Read: a check badge (the old bare status dot read as a
+                                  stray circle). Reading: a progress strip along the
+                                  bottom edge. Other states draw nothing. */}
+                              {vol.reading_status === 'read' && (
+                                <span
+                                  className="absolute top-1.5 right-1.5 w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground grid place-items-center shadow-sm transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                                  title={t({ message: 'Read', context: 'status' })}
+                                  aria-label={t({ message: 'Read', context: 'status' })}
+                                >
+                                  <Check className="w-3 h-3" strokeWidth={3} />
+                                </span>
+                              )}
+                              {vol.reading_status === 'reading' && (
+                                <div className="absolute inset-x-0 bottom-0 z-[1] h-[3px] bg-black/40" aria-hidden>
+                                  <div className="h-full bg-primary" style={{ width: `${Math.max(4, Math.round(progressPercent(vol.progress_pct)))}%` }} />
+                                </div>
                               )}
                               {/* Volume bar: number left, on-device glyph right */}
                               {(() => {
@@ -1525,7 +1579,7 @@ export function DashboardPage() {
                               return p
                             })
                           } else {
-                            openSeriesDetail(s.name)
+                            showSeries(s.name)
                           }
                         }}
                         className="group flex flex-col text-left min-w-0 touch-feedback focus:outline-none"
@@ -1538,20 +1592,20 @@ export function DashboardPage() {
                             src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                             alt={isUnserialized ? t`Unserialized` : s.name}
                           />
-                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 pt-8 pb-2">
-                            <span className="text-[12px] font-semibold text-white/90">
-                              <Plural value={s.book_count} one="# book" other="# books" />
-                            </span>
-                          </div>
                         </div>
                         <div className="pt-2.5 flex flex-col gap-0.5 min-w-0">
                           <div className="flex items-start gap-1.5 flex-wrap">
                             <span className="text-[14px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-                              {isUnserialized ? t`No Series` : s.name}
+                              {isUnserialized ? t`No series` : s.name}
                             </span>
                             {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
                           </div>
-                          {!isUnserialized && s.author && <span className="text-[13px] text-muted-foreground truncate">{s.author}</span>}
+                          {/* The count sits under the cover: on a light cover the
+                              white label over a thin scrim was unreadable. */}
+                          <span className="text-[13px] text-muted-foreground truncate">
+                            {!isUnserialized && s.author && <>{s.author}{' · '}</>}
+                            <Plural value={s.book_count} one="# book" other="# books" />
+                          </span>
                           {!isUnserialized && s.rating != null && (
                             <StarRating value={s.rating} readOnly starClassName="w-3 h-3" className="mt-0.5" />
                           )}
@@ -1760,7 +1814,6 @@ export function DashboardPage() {
               active ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
             )
             const rowLabel = 'text-[13px] text-muted-foreground w-20 shrink-0'
-            const selectCls = 'h-9 text-[14px] rounded-lg border border-border bg-background px-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
             /* eslint-enable lingui/no-unlocalized-strings */
             return (
             <div className="rounded-[var(--radius-panel)] bg-card p-5 flex flex-col gap-4">
@@ -1855,8 +1908,8 @@ export function DashboardPage() {
                   <span className={rowLabel}><Trans>Books</Trans></span>
                   {([
                     { value: '', label: t`All` },
-                    { value: 'mine', label: t`My Books` },
-                    { value: 'shared', label: t`Shared Library` },
+                    { value: 'mine', label: t`My books` },
+                    { value: 'shared', label: t`Shared library` },
                   ] as const).map(({ value, label }) => (
                     <button key={value} type="button" onClick={() => setFilter('ownership', value)} className={opt(filterOwnership === value)}>
                       {label}
@@ -1868,29 +1921,31 @@ export function DashboardPage() {
               {isAdmin(user) && userList.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={rowLabel}><Trans>Uploader</Trans></span>
-                  <select
+                  <Select
                     value={filterAddedBy ?? ''}
                     onChange={e => setFilter('added_by', e.target.value)}
-                    className={selectCls}
+                    aria-label={t`Uploader`}
+                    className="w-auto min-w-44"
                   >
                     <option value="">{t`All users`}</option>
                     {userList.map(u => (
                       <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Type</Trans></span>
-                <select
+                <Select
                   value={contentType}
                   onChange={e => setContentType(e.target.value)}
-                  className={selectCls}
+                  aria-label={t`Type`}
+                  className="w-auto min-w-36"
                 >
                   <option value="volume">{t`Volumes`}</option>
                   <option value="chapter">{t`Chapters`}</option>
                   <option value="">{t`All`}</option>
-                </select>
+                </Select>
               </div>
             </div>
             )
@@ -1916,7 +1971,7 @@ export function DashboardPage() {
                 disabled={bulkPending || selected.size === 0}
               >
                 <Pencil className="w-4 h-4" />
-                <Trans>Edit Metadata</Trans>
+                <Trans>Edit metadata</Trans>
               </Pill>
               {libraries.some(l => l.can_edit) && (
                 <div className="relative">
@@ -1926,21 +1981,24 @@ export function DashboardPage() {
                     disabled={bulkPending || selected.size === 0}
                   >
                     <LibraryIcon className="w-4 h-4" />
-                    <Trans>Add to Library</Trans>
+                    <Trans>Add to library</Trans>
                   </Pill>
                   {bulkLibMenu && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />
-                      <div className="absolute right-0 top-full mt-2 z-20 bg-card border border-border/60 rounded-xl shadow-xl p-1.5 min-w-48">
+                      <div className="absolute right-0 top-full mt-2 z-20 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5 min-w-56 max-w-[calc(100vw-2rem)]">
+                        <p className="border-b border-border px-3 pb-2 pt-0.5 mb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                          <Trans>Add to library</Trans>
+                        </p>
                         {libraries.filter(l => l.can_edit).map(lib => (
                           <button
                             key={lib.id}
                             type="button"
                             onClick={() => bulkAddToLibrary(lib.id)}
-                            className="flex items-center gap-2 w-full h-9 px-3 rounded-lg text-[14px] text-foreground hover:bg-secondary transition-colors"
+                            className="flex items-center gap-2 w-full h-9 px-3 text-[14px] text-foreground hover:bg-secondary transition-colors"
                           >
-                            <LibraryIcon className="w-4 h-4 text-muted-foreground shrink-0" />
-                            {lib.name}
+                            <LibraryIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="truncate">{lib.name}</span>
                           </button>
                         ))}
                       </div>
@@ -2010,11 +2068,11 @@ export function DashboardPage() {
 
           {/* ── Grid / list, with the search result count above ─────────── */}
           <div>
-          {search && !loading && totalCount !== null && (
+          {/* The count only when there are results: an empty search has its own
+              empty state below, and it said "no results" twice. */}
+          {search && !loading && totalCount !== null && totalCount > 0 && (
             <p className="text-[14px] text-muted-foreground mb-4">
-              {totalCount === 0
-                ? t`No results for "${search}"`
-                : plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
+              {plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
             </p>
           )}
 
@@ -2137,117 +2195,102 @@ export function DashboardPage() {
       {quickLookId != null && <QuickLook bookId={quickLookId} onClose={closeQuickLook} />}
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
-      <ModalShell open={bulkMetaOpen} onClose={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }} className="w-full max-w-md">
-            <div className="bg-card border border-border rounded-2xl shadow-2xl p-6">
-              <div className="flex items-start justify-between mb-1">
-                <h2 className="text-base font-semibold text-foreground">
-                  <Plural value={selected.size} one="Edit Metadata for # Book" other="Edit Metadata for # Books" />
-                </h2>
-                <button
-                  onClick={() => setBulkMetaOpen(false)}
-                  disabled={bulkMetaSaving}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      <ModalShell
+        open={bulkMetaOpen}
+        onClose={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }}
+        size="sm"
+        title={<Plural value={selected.size} one="Edit metadata for # book" other="Edit metadata for # books" />}
+        subtitle={<Trans>Only filled fields will be updated. Leave blank to keep existing values.</Trans>}
+        footer={
+          <>
+            <Pill variant="quiet" onClick={() => setBulkMetaOpen(false)} disabled={bulkMetaSaving}>
+              <Trans>Cancel</Trans>
+            </Pill>
+            <Pill
+              variant="primary"
+              onClick={bulkSaveMetadata}
+              disabled={bulkMetaSaving || (!bulkMetaAuthor && !bulkMetaSeries && !bulkMetaTagsAdd.length && !bulkMetaTypeId)}
+            >
+              {bulkMetaSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              <Trans>Save changes</Trans>
+            </Pill>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4 pt-1">
+          <div>
+            <FormLabel><Trans>Author</Trans></FormLabel>
+            <AutocompleteInput
+              value={bulkMetaAuthor}
+              onChange={setBulkMetaAuthor}
+              suggestions={facets.authors}
+              placeholder={t`Author`}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <FormLabel><Trans>Series</Trans></FormLabel>
+            <AutocompleteInput
+              value={bulkMetaSeries}
+              onChange={setBulkMetaSeries}
+              suggestions={facets.series}
+              placeholder={t`Series name`}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <FormLabel><Trans>Add tags</Trans></FormLabel>
+            {bulkMetaTagsAdd.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {bulkMetaTagsAdd.map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 h-7 pl-3 pr-1 rounded-full text-[13px] bg-secondary text-foreground">
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => setBulkMetaTagsAdd(prev => prev.filter(t => t !== tag))}
+                      aria-label={t`Remove tag`}
+                      className="w-5 h-5 grid place-items-center rounded-full text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground mb-4">
-                <Trans>Only filled fields will be updated. Leave blank to keep existing values.</Trans>
-              </p>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Author</Trans></label>
-                  <AutocompleteInput
-                    value={bulkMetaAuthor}
-                    onChange={setBulkMetaAuthor}
-                    suggestions={facets.authors}
-                    placeholder={t`Author`}
-                    className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Series</Trans></label>
-                  <AutocompleteInput
-                    value={bulkMetaSeries}
-                    onChange={setBulkMetaSeries}
-                    suggestions={facets.series}
-                    placeholder={t`Series name`}
-                    className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Add Tags</Trans></label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {bulkMetaTagsAdd.map(tag => (
-                      <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => setBulkMetaTagsAdd(prev => prev.filter(t => t !== tag))}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <AutocompleteInput
-                    value={bulkMetaTagInput}
-                    onChange={setBulkMetaTagInput}
-                    suggestions={facets.tags.filter(t => !bulkMetaTagsAdd.includes(t))}
-                    placeholder={t`Add tag…`}
-                    onSelect={tag => {
-                      if (tag && !bulkMetaTagsAdd.includes(tag)) {
-                        setBulkMetaTagsAdd(prev => [...prev, tag])
-                        setBulkMetaTagInput('')
-                      }
-                    }}
-                    onEnter={val => {
-                      const trimmed = val.trim()
-                      if (trimmed && !bulkMetaTagsAdd.includes(trimmed)) {
-                        setBulkMetaTagsAdd(prev => [...prev, trimmed])
-                        setBulkMetaTagInput('')
-                      }
-                    }}
-                    className="text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring w-48"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Type</Trans></label>
-                  <select
-                    value={bulkMetaTypeId}
-                    onChange={e => setBulkMetaTypeId(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
-                  >
-                    <option value="">{t`— keep existing —`}</option>
-                    {bookTypes.map(t => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-5">
-                <button
-                  onClick={() => setBulkMetaOpen(false)}
-                  disabled={bulkMetaSaving}
-                  className="px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  <Trans>Cancel</Trans>
-                </button>
-                <button
-                  onClick={bulkSaveMetadata}
-                  disabled={bulkMetaSaving || (!bulkMetaAuthor && !bulkMetaSeries && !bulkMetaTagsAdd.length && !bulkMetaTypeId)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-                >
-                  {bulkMetaSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <Trans>Save Changes</Trans>
-                </button>
-              </div>
-            </div>
+            )}
+            <AutocompleteInput
+              value={bulkMetaTagInput}
+              onChange={setBulkMetaTagInput}
+              suggestions={facets.tags.filter(t => !bulkMetaTagsAdd.includes(t))}
+              placeholder={t`Add tag…`}
+              onSelect={tag => {
+                if (tag && !bulkMetaTagsAdd.includes(tag)) {
+                  setBulkMetaTagsAdd(prev => [...prev, tag])
+                  setBulkMetaTagInput('')
+                }
+              }}
+              onEnter={val => {
+                const trimmed = val.trim()
+                if (trimmed && !bulkMetaTagsAdd.includes(trimmed)) {
+                  setBulkMetaTagsAdd(prev => [...prev, trimmed])
+                  setBulkMetaTagInput('')
+                }
+              }}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <FormLabel><Trans>Type</Trans></FormLabel>
+            <Select
+              value={bulkMetaTypeId}
+              onChange={e => setBulkMetaTypeId(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">{t`Keep existing`}</option>
+              {bookTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
       </ModalShell>
     </ShellFrame>
   )
@@ -2258,14 +2301,14 @@ function FilterSelect({ label, value, options, onChange }: {
 }) {
   const { t } = useLingui()
   const opts = options.map(o => typeof o === 'string' ? { value: o, label: o } : o)
+  const id = useId()
   return (
-    <div className="flex flex-col gap-1.5 min-w-0">
-      <label className="text-[13px] text-muted-foreground">{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="h-9 w-full rounded-lg border border-border bg-background px-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring text-foreground">
+    <div className="min-w-0">
+      <FormLabel htmlFor={id}>{label}</FormLabel>
+      <Select id={id} value={value} onChange={e => onChange(e.target.value)}>
         <option value="">{t`All`}</option>
         {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      </Select>
     </div>
   )
 }

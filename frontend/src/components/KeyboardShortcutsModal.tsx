@@ -1,5 +1,3 @@
-import { useEffect } from 'react'
-import { X } from 'lucide-react'
 import { ModalShell } from '@/components/ModalShell'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { msg } from '@lingui/core/macro'
@@ -24,7 +22,7 @@ const SECTIONS: ShortcutSection[] = [
   {
     title: msg`Everywhere`,
     rows: [
-      { keys: ['⌘', 'K'], description: msg`Command palette: jump to a book, series, author, or page` },
+      { keys: ['⌘K'], description: msg`Command palette: jump to a book, series, author, or page` },
     ],
   },
   {
@@ -39,7 +37,7 @@ const SECTIONS: ShortcutSection[] = [
     ],
   },
   {
-    title: msg`Book Detail`,
+    title: msg`Book detail`,
     rows: [
       { keys: ['Escape'], description: msg`Go back` },
       { keys: ['r'], description: msg`Open reader` },
@@ -93,59 +91,33 @@ function KeyBadge({ label }: { label: string }) {
 }
 
 export function KeyboardShortcutsModal({ open, onClose }: Props) {
-  const { i18n, t } = useLingui()
-  useEffect(() => {
-    if (!open) return
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose])
+  const { i18n } = useLingui()
 
   return (
-    <ModalShell open={open} onClose={onClose} className="w-full max-w-lg">
-      <div className="bg-card rounded-[var(--radius-panel)] shadow-2xl ring-1 ring-panel-ring overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between pl-7 pr-4 pt-6 pb-2">
-            <h2 className="font-display text-[24px] font-bold text-foreground"><Trans>Keyboard shortcuts</Trans></h2>
-            <button
-              onClick={onClose}
-              aria-label={t`Close`}
-              className="w-9 h-9 grid place-items-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="px-7 pt-2 pb-7 flex flex-col gap-7 max-h-[70vh] overflow-y-auto">
-            {SECTIONS.map((section, si) => (
-              <div key={si}>
-                <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1">
-                  {i18n._(section.title)}
-                </p>
-                <div className="divide-y divide-border/70">
-                  {section.rows.map((row, ri) => (
-                    <div key={ri} className="flex items-center justify-between gap-4 py-2.5">
-                      <span className="text-[15px] text-foreground">{i18n._(row.description)}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {row.keys.map((k, i) => (
-                          <span key={k} className="flex items-center gap-1.5">
-                            {i > 0 && <span className="text-[12px] text-muted-foreground">/</span>}
-                            <KeyBadge label={k} />
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+    <ModalShell open={open} onClose={onClose} size="md" title={<Trans>Keyboard shortcuts</Trans>}>
+      <div className="flex flex-col gap-7 pt-2">
+        {SECTIONS.map((section, si) => (
+          <div key={si}>
+            <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1">
+              {i18n._(section.title)}
+            </p>
+            <div className="divide-y divide-border/70">
+              {section.rows.map((row, ri) => (
+                <div key={ri} className="flex items-center justify-between gap-4 py-2.5">
+                  <span className="text-[15px] text-foreground">{i18n._(row.description)}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {row.keys.map((k, i) => (
+                      <span key={k} className="flex items-center gap-1.5">
+                        {i > 0 && <span className="text-[12px] text-muted-foreground">/</span>}
+                        <KeyBadge label={k} />
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+        ))}
       </div>
     </ModalShell>
   )
