@@ -5,8 +5,8 @@ import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, BookOpen, Settings, Rows4,
-  ChevronLeft, ChevronRight, Minus, Plus, X,
+  BookOpen, Settings, Rows4,
+  Minus, Plus, X,
   Loader2, AlignJustify, RotateCcw, GalleryHorizontalEnd, Columns2, Square,
   StretchHorizontal, StretchVertical, StickyNote, Trash2,
 } from 'lucide-react'
@@ -15,6 +15,11 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { api } from '@/lib/api'
 import type { Book, BookFile } from '@/lib/books'
 import { cn } from '@/lib/utils'
+import { Pill, Textarea } from '@/components/page'
+import {
+  THEMES, type ReaderTheme, readerVars, ReaderTopBar, ReaderBottomBar, ReaderPanel, ChromeIcon,
+  ThemeSetting, FontSizeSetting, ChoiceSetting, useReaderMounted, HideShortcutsFab,
+} from '@/components/reader/ReaderChrome'
 import { AnnotationPainter, fillForColor, isWebAnnotation, type ReaderAnnotation } from '@/lib/readerAnnotations'
 
 // pdf.js renders pages off the main thread; point it at the bundled worker.
@@ -22,7 +27,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ReaderTheme = 'light' | 'sepia' | 'dark'
 type FontFamily = 'default' | 'serif' | 'sans'
 type FitMode = 'width' | 'height'
 type ComicMode = 'page' | 'webtoon'
@@ -31,6 +35,7 @@ interface TocItem {
   label: string
   href: string
   subitems?: TocItem[]
+  depth?: number
 }
 
 interface FoliateViewElement extends HTMLElement {
@@ -55,12 +60,6 @@ function koNow(): string {
 const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'purple', 'red'] as const
 
 // ── Theme / font definitions ──────────────────────────────────────────────────
-
-const THEMES: Record<ReaderTheme, { bg: string; text: string; label: MessageDescriptor }> = {
-  light: { bg: '#ffffff', text: '#1a1a1a', label: msg`Light` },
-  sepia: { bg: '#f7f3e9', text: '#5c4a32', label: msg`Sepia` },
-  dark:  { bg: '#1c1c1e', text: '#e5e5e7', label: msg`Dark` },
-}
 
 /* eslint-disable lingui/no-unlocalized-strings -- CSS font stacks */
 const FONT_FAMILIES: Record<FontFamily, { css: string; label: MessageDescriptor }> = {
@@ -88,36 +87,15 @@ function loadTapZoneMode(): TapZoneMode {
   return v === 'swapped' || v === 'off' ? v : 'default'
 }
 
-function TapZoneSetting({ value, onChange, themeColors, isDarkTheme }: {
-  value: TapZoneMode
-  onChange: (m: TapZoneMode) => void
-  themeColors: { bg: string; text: string }
-  isDarkTheme: boolean
-}) {
+function TapZoneSetting({ value, onChange }: { value: TapZoneMode; onChange: (m: TapZoneMode) => void }) {
   return (
-    <div>
-      <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>TAP ZONES</Trans></p>
-      <div className="flex gap-2">
-        {(Object.keys(TAP_ZONE_MODES) as TapZoneMode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => onChange(m)}
-            className={cn(
-              'flex-1 py-2 rounded-lg border text-xs font-medium transition-all',
-              value === m ? 'border-transparent' : 'opacity-50 hover:opacity-75'
-            )}
-            style={{
-              color: themeColors.text,
-              borderColor: value === m ? themeColors.text : (isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'),
-              background: value === m ? (isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)') : 'transparent',
-            }}
-          >
-            {i18n._(TAP_ZONE_MODES[m].label)}
-          </button>
-        ))}
-      </div>
-      <p className="text-xs mt-2" style={{ color: themeColors.text, opacity: 0.4 }}>{i18n._(TAP_ZONE_MODES[value].hint)}</p>
-    </div>
+    <ChoiceSetting
+      label={<Trans>Tap zones</Trans>}
+      value={value}
+      onChange={onChange}
+      options={(Object.keys(TAP_ZONE_MODES) as TapZoneMode[]).map(m => ({ value: m, label: i18n._(TAP_ZONE_MODES[m].label) }))}
+      hint={i18n._(TAP_ZONE_MODES[value].hint)}
+    />
   )
 }
 
@@ -155,6 +133,7 @@ interface StreamingComicReaderProps {
   tapZones: TapZoneMode
   onPageChange: (page: number) => void
   onReadComplete: () => void
+  onCenterTap: () => void
 }
 
 function StreamingComicReader({
@@ -168,6 +147,7 @@ function StreamingComicReader({
   tapZones,
   onPageChange,
   onReadComplete,
+  onCenterTap,
 }: StreamingComicReaderProps) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [zoom, setZoom] = useState(1)
@@ -219,17 +199,20 @@ function StreamingComicReader({
   const goNext = useCallback(() => goToPage(Math.min(currentPage + step, totalPages - 1)), [currentPage, step, goToPage, totalPages])
   const goPrev = useCallback(() => goToPage(Math.max(currentPage - step, 0)), [currentPage, step, goToPage])
 
-  // Click navigation: left half = prev, right half = next (respects RTL and
-  // the tap-zone setting). Disabled when zoomed in.
+  // Click navigation in thirds: the centre shows or hides the chrome, the
+  // left and right thirds turn pages (respects RTL and the tap-zone setting;
+  // page turns are disabled when zoomed in).
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (zoomRef.current > 1 || tapZones === 'off') return
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const clickX = e.clientX - rect.left
-    const isLeftHalf = clickX < rect.width / 2
-    let forward = isRTL ? isLeftHalf : !isLeftHalf
+    if (clickX > rect.width / 3 && clickX < (rect.width * 2) / 3) { onCenterTap(); return }
+    if (zoomRef.current > 1 || tapZones === 'off') return
+    const isLeft = clickX <= rect.width / 3
+    let forward = isRTL ? isLeft : !isLeft
     if (tapZones === 'swapped') forward = !forward
-    forward ? goNext() : goPrev()
-  }, [isRTL, tapZones, goNext, goPrev])
+    if (forward) goNext()
+    else goPrev()
+  }, [isRTL, tapZones, goNext, goPrev, onCenterTap])
 
   // Touch: swipe to navigate, pinch to zoom, double-tap to toggle zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -288,20 +271,19 @@ function StreamingComicReader({
     const dx = e.changedTouches[0].clientX - touchStartX.current
     touchStartX.current = null
     if (Math.abs(dx) < 30) return
-    if (isRTL) {
-      dx > 0 ? goNext() : goPrev()
-    } else {
-      dx > 0 ? goPrev() : goNext()
-    }
+    if ((dx > 0) === isRTL) goNext()
+    else goPrev()
   }, [isRTL, goNext, goPrev])
 
   // Keyboard shortcuts handled by parent (ReaderPage) — expose navigation via callback
   // We expose goNext/goPrev on a ref so the parent can call them
   // (Actually keyboard handling is done in the parent for comic mode too)
 
+  // The page box is the full reader area, so the percentages below resolve
+  // against the viewport and a page never spills past the right edge.
   const imgStyle: React.CSSProperties = fitMode === 'height'
-    ? { maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }
-    : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }
+    ? { maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', minWidth: 0 }
+    : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', minWidth: 0 }
 
   // Reset zoom and loading state on page change
   useEffect(() => {
@@ -317,7 +299,7 @@ function StreamingComicReader({
 
   return (
     <div
-      className="flex-1 flex items-center justify-center overflow-hidden cursor-pointer select-none relative"
+      className="flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer select-none relative"
       style={{ background: themeColors.bg }}
       onClick={handleClick}
       onTouchStart={handleTouchStart}
@@ -325,7 +307,7 @@ function StreamingComicReader({
       onTouchEnd={handleTouchEnd}
     >
       <div
-        className="flex items-center justify-center h-full gap-0"
+        className="flex items-center justify-center w-full h-full gap-0"
         style={{
           transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
           transition: zoom === 1 ? 'transform 0.2s ease-out' : undefined,
@@ -336,7 +318,7 @@ function StreamingComicReader({
           key={currentPage}
           src={pageUrl(currentPage)}
           alt={(() => { const n = currentPage + 1; return t`Page ${n}` })()}
-          style={spread ? { maxHeight: '100%', maxWidth: hasSecondPage ? '50%' : '100%', objectFit: 'contain' } : imgStyle}
+          style={spread ? { maxHeight: '100%', maxWidth: hasSecondPage ? '50%' : '100%', objectFit: 'contain', minWidth: 0 } : imgStyle}
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageLoaded(true)}
           draggable={false}
@@ -346,7 +328,7 @@ function StreamingComicReader({
             key={currentPage + 1}
             src={pageUrl(currentPage + 1)}
             alt={(() => { const n = currentPage + 2; return t`Page ${n}` })()}
-            style={{ maxHeight: '100%', maxWidth: '50%', objectFit: 'contain' }}
+            style={{ maxHeight: '100%', maxWidth: '50%', objectFit: 'contain', minWidth: 0 }}
             draggable={false}
           />
         )}
@@ -718,6 +700,7 @@ export default function ReaderPage() {
   const [searchParams] = useSearchParams()
   // Preview (?preview=1): open the book without writing anything back (#289).
   const preview = searchParams.get('preview') === '1'
+  useReaderMounted()
 
   const [book, setBook] = useState<Book | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -760,6 +743,7 @@ export default function ReaderPage() {
   }, [])
   const [toc, setToc] = useState<TocItem[]>([])
   const [showToc, setShowToc] = useState(false)
+  const [currentTocHref, setCurrentTocHref] = useState<string | null>(null)
   const [fontSize, setFontSize] = useState<number>(
     () => Number(localStorage.getItem('reader_font_size') ?? 100)
   )
@@ -784,6 +768,17 @@ export default function ReaderPage() {
     if (stored === '0' || stored === '1') return stored === '1'
     return typeof window !== 'undefined' && window.innerWidth >= 768
   })
+  // A phone shows one page at a time: two half-width pages are unreadable
+  // there, so the spread setting only applies from the sm breakpoint up.
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)') // eslint-disable-line lingui/no-unlocalized-strings -- media query
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  const effectiveSpread = spread && !narrow
   const [showToolbar, setShowToolbar] = useState(true)
   const [showThumbnails, setShowThumbnails] = useState(false)
   const toolbarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -930,6 +925,27 @@ export default function ReaderPage() {
     if (toolbarTimer.current) clearTimeout(toolbarTimer.current)
     toolbarTimer.current = setTimeout(() => setShowToolbar(false), 3000)
   }, [])
+
+  // Centre tap / click: show the chrome, or hide it when it is showing.
+  const toggleToolbar = useCallback(() => {
+    if (showToolbar) {
+      if (toolbarTimer.current) clearTimeout(toolbarTimer.current)
+      setShowToolbar(false)
+    } else {
+      resetToolbarTimer()
+    }
+  }, [showToolbar, resetToolbarTimer])
+
+  // A real mouse movement shows the chrome; touches do not (a tap would show
+  // it and the centre-tap toggle would hide it again in the same gesture).
+  const lastPointer = useRef<{ x: number; y: number } | null>(null)
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return
+    const last = lastPointer.current
+    lastPointer.current = { x: e.clientX, y: e.clientY }
+    if (last && Math.abs(last.x - e.clientX) + Math.abs(last.y - e.clientY) < 4) return
+    resetToolbarTimer()
+  }, [resetToolbarTimer])
 
   useEffect(() => {
     if (!isComic) return
@@ -1110,6 +1126,11 @@ export default function ReaderPage() {
           const index = detail.index
           if (!selDocsRef.current.has(doc)) {
             selDocsRef.current.add(doc)
+            // Keys typed while the book text has focus never reach window;
+            // forward Escape so it can close the panels.
+            doc.addEventListener('keydown', ev => {
+              if (ev.key === 'Escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+            })
             doc.addEventListener('selectionchange', () => {
               const sel = doc.getSelection()
               const text = sel && !sel.isCollapsed ? sel.toString() : ''
@@ -1128,11 +1149,12 @@ export default function ReaderPage() {
         const detail = (e as CustomEvent).detail as {
           fraction?: number
           cfi?: string
-          tocItem?: { label?: string }
+          tocItem?: { label?: string; href?: string }
         }
         const pct = Math.round((detail.fraction ?? 0) * 100)
         setProgress(pct)
         if (detail.tocItem?.label) setChapterLabel(detail.tocItem.label.trim())
+        if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href)
 
         // Chapter time-left from fraction boundaries — no pagination involved.
         computeChapterLeft(detail.fraction ?? 0)
@@ -1305,6 +1327,23 @@ export default function ReaderPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isPdf, pdfCurrentPage, navigate])
 
+  // ── Escape closes the settings panel, the contents drawer and the highlight
+  // card first; only with none of them open do the format handlers see it.
+  useEffect(() => {
+    if (!showSettings && !showToc && !activeHighlight) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      setShowSettings(false)
+      setShowToc(false)
+      setActiveHighlight(null)
+      setNoteDraft(null)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [showSettings, showToc, activeHighlight])
+
   // ── Scroll active thumbnail into view ───────────────────────────────────────
 
   useEffect(() => {
@@ -1321,7 +1360,7 @@ export default function ReaderPage() {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       resetToolbarTimer()
-      const kStep = spread ? 2 : 1
+      const kStep = effectiveSpread ? 2 : 1
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         setComicCurrentPage((p) => {
           const next = isRTL ? Math.max(0, p - kStep) : Math.min(comicTotalPages - 1, p + kStep)
@@ -1350,7 +1389,7 @@ export default function ReaderPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isComic, isRTL, comicTotalPages, spread, resetToolbarTimer])
+  }, [isComic, isRTL, comicTotalPages, effectiveSpread, resetToolbarTimer])
 
   function goToHref(href: string) {
     viewRef.current?.goTo(href).catch(() => {})
@@ -1377,11 +1416,11 @@ export default function ReaderPage() {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  function flattenToc(items: TocItem[]): TocItem[] {
+  function flattenToc(items: TocItem[], depth = 0): TocItem[] {
     const result: TocItem[] = []
     for (const item of items) {
-      result.push(item)
-      if (item.subitems?.length) result.push(...flattenToc(item.subitems))
+      result.push({ ...item, depth })
+      if (item.subitems?.length) result.push(...flattenToc(item.subitems, depth + 1))
     }
     return result
   }
@@ -1389,14 +1428,16 @@ export default function ReaderPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const themeColors = THEMES[theme]
-  const isDarkTheme = theme === 'dark'
+  const rootStyle = readerVars(theme)
+  const pctCaption = (page: number, total: number) => (total > 0 ? `${page + 1} / ${total}` : '')
 
   if (loadError) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4 text-muted-foreground">
+        <HideShortcutsFab />
         <BookOpen className="w-12 h-12 opacity-30" />
-        <p className="text-sm">{loadError}</p>
-        <button onClick={() => navigate(-1)} className="text-sm text-primary hover:underline"><Trans>Go back</Trans></button>
+        <p className="text-[14px]">{loadError}</p>
+        <Pill variant="secondary" onClick={() => navigate(-1)}><Trans>Go back</Trans></Pill>
       </div>
     )
   }
@@ -1406,122 +1447,67 @@ export default function ReaderPage() {
   if (isComic) {
     return (
       <div
-        className="fixed inset-0 z-50 flex flex-col"
-        style={{ background: themeColors.bg }}
-        onMouseMove={resetToolbarTimer}
-        onTouchStart={resetToolbarTimer}
+        className="fixed inset-0 z-50 flex flex-col overflow-hidden text-foreground"
+        style={rootStyle}
+        onPointerMove={handlePointerMove}
+        onTouchStart={comicMode === 'webtoon' ? resetToolbarTimer : undefined}
       >
+        <HideShortcutsFab />
         {/* Top toolbar (auto-hide) */}
-        <div
-          className={cn(
-            'flex items-center gap-3 px-4 min-h-12 shrink-0 border-b z-10 transition-transform duration-200 safe-top',
-            showToolbar ? 'translate-y-0' : '-translate-y-full'
-          )}
-          style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+        <ReaderTopBar
+          title={book?.title ?? ''}
+          preview={preview}
+          onBack={() => navigate(-1)}
+          className={cn('transition-transform duration-200', showToolbar ? 'translate-y-0' : '-translate-y-full')}
         >
-          <button
-            onClick={() => navigate(-1)}
-            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-
-          <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
-            {book?.title ?? ''}
-          </span>
-          {preview && (
-            <span
-              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
-              style={{ color: themeColors.text, opacity: 0.6, borderColor: isDarkTheme ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }}
-              title={t`Preview: progress and stats are not updated`}
-            >
-              <Trans>Preview</Trans>
-            </span>
-          )}
-
-          {/* RTL toggle */}
-          <button
+          {/* The quick toggles; on a phone they live in the settings panel only. */}
+          <ChromeIcon
+            active={isRTL}
             onClick={() => setIsRTL((v) => !v)}
-            className={cn(
-              'p-1.5 rounded-lg transition-colors text-xs font-bold',
-              isRTL
-                ? (isDarkTheme ? 'bg-white/20' : 'bg-black/15')
-                : (isDarkTheme ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/10 text-black/40')
-            )}
             title={t`Toggle RTL (manga) mode`}
-            style={{ color: themeColors.text }}
+            className="hidden sm:inline-flex text-[12px] font-bold"
           >
             RTL
-          </button>
-
-          {/* Fit mode toggle */}
-          <button
+          </ChromeIcon>
+          <ChromeIcon
             onClick={() => setFitMode((m) => m === 'width' ? 'height' : 'width')}
-            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
             title={fitMode === 'width' ? t`Switch to fit height` : t`Switch to fit width`}
-            style={{ color: themeColors.text }}
+            className="hidden sm:inline-flex"
           >
-            {fitMode === 'width' ? <RotateCcw className="w-4 h-4" /> : <AlignJustify className="w-4 h-4" />}
-          </button>
-
-          {/* Spread toggle */}
+            {fitMode === 'width' ? <RotateCcw /> : <AlignJustify />}
+          </ChromeIcon>
           {comicMode === 'page' && (
-            <button
+            <ChromeIcon
+              active={spread}
               onClick={() => setSpread(prev => !prev)}
-              className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60',
-                spread && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
-              )}
               title={spread ? t`Single page (S)` : t`Two-page spread (S)`}
-              style={{ color: themeColors.text }}
+              className="hidden sm:inline-flex"
             >
-              {spread ? <Square className="w-4 h-4" /> : <Columns2 className="w-4 h-4" />}
-            </button>
+              {spread ? <Square /> : <Columns2 />}
+            </ChromeIcon>
           )}
-
-          {/* Thumbnail strip toggle */}
           {comicMode === 'page' && (
-            <button
-              onClick={() => setShowThumbnails(prev => !prev)}
-              className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60',
-                showThumbnails && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
-              )}
-              title={t`Page thumbnails (T)`}
-              style={{ color: themeColors.text }}
-            >
-              <GalleryHorizontalEnd className="w-4 h-4" />
-            </button>
+            <ChromeIcon active={showThumbnails} onClick={() => setShowThumbnails(prev => !prev)} title={t`Page thumbnails (T)`}>
+              <GalleryHorizontalEnd />
+            </ChromeIcon>
           )}
-
-          {/* Webtoon / Page mode toggle */}
-          <button
+          <ChromeIcon
             onClick={() => setComicMode((m) => m === 'page' ? 'webtoon' : 'page')}
-            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
             title={comicMode === 'page' ? t`Switch to webtoon (scroll) mode` : t`Switch to page mode`}
-            style={{ color: themeColors.text }}
+            className="hidden sm:inline-flex"
           >
-            {comicMode === 'page' ? <Rows4 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
-          </button>
-
-          {/* Theme settings */}
-          <button
-            onClick={() => setShowSettings((o) => !o)}
-            className={cn(
-              'p-1.5 rounded-lg transition-colors',
-              isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10',
-              showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
-            )}
-            title={t`Reader settings`}
-            style={{ color: themeColors.text }}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
+            {comicMode === 'page' ? <Rows4 /> : <BookOpen />}
+          </ChromeIcon>
+          <ChromeIcon active={showSettings} onClick={() => setShowSettings((o) => !o)} title={t`Reader settings`}>
+            <Settings />
+          </ChromeIcon>
+        </ReaderTopBar>
 
         {/* Main area */}
-        <div className="flex flex-1 overflow-hidden relative">
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center z-10">
-              <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColors.text, opacity: 0.4 }} />
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
@@ -1532,11 +1518,12 @@ export default function ReaderPage() {
               currentPage={comicCurrentPage}
               isRTL={isRTL}
               fitMode={fitMode}
-              spread={spread}
+              spread={effectiveSpread}
               theme={theme}
               tapZones={tapZones}
               onPageChange={setComicCurrentPage}
               onReadComplete={handleComicReadComplete}
+              onCenterTap={toggleToolbar}
             />
           )}
 
@@ -1550,53 +1537,45 @@ export default function ReaderPage() {
             />
           )}
 
-          {/* Settings panel */}
           {showSettings && (
-            <div
-              className="absolute inset-y-0 right-0 w-64 max-w-[85vw] shrink-0 border-l overflow-y-auto flex flex-col z-20"
-              style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Settings</Trans></span>
-                <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
-                  <X className="w-4 h-4" />
-                </button>
+            <ReaderPanel side="right" title={<Trans>Settings</Trans>} onClose={() => setShowSettings(false)}>
+              <div className="px-5 pb-6 pt-1 flex flex-col gap-6">
+                <ChoiceSetting
+                  label={<Trans>Mode</Trans>}
+                  value={comicMode}
+                  onChange={setComicMode}
+                  options={[{ value: 'page', label: t`Page` }, { value: 'webtoon', label: t`Webtoon` }]}
+                />
+                <ChoiceSetting
+                  label={<Trans>Reading direction</Trans>}
+                  value={isRTL ? 'rtl' : 'ltr'}
+                  onChange={(v) => setIsRTL(v === 'rtl')}
+                  options={[{ value: 'ltr', label: t`Left to right` }, { value: 'rtl', label: t`Right to left` }]}
+                />
+                <ChoiceSetting
+                  label={<Trans>Fit</Trans>}
+                  value={fitMode}
+                  onChange={setFitMode}
+                  options={[{ value: 'width', label: t`Width` }, { value: 'height', label: t`Height` }]}
+                />
+                {comicMode === 'page' && !narrow && (
+                  <ChoiceSetting
+                    label={<Trans>Pages</Trans>}
+                    value={spread ? 'spread' : 'single'}
+                    onChange={(v) => setSpread(v === 'spread')}
+                    options={[{ value: 'single', label: t`Single` }, { value: 'spread', label: t`Two-page spread` }]}
+                  />
+                )}
+                <ThemeSetting value={theme} onChange={selectTheme} />
+                <TapZoneSetting value={tapZones} onChange={setTapZones} />
               </div>
-              <div className="p-4 flex flex-col gap-6">
-                <div>
-                  <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>BACKGROUND</p>
-                  <div className="flex gap-2">
-                    {(Object.keys(THEMES) as ReaderTheme[]).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => selectTheme(t)}
-                        className={cn(
-                          'flex-1 py-2.5 rounded-lg border text-xs font-medium transition-all',
-                          theme === t ? 'ring-2' : 'opacity-60 hover:opacity-90'
-                        )}
-                        style={{
-                          background: THEMES[t].bg,
-                          color: THEMES[t].text,
-                          borderColor: THEMES[t].text + '33',
-                        }}
-                      >
-                        {i18n._(THEMES[t].label)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <TapZoneSetting value={tapZones} onChange={setTapZones} themeColors={themeColors} isDarkTheme={isDarkTheme} />
-              </div>
-            </div>
+            </ReaderPanel>
           )}
         </div>
 
         {/* Thumbnail strip */}
         {showThumbnails && comicMode === 'page' && comicTotalPages > 0 && (
-          <div
-            className="flex items-center px-2 h-10 shrink-0 border-t overflow-x-auto z-10 scrollbar-none"
-            style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-          >
+          <div className="flex items-center px-2 h-11 shrink-0 overflow-x-auto z-10 scrollbar-none bg-background/85 backdrop-blur">
             <div className="flex gap-1 mx-auto">
               {Array.from({ length: comicTotalPages }, (_, i) => (
                 <button
@@ -1604,12 +1583,10 @@ export default function ReaderPage() {
                   ref={i === comicCurrentPage ? thumbnailActiveRef : undefined}
                   onClick={() => setComicCurrentPage(i)}
                   className={cn(
-                    'shrink-0 w-7 h-7 rounded text-[10px] font-medium transition-colors',
+                    'shrink-0 min-w-8 h-8 px-1.5 rounded-full text-[12px] font-medium tabular-nums transition-colors',
                     i === comicCurrentPage
-                      ? 'bg-primary text-primary-foreground'
-                      : isDarkTheme
-                        ? 'bg-white/10 text-white/50 hover:bg-white/20'
-                        : 'bg-black/10 text-black/40 hover:bg-black/20'
+                      ? 'bg-foreground text-background'
+                      : 'bg-secondary text-muted-foreground hover:bg-surface-hover hover:text-foreground'
                   )}
                 >
                   {i + 1}
@@ -1621,43 +1598,13 @@ export default function ReaderPage() {
 
         {/* Bottom bar (auto-hide) */}
         {comicMode === 'page' && (
-          <div
-            className={cn(
-              'flex items-center gap-2 sm:gap-4 px-2 sm:px-4 h-11 shrink-0 border-t z-10 transition-transform duration-200',
-              showToolbar ? 'translate-y-0' : 'translate-y-full'
-            )}
-            style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-          >
-            <button
-              onClick={() => setComicCurrentPage((p) => Math.max(0, p - 1))}
-              className="p-1 transition-opacity hover:opacity-100"
-              style={{ color: themeColors.text, opacity: 0.5 }}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <span className="flex-1 text-xs truncate text-center" style={{ color: themeColors.text, opacity: 0.5 }}>
-              {comicTotalPages > 0 ? `${comicCurrentPage + 1} / ${comicTotalPages}` : ''}
-            </span>
-
-            <div className="flex items-center gap-2">
-              <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
-                <div
-                  className="h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
-                />
-              </div>
-              <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
-            </div>
-
-            <button
-              onClick={() => setComicCurrentPage((p) => Math.min(comicTotalPages - 1, p + 1))}
-              className="p-1 transition-opacity hover:opacity-100"
-              style={{ color: themeColors.text, opacity: 0.5 }}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          <ReaderBottomBar
+            className={cn('transition-transform duration-200', showToolbar ? 'translate-y-0' : 'translate-y-full')}
+            onPrev={() => setComicCurrentPage((p) => Math.max(0, p - 1))}
+            onNext={() => setComicCurrentPage((p) => Math.min(comicTotalPages - 1, p + 1))}
+            caption={pctCaption(comicCurrentPage, comicTotalPages)}
+            progress={progress}
+          />
         )}
       </div>
     )
@@ -1669,85 +1616,27 @@ export default function ReaderPage() {
     const zoomOut = () => setPdfZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))
     const zoomIn = () => setPdfZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))
     return (
-      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: themeColors.bg }}>
-        {/* Top bar */}
-        <div
-          className="flex items-center gap-2 sm:gap-3 px-4 min-h-12 shrink-0 border-b z-10 safe-top"
-          style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-        >
-          <button
-            onClick={() => navigate(-1)}
-            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-
-          <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
-            {book?.title ?? ''}
-          </span>
-          {preview && (
-            <span
-              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
-              style={{ color: themeColors.text, opacity: 0.6, borderColor: isDarkTheme ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }}
-              title={t`Preview: progress and stats are not updated`}
-            >
-              <Trans>Preview</Trans>
-            </span>
-          )}
-
-          {/* Fit mode toggle */}
-          <button
+      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden text-foreground" style={rootStyle}>
+        <HideShortcutsFab />
+        <ReaderTopBar title={book?.title ?? ''} preview={preview} onBack={() => navigate(-1)}>
+          <ChromeIcon
             onClick={() => setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))}
-            className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
             title={pdfFitMode === 'width' ? t`Fit page height (W)` : t`Fit page width (W)`}
-            style={{ color: themeColors.text }}
           >
-            {pdfFitMode === 'width' ? <StretchVertical className="w-4 h-4" /> : <StretchHorizontal className="w-4 h-4" />}
-          </button>
+            {pdfFitMode === 'width' ? <StretchVertical /> : <StretchHorizontal />}
+          </ChromeIcon>
+          <ChromeIcon onClick={zoomOut} title={t`Zoom out (-)`}><Minus /></ChromeIcon>
+          <span className="w-10 text-center text-[13px] tabular-nums text-muted-foreground">{Math.round(pdfZoom * 100)}%</span>
+          <ChromeIcon onClick={zoomIn} title={t`Zoom in (+)`}><Plus /></ChromeIcon>
+          <ChromeIcon active={showSettings} onClick={() => setShowSettings((o) => !o)} title={t`Reader settings`}>
+            <Settings />
+          </ChromeIcon>
+        </ReaderTopBar>
 
-          {/* Zoom */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={zoomOut}
-              className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-              title={t`Zoom out (-)`}
-              style={{ color: themeColors.text }}
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <span className="text-xs w-9 text-center tabular-nums" style={{ color: themeColors.text, opacity: 0.6 }}>
-              {Math.round(pdfZoom * 100)}%
-            </span>
-            <button
-              onClick={zoomIn}
-              className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-              title={t`Zoom in (+)`}
-              style={{ color: themeColors.text }}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Theme settings */}
-          <button
-            onClick={() => setShowSettings((o) => !o)}
-            className={cn(
-              'p-1.5 rounded-lg transition-colors',
-              isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10',
-              showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10')
-            )}
-            title={t`Reader settings`}
-            style={{ color: themeColors.text }}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Main area */}
-        <div className="flex flex-1 overflow-hidden relative">
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center z-10">
-              <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColors.text, opacity: 0.4 }} />
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
@@ -1767,168 +1656,80 @@ export default function ReaderPage() {
             />
           )}
 
-          {/* Settings panel */}
           {showSettings && (
-            <div
-              className="absolute inset-y-0 right-0 w-64 max-w-[85vw] shrink-0 border-l overflow-y-auto flex flex-col z-20"
-              style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Settings</Trans></span>
-                <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
-                  <X className="w-4 h-4" />
-                </button>
+            <ReaderPanel side="right" title={<Trans>Settings</Trans>} onClose={() => setShowSettings(false)}>
+              <div className="px-5 pb-6 pt-1 flex flex-col gap-6">
+                <ThemeSetting value={theme} onChange={selectTheme} />
               </div>
-              <div className="p-4 flex flex-col gap-6">
-                <div>
-                  <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>BACKGROUND</p>
-                  <div className="flex gap-2">
-                    {(Object.keys(THEMES) as ReaderTheme[]).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => selectTheme(t)}
-                        className={cn(
-                          'flex-1 py-2.5 rounded-lg border text-xs font-medium transition-all',
-                          theme === t ? 'ring-2' : 'opacity-60 hover:opacity-90'
-                        )}
-                        style={{
-                          background: THEMES[t].bg,
-                          color: THEMES[t].text,
-                          borderColor: THEMES[t].text + '33',
-                        }}
-                      >
-                        {i18n._(THEMES[t].label)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            </ReaderPanel>
           )}
         </div>
 
-        {/* Bottom bar */}
-        <div
-          className="flex items-center gap-2 sm:gap-4 px-2 sm:px-4 h-11 shrink-0 border-t z-10"
-          style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-        >
-          <button
-            onClick={() => pdfRef.current?.scrollToPage(pdfCurrentPage - 1)}
-            className="p-1 transition-opacity hover:opacity-100"
-            style={{ color: themeColors.text, opacity: 0.5 }}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <span className="flex-1 text-xs truncate text-center" style={{ color: themeColors.text, opacity: 0.5 }}>
-            {pdfTotalPages > 0 ? `${pdfCurrentPage + 1} / ${pdfTotalPages}` : ''}
-          </span>
-
-          <div className="flex items-center gap-2">
-            <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
-              />
-            </div>
-            <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
-          </div>
-
-          <button
-            onClick={() => pdfRef.current?.scrollToPage(pdfCurrentPage + 1)}
-            className="p-1 transition-opacity hover:opacity-100"
-            style={{ color: themeColors.text, opacity: 0.5 }}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+        <ReaderBottomBar
+          onPrev={() => pdfRef.current?.scrollToPage(pdfCurrentPage - 1)}
+          onNext={() => pdfRef.current?.scrollToPage(pdfCurrentPage + 1)}
+          caption={pctCaption(pdfCurrentPage, pdfTotalPages)}
+          progress={progress}
+        />
       </div>
     )
   }
 
-  // ── EPUB reader layout (unchanged) ────────────────────────────────────────
+  // ── EPUB reader layout ─────────────────────────────────────────────────────
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col select-none"
-      style={{ background: themeColors.bg }}
-    >
-      {/* Top bar */}
-      <div
-        className={cn('flex items-center gap-3 px-4 min-h-12 shrink-0 border-b z-10 safe-top')}
-        style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-      >
-        <button
-          onClick={() => navigate(-1)}
-          className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/10 text-black/60')}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-
-        <span className="flex-1 text-sm font-medium truncate" style={{ color: themeColors.text }}>
-          {book?.title ?? ''}
-        </span>
-        {preview && (
-          <span
-            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border"
-            style={{ color: themeColors.text, opacity: 0.6, borderColor: isDarkTheme ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }}
-            title={t`Preview: progress and stats are not updated`}
-          >
-            <Trans>Preview</Trans>
-          </span>
-        )}
-
-        <button
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden select-none text-foreground" style={rootStyle}>
+      <HideShortcutsFab />
+      <ReaderTopBar title={book?.title ?? ''} preview={preview} onBack={() => navigate(-1)}>
+        <ChromeIcon
+          active={showToc}
           onClick={() => { setShowToc((o) => !o); setShowSettings(false) }}
-          className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showToc && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
           title={t`Table of contents`}
-          style={{ color: themeColors.text }}
         >
-          <AlignJustify className="w-4 h-4" />
-        </button>
-        <button
+          <AlignJustify />
+        </ChromeIcon>
+        <ChromeIcon
+          active={showSettings}
           onClick={() => { setShowSettings((o) => !o); setShowToc(false) }}
-          className={cn('p-1.5 rounded-lg transition-colors', isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-black/10', showSettings && (isDarkTheme ? 'bg-white/15' : 'bg-black/10'))}
           title={t`Reader settings`}
-          style={{ color: themeColors.text }}
         >
-          <Settings className="w-4 h-4" />
-        </button>
-      </div>
+          <Settings />
+        </ChromeIcon>
+      </ReaderTopBar>
 
       {/* Main area */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
-        {/* TOC drawer */}
+        {/* Contents drawer */}
         {showToc && (
-          <div
-            className="absolute inset-y-0 left-0 md:relative md:inset-auto w-72 max-w-[85vw] shrink-0 border-r overflow-y-auto flex flex-col z-20"
-            style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Contents</Trans></span>
-              <button onClick={() => setShowToc(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+          <ReaderPanel side="left" title={<Trans>Contents</Trans>} onClose={() => setShowToc(false)} className="md:relative md:inset-auto">
             {toc.length === 0 && (
-              <p className="px-4 py-6 text-xs" style={{ color: themeColors.text, opacity: 0.4 }}><Trans>No table of contents available.</Trans></p>
+              <p className="px-5 py-4 text-[14px] text-muted-foreground"><Trans>No table of contents available.</Trans></p>
             )}
-            {toc.map((item, i) => (
-              <button
-                key={i}
-                onClick={() => goToHref(item.href)}
-                className="text-left px-4 py-2.5 text-sm transition-opacity hover:opacity-100"
-                style={{ color: themeColors.text, opacity: 0.75 }}
-              >
-                {item.label?.trim()}
-              </button>
-            ))}
-          </div>
+            <div className="pb-4">
+              {toc.map((item, i) => {
+                const current = item.href === currentTocHref
+                return (
+                  <button
+                    key={i}
+                    onClick={() => goToHref(item.href)}
+                    aria-current={current ? 'location' : undefined}
+                    className={cn(
+                      'block w-full text-left pr-5 py-2 text-[15px] leading-snug transition-colors',
+                      current ? 'text-primary font-medium' : 'text-foreground/80 hover:text-foreground',
+                    )}
+                    style={{ paddingLeft: 20 + (item.depth ?? 0) * 16 }}
+                  >
+                    {item.label?.trim()}
+                  </button>
+                )
+              })}
+            </div>
+          </ReaderPanel>
         )}
 
         {/* foliate-view container */}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 min-w-0 overflow-hidden relative">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center z-10">
               <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin opacity-40" style={{ color: themeColors.text }} />
@@ -1944,17 +1745,10 @@ export default function ReaderPage() {
             </>
           )}
 
-          {/* Selection toolbar — pick a colour to create a highlight */}
+          {/* Selection toolbar: pick a colour to create a highlight */}
           {selText && !activeHighlight && (
-            <div
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 rounded-xl border shadow-2xl px-4 py-2.5"
-              style={{
-                background: themeColors.bg,
-                color: themeColors.text,
-                borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
-              }}
-            >
-              <span className="text-xs font-medium mr-1" style={{ opacity: 0.55 }}><Trans>Highlight</Trans></span>
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 rounded-xl bg-card shadow-lg ring-1 ring-border px-4 py-2.5">
+              <span className="text-[13px] font-medium mr-1 text-muted-foreground"><Trans>Highlight</Trans></span>
               {HIGHLIGHT_COLORS.map(c => (
                 <button
                   key={c}
@@ -1971,20 +1765,13 @@ export default function ReaderPage() {
             </div>
           )}
 
-          {/* Tapped-highlight card — synced + web-created highlights */}
+          {/* Tapped-highlight card: synced and web-created highlights */}
           {activeHighlight && (
             <>
               <div className="absolute inset-0 z-20" onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} />
-              <div
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[min(34rem,calc(100%-2rem))] rounded-xl border shadow-2xl p-4"
-                style={{
-                  background: themeColors.bg,
-                  color: themeColors.text,
-                  borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
-                }}
-              >
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[min(34rem,calc(100%-2rem))] rounded-xl bg-card shadow-lg ring-1 ring-border p-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2 min-w-0 text-xs" style={{ opacity: 0.6 }}>
+                  <div className="flex items-center gap-2 min-w-0 text-[13px] text-muted-foreground">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ background: fillForColor(activeHighlight.color).replace(/[\d.]+\)$/, '1)') }}
@@ -1994,64 +1781,54 @@ export default function ReaderPage() {
                       <span className="shrink-0">· {activeHighlight.datetime.slice(0, 10)}</span>
                     )}
                   </div>
-                  <button onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} style={{ opacity: 0.5 }} aria-label={t`Close`}>
-                    <X className="w-4 h-4" />
-                  </button>
+                  <ChromeIcon className="-mr-2 -mt-2" onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} title={t`Close`}>
+                    <X />
+                  </ChromeIcon>
                 </div>
                 {activeHighlight.highlighted_text && (
                   <p
-                    className="text-sm leading-relaxed max-h-40 overflow-y-auto border-l-2 pl-2.5"
+                    className="text-[14px] leading-relaxed max-h-40 overflow-y-auto border-l-2 pl-2.5"
                     style={{ borderColor: fillForColor(activeHighlight.color).replace(/[\d.]+\)$/, '0.9)') }}
                   >
                     {activeHighlight.highlighted_text}
                   </p>
                 )}
                 {noteDraft != null ? (
-                  <div className="mt-2.5">
-                    <textarea
+                  <div className="mt-3">
+                    <Textarea
                       value={noteDraft}
                       onChange={e => setNoteDraft(e.target.value)}
                       rows={3}
                       autoFocus
                       placeholder={t`Add a note…`}
-                      className="w-full rounded-lg border bg-transparent p-2 text-sm focus:outline-none"
-                      style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)', color: themeColors.text }}
                     />
-                    <div className="mt-1.5 flex gap-3 text-xs font-medium">
-                      <button onClick={saveNote} className="hover:underline"><Trans>Save</Trans></button>
-                      <button onClick={() => setNoteDraft(null)} style={{ opacity: 0.6 }} className="hover:underline"><Trans>Cancel</Trans></button>
+                    <div className="mt-2 flex justify-end gap-1.5">
+                      <Pill variant="quiet" onClick={() => setNoteDraft(null)}><Trans>Cancel</Trans></Pill>
+                      <Pill variant="primary" onClick={saveNote}><Trans>Save</Trans></Pill>
                     </div>
                   </div>
                 ) : activeHighlight.note ? (
-                  <p className="mt-2.5 flex items-start gap-1.5 text-sm" style={{ opacity: 0.75 }}>
-                    <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <p className="mt-2.5 flex items-start gap-1.5 text-[14px] text-foreground/80">
+                    <StickyNote className="w-3.5 h-3.5 mt-1 shrink-0" />
                     <span className="leading-relaxed">{activeHighlight.note}</span>
                   </p>
                 ) : null}
-                <div className="mt-2.5 flex items-center justify-between">
-                  <p className="text-[11px]" style={{ opacity: 0.4 }}>
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <p className="text-[13px] text-muted-foreground">
                     {isWebAnnotation(activeHighlight)
-                      ? t`Made on the web — syncs to KOReader`
+                      ? t`Made on the web, syncs to KOReader`
                       : t`Synced from KOReader`}
                   </p>
                   {noteDraft == null && (
-                    <div className="flex items-center gap-3 text-xs">
-                      <button
-                        onClick={() => setNoteDraft(activeHighlight.note ?? '')}
-                        className="flex items-center gap-1 hover:underline"
-                        style={{ opacity: 0.7 }}
-                      >
+                    <div className="flex items-center gap-0.5 -mr-2">
+                      <Pill variant="quiet" onClick={() => setNoteDraft(activeHighlight.note ?? '')}>
                         <StickyNote className="w-3.5 h-3.5" />
                         {activeHighlight.note ? t`Edit note` : t`Add note`}
-                      </button>
-                      <button
-                        onClick={deleteHighlight}
-                        className="flex items-center gap-1 hover:underline"
-                        style={{ opacity: 0.7 }}
-                      >
+                      </Pill>
+                      <Pill variant="destructive" onClick={deleteHighlight}>
                         <Trash2 className="w-3.5 h-3.5" />
                         <Trans>Delete</Trans>
-                      </button>
+                      </Pill>
                     </div>
                   )}
                 </div>
@@ -2062,127 +1839,40 @@ export default function ReaderPage() {
 
         {/* Settings panel */}
         {showSettings && (
-          <div
-            className="absolute inset-y-0 right-0 md:relative md:inset-auto w-72 max-w-[85vw] shrink-0 border-l overflow-y-auto flex flex-col z-20"
-            style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>Settings</Trans></span>
-              <button onClick={() => setShowSettings(false)} style={{ color: themeColors.text, opacity: 0.5 }}>
-                <X className="w-4 h-4" />
-              </button>
+          <ReaderPanel side="right" title={<Trans>Settings</Trans>} onClose={() => setShowSettings(false)} className="md:relative md:inset-auto">
+            <div className="px-5 pb-6 pt-1 flex flex-col gap-6">
+              <FontSizeSetting value={fontSize} onChange={changeFontSize} />
+              <ChoiceSetting
+                label={<Trans>Font</Trans>}
+                value={fontFamily}
+                onChange={selectFontFamily}
+                options={(Object.keys(FONT_FAMILIES) as FontFamily[]).map(f => ({
+                  value: f,
+                  label: <span style={{ fontFamily: FONT_FAMILIES[f].css }}>{i18n._(FONT_FAMILIES[f].label)}</span>,
+                }))}
+              />
+              <ThemeSetting value={theme} onChange={selectTheme} />
+              <TapZoneSetting value={tapZones} onChange={setTapZones} />
             </div>
-
-            <div className="p-4 flex flex-col gap-6">
-              {/* Font size */}
-              <div>
-                <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}><Trans>FONT SIZE</Trans></p>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => changeFontSize(-10)}
-                    className="w-9 h-9 rounded-lg border flex items-center justify-center transition-opacity hover:opacity-100"
-                    style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)', color: themeColors.text, opacity: 0.7 }}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="flex-1 text-center text-sm font-medium" style={{ color: themeColors.text }}>{fontSize}%</span>
-                  <button
-                    onClick={() => changeFontSize(10)}
-                    className="w-9 h-9 rounded-lg border flex items-center justify-center transition-opacity hover:opacity-100"
-                    style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)', color: themeColors.text, opacity: 0.7 }}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Font family */}
-              <div>
-                <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>FONT</p>
-                <div className="flex gap-2">
-                  {(Object.keys(FONT_FAMILIES) as FontFamily[]).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => selectFontFamily(f)}
-                      className={cn(
-                        'flex-1 py-2 rounded-lg border text-xs font-medium transition-all',
-                        fontFamily === f ? 'border-transparent' : 'opacity-50 hover:opacity-75'
-                      )}
-                      style={{
-                        color: themeColors.text,
-                        borderColor: fontFamily === f ? themeColors.text : (isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'),
-                        background: fontFamily === f ? (isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)') : 'transparent',
-                        fontFamily: FONT_FAMILIES[f].css,
-                      }}
-                    >
-                      {i18n._(FONT_FAMILIES[f].label)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Theme */}
-              <div>
-                <p className="text-xs font-medium mb-3" style={{ color: themeColors.text, opacity: 0.5 }}>THEME</p>
-                <div className="flex gap-2">
-                  {(Object.keys(THEMES) as ReaderTheme[]).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => selectTheme(t)}
-                      className={cn(
-                        'flex-1 py-2.5 rounded-lg border text-xs font-medium transition-all',
-                        theme === t ? 'ring-2' : 'opacity-60 hover:opacity-90'
-                      )}
-                      style={{
-                        background: THEMES[t].bg,
-                        color: THEMES[t].text,
-                        borderColor: THEMES[t].text + '33',
-                      }}
-                    >
-                      {i18n._(THEMES[t].label)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <TapZoneSetting value={tapZones} onChange={setTapZones} themeColors={themeColors} isDarkTheme={isDarkTheme} />
-            </div>
-          </div>
+          </ReaderPanel>
         )}
       </div>
 
-      {/* Bottom bar */}
-      <div
-        className="flex items-center gap-2 sm:gap-4 px-2 sm:px-4 h-11 shrink-0 border-t z-10"
-        style={{ background: themeColors.bg, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-      >
-        <button onClick={epubPrev} className="p-1 transition-opacity hover:opacity-100" style={{ color: themeColors.text, opacity: 0.5 }}>
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <span className="flex-1 text-xs truncate text-center" style={{ color: themeColors.text, opacity: 0.5 }}>
-          {chapterLabel}
-          {chapterMinsLeft != null && chapterMinsLeft >= 0.5 && (
-            <span title={pacingRef.current?.wpm ? t`Based on your measured reading pace` : t`Based on a default pace (no reading history yet)`}>
-              {chapterLabel ? ' · ' : ''}{(() => { const m = Math.max(1, Math.round(chapterMinsLeft)); return t`~${m} min left` })()}
-            </span>
-          )}
-        </span>
-
-        <div className="flex items-center gap-2">
-          <div className="w-16 sm:w-24 h-1 rounded-full overflow-hidden" style={{ background: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }}>
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${progress}%`, background: isDarkTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}
-            />
-          </div>
-          <span className="text-xs w-8 text-right" style={{ color: themeColors.text, opacity: 0.5 }}>{progress}%</span>
-        </div>
-
-        <button onClick={epubNext} className="p-1 transition-opacity hover:opacity-100" style={{ color: themeColors.text, opacity: 0.5 }}>
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
+      <ReaderBottomBar
+        onPrev={epubPrev}
+        onNext={epubNext}
+        progress={progress}
+        caption={
+          <>
+            {chapterLabel}
+            {chapterMinsLeft != null && chapterMinsLeft >= 0.5 && (
+              <span title={pacingRef.current?.wpm ? t`Based on your measured reading pace` : t`Based on a default pace (no reading history yet)`}>
+                {chapterLabel ? ' · ' : ''}{(() => { const m = Math.max(1, Math.round(chapterMinsLeft)); return t`~${m} min left` })()}
+              </span>
+            )}
+          </>
+        }
+      />
     </div>
   )
 }
