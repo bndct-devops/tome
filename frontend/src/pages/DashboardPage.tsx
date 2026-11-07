@@ -204,7 +204,7 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
         })}
         {selectedIds.size > selectedBooks.length && (
           <p className="text-[13px] text-muted-foreground py-2.5">
-            {(() => { const more = selectedIds.size - selectedBooks.length; return t`and ${more} more not shown` })()}
+            {(() => { const more = selectedIds.size - selectedBooks.length; return t`…and ${more} more not shown` })()}
           </p>
         )}
       </div>
