@@ -377,7 +377,9 @@ def get_stats(
 
     # ── Year summary ──────────────────────────────────────────────────────────
     year_summary = None
-    if cutoff is None or effective_days >= 365:
+    # A 1y range lands on 364 effective days (the cutoff is exclusive), so the
+    # plain 365-day request counts as a year too.
+    if cutoff is None or effective_days >= 365 or (not start and days >= 365):
         # Top genre from finished books
         top_genre: Optional[str] = None
         finished_book_ids = [row.id for row in finished_books]

@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- reader theme data lives beside its chrome */
-import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { type CSSProperties, type ReactNode } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n, type MessageDescriptor } from '@lingui/core'
@@ -202,17 +202,4 @@ export function ChoiceSetting<T extends string>({ label, value, onChange, option
   )
 }
 
-/** Hides the app's floating keyboard-shortcuts button while the reader is mounted. */
-export function useReaderMounted() {
-  useEffect(() => {
-    document.body.dataset.reader = '1'
-    return () => { delete document.body.dataset.reader }
-  }, [])
-}
 
-/* eslint-disable lingui/no-unlocalized-strings -- CSS selector */
-/** Local fallback for the FAB until App.tsx skips it on /reader. */
-export function HideShortcutsFab() {
-  return <style>{'body[data-reader] button.fixed.bottom-5.right-5{display:none}'}</style>
-}
-/* eslint-enable lingui/no-unlocalized-strings */

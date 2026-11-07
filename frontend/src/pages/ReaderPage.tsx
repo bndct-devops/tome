@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { Pill, Textarea } from '@/components/page'
 import {
   THEMES, type ReaderTheme, readerVars, ReaderTopBar, ReaderBottomBar, ReaderPanel, ChromeIcon,
-  ThemeSetting, FontSizeSetting, ChoiceSetting, useReaderMounted, HideShortcutsFab,
+  ThemeSetting, FontSizeSetting, ChoiceSetting,
 } from '@/components/reader/ReaderChrome'
 import { AnnotationPainter, fillForColor, isWebAnnotation, type ReaderAnnotation } from '@/lib/readerAnnotations'
 
@@ -700,7 +700,6 @@ export default function ReaderPage() {
   const [searchParams] = useSearchParams()
   // Preview (?preview=1): open the book without writing anything back (#289).
   const preview = searchParams.get('preview') === '1'
-  useReaderMounted()
 
   const [book, setBook] = useState<Book | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -1434,7 +1433,6 @@ export default function ReaderPage() {
   if (loadError) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4 text-muted-foreground">
-        <HideShortcutsFab />
         <BookOpen className="w-12 h-12 opacity-30" />
         <p className="text-[14px]">{loadError}</p>
         <Pill variant="secondary" onClick={() => navigate(-1)}><Trans>Go back</Trans></Pill>
@@ -1452,7 +1450,6 @@ export default function ReaderPage() {
         onPointerMove={handlePointerMove}
         onTouchStart={comicMode === 'webtoon' ? resetToolbarTimer : undefined}
       >
-        <HideShortcutsFab />
         {/* Top toolbar (auto-hide) */}
         <ReaderTopBar
           title={book?.title ?? ''}
@@ -1617,7 +1614,6 @@ export default function ReaderPage() {
     const zoomIn = () => setPdfZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))
     return (
       <div className="fixed inset-0 z-50 flex flex-col overflow-hidden text-foreground" style={rootStyle}>
-        <HideShortcutsFab />
         <ReaderTopBar title={book?.title ?? ''} preview={preview} onBack={() => navigate(-1)}>
           <ChromeIcon
             onClick={() => setPdfFitMode((m) => (m === 'width' ? 'height' : 'width'))}
@@ -1679,7 +1675,6 @@ export default function ReaderPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden select-none text-foreground" style={rootStyle}>
-      <HideShortcutsFab />
       <ReaderTopBar title={book?.title ?? ''} preview={preview} onBack={() => navigate(-1)}>
         <ChromeIcon
           active={showToc}

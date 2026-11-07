@@ -43,7 +43,7 @@ export function SortMenu<F extends string>({ fields, value, order, onPick }: {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div role="menu" className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 z-40 min-w-52 rounded-xl bg-card border border-border/60 shadow-xl p-1.5">
+          <div role="menu" className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 z-40 min-w-52 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5">
             {fields.map(f => {
               const active = f.id === value
               return (

@@ -11,7 +11,7 @@ const PILL_MISSING = 'ring-1 ring-inset ring-border text-muted-foreground/60'
 // The refreshed look (Wishlist): round chips on the neutral fill, present
 // volumes filled in the success colour.
 const CHIP_BASE = 'inline-flex items-center h-7 px-2.5 rounded-full text-[12px] font-semibold tabular-nums transition-colors'
-const CHIP_PRESENT = 'bg-success text-background hover:bg-success/85'
+const CHIP_PRESENT = 'bg-success/15 text-success hover:bg-success/25'
 const CHIP_MISSING = 'bg-secondary text-muted-foreground'
 
 /**

@@ -1375,7 +1375,6 @@ export function BookDetailPage() {
       {/* Phones: the app-wide keyboard-shortcut button (App.tsx) sits over the
           book's action pills, and a phone has no keyboard to use it with. */}
       {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
-      <style>{'@media (max-width: 767px) { button[title^="Keyboard shortcuts"] { display: none !important; } }'}</style>
       <PageBody width="wide">
         {/* The page header for a book: where you are on the left, the page's
             actions on the right. The hero's h1 is the title. */}
