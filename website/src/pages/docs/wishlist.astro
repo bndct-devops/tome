@@ -84,12 +84,11 @@ import { withBase } from '../../lib/path'
   <p>
     Following starts <em>silent</em>: it primes at the series' current latest volume, so following
     a 27-volume series doesn't fire 27 alerts. When the tracker's latest volume number grows past
-    that, you get a bell notification — and an email, when SMTP is configured. Releases with a
-    known date also appear in the <strong>Upcoming releases</strong> card on the Home dashboard.
+    that, you get a bell notification — and an email, when SMTP is configured. Your follows, with
+    the latest known volume against the one you own, stay in the <strong>Following</strong> strip
+    above; a followed series' next volume with a known date is also listed under
+    <strong>Upcoming releases</strong> on <a href={withBase("/docs/home")}>Home</a>.
   </p>
-  <figure style="margin: 1.5rem auto; max-width: 420px;">
-    <ThemedShot client:load name="home-upcoming" alt="The Home rail's Upcoming releases card: followed series with their next volume and release date" />
-  </figure>
   <Callout variant="note" title="Opt-in">
     Release detection is off by default. Set <code>TOME_RELEASE_DETECTION=true</code> (it also
     needs your <code>TOME_HARDCOVER_TOKEN</code>); tune the poll cadence with
@@ -118,7 +117,7 @@ import { withBase } from '../../lib/path'
     the matcher will surface it here automatically.
   </p>
   <div class="docs-shot">
-    <ThemedShot client:load name="wishlist-admin-fulfill" alt="Admin fulfil picker with the suggested book preselected" />
+    <ThemedShot client:load name="wishlist-admin-fulfill" alt="The admin fulfil picker, opened inline in the wish row, with the suggested book preselected" />
   </div>
 
   <Callout variant="note" title="Whole-series wishes don't close on one volume">

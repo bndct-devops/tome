@@ -54,7 +54,7 @@ import { withBase } from '../../lib/path'
   <h3>Resolving duplicates</h3>
   <p>
     Resolution works in one pass: for each group, pick the book to keep and queue an action, then
-    apply everything with a single <strong>Apply All</strong>. Nothing happens until you confirm,
+    apply everything with a single <strong>Apply all</strong>. Nothing happens until you confirm,
     and a summary afterwards reports what was applied and anything that failed. Three actions are
     available per group:
   </p>
@@ -62,7 +62,7 @@ import { withBase } from '../../lib/path'
     <li><strong>Merge</strong> — fold the other copies into the kept book. Files, tags, library
       memberships, and reading status carry over. File entries whose file is missing from disk are
       dropped rather than carried along.</li>
-    <li><strong>Delete Others</strong> — keep the selected book and delete the other copies,
+    <li><strong>Delete others</strong> — keep the selected book and delete the other copies,
       including their files on disk. Useful when the copies really are redundant files, not
       alternate formats worth merging.</li>
     <li><strong>Dismiss</strong> — mark the group as not-a-duplicate. Dismissed pairs are stored
@@ -94,7 +94,7 @@ import { withBase } from '../../lib/path'
     or <em>file entry only</em> when the book keeps another file that still exists.
   </p>
   <p>
-    <strong>Remove Dead Entries</strong> (confirm-gated) cleans them up in one click — dead file
+    <strong>Remove dead entries</strong> (confirm-gated) cleans them up in one click — dead file
     entries are removed, and books left with no files are deleted entirely. Entries whose file
     actually exists on disk are always refused: this action only ever touches the database, never
     your files.
@@ -209,9 +209,9 @@ import { withBase } from '../../lib/path'
     <li>Set the folders and layouts in <strong>Admin → Types</strong>.</li>
     <li>Check that your books have the right type (bulk-edit the book type from a selection in
       the library if needed).</li>
-    <li>Open <strong>Admin → Library</strong> (Library Health), click <strong>Dry Run All</strong>
+    <li>Open <strong>Admin → Library</strong> (Library Health), click <strong>Dry run all</strong>
       and read the list of moves.</li>
-    <li>Click <strong>Reorganize All</strong> (or select some files and reorganize only those).</li>
+    <li>Click <strong>Reorganize all</strong> (or select some files and reorganize only those).</li>
     <li>Other tools that watch the library folder (Calibre, Komga, a sync client) see the files
       at new paths and need a rescan.</li>
   </ol>
@@ -246,7 +246,7 @@ import { withBase } from '../../lib/path'
   <h2>Word counts</h2>
   <p>
     Tome records each EPUB's word count, shown in the <strong>Details</strong> panel on the book
-    page. New uploads are counted automatically as they're added — the <strong>Word Counts</strong>
+    page. New uploads are counted automatically as they're added — the <strong>Word counts</strong>
     tab is only for backfilling books that were in your library before the feature existed.
   </p>
   <div class="docs-shot">
@@ -283,7 +283,7 @@ import { withBase } from '../../lib/path'
   </p>
   <h2 id="audit-log">Audit log</h2>
   <p>
-    <strong>Admin → Audit Log</strong> records who did what, when: user management, book
+    <strong>Admin → Audit log</strong> records who did what, when: user management, book
     deletions and uploads, metadata edits, downloads (single and bulk), credential
     lifecycles (API tokens, OPDS PINs, KOReader plugin keys, notification channels —
     never the secrets themselves), backup and restore steps, imports, and curation

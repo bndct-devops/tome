@@ -54,7 +54,7 @@ services:
   <h3>Manual review</h3>
   <p>
     Default behavior, recommended for any library you care about. Files arrive in
-    <code>/bindery</code>, get parsed, and queue up in <strong>Admin → Unreviewed</strong>. An
+    <code>/bindery</code>, get parsed, and queue up under <strong>Bindery → Unreviewed</strong>. An
     admin opens each entry, eyeballs the detected metadata, edits if necessary, and clicks
     <strong>Accept</strong> — only then does the book move into the canonical library folder and
     become visible to non-admin users.
@@ -63,7 +63,7 @@ services:
   <Steps>
     <li>Copy files into <code>/bindery</code> (cp, rsync, smb, whatever).</li>
     <li>Tome detects them within a few seconds and parses metadata from the file + filename.</li>
-    <li>They appear in <strong>Admin → Unreviewed</strong> with a counter badge in the sidebar.</li>
+    <li>They appear under <strong>Bindery → Unreviewed</strong>, with a counter badge on Bindery in the sidebar.</li>
     <li>Open each, check the detected title / author / series / volume. Use <strong>Fetch metadata</strong> to populate description and cover.</li>
     <li>Click <strong>Accept</strong> to publish, or <strong>Reject</strong> to delete the file from <code>/bindery</code>.</li>
   </Steps>
@@ -83,7 +83,7 @@ services:
       the review form (or for the whole batch), instead of filing each book afterwards from its
       detail page. The book type's own library is always added automatically. There's also an
       <strong>Add to libraries</strong> picker in the Bindery toolbar itself: set it once and the
-      next <strong>Quick Accept</strong> or <strong>Review</strong> run files everything into
+      next <strong>Quick accept</strong> or <strong>Review</strong> run files everything into
       those libraries, then it resets.
     </li>
     <li>
@@ -93,12 +93,12 @@ services:
     </li>
     <li>
       <strong>Match all</strong> — fetches and applies the best candidate to <em>every</em> file
-      in the batch. Trust the matcher, eyeball the rows, <strong>Accept All</strong>.
+      in the batch. Trust the matcher, eyeball the rows, <strong>Accept all</strong>.
     </li>
   </ul>
   <p>
     If you fully trust the matches, skip review entirely: select files and use
-    <strong>Quick Accept</strong> — it fetches, applies the best candidate, and accepts each file
+    <strong>Quick accept</strong> — it fetches, applies the best candidate, and accepts each file
     in one pass.
   </p>
 
