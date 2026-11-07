@@ -107,7 +107,7 @@ function AppRoutes() {
         <Route path="/setup" element={setupNeeded ? <SetupPage /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={setupNeeded ? <Navigate to="/setup" replace /> : <LoginPage />} />
         <Route path="/auth/callback" element={<OidcCallbackPage />} />
-        {/* Public share view — deliberately outside ProtectedRoute; the token
+        {/* Public share view - deliberately outside ProtectedRoute; the token
             is the capability. */}
         <Route path="/share/:token" element={<SharePage />} />
         <Route

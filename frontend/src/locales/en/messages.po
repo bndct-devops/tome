@@ -735,8 +735,16 @@ msgid "{count, plural, one {# volume} other {# volumes}}"
 msgstr "{count, plural, one {# volume} other {# volumes}}"
 
 #: src/pages/BookDetailPage.tsx
-msgid "{count} sittings · {from} – {to}"
-msgstr "{count} sittings · {from} – {to}"
+#~ msgid "{count} sittings · {from} – {to}"
+#~ msgstr "{count} sittings · {from} – {to}"
+
+#: src/pages/BookDetailPage.tsx
+msgid "{count} sittings · {from} to {to}"
+msgstr "{count} sittings · {from} to {to}"
+
+#: src/pages/StatsPage.tsx
+msgid "{customStart} to {customEnd}"
+msgstr "{customStart} to {customEnd}"
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "{d} days"
@@ -870,6 +878,10 @@ msgstr "{fin} of {st} started · all time"
 msgid "{finished, plural, one {book} other {books}}"
 msgstr "{finished, plural, one {book} other {books}}"
 
+#: src/components/stats/TimelineRibbon.tsx
+msgid "{first} to {last}"
+msgstr "{first} to {last}"
+
 #: src/components/CoverAudit.tsx
 msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
 msgstr "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
@@ -882,6 +894,14 @@ msgstr "{from} to {to}"
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{from}% to {to}%"
 msgstr "{from}% to {to}%"
+
+#: src/pages/StatsPage.tsx
+msgid "{fromDay} to …"
+msgstr "{fromDay} to …"
+
+#: src/pages/StatsPage.tsx
+msgid "{fromDay} to {toDay}"
+msgstr "{fromDay} to {toDay}"
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "{h} h"
@@ -1130,8 +1150,12 @@ msgid "{n}% slower than your usual for this book"
 msgstr "{n}% slower than your usual for this book"
 
 #: src/pages/DashboardPage.tsx
-msgid "{name} · Vol. {start_index}–{end_index}"
-msgstr "{name} · Vol. {start_index}–{end_index}"
+msgid "{name} · Vol. {start_index}-{end_index}"
+msgstr "{name} · Vol. {start_index}-{end_index}"
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "{name} · Vol. {start_index}–{end_index}"
+#~ msgstr "{name} · Vol. {start_index}–{end_index}"
 
 #: src/pages/StatsPage.tsx
 msgid "{name} copy"
@@ -1216,6 +1240,10 @@ msgstr "{read} of {total} read"
 #: src/pages/DashboardPage.tsx
 msgid "{readCount} read · {readingCount} reading · {unreadCount} unread"
 msgstr "{readCount} read · {readingCount} reading · {unreadCount} unread"
+
+#: src/components/stats/widgets/overview.tsx
+msgid "{readDays, plural, one {# day read} other {# days read}}"
+msgstr "{readDays, plural, one {# day read} other {# days read}}"
 
 #: src/pages/SharePage.tsx
 msgid "{readN} read · {unreadN} unread"
@@ -1330,8 +1358,12 @@ msgstr "{w}w"
 #~ msgstr "{words} words"
 
 #: src/components/stats/GoalWidget.tsx
-msgid "{y} Challenge"
-msgstr "{y} Challenge"
+msgid "{y} challenge"
+msgstr "{y} challenge"
+
+#: src/components/stats/GoalWidget.tsx
+#~ msgid "{y} Challenge"
+#~ msgstr "{y} Challenge"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -1620,8 +1652,12 @@ msgid "Active"
 msgstr "Active"
 
 #: src/components/stats/widgets/insights.tsx
-msgid "Active Days"
-msgstr "Active Days"
+msgid "Active days"
+msgstr "Active days"
+
+#: src/components/stats/widgets/insights.tsx
+#~ msgid "Active Days"
+#~ msgstr "Active Days"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Activity"
@@ -2495,6 +2531,10 @@ msgstr "Book type applied to {n} files"
 #~ msgid "Book Types"
 #~ msgstr "Book Types"
 
+#: src/pages/AdminPage.tsx
+msgid "Book types sort the library into categories. Each type has its own library, icon, colour and folder layout."
+msgstr "Book types sort the library into categories. Each type has its own library, icon, colour and folder layout."
+
 #: src/lib/goals.ts
 msgid "books"
 msgstr "books"
@@ -2519,14 +2559,15 @@ msgid "Books downloaded through the OPDS catalog are automatically mapped to the
 msgstr "Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately."
 
 #: src/components/stats/widgets/habits.tsx
+#: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/StatsPage.tsx
 msgid "Books finished"
 msgstr "Books finished"
 
 #: src/components/stats/widgets/insights.tsx
-msgid "Books Finished"
-msgstr "Books Finished"
+#~ msgid "Books Finished"
+#~ msgstr "Books Finished"
 
 #: src/pages/StatsPage.tsx
 msgid "Books in progress, with covers"
@@ -2814,15 +2855,12 @@ msgstr "Click: only books on {name}"
 #: src/components/reader/ReaderChrome.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/components/ShareShelfModal.tsx
-#: src/components/stats/GoalWidget.tsx
 #: src/components/UploadModal.tsx
-#: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/ReaderPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
 #: src/pages/SharePage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Close"
 msgstr "Close"
 
@@ -2920,8 +2958,12 @@ msgstr "Completion estimates"
 #~ msgstr "Completion Estimates"
 
 #: src/components/stats/CompletionRateCard.tsx
-msgid "Completion Rate"
-msgstr "Completion Rate"
+msgid "Completion rate"
+msgstr "Completion rate"
+
+#: src/components/stats/CompletionRateCard.tsx
+#~ msgid "Completion Rate"
+#~ msgstr "Completion Rate"
 
 #: src/pages/StatsPage.tsx
 msgid "Configure"
@@ -3866,8 +3908,12 @@ msgid "Everywhere"
 msgstr "Everywhere"
 
 #: src/pages/AdminPage.tsx
-msgid "Exact Match"
-msgstr "Exact Match"
+msgid "Exact match"
+msgstr "Exact match"
+
+#: src/pages/AdminPage.tsx
+#~ msgid "Exact Match"
+#~ msgstr "Exact Match"
 
 #: src/pages/AdminPage.tsx
 msgid "Examples use sample books until the library has some."
@@ -4672,8 +4718,12 @@ msgstr "Highlights"
 #~ msgstr "Highlights & Notes"
 
 #: src/pages/BookDetailPage.tsx
-msgid "Highlights & Notes <0>({n})</0>"
-msgstr "Highlights & Notes <0>({n})</0>"
+#~ msgid "Highlights & Notes <0>({n})</0>"
+#~ msgstr "Highlights & Notes <0>({n})</0>"
+
+#: src/pages/BookDetailPage.tsx
+msgid "Highlights and notes <0>({n})</0>"
+msgstr "Highlights and notes <0>({n})</0>"
 
 #: src/pages/HighlightsPage.tsx
 #~ msgid "Highlights and notes you make in KOReader sync here automatically. Highlight a passage on your device, then sync — it’ll show up in this commonplace book."
@@ -4734,8 +4784,12 @@ msgid "How to set it up"
 msgstr "How to set it up"
 
 #: src/pages/StatsPage.tsx
-msgid "How you spread your 1–5 stars"
-msgstr "How you spread your 1–5 stars"
+msgid "How you spread your 1-5 stars"
+msgstr "How you spread your 1-5 stars"
+
+#: src/pages/StatsPage.tsx
+#~ msgid "How you spread your 1–5 stars"
+#~ msgstr "How you spread your 1–5 stars"
 
 #: src/components/EntityModal.tsx
 #: src/components/Sidebar.tsx
@@ -5297,14 +5351,15 @@ msgstr "Longest session"
 msgid "Longest session, biggest day, most pages"
 msgstr "Longest session, biggest day, most pages"
 
+#: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/StatsPage.tsx
 msgid "Longest streak"
 msgstr "Longest streak"
 
 #: src/components/stats/widgets/insights.tsx
-msgid "Longest Streak"
-msgstr "Longest Streak"
+#~ msgid "Longest Streak"
+#~ msgstr "Longest Streak"
 
 #: src/components/SeriesReadingStats.tsx
 msgid "Longest volume"
@@ -6795,8 +6850,12 @@ msgid "Paused, the report changed in this version. Review it to resume."
 msgstr "Paused, the report changed in this version. Review it to resume."
 
 #: src/components/stats/widgets/insights.tsx
-msgid "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
-msgstr "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
+msgid "Peak hour: <0>{peak}:00-{peakEnd}:00</0> · {dur} total"
+msgstr "Peak hour: <0>{peak}:00-{peakEnd}:00</0> · {dur} total"
+
+#: src/components/stats/widgets/insights.tsx
+#~ msgid "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
+#~ msgstr "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
 
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
@@ -6843,8 +6902,12 @@ msgid "Pick a rhythm. Progress counts automatically."
 msgstr "Pick a rhythm. Progress counts automatically."
 
 #: src/pages/StatsPage.tsx
-msgid "Pick a start & end"
-msgstr "Pick a start & end"
+#~ msgid "Pick a start & end"
+#~ msgstr "Pick a start & end"
+
+#: src/pages/StatsPage.tsx
+msgid "Pick a start and end"
+msgstr "Pick a start and end"
 
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "Pick different candidate"
@@ -7131,8 +7194,12 @@ msgstr "Quick accept"
 #~ msgstr "Quick Accept"
 
 #: src/pages/BinderyPage.tsx
-msgid "Quick accept Progress"
-msgstr "Quick accept Progress"
+msgid "Quick accept progress"
+msgstr "Quick accept progress"
+
+#: src/pages/BinderyPage.tsx
+#~ msgid "Quick accept Progress"
+#~ msgstr "Quick accept Progress"
 
 #: src/pages/BinderyPage.tsx
 #~ msgid "Quick Accept Progress"
@@ -7294,12 +7361,20 @@ msgid "read {a}"
 msgstr "read {a}"
 
 #: src/pages/BookDetailPage.tsx
-msgid "read {a} – {b}"
-msgstr "read {a} – {b}"
+#~ msgid "read {a} – {b}"
+#~ msgstr "read {a} – {b}"
 
 #: src/pages/BookDetailPage.tsx
-msgid "read {d}, {from} – {to}"
-msgstr "read {d}, {from} – {to}"
+msgid "read {a} to {b}"
+msgstr "read {a} to {b}"
+
+#: src/pages/BookDetailPage.tsx
+#~ msgid "read {d}, {from} – {to}"
+#~ msgstr "read {d}, {from} – {to}"
+
+#: src/pages/BookDetailPage.tsx
+msgid "read {d}, {from} to {to}"
+msgstr "read {d}, {from} to {to}"
 
 #: src/pages/BookDetailPage.tsx
 msgid "read {span}"
@@ -7915,8 +7990,12 @@ msgid "Same ISBN"
 msgstr "Same ISBN"
 
 #: src/pages/AdminPage.tsx
-msgid "Same Series Volume"
-msgstr "Same Series Volume"
+msgid "Same series volume"
+msgstr "Same series volume"
+
+#: src/pages/AdminPage.tsx
+#~ msgid "Same Series Volume"
+#~ msgstr "Same Series Volume"
 
 #: src/pages/ReaderPage.tsx
 msgid "Sans"
@@ -8715,8 +8794,12 @@ msgid "Show this help"
 msgstr "Show this help"
 
 #: src/pages/StatsPage.tsx
-msgid "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
-msgstr "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
+msgid "Shrink or grow this tile to fit its content. Off: set the height yourself (content scrolls)."
+msgstr "Shrink or grow this tile to fit its content. Off: set the height yourself (content scrolls)."
+
+#: src/pages/StatsPage.tsx
+#~ msgid "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
+#~ msgstr "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
 
 #: src/pages/LoginPage.tsx
 msgid "Sign in"
@@ -8751,8 +8834,12 @@ msgid "Signing you in…"
 msgstr "Signing you in…"
 
 #: src/pages/AdminPage.tsx
-msgid "Similar Title"
-msgstr "Similar Title"
+msgid "Similar title"
+msgstr "Similar title"
+
+#: src/pages/AdminPage.tsx
+#~ msgid "Similar Title"
+#~ msgstr "Similar Title"
 
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "since {from}"
@@ -9616,8 +9703,12 @@ msgstr "Total sessions"
 #~ msgstr "Total Sessions"
 
 #: src/components/stats/widgets/insights.tsx
-msgid "Total Time"
-msgstr "Total Time"
+msgid "Total time"
+msgstr "Total time"
+
+#: src/components/stats/widgets/insights.tsx
+#~ msgid "Total Time"
+#~ msgstr "Total Time"
 
 #: src/pages/StatsPage.tsx
 msgid "Total time read + avg session"
@@ -9945,8 +10036,12 @@ msgstr "Vol {lastIdx}"
 #~ msgstr "Vol {v} · "
 
 #: src/pages/SharePage.tsx
-msgid "Vol. {a}–{b}"
-msgstr "Vol. {a}–{b}"
+msgid "Vol. {a}-{b}"
+msgstr "Vol. {a}-{b}"
+
+#: src/pages/SharePage.tsx
+#~ msgid "Vol. {a}–{b}"
+#~ msgstr "Vol. {a}–{b}"
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -10228,8 +10323,12 @@ msgid "Year"
 msgstr "Year"
 
 #: src/lib/goals.ts
-msgid "Year Challenge"
-msgstr "Year Challenge"
+msgid "Year challenge"
+msgstr "Year challenge"
+
+#: src/lib/goals.ts
+#~ msgid "Year Challenge"
+#~ msgstr "Year Challenge"
 
 #: src/pages/StatsPage.tsx
 msgid "Year in review"
