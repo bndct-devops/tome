@@ -385,7 +385,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         'shrink-0 flex-col bg-frame transition-all duration-200',
         desktopHidden ? 'hidden' : 'hidden md:flex',
         open ? 'w-64' : 'w-14'
-      )}>
+      )} data-shell-sidebar>
         <div className={cn('group h-14 shrink-0 flex items-center gap-2 cursor-default', open ? 'px-5' : 'justify-center')}>
           <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
           {open && <span className="font-semibold text-[14px] text-foreground">Tome</span>}

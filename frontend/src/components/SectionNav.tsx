@@ -142,7 +142,7 @@ export function SectionSidebar({ title }: { title: ReactNode }) {
   // The first entry of a session has the key "default": there is nothing to go back to.
   const back = () => (location.key === 'default' ? navigate('/') : navigate(-1))
   return (
-    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-frame animate-[section-sidebar-in_240ms_var(--spring)]">
+    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-frame animate-[section-sidebar-in_240ms_var(--spring)]" data-shell-sidebar>
       <div className="group h-14 shrink-0 flex items-center gap-2 px-5 cursor-default">
         <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
         <span className="font-semibold text-[14px] text-foreground">Tome</span>
