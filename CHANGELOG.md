@@ -7,9 +7,9 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
-- **Preview a book without touching your progress.** The Read button on the
-  book page now has a small menu with "Preview": the book opens in the web
-  reader as usual, but nothing is written back. Reading status, position, the
+- **Preview a book without touching your progress.** The book page has a
+  quiet "Preview" next to Resume: the book opens in the web reader as usual,
+  but nothing is written back. Reading status, position, the
   position synced to your devices, reading time and stats all stay as they
   were, so you can check a file's formatting or flip through a book to decide
   on it without it turning up as started. The reader shows a "Preview" tag
@@ -33,6 +33,26 @@ All notable changes to Tome are documented here. Format loosely follows
   own section list while they are open. A quick look opens from a cover in
   any grid or row (cover, description, progress, reading time, Resume, Open
   page) without leaving the page. All five themes.
+- **Every dialog on one shell.** Upload, Fetch metadata, Cover picker, Share,
+  Send to device, Position history, Manage series, Add shelf, New library,
+  the bulk actions, What's new, Connect a phone, Scan a sync code, the Admin
+  forms and every confirm now share one panel: a pinned title, the actions as
+  pills in a footer, rows on hairlines inside, drawn checkboxes and radios
+  instead of the browser's, Escape and a click outside to close. Dialogs
+  centre over the page, not the window, so they sit where you are looking.
+  What's new reads as a list grouped by Added, Changed and Fixed.
+- **Stats without the boxes.** The tiles on every Stats board keep their
+  drag-and-drop layout but lose the card frames: bare numbers in a strip,
+  charts under plain section titles on hairlines, tiles that size to their
+  content. Edit mode shows the frames as dashed outlines while you arrange.
+- **The reader's chrome follows.** Font, theme and tap-zone choices are pill
+  rows, the contents drawer is a plain list with the current chapter marked,
+  the comic toolbar fits a phone, and Escape closes whatever panel is open.
+- **Sentence case throughout, and no more dashes in the middle of sentences.**
+  Buttons, menus, filters and section titles read "Fetch metadata", "Date
+  added", "Want to read". French and Chinese translations of strings that only
+  changed case were carried over; the strings the refresh added are new and
+  wait for the community catalogs.
 - **The previous look is one setting away.** `TOME_UI=classic` serves the
   interface of the last 2.x release, built into the image from its tag, for
   anyone who wants to stay with it for a while. It is the same server and
@@ -42,6 +62,38 @@ All notable changes to Tome are documented here. Format loosely follows
   halves the server time. Stats and Calendar also keep their last answer
   for the session, so coming back to either page paints at once and
   refreshes underneath.
+
+### Fixed
+- **Escape no longer leaves the book page while a dialog is open.** It closes
+  the dialog, the menu or the edit form first; only with nothing open does it
+  go back. The same applies to the library shortcuts (j, k, Enter) while
+  anything is open.
+- **A failed download shows a notice instead of replacing the book page.**
+- **A wrong password says so.** The login form keeps the username and shows
+  the error instead of silently clearing both fields.
+- **Keyboard focus and selection are visible in the library grid again.** The
+  cover glow had been drawn over the focus ring.
+- **Settings and Admin section navigation works on phones.** Tapping a section
+  scrolls to it; the list is a scrollable row above the page.
+- **Popovers stay on screen at phone width:** the notifications panel, the
+  book page's Libraries menu and the Fetch metadata diff.
+- **"Last sync: Invalid Date"** in Settings > KOReader shows the real time.
+- **Year in review fills in for the 1y range,** not only for All, and a stats
+  answer that arrives late for a range you already left is ignored.
+- **The Bindery's reject confirm says Reject,** not Delete, and closes on
+  Escape. Remove device, revoking tokens and sessions, and Reorganize ask
+  with a proper confirm instead of the browser's own or none.
+- **Going back from a book to its series page** returns to the series page at
+  the same scroll position; the series page now has its own address.
+- **Comics on a phone no longer overflow the screen,** and a click in the
+  middle of a comic page shows the toolbar instead of turning the page.
+- **The calendar's month switch** keeps the old month dimmed until the new one
+  is in, and nothing fades in from nothing.
+- **Smaller fixes:** the "Read on the web" line on Home no longer looks like a
+  button; the hero book is not repeated in Also reading; Quick look keeps
+  paragraph breaks; "0 book" plurals in French; a gap after the digit 1 in
+  dates and counts; the black theme's search field has a fill; the public
+  share page is centred.
 
 ### Removed
 - **Home's Focus and Dashboard modes.** There is one Home now. Reading DNA
