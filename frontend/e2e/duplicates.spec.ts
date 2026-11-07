@@ -65,13 +65,13 @@ test.describe('duplicates apply-all', () => {
     // delete runs first (render order), so the merge's keeper is gone by the
     // time it executes — it must fail loudly, not silently.
     const exact = page
-      .getByTestId('duplicate-group').filter({ has: page.getByText('Exact Match'), hasText: 'Naruto Vol. 1 (copy)' })
+      .getByTestId('duplicate-group').filter({ has: page.getByText('Exact match'), hasText: 'Naruto Vol. 1 (copy)' })
       .first()
     await exact.locator('label', { hasText: /^Naruto Vol\. 1(?! \(copy\))/ }).first().locator('input[type=radio]').check()
     await exact.locator('button:has-text("Delete")').first().click()
 
     const seriesGroup = page
-      .getByTestId('duplicate-group').filter({ has: page.getByText('Same Series Volume'), hasText: 'Naruto Vol. 1 (copy)' })
+      .getByTestId('duplicate-group').filter({ has: page.getByText('Same series volume'), hasText: 'Naruto Vol. 1 (copy)' })
       .first()
     await seriesGroup.locator('label', { hasText: 'Naruto Vol. 1 (copy)' }).first().locator('input[type=radio]').check()
     await seriesGroup.locator('button:has-text("Merge")').click()
