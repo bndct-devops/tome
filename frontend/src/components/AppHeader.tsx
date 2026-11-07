@@ -48,6 +48,7 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
           {onUploadClick && isMember(user) && (
             <button
               onClick={onUploadClick}
+              aria-label={t`Upload`}
               // The bar's one real action — solid accent so it anchors the right
               // cluster instead of blending into the neutral chips around it.
               className="ml-1 inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all touch-feedback"
@@ -88,10 +89,14 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         // the placeholder clips mid-letter — hide it there; the icon says enough.
         // Rests quiet (tinted fill, no border), sharpens on focus — filled AND
         // bordered at rest made it the heaviest element in the whole bar.
-        className="w-full h-9 pl-10 pr-12 rounded-full bg-background text-[14px] placeholder:text-muted-foreground max-sm:placeholder:text-transparent transition-colors hover:bg-background/80 focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
+        // The secondary fill in every theme: on black the panel colour equals
+        // the frame, and the pill had no shape at all.
+        className="w-full h-9 pl-10 pr-12 rounded-full bg-secondary text-[14px] placeholder:text-muted-foreground max-sm:placeholder:text-transparent transition-colors hover:bg-surface-hover focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
         placeholder={placeholder ?? t`Search`}
         value={value}
         onChange={e => onChange(e.target.value)}
+        // Escape leaves the box (the shortcut sheet promises it after "/").
+        onKeyDown={e => { if (e.key === 'Escape') e.currentTarget.blur() }}
       />
       {value ? (
         <button

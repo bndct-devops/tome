@@ -54,7 +54,7 @@ export function SeriesFollowButton({ seriesName, onLatest }: {
         await api.delete(`/wishlist/${follow.id}`)
       } else {
         await api.post('/wishlist/follow', { name: seriesName })
-        toast.success(t`Following "${seriesName}" — you'll hear when a new volume is out`)
+        toast.success(t`Following "${seriesName}". You'll hear when a new volume is out`)
       }
       invalidateFollows()
       getFollows().then(setRows)

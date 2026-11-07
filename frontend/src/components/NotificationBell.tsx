@@ -3,6 +3,7 @@ import { AnimatePresence, m } from 'motion/react'
 import { Bell, Check, BookOpen, Target, Timer } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { useEscape } from '@/components/ModalShell'
 import {
   listNotifications,
   markRead,
@@ -80,6 +81,9 @@ export function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const close = useCallback(() => setOpen(false), [])
+  useEscape(open, close)
+
   async function handleClickNotification(n: NotificationOut) {
     if (!n.read) {
       try {
@@ -143,9 +147,11 @@ export function NotificationBell() {
           exit={{ opacity: 0, scale: 0.95, y: -4 }}
           transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
           style={{ transformOrigin: 'top right' }}
-          className="absolute right-0 top-full mt-2 z-50 w-[380px] max-h-[480px] flex flex-col bg-card rounded-[var(--radius-panel)] shadow-2xl shadow-black/30 ring-1 ring-panel-ring overflow-hidden">
+          // Below md the panel anchors to the viewport (a 380px panel hung off
+          // a bell near the right edge ran off a 400px screen).
+          className="z-50 flex flex-col overflow-hidden bg-card rounded-[var(--radius-panel)] shadow-2xl shadow-black/30 ring-1 ring-panel-ring max-md:fixed max-md:inset-x-3 max-md:top-[calc(3.5rem+env(safe-area-inset-top))] max-md:max-h-[calc(100dvh-5rem)] md:absolute md:right-0 md:top-full md:mt-2 md:w-[380px] md:max-h-[480px]">
           {/* Header */}
-          <div className="flex items-center justify-between pl-5 pr-3 pt-4 pb-2 shrink-0">
+          <div className="flex items-center justify-between pl-5 pr-3 pt-4 pb-2 shrink-0 border-b border-border/70">
             <span className="font-display text-[17px] font-bold text-foreground"><Trans>Notifications</Trans></span>
             {unreadCount > 0 && (
               <button
@@ -160,18 +166,18 @@ export function NotificationBell() {
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto px-2 pb-2">
+          <div className="flex-1 overflow-y-auto pb-2">
             {notifications.length === 0 ? (
               <div className="py-10 text-center">
                 <p className="text-[15px] font-medium text-foreground"><Trans>No notifications yet</Trans></p>
               </div>
             ) : (
-              <div className="divide-y divide-border/70">
+              <div className="divide-y divide-border/70 border-b border-border/70">
               {notifications.map(n => (
                 <button
                   key={n.id}
                   onClick={() => handleClickNotification(n)}
-                  className="w-full flex items-start gap-3.5 px-3 py-3.5 text-left rounded-lg transition-colors hover:bg-secondary/60"
+                  className="w-full flex items-start gap-3.5 px-5 py-3.5 text-left transition-colors hover:bg-secondary/50"
                 >
                   <div className={cn(
                     'mt-0.5 flex items-center justify-center w-9 h-9 rounded-full shrink-0',

@@ -170,8 +170,8 @@ export function AppShell({
         onWishMatches={(wishIds) => {
           const n = wishIds.length
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish — review in Admin > Wishlist',
-            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
+            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
           }))
         }}
       />

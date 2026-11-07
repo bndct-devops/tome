@@ -28,3 +28,15 @@ export function useTilt(enabled = true, degrees = 6) {
     tiltProps: { ref: setEl, style: { transition: 'transform 200ms ease-out', transformStyle: 'preserve-3d', willChange: 'transform' } as const },
   }
 }
+
+/** The cover's box-shadow: the bloom, plus a ring for selection (accent) and
+ *  keyboard focus (foreground, outside the selection ring when both). An
+ *  inline box-shadow overrides Tailwind's ring utilities, so the rings are
+ *  part of the same shadow list. */
+export function coverRing(selected: boolean, focused: boolean): string {
+  const gap = '0 0 0 2px var(--background)'
+  if (selected && focused) return `${gap}, 0 0 0 4px var(--primary), 0 0 0 6px var(--foreground), var(--cover-bloom-fan)`
+  if (selected) return `${gap}, 0 0 0 4px var(--primary), var(--cover-bloom-fan)`
+  if (focused) return `${gap}, 0 0 0 4px var(--foreground), var(--cover-bloom-fan)`
+  return 'var(--cover-bloom-fan)'
+}

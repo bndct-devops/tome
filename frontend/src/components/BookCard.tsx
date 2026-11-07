@@ -8,6 +8,7 @@ import { cn, progressPercent } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { DevicePills } from '@/components/DevicePills'
 import { coverSrc } from '@/lib/covers'
+import { coverRing } from '@/lib/tilt'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
@@ -245,13 +246,9 @@ export function BookCard({
       {/* Cover */}
       <div
         ref={coverDivRef}
-        className={cn(
-          'aspect-[2/3] bg-muted relative overflow-hidden rounded-[8px]',
-          selected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
-          focused && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
-        )}
+        className="aspect-[2/3] bg-muted relative overflow-hidden rounded-[8px]"
         style={{
-          boxShadow: 'var(--cover-bloom-fan)',
+          boxShadow: coverRing(!!selected, !!focused),
           transition: isHovering ? 'transform 0.12s ease-out' : 'transform 0.3s ease-out',
         }}
       >

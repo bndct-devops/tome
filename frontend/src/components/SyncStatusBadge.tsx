@@ -54,12 +54,12 @@ export function SyncStatusBadge() {
 
   return (
     <div
-      title={`${label} — ${tooltip}`}
+      title={`${label}. ${tooltip}`}
       className="inline-flex items-center gap-1.5 h-9 px-2 sm:px-3 rounded-full text-[13px] text-muted-foreground hover:text-foreground hover:bg-background/70 transition-colors cursor-default select-none"
       aria-label={t`KOReader sync: ${label}. ${tooltip}`}
     >
       <RefreshCw className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', iconColor(diff))} />
-      <span className="tabular-nums hidden sm:inline">{label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </div>
   )
 }

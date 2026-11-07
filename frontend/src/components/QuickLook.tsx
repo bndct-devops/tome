@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useEscape, useRegisterOverlay, useShellInset } from '@/components/ModalShell'
 import { useNavigate } from 'react-router-dom'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { ArrowUpRight, Play, X } from 'lucide-react'
@@ -20,18 +21,26 @@ function dayLabel(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-/** Descriptions arrive as HTML from some sources; the quick look shows plain text. */
+/** Descriptions arrive as HTML from some sources; the quick look shows plain
+ *  text but keeps the paragraph breaks (block ends and <br> become newlines,
+ *  the rest of the whitespace folds to single spaces). */
 function plainText(html: string): string {
   const el = document.createElement('div')
   el.innerHTML = html
-  return (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|blockquote)>/gi, '$&\n\n')
+  return (el.textContent ?? '')
+    .split(/\n\s*\n/)
+    .map(par => par.replace(/[^\S\n]+/g, ' ').replace(/ *\n */g, '\n').trim())
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 /**
  * A quick look at a book from a cover in a grid or row: cover, title, author,
- * series, a few lines of description, progress, Resume and Open page. Centred
- * over the content panel (the sidebar is 256px on desktop). Esc or the
- * backdrop closes it. The full page stays the place for everything else.
+ * series, a few lines of description, progress, Resume and Open page. The
+ * veil covers the whole viewport, the panel centres over the content panel.
+ * Esc or the backdrop closes it. The full page stays the place for everything else.
  */
 export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => void }) {
   const navigate = useNavigate()
@@ -54,26 +63,25 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
     return () => ctrl.abort()
   }, [bookId])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const inset = useShellInset()
+  useRegisterOverlay(true)
+  useEscape(true, onClose)
 
   const pct = progressPercent(status?.progress_pct)
   const text = book?.description ? plainText(book.description) : null
 
   return (
-    <div className="fixed inset-0 md:left-64 z-50 grid place-items-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/65 backdrop-blur-[3px] animate-[quicklook-veil_180ms_ease-out]" />
+    <div className="fixed inset-0 z-50" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/65 backdrop-blur-[3px] animate-[quicklook-veil_180ms_ease-out]" />
+      <div className="fixed inset-0 grid place-items-center p-4 overflow-y-auto" style={inset ? { left: inset } : undefined}>
       <div
         role="dialog"
         aria-modal
         aria-label={book?.title ?? t`Quick look`}
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-[860px] rounded-[var(--radius-panel)] bg-card shadow-2xl shadow-black/40 ring-1 ring-panel-ring p-5 sm:p-7 flex flex-col sm:flex-row gap-5 sm:gap-8 animate-[quicklook-in_220ms_cubic-bezier(0.2,0.8,0.2,1)]"
+        className="relative w-full max-w-[860px] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[var(--radius-panel)] bg-card shadow-2xl shadow-black/40 ring-1 ring-panel-ring p-5 sm:p-7 flex flex-col sm:flex-row gap-5 sm:gap-8 animate-[quicklook-in_220ms_cubic-bezier(0.2,0.8,0.2,1)]"
       >
-        <div className="shrink-0 w-[160px] sm:w-[220px] mx-auto sm:mx-0 rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
+        <div className="shrink-0 self-center sm:self-start w-[160px] sm:w-[220px] mx-auto sm:mx-0 rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
           <div className="relative aspect-[2/3]"><CoverImage src={coverSrc(bookId, { w: 400 })} alt="" iconClassName="w-8 h-8" /></div>
         </div>
         <div className="min-w-0 flex-1 flex flex-col">
@@ -82,13 +90,13 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
           )}
           <h2 className="font-display text-[26px] sm:text-[30px] leading-[1.1] font-bold text-foreground mt-1.5 pr-8">{book?.title ?? ''}</h2>
           {book?.author && <div className="mt-1 text-[15px] text-muted-foreground">{book.author}</div>}
-          {text && <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 line-clamp-3">{text}</p>}
+          {text && <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 line-clamp-4 whitespace-pre-line">{text}</p>}
           {pct > 0 && (
             <div className="mt-4 flex items-center gap-3">
               <div className="h-[5px] flex-1 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--card))' }}>
                 <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, pct)}%` }} />
               </div>
-              <span className="text-[15px] font-bold tabular-nums text-foreground">{Math.round(pct)}%</span>
+              <span className="text-[15px] font-bold text-foreground">{Math.round(pct)}%</span>
             </div>
           )}
           {own && own.sessions > 0 && (
@@ -112,6 +120,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
         <button type="button" onClick={onClose} aria-label={t`Close`} className="absolute top-3 right-3 w-9 h-9 grid place-items-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary">
           <X className="w-4 h-4" />
         </button>
+      </div>
       </div>
     </div>
   )

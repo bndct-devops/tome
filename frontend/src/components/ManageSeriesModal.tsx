@@ -3,11 +3,12 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { X, Plus, Trash2, Loader2, Save } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { api } from '@/lib/api'
 import { ModalShell } from '@/components/ModalShell'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
+import { Pill, PillGroup, Input, Select, FormLabel } from '@/components/page'
 
 interface Props {
   seriesName: string
@@ -164,202 +165,153 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
 
   const isBusy = statusSaving || arcsSaving
 
+  const busyDisabled = isBusy || (activeTab === 'arcs' && arcsLoading) || (activeTab === 'series' && statusLoading)
+
   return (
-    <ModalShell open className="w-full max-w-3xl">
-      <div className="bg-card rounded-2xl border border-border shadow-xl shadow-accent-soft flex flex-col max-h-[90vh] min-h-[420px]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <div>
-            <h2 className="text-base font-semibold text-foreground"><Trans>Manage Series</Trans></h2>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">{seriesName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            aria-label={t`Close`}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <ModalShell
+      open
+      onClose={isBusy ? undefined : onClose}
+      closeOnBackdrop={!isBusy}
+      size="lg"
+      eyebrow={seriesName}
+      title={<Trans>Manage series</Trans>}
+      footer={
+        <>
+          {saveError && <p className="mr-auto text-[13px] text-destructive">{saveError}</p>}
+          <Pill variant="quiet" onClick={onClose} disabled={isBusy}>
+            <Trans>Cancel</Trans>
+          </Pill>
+          <Pill variant="primary" onClick={activeTab === 'series' ? saveStatus : saveArcs} disabled={busyDisabled}>
+            {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <Trans>Save</Trans>
+          </Pill>
+        </>
+      }
+    >
+      <div className="min-h-[260px]">
+        <PillGroup
+          size="sm"
+          aria-label={t`Section`}
+          value={activeTab}
+          onChange={tb => { setActiveTab(tb); setSaveError(null) }}
+          options={[
+            { value: 'series', label: t`Series` },
+            { value: 'arcs', label: t`Arcs` },
+          ]}
+        />
 
-        {/* Tabs */}
-        <div className="flex gap-1 px-5 pt-3 shrink-0">
-          {(['series', 'arcs'] as TabId[]).map(tb => (
-            <button
-              key={tb}
-              onClick={() => { setActiveTab(tb); setSaveError(null) }}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize',
-                activeTab === tb
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+        {activeTab === 'series' && (
+          statusLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="mt-5">
+              <FormLabel><Trans>Publication status</Trans></FormLabel>
+              <PillGroup
+                aria-label={t`Publication status`}
+                value={status}
+                onChange={setStatus}
+                options={STATUS_OPTIONS.map(o => ({ value: o.value, label: i18n._(o.label) }))}
+              />
+            </div>
+          )
+        )}
+
+        {activeTab === 'arcs' && (
+          arcsLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col">
+              {sortedRows.length === 0 && volumes.length > 0 && (
+                <p className="text-[14px] text-muted-foreground py-4">
+                  <Trans>No arcs defined yet. Click &ldquo;Add arc&rdquo; to create one.</Trans>
+                </p>
               )}
-            >
-              {tb === 'series' ? t`Series` : t`Arcs`}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {activeTab === 'series' && (
-            statusLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-foreground" htmlFor="series-status">
-                    <Trans>Publication status</Trans>
-                  </label>
-                  <select
-                    id="series-status"
-                    value={status}
-                    onChange={e => setStatus(e.target.value as SeriesStatus)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              {volumes.length === 0 && (
+                <p className="text-[14px] text-muted-foreground py-4">
+                  <Trans>This series has no volumes with a numeric index yet. Add
+                  volumes before defining arcs.</Trans>
+                </p>
+              )}
+              {sortedRows.map(({ originalIdx, ...row }) => {
+                const warn = isInvalid(row) || hasOverlap(arcRows, originalIdx)
+                return (
+                  <div
+                    key={originalIdx}
+                    className={cn('py-3 border-b border-border/70 flex flex-col gap-2', warn && 'bg-warning/10 -mx-3 px-3 rounded-lg')}
                   >
-                    {STATUS_OPTIONS.map(o => (
-                      <option key={o.value} value={o.value}>{i18n._(o.label)}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )
-          )}
-
-          {activeTab === 'arcs' && (
-            arcsLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {sortedRows.length === 0 && volumes.length > 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    <Trans>No arcs defined yet. Click &ldquo;Add arc&rdquo; to create one.</Trans>
-                  </p>
-                )}
-                {volumes.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    <Trans>This series has no volumes with a numeric index yet. Add
-                    volumes before defining arcs.</Trans>
-                  </p>
-                )}
-                {sortedRows.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                          <th className="pb-2 font-medium pr-3 min-w-[140px]"><Trans>Name</Trans></th>
-                          <th className="pb-2 font-medium pr-3 w-20"><Trans>Start</Trans></th>
-                          <th className="pb-2 font-medium pr-3 w-20"><Trans>End</Trans></th>
-                          <th className="pb-2 font-medium pr-3"><Trans>Description</Trans></th>
-                          <th className="pb-2 w-8" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {sortedRows.map(({ originalIdx, ...row }) => {
-                          const warn = isInvalid(row) || hasOverlap(arcRows, originalIdx)
-                          return (
-                            <tr
-                              key={originalIdx}
-                              className={cn('group', warn && 'bg-warning/10')}
-                            >
-                              <td className="py-1.5 pr-3">
-                                <input
-                                  type="text"
-                                  value={row.name}
-                                  onChange={e => updateRow(originalIdx, { name: e.target.value })}
-                                  placeholder={t`Arc name`}
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
-                                />
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <select
-                                  value={row.start_index}
-                                  onChange={e => updateRow(originalIdx, { start_index: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
-                                >
-                                  {buildVolumeOptions(volumes, row.start_index).map(v => (
-                                    <option key={v} value={v}>{formatVol(v)}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <select
-                                  value={row.end_index}
-                                  onChange={e => updateRow(originalIdx, { end_index: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
-                                >
-                                  {buildVolumeOptions(volumes, row.end_index).map(v => (
-                                    <option key={v} value={v}>{formatVol(v)}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <input
-                                  type="text"
-                                  value={row.description}
-                                  onChange={e => updateRow(originalIdx, { description: e.target.value })}
-                                  placeholder={t`Optional`}
-                                  className="w-full px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary"
-                                />
-                              </td>
-                              <td className="py-1.5">
-                                <button
-                                  onClick={() => deleteRow(originalIdx)}
-                                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                                  aria-label={t`Delete arc`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="min-w-[160px] flex-1">
+                        <FormLabel className="mb-1"><Trans>Name</Trans></FormLabel>
+                        <Input
+                          value={row.name}
+                          onChange={e => updateRow(originalIdx, { name: e.target.value })}
+                          placeholder={t`Arc name`}
+                        />
+                      </div>
+                      <div className="w-24">
+                        <FormLabel className="mb-1"><Trans>Start</Trans></FormLabel>
+                        <Select
+                          value={row.start_index}
+                          onChange={e => updateRow(originalIdx, { start_index: Number(e.target.value) })}
+                          aria-label={t`Start`}
+                        >
+                          {buildVolumeOptions(volumes, row.start_index).map(v => (
+                            <option key={v} value={v}>{formatVol(v)}</option>
+                          ))}
+                        </Select>
+                      </div>
+                      <div className="w-24">
+                        <FormLabel className="mb-1"><Trans>End</Trans></FormLabel>
+                        <Select
+                          value={row.end_index}
+                          onChange={e => updateRow(originalIdx, { end_index: Number(e.target.value) })}
+                          aria-label={t`End`}
+                        >
+                          {buildVolumeOptions(volumes, row.end_index).map(v => (
+                            <option key={v} value={v}>{formatVol(v)}</option>
+                          ))}
+                        </Select>
+                      </div>
+                      <Pill
+                        variant="destructive"
+                        icon
+                        onClick={() => deleteRow(originalIdx)}
+                        aria-label={t`Delete arc`}
+                        title={t`Delete arc`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Pill>
+                    </div>
+                    <Input
+                      value={row.description}
+                      onChange={e => updateRow(originalIdx, { description: e.target.value })}
+                      placeholder={t`Description (optional)`}
+                      aria-label={t`Description`}
+                    />
+                    {warn && (
+                      <p className="text-[13px] text-warning">
+                        {isInvalid(row) ? <Trans>Start is after end.</Trans> : <Trans>Overlaps another arc.</Trans>}
+                      </p>
+                    )}
                   </div>
-                )}
-                <button
-                  onClick={addRow}
-                  disabled={volumes.length === 0}
-                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors self-start disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <Trans>Add arc</Trans>
-                </button>
-              </div>
-            )
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-border shrink-0 gap-3">
-          <div className="flex-1">
-            {saveError && (
-              <p className="text-xs text-destructive">{saveError}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              disabled={isBusy}
-              className="px-4 py-2 rounded-lg border border-border bg-background text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-            >
-              <Trans>Cancel</Trans>
-            </button>
-            <button
-              onClick={activeTab === 'series' ? saveStatus : saveArcs}
-              disabled={isBusy || (activeTab === 'arcs' && arcsLoading) || (activeTab === 'series' && statusLoading)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              <Trans>Save</Trans>
-            </button>
-          </div>
-        </div>
+                )
+              })}
+              <Pill
+                variant="quiet"
+                onClick={addRow}
+                disabled={volumes.length === 0}
+                className="self-start mt-3 -ml-3"
+              >
+                <Plus className="w-4 h-4" />
+                <Trans>Add arc</Trans>
+              </Pill>
+            </div>
+          )
+        )}
       </div>
     </ModalShell>
   )

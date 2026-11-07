@@ -338,6 +338,8 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   const weekly = !!month && month.streaks.current_days === 0 && month.streaks.current_weeks > 0
   const finished = stats?.books_finished_30d ?? 0
   const more = (focus?.reading_total ?? 0) - (focus?.reading.length ?? 0)
+  // The hero is not repeated as the first cover of the row.
+  const others = (focus?.reading ?? []).filter(r => r.book_id !== b?.book_id)
 
   return (
     <PageBody width="wide">
@@ -394,11 +396,10 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 <Trans>Resume</Trans>
               </Pill>
               {b.last_sync && (
-                <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3.5 h-9 text-[14px] font-medium text-foreground">
+                <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
                   <RefreshCw className="w-3.5 h-3.5" />
-                  {deviceLabel(b.device)}
-                  <span className="text-muted-foreground">· {relativeTime(b.last_sync, i18n.locale)}</span>
-                </div>
+                  {deviceLabel(b.device)} · {relativeTime(b.last_sync, i18n.locale)}
+                </span>
               )}
             </div>
           </div>
@@ -408,27 +409,24 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
       {/* ── Also reading and Up next, side by side: the other books in progress,
           and the volumes after the hero in its series. The hero stays short so
           the stat strip is on the first screen. ────────────────────────────── */}
-      {focus && (focus.reading.length > 1 || (focus.upcoming?.length ?? 0) > 0) && (
+      {focus && (others.length > 0 || (focus.upcoming?.length ?? 0) > 0) && (
         <section className="flex flex-col gap-8 lg:flex-row lg:items-start">
-          {focus.reading.length > 1 && (
+          {others.length > 0 && (
             <div className="min-w-0 flex-1">
 
           <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
           <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
-            {focus.reading.map(r => {
-              const active = r.book_id === b?.book_id
+            {others.map(r => {
+              const title = r.title
               return (
                 <div key={r.book_id} className="shrink-0 w-[104px]">
                   <TiltCover className="relative group/cover">
                     <button
                       type="button"
                       onClick={() => switchTo(r.book_id)}
-                      aria-current={active}
-                      aria-label={r.title}
-                      className={cn(
-                        'relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : 'opacity-80 hover:opacity-100',
-                      )}
+                      aria-label={t`Show ${title} here`}
+                      title={t`Show ${title} here`}
+                      className="relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring opacity-80 hover:opacity-100"
                     >
                       <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
                     </button>
@@ -437,7 +435,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                   <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
                     <div className="h-full bg-primary" style={{ width: `${Math.min(100, r.progress)}%` }} />
                   </div>
-                  <div className={cn('mt-1.5 text-[13px] truncate', active ? 'text-foreground font-semibold' : 'text-muted-foreground')}>{r.title}</div>
+                  <Link to={`/books/${r.book_id}`} className="mt-1.5 block text-[13px] truncate text-muted-foreground hover:text-primary transition-colors">{r.title}</Link>
                 </div>
               )
             })}
@@ -453,27 +451,29 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             </div>
           )}
           {(focus.upcoming?.length ?? 0) > 0 && b && (
-            <div className={cn('shrink-0', focus.reading.length > 1 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
+            <div className={cn('shrink-0', others.length > 0 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
               <Eyebrow className="mb-2">
                 {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
               </Eyebrow>
               <div className="flex gap-4 py-1.5">
-                {focus.upcoming!.slice(0, 5).map(u => (
-                  <button
-                    key={u.book_id}
-                    type="button"
-                    onClick={() => setPeek(u.book_id)}
-                    className="shrink-0 w-[104px] text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
-                    aria-label={u.title}
-                  >
-                    <div className="relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
-                      <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
-                    </div>
-                    <div className="mt-[17px] text-[13px] text-muted-foreground truncate">
+                {focus.upcoming!.slice(0, 5).map(u => { const title = u.title; return (
+                  <div key={u.book_id} className="shrink-0 w-[104px]">
+                    <button
+                      type="button"
+                      onClick={() => setPeek(u.book_id)}
+                      className="block w-full text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
+                      aria-label={t`Quick look: ${title}`}
+                      title={t`Quick look`}
+                    >
+                      <div className="relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
+                        <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+                      </div>
+                    </button>
+                    <Link to={`/books/${u.book_id}`} className="mt-[17px] block text-[13px] text-muted-foreground truncate hover:text-primary transition-colors">
                       {u.series_index != null ? (() => { const v = fmtIndex(u.series_index); return <Trans>Volume {v}</Trans> })() : u.title}
-                    </div>
-                  </button>
-                ))}
+                    </Link>
+                  </div>
+                ) })}
               </div>
             </div>
           )}
@@ -535,7 +535,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 <ProgressRing pct={goal.pct} size={28} stroke={4} />
                 <span>
                   <span className="block text-[13px] text-muted-foreground">{goalTitle(goal)}</span>
-                  <span className="block text-[15px] font-semibold text-foreground tabular-nums">
+                  <span className="block text-[15px] font-semibold text-foreground">
                     {Math.round(goal.current)}<span className="text-muted-foreground font-medium">/{goal.target}{goalMeta(goal.kind).unit}</span>
                   </span>
                 </span>
@@ -550,24 +550,25 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         <section>
           <SectionTitle action={<SeeAll onClick={onSeeAllRecent} />}><Trans>Recently added</Trans></SectionTitle>
           <HScrollRow className="gap-4 px-2 pt-5 pb-3" wrapClassName="-mx-2 -mt-1" controlsTop="top-[128px]">
-            {recent.map(book => (
+            {recent.map(book => { const title = book.title; return (
               <div key={book.id} className="shrink-0 w-[150px]">
-                <TiltCover className="relative group/cover">
-                  <Link
-                    to={`/books/${book.id}`}
-                    className="relative block aspect-[2/3] rounded-[12px] overflow-hidden bg-muted"
+                <TiltCover className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setPeek(book.id)}
+                    className="relative block w-full aspect-[2/3] rounded-[12px] overflow-hidden bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     style={{ boxShadow: 'var(--cover-bloom-fan)' }}
-                    aria-label={book.title}
+                    aria-label={t`Quick look: ${title}`}
+                    title={t`Quick look`}
                   >
                     <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt="" />
-                  </Link>
-                  <PeekButton onClick={() => setPeek(book.id)} />
+                  </button>
                 </TiltCover>
                 <Link to={`/books/${book.id}`} className="mt-2.5 block text-[15px] text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors">
                   {book.title}
                 </Link>
               </div>
-            ))}
+            ) })}
           </HScrollRow>
         </section>
       )}
