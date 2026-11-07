@@ -6,7 +6,8 @@ import {
   Zap, Eye, HelpCircle, Library as LibraryIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { PageBody, PageHeader, SectionTitle, Pill } from '@/components/page'
+import { Checkbox, PageBody, PageHeader, SectionTitle, Pill, Select } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { QuickLook } from '@/components/QuickLook'
 import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
@@ -225,8 +226,18 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder }:
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      setOpen(false)
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('keydown', onKey, true)
+    }
   }, [open])
 
   const editable = libraries.filter(l => l.can_edit)
@@ -254,7 +265,7 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder }:
         <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-card border border-border rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-1 z-40 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1 max-h-56 overflow-y-auto">
           {editable.map(lib => {
             const selected = value.includes(lib.id)
             return (
@@ -262,7 +273,7 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder }:
                 key={lib.id}
                 type="button"
                 onClick={() => toggle(lib.id)}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                className="flex items-center gap-2 w-full px-3 py-2 text-[14px] hover:bg-secondary transition-colors text-left"
               >
                 <LibraryIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{lib.name}</span>
@@ -277,8 +288,7 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder }:
 }
 
 // ---------------------------------------------------------------------------
-// SelectMenu — custom single-select matching LibrariesSelect (native <select>
-// menus clash visually and their chevron never lines up with ours)
+// SelectMenu: the shared filled Select with an options array
 // ---------------------------------------------------------------------------
 
 function SelectMenu({ value, onChange, options, className }: {
@@ -287,45 +297,10 @@ function SelectMenu({ value, onChange, options, className }: {
   options: { value: string; label: string }[]
   className?: string
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
-
-  const current = options.find(o => o.value === value)
-
   return (
-    <div className={cn('relative', className)} ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className={cn(INPUT_CLS, 'flex items-center gap-2 cursor-pointer text-left')}
-      >
-        <span className="flex-1 truncate">{current?.label ?? value}</span>
-        <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
-      </button>
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-card border border-border rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto">
-          {options.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { onChange(opt.value); setOpen(false) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
-            >
-              <span className="flex-1 truncate">{opt.label}</span>
-              <Check className={cn('w-3.5 h-3.5 shrink-0', opt.value === value ? 'text-primary' : 'text-transparent')} />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Select value={value} onChange={e => onChange(e.target.value)} className={cn('cursor-pointer', className)}>
+      {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+    </Select>
   )
 }
 
@@ -388,7 +363,7 @@ function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProp
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={LABEL_CLS}><Trans>Content Type</Trans></label>
+          <label className={LABEL_CLS}><Trans>Content type</Trans></label>
           <SelectMenu
             value={form.content_type}
             onChange={v => onChange('content_type', v)}
@@ -396,7 +371,7 @@ function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProp
           />
         </div>
         <div>
-          <label className={LABEL_CLS}><Trans>Book Type</Trans></label>
+          <label className={LABEL_CLS}><Trans>Book type</Trans></label>
           <SelectMenu
             value={form.book_type_id}
             onChange={v => onChange('book_type_id', v)}
@@ -517,10 +492,10 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
   return (
     <div className="flex flex-col h-full">
       <div className="mb-3">
-        <h2 className="font-display text-[20px] font-bold leading-none"><Trans>Metadata Suggestions</Trans></h2>
+        <h2 className="font-display text-[20px] font-bold leading-none"><Trans>Metadata suggestions</Trans></h2>
         {targetLabel && (
           <span className="block mt-1.5 text-[13px] text-muted-foreground truncate">
-            <Trans>for {targetLabel} — click a file to switch</Trans>
+            <Trans>for {targetLabel}. Click a file to switch.</Trans>
           </span>
         )}
       </div>
@@ -558,7 +533,7 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
       {!loading && candidates.length > 0 && (
         <div className="flex-1">
           <p className="text-[13px] text-muted-foreground mb-1">
-            <Plural value={candidates.length} one="# result — click to fill form" other="# results — click to fill form" />
+            <Plural value={candidates.length} one="# result. Click one to fill the form." other="# results. Click one to fill the form." />
           </p>
           {candidates.map(c => (
             <button
@@ -645,7 +620,7 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
             {group.library_match && (
               <span
                 className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-success whitespace-nowrap"
-                title={(() => { const name = group.library_match.series; return t`Matches "${name}" already in your library — name, author, type and libraries adopted from it` })()}
+                title={(() => { const name = group.library_match.series; return t`Matches "${name}" already in your library. Name, author, type and libraries are adopted from it.` })()}
               >
                 <Check className="w-3 h-3" />
                 {plural(group.library_match.volume_count, { one: 'In library · # vol', other: 'In library · # vols' })}
@@ -691,15 +666,15 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
           aria-label={t`Author`}
           className={INPUT_CLS}
         />
-        <select
+        <Select
           value={typeId}
           onChange={e => setTypeId(e.target.value)}
-          aria-label={t`Book Type`}
-          className={cn(INPUT_CLS, 'tome-select cursor-pointer', !typeId && 'text-muted-foreground')}
+          aria-label={t`Book type`}
+          className={cn('cursor-pointer', !typeId && 'text-muted-foreground')}
         >
           <option value="">{t`No type`}</option>
           {bookTypes.map(bt => <option key={bt.id} value={String(bt.id)}>{bt.label}</option>)}
-        </select>
+        </Select>
         <LibrariesSelect
           value={libraryIds}
           onChange={setLibraryIds}
@@ -726,28 +701,30 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
 
 function ConfirmDialog({ open, title, message, confirmLabel, destructive, onConfirm, onCancel }: ConfirmDialogProps) {
   const { t } = useLingui()
-  if (!open) return null
   const resolvedConfirmLabel = confirmLabel ?? t`Confirm`
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 bg-card rounded-[var(--radius-panel)] shadow-xl w-full max-w-sm mx-4 p-6">
-        <h2 className="font-display text-[20px] font-bold mb-2">{title}</h2>
-        <p className="text-[15px] text-muted-foreground mb-6">{message}</p>
-        <div className="flex justify-end gap-2">
+    <ModalShell
+      open={open}
+      onClose={onCancel}
+      size="sm"
+      title={title}
+      footer={
+        <>
           <Pill variant="quiet" onClick={onCancel}>
             <Trans>Cancel</Trans>
           </Pill>
           <Pill
-            variant="primary"
+            variant={destructive ? 'destructive' : 'primary'}
             onClick={onConfirm}
-            className={cn(destructive && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
+            className={cn(destructive && 'text-destructive')}
           >
             {resolvedConfirmLabel}
           </Pill>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <p className="text-[15px] text-muted-foreground">{message}</p>
+    </ModalShell>
   )
 }
 
@@ -900,7 +877,7 @@ export function BinderyPage() {
       const res = await api.post<{ accepted: unknown[]; errors: { path: string; error: string }[] }>(
         '/bindery/accept', { files })
       if (res.errors?.length) {
-        { const failedN = res.errors.length, totalN = files.length, firstErr = res.errors[0].error; toast.error(t`${failedN} of ${totalN} failed — ${firstErr}`) }
+        { const failedN = res.errors.length, totalN = files.length, firstErr = res.errors[0].error; toast.error(t`${failedN} of ${totalN} failed: ${firstErr}`) }
       } else {
         {
           const n = files.length, seriesName = form.series
@@ -1057,7 +1034,7 @@ export function BinderyPage() {
     if (matched === reviewItems.length) {
       toast.success(t`Best match applied to all ${matched} files`)
     } else {
-      { const totalN = reviewItems.length; toast.success(t`Best match applied to ${matched} of ${totalN} files — no match for the rest`) }
+      { const totalN = reviewItems.length; toast.success(t`Best match applied to ${matched} of ${totalN} files. No match for the rest.`) }
     }
   }
 
@@ -1487,13 +1464,12 @@ export function BinderyPage() {
           indent && 'pl-9'
         )}
       >
-        <input
-          type="checkbox"
+        <Checkbox
           checked={isSelected}
           onChange={e => toggleSelect(item.path, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
           onClick={e => e.stopPropagation()}
           aria-label={t`Select ${itemTitle}`}
-          className="shrink-0 w-4 h-4 rounded border-border cursor-pointer accent-[var(--primary)]"
+          className="shrink-0 [&>span]:mt-0"
         />
         <button
           className="flex-1 min-w-0 flex items-center gap-4 text-left"
@@ -1555,8 +1531,8 @@ export function BinderyPage() {
                 href={docsLink(DOCS.bindery)}
                 target="_blank"
                 rel="noopener noreferrer"
-                title={t`Bindery flow explained — open docs`}
-                aria-label={t`Bindery flow explained — open docs`}
+                title={t`Bindery flow explained: open the docs`}
+                aria-label={t`Bindery flow explained: open the docs`}
                 className="inline-flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
                 <HelpCircle className="w-4 h-4" />
@@ -1572,7 +1548,7 @@ export function BinderyPage() {
               </Pill>
               {items.length > 0 && (
                 <Pill variant="quiet" onClick={hasSelection ? clearSelection : selectAll}>
-                  {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected · Clear` : t`Select All` })()}
+                  {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected · Clear` : t`Select all` })()}
                 </Pill>
               )}
               {unreviewed.length > 0 && (
@@ -1583,7 +1559,7 @@ export function BinderyPage() {
                   title={t`Accept every recently imported book`}
                 >
                   {reviewingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  <Trans>Accept All</Trans>
+                  <Trans>Accept all</Trans>
                 </Pill>
               )}
             </div>
@@ -1635,9 +1611,11 @@ export function BinderyPage() {
         {/* Recently imported: unreviewed auto-imported books */}
         {unreviewed.length > 0 && (
           <section className={cn('transition-opacity', unreviewedLoading && 'opacity-60')}>
-            <SectionTitle size={20}>
-              <Trans>Recently imported</Trans>{' '}
-              <span className="text-muted-foreground font-semibold tabular-nums">{unreviewed.length}</span>
+            <SectionTitle
+              size={20}
+              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{unreviewed.length}</span>}
+            >
+              <Trans>Recently imported</Trans>
             </SectionTitle>
             <div className="mt-3 divide-y divide-border/70">
               {unreviewed.map(book => {
@@ -1713,9 +1691,11 @@ export function BinderyPage() {
         {/* Incoming files, grouped by folder */}
         {items.length > 0 && (
           <section className={cn('transition-opacity', loading && 'opacity-60')}>
-            <SectionTitle size={20}>
-              <Trans>Incoming files</Trans>{' '}
-              <span className="text-muted-foreground font-semibold tabular-nums">{items.length}</span>
+            <SectionTitle
+              size={20}
+              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{items.length}</span>}
+            >
+              <Trans>Incoming files</Trans>
             </SectionTitle>
 
             {hasSelection && (
@@ -1725,7 +1705,7 @@ export function BinderyPage() {
                 </Pill>
                 <Pill variant="secondary" onClick={() => quickAccept(selectedArr)} disabled={accepting}>
                   {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                  <Trans>Quick Accept</Trans>
+                  <Trans>Quick accept</Trans>
                 </Pill>
                 <Pill variant="destructive" onClick={() => setConfirmReject(selectedArr)}>
                   <Trash2 className="h-4 w-4" /> <Trans>Reject</Trans>
@@ -1750,12 +1730,11 @@ export function BinderyPage() {
                 return (
                   <div key={folder} className="divide-y divide-border/70">
                     <div className="flex items-center gap-4 py-3 px-2">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={allFolderSelected}
                         onChange={() => selectFolder(folder)}
                         aria-label={t`Select folder ${folder}`}
-                        className="shrink-0 w-4 h-4 rounded border-border cursor-pointer accent-[var(--primary)]"
+                        className="shrink-0 [&>span]:mt-0"
                       />
                       <button
                         className="flex items-center gap-2 flex-1 min-w-0 text-left"
@@ -1805,7 +1784,7 @@ export function BinderyPage() {
                 <>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[14px] font-semibold">
-                      {t`Quick Accept: ${done}/${total} done` + (errors > 0 ? t`, ${errors} failed` : '')}
+                      {t`Quick accept: ${done}/${total} done` + (errors > 0 ? t`, ${errors} failed` : '')}
                     </span>
                     {qaProgress.items.every(i => i.status === 'done' || i.status === 'error') ? (
                       <Pill
@@ -1842,7 +1821,7 @@ export function BinderyPage() {
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQaModalOpen(false)} />
             <div className="relative z-10 bg-card rounded-[var(--radius-panel)] shadow-xl w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
               <div className="flex items-center justify-between px-6 pt-5 pb-3">
-                <span className="font-display text-[20px] font-bold"><Trans>Quick Accept Progress</Trans></span>
+                <span className="font-display text-[20px] font-bold"><Trans>Quick accept Progress</Trans></span>
                 <Pill variant="quiet" icon onClick={() => setQaModalOpen(false)} aria-label={t`Close`} className="-mr-2">
                   <X className="h-4 w-4" />
                 </Pill>
@@ -1893,7 +1872,7 @@ export function BinderyPage() {
           open={confirmRejectUnreviewed !== null}
           title={t`Reject imported book`}
           message={t`Delete this book from the library? The file will be removed and this cannot be undone.`}
-          confirmLabel={rejectingUnreviewed ? t`Deleting…` : t`Delete`}
+          confirmLabel={rejectingUnreviewed ? t`Rejecting…` : t`Reject`}
           destructive
           onConfirm={() => confirmRejectUnreviewed !== null && doRejectUnreviewed(confirmRejectUnreviewed)}
           onCancel={() => setConfirmRejectUnreviewed(null)}
@@ -1999,7 +1978,7 @@ export function BinderyPage() {
           <div className="min-w-0 flex flex-col gap-7">
             {/* Shared fields */}
             <section>
-              {(() => { const n = reviewItems.length; return <SectionTitle size={20}><Trans>Shared fields — applies to all {n} items</Trans></SectionTitle> })()}
+              {(() => { const n = reviewItems.length; return <SectionTitle size={20}><Trans>Shared fields, applied to all {n} items</Trans></SectionTitle> })()}
               <div className="mt-4 space-y-3">
                 <div>
                   <label className={LABEL_CLS}><Trans>Series</Trans></label>
@@ -2030,7 +2009,7 @@ export function BinderyPage() {
                   </div>
                 </div>
                 <div>
-                  <label className={LABEL_CLS}><Trans>Book Type</Trans></label>
+                  <label className={LABEL_CLS}><Trans>Book type</Trans></label>
                   <div className="flex gap-2">
                     <SelectMenu
                       className="flex-1"
@@ -2136,14 +2115,15 @@ export function BinderyPage() {
                           placeholder="#"
                           title={t`Series index`}
                         />
-                        <select
-                          className={cn(INPUT_CLS, 'tome-select w-auto cursor-pointer')}
+                        <Select
+                          className="w-auto cursor-pointer"
                           value={form.content_type}
                           onChange={e => updateForm(item.path, 'content_type', e.target.value)}
+                          aria-label={t`Content type`}
                         >
                           <option value="volume">{t`Volume`}</option>
                           <option value="chapter">{t`Chapter`}</option>
-                        </select>
+                        </Select>
                       </div>
                       {/* Expanded full form */}
                       {isExpanded && (
@@ -2166,13 +2146,13 @@ export function BinderyPage() {
             <div className="flex items-center gap-2 pt-5 border-t border-border/70">
               <Pill variant="primary" onClick={acceptAll} disabled={accepting}>
                 {accepting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                <Trans>Accept All</Trans>
+                <Trans>Accept all</Trans>
               </Pill>
               <Pill variant="secondary" onClick={() => transitionTo('list')}>
                 <Trans>Back to list</Trans>
               </Pill>
               <Pill variant="destructive" onClick={() => setConfirmReject(reviewItems.map(i => i.path))} className="ml-auto">
-                <Trash2 className="h-4 w-4" /> <Trans>Reject All</Trans>
+                <Trash2 className="h-4 w-4" /> <Trans>Reject all</Trans>
               </Pill>
             </div>
           </div>

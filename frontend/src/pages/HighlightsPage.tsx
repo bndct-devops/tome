@@ -423,76 +423,88 @@ export function HighlightsPage() {
   return (
     <AppShell>
       <PageBody width="reading">
+        {/* The toolbar lives in the header's actions: search first, then the
+            filter pills, then Copy and Export. It takes the full row under the
+            title; on phones the search gets its own line and the pills wrap
+            in rows. The eyebrow always renders (a count, or a placeholder
+            before the first load) so the title never jumps. */}
         <PageHeader
-          eyebrow={total > 0 ? plural(books, { one: `${total} from # book`, other: `${total} from # books` }) : undefined}
+          eyebrow={total > 0
+            ? plural(books, { one: `${total} from # book`, other: `${total} from # books` })
+            : loadedOnce ? t`0 highlights` : '\u00a0'}
           title={<Trans>Highlights</Trans>}
-          actions={groups.length > 0 ? (
-            <>
-              <Pill variant="quiet" onClick={copyAll} title={t`Copy all as Markdown`}>
-                <Copy className="w-4 h-4" />
-                <Trans>Copy</Trans>
-              </Pill>
-              <Pill variant="quiet" onClick={downloadAll} title={t`Download as Markdown file`}>
-                <Download className="w-4 h-4" />
-                <Trans>Export</Trans>
-              </Pill>
-            </>
-          ) : undefined}
-        />
-
-        {/* Controls. On phones the search gets its own full-width row; squeezed
-            next to three labelled pills it shrank to a keyhole. */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="relative basis-full sm:basis-auto sm:flex-1 sm:mr-1.5">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t`Search your highlights…`}
-              className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                aria-label={t`Clear search`}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 grid place-items-center rounded-full text-muted-foreground hover:text-foreground"
+          className="[&>div:last-child]:w-full [&>div:last-child]:shrink"
+          actions={
+            <div className="flex w-full flex-wrap items-center gap-1.5">
+              <div className="relative basis-full sm:basis-0 sm:grow sm:min-w-[200px] sm:mr-1.5">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder={t`Search your highlights…`}
+                  aria-label={t`Search your highlights`}
+                  className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    aria-label={t`Clear search`}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 grid place-items-center rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <Pill
+                variant={onThisDay ? 'secondary' : 'quiet'}
+                onClick={() => setOnThisDay(v => !v)}
+                aria-pressed={onThisDay}
+                title={t`Highlights you made on this day in past years`}
+                className={cn(onThisDay && 'text-foreground')}
               >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <Pill
-            variant={onThisDay ? 'secondary' : 'quiet'}
-            onClick={() => setOnThisDay(v => !v)}
-            aria-pressed={onThisDay}
-            title={t`Highlights you made on this day in past years`}
-            className={cn(onThisDay && 'text-foreground')}
-          >
-            <CalendarHeart className="w-4 h-4" />
-            <Trans>On this day</Trans>
-          </Pill>
-          <Pill
-            variant={onlyNotes ? 'secondary' : 'quiet'}
-            onClick={() => setOnlyNotes(v => !v)}
-            aria-pressed={onlyNotes}
-            title={t`Only highlights that carry one of your notes`}
-          >
-            <StickyNote className="w-4 h-4" />
-            <Trans>Only notes</Trans>
-          </Pill>
-          {groups.length > 0 && !searching && (
-            <Pill
-              variant={allCollapsed ? 'secondary' : 'quiet'}
-              onClick={toggleAll}
-              aria-pressed={allCollapsed}
-              title={allCollapsed ? t`Expand all` : t`Collapse all`}
-            >
-              {allCollapsed ? <ChevronsUpDown className="w-4 h-4" /> : <ChevronsDownUp className="w-4 h-4" />}
-              {allCollapsed ? t`Expand all` : t`Collapse all`}
-            </Pill>
-          )}
-        </div>
+                <CalendarHeart className="w-4 h-4" />
+                <Trans>On this day</Trans>
+              </Pill>
+              <Pill
+                variant={onlyNotes ? 'secondary' : 'quiet'}
+                onClick={() => setOnlyNotes(v => !v)}
+                aria-pressed={onlyNotes}
+                title={t`Only highlights that carry one of your notes`}
+              >
+                <StickyNote className="w-4 h-4" />
+                <Trans>Only notes</Trans>
+              </Pill>
+              {groups.length > 0 && !searching && (
+                // Icon-only from sm up so search, filters, Copy and Export fit
+                // one row; the title and aria-label carry the words.
+                <Pill
+                  variant={allCollapsed ? 'secondary' : 'quiet'}
+                  onClick={toggleAll}
+                  aria-pressed={allCollapsed}
+                  aria-label={allCollapsed ? t`Expand all` : t`Collapse all`}
+                  title={allCollapsed ? t`Expand all` : t`Collapse all`}
+                  className="sm:w-9 sm:px-0"
+                >
+                  {allCollapsed ? <ChevronsUpDown className="w-4 h-4" /> : <ChevronsDownUp className="w-4 h-4" />}
+                  <span className="sm:hidden">{allCollapsed ? t`Expand all` : t`Collapse all`}</span>
+                </Pill>
+              )}
+              {groups.length > 0 && (
+                <>
+                  <Pill variant="quiet" onClick={copyAll} title={t`Copy all as Markdown`}>
+                    <Copy className="w-4 h-4" />
+                    <Trans>Copy</Trans>
+                  </Pill>
+                  <Pill variant="quiet" onClick={downloadAll} title={t`Download as Markdown file`}>
+                    <Download className="w-4 h-4" />
+                    <Trans>Export</Trans>
+                  </Pill>
+                </>
+              )}
+            </div>
+          }
+        />
 
         {loading && !loadedOnce ? (
           <div className="flex justify-center py-16">

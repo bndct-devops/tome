@@ -36,7 +36,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
 
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No session data.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No session data.</Trans></p>
     )
   }
 

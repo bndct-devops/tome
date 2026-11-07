@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
-import { X, Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
+import { Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
-import { Pill } from '@/components/page'
+import { FormLabel, Input, Pill, Textarea } from '@/components/page'
 import {
   searchWishCandidates,
   searchWishSeries,
@@ -22,19 +22,28 @@ interface Props {
 
 type Mode = 'book' | 'series'
 
-const INPUT = 'w-full h-10 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-const LABEL = 'block text-[13px] text-muted-foreground mb-1.5'
 const RESULT_ROW = 'group w-full flex items-start gap-4 py-3 text-left'
 
 function Thumb({ url, series = false }: { url: string | null; series?: boolean }) {
+  // OpenLibrary answers a missing cover with a 1x1 image, not a 404: treat a
+  // tiny image like a failed one and draw the placeholder icon instead.
+  const [failed, setFailed] = useState(false)
+  useEffect(() => { setFailed(false) }, [url])
+  const show = !!url && !failed
   return (
     <div className="w-11 h-16 rounded-[8px] bg-muted shrink-0 overflow-hidden flex items-center justify-center" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
-      {url ? (
-        <img src={url} alt="" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+      {show ? (
+        <img
+          src={url}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={() => setFailed(true)}
+          onLoad={e => { if (e.currentTarget.naturalWidth <= 2) setFailed(true) }}
+        />
       ) : series ? (
-        <Layers className="w-4 h-4 text-muted-foreground" />
+        <Layers className="w-4 h-4 text-muted-foreground/60" />
       ) : (
-        <BookOpen className="w-4 h-4 text-muted-foreground" />
+        <BookOpen className="w-4 h-4 text-muted-foreground/60" />
       )}
     </div>
   )
@@ -232,18 +241,34 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
   const inSearchState = !manualMode && !selected && !selectedSeries
 
   return (
-    <ModalShell open={open} onClose={handleClose} className="w-full max-w-lg">
-      <div className="bg-card text-foreground rounded-[var(--radius-panel)] shadow-xl shadow-accent-soft flex flex-col max-h-[85vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 pl-6 pr-4 pt-5 pb-3 shrink-0">
-          <h2 className="font-display text-[20px] font-bold leading-none"><Trans>Add to Wishlist</Trans></h2>
-          <Pill variant="quiet" icon onClick={handleClose} aria-label={t`Close`}>
-            <X className="w-4 h-4" />
+    <ModalShell
+      open={open}
+      onClose={handleClose}
+      size="md"
+      title={<Trans>Add to wishlist</Trans>}
+      bodyClassName="pt-1"
+      footer={
+        <>
+          <Pill variant="quiet" onClick={handleClose}>
+            <Trans>Cancel</Trans>
           </Pill>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 pt-2 pb-5 space-y-4">
+          <Pill
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={
+              submitting
+              || (manualMode && !manualTitle.trim())
+              || (!manualMode && !selected && !selectedSeries)
+              || (!manualMode && !!selected && wishWholeSeries && !seriesNameDraft.trim())
+            }
+          >
+            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            <Trans>Add to wishlist</Trans>
+          </Pill>
+        </>
+      }
+    >
+        <div className="space-y-4">
           {inSearchState && (
             <>
               {/* Book / Series mode: Series only when Hardcover is configured */}
@@ -271,12 +296,13 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
               {/* Search box */}
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <input
+                <Input
                   ref={inputRef}
                   value={query}
                   onChange={e => handleQueryChange(e.target.value)}
                   placeholder={searchMode === 'series' ? t`Search for a series…` : t`Search for a book…`}
-                  className={cn(INPUT, 'pl-10 pr-9')}
+                  aria-label={searchMode === 'series' ? t`Search for a series` : t`Search for a book`}
+                  className="pl-10 pr-9"
                 />
                 {searching && (
                   <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
@@ -354,43 +380,40 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
           {manualMode && (
             <div className="space-y-3.5">
               <div>
-                <label className={LABEL}>
+                <FormLabel>
                   <Trans>Title <span className="text-destructive">*</span></Trans>
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   value={manualTitle}
                   onChange={e => { setManualTitle(e.target.value); setError(null) }}
                   placeholder={t`Book title`}
                   autoFocus
-                  className={INPUT}
                 />
               </div>
               <div>
-                <label className={LABEL}><Trans>Author</Trans></label>
-                <input
+                <FormLabel><Trans>Author</Trans></FormLabel>
+                <Input
                   value={manualAuthor}
                   onChange={e => setManualAuthor(e.target.value)}
                   placeholder={t`Author name`}
-                  className={INPUT}
                 />
               </div>
               <div>
-                <label className={LABEL}><Trans>Series</Trans></label>
-                <input
+                <FormLabel><Trans>Series</Trans></FormLabel>
+                <Input
                   value={manualSeries}
                   onChange={e => setManualSeries(e.target.value)}
                   placeholder={t`Series name. Fill this alone to wish for the whole series.`}
-                  className={INPUT}
                 />
               </div>
               <div>
-                <label className={LABEL}><Trans>Note</Trans></label>
-                <textarea
+                <FormLabel><Trans>Note</Trans></FormLabel>
+                <Textarea
                   value={manualNote}
                   onChange={e => setManualNote(e.target.value)}
                   placeholder={t`Optional note (e.g. 'the new one')`}
                   rows={2}
-                  className="w-full rounded-lg bg-secondary px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  className="min-h-0 resize-none"
                 />
               </div>
               <Pill
@@ -416,7 +439,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                 <Trans>Choose a different book</Trans>
               </Pill>
 
-              <div className="rounded-[14px] bg-secondary p-3 flex items-start gap-4">
+              <div className="flex items-start gap-4 py-3 border-y border-border/70">
                 <Thumb url={selected.cover_url} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-semibold text-foreground leading-snug">{selected.title}</p>
@@ -452,13 +475,12 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
 
               {wishWholeSeries && (
                 <div>
-                  <label className={LABEL}><Trans>Series name</Trans></label>
-                  <input
+                  <FormLabel><Trans>Series name</Trans></FormLabel>
+                  <Input
                     value={seriesNameDraft}
                     onChange={e => { setSeriesNameDraft(e.target.value); setError(null) }}
                     placeholder={t`Series name`}
-                    className={INPUT}
-                  />
+                    />
                   <p className="mt-1.5 text-[13px] text-muted-foreground"><Trans>For precise series tracking, use the <strong>Series</strong> tab instead.</Trans></p>
                 </div>
               )}
@@ -477,7 +499,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                 <Trans>Choose a different series</Trans>
               </Pill>
 
-              <div className="rounded-[14px] bg-secondary p-3 flex items-start gap-4">
+              <div className="flex items-start gap-4 py-3 border-y border-border/70">
                 <Thumb url={selectedSeries.cover_url} series />
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-semibold text-foreground leading-snug">{selectedSeries.name}</p>
@@ -498,26 +520,6 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border/70 shrink-0">
-          <Pill variant="quiet" onClick={handleClose}>
-            <Trans>Cancel</Trans>
-          </Pill>
-          <Pill
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={
-              submitting
-              || (manualMode && !manualTitle.trim())
-              || (!manualMode && !selected && !selectedSeries)
-              || (!manualMode && !!selected && wishWholeSeries && !seriesNameDraft.trim())
-            }
-          >
-            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-            <Trans>Add to Wishlist</Trans>
-          </Pill>
-        </div>
-      </div>
     </ModalShell>
   )
 }

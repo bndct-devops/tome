@@ -15,7 +15,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { BookCheck, Clock, Trophy, Flame, Activity, Calendar, FileText, ArrowUpDown, ChevronUp, ChevronDown, type LucideIcon } from 'lucide-react'
+import { FileText, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
@@ -26,29 +26,26 @@ import { coverSrc } from '@/lib/covers'
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {
   if (!summary) {
     return (
-      <div className="flex h-full items-center justify-center px-4 text-center text-[14px] text-muted-foreground">
+      <div className="py-2 text-[14px] text-muted-foreground">
         <Trans>Select <span className="mx-1 font-medium text-foreground">1y</span> or <span className="mx-1 font-medium text-foreground">All</span> to see your year in review.</Trans>
       </div>
     )
   }
-  // Compact (no nested StatCard frame) so all six fit a 2-row tile without clipping.
-  const items: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: BookCheck, label: t`Books Finished`, value: String(summary.books_finished) },
-    { icon: Clock, label: t`Total Hours`, value: `${summary.total_hours}h` },
-    { icon: Trophy, label: t`Top Genre`, value: summary.top_genre ?? '--' },
-    { icon: Flame, label: t`Longest Streak`, value: `${summary.longest_streak_days}d` },
-    { icon: Activity, label: t`Total Sessions`, value: String(summary.total_sessions) },
-    { icon: Calendar, label: t`Most Active Month`, value: summary.most_active_month ?? '--' },
+  // Six bare numbers (the Stat look at 30px), no nested frames or icons.
+  const items: { label: string; value: string }[] = [
+    { label: t`Books finished`, value: String(summary.books_finished) },
+    { label: t`Total hours`, value: `${summary.total_hours}h` },
+    { label: t`Top genre`, value: summary.top_genre ?? '--' },
+    { label: t`Longest streak`, value: `${summary.longest_streak_days}d` },
+    { label: t`Total sessions`, value: String(summary.total_sessions) },
+    { label: t`Most active month`, value: summary.most_active_month ?? '--' },
   ]
   return (
-    <div className="grid h-full grid-cols-2 content-center gap-x-6 gap-y-4 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-1 sm:grid-cols-3">
       {items.map((it) => (
-        <div key={it.label} className="flex min-w-0 flex-col justify-center">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <it.icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate text-[13px]">{it.label}</span>
-          </div>
-          <p className="mt-1 truncate font-display text-[24px] font-bold leading-none tabular-nums text-foreground">{it.value}</p>
+        <div key={it.label} className="min-w-0">
+          <div className="truncate text-[13px] text-muted-foreground">{it.label}</div>
+          <p className="mt-1.5 truncate font-display text-[30px] font-bold leading-none tabular-nums text-foreground">{it.value}</p>
         </div>
       ))}
     </div>
@@ -57,7 +54,7 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
 
 export function CategoryBreakdown({ data }: { data: StatsResponse['by_category'] }) {
   const palette = useChartPalette()
-  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No category data.</Trans></p>
+  if (data.length === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No category data.</Trans></p>
   const total = data.reduce((s, c) => s + c.seconds, 0)
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
@@ -93,7 +90,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
   const palette = useChartPalette()
   const { tick, cursor } = useChartColors()
   const categories = Array.from(new Set(data.flatMap((d) => Object.keys(d).filter((k) => k !== 'month')))).sort()
-  if (categories.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No category data.</Trans></p>
+  if (categories.length === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No category data.</Trans></p>
 
   const chartData = data.map((d) => {
     const entry: Record<string, number | string> = { month: d.month as string }
@@ -152,7 +149,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
 export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_completion']; series?: string }) {
   const { accent } = useChartColors()
   const entry = (series ? data.find((s) => s.series === series) : undefined) ?? data[0]
-  if (!entry) return <p className="text-sm text-muted-foreground text-center py-8"><Trans>No series read yet.</Trans></p>
+  if (!entry) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No series read yet.</Trans></p>
   return (
     <div className="flex h-full items-center gap-3">
       <img

@@ -29,7 +29,7 @@ import { coverSrc } from '@/lib/covers'
 type Ratings = StatsResponse['ratings']
 
 function Empty({ text }: { text?: string }) {
-  return <p className="text-sm text-muted-foreground text-center py-10">{text ?? t`No ratings yet.`}</p>
+  return <p className="py-2 text-[14px] text-muted-foreground">{text ?? t`No ratings yet.`}</p>
 }
 
 function Stars({ value }: { value: number }) {
@@ -133,8 +133,11 @@ function RatedRow({ b }: { b: Ratings['books'][number] }) {
 // 3 ── Highest & lowest rated books ──────────────────────────────────────────────
 export function TopRatedBooks({ books }: { books: Ratings['books'] }) {
   if (books.length === 0) return <Empty />
-  const top = books.slice(0, 5)
-  const low = books.length > 8 ? books.slice(-4).reverse() : []
+  // Highest first; the lowest half shows once there are enough books for
+  // the two lists not to be the same books.
+  const topN = books.length >= 4 ? Math.min(5, Math.ceil(books.length / 2)) : books.length
+  const top = books.slice(0, topN)
+  const low = books.slice(topN).slice(-4).reverse()
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5">
@@ -199,11 +202,18 @@ export function RatingTrend({ trend }: { trend: Ratings['trend'] }) {
   const fmt = (d: string) => {
     try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }) } catch { return d }
   }
+  // Several ratings in one month share a label: tick only the first of each.
+  const ticks: string[] = []
+  const seen = new Set<string>()
+  for (const p of trend) {
+    const label = fmt(p.date)
+    if (!seen.has(label)) { seen.add(label); ticks.push(p.date) }
+  }
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} vertical={false} />
-        <XAxis dataKey="date" tickFormatter={fmt} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} minTickGap={28} />
+        <XAxis dataKey="date" ticks={ticks} tickFormatter={fmt} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} minTickGap={28} />
         <YAxis domain={[0, 5.5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: tick }} width={24} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor} wrapperStyle={{ outline: 'none' }} isAnimationActive={false}

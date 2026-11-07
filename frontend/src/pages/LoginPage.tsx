@@ -77,7 +77,12 @@ export function LoginPage() {
       await login(username, password)
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t`Login failed`)
+      // Keep the username; clear only the password so a retry is one field.
+      const status = (err as { status?: number }).status
+      setPassword('')
+      setError(status === 401
+        ? t`Wrong username or password.`
+        : err instanceof Error ? err.message : t`Login failed`)
     } finally {
       setLoading(false)
     }
@@ -171,11 +176,14 @@ export function LoginPage() {
   return (
     <AuthFrame>
       <ThemePill className="fixed top-4 right-4" />
+      {/* Mirrors the footer line under the panel so the panel itself sits at
+          the vertical centre, not panel + footer. */}
+      <p aria-hidden className="invisible mb-6 text-[13px]">&nbsp;</p>
 
       {qcMode ? (
         <AuthPanel
           eyebrow={<Trans>Sign in with a code</Trans>}
-          title={<Trans>Quick Connect</Trans>}
+          title={<Trans>Quick connect</Trans>}
           subtitle={<Trans>Authorize this code from another device</Trans>}
           aside={
             <Pill variant="quiet" icon onClick={stopQc} aria-label={t`Cancel`} title={t`Cancel`}>
@@ -264,7 +272,7 @@ export function LoginPage() {
             )}
             <Pill variant="quiet" size="lg" className="w-full" onClick={startQuickConnect}>
               <Smartphone className="w-4 h-4" />
-              <Trans>Quick Connect</Trans>
+              <Trans>Quick connect</Trans>
             </Pill>
           </div>
         </AuthPanel>

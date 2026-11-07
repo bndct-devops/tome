@@ -186,8 +186,10 @@ export function ReadingCalendarPage() {
     <AppShell>
       {/* Desktop: the page is one viewport tall; the grid stays put and the day card
           scrolls in its own lane, so a long day never scrolls the calendar away. */}
-      <PageBody width="wide" className="animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none lg:h-full lg:pb-6">
-        <MonthNav month={month} isCurrent={month === today.slice(0, 7)} canPrev={canPrev} canNext={canNext}
+      <PageBody width="wide" className="lg:h-full lg:pb-6">
+        {/* The title follows the month on screen, so it changes together with
+            the grid when the new month lands, not on the click. */}
+        <MonthNav month={view ? viewMonth : month} isCurrent={month === today.slice(0, 7)} canPrev={canPrev} canNext={canNext}
           onPrev={() => go({ month: shiftMonth(month, -1), day: null })}
           onNext={() => go({ month: shiftMonth(month, 1), day: null })}
           onToday={() => go({ month: today.slice(0, 7), day: null })} />
@@ -197,7 +199,7 @@ export function ReadingCalendarPage() {
           <div className={cn('grid gap-8 transition-opacity duration-200 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', stale && 'opacity-50')}>
             <div className="min-w-0 space-y-8 lg:min-h-0 lg:overflow-y-auto lg:pb-2">
               {view
-                ? <div key={viewMonth} className="animate-in fade-in duration-300 motion-reduce:animate-none"><Headline data={view} month={viewMonth} /></div>
+                ? <Headline data={view} month={viewMonth} />
                 : <div className="h-[88px]" aria-hidden />}
               <div key={`grid-${viewMonth}`} className={cn('motion-reduce:animate-none', slide)}>
                 <MonthGrid data={view} month={viewMonth} today={today} selected={selected} fallback={panelDay}
@@ -205,9 +207,10 @@ export function ReadingCalendarPage() {
               </div>
             </div>
             <aside className="hidden lg:block lg:min-h-0 lg:overflow-y-auto lg:pb-2">
-              {view && panelDay ? <DayCard day={panelDay} /> : view ? (
-                <p className={cn(CARD, 'px-6 py-16 text-center text-sm text-muted-foreground')}><Trans>No reading this month yet.</Trans></p>
-              ) : null}
+              {/* One card that stays mounted across month switches: it keeps the
+                  last day (dimmed with the grid) while the next one loads, and
+                  shows the empty-month line in the same frame. */}
+              {view ? <DayCard day={panelDay} /> : null}
             </aside>
           </div>
         )}
@@ -274,9 +277,9 @@ function Headline({ data, month }: { data: MonthResponse; month: string }) {
   )
 }
 
-// The desktop day card paints its own frame only once it has something to show,
-// fading in as a whole; a frame that fills in afterwards reads as a flash.
-const CARD = 'rounded-[22px] bg-card animate-in fade-in duration-300 motion-reduce:animate-none'
+// The desktop day card paints its own frame only once it has something to show.
+// No fade: it appears whole, and a switch only dims what is there.
+const CARD = 'rounded-[22px] bg-card'
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' })) // Monday-first (2024-01-01 is a Monday)
 const CELL = 'min-h-14 p-1.5 sm:min-h-24 sm:p-2'
 // Weekends shaded, as on a desktop calendar. Opaque on purpose: the grid's
@@ -295,7 +298,8 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   const byDay = useMemo(() => new Map((data?.days ?? []).map(d => [d.date, d])), [data])
   const scale = data?.scale_seconds ?? 0
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-  const land = 'animate-in fade-in duration-300 motion-reduce:animate-none'
+  // Cell contents appear with the month; nothing fades in from zero.
+  const land = ''
   const first = parseDay(`${month}-01`)
   const lead = (first.getDay() + 6) % 7 // Monday-first, like the weekly streak
   const count = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
@@ -423,14 +427,19 @@ function chapterRange(chapters: string[], to: (a: string, b: string) => string):
   return to(chapters[0], chapters[chapters.length - 1])
 }
 
-function DayCard({ day, onClose }: { day: string; onClose?: () => void }) {
+function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () => void }) {
   const { t } = useLingui()
   const [data, setData] = useState<DayResponse | null>(null)
   useEffect(() => {
+    if (!dayProp) return
     let live = true
-    api.get<DayResponse>(`/stats/calendar/day?day=${day}&tz_offset=${tzOffset()}`).then(r => { if (live) setData(r) }).catch(() => {})
+    api.get<DayResponse>(`/stats/calendar/day?day=${dayProp}&tz_offset=${tzOffset()}`).then(r => { if (live) setData(r) }).catch(() => {})
     return () => { live = false }
-  }, [day])
+  }, [dayProp])
+  if (!dayProp) {
+    return <p className={cn(CARD, 'px-6 py-16 text-center text-sm text-muted-foreground')}><Trans>No reading this month yet.</Trans></p>
+  }
+  const day = dayProp
 
   const title = parseDay(day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const header = (

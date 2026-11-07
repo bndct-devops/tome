@@ -24,8 +24,19 @@ export interface FollowOut {
   last_checked_at?: string | null
 }
 
+// The disabled verdict also survives a reload for the rest of the browser
+// session: nothing on the client says whether release detection is on, and
+// without this every full page load fired one 403.
+const DISABLED_KEY = 'tome_follows_disabled'
+function storedDisabled(): boolean {
+  try { return sessionStorage.getItem(DISABLED_KEY) === '1' } catch { return false }
+}
+function storeDisabled() {
+  try { sessionStorage.setItem(DISABLED_KEY, '1') } catch { /* private mode: in-memory only */ }
+}
+
 // undefined = not fetched yet · null = feature disabled · array = follows
-let cached: FollowOut[] | null | undefined
+let cached: FollowOut[] | null | undefined = storedDisabled() ? null : undefined
 let inflight: Promise<FollowOut[] | null> | null = null
 
 /** Follows list, or null when release detection is disabled. */
@@ -38,7 +49,7 @@ export function getFollows(force = false): Promise<FollowOut[] | null> {
     .catch((e: Error) => {
       // Our own endpoint's 403 detail mentions "disabled"; anything else
       // (network blip) is transient — don't latch the feature off for it.
-      if (/disabled/i.test(e.message ?? '')) cached = null
+      if (/disabled/i.test(e.message ?? '')) { cached = null; storeDisabled() }
       return cached ?? null
     })
     .finally(() => { inflight = null })

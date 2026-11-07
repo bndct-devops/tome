@@ -12,7 +12,7 @@ interface CompletionByTypeEntry {
 export function CompletionByType({ data }: { data: CompletionByTypeEntry[] }) {
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4"><Trans>No completion data by type.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No completion data by type.</Trans></p>
     )
   }
 
