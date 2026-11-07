@@ -34,17 +34,17 @@ test.describe('preview reading', () => {
     expect(kept.body.progress_pct).toBeNull()
   })
 
-  test('the Read button menu opens the preview', async ({ page, request }) => {
+  test('the Preview pill opens the preview', async ({ page, request }) => {
     seed('many', 1)
     await login(page)
     const token = await apiToken(request)
     const { body: books } = await apiGet<{ id: number }[]>(request, token, '/api/books?limit=1')
 
     await page.goto(`/books/${books[0].id}`)
-    await expect(page.getByRole('button', { name: 'Read', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'More ways to read' }).click()
-    await expect(page.getByText('Does not update progress or stats')).toBeVisible()
-    await page.getByText('Preview', { exact: true }).click()
+    const preview = page.getByRole('button', { name: 'Preview', exact: true })
+    await expect(preview).toBeVisible()
+    await expect(preview).toHaveAttribute('title', /without updating progress or stats/)
+    await preview.click()
     await expect(page).toHaveURL(new RegExp(`/reader/${books[0].id}\\?preview=1$`))
   })
 })
