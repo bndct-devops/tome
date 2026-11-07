@@ -1048,7 +1048,12 @@ html.theme-dark .setup-steps li { background: oklch(1 0 0 / 0.04); }
 }
 .cmp-header-spacer { min-height: 110px; }
 .cmp-row-label {
-  flex: 1;
+  /* Fixed row height, shared with .cmp-cell: a two-line label must not grow its
+     row, or the labels drift against the cards (flex: 1 cannot shrink below
+     the text's min-content height). */
+  flex: 0 0 76px;
+  min-height: 76px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1106,7 +1111,9 @@ html.theme-dark .setup-steps li { background: oklch(1 0 0 / 0.04); }
 .cmp-card.primary .cmp-name { color: var(--accent); }
 .cmp-tagline { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
 .cmp-cell {
-  flex: 1;
+  flex: 0 0 76px;
+  min-height: 76px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -68,7 +68,7 @@
   --rating: oklch(0.62 0.11 76);
   --border: oklch(0.90 0.005 85);
   --input: oklch(0.88 0.005 85);
-  --ring: oklch(0.45 0.115 18);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.52 0.13 18);
   --accent-soft: oklch(0.45 0.115 18 / 0.12);
   /* The frame behind the sidebar and header; the page content is a rounded
@@ -111,7 +111,7 @@
      read flat. 16% is still a hairline, it just survives being on a 0.21 card. */
   --border: oklch(0.95 0.008 60 / 16%);
   --input: oklch(0.95 0.008 60 / 20%);
-  --ring: oklch(0.64 0.12 22);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.64 0.12 22);
   --accent-soft: oklch(0.64 0.12 22 / 0.16);
   --frame: oklch(0.115 0.004 60);
@@ -144,7 +144,7 @@
   --muted: oklch(0.20 0.004 60);
   --accent: oklch(0.20 0.004 60);
   --primary: oklch(0.67 0.12 22);
-  --ring: oklch(0.67 0.12 22);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.67 0.12 22);
   --accent-soft: oklch(0.67 0.12 22 / 0.18);
   --border: oklch(1 0 0 / 17%);
@@ -178,7 +178,7 @@
   --rating: oklch(0.60 0.115 74);
   --border: oklch(0.89 0.012 70);
   --input: oklch(0.87 0.013 70);
-  --ring: oklch(0.50 0.155 52);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.56 0.155 52);
   --accent-soft: oklch(0.50 0.155 52 / 0.12);
   --frame: oklch(0.94 0.012 70);
