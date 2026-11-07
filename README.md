@@ -49,20 +49,26 @@ There are several self-hosted ebook tools — here's where Tome sits.
 
 Pick **Calibre-Web** if you want the largest ecosystem and don't mind the dated UI. **Komga** if you're comics/manga-only. **Kavita** if you want a featureful all-rounder. **Tome** if reading-session tracking and KOReader integration are what you actually want — that's what it's built around.
 
-![Dashboard](docs/screenshots/dashboard.png)
-*Filter, sort, and browse your library. Bulk select for metadata edits, library assignment, or export.*
+![Home](docs/screenshots/home.png)
+*Home is built around the book you are reading: progress, Resume, the other books in progress, what comes next in the series, and four bare numbers.*
+
+![Library](docs/screenshots/dashboard.png)
+*Filter, sort, group by series and browse your library. Bulk select for metadata edits, library assignment, or export.*
+
+![Quick look](docs/screenshots/quick-look.png)
+*A quick look opens from any cover: description, progress, reading time, Read and Open page, without leaving where you are.*
 
 ![Series Detail](docs/screenshots/series-detail.png)
 *Drill into a series to see every volume, track progress per book, and pick up where you stopped.*
 
 ![Book Detail](docs/screenshots/book-detail.png)
-*Full metadata view with cover, description, tags, and one-click reading.*
+*Full metadata view with cover, description, reading stats per book and one-click reading.*
 
 ![Series](docs/screenshots/series.png)
 *All your series at a glance with volume counts and descriptions.*
 
 ![Stats](docs/screenshots/stats.png)
-*Reading activity, streaks, session history, and time-of-day patterns.*
+*Reading activity, streaks, session history, and time-of-day patterns on boards you can rearrange.*
 
 ![Calendar](docs/screenshots/calendar.png)
 *A month of reading as a calendar, with a card for any day you pick.*
@@ -71,7 +77,7 @@ Pick **Calibre-Web** if you want the largest ecosystem and don't mind the dated 
 *Highlight and annotate on your e-reader…*
 
 ![Highlights in Tome](docs/screenshots/koreader-highlights.png)
-*…and they sync to Tome via the TomeSync plugin — collected per book with the text, your note, and the chapter.*
+*…and they sync to Tome via the TomeSync plugin, collected per book with the text, your note, and the chapter.*
 
 ### Mobile
 
