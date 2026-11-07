@@ -4,7 +4,7 @@ import type { ReadingDNA, ReadingDNATrait } from './shared'
 import { Trans } from '@lingui/react/macro'
 
 /** A pole-to-pole spectrum bar with the reader's position marked. Rendered as a
- *  center-origin gauge — no thumb — because the round dot on a track read as a
+ *  center-origin gauge - no thumb - because the round dot on a track read as a
  *  draggable slider and invited pointless dragging on a read-only stat. */
 function TraitBar({ trait }: { trait: ReadingDNATrait }) {
   const s = Math.max(0, Math.min(100, trait.score))
@@ -13,7 +13,7 @@ function TraitBar({ trait }: { trait: ReadingDNATrait }) {
   const fill = Math.max(Math.abs(s - 50), 2.5)
   return (
     <div>
-      <div className="flex items-center justify-between text-[11px] mb-1.5">
+      <div className="flex items-center justify-between text-[12px] mb-1.5">
         <span className={high ? 'text-muted-foreground' : 'text-foreground font-semibold'}>{trait.low}</span>
         <span className={high ? 'text-foreground font-semibold' : 'text-muted-foreground'}>{trait.high}</span>
       </div>
@@ -39,7 +39,7 @@ function archetypeIcon(archetype: string | null): LucideIcon {
   return Sparkles
 }
 
-/** The card's content — archetype, trait spectra, one-line summary — shared by
+/** The card's content - archetype, trait spectra, one-line summary - shared by
  *  the Home rail card and the Stats page's "Reading DNA" tile. `showLink`
  *  appends the "Full breakdown →" link (Home only; the Stats tile IS the
  *  breakdown). */
@@ -61,7 +61,7 @@ export function ReadingDNABody({ dna, showLink = false }: { dna: ReadingDNA; sho
       </div>
 
       {dna.summary && (
-        <p className="mt-4 pt-3 border-t border-border text-[11px] text-muted-foreground text-center leading-relaxed">
+        <p className="mt-4 pt-3 border-t border-border text-[12px] text-muted-foreground text-center leading-relaxed">
           {dna.summary}
         </p>
       )}
@@ -69,7 +69,7 @@ export function ReadingDNABody({ dna, showLink = false }: { dna: ReadingDNA; sho
       {showLink && (
         <Link
           to="/stats"
-          className="mt-3 block text-[11px] text-muted-foreground hover:text-foreground transition-colors text-center"
+          className="mt-3 block text-[12px] text-muted-foreground hover:text-foreground transition-colors text-center"
         >
           <Trans>Full breakdown →</Trans>
         </Link>

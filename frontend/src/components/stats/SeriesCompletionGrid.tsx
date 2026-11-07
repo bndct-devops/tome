@@ -52,7 +52,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
             <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
               {s.series}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[13px] text-muted-foreground mt-0.5">
               {s.read} of {s.total} read
               {s.reading > 0 && (() => { const n = s.reading; return t` · ${n} in progress` })()}
             </p>
@@ -66,7 +66,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
                   }}
                 />
               </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+              <span className="text-[12px] text-muted-foreground tabular-nums shrink-0">
                 {s.pct}%
               </span>
             </div>

@@ -1,4 +1,4 @@
-// Overview-tab stats widgets — chart-only (no card frame, no fixed height), so the
+// Overview-tab stats widgets - chart-only (no card frame, no fixed height), so the
 // same component renders inside a StatsPage ChartCard and inside a resizable Lab tile.
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -21,7 +21,7 @@ import { coverSrc } from '@/lib/covers'
 // Chart style a configurable widget can render as (per-tile setting in the Lab).
 export type ChartKind = 'bar' | 'line' | 'area'
 
-// Bare headline-stat body (value + sub) for use as a standalone dashboard tile —
+// Bare headline-stat body (value + sub) for use as a standalone dashboard tile  - 
 // the tile itself provides the card frame + the label (in its header).
 export function HeadlineStatBody({ value, unit, sub }: { value: string; unit?: string; sub?: string }) {
   // The Stat look without its label (the tile header is the label): display
@@ -45,13 +45,13 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
     return (
       <div className="flex flex-col gap-1 py-2">
         <p className="text-[14px] text-muted-foreground"><Trans>No books in progress</Trans></p>
-        <p className="text-xs text-muted-foreground/60"><Trans>Start reading one and it'll show up here</Trans></p>
+        <p className="text-[13px] text-muted-foreground/60"><Trans>Start reading one and it'll show up here</Trans></p>
       </div>
     )
   }
   // Compact rows (~40px each): a single book then fits one grid row, so the
   // autoH tile snugs down to it instead of rounding up to a half-empty 2-row
-  // box — and still grows by a row for every extra ~2 books (2-up on sm+).
+  // box - and still grows by a row for every extra ~2 books (2-up on sm+).
   return (
     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       {books.map((b) => (
@@ -66,11 +66,11 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{b.title}</div>
             <div className="mt-0.5 flex items-center gap-2">
-              {b.author && <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{b.author}</span>}
+              {b.author && <span className="max-w-[45%] shrink-0 truncate text-[13px] text-muted-foreground">{b.author}</span>}
               <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(b.progress, 100)}%`, backgroundColor: accent }} />
               </div>
-              <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">{b.progress}%</span>
+              <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">{b.progress}%</span>
             </div>
           </div>
         </a>
@@ -79,7 +79,7 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
   )
 }
 
-// One-line duration y-tick — recharts wraps multi-word ticks like "1h 40m".
+// One-line duration y-tick - recharts wraps multi-word ticks like "1h 40m".
 function DurationYTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: { value?: number }; fill?: string }) {
   return (
     <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill={fill}>
@@ -163,7 +163,7 @@ export function ReadingActivity365({ heatmap }: { heatmap: StatsResponse['heatma
     <>
       <HeatmapChart data={heatmap} />
       <div className="flex items-center gap-2 justify-end mt-1">
-        <span className="text-[10px] text-muted-foreground"><Trans>Less</Trans></span>
+        <span className="text-[12px] text-muted-foreground"><Trans>Less</Trans></span>
         {[0.12, 0.25, 0.45, 0.7, 1].map((op, i) => (
           <div
             key={i}
@@ -171,7 +171,7 @@ export function ReadingActivity365({ heatmap }: { heatmap: StatsResponse['heatma
             style={i === 0 ? { backgroundColor: tick, opacity: op } : { backgroundColor: accent, opacity: op }}
           />
         ))}
-        <span className="text-[10px] text-muted-foreground"><Trans>More</Trans></span>
+        <span className="text-[12px] text-muted-foreground"><Trans>More</Trans></span>
       </div>
     </>
   )
@@ -249,7 +249,7 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
   )
 }
 
-// Latest finishes, newest first, with covers — list tile (scrolls in the Lab).
+// Latest finishes, newest first, with covers - list tile (scrolls in the Lab).
 export function RecentlyFinished({ booksFinished }: { booksFinished: StatsResponse['books_finished'] }) {
   const rows = [...booksFinished].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12)
   if (rows.length === 0) {
@@ -268,14 +268,14 @@ export function RecentlyFinished({ booksFinished }: { booksFinished: StatsRespon
             />
           </div>
           <span className="flex-1 min-w-0 truncate text-sm font-medium text-foreground group-hover:text-primary transition-colors">{b.title}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{formatDate(b.date)}</span>
+          <span className="shrink-0 text-[13px] text-muted-foreground">{formatDate(b.date)}</span>
         </a>
       ))}
     </div>
   )
 }
 
-// Current month at a glance — days with reading filled, today outlined.
+// Current month at a glance - days with reading filled, today outlined.
 // Uses the 365-day heatmap data, so it ignores the page range (always current).
 export function StreakCalendar({ heatmap }: { heatmap: StatsResponse['heatmap_daily'] }) {
   const { accent } = useChartColors()
@@ -293,11 +293,11 @@ export function StreakCalendar({ heatmap }: { heatmap: StatsResponse['heatmap_da
   return (
     <div className="flex h-full flex-col">
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-xs font-semibold text-foreground">{now.toLocaleDateString(undefined, { month: 'long' })}</span>
-        <span className="text-[10px] text-muted-foreground">{readDays} day{readDays !== 1 ? 's' : ''} read</span>
+        <span className="text-[13px] font-semibold text-foreground">{now.toLocaleDateString(undefined, { month: 'long' })}</span>
+        <span className="text-[12px] text-muted-foreground">{plural(readDays, { one: '# day read', other: '# days read' })}</span>
       </div>
       <div className="grid flex-1 grid-cols-7 gap-1 content-start">
-        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((w, i) => (
+        {Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'narrow' })).map((w, i) => (
           <div key={i} className="text-center text-[9px] text-muted-foreground">{w}</div>
         ))}
         {cells.map((d, i) => {

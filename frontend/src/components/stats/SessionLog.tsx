@@ -161,7 +161,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
           {sort === 'recent' ? t`Newest first` : t`Longest first`}
         </button>
       </div>
-      <div className={cn('hidden gap-3 border-b border-border/70 pb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid', cols)}>
+      <div className={cn('hidden gap-3 border-b border-border/70 pb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid', cols)}>
         {showBook && <span><Trans>Book</Trans></span>}
         <span><Trans>Date</Trans></span>
         <span><Trans>Duration</Trans></span>

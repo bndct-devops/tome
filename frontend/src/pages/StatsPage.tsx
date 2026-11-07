@@ -8,7 +8,8 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { Link } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
-import { PageBody, PageHeader, Pill } from '@/components/page'
+import { Input, PageBody, PageHeader, Pill, PillGroup, Select } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { toPng } from 'html-to-image'
 import { Plus, RotateCcw, X, HelpCircle, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Calendar, ChevronLeft, ChevronRight, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, ImageDown, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
@@ -85,14 +86,14 @@ import {
 } from '@/components/stats/widgets/wordstats'
 
 /**
- * Reading Stats — a fully customisable dashboard. Every chart is a tile on a
+ * Reading Stats - a fully customisable dashboard. Every chart is a tile on a
  * drag/resize grid; boards (tabs) are per-user and persisted server-side. The
  * default boards replicate the classic stats layout.
  */
 
 // Per-tile settings: chart style, timeframe and (for the Custom Stat tile) the
 // metric. days = 0 follows the page range; days = N shows the last N days of the
-// fetched window (sliced client-side, no extra fetches) — so two copies of one
+// fetched window (sliced client-side, no extra fetches) - so two copies of one
 // widget can show different timeframes.
 type TileConfig = { chartType: ChartKind; days: number; metric?: string; series?: string; autoFit?: boolean; scope?: string; scopeLabel?: string }
 
@@ -119,11 +120,11 @@ type WidgetDef = {
   defaultConfig?: TileConfig
   /** Dynamic tile-header title, e.g. the picked metric's name. */
   titleFor?: (config: TileConfig) => string
-  /** Set when the widget ignores the page range picker (e.g. "12 mo") — rendered
+  /** Set when the widget ignores the page range picker (e.g. "12 mo") - rendered
       as a small chip so the fixed window is visible, not a surprise. */
   fixedWindow?: MessageDescriptor
   /** Optional info popover rendered beside the tile title (an InfoHint-style
-      component) — for tiles whose rows carry labels that need explaining. */
+      component) - for tiles whose rows carry labels that need explaining. */
   infoHint?: React.ComponentType
   /** List-like content with intrinsic height (not a fill-the-box chart): in view
       mode the tile shrinks to fit what's actually there, so two in-progress books
@@ -132,7 +133,7 @@ type WidgetDef = {
   render: (ctx: WidgetCtx, config: TileConfig) => ReactNode
 }
 
-// Unique tile/tab ids — Date.now alone collides on rapid actions (duplicates).
+// Unique tile/tab ids - Date.now alone collides on rapid actions (duplicates).
 // Stats answers by range, kept for the session: coming back to the page is
 // instant, the fresh answer replaces it when it arrives.
 const statsCache = new Map<string, StatsResponse>()
@@ -140,7 +141,7 @@ const statsCache = new Map<string, StatsResponse>()
 let _uid = 0
 const newId = (prefix: string) => `${prefix}--${Date.now().toString(36)}${(_uid++).toString(36)}`
 
-// Metrics the Custom Stat tile can show — all derived from the /stats payload.
+// Metrics the Custom Stat tile can show - all derived from the /stats payload.
 const METRICS = [
   { id: 'avg-session', label: msg`Avg session` },
   { id: 'time-per-day', label: msg`Time per day` },
@@ -224,7 +225,7 @@ const finishedSince = (stats: StatsResponse, days: number) => {
 const STAT_SIZE = { w: 2, h: 1, minW: 2, minH: 1 }
 
 const WIDGETS: WidgetDef[] = [
-  // Headline figures — one tile each (separately movable / removable).
+  // Headline figures - one tile each (separately movable / removable).
   {
     id: 'stat-time',
     title: msg`Reading time`,
@@ -528,7 +529,7 @@ const WIDGETS: WidgetDef[] = [
     titleFor: (cfg) => cfg.series ?? t`Series spotlight`,
     render: ({ stats }, cfg) => <SeriesSpotlight data={stats.series_completion} series={cfg.series} />,
   },
-  // Taste tab — ratings (all-time, ignore the date range)
+  // Taste tab - ratings (all-time, ignore the date range)
   {
     id: 'rating-distribution',
     title: msg`Rating distribution`,
@@ -625,7 +626,7 @@ const WIDGETS: WidgetDef[] = [
     fixedWindow: msg`all`,
     render: ({ stats }) => <ReadingByLanguage data={stats.language} />,
   },
-  // Phase 4 — word-count powered (all-time)
+  // Phase 4 - word-count powered (all-time)
   {
     id: 'words-read',
     title: msg`Words read`,
@@ -707,7 +708,7 @@ const WIDGET_DESC: Record<string, MessageDescriptor> = {
   'genre-over-time': msg`Category mix over the year`,
   'library-growth': msg`Library size over time`,
   'per-book-table': msg`Sortable table of every book`,
-  'rating-distribution': msg`How you spread your 1–5 stars`,
+  'rating-distribution': msg`How you spread your 1-5 stars`,
   'taste-by-genre': msg`Average rating per book type`,
   'rating-vs-time': msg`Do you rate books you spend longer on higher?`,
   'rating-trend': msg`Your ratings over time`,
@@ -727,7 +728,7 @@ const WIDGET_DESC: Record<string, MessageDescriptor> = {
 // Number tiles: a small label over a display number, no section title.
 const KPI_IDS = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric'])
 
-// Widgets that are a number/short text — render their preview at natural size (no scale).
+// Widgets that are a number/short text - render their preview at natural size (no scale).
 const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'period-comparison'])
 
 // List/table widgets whose content is a vertical list that can exceed the tile → scroll
@@ -774,7 +775,7 @@ const STAT_IDS = ['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 
 const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }> = {
   // row 0: six stat tiles across
   ...Object.fromEntries(STAT_IDS.map((id, i) => [id, { x: i * 2, y: 0, w: 2, h: 1 }])),
-  // Overview — full-width Currently Reading, Daily | Top Books pair, the rest stacked
+  // Overview - full-width Currently Reading, Daily | Top Books pair, the rest stacked
   'currently-reading': { x: 0, y: 1, w: 12, h: 5 },
   daily: { x: 0, y: 6, w: 6, h: 3 },
   'top-books': { x: 6, y: 6, w: 6, h: 3 },
@@ -782,10 +783,10 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
   'books-finished': { x: 0, y: 11, w: 12, h: 2 },
   'session-log': { x: 0, y: 13, w: 12, h: 7 },
   goal: { x: 0, y: 20, w: 6, h: 3 },
-  // Habits — all full width except the Pace | Pace-by-Format pair
+  // Habits - all full width except the Pace | Pace-by-Format pair
   'hour-dow': { x: 0, y: 0, w: 12, h: 2 },
   'session-timeline': { x: 0, y: 2, w: 12, h: 3 },
-  // Timeline — its own tab, one full-bleed ribbon
+  // Timeline - its own tab, one full-bleed ribbon
   'reading-timeline': { x: 0, y: 0, w: 12, h: 7 },
   'reading-pace': { x: 0, y: 5, w: 6, h: 3 },
   'pace-by-format': { x: 6, y: 5, w: 6, h: 3 },
@@ -793,7 +794,7 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
   estimates: { x: 0, y: 10, w: 12, h: 3 },
   'period-comparison': { x: 0, y: 13, w: 12, h: 1 },
   'monthly-comparison': { x: 0, y: 14, w: 12, h: 3 },
-  // Library — all full width, stacked in page order
+  // Library - all full width, stacked in page order
   'year-in-review': { x: 0, y: 0, w: 12, h: 2 },
   'series-completion': { x: 0, y: 2, w: 12, h: 4 },
   'backlog-estimate': { x: 0, y: 6, w: 12, h: 2 },
@@ -803,20 +804,20 @@ const INITIAL_POS: Record<string, { x: number; y: number; w: number; h: number }
   'genre-over-time': { x: 0, y: 13, w: 12, h: 3 },
   'library-growth': { x: 0, y: 16, w: 12, h: 3 },
   'per-book-table': { x: 0, y: 19, w: 12, h: 6 },
-  // Taste — three rows of two
+  // Taste - three rows of two
   'rating-distribution': { x: 0, y: 0, w: 6, h: 2 },
   'taste-by-genre': { x: 6, y: 0, w: 6, h: 2 },
   'rating-vs-time': { x: 0, y: 2, w: 6, h: 2 },
   'rating-trend': { x: 6, y: 2, w: 6, h: 2 },
   'top-rated': { x: 0, y: 4, w: 6, h: 3 },
   'best-rated-series': { x: 6, y: 4, w: 6, h: 3 },
-  // Batch-2 insights — placed at the bottom of their home tabs
+  // Batch-2 insights - placed at the bottom of their home tabs
   'lifetime-totals': { x: 0, y: 23, w: 12, h: 2 },     // Overview
   'reading-clock': { x: 0, y: 17, w: 4, h: 3 },        // Habits
   'library-completion': { x: 0, y: 25, w: 4, h: 3 },   // Library
   'personal-records': { x: 4, y: 25, w: 4, h: 3 },     // Library
   'reading-by-language': { x: 8, y: 25, w: 4, h: 2 },  // Library
-  // (Phase 4 word-count tiles are gallery-only — no default placement; the gallery
+  // (Phase 4 word-count tiles are gallery-only - no default placement; the gallery
   // add-flow positions them from def.size, so they need no INITIAL_POS entry.)
 }
 
@@ -830,11 +831,11 @@ const TAB_DEFS: { id: string; label: MessageDescriptor; ids: string[] }[] = [
   { id: 'taste', label: msg`Taste`, ids: ['rating-distribution', 'taste-by-genre', 'rating-vs-time', 'rating-trend', 'top-rated', 'best-rated-series'] },
   { id: 'timeline', label: msg`Timeline`, ids: ['reading-timeline'] },
   // Phase 4 word-count tiles (words-read / true-wpm / book-length) are gallery-only
-  // — addable from "Add tile" but on no default board, matching the batch-2 convention.
+  // - addable from "Add tile" but on no default board, matching the batch-2 convention.
 ]
 
 function buildTab(def: { id: string; label: MessageDescriptor; ids: string[] }): TabState {
-  // Board names are plain persisted strings — resolve the default label with the
+  // Board names are plain persisted strings - resolve the default label with the
   // locale active at creation time.
   if (def.ids.length === 0) return { id: def.id, label: i18n._(def.label), tiles: [], layout: [] }
   // re-base y so each tab's board starts at the top
@@ -854,7 +855,7 @@ function buildTab(def: { id: string; label: MessageDescriptor; ids: string[] }):
 const buildTabs = (): TabState[] => TAB_DEFS.map(buildTab)
 
 // Additive migration: append any default tab (e.g. a newly-shipped "Taste" tab) that a
-// saved dashboard predates — keyed by id, so an existing board's tiles/layout are never
+// saved dashboard predates - keyed by id, so an existing board's tiles/layout are never
 // touched. User-created tabs use `newId('tab')` (= `tab--...`), so they can never collide
 // with a default id like 'taste'; the worst case is a harmless duplicate *label*.
 const withMissingDefaultTabs = (tabs: TabState[]): TabState[] => {
@@ -901,7 +902,7 @@ function ConfigPopover({
   onChange: (partial: Partial<TileConfig>) => void
   onClose: () => void
 }) {
-  // Backlog scopes (libraries + shelves) are the user's own — fetched on open.
+  // Backlog scopes (libraries + shelves) are the user's own - fetched on open.
   const [scopes, setScopes] = useState<BacklogScope[] | null>(null)
   useEffect(() => {
     if (!def.scopePicker) return
@@ -924,23 +925,23 @@ function ConfigPopover({
       document.removeEventListener('keydown', onKey)
     }
   }, [onClose])
+  const label = 'mb-1.5 text-[13px] font-medium text-muted-foreground'
   return (
     <div
       ref={popRef}
-      className="no-drag absolute right-2 top-9 z-50 w-48 rounded-lg border border-border bg-card p-3 text-xs shadow-xl"
+      className="no-drag absolute right-2 top-9 z-50 w-64 max-w-[calc(100vw-48px)] rounded-xl bg-card p-3 text-[13px] shadow-lg ring-1 ring-panel-ring"
       onPointerDown={(e) => e.stopPropagation()}
       >
         {def.scopePicker && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Scope</Trans></p>
+            <p className={label}><Trans>Scope</Trans></p>
             {scopes ? (
-              <select
+              <Select
                 value={config.scope ?? DEFAULT_BACKLOG_SCOPE}
                 onChange={(e) => {
                   const picked = scopes.find((s) => s.id === e.target.value)
                   onChange({ scope: e.target.value, scopeLabel: picked?.label })
                 }}
-                className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
               >
                 {scopes.filter((s) => !s.group).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 {/* eslint-disable-next-line lingui/no-unlocalized-strings -- API group keys */}
@@ -952,93 +953,66 @@ function ConfigPopover({
                     </optgroup>
                   ) : null
                 })}
-              </select>
+              </Select>
             ) : (
-              <p className="text-muted-foreground/70"><Trans>Loading…</Trans></p>
+              <p className="text-muted-foreground"><Trans>Loading…</Trans></p>
             )}
           </>
         )}
         {def.seriesPicker && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Series</Trans></p>
+            <p className={label}><Trans>Series</Trans></p>
             {seriesOptions && seriesOptions.length > 0 ? (
-              <select
+              <Select
                 value={config.series ?? seriesOptions[0]}
                 onChange={(e) => onChange({ series: e.target.value })}
-                className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
               >
                 {seriesOptions.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
-              <p className="text-muted-foreground/70"><Trans>No series with reading progress yet.</Trans></p>
+              <p className="text-muted-foreground"><Trans>No series with reading progress yet.</Trans></p>
             )}
           </>
         )}
         {def.metrics && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Metric</Trans></p>
-            <div className="grid grid-cols-2 gap-1">
-              {def.metrics.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onChange({ metric: m.id })}
-                  className={cn(
-                    'rounded-md border px-1.5 py-1 text-left transition',
-                    config.metric === m.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {i18n._(m.label)}
-                </button>
-              ))}
-            </div>
+            <p className={label}><Trans>Metric</Trans></p>
+            <PillGroup
+              size="sm"
+              value={config.metric ?? ''}
+              onChange={(v) => onChange({ metric: v })}
+              options={def.metrics.map((m) => ({ value: m.id, label: i18n._(m.label) }))}
+            />
           </>
         )}
         {def.chartTypes && (
           <>
-            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Chart type</Trans></p>
-            <div className="mb-3 flex rounded-md border border-border p-0.5">
-              {def.chartTypes.map((ct) => (
-                <button
-                  key={ct}
-                  type="button"
-                  onClick={() => onChange({ chartType: ct })}
-                  className={cn(
-                    'flex-1 rounded px-1.5 py-1 capitalize transition',
-                    config.chartType === ct ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {ct}
-                </button>
-              ))}
-            </div>
-            <p className="mb-1.5 font-medium text-muted-foreground"><Trans>Timeframe</Trans></p>
-            <div className="flex gap-1">
-              {TIMEFRAMES.map((t) => (
-                <button
-                  key={t.days}
-                  type="button"
-                  onClick={() => onChange({ days: t.days })}
-                  className={cn(
-                    'flex-1 rounded-md border px-1.5 py-1 transition',
-                    config.days === t.days ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {i18n._(t.label)}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70"><Trans>Range follows the page's range picker; days show the newest slice of it.</Trans></p>
+            <p className={label}><Trans>Chart type</Trans></p>
+            <PillGroup
+              size="sm"
+              className="mb-3"
+              value={config.chartType ?? ''}
+              onChange={(v) => onChange({ chartType: v as ChartKind })}
+              options={def.chartTypes.map((ct) => ({ value: ct, label: <span className="capitalize">{ct}</span> }))}
+            />
+            <p className={label}><Trans>Timeframe</Trans></p>
+            <PillGroup
+              size="sm"
+              value={String(config.days ?? '')}
+              onChange={(v) => onChange({ days: Number(v) })}
+              options={TIMEFRAMES.map((tf) => ({ value: String(tf.days), label: i18n._(tf.label) }))}
+            />
+            <p className="mt-2 text-[13px] leading-snug text-muted-foreground"><Trans>Range follows the page's range picker; days show the newest slice of it.</Trans></p>
           </>
         )}
         {def.autoH && (
-          <div className={cn((def.chartTypes || def.metrics || def.seriesPicker || def.scopePicker) && 'mt-3 border-t border-border pt-3')}>
+          <div className={cn((def.chartTypes || def.metrics || def.seriesPicker || def.scopePicker) && 'mt-3 border-t border-border/70 pt-3')}>
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-muted-foreground"><Trans>Auto-fit height</Trans></span>
+              <span className="text-[14px] font-medium text-foreground"><Trans>Auto-fit height</Trans></span>
               <button
                 type="button"
                 role="switch"
@@ -1046,20 +1020,20 @@ function ConfigPopover({
                 aria-label={t`Auto-fit height`}
                 onClick={() => onChange({ autoFit: !config.autoFit })}
                 className={cn(
-                  'relative h-4 w-7 shrink-0 rounded-full transition-colors',
-                  config.autoFit ? 'bg-primary' : 'bg-muted',
+                  'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+                  config.autoFit ? 'bg-primary' : 'bg-secondary ring-1 ring-border',
                 )}
               >
                 <span
                   className={cn(
-                    'absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform',
-                    config.autoFit && 'translate-x-3',
+                    'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                    config.autoFit && 'translate-x-4',
                   )}
                 />
               </button>
             </div>
-            <p className="mt-1 text-[10px] leading-snug text-muted-foreground/70">
-              <Trans>Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls).</Trans>
+            <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+              <Trans>Shrink or grow this tile to fit its content. Off: set the height yourself (content scrolls).</Trans>
             </p>
           </div>
         )}
@@ -1093,57 +1067,42 @@ function AddWidgetModal({
   const groups = GALLERY_GROUPS.map((g) => ({ ...g, ids: g.ids.filter(matches) })).filter((g) => g.ids.length > 0)
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl shadow-accent-soft">
-        <div className="mb-3 flex items-start justify-between">
-          <div>
-            <h2 className="text-base font-semibold"><Trans>Add a widget</Trans></h2>
-            <p className="text-xs text-muted-foreground"><Trans>Removed a tile? Add it back, or add another copy.</Trans></p>
-          </div>
-          <button type="button" onClick={onClose} aria-label={t`Close`} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mb-4 flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
+    <ModalShell
+      open
+      onClose={onClose}
+      size="lg"
+      title={t`Add a widget`}
+      subtitle={t`Removed a tile? Add it back, or add another copy.`}
+    >
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t`Search widgets…`}
-              className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="pl-9"
             />
           </div>
           {/* quick filter: every widget vs only those already on / not yet on this board */}
-          <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
-            {([['all', t`All`], ['on', t`On board`], ['off', t`Not on board`]] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setBoardFilter(id)}
-                className={cn(
-                  'rounded-md px-2 py-1 font-medium transition',
-                  boardFilter === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <PillGroup
+            size="sm"
+            value={boardFilter}
+            onChange={setBoardFilter}
+            options={[{ value: 'all', label: t`All` }, { value: 'on', label: t`On board` }, { value: 'off', label: t`Not on board` }]}
+          />
         </div>
 
         {groups.length === 0 && (
-          <p className="py-10 text-center text-sm text-muted-foreground">{needle ? t`No widgets match “${q}”.` : boardFilter === 'on' ? t`No widgets on this board yet.` : t`Every widget is already on this board.`}</p>
+          <p className="py-10 text-center text-[14px] text-muted-foreground">{needle ? t`No widgets match “${q}”.` : boardFilter === 'on' ? t`No widgets on this board yet.` : t`Every widget is already on this board.`}</p>
         )}
 
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6">
           {groups.map((group) => (
             <div key={group.ids[0]}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{i18n._(group.label)}</h3>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <h3 className="mb-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{i18n._(group.label)}</h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.ids.map((id) => {
                   const w = defById(id)
                   return (
@@ -1152,12 +1111,12 @@ function AddWidgetModal({
                       type="button"
                       onClick={() => onAdd(id)}
                       title={WIDGET_DESC[id] ? i18n._(WIDGET_DESC[id]) : undefined}
-                      className="group/card flex flex-col gap-1.5 rounded-lg border border-border bg-background p-2 text-left transition hover:border-primary/50 hover:bg-muted"
+                      className="group/card flex flex-col gap-2 rounded-xl bg-secondary/60 p-2 text-left transition hover:bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {/* live mini-preview. Number/text widgets render at natural size so
                           they fill the box; charts render at a real tile size and scale down
                           so they keep their proportions instead of squishing. */}
-                      <div className="pointer-events-none h-[94px] overflow-hidden rounded-md border border-border/50 bg-card">
+                      <div className="pointer-events-none h-[94px] overflow-hidden rounded-lg bg-card">
                         {NATURAL_PREVIEW.has(id) ? (
                           <div className="h-full w-full p-3">{w.render(ctx, w.defaultConfig ?? DEFAULT_CFG)}</div>
                         ) : (
@@ -1166,10 +1125,10 @@ function AddWidgetModal({
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 px-0.5">
-                        <span className="truncate text-xs font-medium text-foreground">{i18n._(w.title)}</span>
+                      <div className="flex items-center gap-1.5 px-1 pb-0.5">
+                        <span className="truncate text-[14px] font-medium text-foreground">{i18n._(w.title)}</span>
                         {present.has(id) && (
-                          <span className="ml-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"><Trans>on board</Trans></span>
+                          <span className="ml-auto shrink-0 text-[12px] text-muted-foreground"><Trans>on board</Trans></span>
                         )}
                       </div>
                     </button>
@@ -1179,8 +1138,7 @@ function AddWidgetModal({
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 
@@ -1222,7 +1180,7 @@ function TileShell({
   const contentRef = useRef<HTMLDivElement>(null)
   // Charts mount only after the body has a real size: Recharts' responsive
   // container measures -1×-1 when rendered before react-grid-layout has laid
-  // the tile out (console warning ×4 on every Stats load — UX sweep finding),
+  // the tile out (console warning ×4 on every Stats load - UX sweep finding),
   // and the first chart paint was skipped until a resize tick.
   const [bodySized, setBodySized] = useState(false)
   useLayoutEffect(() => {
@@ -1384,7 +1342,7 @@ function TileShell({
       <div
         ref={contentRef}
         className={cn('min-h-0 flex-1', SCROLL_IDS.has(def.id) ? 'overflow-y-auto' : 'overflow-hidden')}
-        // edit mode: tiles are objects being arranged, not content — swallow clicks
+        // edit mode: tiles are objects being arranged, not content - swallow clicks
         // so links/buttons inside (covers, table sorting, …) can't navigate away.
         // Capture phase, so inner handlers never fire; scrolling still works.
         onClickCapture={editMode ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
@@ -1419,20 +1377,20 @@ function FreeGrid({
   // measureBeforeMount: without it the hook starts mounted with a hardcoded
   // initialWidth of 1280, so the grid's first paint is laid out for 1280px and
   // then every tile animates (the items' 200ms left/width transition) to the
-  // real container width — the whole board visibly slides in from the side.
+  // real container width - the whole board visibly slides in from the side.
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true })
-  // live "6 × 3" badge during resize — updated imperatively (no re-renders)
+  // live "6 × 3" badge during resize - updated imperatively (no re-renders)
   const badgeRef = useRef<HTMLDivElement>(null)
   const seriesOptions = ctx.stats.series_completion.map((x) => x.series)
 
   // Auto-fit (opt-in per tile, via the "Auto-fit height" toggle): a list-like tile
   // (def.autoH) whose config.autoFit is on reports the rows its content needs, and
-  // in view mode the tile fits that exactly — growing past the saved height as well
-  // as shrinking below it (never below minH) — while RGL's vertical compaction
+  // in view mode the tile fits that exactly - growing past the saved height as well
+  // as shrinking below it (never below minH) - while RGL's vertical compaction
   // reflows the board around it. The measured height is box-independent (constant
   // chrome + intrinsic content extent), so growth can't feed back and oscillate.
   // Tiles with auto-fit off keep their saved height and resize by hand (content
-  // scrolls). The fit applies in edit mode too (WYSIWYG — what you arrange is what
+  // scrolls). The fit applies in edit mode too (WYSIWYG - what you arrange is what
   // you get), but its transient fractional height is never persisted: onLayoutChange
   // restores each auto-fit tile's saved integer height before saving.
   const autoFitIds = useMemo(
@@ -1446,11 +1404,11 @@ function FreeGrid({
   const displayLayout = useMemo(() => {
     return layout.map((it) => {
       const auto = autoFitIds.has(it.i)
-      // Auto-fit tiles drop the height resize handles — height is content-driven,
+      // Auto-fit tiles drop the height resize handles - height is content-driven,
       // so a height handle would only fight the auto-size. They keep the width
       // ('e') handle; non-auto tiles get `undefined` (the grid's full handle set).
-      // Always set it explicitly so a stale value baked into a saved layout — from
-      // a tile that used to be auto-fit — is cleared rather than inherited.
+      // Always set it explicitly so a stale value baked into a saved layout - from
+      // a tile that used to be auto-fit - is cleared rather than inherited.
       const base: Layout[number] = { ...it, resizeHandles: auto ? (['e'] as ResizeHandleAxis[]) : undefined }
       if (!auto) return base
       const rows = autoRows[it.i]
@@ -1464,7 +1422,7 @@ function FreeGrid({
   }, [layout, autoRows, autoFitIds, tiles])
 
   // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
-  // edge, which makes a bottom-of-page tile impossible to grow — the pointer just
+  // edge, which makes a bottom-of-page tile impossible to grow - the pointer just
   // hits the screen edge. Track grid gestures and auto-scroll near the edges.
   useEffect(() => {
     if (!editMode) return
@@ -1588,9 +1546,9 @@ function FreeGrid({
           dragConfig={{ enabled: editMode, handle: '.tile-drag-handle', cancel: '.no-drag' }}
           resizeConfig={{ enabled: editMode, handles: ['se', 'e', 's'] }}
           // Only persist in edit mode. Strip `resizeHandles` (a render-time value
-          // derived from the auto-fit toggle — persisting it would freeze a tile's
+          // derived from the auto-fit toggle - persisting it would freeze a tile's
           // handles), and never bake an auto-fit tile's transient fitted height into
-          // the board — restore its saved integer height (width/position still save).
+          // the board - restore its saved integer height (width/position still save).
           onLayoutChange={(l: Layout) => {
             if (!editMode) return
             onLayoutChange(
@@ -1620,7 +1578,7 @@ function FreeGrid({
       )}
       <div
         ref={badgeRef}
-        className="pointer-events-none fixed z-[70] hidden -translate-x-full -translate-y-full rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground shadow-md"
+        className="pointer-events-none fixed z-[70] hidden -translate-x-full -translate-y-full rounded-full bg-card px-2 py-0.5 text-[12px] font-semibold tabular-nums text-foreground shadow-lg ring-1 ring-panel-ring"
       />
     </div>
   )
@@ -1631,7 +1589,7 @@ function FreeGrid({
 type CustomRange = { start: string; end: string }
 
 // Side-padding setting. Percentage gutters (not max-width caps) so the three levels
-// always differ proportionally, even on a narrow window. Phones always get px-4 —
+// always differ proportionally, even on a narrow window. Phones always get px-4  - 
 // a 16% gutter on a 390px screen would squeeze the tiles to ~265px.
 type PadWidth = 'none' | 'bit' | 'lot'
 // The refreshed shell centres every page in a column, so the setting now picks
@@ -1668,14 +1626,14 @@ function FullBleedTimeline() {
 
 // ── Persistence (localStorage for the POC; server-side comes later) ─────────────
 
-// v2: defaults became the real-Stats-page replica — bumping the key discards
+// v2: defaults became the real-Stats-page replica - bumping the key discards
 // boards saved under the old defaults so everyone starts from the replica.
 const LS_KEY = 'tome_stats_lab_v2'
 
 type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number; savedAt?: number }
 
 // Drop tiles whose widget no longer exists in the catalog, and orphaned layout
-// entries — saved state (localStorage or server) must never crash the page.
+// entries - saved state (localStorage or server) must never crash the page.
 function sanitizePersisted(p: Persisted): Persisted | null {
   if (!Array.isArray(p.tabs) || p.tabs.length === 0) return null
   const tabs: TabState[] = p.tabs.map((t) => {
@@ -1712,7 +1670,7 @@ const fmtDay = (s: string) => {
 
 const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-// Themed month calendar with range selection — uses theme CSS vars, so it recolors
+// Themed month calendar with range selection - uses theme CSS vars, so it recolors
 // with the theme switcher (unlike the browser's native date picker).
 function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick: (iso: string) => void }) {
   const [view, setView] = useState(() => (from ? new Date(from + 'T00:00:00') : new Date()))
@@ -1726,17 +1684,17 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <button type="button" onClick={() => setView(new Date(y, m - 1, 1))} className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label={t`Previous month`}>
+        <button type="button" onClick={() => setView(new Date(y, m - 1, 1))} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground" aria-label={t`Previous month`}>
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-xs font-semibold text-foreground">{monthLabel}</span>
-        <button type="button" onClick={() => setView(new Date(y, m + 1, 1))} className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label={t`Next month`}>
+        <span className="text-[14px] font-semibold text-foreground">{monthLabel}</span>
+        <button type="button" onClick={() => setView(new Date(y, m + 1, 1))} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground" aria-label={t`Next month`}>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
       <div className="grid grid-cols-7 gap-0.5">
         {[t`Mo`, t`Tu`, t`We`, t`Th`, t`Fr`, t`Sa`, t`Su`].map((w) => (
-          <div key={w} className="py-1 text-center text-[10px] font-medium text-muted-foreground">{w}</div>
+          <div key={w} className="py-1 text-center text-[12px] font-medium text-muted-foreground">{w}</div>
         ))}
         {cells.map((d, i) => {
           if (!d) return <div key={i} />
@@ -1749,8 +1707,8 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
               type="button"
               onClick={() => onPick(iso)}
               className={cn(
-                'flex h-7 items-center justify-center rounded-md text-xs tabular-nums transition',
-                isEnd ? 'bg-primary font-semibold text-primary-foreground' : between ? 'bg-primary/15 text-foreground' : 'text-foreground hover:bg-muted',
+                'flex h-8 items-center justify-center rounded-full text-[13px] tabular-nums transition',
+                isEnd ? 'bg-primary font-semibold text-primary-foreground' : between ? 'bg-primary/15 text-foreground' : 'text-foreground hover:bg-secondary',
               )}
             >
               {d.getDate()}
@@ -1793,6 +1751,16 @@ function RangeControl({
   }
 
   const valid = !!from && !!to && from <= to
+  const customStart = custom ? fmtDay(custom.start) : ''
+  const customEnd = custom ? fmtDay(custom.end) : ''
+  const fromDay = from ? fmtDay(from) : ''
+  const toDay = to ? fmtDay(to) : ''
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false) } }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open])
 
   return (
     <div className="relative flex items-center gap-0.5">
@@ -1812,42 +1780,40 @@ function RangeControl({
         className="max-sm:px-3"
       >
         <Calendar className="h-4 w-4" />
-        {custom ? `${fmtDay(custom.start)} – ${fmtDay(custom.end)}` : t`Custom`}
+        {custom ? t`${customStart} to ${customEnd}` : t`Custom`}
       </Pill>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-card p-3 shadow-xl shadow-accent-soft">
+          <div className="absolute right-0 top-full z-50 mt-1.5 w-72 max-w-[calc(100vw-32px)] rounded-xl bg-card p-3 shadow-lg ring-1 ring-panel-ring">
             <RangeCalendar from={from} to={to} onPick={pick} />
-            <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-xs">
-              <span className="text-muted-foreground">
-                {from ? (to ? `${fmtDay(from)} – ${fmtDay(to)}` : `${fmtDay(from)} – …`) : t`Pick a start & end`}
-              </span>
-              <div className="flex items-center gap-1.5">
+            <div className="mt-3 border-t border-border/70 pt-3">
+              <p className="text-[13px] text-muted-foreground">
+                {from ? (to ? t`${fromDay} to ${toDay}` : t`${fromDay} to …`) : t`Pick a start and end`}
+              </p>
+              <div className="mt-2 flex items-center justify-end gap-1.5">
                 {custom && (
-                  <button
-                    type="button"
+                  <Pill
+                    variant="quiet"
                     onClick={() => {
                       onCustom(null)
                       setOpen(false)
                     }}
-                    className="rounded-full px-2.5 py-1 text-muted-foreground transition hover:text-foreground"
                   >
                     <Trans>Clear</Trans>
-                  </button>
+                  </Pill>
                 )}
-                <button
-                  type="button"
+                <Pill
+                  variant="primary"
                   disabled={!valid}
                   onClick={() => {
                     onCustom({ start: from, end: to })
                     setOpen(false)
                   }}
-                  className="rounded-full bg-primary px-3 py-1 font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40"
                 >
                   <Trans>Apply</Trans>
-                </button>
+                </Pill>
               </div>
             </div>
           </div>
@@ -1873,7 +1839,7 @@ export function StatsPage() {
   })
   const [activeTabId, setActiveTabId] = useState(() => loadPersisted()?.activeTabId ?? 'overview')
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  // Keep the active board's tab scrolled into view — with many boards the tab
+  // Keep the active board's tab scrolled into view - with many boards the tab
   // strip scrolls, and the one you're on can sit off-screen otherwise. Re-run on
   // edit toggle too, since the per-tab edit icons widen the strip enough to push
   // the active tab out of view.
@@ -1885,7 +1851,7 @@ export function StatsPage() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [undo, setUndo] = useState<{ label: string; restore: () => void } | null>(null)
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // one-time discovery hint — the page looks like the old static stats page,
+  // one-time discovery hint - the page looks like the old static stats page,
   // so first-timers need a single nudge that everything is editable
   const [hintDismissed, setHintDismissed] = useState(() => {
     try {
@@ -1899,7 +1865,7 @@ export function StatsPage() {
     try {
       localStorage.setItem('tome_stats_hint', '1')
     } catch {
-      // storage unavailable — hint just reappears next visit
+      // storage unavailable - hint just reappears next visit
     }
   }, [])
   const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
@@ -1980,7 +1946,7 @@ export function StatsPage() {
           if (p.pad) setPad(p.pad)
           if (p.days != null) setDays(p.days)
         } else if (p) {
-          // The local cache is newer — a reload landed inside the 800ms save
+          // The local cache is newer - a reload landed inside the 800ms save
           // debounce, so the server missed the last edit. Keep local state and
           // push it up instead of letting the stale copy clobber it.
           api.put('/stats/dashboard', { data: latest.current }).catch(() => {})
@@ -1999,7 +1965,7 @@ export function StatsPage() {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(state))
     } catch {
-      // storage unavailable — the dashboard still works, it just won't persist
+      // storage unavailable - the dashboard still works, it just won't persist
     }
     if (!serverReady.current) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -2205,7 +2171,7 @@ export function StatsPage() {
         .lab-editing .react-grid-item > .react-resizable-handle::after { border-color: var(--primary, #6366f1); border-width: 0 2px 2px 0; width: 9px; height: 9px; }
         /* corner handle sits above the edge strips so diagonal resize stays grabbable */
         .lab-editing .react-grid-item > .react-resizable-handle-se { width: 22px; height: 22px; right: 0; bottom: 0; cursor: se-resize; z-index: 31; }
-        /* transform: none — react-resizable's base CSS rotates edge handles 45°,
+        /* transform: none - react-resizable's base CSS rotates edge handles 45°,
            which turns these strips into huge invisible boxes that steal clicks
            from the tile header buttons and body content. The strips also stop
            short of the corner so they never cover the se handle. */
@@ -2370,7 +2336,7 @@ export function StatsPage() {
               {tabMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onPointerDown={() => setTabMenuOpen(false)} />
-                  <div className="absolute left-0 top-full z-50 mt-1.5 w-52 rounded-xl border border-border bg-card p-1 text-[13px] shadow-xl">
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-60 rounded-xl bg-card p-1.5 text-[14px] shadow-lg ring-1 ring-panel-ring">
                     <button
                       type="button"
                       onClick={() => addTabWith(t`New board`, [], [], true)}
@@ -2392,8 +2358,8 @@ export function StatsPage() {
                     >
                       <Upload className="h-3.5 w-3.5 text-muted-foreground" /> <Trans>Import board…</Trans>
                     </button>
-                    <div className="my-1 border-t border-border" />
-                    <p className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Start from default</Trans></p>
+                    <div className="my-1 border-t border-border/70" />
+                    <p className="px-2.5 py-1 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Start from default</Trans></p>
                     {TAB_DEFS.map((d) => (
                       <button
                         key={d.id}
@@ -2516,23 +2482,23 @@ export function StatsPage() {
         <AddWidgetModal ctx={{ stats, estimates, goals, reloadGoals }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
       )}
 
-      {/* undo bar — tile removal and board deletion are recoverable for ~6s */}
+      {/* undo bar - tile removal and board deletion are recoverable for ~6s */}
       {undo && (
-        <div className="fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-xl">
-          <span className="text-muted-foreground">{undo.label}</span>
-          <button
-            type="button"
+        <div className="fixed bottom-6 left-1/2 z-[70] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-1 rounded-full bg-card py-1.5 pl-5 pr-1.5 text-[14px] shadow-lg ring-1 ring-panel-ring">
+          <span className="mr-2 truncate text-muted-foreground">{undo.label}</span>
+          <Pill
+            variant="quiet"
+            className="text-primary hover:text-primary"
             onClick={() => {
               undo.restore()
               setUndo(null)
             }}
-            className="font-medium text-primary transition hover:underline"
           >
             <Trans>Undo</Trans>
-          </button>
-          <button type="button" onClick={() => setUndo(null)} aria-label={t`Dismiss`} className="rounded p-0.5 text-muted-foreground transition hover:text-foreground">
-            <X className="h-3.5 w-3.5" />
-          </button>
+          </Pill>
+          <Pill icon variant="quiet" onClick={() => setUndo(null)} aria-label={t`Dismiss`}>
+            <X className="h-4 w-4" />
+          </Pill>
         </div>
       )}
     </AppShell>

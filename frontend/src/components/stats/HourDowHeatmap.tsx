@@ -123,7 +123,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
           // re-anchor position:fixed to the tile and trap z-index in its stacking
           // context, putting the tooltip far from the cursor and behind siblings.
           <div
-            className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
+            className="fixed z-50 pointer-events-none bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]"
             style={{
               left: Math.min(tooltip.x + 12, window.innerWidth - 180),
               top: tooltip.y - 44,

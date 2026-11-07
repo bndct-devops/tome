@@ -6,15 +6,15 @@ interface StatTileProps {
   value: string
 }
 
-/** Compact labelled metric tile — used in reading stats cards. */
+/** Compact labelled metric tile - used in reading stats cards. */
 export function StatTile({ icon, label, value }: StatTileProps) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 px-2.5 py-1.5 flex flex-col gap-0.5">
-      <div className="flex items-center gap-1 text-muted-foreground/60">
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
-        <p className="text-xs">{label}</p>
+        <p className="text-[13px]">{label}</p>
       </div>
-      <p className="text-sm font-medium text-foreground tabular-nums">{value}</p>
+      <p className="text-[15px] font-semibold text-foreground tabular-nums">{value}</p>
     </div>
   )
 }

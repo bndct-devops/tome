@@ -154,8 +154,8 @@ export interface SessionEntry {
 
 export function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{title}</h3>
+    <div className="bg-card rounded-[var(--radius-panel)] p-5 flex flex-col gap-3">
+      <h3 className="text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]">{title}</h3>
       {children}
     </div>
   )
@@ -163,7 +163,7 @@ export function ChartCard({ title, children }: { title: string; children: ReactN
 
 export function ChartTooltip({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs">{children}</div>
+    <div className="bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]">{children}</div>
   )
 }
 
@@ -272,7 +272,7 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
           // re-anchor position:fixed to the tile and trap z-index in its stacking
           // context, putting the tooltip far from the cursor and behind siblings.
           <div
-            className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
+            className="fixed z-50 pointer-events-none bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]"
             style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 180), top: tooltip.y - 44 }}
           >
             <div className="font-medium">{formatDate(tooltip.date)}</div>
