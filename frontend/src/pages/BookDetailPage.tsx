@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Camera, Download, Edit2, X, Trash2, Loader2, Sparkles, Library as LibraryIcon, Check,
@@ -23,7 +22,9 @@ import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
-import { PageBody, SectionTitle, Stat, StatStrip, Field, Pill } from '@/components/page'
+import { PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Textarea, FormLabel, INPUT_CLASS } from '@/components/page'
+import { ModalShell, isModalOpen } from '@/components/ModalShell'
+import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
 import { SessionLog, SessionLogHint } from '@/components/stats/SessionLog'
 import { InfoHint } from '@/components/InfoHint'
@@ -170,7 +171,8 @@ async function downloadFile(book: BookDetail, f: BookFile) {
   const resp = await fetch(`/api/books/${book.id}/download/${f.id}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
-  if (!resp.ok) throw new Error('Download failed')
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- internal, the caller toasts its own message
+  if (!resp.ok) throw new Error('download failed')
   const blob = await resp.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -275,8 +277,20 @@ export function BookDetailPage() {
         setLibMenuOpen(false)
       }
     }
+    // Escape closes the menu and stops there: the page's own Escape (go back)
+    // listens on window in the bubble phase and never sees it.
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      setLibMenuOpen(false)
+    }
     document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('keydown', onKey, true)
+    }
   }, [libMenuOpen])
 
   useEffect(() => {
@@ -286,8 +300,18 @@ export function BookDetailPage() {
         setDownloadMenuOpen(false)
       }
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      setDownloadMenuOpen(false)
+    }
     document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('keydown', onKey, true)
+    }
   }, [downloadMenuOpen])
 
   useEffect(() => {
@@ -309,11 +333,18 @@ export function BookDetailPage() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) return
+      // A dialog (ModalShell, the quick look) owns the keyboard while open.
+      if (isModalOpen() || quickLookId != null) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (e.key === 'Escape') {
-        // The quick look closes itself on Esc; do not also leave the page.
-        if (quickLookId != null) return
+        // The page's own overlays first: an open menu closes itself (capture
+        // listeners above); the inline delete confirm cancels; Edit mode never
+        // leaves the page with unsaved changes behind.
+        if (libMenuOpen || downloadMenuOpen || kosyncPickerOpen) return
+        if (confirmDelete) { e.preventDefault(); setConfirmDelete(false); return }
+        if (editing) return
         e.preventDefault()
         navigate(-1)
         return
@@ -338,7 +369,7 @@ export function BookDetailPage() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate, book, editing, canEdit, quickLookId])
+  }, [navigate, book, editing, canEdit, quickLookId, libMenuOpen, downloadMenuOpen, kosyncPickerOpen, confirmDelete])
 
   useEffect(() => {
     if (!id) return
@@ -416,10 +447,10 @@ export function BookDetailPage() {
   }
 
   const STATUS_LABEL: Record<ReadingStatus, string> = {
-    unread: t`Marked unread — reading progress cleared`,
+    unread: t`Marked unread, reading progress cleared`,
     reading: t`Marked as reading`,
     read: t`Marked as read`,
-    shelved: t`Shelved — kept your progress`,
+    shelved: t`Shelved, kept your progress`,
     want_to_read: t`Added to Want to Read`,
   }
 
@@ -601,7 +632,7 @@ export function BookDetailPage() {
       await api.put(`/annotations/${annotationId}`, { note })
       setAnnotations(prev => prev.map(a => (a.id === annotationId ? { ...a, note } : a)))
       setEditingNoteId(null)
-      toast.success(note ? t`Note saved — syncs to your devices` : t`Note removed`)
+      toast.success(note ? t`Note saved, syncs to your devices` : t`Note removed`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t`Failed to save note`)
     }
@@ -612,7 +643,7 @@ export function BookDetailPage() {
     setDownloadMenuOpen(false)
     setDownloadingId(f.id)
     try { await downloadFile(book, f) }
-    catch (e) { setError(e instanceof Error ? e.message : t`Download failed`) }
+    catch { toast.error(t`Download failed`) }
     finally { setDownloadingId(null) }
   }
 
@@ -625,9 +656,9 @@ export function BookDetailPage() {
   const seriesHref = book.series ? `/?tab=series&series_detail=${encodeURIComponent(book.series)}` : null
   const shortDay = (d: Date) => d.toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
-  const inputCls = 'w-full rounded-lg bg-secondary px-3 py-1.5 text-[15px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring'
+  const inputCls = INPUT_CLASS
   const smallCaps = 'text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
-  const menuCls = 'absolute top-full mt-1.5 z-40 min-w-52 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl'
+  const menuCls = 'absolute top-full mt-1.5 z-40 min-w-52 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring'
   /* eslint-enable lingui/no-unlocalized-strings */
 
   const STATUS_PILLS: { id: ReadingStatus; label: string; title?: string }[] = [
@@ -698,8 +729,8 @@ export function BookDetailPage() {
         </Pill>
       )}
       {canEdit && book.content_type !== 'chapter' && (
-        <Pill variant="quiet" onClick={() => setFetchModalOpen(true)} aria-label={t`Fetch Metadata`}>
-          <Sparkles className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Fetch Metadata</Trans></span>
+        <Pill variant="quiet" onClick={() => setFetchModalOpen(true)} aria-label={t`Fetch metadata`}>
+          <Sparkles className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Fetch metadata</Trans></span>
         </Pill>
       )}
       {canEdit && libraries.some(l => l.can_edit) && (
@@ -714,27 +745,31 @@ export function BookDetailPage() {
             )}
           </Pill>
           {libMenuOpen && (
-            <div className={cn(menuCls, 'right-0')}>
-              <p className="border-b border-border px-3 pb-2 pt-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <div role="menu" className={cn(menuCls, 'left-0 w-60 sm:left-auto sm:right-0')}>
+              <p className="px-3 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                 <Trans>Add to library</Trans>
               </p>
               {libraries.filter(l => l.can_edit).map(lib => {
                 const inLib = localLibIds.includes(lib.id)
                 const pending = libPending.has(lib.id)
                 return (
-                  <div key={lib.id} className="flex w-full items-center gap-2 px-3 py-2 text-[14px] hover:bg-secondary transition-colors">
+                  <div key={lib.id} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] hover:bg-secondary transition-colors">
                     {pending
-                      ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-                      : <LibraryIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                      ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                      : <NamedIcon icon={lib.icon} className="h-4 w-4 shrink-0 text-muted-foreground" />}
                     <Link to={`/?tab=books&library_id=${lib.id}`} onClick={() => setLibMenuOpen(false)}
-                      className="flex-1 truncate hover:text-primary transition-colors">
+                      className="min-w-0 flex-1 truncate text-foreground hover:text-primary transition-colors">
                       {lib.name}
                     </Link>
-                    <button onClick={() => toggleLibrary(lib.id)} disabled={pending}
-                      className="shrink-0 rounded p-0.5 hover:bg-muted transition-colors disabled:opacity-60"
+                    <button type="button" role="menuitemcheckbox" aria-checked={inLib}
+                      onClick={() => toggleLibrary(lib.id)} disabled={pending}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-surface-hover transition-colors disabled:opacity-60"
                       title={inLib ? t`Remove from library` : t`Add to library`}
                       aria-label={inLib ? t`Remove from library` : t`Add to library`}>
-                      <Check className={cn('h-3.5 w-3.5', inLib ? 'text-primary' : 'text-muted-foreground/30')} />
+                      <span className={cn('grid h-[18px] w-[18px] place-items-center rounded-[5px] transition-colors',
+                        inLib ? 'bg-primary' : 'ring-1 ring-border')}>
+                        {inLib && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+                      </span>
                     </button>
                   </div>
                 )
@@ -790,30 +825,29 @@ export function BookDetailPage() {
     </div>
   ) : null
 
-  const wordsValue = book.word_count != null
-    ? (() => { const words = book.word_count.toLocaleString(i18n.locale); return t`${words} words` })()
-    : null
+  // The label says "Words"; the value is the number alone.
+  const wordsValue = book.word_count != null ? book.word_count.toLocaleString(i18n.locale) : null
 
   const details = editing ? (
     <div className="grid grid-cols-1 gap-y-3">
-      <EditField label={t`Year`} value={field('year') ?? ''} onChange={v => setField('year', v)} type="number" placeholder="2024" className={inputCls} />
-      <EditField label={t`Language`} value={field('language') ?? ''} onChange={v => setField('language', v)} placeholder="en" className={inputCls} />
-      <EditField label={t`ISBN`} value={field('isbn') ?? ''} onChange={v => setField('isbn', v)} placeholder="978-..." className={inputCls} />
-      <EditField label={t`Publisher`} value={field('publisher') ?? ''} onChange={v => setField('publisher', v)} placeholder={t`Publisher`} className={inputCls} />
-      <label className="block">
-        <span className="text-[13px] text-muted-foreground"><Trans>Type</Trans></span>
-        <select value={draftBookTypeId ?? ''} onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)} className={cn(inputCls, 'mt-1')}>
+      <EditField label={t`Year`} value={field('year') ?? ''} onChange={v => setField('year', v)} type="number" placeholder="2024" />
+      <EditField label={t`Language`} value={field('language') ?? ''} onChange={v => setField('language', v)} placeholder="en" />
+      <EditField label={t`ISBN`} value={field('isbn') ?? ''} onChange={v => setField('isbn', v)} placeholder="978-..." />
+      <EditField label={t`Publisher`} value={field('publisher') ?? ''} onChange={v => setField('publisher', v)} placeholder={t`Publisher`} />
+      <div>
+        <FormLabel htmlFor="edit-type"><Trans>Type</Trans></FormLabel>
+        <Select id="edit-type" value={draftBookTypeId ?? ''} onChange={e => setDraftBookTypeId(e.target.value ? Number(e.target.value) : null)}>
           <option value="">{t`No type`}</option>
           {bookTypes.map(bt => <option key={bt.id} value={bt.id}>{bt.label}</option>)}
-        </select>
-      </label>
-      <label className="block">
-        <span className="text-[13px] text-muted-foreground"><Trans>Content</Trans></span>
-        <select value={draft.content_type ?? 'volume'} onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))} className={cn(inputCls, 'mt-1')}>
+        </Select>
+      </div>
+      <div>
+        <FormLabel htmlFor="edit-content"><Trans>Content</Trans></FormLabel>
+        <Select id="edit-content" value={draft.content_type ?? 'volume'} onChange={e => setDraft(d => ({ ...d, content_type: e.target.value }))}>
           <option value="volume">{t`Volume`}</option>
           <option value="chapter">{t`Chapter`}</option>
-        </select>
-      </label>
+        </Select>
+      </div>
     </div>
   ) : (
     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
@@ -843,7 +877,7 @@ export function BookDetailPage() {
       )}
       {typeLabel && <Field label={t`Type`} value={typeLabel} />}
       <Field label={t`Content`} value={book.content_type === 'chapter' ? t`Chapter` : t`Volume`} />
-      {wordsValue && <Field label={t`Words`} value={wordsValue} />}
+      {wordsValue && <Field label={t`Words`} value={<span className="tabular-nums">{wordsValue}</span>} />}
       {book.publisher && <Field label={t`Publisher`} value={book.publisher} />}
       {book.isbn && <Field label={t`ISBN`} value={<span className="break-all tabular-nums">{book.isbn}</span>} />}
     </div>
@@ -851,7 +885,7 @@ export function BookDetailPage() {
 
   const genres = editing ? (
     <div>
-      <div className="mb-2 text-[13px] text-muted-foreground"><Trans>Genres</Trans></div>
+      <FormLabel><Trans>Genres</Trans></FormLabel>
       {draftTags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {draftTags.map(tag => (
@@ -919,18 +953,32 @@ export function BookDetailPage() {
   // ── Hero: series, title, author, status, progress, actions, sync, rating ───
 
   const heroTitle = editing ? (
-    <div className="flex flex-col gap-2">
-      <input value={field('title') ?? ''} onChange={e => setField('title', e.target.value)} placeholder={t`Title`}
-        className={cn(inputCls, 'font-display text-[24px] font-bold py-2')} />
-      <input value={field('subtitle') ?? ''} onChange={e => setField('subtitle', e.target.value)} placeholder={t`Subtitle (optional)`}
-        className={inputCls} />
-      <AutocompleteInput value={field('author') ?? ''} onChange={v => setField('author', v)} suggestions={facets.authors}
-        placeholder={t`Author`} className={inputCls} />
-      <div className="flex gap-2">
-        <AutocompleteInput value={field('series') ?? ''} onChange={v => setField('series', v)} suggestions={facets.series}
-          placeholder={t`Series name`} className={cn(inputCls, 'flex-1 min-w-0')} />
-        <input value={field('series_index') ?? ''} onChange={e => setField('series_index', e.target.value)} type="number" step="0.1"
-          placeholder="#" className={cn(inputCls, 'w-24')} />
+    <div className="flex flex-col gap-4">
+      <div>
+        <FormLabel htmlFor="edit-title"><Trans>Title</Trans></FormLabel>
+        <Input id="edit-title" value={field('title') ?? ''} onChange={e => setField('title', e.target.value)} placeholder={t`Title`}
+          className="h-12 font-display text-[22px] font-bold" />
+      </div>
+      <div>
+        <FormLabel htmlFor="edit-subtitle" hint={t`optional`}><Trans>Subtitle</Trans></FormLabel>
+        <Input id="edit-subtitle" value={field('subtitle') ?? ''} onChange={e => setField('subtitle', e.target.value)} placeholder={t`Subtitle`} />
+      </div>
+      <div>
+        <FormLabel><Trans>Author</Trans></FormLabel>
+        <AutocompleteInput value={field('author') ?? ''} onChange={v => setField('author', v)} suggestions={facets.authors}
+          placeholder={t`Author`} className={inputCls} />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
+        <div className="min-w-0">
+          <FormLabel><Trans>Series</Trans></FormLabel>
+          <AutocompleteInput value={field('series') ?? ''} onChange={v => setField('series', v)} suggestions={facets.series}
+            placeholder={t`Series name`} className={inputCls} />
+        </div>
+        <div>
+          <FormLabel htmlFor="edit-volume"><Trans>Volume</Trans></FormLabel>
+          <Input id="edit-volume" value={field('series_index') ?? ''} onChange={e => setField('series_index', e.target.value)} type="number" step="0.1"
+            placeholder="#" className="tabular-nums" />
+        </div>
       </div>
     </div>
   ) : (
@@ -1015,7 +1063,7 @@ export function BookDetailPage() {
         <div className={cn(menuCls, 'left-0 min-w-44')}>
           {book.files.map(f => (
             <button key={f.id} type="button" onClick={() => downloadOne(f)} disabled={downloadingId === f.id}
-              className="flex w-full items-center justify-between gap-4 px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors disabled:opacity-60">
+              className="flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors disabled:opacity-60">
               <span className="flex items-center gap-2 font-medium uppercase"><Download className="h-3.5 w-3.5 text-muted-foreground" />{f.format}</span>
               {f.file_size ? <span className="text-[13px] tabular-nums text-muted-foreground">{formatBytes(f.file_size)}</span> : null}
             </button>
@@ -1075,14 +1123,14 @@ export function BookDetailPage() {
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[14px] text-muted-foreground"><Trans>Synced document</Trans></span>
-          <select value={kosyncLinkDoc} onChange={e => setKosyncLinkDoc(e.target.value)}
-            className="h-9 max-w-[18rem] rounded-lg bg-secondary px-2.5 text-[14px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+          <Select value={kosyncLinkDoc} onChange={e => setKosyncLinkDoc(e.target.value)} aria-label={t`Synced document`}
+            className="w-auto max-w-[18rem]">
             {kosyncUnlinked.map(d => (
               <option key={d.document} value={d.document}>
                 {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString(i18n.locale)} · {d.document.slice(0, 8)}
               </option>
             ))}
-          </select>
+          </Select>
           <Pill disabled={kosyncLinking || !kosyncLinkDoc} onClick={linkKosyncDocument}>
             {kosyncLinking ? t`Linking…` : t`Link`}
           </Pill>
@@ -1106,14 +1154,14 @@ export function BookDetailPage() {
         )}
       </div>
       {editingReview ? (
-        <textarea
+        <Textarea
           value={reviewDraft}
           onChange={e => setReviewDraft(e.target.value)}
           onBlur={saveReview}
           autoFocus
           rows={3}
           placeholder={t`What did you think? (optional, saved automatically)`}
-          className={cn(inputCls, 'mt-3 resize-y py-2 leading-relaxed')}
+          className="mt-3 text-[15px]"
         />
       ) : review ? (
         <div className="group/review relative mt-3 border-l-2 border-primary/30 pl-3">
@@ -1144,8 +1192,8 @@ export function BookDetailPage() {
     <section className="max-w-[720px]">
       <SectionTitle size={20}><Trans>Description</Trans></SectionTitle>
       {editing ? (
-        <textarea value={field('description') ?? ''} onChange={e => setField('description', e.target.value)} rows={8}
-          placeholder={t`No description`} className={cn(inputCls, 'mt-3 resize-y py-2 leading-relaxed')} />
+        <Textarea value={field('description') ?? ''} onChange={e => setField('description', e.target.value)} rows={8}
+          placeholder={t`No description`} className="mt-3 text-[15px]" aria-label={t`Description`} />
       ) : book.description ? (
         <>
           <p ref={descRef} className={cn('mt-3 text-[15px] leading-relaxed text-foreground/85', !descExpanded && 'line-clamp-4')}>
@@ -1208,7 +1256,7 @@ export function BookDetailPage() {
   ) : null
 
   const highlightsSection = annotations.length > 0 ? (
-    <section className="max-w-[720px]">
+    <section>
       <div className="flex items-baseline justify-between gap-4">
         <button type="button" onClick={() => setHighlightsOpen(o => !o)} aria-expanded={highlightsOpen}
           className="flex items-center gap-2 text-left">
@@ -1226,20 +1274,20 @@ export function BookDetailPage() {
           {annotations.map((a, i) => (
             <li key={a.id} className={cn('group py-4', i > 0 && 'border-t border-border/70')}>
               {a.highlighted_text && (
-                <p className="text-[15px] leading-relaxed text-foreground/90">{a.highlighted_text}</p>
+                <p className="max-w-[720px] text-[15px] leading-relaxed text-foreground/90">{a.highlighted_text}</p>
               )}
               {editingNoteId === a.id ? (
-                <div className="mt-2.5 flex flex-col gap-2">
-                  <textarea value={editingNoteDraft} onChange={e => setEditingNoteDraft(e.target.value)} autoFocus rows={2}
+                <div className="mt-2.5 flex max-w-[720px] flex-col gap-2">
+                  <Textarea value={editingNoteDraft} onChange={e => setEditingNoteDraft(e.target.value)} autoFocus rows={2}
                     placeholder={t`Your note, syncs back to KOReader on the next sync`}
-                    className={cn(inputCls, 'py-2 text-[14px]')} />
+                    className="min-h-[64px]" />
                   <span className="flex items-center gap-1.5">
                     <Pill variant="primary" onClick={() => saveHighlightNote(a.id)}><Trans>Save note</Trans></Pill>
                     <Pill variant="quiet" onClick={() => setEditingNoteId(null)}><Trans>Cancel</Trans></Pill>
                   </span>
                 </div>
               ) : a.note ? (
-                <p className="mt-1.5 flex items-start gap-1.5 text-[14px] text-muted-foreground">
+                <p className="mt-1.5 flex max-w-[720px] items-start gap-1.5 text-[14px] text-muted-foreground">
                   <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="leading-relaxed">{a.note}</span>
                 </p>
@@ -1324,6 +1372,10 @@ export function BookDetailPage() {
 
   return (
     <AppShell>
+      {/* Phones: the app-wide keyboard-shortcut button (App.tsx) sits over the
+          book's action pills, and a phone has no keyboard to use it with. */}
+      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
+      <style>{'@media (max-width: 767px) { button[title^="Keyboard shortcuts"] { display: none !important; } }'}</style>
       <PageBody width="wide">
         {/* The page header for a book: where you are on the left, the page's
             actions on the right. The hero's h1 is the title. */}
@@ -1411,6 +1463,11 @@ export function ActivityChart({ timeline, bookId, onChange }: {
   // Click-through: a bar opens that day's sessions for quick trim/delete —
   // e.g. an accidentally imported sitting, without scrolling to the full log.
   const [dayOpen, setDayOpen] = useState<string | null>(null)
+  // The day stays on screen while the dialog animates out.
+  const [shownDay, setShownDay] = useState<string | null>(null)
+  if (dayOpen && dayOpen !== shownDay) setShownDay(dayOpen)
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
+  const dayLabel = shownDay ? new Date(shownDay + 'T00:00:00').toLocaleDateString(i18n.locale, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''
   if (timeline.length < 2) return null
   // Real time axis: fill the calendar days between the first and last reading
   // day with zero bars. Active-days-only bars, evenly spaced, misrepresent the
@@ -1464,7 +1521,7 @@ export function ActivityChart({ timeline, bookId, onChange }: {
             const tip = t`${dayStr}: ${mins}m` +
               (pages > 0 ? t`, ${pages} pages` : '') +
               (prog != null ? t` · ${prog}% in` : '') +
-              (clickable ? t` — click for sessions` : '')
+              (clickable ? t`, click for sessions` : '')
             return (
               <div
                 key={d.date}
@@ -1484,34 +1541,18 @@ export function ActivityChart({ timeline, bookId, onChange }: {
         <span>{first?.date ? fmtDay(first.date) : ''}</span>
         <span>{last?.date ? fmtDay(last.date) : ''}</span>
       </div>
-      {dayOpen && bookId != null && createPortal(
-        <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setDayOpen(null)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <div className="pointer-events-auto flex max-h-[70vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
-              <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
-                <span className="flex items-center gap-1.5">
-                  <h2 className="font-display text-sm text-foreground">
-                    {(() => { const d = new Date(dayOpen + 'T00:00:00').toLocaleDateString(i18n.locale, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); return t`Sessions · ${d}` })()}
-                  </h2>
-                  <SessionLogHint />
-                </span>
-                <button
-                  type="button"
-                  aria-label={t`Close`}
-                  onClick={() => setDayOpen(null)}
-                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="overflow-y-auto px-5 py-3">
-                <SessionLog bookId={bookId} day={dayOpen} onChange={onChange} />
-              </div>
-            </div>
-          </div>
-        </>,
-        document.body,
+      {bookId != null && (
+        <ModalShell
+          open={dayOpen != null}
+          onClose={() => setDayOpen(null)}
+          eyebrow={<Trans>Sessions</Trans>}
+          title={dayLabel}
+          headerActions={<SessionLogHint />}
+          size="lg"
+          footer={<Pill variant="quiet" onClick={() => setDayOpen(null)}><Trans>Close</Trans></Pill>}
+        >
+          {shownDay && <SessionLog bookId={bookId} day={shownDay} onChange={onChange} />}
+        </ModalShell>
       )}
       {hasJourney && lanePts.length > 1 && (
         <div className="mt-3">
@@ -1599,7 +1640,7 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
     <section>
       <ChartSectionTitle
         title={<Trans>Reading intensity</Trans>}
-        hint={t`Where in the book your time went — taller means more time spent on those pages.`}
+        hint={t`Where in the book your time went. Taller means more time spent on those pages.`}
         foot={<>
           <span className="font-medium tabular-nums text-foreground">{data.pages_read.toLocaleString()}</span>
           {' '}{(() => { const totalPages = data.total_pages.toLocaleString(); return <Trans>of {totalPages} pages</Trans> })()}
@@ -1609,7 +1650,7 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
         action={
           <Pill variant="destructive" icon className="-my-2 -mr-2" onClick={() => setConfirmClear(o => !o)}
             aria-label={t`Clear imported history`}
-            title={t`Clear imported history — remove this book's KOReader page data`}>
+            title={t`Clear imported history: remove this book's KOReader page data`}>
             <Trash2 className="h-4 w-4" />
           </Pill>
         }
@@ -1691,7 +1732,7 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
                 />
               </span>
               <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                {c.seconds <= 0 ? '—' : c.seconds < 60 ? '<1m' : formatDuration(c.seconds)}
+                {c.seconds <= 0 ? '-' : c.seconds < 60 ? '<1m' : formatDuration(c.seconds)}
               </span>
             </li>
           ))}
@@ -1830,57 +1871,51 @@ export function ManualLogControls({ bookId, onChange, exportRows }: {
   }
 
   const canExport = exportRows != null && exportRows.length > 0
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-  const chip = 'rounded-md border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors'
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <button
-          type="button"
-          onClick={() => setLogging(o => !o)}
-          className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
-        >
-          <Plus className="w-4 h-4" /> <Trans>Log session</Trans>
-        </button>
+      <div className="-ml-3 flex flex-wrap items-center gap-1">
+        <Pill variant="quiet" onClick={() => setLogging(o => !o)} aria-expanded={logging}
+          className={cn(logging && 'bg-secondary text-foreground')}>
+          <Plus className="h-4 w-4" /> <Trans>Log session</Trans>
+        </Pill>
         {canExport && (
-          <div className="flex items-center gap-1.5">
-            <Download className="w-3.5 h-3.5 text-muted-foreground/50" />
-            <button type="button" onClick={() => exportSessions('csv')} className={chip}>CSV</button>
-            <button type="button" onClick={() => exportSessions('json')} className={chip}>JSON</button>
-          </div>
+          <>
+            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- file format names */}
+            <Pill variant="quiet" onClick={() => exportSessions('csv')} title={t`Export the reading log as CSV`}><Download className="h-4 w-4" />CSV</Pill>
+            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- file format names */}
+            <Pill variant="quiet" onClick={() => exportSessions('json')} title={t`Export the reading log as JSON`}><Download className="h-4 w-4" />JSON</Pill>
+          </>
         )}
       </div>
       {logging && (
         <form onSubmit={submitLog} className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground/70"><Trans>Minutes</Trans></span>
-            <input
+          <div>
+            <FormLabel htmlFor={`log-minutes-${bookId}`}><Trans>Minutes</Trans></FormLabel>
+            <Input
+              id={`log-minutes-${bookId}`}
               type="number" min="1" step="1" required autoFocus
               value={minutes} onChange={e => setMinutes(e.target.value)}
-              className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-24 tabular-nums"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground/70"><Trans>Progress % <span className="text-muted-foreground/40">(optional)</span></Trans></span>
-            <input
+          </div>
+          <div>
+            <FormLabel htmlFor={`log-pct-${bookId}`} hint={t`optional`}><Trans>Progress %</Trans></FormLabel>
+            <Input
+              id={`log-pct-${bookId}`}
               type="number" min="0" max="100" step="1"
               value={pct} onChange={e => setPct(e.target.value)}
-              className="w-28 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-28 tabular-nums"
             />
-          </label>
-          <button
-            type="submit" disabled={saving || !minutes}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {saving ? t`Saving…` : t`Add`}
-          </button>
-          <button
-            type="button" onClick={() => { setLogging(false); setMinutes(''); setPct('') }}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <Trans>Cancel</Trans>
-          </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Pill variant="quiet" onClick={() => { setLogging(false); setMinutes(''); setPct('') }}>
+              <Trans>Cancel</Trans>
+            </Pill>
+            <Pill type="submit" variant="primary" disabled={saving || !minutes}>
+              {saving ? t`Saving…` : t`Add session`}
+            </Pill>
+          </div>
         </form>
       )}
     </div>
@@ -1993,19 +2028,19 @@ function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
   )
 }
 
-function EditField({ label, value, onChange, type = 'text', placeholder = '', className }: {
+function EditField({ label, value, onChange, type = 'text', placeholder = '' }: {
   label: string
   value: string
   onChange: (v: string) => void
   type?: string
   placeholder?: string
-  className?: string
 }) {
+  const id = useId()
   return (
-    <label className="block">
-      <span className="text-[13px] text-muted-foreground">{label}</span>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cn(className, 'mt-1')} />
-    </label>
+    <div>
+      <FormLabel htmlFor={id}>{label}</FormLabel>
+      <Input id={id} type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+    </div>
   )
 }
 

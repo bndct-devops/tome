@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Send, X, Loader2, AlertTriangle } from 'lucide-react'
+import { Send, Loader2, AlertTriangle } from 'lucide-react'
 import { BookAnimation } from '@/components/BookAnimation'
 import { ModalShell } from '@/components/ModalShell'
+import { FormLabel, Pill, Select } from '@/components/page'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { BookFile } from '@/lib/books'
@@ -96,145 +97,112 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
   }
 
   const selectedFile = singleBook?.files.find(f => f.id === selectedFileId)
+  const goSettings = () => { onClose(); navigate('/settings') }
+  const blocked = !loading && (smtpConfigured === false || devices.length === 0)
+
+  const footer = loading ? (
+    <Pill variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
+  ) : blocked ? (
+    <>
+      <Pill variant="quiet" onClick={onClose}><Trans>Close</Trans></Pill>
+      <Pill variant="primary" onClick={goSettings}><Trans>Go to Settings</Trans></Pill>
+    </>
+  ) : (
+    <>
+      <Pill variant="quiet" onClick={onClose} disabled={sending}><Trans>Cancel</Trans></Pill>
+      <Pill variant="primary" onClick={handleSend} disabled={sending || !selectedDevice}>
+        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        {sending ? t`Sending…` : isBulk ? plural(books.length, { one: 'Send # book', other: 'Send # books' }) : t`Send`}
+      </Pill>
+    </>
+  )
 
   return (
-    <ModalShell open={open} onClose={onClose} className="w-full max-w-md">
-        <div className="bg-card border border-border rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Send className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground"><Trans>Send to Device</Trans></h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="p-5 space-y-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : sending ? (
-              <div className="flex flex-col items-center justify-center py-6 gap-3">
-                <BookAnimation variant="send" className="block w-16 h-16 text-primary" />
-                <p className="text-sm font-medium text-foreground">
-                  <Trans>Sending</Trans><span className="dots-anim"><span>.</span><span>.</span><span>.</span></span>
-                </p>
-              </div>
-            ) : smtpConfigured === false ? (
-              <div className="text-center py-4 space-y-2">
-                <AlertTriangle className="w-8 h-8 text-warning mx-auto" />
-                <p className="text-sm font-medium text-foreground"><Trans>Email delivery is not set up yet</Trans></p>
-                <p className="text-xs text-muted-foreground">
-                  <Trans>See Settings for setup instructions.</Trans>
-                </p>
-                <button
-                  onClick={() => { onClose(); navigate('/settings') }}
-                  className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                >
-                  <Trans>Go to Settings</Trans>
-                </button>
-              </div>
-            ) : devices.length === 0 ? (
-              <div className="text-center py-4 space-y-2">
-                <Send className="w-8 h-8 text-muted-foreground mx-auto" />
-                <p className="text-sm font-medium text-foreground"><Trans>No devices configured</Trans></p>
-                <p className="text-xs text-muted-foreground">
-                  <Trans>Add a device in Settings to start sending books.</Trans>
-                </p>
-                <button
-                  onClick={() => { onClose(); navigate('/settings') }}
-                  className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                >
-                  <Trans>Go to Settings</Trans>
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Book info */}
-                {singleBook && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1"><Trans>Book</Trans></p>
-                    <p className="text-sm text-foreground truncate">{singleBook.title}</p>
-                  </div>
-                )}
-                {isBulk && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1"><Trans>Books</Trans></p>
-                    <p className="text-sm text-foreground">{books.length} book{books.length !== 1 ? 's' : ''} selected</p>
-                  </div>
-                )}
-
-                {/* Device selector */}
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Device</Trans></label>
-                  <select
-                    value={selectedDevice ?? ''}
-                    onChange={e => setSelectedDevice(Number(e.target.value))}
-                    className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    {devices.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.email})</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Format selector (single book with multiple files) */}
-                {singleBook && singleBook.files.length > 1 && (
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Format</Trans></label>
-                    <select
-                      value={selectedFileId ?? ''}
-                      onChange={e => setSelectedFileId(Number(e.target.value))}
-                      className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      {singleBook.files.map(f => (
-                        <option key={f.id} value={f.id}>
-                          {f.format.toUpperCase()} {f.file_size ? `(${formatBytes(f.file_size)})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* File size info */}
-                {selectedFile?.file_size && (
-                  <p className="text-xs text-muted-foreground">
-                    {(() => { const size = formatBytes(selectedFile.file_size); return <Trans>File size: {size}</Trans> })()}
-                    {selectedFile.file_size > 25 * 1024 * 1024 && (
-                      <span className="text-warning ml-1"><Trans>(exceeds 25 MB email limit)</Trans></span>
-                    )}
-                  </p>
-                )}
-
-                {/* Send button */}
-                <button
-                  onClick={handleSend}
-                  disabled={sending || !selectedDevice}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
-                >
-                  {sending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <Trans>Sending…</Trans>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      {isBulk ? plural(books.length, { one: 'Send # book', other: 'Send # books' }) : t`Send`}
-                    </>
-                  )}
-                </button>
-              </>
-            )}
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      title={<Trans>Send to device</Trans>}
+      size="sm"
+      footer={footer}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : sending ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-6">
+          <BookAnimation variant="send" className="block h-16 w-16 text-primary" />
+          <p className="text-[15px] font-medium text-foreground">
+            <Trans>Sending</Trans><span className="dots-anim"><span>.</span><span>.</span><span>.</span></span>
+          </p>
+        </div>
+      ) : smtpConfigured === false ? (
+        <div className="flex items-start gap-3 border-y border-border/70 py-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <div className="min-w-0">
+            <p className="text-[15px] font-medium text-foreground"><Trans>Email delivery is not set up yet</Trans></p>
+            <p className="mt-0.5 text-[14px] text-muted-foreground"><Trans>See Settings for setup instructions.</Trans></p>
           </div>
         </div>
+      ) : devices.length === 0 ? (
+        <div className="flex items-start gap-3 border-y border-border/70 py-4">
+          <Send className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-[15px] font-medium text-foreground"><Trans>No devices configured</Trans></p>
+            <p className="mt-0.5 text-[14px] text-muted-foreground"><Trans>Add a device in Settings to start sending books.</Trans></p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {/* Book info */}
+          {singleBook && (
+            <div>
+              <FormLabel><Trans>Book</Trans></FormLabel>
+              <p className="truncate text-[15px] text-foreground">{singleBook.title}</p>
+            </div>
+          )}
+          {isBulk && (
+            <div>
+              <FormLabel><Trans>Books</Trans></FormLabel>
+              <p className="text-[15px] text-foreground">{plural(books.length, { one: '# book selected', other: '# books selected' })}</p>
+            </div>
+          )}
+
+          {/* Device selector */}
+          <div>
+            <FormLabel htmlFor="send-device"><Trans>Device</Trans></FormLabel>
+            <Select id="send-device" value={selectedDevice ?? ''} onChange={e => setSelectedDevice(Number(e.target.value))}>
+              {devices.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.email})</option>
+              ))}
+            </Select>
+          </div>
+
+          {/* Format selector (single book with multiple files) */}
+          {singleBook && singleBook.files.length > 1 && (
+            <div>
+              <FormLabel htmlFor="send-format"><Trans>Format</Trans></FormLabel>
+              <Select id="send-format" value={selectedFileId ?? ''} onChange={e => setSelectedFileId(Number(e.target.value))}>
+                {singleBook.files.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.format.toUpperCase()} {f.file_size ? `(${formatBytes(f.file_size)})` : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
+          {/* File size info */}
+          {selectedFile?.file_size && (
+            <p className="text-[13px] text-muted-foreground">
+              {(() => { const size = formatBytes(selectedFile.file_size); return <Trans>File size: {size}</Trans> })()}
+              {selectedFile.file_size > 25 * 1024 * 1024 && (
+                <span className="ml-1 text-warning"><Trans>(exceeds 25 MB email limit)</Trans></span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </ModalShell>
   )
 }
