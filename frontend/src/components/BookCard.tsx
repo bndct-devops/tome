@@ -38,7 +38,7 @@ interface BookCardProps {
   progressPct?: number | null
   rating?: number | null
   index?: number
-  // Home rows are usually all one format — the badge is noise there, so those
+  // Home rows are usually all one format - the badge is noise there, so those
   // callers turn it off. Library grids keep it (that's where formats differ).
   showFormatBadge?: boolean
   /** Opens the quick look for this book. Grid view only: a small pill in the
@@ -153,18 +153,18 @@ export function BookCard({
               </button>
             )}
             {bookType && typeBadgeClass && (
-              <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0', typeBadgeClass)}>
+              <span className={cn('text-[13px] px-1.5 py-0.5 rounded-full font-medium shrink-0', typeBadgeClass)}>
                 {bookType.label}
               </span>
             )}
             <DevicePills bookId={book.id} size="xs" />
           </div>
         </div>
-        {/* Series stays in list view — earns its space there */}
+        {/* Series stays in list view - earns its space there */}
         <div className="hidden sm:block w-40 shrink-0">
           {book.series && (
             <button
-              className="text-xs text-primary/70 hover:text-primary transition-colors truncate w-full text-left py-1.5 -my-1.5"
+              className="text-[13px] text-primary/70 hover:text-primary transition-colors truncate w-full text-left py-1.5 -my-1.5"
               onClick={e => stop(e, () => onSeriesClick?.(book.series!))}
             >
               {book.series}{book.series_index != null ? ` #${book.series_index}` : ''}
@@ -172,7 +172,7 @@ export function BookCard({
           )}
         </div>
         <div className="hidden md:block w-12 shrink-0 text-right">
-          {book.year && <span className="text-xs text-muted-foreground">{book.year}</span>}
+          {book.year && <span className="text-[13px] text-muted-foreground">{book.year}</span>}
         </div>
         {rating ? (
           <div className="hidden sm:flex shrink-0 justify-end">
@@ -180,7 +180,7 @@ export function BookCard({
           </div>
         ) : null}
         {showFormatBadge && book.files.length > 0 && (
-          <span className="shrink-0 text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
+          <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             {book.files[0].format}
           </span>
         )}
@@ -258,7 +258,7 @@ export function BookCard({
           iconClassName={view === 'large' ? 'w-12 h-12' : 'w-8 h-8'}
         />
 
-        {/* Shine/glare overlay — follows mouse */}
+        {/* Shine/glare overlay - follows mouse */}
         {tiltEnabled && (
           <div
             className="absolute inset-0 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
@@ -266,14 +266,14 @@ export function BookCard({
           />
         )}
 
-        {/* Format badge — top right */}
+        {/* Format badge - top right */}
         {showFormatBadge && book.files.length > 0 && (
           <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-background/70 backdrop-blur-sm text-foreground/90 border border-border/50">
             {book.files[0].format}
           </span>
         )}
 
-        {/* Selection checkbox — top left, circular */}
+        {/* Selection checkbox - top left, circular */}
         {onSelect && (
           <div className={cn(
             'absolute top-1.5 left-1.5 transition-opacity',
@@ -290,7 +290,7 @@ export function BookCard({
           </div>
         )}
 
-        {/* Quick look — top left, on hover or keyboard focus. Not while
+        {/* Quick look - top left, on hover or keyboard focus. Not while
             selecting: the selection circle owns that corner then. */}
         {onQuickLook && !onSelect && (
           <button
@@ -311,7 +311,7 @@ export function BookCard({
           </button>
         )}
 
-        {/* Quick-read button — bottom right, hover only */}
+        {/* Quick-read button - bottom right, hover only */}
         {hasReadableFile && (
           <button
             className={cn(
@@ -329,7 +329,7 @@ export function BookCard({
           </button>
         )}
 
-        {/* Reading progress strip — bottom edge */}
+        {/* Reading progress strip - bottom edge */}
         {barWidth > 0 && (
           <div className="absolute inset-x-0 bottom-0 h-1.5 bg-background/40">
             <div
@@ -340,7 +340,7 @@ export function BookCard({
         )}
       </div>
 
-      {/* Info — bare below the cover, no border/card wrapper */}
+      {/* Info - bare below the cover, no border/card wrapper */}
       <div className="flex flex-col gap-0.5 pt-2.5 px-0.5">
         <p className="text-[14px] font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary">
           {book.title}

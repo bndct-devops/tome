@@ -1,4 +1,4 @@
-// Settings → Share links: every public link you've minted, in one place —
+// Settings → Share links: every public link you've minted, in one place  - 
 // what it points at, when it expires, copy and revoke.
 import { useEffect, useState } from 'react'
 import { Book, Bookmark, Check, Copy, Layers, Trash2 } from 'lucide-react'

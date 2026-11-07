@@ -13,7 +13,7 @@ interface StarRatingProps {
    */
   selected?: number | null
   onChange?: (v: number | null) => void
-  /** Render the fill muted — it's computed, not the user's own rating. */
+  /** Render the fill muted - it's computed, not the user's own rating. */
   derived?: boolean
   /** Display-only: no hover, no clicks, renders spans instead of buttons. */
   readOnly?: boolean

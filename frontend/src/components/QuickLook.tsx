@@ -103,7 +103,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
             <div className="mt-5 grid grid-cols-3 gap-4 pt-4 border-t border-border/70">
               <Stat size={30} label={t`Time reading`} value={fmtTime(own.total_seconds).value} unit={fmtTime(own.total_seconds).unit} />
               <Stat size={30} label={t`Sessions`} value={own.sessions} />
-              <Stat size={30} label={t`Last read`} value={own.last_read ? dayLabel(own.last_read) : '–'} />
+              <Stat size={30} label={t`Last read`} value={own.last_read ? dayLabel(own.last_read) : '-'} />
             </div>
           )}
           <div className="mt-auto pt-5 flex items-center gap-2">

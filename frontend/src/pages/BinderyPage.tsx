@@ -162,7 +162,7 @@ function formToAcceptFile(path: string, form: ItemForm): BinderyAcceptFile {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-const BADGE_CLS = 'inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[11px] font-semibold uppercase tracking-wide shrink-0'
+const BADGE_CLS = 'inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-semibold uppercase tracking-wide shrink-0'
 
 function FormatBadge({ format }: { format: string }) {
   return <span className={cn(BADGE_CLS, 'text-muted-foreground')}>{format}</span>
@@ -187,7 +187,7 @@ function SourceBadge({ source }: { source: string }) {
     : 'OpenLib'
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full text-muted-foreground bg-secondary">
+    <span className="shrink-0 text-[12px] px-2 py-0.5 rounded-full text-muted-foreground bg-secondary">
       {label}
     </span>
   )
@@ -201,7 +201,7 @@ const TEXTAREA_CLS =
 const LABEL_CLS = 'block text-[13px] text-muted-foreground mb-1'
 
 // ---------------------------------------------------------------------------
-// LibrariesSelect — same idea as the Book page's "Libraries" dropdown (#103)
+// LibrariesSelect - same idea as the Book page's "Libraries" dropdown (#103)
 // ---------------------------------------------------------------------------
 
 interface LibraryOption {
@@ -387,7 +387,7 @@ function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProp
           onChange={ids => onChange('library_ids', ids)}
           libraries={libraries}
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-[13px] text-muted-foreground">
           <Trans>The book type's own library is always added automatically.</Trans>
         </p>
       </div>
@@ -463,7 +463,7 @@ function MetadataForm({ form, onChange, bookTypes, libraries }: MetadataFormProp
           <img
             src={form.cover_url}
             alt={t`Cover preview`}
-            className="mt-2 h-24 w-16 object-cover rounded border border-border"
+            className="mt-2 h-24 w-16 object-cover rounded-[8px]"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
         )}
@@ -527,7 +527,7 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
         <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
           <BookOpen className="h-8 w-8 text-muted-foreground/40 mb-2" />
           <p className="text-sm text-muted-foreground"><Trans>No metadata found</Trans></p>
-          <p className="text-xs text-muted-foreground/60 mt-1"><Trans>Try editing the title or series fields</Trans></p>
+          <p className="text-[13px] text-muted-foreground/60 mt-1"><Trans>Try editing the title or series fields</Trans></p>
         </div>
       )}
       {!loading && candidates.length > 0 && (
@@ -564,10 +564,10 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
                 {c.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1">
                     {c.tags.slice(0, 3).map(t => (
-                      <span key={t} className="text-[11px] bg-secondary rounded-full px-2 py-0.5">{t}</span>
+                      <span key={t} className="text-[12px] bg-secondary rounded-full px-2 py-0.5">{t}</span>
                     ))}
                     {c.tags.length > 3 && (
-                      <span className="text-[10px] text-muted-foreground">+{c.tags.length - 3}</span>
+                      <span className="text-[12px] text-muted-foreground">+{c.tags.length - 3}</span>
                     )}
                   </div>
                 )}
@@ -691,7 +691,7 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
             className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground"
           >
             {(() => { const idx = f.series_index; return idx != null ? t`Vol ${idx}` : (f.title || f.filename) })()}
-            <span className="text-muted-foreground uppercase text-[10px] font-semibold tracking-wide">{f.format}</span>
+            <span className="text-muted-foreground uppercase text-[12px] font-semibold tracking-wide">{f.format}</span>
           </span>
         ))}
       </div>
@@ -792,12 +792,12 @@ export function BinderyPage() {
   const [batchAuthor, setBatchAuthor] = useState('')
   const [batchBookTypeId, setBatchBookTypeId] = useState('')
   const [batchLibraryIds, setBatchLibraryIds] = useState<number[]>([])
-  // Libraries picked in the LIST toolbar — consumed by the next Quick Accept
+  // Libraries picked in the LIST toolbar - consumed by the next Quick Accept
   // or Review run, then reset so the next batch doesn't inherit it silently
   const [listLibraryIds, setListLibraryIds] = useState<number[]>([])
   const [matchingAll, setMatchingAll] = useState<number | null>(null)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  // Which file the suggestions panel searches/applies for in batch review —
+  // Which file the suggestions panel searches/applies for in batch review  - 
   // expanding a row retargets the panel (it used to silently hit file #1 only)
   const [suggestPath, setSuggestPath] = useState<string | null>(null)
 
@@ -819,7 +819,7 @@ export function BinderyPage() {
       const data = await api.get<UnreviewedBook[]>('/bindery/unreviewed')
       setUnreviewed(data)
     } catch {
-      // Non-fatal — endpoint may not exist yet or returns empty
+      // Non-fatal - endpoint may not exist yet or returns empty
       setUnreviewed([])
     } finally {
       setUnreviewedLoading(false)
@@ -852,7 +852,7 @@ export function BinderyPage() {
   }, [fetchAll])
 
   // ---------------------------------------------------------------------------
-  // Series-group accept — one identity decision covers every volume in a group
+  // Series-group accept - one identity decision covers every volume in a group
   // ---------------------------------------------------------------------------
 
   const [acceptingGroup, setAcceptingGroup] = useState<string | null>(null)
@@ -989,7 +989,7 @@ export function BinderyPage() {
       )
       setCandidates(result.candidates)
       setSearchQuery(result.query_used)
-      // Embedded metadata (calibre:series etc.) beats the filename guess —
+      // Embedded metadata (calibre:series etc.) beats the filename guess  - 
       // same precedence as auto-import. Candidate apply still wins on top.
       if (autoApply && !queryOverride) {
         applyEmbedded(result.file_metadata, itemPath)
@@ -1006,7 +1006,7 @@ export function BinderyPage() {
 
   // Trust-the-matcher tier for batch review: fetch and apply the best
   // candidate to EVERY file's form, then the user eyeballs the rows and
-  // Accept-Alls. Explicit button — it does overwrite hand edits.
+  // Accept-Alls. Explicit button - it does overwrite hand edits.
   async function matchAll() {
     setMatchingAll(0)
     let matched = 0
@@ -1025,7 +1025,7 @@ export function BinderyPage() {
             matched++
           }
         } catch {
-          // Non-fatal — leave this file's parsed data in place
+          // Non-fatal - leave this file's parsed data in place
         }
       }
     } finally {
@@ -1051,7 +1051,7 @@ export function BinderyPage() {
   // ---------------------------------------------------------------------------
 
   // Merge metadata embedded in the file itself (calibre:series, OPF dc:*)
-  // into a form row. Embedded values win over the filename parse — the
+  // into a form row. Embedded values win over the filename parse - the
   // filename is a guess, the file is ground truth. Candidates applied
   // afterwards still override (unchanged semantics).
   function applyEmbedded(meta: Record<string, unknown>, targetPath: string) {
@@ -1309,7 +1309,7 @@ export function BinderyPage() {
           if (c.cover_url) form.cover_url = c.cover_url
         }
       } catch {
-        // Non-fatal — accept with parsed data only
+        // Non-fatal - accept with parsed data only
       }
 
       // Accept
@@ -1816,18 +1816,14 @@ export function BinderyPage() {
         )}
 
         {/* Quick accept detail modal */}
-        {qaModalOpen && qaProgress && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQaModalOpen(false)} />
-            <div className="relative z-10 bg-card rounded-[var(--radius-panel)] shadow-xl w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
-              <div className="flex items-center justify-between px-6 pt-5 pb-3">
-                <span className="font-display text-[20px] font-bold"><Trans>Quick accept Progress</Trans></span>
-                <Pill variant="quiet" icon onClick={() => setQaModalOpen(false)} aria-label={t`Close`} className="-mr-2">
-                  <X className="h-4 w-4" />
-                </Pill>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 pb-4 divide-y divide-border/70">
-                {qaProgress.items.map(item => (
+        <ModalShell
+          open={qaModalOpen && !!qaProgress}
+          onClose={() => setQaModalOpen(false)}
+          size="sm"
+          title={<Trans>Quick accept progress</Trans>}
+        >
+              <div className="divide-y divide-border/70">
+                {(qaProgress?.items ?? []).map(item => (
                   <div key={item.path} className="flex items-center gap-3 py-2.5">
                     <div className="shrink-0 w-4 h-4 flex items-center justify-center">
                       {item.status === 'done' ? (
@@ -1852,9 +1848,7 @@ export function BinderyPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
+        </ModalShell>
 
         {/* Confirm reject dialog for raw files */}
         <ConfirmDialog

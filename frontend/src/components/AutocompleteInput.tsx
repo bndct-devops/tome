@@ -95,14 +95,14 @@ export function AutocompleteInput({
         className={className ?? 'w-full bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring'}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute left-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-xl py-1 w-full min-w-48 max-h-48 overflow-y-auto">
+        <div className="absolute left-0 top-full mt-1 z-50 bg-card rounded-xl shadow-lg ring-1 ring-panel-ring p-1.5 w-full min-w-48 max-h-48 overflow-y-auto">
           {filtered.map((s, i) => (
             <div
               key={s}
               onMouseDown={e => { e.preventDefault(); pickSuggestion(s) }}
               onMouseEnter={() => setActiveIdx(i)}
-              className={`flex items-center px-3 py-1.5 text-sm cursor-pointer transition-colors ${
-                i === activeIdx ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+              className={`flex items-center rounded-lg px-3 py-1.5 text-[14px] cursor-pointer transition-colors ${
+                i === activeIdx ? 'bg-secondary text-foreground' : 'hover:bg-secondary'
               }`}
             >
               {s}

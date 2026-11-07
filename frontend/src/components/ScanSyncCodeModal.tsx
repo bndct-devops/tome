@@ -81,7 +81,7 @@ function formatOffset(seconds: number): string {
 }
 
 function pct(v: number | null): string {
-  return v === null ? '–' : `${Math.round(v * 100)}%`
+  return v === null ? '-' : `${Math.round(v * 100)}%`
 }
 
 export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {

@@ -166,7 +166,7 @@ export function LoginPage() {
     }
   }, [])
 
-  // Redirect AFTER all hooks have run — an early return before later hooks
+  // Redirect AFTER all hooks have run - an early return before later hooks
   // (e.g. when a stale session resolves user null→set while mounted) trips
   // React's "rendered fewer hooks than expected".
   if (user) return <Navigate to="/" replace />

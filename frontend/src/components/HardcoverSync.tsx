@@ -24,9 +24,9 @@ interface HardcoverStatus {
 /**
  * Settings card: link a personal Hardcover account and push ratings + reading
  * progress to it (Want to Read syncs both ways). Linking is the opt-in; the toggle pauses without
- * unlinking. Match auditing/fixing lives on the dedicated /hardcover page —
+ * unlinking. Match auditing/fixing lives on the dedicated /hardcover page  - 
  * this card only manages the connection. Renders nothing when the server has
- * the feature killed (404) — the parent section hides with us via onAvailable.
+ * the feature killed (404) - the parent section hides with us via onAvailable.
  */
 export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => void }) {
   const { toast } = useToast()
@@ -42,7 +42,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
       setStatus(s)
       return s
     } catch (err) {
-      // The kill switch answers 404 "Hardcover sync is disabled" — hide the
+      // The kill switch answers 404 "Hardcover sync is disabled" - hide the
       // whole card. Other failures (network blip) keep it visible.
       if (err instanceof Error && /disabled/i.test(err.message)) {
         setAvailable(false)
@@ -151,7 +151,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
             {expired && (
               <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
-                <p className="text-xs text-warning font-medium">
+                <p className="text-[13px] text-warning font-medium">
                   <Trans>Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing.</Trans>
                 </p>
               </div>

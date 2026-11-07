@@ -55,7 +55,7 @@ export function ChromeLabel({ children }: { children: ReactNode }) {
 export function PreviewChip() {
   return (
     <span
-      className="inline-flex h-6 shrink-0 items-center rounded-full bg-secondary px-2.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground"
+      className="inline-flex h-6 shrink-0 items-center rounded-full bg-secondary px-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"
       title={t`Preview: progress and stats are not updated`}
     >
       <Trans>Preview</Trans>

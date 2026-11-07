@@ -21,7 +21,7 @@ export function formatDate(iso: string): string {
 
 /** Copy text to the clipboard, working outside secure contexts too.
  *
- * navigator.clipboard only exists on HTTPS/localhost — on a LAN-IP dev page
+ * navigator.clipboard only exists on HTTPS/localhost - on a LAN-IP dev page
  * it's undefined and a bare writeText() call dies silently. Falls back to the
  * legacy execCommand path via an invisible textarea. Returns success. */
 export async function copyToClipboard(text: string): Promise<boolean> {

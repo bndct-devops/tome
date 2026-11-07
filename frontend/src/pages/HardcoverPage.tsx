@@ -67,7 +67,7 @@ const FILTERS: { key: Filter; label: MessageDescriptor }[] = [
 ]
 
 function displayTitle(b: HcBook): string {
-  // Series-titled volumes ("Black Summoner") need the volume to be readable —
+  // Series-titled volumes ("Black Summoner") need the volume to be readable  - 
   // but a title that already carries its volume ("Berserk, Vol. 1") must not
   // get a second "· Vol. 1" appended (UX sweep finding).
   if (b.series && b.series_index != null) {
@@ -89,7 +89,7 @@ const STATE_LABEL: Record<HcBook['state'], MessageDescriptor> = {
 
 const GROUP_KEY = 'tome_hardcover_group'
 
-// SeriesStackCard consumes the dashboard's Book shape — adapt an HcBook group.
+// SeriesStackCard consumes the dashboard's Book shape - adapt an HcBook group.
 function toBookShape(rep: HcBook, volumes: HcBook[]): Book {
   return {
     id: rep.book_id,

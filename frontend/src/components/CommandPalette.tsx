@@ -2,7 +2,7 @@
 // anywhere. Books query the existing full-text search; series/authors filter
 // the facets list client-side; actions are plain navigation (no side effects).
 // Portals to <body> (the header that mounts it has backdrop-blur, which would
-// contain a fixed overlay — same lesson as WhatsNewPanel).
+// contain a fixed overlay - same lesson as WhatsNewPanel).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -83,7 +83,7 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Global hotkey — Cmd+K / Ctrl+K toggles, Esc closes.
+  // Global hotkey - Cmd+K / Ctrl+K toggles, Esc closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -232,7 +232,7 @@ export function CommandPalette() {
               if (!groupItems.length) return null
               return (
                 <div key={g}>
-                  <p className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                  <p className="px-4 pb-1 pt-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                     {i18n._(GROUP_LABEL[g])}
                   </p>
                   {groupItems.map((item) => {

@@ -59,7 +59,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const id = ++idRef.current
     setToasts(prev => {
       const next = [...prev, { id, type, message, exiting: false, action }]
-      // Cap at MAX_TOASTS — drop oldest
+      // Cap at MAX_TOASTS - drop oldest
       return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
     })
     const timer = setTimeout(() => dismiss(id), action ? AUTO_DISMISS_ACTION_MS : AUTO_DISMISS_MS)
@@ -85,11 +85,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              'flex items-start gap-3 px-4 py-3 rounded-xl shadow-xl text-sm border bg-card pointer-events-auto',
-              'border-l-[3px]',
-              t.type === 'success' && 'border-l-success border-border',
-              t.type === 'error' && 'border-l-destructive border-border',
-              t.type === 'info' && 'border-l-info border-border',
+              'flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg ring-1 ring-panel-ring text-[14px] bg-card pointer-events-auto',
               t.exiting
                 ? 'animate-out fade-out duration-300'
                 : 'animate-in slide-in-from-right-4 fade-in duration-200',

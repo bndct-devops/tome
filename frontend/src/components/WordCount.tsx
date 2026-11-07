@@ -24,7 +24,7 @@ function formatBytes(n: number): string {
 }
 
 function formatDuration(secs: number | null): string {
-  if (secs == null) return '—'
+  if (secs == null) return '-'
   const s = Math.max(0, Math.round(secs))
   if (s < 60) return t`${s}s`
   const m = Math.floor(s / 60)
@@ -122,12 +122,29 @@ export function WordCountTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-[14px] text-muted-foreground leading-relaxed max-w-[70ch]">
-        <Trans>Parse each EPUB to store its word count. New uploads get this automatically; this
-        backfills books added before the feature. It only reads the files and writes one
-        number per book; nothing on disk is modified. Word counts power words-read and
-        reading-speed stats. PDF and CBZ are skipped.</Trans>
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <p className="min-w-0 flex-1 basis-[320px] text-[14px] text-muted-foreground leading-relaxed max-w-[70ch]">
+          <Trans>Parse each EPUB to store its word count. New uploads get this automatically; this
+          backfills books added before the feature. It only reads the files and writes one
+          number per book; nothing on disk is modified. Word counts power words-read and
+          reading-speed stats. PDF and CBZ are skipped.</Trans>
+        </p>
+        {!running && !terminal && (
+          <Pill
+            onClick={handleStart}
+            disabled={busy || pending === 0}
+            variant="primary"
+            className="shrink-0">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {pending === 0 ? t`Every EPUB is counted` : plural(pending, { one: 'Count # EPUB', other: 'Count # EPUBs' })}
+          </Pill>
+        )}
+        {running && state && (
+          <Pill onClick={handleCancel} disabled={busy} variant="destructive" className="shrink-0">
+            <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
+          </Pill>
+        )}
+      </div>
 
       {error && (
         <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive flex items-center justify-between gap-2">
@@ -140,20 +157,11 @@ export function WordCountTab() {
       {!running && !terminal && (
         <>
           <StatStrip cols={3}>
-            <Stat size={30} label={t`EPUBs`} value={preflight ? formatCount(preflight.epub_total) : '—'} />
-            <Stat size={30} label={t`Already counted`} value={preflight ? formatCount(preflight.already_counted) : '—'} />
-            <Stat size={30} label={t`To count`} value={preflight ? formatCount(pending) : '—'} tone={pending > 0 ? 'primary' : 'foreground'}
+            <Stat size={30} label={t`EPUBs`} value={preflight ? formatCount(preflight.epub_total) : '-'} />
+            <Stat size={30} label={t`Already counted`} value={preflight ? formatCount(preflight.already_counted) : '-'} />
+            <Stat size={30} label={t`To count`} value={preflight ? formatCount(pending) : '-'} tone={pending > 0 ? 'primary' : 'foreground'}
               foot={preflight ? formatBytes(preflight.pending_bytes) : undefined} />
           </StatStrip>
-          <div>
-            <Pill
-              onClick={handleStart}
-              disabled={busy || pending === 0}
-              variant="primary">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {pending === 0 ? t`Every EPUB is counted` : plural(pending, { one: 'Count # EPUB', other: 'Count # EPUBs' })}
-            </Pill>
-          </div>
         </>
       )}
 
@@ -185,11 +193,6 @@ export function WordCountTab() {
             <Stat size={30} label={t`Words found`} value={formatCount(state.words_total)} />
             <Stat size={30} label={t`Failed`} value={formatCount(state.failed)} tone={state.failed > 0 ? 'warning' : 'foreground'} />
           </StatStrip>
-          <div>
-            <Pill onClick={handleCancel} disabled={busy} variant="destructive">
-              <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
-            </Pill>
-          </div>
         </>
       )}
 

@@ -27,9 +27,9 @@ export function DevicePills({ bookId, size = 'sm', className }: {
             title={t`On ${name} as of the last sync (${ago})`}
             className={cn(
               'inline-flex items-center gap-1 rounded-full font-medium min-w-0 max-w-full',
-              size === 'xs' ? 'text-[10px] px-1.5 py-px' : 'text-[11px] px-2 py-0.5',
+              size === 'xs' ? 'text-[11px] px-1.5 py-px' : 'text-[12px] px-2 py-0.5',
               stale
-                ? 'bg-muted text-muted-foreground'
+                ? 'bg-secondary text-muted-foreground'
                 : 'bg-primary/10 text-primary',
             )}
           >

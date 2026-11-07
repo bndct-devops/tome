@@ -223,7 +223,7 @@ function EditCell({ value, bookId, field, onSaved }: EditCellProps) {
     >
       {saving && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
       {saved && <Check className="inline h-3 w-3 text-success mr-1" />}
-      {value || <span className="text-muted-foreground/40 italic">—</span>}
+      {value || <span className="text-muted-foreground/40 italic">-</span>}
     </span>
   )
 }
@@ -389,8 +389,8 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <Check className="w-12 h-12 text-success" />
-        <h2 className="text-lg font-semibold"><Trans>Review complete</Trans></h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="font-display text-[22px] font-bold"><Trans>Review complete</Trans></h2>
+        <p className="text-[15px] text-muted-foreground">
           {(() => { const total = queue.length; const applied = summary.applied; const skipped = summary.skipped; return <Trans>Reviewed {total} books. Applied changes to {applied}, skipped {skipped}.</Trans> })()}
         </p>
         <Pill variant="primary" onClick={onBack} className="mt-4">
@@ -403,18 +403,15 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Progress header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border gap-4">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
+      <div className="flex items-center justify-between py-3 border-b border-border/70 gap-4">
+        <Pill variant="quiet" onClick={onBack} className="-ml-3">
           <ArrowLeft className="w-4 h-4" /> <Trans>Back to table</Trans>
-        </button>
+        </Pill>
         <div className="flex items-center gap-3 flex-1 max-w-xs">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-[13px] text-muted-foreground whitespace-nowrap">
             {(() => { const at = idx + 1; const total = queue.length; return <Trans>Book {at} of {total}</Trans> })()}
           </span>
-          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
             <div
               className="h-full bg-primary rounded-full transition-all"
               style={{ width: `${((idx + 1) / queue.length) * 100}%` }}
@@ -433,9 +430,9 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
       {book && !loadingBook && (
         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
           {/* Left: current metadata */}
-          <div className="w-full lg:w-[420px] shrink-0 border-b lg:border-b-0 lg:border-r border-border overflow-y-auto p-4 lg:p-6 space-y-4 max-h-[40vh] lg:max-h-none">
+          <div className="w-full lg:w-[420px] shrink-0 border-b lg:border-b-0 lg:border-r border-border/70 overflow-y-auto py-4 lg:py-6 lg:pr-6 space-y-4 max-h-[40vh] lg:max-h-none">
             <div className="flex gap-4">
-              <div className="relative w-20 h-28 rounded border border-border overflow-hidden shrink-0">
+              <div className="relative w-20 h-28 rounded-[8px] overflow-hidden shrink-0">
                 <CoverImage
                   src={book.cover_path ? `${API}/api/books/${book.id}/cover` : null}
                   alt=""
@@ -443,8 +440,8 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                 />
               </div>
               <div className="min-w-0">
-                <p className="font-semibold text-sm leading-snug">{book.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{book.author || <span className="italic"><Trans>No author</Trans></span>}</p>
+                <p className="font-semibold text-[15px] leading-snug">{book.title}</p>
+                <p className="text-[13px] text-muted-foreground mt-0.5">{book.author || <span className="italic"><Trans>No author</Trans></span>}</p>
               </div>
             </div>
 
@@ -461,7 +458,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                 { field: 'publisher', label: msg`Publisher`, value: book.publisher || '' },
               ].map(({ field, label, value }) => (
                 <div key={field} className="grid grid-cols-[80px_1fr] gap-2 items-center">
-                  <span className="text-xs text-muted-foreground">{i18n._(label)}</span>
+                  <span className="text-[13px] text-muted-foreground">{i18n._(label)}</span>
                   <Input
                     value={draft[field as keyof BookDetail] as string ?? value}
                     onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
@@ -471,7 +468,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                 </div>
               ))}
               <div className="grid grid-cols-[80px_1fr] gap-2">
-                <span className="text-xs text-muted-foreground pt-1"><Trans>Description</Trans></span>
+                <span className="text-[13px] text-muted-foreground pt-1"><Trans>Description</Trans></span>
                 <Textarea
                   value={(draft.description as string | undefined) ?? book.description ?? ''}
                   onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
@@ -484,7 +481,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           </div>
 
           {/* Right: candidates + diff */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto py-6 lg:pl-6 space-y-4">
             {/* Fetch again bar */}
             <div className="flex gap-2">
               <Input
@@ -507,40 +504,40 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             )}
 
             {candidateError && !loadingCandidates && (
-              <p className="text-sm text-muted-foreground text-center py-4">{candidateError}</p>
+              <p className="text-[14px] text-muted-foreground text-center py-4">{candidateError}</p>
             )}
 
             {/* Candidate list */}
             {candidates.length > 0 && !loadingCandidates && (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">{plural(candidates.length, { one: '# candidate. Click to select.', other: '# candidates. Click to select.' })}</p>
+                <p className="text-[13px] text-muted-foreground">{plural(candidates.length, { one: '# candidate. Click to select.', other: '# candidates. Click to select.' })}</p>
                 {candidates.map(c => (
                   <button
                     key={`${c.source}-${c.source_id}`}
                     onClick={() => selectCandidate(c)}
                     className={cn(
-                      'w-full text-left rounded-lg border p-2.5 flex gap-2.5 transition-colors',
+                      'w-full text-left rounded-lg p-2.5 flex gap-3 transition-colors',
                       selectedCandidate?.source_id === c.source_id && selectedCandidate?.source === c.source
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border bg-card hover:bg-accent'
+                        ? 'bg-primary/10 ring-1 ring-primary/40'
+                        : 'hover:bg-secondary'
                     )}
                   >
                     {c.cover_url ? (
-                      <img src={c.cover_url} alt="" className="h-14 w-10 object-cover rounded shrink-0" />
+                      <img src={c.cover_url} alt="" className="h-14 w-10 object-cover rounded-[6px] shrink-0" />
                     ) : (
-                      <div className="h-14 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                      <div className="h-14 w-10 rounded-[6px] bg-secondary flex items-center justify-center shrink-0">
                         <BookOpen className="w-4 h-4 text-muted-foreground" />
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-1">
-                        <p className="text-xs font-medium line-clamp-1">{c.title}</p>
-                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground bg-muted">
+                        <p className="text-[14px] font-medium line-clamp-1">{c.title}</p>
+                        <span className="shrink-0 text-[12px] px-2 py-0.5 rounded-full text-muted-foreground bg-secondary">
                           {c.source === 'hardcover' ? 'HC' : c.source === 'google_books' ? 'GB' : c.source === 'anilist' ? 'AL' : 'OL'}
                         </span>
                       </div>
-                      {c.author && <p className="text-[11px] text-muted-foreground">{c.author}</p>}
-                      {c.year && <p className="text-[10px] text-muted-foreground">{c.year}</p>}
+                      {c.author && <p className="text-[13px] text-muted-foreground">{c.author}</p>}
+                      {c.year && <p className="text-[13px] text-muted-foreground">{c.year}</p>}
                     </div>
                   </button>
                 ))}
@@ -551,15 +548,15 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             {selectedCandidate && fields.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide"><Trans>Field diff</Trans></p>
+                  <p className="text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]"><Trans>Field diff</Trans></p>
                   <Checkbox
                     checked={fields.every(f => f.checked)}
                     onChange={toggleAll}
                     label={<span className="text-[13px]"><Trans>All</Trans></span>}
                   />
                 </div>
-                <div className="rounded-lg border border-border overflow-hidden">
-                  <div className="grid grid-cols-[20px_60px_1fr_1fr] sm:grid-cols-[20px_80px_1fr_1fr] gap-2 items-center bg-muted px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="border-y border-border/70">
+                  <div className="grid grid-cols-[20px_60px_1fr_1fr] sm:grid-cols-[20px_80px_1fr_1fr] gap-2 items-center border-b border-border/70 py-2 text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]">
                     <span />
                     <span><Trans>Field</Trans></span>
                     <span><Trans>Current</Trans></span>
@@ -571,8 +568,8 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                       <div
                         key={f.key}
                         className={cn(
-                          'grid grid-cols-[20px_60px_1fr_1fr] sm:grid-cols-[20px_80px_1fr_1fr] gap-2 items-start px-3 py-2 text-xs',
-                          i > 0 && 'border-t border-border/50',
+                          'grid grid-cols-[20px_60px_1fr_1fr] sm:grid-cols-[20px_80px_1fr_1fr] gap-2 items-start py-2 text-[13px]',
+                          i > 0 && 'border-t border-border/70',
                           !hasChange && 'opacity-40'
                         )}
                       >
@@ -582,30 +579,30 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                           disabled={!hasChange}
                           aria-label={i18n._(f.label)}
                         />
-                        <span className="text-muted-foreground text-[11px] mt-0.5">{i18n._(f.label)}</span>
+                        <span className="text-muted-foreground text-[13px] mt-0.5">{i18n._(f.label)}</span>
                         {f.key === 'cover' ? (
-                          <span className="text-muted-foreground italic text-[11px]">
+                          <span className="text-muted-foreground italic text-[13px]">
                             {book.cover_path ? t`Has cover` : t`No cover`}
                           </span>
                         ) : (
-                          <span className={cn('break-words line-clamp-2 text-[11px]', hasChange ? 'line-through text-muted-foreground' : '')}>
-                            {f.current ?? <span className="italic text-muted-foreground/40">—</span>}
+                          <span className={cn('break-words line-clamp-2 text-[13px]', hasChange ? 'line-through text-muted-foreground' : '')}>
+                            {f.current ?? <span className="italic text-muted-foreground/40">-</span>}
                           </span>
                         )}
                         {f.key === 'cover' ? (
                           f.incoming ? (
                             <div className="flex items-start gap-1.5">
-                              <img src={f.incoming} alt="" className="h-12 w-8 object-cover rounded border border-border" />
-                              <a href={f.incoming} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline flex items-center gap-0.5 mt-0.5">
+                              <img src={f.incoming} alt="" className="h-12 w-8 object-cover rounded-[8px]" />
+                              <a href={f.incoming} target="_blank" rel="noopener noreferrer" className="text-[13px] text-primary hover:underline flex items-center gap-0.5 mt-0.5">
                                 <ExternalLink className="w-3 h-3" />
                               </a>
                             </div>
                           ) : (
-                            <span className="italic text-muted-foreground/40 text-[11px]">—</span>
+                            <span className="italic text-muted-foreground/40 text-[13px]">-</span>
                           )
                         ) : (
-                          <span className={cn('break-words line-clamp-2 text-[11px]', hasChange ? 'text-primary font-medium' : '')}>
-                            {f.incoming ?? <span className="italic text-muted-foreground/40">—</span>}
+                          <span className={cn('break-words line-clamp-2 text-[13px]', hasChange ? 'text-primary font-medium' : '')}>
+                            {f.incoming ?? <span className="italic text-muted-foreground/40">-</span>}
                           </span>
                         )}
                       </div>
@@ -1059,7 +1056,7 @@ export function MetadataManager() {
     if (filterLibId && !b.library_ids.includes(Number(filterLibId))) return false
     if (missingFields.length > 0) {
       for (const f of missingFields) {
-        if (b.fields_present[f]) return false // book has this field — exclude
+        if (b.fields_present[f]) return false // book has this field - exclude
       }
     }
     return true
@@ -1118,7 +1115,7 @@ export function MetadataManager() {
       const proposals = await api.post<StandardizeProposal[]>('/books/standardize-titles', { book_ids: ids })
       setStandardizeProposals(proposals)
     } catch {
-      // ignore — user can retry
+      // ignore - user can retry
     } finally {
       setStandardizeLoading(false)
     }

@@ -267,7 +267,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-x-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                           <span>{sourceName(c.source)}</span>
                           {i === 0 && <span className="text-primary"><Trans>Best match</Trans></span>}
                         </div>
@@ -311,13 +311,13 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
             <Checkbox checked={allChecked()} onChange={toggleAll} label={<Trans>Select all</Trans>} />
           </div>
 
-          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:hidden">
+          <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:hidden">
             {(() => { const src = sourceName(selected.source); return <Trans>Incoming from {src}</Trans> })()}
           </p>
 
           <div className="border-t border-border/70">
             {/* Header row */}
-            <div className="hidden grid-cols-[24px_100px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-border/70 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
+            <div className="hidden grid-cols-[24px_100px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-border/70 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
               <span />
               <span><Trans>Field</Trans></span>
               <span><Trans>Current</Trans></span>

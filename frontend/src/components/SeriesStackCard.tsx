@@ -75,7 +75,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
   // ── Cover grid (large / small) ────────────────────────────────────────────
   // The pile sits bottom-left in its cell; the cell reserves top/right padding
   // so the back covers (and the hover fan) stay inside the cell instead of
-  // overlapping neighbouring cards. Small view halves the offsets — its grid
+  // overlapping neighbouring cards. Small view halves the offsets - its grid
   // gap is tighter.
   const lg = view === 'large'
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
@@ -97,7 +97,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
       {/* Reserved bleed area for the stack layers */}
       <div className={cn('relative', lg ? 'pt-2 pr-2' : 'pt-1 pr-1')}>
         <div className="relative">
-          {/* Volumes behind the top cover — real covers when available, fanning out on hover */}
+          {/* Volumes behind the top cover - real covers when available, fanning out on hover */}
           {fanIds.length > 0 ? (
             <>
               {fanIds[1] && (
@@ -130,7 +130,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
               alt={seriesName}
               iconClassName={lg ? 'w-12 h-12' : 'w-8 h-8'}
             />
-            {/* Volume count badge — top right */}
+            {/* Volume count badge - top right */}
             <span className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-background/70 backdrop-blur-sm text-foreground/90 border border-border/50">
               <Layers className="w-2.5 h-2.5" />
               {count}

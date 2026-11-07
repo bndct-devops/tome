@@ -1,6 +1,6 @@
 // Admin → Covers: which books have missing, unreadable, or low-resolution
 // covers (GET /admin/covers/audit). Missing covers offer a one-click auto-fix
-// that applies the first candidate from the existing cover search — safe
+// that applies the first candidate from the existing cover search - safe
 // because there is nothing to downgrade. Low-res covers deep-link to the book
 // page instead, where the cover picker shows candidates to judge by eye.
 import { useEffect, useState } from 'react'
@@ -150,7 +150,7 @@ export function CoverAudit() {
                 {state === 'fixed' ? t`Fixed` : i18n._(REASON_LABEL[b.reason])}
               </span>
             )
-            const size = b.width != null ? `${b.width}×${b.height}px` : '—'
+            const size = b.width != null ? `${b.width}×${b.height}px` : '-'
             return (
               <div
                 key={b.book_id}

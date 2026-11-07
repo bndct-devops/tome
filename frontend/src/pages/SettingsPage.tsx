@@ -951,7 +951,7 @@ export function SettingsPage() {
                               <span className="sm:hidden text-muted-foreground font-normal shrink-0">{d.platform}</span>
                             )}
                             {d.current && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-primary/10 text-primary">
                                 <Trans>This browser</Trans>
                               </span>
                             )}
@@ -962,12 +962,12 @@ export function SettingsPage() {
                               </span>
                             )}
                             {isRevoked && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-secondary text-muted-foreground">
                                 <Trans>Revoked</Trans>
                               </span>
                             )}
                           </span>
-                          <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '—'}</span>
+                          <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '-'}</span>
                           <span className="text-muted-foreground hidden sm:block shrink-0">
                             {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}
                           </span>
@@ -1007,7 +1007,7 @@ export function SettingsPage() {
         {/* ── Appearance ───────────────────────────────────────────────── */}
         <PanelSection id="appearance" title={t`Appearance`}>
 
-          {/* Built-in themes — neutral core + warm pair */}
+          {/* Built-in themes - neutral core + warm pair */}
           {([[t`Core`, 'core'], [t`Warm`, 'warm']] as const).map(([groupLabel, group]) => (
             <div key={group} className="mt-4">
               <p className="text-[13px] text-muted-foreground mb-1.5">{groupLabel}</p>
@@ -1228,7 +1228,7 @@ export function SettingsPage() {
               </div>
               <ConnectBlock rows={[
                 { label: t`URL`, value: opdsUrl, copy: true },
-                { label: t`Username`, value: user?.username ?? '—', copy: true },
+                { label: t`Username`, value: user?.username ?? '-', copy: true },
                 { label: t`Password`, value: t`your Tome password` },
               ]} />
               <p className="text-[13px] text-muted-foreground">
@@ -1268,7 +1268,7 @@ export function SettingsPage() {
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
                     <p className="text-[13px] text-success font-medium"><Trans>PIN created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono text-foreground break-all flex-1">{newPinResult}</code>
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newPinResult}</code>
                       <button
                         onClick={() => navigator.clipboard.writeText(newPinResult)}
                         className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0"
@@ -1359,7 +1359,7 @@ export function SettingsPage() {
 
               <ConnectBlock rows={[
                 { label: t`URL`, value: kosyncUrl, copy: true },
-                { label: t`Username`, value: user?.username ?? '—', copy: true },
+                { label: t`Username`, value: user?.username ?? '-', copy: true },
                 { label: t`Password`, value: t`the sync password set above` },
               ]} />
               <p className="text-[13px] text-muted-foreground">
@@ -1433,7 +1433,7 @@ export function SettingsPage() {
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
                     <p className="text-[13px] text-success font-medium"><Trans>Key created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono text-foreground break-all flex-1">{newKeyResult}</code>
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newKeyResult}</code>
                       <button onClick={() => navigator.clipboard.writeText(newKeyResult)}
                         className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0">
                         <Copy className="w-3 h-3" />
@@ -1691,8 +1691,8 @@ export function SettingsPage() {
                       <Trans>This is the only time you will see this token. Store it somewhere safe; it cannot be recovered.</Trans>
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 rounded-md bg-background border border-border px-3 py-2">
-                    <code className="text-xs font-mono text-foreground break-all flex-1 select-all">
+                  <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2">
+                    <code className="text-[13px] font-mono text-foreground break-all flex-1 select-all">
                       {tokenRevealPlaintext}
                     </code>
                     <button
@@ -1750,12 +1750,12 @@ export function SettingsPage() {
                         <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
                           {tok.name}
                           {(tok.scope ?? 'full') === 'readonly' && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-info/10 text-info">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-info/10 text-info">
                               <Trans>Read-only</Trans>
                             </span>
                           )}
                           {isRevoked && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-secondary text-muted-foreground">
                               <Trans>Revoked</Trans>
                             </span>
                           )}
@@ -1893,7 +1893,7 @@ export function SettingsPage() {
             )}
             {SUPPORTERS.length > 0 && (
               <div className="mt-4 border-t border-border/50 pt-4">
-                <p className="text-xs font-medium text-muted-foreground">
+                <p className="text-[13px] font-medium text-muted-foreground">
                   <Trans>Thank you to everyone who supports Tome</Trans>
                 </p>
                 <p className="mt-1.5 text-sm text-foreground">{SUPPORTERS.join(', ')}</p>
@@ -2062,7 +2062,7 @@ function PluginVersion() {
   }, [])
   if (!label) return null
   return (
-    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+    <span className="text-[12px] font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded shrink-0">
       {label}
     </span>
   )

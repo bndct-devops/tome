@@ -192,7 +192,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
                       <ImageOff className="h-6 w-6 text-muted-foreground" />
                     </div>
                     {/* Source badge */}
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-[0.08em] text-white">
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[12px] font-bold uppercase leading-none tracking-[0.08em] text-white">
                       {SOURCE_BADGE[c.source] ?? c.source}
                     </span>
                     {/* Applying spinner / hover overlay */}

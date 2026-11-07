@@ -1,6 +1,6 @@
 // Admin → Server → Instance backup: download a consistent snapshot (DB +
 // covers + manifest; library files stay on disk), and stage a restore that
-// applies at the next server start — never under a live database.
+// applies at the next server start - never under a live database.
 import { useEffect, useRef, useState } from 'react'
 import { Download, Loader2, RotateCcw, X } from 'lucide-react'
 import { api } from '@/lib/api'

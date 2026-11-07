@@ -1,6 +1,6 @@
 // Settings → Import reading history: upload a Goodreads or StoryGraph export,
 // preview what matches the library, apply. Applying is fill-gaps-only server-
-// side — an import can never overwrite an existing status/rating/review.
+// side - an import can never overwrite an existing status/rating/review.
 import { useRef, useState } from 'react'
 import { CheckCircle2, FileUp, Loader2, Upload } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -113,11 +113,11 @@ export function ReadingImport() {
             <Trans>Choose CSV export</Trans>
           </Pill>
           {summary && (
-            <span className="flex items-center gap-1.5 text-xs text-success">
+            <span className="flex items-center gap-1.5 text-[13px] text-success">
               <CheckCircle2 className="h-3.5 w-3.5" /> {summary}
             </span>
           )}
-          {error && <span className="text-xs text-destructive">{error}</span>}
+          {error && <span className="text-[13px] text-destructive">{error}</span>}
         </div>
       )}
 

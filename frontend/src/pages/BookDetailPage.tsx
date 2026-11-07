@@ -56,7 +56,7 @@ interface Annotation {
 export interface BookReadingStats {
   total_seconds: number
   // Reconciled sitting count: recorded web/manual sessions plus gap-clustered
-  // imported KOReader history — exactly the rows the session log lists.
+  // imported KOReader history - exactly the rows the session log lists.
   sessions: number
   pages_turned: number
   avg_session_seconds: number
@@ -98,9 +98,9 @@ export interface ChapterTime {
 }
 
 // When a chapter was actually read, honest about sittings:
-//   one sitting  → "Jun 2, 17:40 – 18:54"
-//   two or three → "Jun 2 17:40–18:10 · Jun 3 21:00–21:34"
-//   more         → "5 sittings · Jun 2 – Jun 8"
+//   one sitting  → "Jun 2, 17:40 - 18:54"
+//   two or three → "Jun 2 17:40-18:10 · Jun 3 21:00-21:34"
+//   more         → "5 sittings · Jun 2 - Jun 8"
 function chapterReadSpan(c: ChapterTime): string {
   const s = c.sittings
   if (!s || s.length === 0) return ''
@@ -110,14 +110,14 @@ function chapterReadSpan(c: ChapterTime): string {
     new Date(ts * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   if (s.length === 1) {
     const d = day(s[0].start_ts), from = clock(s[0].start_ts), to = clock(s[0].end_ts)
-    return t`read ${d}, ${from} – ${to}`
+    return t`read ${d}, ${from} to ${to}`
   }
   if (s.length <= 3) {
-    const span = s.map(x => `${day(x.start_ts)} ${clock(x.start_ts)}–${clock(x.end_ts)}`).join(' · ')
+    const span = s.map(x => `${day(x.start_ts)} ${clock(x.start_ts)}-${clock(x.end_ts)}`).join(' · ')
     return t`read ${span}`
   }
   const count = s.length, from = day(s[0].start_ts), to = day(s[s.length - 1].end_ts)
-  return t`${count} sittings · ${from} – ${to}`
+  return t`${count} sittings · ${from} to ${to}`
 }
 
 // Short variant for the line-chart tooltip (dates only, no clock times).
@@ -128,7 +128,7 @@ function chapterReadSpanShort(c: ChapterTime): string {
     new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
   const a = day(s[0].start_ts)
   const b = day(s[s.length - 1].end_ts)
-  return a === b ? t`read ${a}` : t`read ${a} – ${b}`
+  return a === b ? t`read ${a}` : t`read ${a} to ${b}`
 }
 
 interface ReadingStatsResponse {
@@ -232,7 +232,7 @@ export function BookDetailPage() {
   const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(null)
   const [estimate, setEstimate] = useState<BookEstimate | null>(null)
-  // Per-book session list (#150) — collapsed by default; the always-available
+  // Per-book session list (#150) - collapsed by default; the always-available
   // place to trim/delete a runaway session (the Stats tiles are removable).
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [showPositionHistory, setShowPositionHistory] = useState(false)
@@ -394,7 +394,7 @@ export function BookDetailPage() {
         setKosyncLinked(r.linked ? { percentage: r.percentage ?? null, timestamp: r.timestamp ?? null } : null)
         setKosyncUnlinked(!r.linked && r.unlinked_documents ? r.unlinked_documents : [])
       })
-      .catch(() => {})  // KOSync is optional — silent fail is fine
+      .catch(() => {})  // KOSync is optional - silent fail is fine
     api.get<Annotation[]>(`/books/${id}/annotations`).then(setAnnotations).catch(() => {})
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
     api.get<BookEstimate>(`/books/${id}/estimate?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimate).catch(() => {})
@@ -474,7 +474,7 @@ export function BookDetailPage() {
     setKosyncLinking(true)
     try {
       await api.post(`/books/${id}/link-kosync`, { document: kosyncLinkDoc })
-      // Linking applies the synced progress to this book — refresh both.
+      // Linking applies the synced progress to this book - refresh both.
       const [ks, s] = await Promise.all([
         api.get<KosyncStatus>(`/books/${id}/kosync-progress`),
         api.get<BookStatus>(`/books/${id}/status`),
@@ -512,7 +512,7 @@ export function BookDetailPage() {
   async function saveReview() {
     if (!id) return
     const next = reviewDraft.trim()
-    setReview(next)                  // optimistic — collapse to rendered view
+    setReview(next)                  // optimistic - collapse to rendered view
     setEditingReview(false)
     try {
       await api.put<BookStatus>(`/books/${id}/rating`, { review: next || null })
@@ -739,14 +739,14 @@ export function BookDetailPage() {
             className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
             <LibraryIcon className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Libraries</Trans></span>
             {localLibIds.length > 0 && (
-              <span className="ml-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-secondary px-1.5 text-[11px] font-semibold tabular-nums text-foreground">
+              <span className="ml-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-secondary px-1.5 text-[12px] font-semibold tabular-nums text-foreground">
                 {localLibIds.length}
               </span>
             )}
           </Pill>
           {libMenuOpen && (
             <div role="menu" className={cn(menuCls, 'left-0 w-60 sm:left-auto sm:right-0')}>
-              <p className="px-3 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+              <p className="px-3 pb-1.5 pt-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                 <Trans>Add to library</Trans>
               </p>
               {libraries.filter(l => l.can_edit).map(lib => {
@@ -992,7 +992,7 @@ export function BookDetailPage() {
       <h1 className="mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground">
         {book.title}
         {book.content_type === 'chapter' && (
-          <span className="ml-3 inline-flex h-6 -translate-y-1 items-center rounded-full bg-secondary px-2.5 align-middle font-sans text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          <span className="ml-3 inline-flex h-6 -translate-y-1 items-center rounded-full bg-secondary px-2.5 align-middle font-sans text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <Trans>Chapter</Trans>
           </span>
         )}
@@ -1261,7 +1261,7 @@ export function BookDetailPage() {
         <button type="button" onClick={() => setHighlightsOpen(o => !o)} aria-expanded={highlightsOpen}
           className="flex items-center gap-2 text-left">
           <h2 className="font-display text-[20px] font-bold leading-none text-foreground">
-            {(() => { const n = annotations.length; return <Trans>Highlights &amp; Notes <span className="font-semibold text-muted-foreground">({n})</span></Trans> })()}
+            {(() => { const n = annotations.length; return <Trans>Highlights and notes <span className="font-semibold text-muted-foreground">({n})</span></Trans> })()}
           </h2>
           <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', highlightsOpen && 'rotate-180')} />
         </button>
@@ -1450,7 +1450,7 @@ interface StatsLayoutProps {
 }
 
 /** Activity bars (minutes per reading day) + an optional progress lane below.
- *  The progress lane is the per-book "journey" — % complete over calendar time —
+ *  The progress lane is the per-book "journey" - % complete over calendar time  - 
  *  drawn whenever the timeline carries 2+ progress points (the backend only
  *  emits progress_pct where a position is actually known). */
 export function ActivityChart({ timeline, bookId, onChange }: {
@@ -1459,7 +1459,7 @@ export function ActivityChart({ timeline, bookId, onChange }: {
   onChange?: () => void
 }) {
   const { t, i18n } = useLingui()
-  // Click-through: a bar opens that day's sessions for quick trim/delete —
+  // Click-through: a bar opens that day's sessions for quick trim/delete  - 
   // e.g. an accidentally imported sitting, without scrolling to the full log.
   const [dayOpen, setDayOpen] = useState<string | null>(null)
   // The day stays on screen while the dialog animates out.
@@ -1470,7 +1470,7 @@ export function ActivityChart({ timeline, bookId, onChange }: {
   if (timeline.length < 2) return null
   // Real time axis: fill the calendar days between the first and last reading
   // day with zero bars. Active-days-only bars, evenly spaced, misrepresent the
-  // span (two adjacent bars could be one day or a month apart) — and with 2–3
+  // span (two adjacent bars could be one day or a month apart) - and with 2-3
   // reading days they rendered as giant full-width slabs. Capped at the last
   // 365 days so a years-long log can't produce more bars than pixels.
   const byDate = new Map(timeline.map(d => [d.date, d]))
@@ -1499,13 +1499,13 @@ export function ActivityChart({ timeline, bookId, onChange }: {
     .filter(Boolean) as string[])
   const lastProgress = [...days].reverse().find(d => d.progress_pct != null)?.progress_pct ?? null
   return (
-    // Always full card width — a narrower "day-sized bars" cap was tried and
+    // Always full card width - a narrower "day-sized bars" cap was tried and
     // looked half-finished against the full-width card chrome. Big bars for a
     // short history are fine; the gap-filled axis keeps the spacing honest.
     <div className="flex flex-col">
-      <p className="text-xs text-muted-foreground/70 mb-1.5 shrink-0"><Trans>Activity</Trans></p>
+      <p className="text-[13px] text-muted-foreground/70 mb-1.5 shrink-0"><Trans>Activity</Trans></p>
       {/* Fixed-height strip: flex-1 fill only works inside a sized flex parent,
-          and the hero wraps this in a plain div — flex-1 collapsed to 0px there
+          and the hero wraps this in a plain div - flex-1 collapsed to 0px there
           (bars rendered into no vertical space at all) */}
       <div className="relative h-20">
         {/* faint baseline rule */}
@@ -1536,7 +1536,7 @@ export function ActivityChart({ timeline, bookId, onChange }: {
           })}
         </div>
       </div>
-      <div className="flex justify-between text-xs text-muted-foreground/50 mt-1 shrink-0">
+      <div className="flex justify-between text-[13px] text-muted-foreground/50 mt-1 shrink-0">
         <span>{first?.date ? fmtDay(first.date) : ''}</span>
         <span>{last?.date ? fmtDay(last.date) : ''}</span>
       </div>
@@ -1557,11 +1557,11 @@ export function ActivityChart({ timeline, bookId, onChange }: {
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1">
             <span className="flex items-center gap-1">
-              <p className="text-xs text-muted-foreground/70"><Trans>Progress</Trans></p>
+              <p className="text-[13px] text-muted-foreground/70"><Trans>Progress</Trans></p>
               <InfoHint text={t`How far through the book you'd read by each date.`} />
             </span>
             {lastProgress != null && (
-              <p className="text-xs tabular-nums text-muted-foreground/60">{Math.round(lastProgress)}%</p>
+              <p className="text-[13px] tabular-nums text-muted-foreground/60">{Math.round(lastProgress)}%</p>
             )}
           </div>
           <div className="relative h-7">
@@ -1591,12 +1591,12 @@ const SOURCE_SHADES = ['bg-primary', 'bg-primary/65', 'bg-primary/40', 'bg-prima
 // Where the reading time came from: a thin stacked bar + legend.
 export function SourceSplit({ sources }: { sources: { device: string; seconds: number; sessions: number }[] }) {
   const total = sources.reduce((sum, s) => sum + s.seconds, 0)
-  // A single source is a full-width solid bar — pointless; only split when it splits.
+  // A single source is a full-width solid bar - pointless; only split when it splits.
   if (total <= 0 || sources.length < 2) return null
   return (
     <div className="mt-4">
-      <p className="text-xs text-muted-foreground/70 mb-1.5"><Trans>Where you read</Trans></p>
-      {/* gap-px: adjacent primary shades are close — a hairline seam marks the split */}
+      <p className="text-[13px] text-muted-foreground/70 mb-1.5"><Trans>Where you read</Trans></p>
+      {/* gap-px: adjacent primary shades are close - a hairline seam marks the split */}
       <div className="flex gap-px h-2 rounded-full overflow-hidden bg-muted">
         {sources.map((s, i) => (
           <div
@@ -1611,8 +1611,8 @@ export function SourceSplit({ sources }: { sources: { device: string; seconds: n
         {sources.map((s, i) => (
           <div key={s.device} className="flex items-center gap-1.5">
             <span className={cn('inline-block w-2 h-2 rounded-full', SOURCE_SHADES[Math.min(i, SOURCE_SHADES.length - 1)])} />
-            <span className="text-xs text-muted-foreground">{sourceLabel(s.device)}</span>
-            <span className="text-xs font-medium tabular-nums text-foreground">{formatDuration(s.seconds)}</span>
+            <span className="text-[13px] text-muted-foreground">{sourceLabel(s.device)}</span>
+            <span className="text-[13px] font-medium tabular-nums text-foreground">{formatDuration(s.seconds)}</span>
           </div>
         ))}
       </div>
@@ -1687,7 +1687,7 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
           })}
         </div>
       </div>
-      <div className="flex justify-between text-xs text-muted-foreground/50 mt-1">
+      <div className="flex justify-between text-[13px] text-muted-foreground/50 mt-1">
         <span>{t`start`}</span>
         {data.reread_bins > 0 && (
           <span className="text-muted-foreground/70">{plural(data.reread_bins, { one: '# stretch re-read', other: '# stretches re-read' })}</span>
@@ -1721,7 +1721,7 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
               className="flex items-center gap-3 -mx-2 px-2 py-0.5 rounded-md hover:bg-muted/50 transition-colors"
               title={[c.title, chapterReadSpan(c)].filter(Boolean).join(' · ')}
             >
-              <span className="w-40 sm:w-56 shrink-0 truncate text-xs text-muted-foreground">
+              <span className="w-40 sm:w-56 shrink-0 truncate text-[13px] text-muted-foreground">
                 {c.title}
               </span>
               <span className="flex-1 h-2 rounded bg-muted/60 overflow-hidden">
@@ -1730,7 +1730,7 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
                   style={{ width: c.seconds > 0 ? `${Math.max(Math.round((c.seconds / max) * 100), 3)}%` : '0%' }}
                 />
               </span>
-              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              <span className="w-14 shrink-0 text-right text-[13px] tabular-nums text-muted-foreground">
                 {c.seconds <= 0 ? '-' : c.seconds < 60 ? '<1m' : formatDuration(c.seconds)}
               </span>
             </li>
@@ -1747,7 +1747,7 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
   )
 }
 
-// Line/area rendering of time-per-chapter: one series, so no legend — the
+// Line/area rendering of time-per-chapter: one series, so no legend - the
 // block title names it. Hover snaps to the nearest chapter and shows a styled
 // tooltip (name + time) with a marker dot; both are HTML overlays positioned
 // in percent, because the SVG stretches (preserveAspectRatio="none") and
@@ -1787,7 +1787,7 @@ function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
               style={{ left: `${hx}%`, top: `${hy}%` }}
             />
             <div
-              className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs shadow-md"
+              className="pointer-events-none absolute z-10 whitespace-nowrap rounded-lg bg-card px-2.5 py-1.5 text-[13px] shadow-lg ring-1 ring-panel-ring"
               style={{
                 left: `${Math.min(Math.max(hx, 10), 90)}%`,
                 top: `${Math.max(hy - 8, 0)}%`,
@@ -1803,7 +1803,7 @@ function ChapterLineChart({ chapters }: { chapters: ChapterTime[] }) {
           </>
         )}
       </div>
-      <div className="flex justify-between text-xs text-muted-foreground/50 mt-1">
+      <div className="flex justify-between text-[13px] text-muted-foreground/50 mt-1">
         <span><Trans>ch. 1</Trans></span>
         <span><Trans>ch. {n}</Trans></span>
       </div>
@@ -1935,7 +1935,7 @@ function MomentumChip({ momentum }: { momentum: NonNullable<BookReadingStats['mo
     : t`new this week`
   return (
     <span
-      className={cn('flex items-center gap-1 text-xs font-medium', tone)}
+      className={cn('flex items-center gap-1 text-[13px] font-medium', tone)}
       title={(() => { const recent = formatDuration(momentum.recent_seconds); const prior = formatDuration(momentum.prior_seconds); return t`${recent} in the last 7 days vs ${prior} the week before` })()}
     >
       <Icon className="w-3.5 h-3.5" />
@@ -1992,8 +1992,8 @@ function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
             own.session_timeline.filter(d => d.progress_pct != null).length > 1) && (
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground/70"><Trans>Progress</Trans></span>
-              <span className="text-xs font-medium tabular-nums text-foreground">{Math.round(own.progress * 100)}%</span>
+              <span className="text-[13px] text-muted-foreground/70"><Trans>Progress</Trans></span>
+              <span className="text-[13px] font-medium tabular-nums text-foreground">{Math.round(own.progress * 100)}%</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(Math.round(own.progress * 100), 100)}%` }} />

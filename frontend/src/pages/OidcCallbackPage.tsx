@@ -6,7 +6,7 @@ import { Trans } from '@lingui/react/macro'
 
 /**
  * Lands the OIDC redirect. The backend appends the freshly minted Tome JWT to
- * the URL *fragment* (#token=…) — never the query string, so it can't leak into
+ * the URL *fragment* (#token=…) - never the query string, so it can't leak into
  * server/proxy logs. We pull it out, store it via the auth context, scrub the
  * fragment, and continue to the app.
  */
