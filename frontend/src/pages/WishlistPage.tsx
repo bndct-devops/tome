@@ -327,7 +327,11 @@ export function WishlistPage() {
                           </span>
                         )}
                         {w.series && w.series_index == null && w.series_coverage && w.series_coverage.length > 0 && (
-                          <SeriesCoverageStrip coverage={w.series_coverage} total={w.series_total} look="chips" />
+                          // Present volumes as the soft success tint the admin tab and
+                          // the series page use, not the solid fill of the chips look.
+                          <div className="[&_a]:bg-success/15 [&_a]:text-success [&_a:hover]:bg-success/25">
+                            <SeriesCoverageStrip coverage={w.series_coverage} total={w.series_total} look="chips" />
+                          </div>
                         )}
                         {w.note && (
                           <p className="mt-1.5 text-[14px] text-muted-foreground italic line-clamp-2">{w.note}</p>

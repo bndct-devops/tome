@@ -17,7 +17,9 @@ function withTz(path: string): string {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+// `noRedirect`: a 401 is the caller's answer, not an expired session (the
+// login form shows "wrong password" inline instead of reloading /login).
+async function request<T>(path: string, options?: RequestInit, noRedirect = false): Promise<T> {
   path = withTz(path)
   const token = localStorage.getItem("tome_token")
   const headers: HeadersInit = {
@@ -26,14 +28,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options?.headers,
   }
   const res = await bootFetch(path, options?.method, () => fetch(`${API_BASE}${path}`, { ...options, headers }))
-  if (res.status === 401) {
+  if (res.status === 401 && !noRedirect) {
     localStorage.removeItem("tome_token")
     window.location.href = "/login"
     throw new Error("Unauthorized")
   }
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(error.detail ?? "Request failed")
+    throw Object.assign(new Error(error.detail ?? "Request failed"), { status: res.status })
   }
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return undefined as T
@@ -72,8 +74,8 @@ export const api = {
   get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal }),
   getWithHeaders: <T>(path: string, signal?: AbortSignal) =>
     requestWithHeaders<T>(path, { signal }),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+  post: <T>(path: string, body?: unknown, opts?: { noRedirect?: boolean }) =>
+    request<T>(path, { method: "POST", body: JSON.stringify(body) }, opts?.noRedirect),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) =>

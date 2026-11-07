@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ExternalLink, Layers, Loader2, RefreshCw, Search, X, AlertTriangle, ChevronLeft,
+  BookOpen, ExternalLink, Layers, Loader2, RefreshCw, Search, AlertTriangle, ChevronLeft,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { PageBody, PageHeader, Pill } from '@/components/page'
+import { Input, PageBody, PageHeader, Pill } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { CoverImage } from '@/components/CoverImage'
 import { SeriesStackCard } from '@/components/SeriesStackCard'
 import type { Book } from '@/lib/books'
@@ -137,6 +138,10 @@ export function HardcoverPage() {
   const [pickQuery, setPickQuery] = useState('')
   const [pickResults, setPickResults] = useState<Candidate[] | null>(null)
   const [pickBusy, setPickBusy] = useState(false)
+  // The dialog keeps showing the last book while it animates out.
+  const lastPick = useRef<HcBook | null>(null)
+  if (pickFor) lastPick.current = pickFor
+  const pickShown = pickFor ?? lastPick.current
 
   const loadStatus = useCallback(async () => {
     try {
@@ -237,7 +242,7 @@ export function HardcoverPage() {
     try {
       await api.post(`/hardcover/books/${b.book_id}/rematch`, { mode })
       toast.info(mode === 'retry'
-        ? t`Match cleared — re-matching on the next sync`
+        ? t`Match cleared. Re-matching on the next sync.`
         : t`Excluded from Hardcover sync`)
       await load()
     } catch (err) {
@@ -303,7 +308,7 @@ export function HardcoverPage() {
     ? (() => {
         const user = status.username ?? ''
         if (!status.last_synced_at) return t`@${user}`
-        const when = new Date(status.last_synced_at + 'Z').toLocaleDateString(i18n.locale)
+        const when = new Date(status.last_synced_at + 'Z').toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' })
         return t`@${user} · last synced ${when}`
       })()
     : undefined
@@ -359,7 +364,7 @@ export function HardcoverPage() {
               to="/settings"
               className="inline-flex items-center h-9 px-4 rounded-full bg-primary text-primary-foreground text-[14px] font-semibold hover:bg-primary/90 transition-colors"
             >
-              <Trans>Open Settings</Trans>
+              <Trans>Open settings</Trans>
             </Link>
           </div>
         ) : (
@@ -478,7 +483,7 @@ export function HardcoverPage() {
                         {b.state === 'excluded' ? (
                           <button
                             onClick={() => void rematch(b, 'retry')}
-                            className="text-muted-foreground hover:text-foreground"
+                            className="ml-auto text-muted-foreground hover:text-foreground"
                             title={t`Start matching this book again`}
                           >
                             <Trans>Include</Trans>
@@ -486,7 +491,7 @@ export function HardcoverPage() {
                         ) : (
                           <button
                             onClick={() => void rematch(b, 'exclude')}
-                            className="text-muted-foreground hover:text-destructive"
+                            className="ml-auto text-muted-foreground hover:text-destructive"
                             title={t`Never sync this book. Nothing is removed from Hardcover.`}
                           >
                             <Trans>Exclude</Trans>
@@ -502,76 +507,65 @@ export function HardcoverPage() {
         )}
       </PageBody>
 
-      {/* Pick-a-record modal */}
-      {pickFor && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[10vh]"
-          onClick={() => setPickFor(null)}
-        >
-          <div
-            className="w-full max-w-lg rounded-[var(--radius-panel)] bg-card shadow-xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-5 pb-4">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <p className="font-display text-[20px] font-bold text-foreground truncate">
-                  {(() => { const title = displayTitle(pickFor); return <Trans>Match “{title}” to…</Trans> })()}
-                </p>
-                <Pill variant="quiet" icon onClick={() => setPickFor(null)} aria-label={t`Close`} className="-mr-2 shrink-0">
-                  <X className="w-4 h-4" />
-                </Pill>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  value={pickQuery}
-                  onChange={e => setPickQuery(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void runPickSearch(pickQuery) }}
-                  autoFocus
-                  placeholder={t`Search Hardcover…`}
-                  className="flex-1 min-w-0 h-9 rounded-full bg-secondary px-4 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <Pill variant="primary" onClick={() => void runPickSearch(pickQuery)} disabled={pickBusy}>
-                  <Trans>Search</Trans>
-                </Pill>
-              </div>
-            </div>
-            <div className="max-h-[50vh] overflow-y-auto px-5 pb-3 border-t border-border/70">
-              {pickResults == null ? (
-                <div className="flex items-center gap-2 text-[14px] text-muted-foreground py-4">
-                  <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Searching…</Trans>
-                </div>
-              ) : pickResults.length === 0 ? (
-                <p className="text-[14px] text-muted-foreground py-4"><Trans>No results. Try a different query.</Trans></p>
-              ) : (
-                <ul>
-                  {pickResults.map((c, i) => (
-                    <li key={c.hardcover_book_id} className={cn(i > 0 && 'border-t border-border/70')}>
-                      <button
-                        onClick={() => void pin(c)}
-                        disabled={pickBusy}
-                        className="w-full flex items-center gap-4 py-3 text-left rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
-                      >
-                        {c.cover_url ? (
-                          <img src={c.cover_url} alt="" className="w-10 h-[60px] object-cover rounded-md shrink-0" />
-                        ) : (
-                          <span className="w-10 h-[60px] rounded-md bg-muted shrink-0" />
-                        )}
-                        <span className="min-w-0">
-                          <span className="block text-[15px] font-semibold text-foreground truncate">{c.title}</span>
-                          <span className="block text-[13px] text-muted-foreground truncate">
-                            {c.authors.join(', ') || t`unknown author`}
-                            {c.users_count > 0 && ' · ' + plural(c.users_count, { one: '# reader', other: '# readers' })}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+      {/* Pick-a-record dialog */}
+      <ModalShell
+        open={!!pickFor}
+        onClose={() => setPickFor(null)}
+        size="md"
+        title={pickShown ? (() => { const title = displayTitle(pickShown); return <Trans>Match “{title}” to…</Trans> })() : ''}
+        bodyClassName="pb-3"
+      >
+        <div className="flex gap-2">
+          <Input
+            value={pickQuery}
+            onChange={e => setPickQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') void runPickSearch(pickQuery) }}
+            autoFocus
+            placeholder={t`Search Hardcover…`}
+            aria-label={t`Search Hardcover`}
+            className="flex-1 min-w-0"
+          />
+          <Pill variant="primary" onClick={() => void runPickSearch(pickQuery)} disabled={pickBusy}>
+            <Trans>Search</Trans>
+          </Pill>
         </div>
-      )}
+        <div className={cn('mt-4 border-t border-border/70 transition-opacity', pickBusy && pickResults != null && 'opacity-60')}>
+          {pickResults == null ? (
+            <div className="flex items-center gap-2 text-[14px] text-muted-foreground py-4">
+              <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Searching…</Trans>
+            </div>
+          ) : pickResults.length === 0 ? (
+            <p className="text-[14px] text-muted-foreground py-4"><Trans>No results. Try a different query.</Trans></p>
+          ) : (
+            <ul>
+              {pickResults.map(c => (
+                <li key={c.hardcover_book_id} className="border-b border-border/70 last:border-b-0">
+                  <button
+                    onClick={() => void pin(c)}
+                    disabled={pickBusy}
+                    className="w-full flex items-center gap-4 py-3 text-left rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
+                  >
+                    {c.cover_url ? (
+                      <img src={c.cover_url} alt="" className="w-10 h-[60px] object-cover rounded-[8px] shrink-0" />
+                    ) : (
+                      <span className="w-10 h-[60px] rounded-[8px] bg-muted shrink-0 flex items-center justify-center">
+                        <BookOpen className="w-4 h-4 text-muted-foreground/60" />
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block text-[15px] font-semibold text-foreground truncate">{c.title}</span>
+                      <span className="block text-[13px] text-muted-foreground truncate">
+                        {c.authors.join(', ') || t`unknown author`}
+                        {c.users_count > 0 && ' · ' + plural(c.users_count, { one: '# reader', other: '# readers' })}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </ModalShell>
     </AppShell>
   )
 }

@@ -285,10 +285,10 @@ function BookGrid({ books, onOpen }: { books: SharedBook[]; onOpen: (b: SharedBo
 }
 
 /** Minimal top bar: the wordmark, nothing else. */
-function TopBar() {
+function TopBar({ narrow = false }: { narrow?: boolean }) {
   return (
     <header className="safe-top">
-      <div className="mx-auto flex h-16 max-w-[1180px] items-center px-5 sm:px-6 lg:px-10">
+      <div className={cn('mx-auto flex h-16 items-center px-5 sm:px-6 lg:px-10', narrow ? 'max-w-[820px]' : 'max-w-[1180px]')}>
         <Wordmark />
       </div>
     </header>
@@ -360,12 +360,14 @@ export function SharePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopBar />
-      <PageBody width="wide" className="pt-4">
+      {/* A single book reads in the 820px column, centred like the footer
+          under it; series and shelves use the wide column for the grid. */}
+      <TopBar narrow={data.kind === 'book'} />
+      <PageBody width={data.kind === 'book' ? 'reading' : 'wide'} className="pt-4">
         {data.kind === 'book' && data.books[0] ? (
           <>
             <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{kindLabel}</div>
-            <div className="max-w-[820px] -mt-3">
+            <div className="-mt-3">
               <BookDetail b={data.books[0]} hero />
             </div>
           </>

@@ -11,7 +11,7 @@ import { useLingui } from '@lingui/react/macro'
 /** Page ground: the frame colour, the panel centred on it. */
 export function AuthFrame({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('min-h-screen flex flex-col items-center justify-center bg-frame px-4 py-10 safe-top', className)}>
+    <div className={cn('min-h-screen flex flex-col items-center justify-center bg-frame px-4 pb-10 pt-[max(2.5rem,env(safe-area-inset-top))]', className)}>
       {children}
     </div>
   )
