@@ -89,6 +89,11 @@ All notable changes to Tome are documented here. Format loosely follows
   middle of a comic page shows the toolbar instead of turning the page.
 - **The calendar's month switch** keeps the old month dimmed until the new one
   is in, and nothing fades in from nothing.
+- **Hardcover tokens work with or without the "Bearer" prefix.** Hardcover's
+  token page shows the value with "Bearer " in front and its API insists on
+  it; Tome now adds the prefix once itself, for the token you paste in
+  Settings and for `TOME_HARDCOVER_TOKEN`, so both forms work everywhere
+  (metadata fetch, release detection and sync).
 - **Smaller fixes:** the "Read on the web" line on Home no longer looks like a
   button; the hero book is not repeated in Also reading; Quick look keeps
   paragraph breaks; "0 book" plurals in French; a gap after the digit 1 in

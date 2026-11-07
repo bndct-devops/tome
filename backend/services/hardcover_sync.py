@@ -45,6 +45,8 @@ from datetime import datetime
 from typing import Optional
 
 import httpx
+
+from backend.services.hardcover_token import hardcover_auth
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -236,11 +238,10 @@ async def _gql(client: httpx.AsyncClient, token: str, query: str,
         resp = await client.post(
             HARDCOVER_URL,
             json={"query": query, "variables": variables or {}},
-            # The stored token INCLUDES the "Bearer " prefix — Hardcover
-            # requires it (verified live; a bare token gets "Malformed
-            # Authorization header"). The link endpoint normalizes pasted
-            # tokens to this form.
-            headers={"authorization": token},
+            # Hardcover requires the literal "Bearer " prefix (a bare token
+            # gets "Malformed Authorization header"); hardcover_auth adds it
+            # once, whichever form was stored or pasted.
+            headers={"authorization": hardcover_auth(token)},
         )
     except httpx.HTTPError as exc:
         raise HardcoverAPIError(f"network: {exc}") from exc

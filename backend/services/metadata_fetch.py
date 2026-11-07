@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from backend.services.hardcover_token import hardcover_auth
+
 from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -459,7 +461,7 @@ async def _hardcover(
     }
     """
 
-    headers = {"authorization": token}
+    headers = {"authorization": hardcover_auth(token)}
     # Failures propagate — _call_with_retry classifies them (retry on 429/timeout)
     # so the UI can distinguish "rate limited" from "book doesn't exist".
     resp = await client.post(
@@ -541,7 +543,7 @@ async def search_series(q: str) -> list[dict]:
         }
     }
     """
-    headers = {"authorization": token}
+    headers = {"authorization": hardcover_auth(token)}
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.post(
