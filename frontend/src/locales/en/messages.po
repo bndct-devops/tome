@@ -689,8 +689,8 @@ msgid "{daily} finished · {count} total"
 msgstr "{daily} finished · {count} total"
 
 #: src/components/home/HomeTab.tsx
-msgid "{dailyStreak, plural, one {# day streak} other {# day streak}}"
-msgstr "{dailyStreak, plural, one {# day streak} other {# day streak}}"
+#~ msgid "{dailyStreak, plural, one {# day streak} other {# day streak}}"
+#~ msgstr "{dailyStreak, plural, one {# day streak} other {# day streak}}"
 
 #: src/components/home/HomeTab.tsx
 msgid "{dailyStreak, plural, one {day} other {days}}"
@@ -5470,7 +5470,6 @@ msgid "No word counts yet."
 msgstr "No word counts yet."
 
 #: src/components/MetadataManager.tsx
-#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "None"
@@ -5734,6 +5733,7 @@ msgstr "OPDS Catalog"
 
 #: src/components/ShareLinksOverview.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Open"
 msgstr "Open"
@@ -8467,6 +8467,10 @@ msgstr "Unzip the file and copy via SSH (or USB). Remove the old plugin first to
 #: src/components/home/FocusMode.tsx
 #~ msgid "Up next"
 #~ msgstr "Up next"
+
+#: src/components/home/HomeTab.tsx
+msgid "Up next · {n} ahead"
+msgstr "Up next · {n} ahead"
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Up past midnight with {mainTitle}."

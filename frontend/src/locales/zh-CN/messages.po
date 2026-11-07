@@ -689,8 +689,8 @@ msgid "{daily} finished · {count} total"
 msgstr ""
 
 #: src/components/home/HomeTab.tsx
-msgid "{dailyStreak, plural, one {# day streak} other {# day streak}}"
-msgstr ""
+#~ msgid "{dailyStreak, plural, one {# day streak} other {# day streak}}"
+#~ msgstr ""
 
 #: src/components/home/HomeTab.tsx
 msgid "{dailyStreak, plural, one {day} other {days}}"
@@ -5470,7 +5470,6 @@ msgid "No word counts yet."
 msgstr ""
 
 #: src/components/MetadataManager.tsx
-#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "None"
@@ -5734,6 +5733,7 @@ msgstr ""
 
 #: src/components/ShareLinksOverview.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/BookDetailPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Open"
 msgstr ""
@@ -8467,6 +8467,10 @@ msgstr ""
 #: src/components/home/FocusMode.tsx
 #~ msgid "Up next"
 #~ msgstr ""
+
+#: src/components/home/HomeTab.tsx
+msgid "Up next · {n} ahead"
+msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Up past midnight with {mainTitle}."
