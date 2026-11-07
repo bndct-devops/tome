@@ -87,7 +87,7 @@ export function CoverAudit() {
 
   if (!data) {
     return (
-      <div className="flex items-center gap-2 py-10 justify-center text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 py-10 justify-center text-[14px] text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Scanning covers…</Trans>
       </div>
     )
@@ -106,7 +106,7 @@ export function CoverAudit() {
             return t`${flagged} of ${scanned} books flagged (low-res = narrower than ${minW}px).`
           })()}
         </p>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {missingCount > 0 && (
             <Pill
               onClick={autoFixAllMissing}
@@ -130,7 +130,7 @@ export function CoverAudit() {
 
       {data.books.length > 0 && (
         <div className="border-y border-border/70">
-          <div className="grid grid-cols-[3rem_1fr_8rem_7rem_6rem] items-center gap-2 border-b border-border/70 px-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          <div className="hidden sm:grid grid-cols-[3rem_minmax(0,1fr)_8rem_7rem_5.5rem] items-center gap-2 border-b border-border/70 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <span />
             <span><Trans>Book</Trans></span>
             <span><Trans>Problem</Trans></span>
@@ -139,10 +139,22 @@ export function CoverAudit() {
           </div>
           {data.books.map(b => {
             const state = fix[b.book_id]
+            const problem = (
+              <span
+                className={cn(
+                  'font-medium',
+                  b.reason === 'missing' ? 'text-destructive' : 'text-warning',
+                  state === 'fixed' && 'text-success',
+                )}
+              >
+                {state === 'fixed' ? t`Fixed` : i18n._(REASON_LABEL[b.reason])}
+              </span>
+            )
+            const size = b.width != null ? `${b.width}×${b.height}px` : '—'
             return (
               <div
                 key={b.book_id}
-                className="grid grid-cols-[3rem_1fr_8rem_7rem_6rem] items-center gap-2 border-b border-border/60 px-3 py-2 last:border-b-0"
+                className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[3rem_minmax(0,1fr)_8rem_7rem_5.5rem] items-center gap-x-3 sm:gap-x-2 border-b border-border/70 py-2.5 last:border-b-0"
               >
                 <span className="flex h-12 w-8 items-center justify-center overflow-hidden rounded bg-muted">
                   {b.reason === 'missing' || state === 'fixed' ? (
@@ -156,41 +168,37 @@ export function CoverAudit() {
                   )}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm text-foreground">
-                    {b.series ? `${b.series} ${b.series_index != null ? `#${b.series_index}` : ''} — ` : ''}
+                  <span className="block truncate text-[15px] text-foreground">
+                    {b.series ? `${b.series}${b.series_index != null ? ` #${b.series_index}` : ''}: ` : ''}
                     {b.title}
                   </span>
-                  {b.author && <span className="block truncate text-xs text-muted-foreground">{b.author}</span>}
+                  {b.author && <span className="block truncate text-[13px] text-muted-foreground">{b.author}</span>}
+                  <span className="mt-0.5 block truncate text-[13px] text-muted-foreground sm:hidden">
+                    {problem} · {size}
+                  </span>
                 </span>
-                <span
-                  className={cn(
-                    'text-xs font-medium',
-                    b.reason === 'missing' ? 'text-destructive' : 'text-warning',
-                    state === 'fixed' && 'text-success',
-                  )}
-                >
-                  {state === 'fixed' ? t`Fixed` : i18n._(REASON_LABEL[b.reason])}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {b.width != null ? `${b.width}×${b.height}px` : '—'}
-                </span>
-                <span className="flex items-center justify-end gap-1.5">
+                <span className="hidden sm:block text-[13px]">{problem}</span>
+                <span className="hidden sm:block text-[13px] text-muted-foreground">{size}</span>
+                <span className="flex items-center justify-end gap-0.5">
                   {b.reason === 'missing' && state !== 'fixed' && (
-                    <button
+                    <Pill
+                      icon
+                      variant="quiet"
                       onClick={() => autoFix(b)}
                       disabled={state === 'fixing' || bulkRunning}
                       title={t`Apply the first cover-search candidate`}
-                      className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      aria-label={t`Apply the first cover-search candidate`}
                     >
-                      {state === 'fixing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                    </button>
+                      {state === 'fixing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                    </Pill>
                   )}
                   <Link
                     to={`/books/${b.book_id}`}
                     title={t`Open book (pick a cover by eye)`}
-                    className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={t`Open book (pick a cover by eye)`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   >
-                    <ExternalLink className="h-3.5 w-3.5" />
+                    <ExternalLink className="h-4 w-4" />
                   </Link>
                 </span>
               </div>
@@ -199,8 +207,8 @@ export function CoverAudit() {
         </div>
       )}
       {Object.values(fix).some(s => s === 'nocandidate' || s === 'failed') && (
-        <p className="text-xs text-muted-foreground">
-          <Trans>Some books had no usable candidate or failed to apply — open them and use the cover picker.</Trans>
+        <p className="text-[13px] text-muted-foreground">
+          <Trans>Some books had no usable candidate or failed to apply. Open them and use the cover picker.</Trans>
         </p>
       )}
     </div>

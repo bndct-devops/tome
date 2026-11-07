@@ -6,7 +6,7 @@ import { Download, Loader2, RotateCcw, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
-import { Pill } from '@/components/page'
+import { Input, Pill } from '@/components/page'
 import { PanelSection } from '@/components/SectionNav'
 
 
@@ -78,7 +78,7 @@ export function InstanceBackup() {
       title={<Trans>Instance backup</Trans>}
       description={<Trans>Everything Tome knows in one archive: the database (all users, statuses,
         sessions, highlights, settings) plus the cover cache. Book files are not
-        included — they live on disk and belong to your own backups. Restoring
+        included; they live on disk and belong to your own backups. Restoring
         stages the archive and applies it at the next server restart; the
         current database is kept alongside as a safety copy.</Trans>}
     >
@@ -119,11 +119,12 @@ export function InstanceBackup() {
             <Trans>This replaces <span className="font-semibold text-foreground">the entire database</span> at
             the next restart. Type <span className="font-mono font-semibold text-destructive">RESTORE</span> to arm it.</Trans>
           </p>
-          <input
+          <Input
             value={confirmText}
             onChange={e => setConfirmText(e.target.value)}
             placeholder="RESTORE"
-            className="w-32 font-mono h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label={t`Type RESTORE to confirm`}
+            className="w-32 font-mono"
           />
           <Pill
             onClick={stage}
@@ -148,7 +149,7 @@ export function InstanceBackup() {
           <p className="min-w-0 flex-1 text-[13px] text-foreground">
             <Trans>Restore staged</Trans>
             {status.summary
-              ? (() => { const when = status.summary.created_at; const v = status.summary.version; const users = status.summary.users; const books = status.summary.books; return t` — backup from ${when} (v${v}, ${users} users, ${books} books).` })()
+              ? (() => { const when = status.summary.created_at; const v = status.summary.version; const users = status.summary.users; const books = status.summary.books; return t`: backup from ${when} (v${v}, ${users} users, ${books} books).` })()
               : '.'}{' '}
             <span className="text-muted-foreground"><Trans>It applies at the next server restart.</Trans></span>
           </p>

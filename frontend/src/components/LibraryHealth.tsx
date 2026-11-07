@@ -6,6 +6,7 @@ import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, Chevr
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Pill } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 
 interface HealthIssue {
   book_id: number
@@ -108,6 +109,8 @@ export function LibraryHealthTab() {
   const [missingResult, setMissingResult] = useState<RemoveMissingResult | null>(null)
   const [dryRunResult, setDryRunResult] = useState<ReorganizeResult | null>(null)
   const [result, setResult] = useState<ReorganizeResult | null>(null)
+  // Moving files on disk asks first: the ids the user is about to move.
+  const [confirmMove, setConfirmMove] = useState<number[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function purgeEmpty() {
@@ -248,21 +251,18 @@ export function LibraryHealthTab() {
                   disabled={reorganizing}
                   variant="secondary"
                 >
-                  <Trans>Dry Run All</Trans>
+                  <Trans>Dry run all</Trans>
                 </Pill>
                 <Pill
-                  onClick={() => selected.size > 0
-                    ? runReorganize([...selected], false)
-                    : runReorganize(allFileIds, false)
-                  }
+                  onClick={() => setConfirmMove(selected.size > 0 ? [...selected] : allFileIds)}
                   disabled={reorganizing}
                   variant="primary"
                 >
                   {reorganizing
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : selected.size > 0
-                    ? (() => { const n = selected.size; return t`Reorganize Selected (${n})` })()
-                    : t`Reorganize All`
+                    ? (() => { const n = selected.size; return t`Reorganize selected (${n})` })()
+                    : t`Reorganize all`
                   }
                 </Pill>
               </>
@@ -274,7 +274,7 @@ export function LibraryHealthTab() {
               title={t`Remove folders that contain only hidden files (.DS_Store, etc.)`}
             >
               {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
-              {purging ? t`Purging...` : t`Purge Empty Folders`}
+              {purging ? t`Purging...` : t`Purge empty folders`}
             </Pill>
             <Pill
               onClick={scan}
@@ -282,7 +282,7 @@ export function LibraryHealthTab() {
               variant="secondary"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-              {loading ? t`Scanning…` : t`Scan Library`}
+              {loading ? t`Scanning…` : t`Scan library`}
             </Pill>
           </div>
         </div>
@@ -379,14 +379,14 @@ export function LibraryHealthTab() {
                 onClick={() => confirmRemoveMissing ? removeMissing() : setConfirmRemoveMissing(true)}
                 disabled={removingMissing}
                 variant="destructive" className="bg-destructive/10 text-destructive"
-                title={t`Removes the database entries only — no files are touched`}
+                title={t`Removes the database entries only. No files are touched.`}
               >
                 {removingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
                 {removingMissing
                   ? t`Removing...`
                   : confirmRemoveMissing
-                  ? plural(healthData.missing.length, { one: 'Confirm — remove # entry', other: 'Confirm — remove # entries' })
-                  : t`Remove Dead Entries`}
+                  ? plural(healthData.missing.length, { one: 'Confirm: remove # entry', other: 'Confirm: remove # entries' })
+                  : t`Remove dead entries`}
               </Pill>
             </div>
           </div>
@@ -399,7 +399,7 @@ export function LibraryHealthTab() {
                   <div className="min-w-0 space-y-1 flex-1">
                     <p className="font-medium truncate">
                       {m.title}
-                      {m.author && <span className="text-muted-foreground font-normal"> — {m.author}</span>}
+                      {m.author && <span className="text-muted-foreground font-normal">, {m.author}</span>}
                     </p>
                     <p className="text-muted-foreground font-mono truncate line-through">{m.path}</p>
                   </div>
@@ -424,7 +424,7 @@ export function LibraryHealthTab() {
           <div className="flex items-center justify-between">
             {(() => { const n = dryRunResult.moved.length; return (
             <p className="text-xs font-semibold">
-              <Trans>Dry Run Preview — {n} files would be moved</Trans>
+              <Trans>Dry run preview: {n} files would be moved</Trans>
             </p>
             ) })()}
             <button
@@ -453,11 +453,11 @@ export function LibraryHealthTab() {
               <Trans>Cancel</Trans>
             </Pill>
             <Pill
-              onClick={() => runReorganize(dryRunResult.moved.map(m => m.file_id), false)}
+              onClick={() => setConfirmMove(dryRunResult.moved.map(m => m.file_id))}
               disabled={reorganizing}
               variant="primary"
             >
-              <Trans>Confirm & Reorganize</Trans>
+              <Trans>Confirm and reorganize</Trans>
             </Pill>
           </div>
         </div>
@@ -532,6 +532,31 @@ export function LibraryHealthTab() {
           })}
         </div>
       )}
+
+      <ModalShell
+        open={confirmMove !== null}
+        onClose={() => setConfirmMove(null)}
+        size="sm"
+        title={<Trans>Move files on disk?</Trans>}
+        footer={
+          <>
+            <Pill variant="quiet" onClick={() => setConfirmMove(null)}><Trans>Cancel</Trans></Pill>
+            <Pill
+              variant="primary"
+              onClick={() => { const ids = confirmMove ?? []; setConfirmMove(null); void runReorganize(ids, false) }}
+            >
+              <Trans>Reorganize</Trans>
+            </Pill>
+          </>
+        }
+      >
+        <p className="text-[14px] text-muted-foreground">
+          {plural(confirmMove?.length ?? 0, {
+            one: '# file is moved to its expected folder in the library. Empty folders left behind are removed.',
+            other: '# files are moved to their expected folders in the library. Empty folders left behind are removed.',
+          })}
+        </p>
+      </ModalShell>
 
       {healthData && healthData.misplaced_count === 0 && healthData.missing_count === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">

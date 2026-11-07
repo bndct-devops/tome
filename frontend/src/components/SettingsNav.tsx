@@ -97,7 +97,16 @@ export function SettingsNav({ sections, onActiveChange, placement }: {
     e.preventDefault()
     const el = document.getElementById(id)
     if (!el) return
-    el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    // Scroll the shell's content panel directly. The phone pill row is
+    // sticky inside it; the section's scroll-margin clears it.
+    const scroller = anchorRef.current?.closest('main') ?? null
+    if (scroller) {
+      const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0
+      const top = scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - margin
+      scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    } else {
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    }
     window.history.replaceState(null, '', `#${id}`)
     pinnedRef.current = id
     setActive(id)

@@ -51,11 +51,16 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
   const pillRow = useRef<HTMLDivElement>(null)
   const slot = useSyncExternalStore(subscribeSlot, readSlot, () => null)
 
-  // Keep the active pill in view on phones.
+  // Keep the active pill in view on phones. Scroll the row itself, sideways
+  // only: scrollIntoView would also scroll <main> and cancel the section jump
+  // that a tap on the pill just started.
   useEffect(() => {
     if (!active) return
-    const pill = pillRow.current?.querySelector<HTMLElement>(`[data-section="${CSS.escape(active)}"]`)
-    if (pill && pill.offsetParent !== null) pill.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+    const row = pillRow.current
+    const pill = row?.querySelector<HTMLElement>(`[data-section="${CSS.escape(active)}"]`)
+    if (!row || !pill || pill.offsetParent === null) return
+    const left = pill.offsetLeft - (row.clientWidth - pill.offsetWidth) / 2
+    row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
   }, [active])
 
   function item(s: SectionNavItem, className: string) {
@@ -96,8 +101,8 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
       </nav>
       )}
 
-      <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background">
-        <div ref={pillRow} className="flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background" data-section-pills>
+        <div ref={pillRow} className="relative flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map(s => item(s, cn(
             'shrink-0 whitespace-nowrap inline-flex items-center h-8 px-3.5 rounded-full text-[13px] transition-colors',
             s.id === active
@@ -111,16 +116,18 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
 }
 
 /** Page frame shared by Settings and Admin. */
-export function SectionLayout({ title, eyebrow, nav, sidebar = false, children }: {
+export function SectionLayout({ title, eyebrow, nav, sidebar = false, wide = false, children }: {
   title: ReactNode
   eyebrow?: ReactNode
   nav: ReactNode
   /** The nav lives in the page's SectionSidebar on desktop; here it only adds the phone pill row. */
   sidebar?: boolean
+  /** A wide table (Admin > Metadata) takes the full content width. */
+  wide?: boolean
   children: ReactNode
 }) {
   return (
-    <PageBody width={sidebar ? 'reading' : 'wide'} className={sidebar ? 'lg:max-w-[920px]' : undefined}>
+    <PageBody width={sidebar && !wide ? 'reading' : 'wide'} className={sidebar && !wide ? 'lg:max-w-[920px]' : undefined}>
       <PageHeader eyebrow={eyebrow} title={title} />
       <div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4', !sidebar && 'lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)]')}>
         {nav}
@@ -169,7 +176,9 @@ export function SectionSidebar({ title }: { title: ReactNode }) {
  */
 export function PanelSection({ id, title, description, action, children, className }: {
   id?: string
-  title: ReactNode
+  /** Leave out when the page header already names the section (Admin tabs):
+      the description and action then share one row. */
+  title?: ReactNode
   description?: ReactNode
   action?: ReactNode
   children?: ReactNode
@@ -177,9 +186,18 @@ export function PanelSection({ id, title, description, action, children, classNa
 }) {
   return (
     <section id={id} className={cn('scroll-mt-16 lg:scroll-mt-6', className)}>
-      <SectionTitle size={20} action={action}>{title}</SectionTitle>
-      {description && <p className="mt-2 text-[14px] text-muted-foreground max-w-[70ch]">{description}</p>}
-      {children && <div className="mt-5">{children}</div>}
+      {title != null ? (
+        <>
+          <SectionTitle size={20} action={action}>{title}</SectionTitle>
+          {description && <p className="mt-2 text-[14px] text-muted-foreground max-w-[70ch]">{description}</p>}
+        </>
+      ) : (description || action) ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {description && <div className="min-w-0 flex-1 text-[14px] text-muted-foreground max-w-[70ch]">{description}</div>}
+          {action && <div className="ml-auto shrink-0">{action}</div>}
+        </div>
+      ) : null}
+      {children && <div className={cn((title != null || description || action) && 'mt-5')}>{children}</div>}
     </section>
   )
 }

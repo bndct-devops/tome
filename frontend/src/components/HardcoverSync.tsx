@@ -6,7 +6,7 @@ import { ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
-import { Pill } from '@/components/page'
+import { Input, Pill } from '@/components/page'
 
 interface HardcoverStatus {
   linked: boolean
@@ -68,7 +68,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
     setBusy(true)
     try {
       const r = await api.post<{ username: string }>('/hardcover/link', { token: token.trim() })
-      { const username = r.username; toast.success(t`Linked as @${username} — initial sync started`) }
+      { const username = r.username; toast.success(t`Linked as @${username}. Initial sync started.`) }
       setToken('')
       await refresh()
     } catch (err) {
@@ -105,7 +105,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
     try {
       const r = await api.post<{ started: boolean }>('/hardcover/sync-now', {})
       if (r.started) {
-        toast.info(t`Sync started — pushing ratings and progress, syncing Want to Read both ways`)
+        toast.info(t`Sync started: pushing ratings and progress, syncing Want to Read both ways`)
         setStatus(s => s ? { ...s, sync_running: true } : s)
       } else {
         toast.info(t`A sync is already running`)
@@ -124,9 +124,9 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
           <div>
             <div>
               {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-              <p className="text-[15px] font-semibold text-foreground">Hardcover Sync</p>
+              <p className="text-[15px] font-semibold text-foreground">Hardcover sync</p>
               <p className="text-[13px] text-muted-foreground mt-0.5">
-                <Trans>Push your ratings and reading progress to your Hardcover profile — nothing
+                <Trans>Push your ratings and reading progress to your Hardcover profile; nothing
                 is ever deleted there. Your Hardcover Want to Read shelf syncs both ways.
                 Needs your personal API token (separate from the server's metadata token).</Trans>
               </p>
@@ -157,13 +157,14 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
               </div>
             )}
             <div className="flex gap-2">
-              <input
+              <Input
                 type="password"
                 value={token}
                 onChange={e => setToken(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void link() }}
                 placeholder={t`Paste your Hardcover API token`}
-                className="flex-1 h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                aria-label={t`Hardcover API token`}
+                className="flex-1 min-w-0"
               />
               <Pill
                 onClick={() => void link()}
@@ -228,11 +229,11 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 {status.sync_running ? t`Syncing…` : t`Sync now`}
               </Pill>
               {/* Match auditing/fixing lives on the dedicated page */}
-              <Link to="/hardcover" className="text-xs text-primary hover:underline">
+              <Link to="/hardcover" className="text-[13px] text-primary hover:underline">
                 {(() => { const n = status.matched_count ?? 0; return t`${n} synced` })()}
                 {(status.unmatched_count ?? 0) > 0 && (() => { const n = status.unmatched_count ?? 0; return t` · ${n} not matched` })()}
                 {(status.error_count ?? 0) > 0 && (() => { const n = status.error_count ?? 0; return t` · ${n} errors` })()}
-                {' '}<Trans>— manage →</Trans>
+                {' '}<Trans>· Manage</Trans>
               </Link>
             </div>
           </div>

@@ -9,7 +9,7 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { Pill } from '@/components/page'
+import { Checkbox, Pill } from '@/components/page'
 
 interface MatchedRow {
   title: string
@@ -79,7 +79,7 @@ export function ReadingImport() {
       setPreview(null)
       setPhase('done')
     } catch {
-      setError(t`Applying failed — nothing was changed.`)
+      setError(t`Applying failed. Nothing was changed.`)
       setPhase('idle')
     }
   }
@@ -89,7 +89,7 @@ export function ReadingImport() {
       <p className="-mt-3 text-[14px] text-muted-foreground mb-5 max-w-[70ch]">
         <Trans>Bring your reading history from Goodreads or StoryGraph: upload their CSV
         export, review what matches your library, apply. Importing only fills
-        gaps — it never overwrites a status, rating, review, or finish date you
+        gaps; it never overwrites a status, rating, review, or finish date you
         already have. &quot;To read&quot; shelves are skipped (that&apos;s what the wishlist
         is for).</Trans>
       </p>
@@ -132,20 +132,19 @@ export function ReadingImport() {
           ) })()}
 
           {preview.matched.length > 0 && (
-            <div className="max-h-72 overflow-y-auto overscroll-contain rounded-lg border border-border">
+            <div className="max-h-72 overflow-y-auto overscroll-contain border-y border-border/70">
               {preview.matched.map((m, i) => {
                 const noop = !m.will_apply.status && !m.will_apply.rating &&
                              !m.will_apply.finished_on && !m.will_apply.review
                 return (
-                  <label
+                  <div
                     key={i}
                     className={cn(
-                      'flex cursor-pointer items-center gap-2.5 border-b border-border/50 px-3 py-2 last:border-b-0',
+                      'border-b border-border/70 py-2 last:border-b-0',
                       noop && 'opacity-50',
                     )}
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={checked.has(i)}
                       onChange={() => setChecked(prev => {
                         const next = new Set(prev)
@@ -153,19 +152,21 @@ export function ReadingImport() {
                         else next.add(i)
                         return next
                       })}
-                      className="accent-[var(--primary)]"
+                      className="flex w-full"
+                      label={
+                        <span className="block min-w-0">
+                          <span className="block truncate text-[14px] text-foreground">{m.matched_title}</span>
+                          <span className="block truncate text-[13px] text-muted-foreground">
+                            {m.status}
+                            {m.rating != null ? (() => { const r = m.rating; return t` · ${r} stars` })() : ''}
+                            {m.finished_on ? (() => { const d = m.finished_on; return t` · finished ${d}` })() : ''}
+                            {(() => { const via = i18n._(VIA_LABEL[m.match_via]); return t` · matched by ${via}` })()}
+                            {noop ? t` · nothing to fill (already tracked)` : ''}
+                          </span>
+                        </span>
+                      }
                     />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs text-foreground">{m.matched_title}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
-                        {m.status}
-                        {m.rating != null ? (() => { const r = m.rating; return t` · ${r} stars` })() : ''}
-                        {m.finished_on ? (() => { const d = m.finished_on; return t` · finished ${d}` })() : ''}
-                        {(() => { const via = i18n._(VIA_LABEL[m.match_via]); return t` · matched by ${via}` })()}
-                        {noop ? t` · nothing to fill (already tracked)` : ''}
-                      </span>
-                    </span>
-                  </label>
+                  </div>
                 )
               })}
             </div>
@@ -176,7 +177,7 @@ export function ReadingImport() {
               {(() => { const n = preview.unmatched.length; return <summary className="cursor-pointer"><Trans>Not in your library ({n})</Trans></summary> })()}
               <ul className="mt-1 max-h-32 overflow-y-auto pl-4">
                 {preview.unmatched.map((u, i) => (
-                  <li key={i} className="truncate">{u.title} — {u.author}</li>
+                  <li key={i} className="truncate">{u.title}, {u.author}</li>
                 ))}
               </ul>
             </details>

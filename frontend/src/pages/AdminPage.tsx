@@ -12,7 +12,8 @@ import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
 import { AppShell } from '@/components/AppShell'
 import { SectionLayout, SectionNav, SectionSidebar, PanelSection, TABLE_HEAD } from '@/components/SectionNav'
-import { PageBody, Pill, Stat, StatStrip } from '@/components/page'
+import { PageBody, Pill, Stat, StatStrip, Input, Select, FormLabel, Checkbox, Radio, PillGroup } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
 import { CoverAudit } from '@/components/CoverAudit'
 import { InstanceBackup } from '@/components/InstanceBackup'
@@ -104,86 +105,52 @@ function UserModal({ user, onClose, onSaved }: {
     }
   }
 
-  const roles: { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[] = [
-    { value: 'guest', label: t`Guest`, Icon: Eye },
-    { value: 'member', label: t`Member`, Icon: User },
-    { value: 'admin', label: t`Admin`, Icon: Shield },
+  const roles: { value: 'admin' | 'member' | 'guest'; label: string }[] = [
+    { value: 'guest', label: t`Guest` },
+    { value: 'member', label: t`Member` },
+    { value: 'admin', label: t`Admin` },
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-card rounded-[var(--radius-panel)] shadow-xl ring-1 ring-border/70 w-full max-w-md">
-        <div className="flex items-center justify-between px-5 pt-5 pb-2">
-          <h2 className="font-display text-[20px] font-bold leading-none">{user ? t`Edit User` : t`New User`}</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-accent transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      title={user ? t`Edit user` : t`New user`}
+      footer={
+        <>
+          <Pill type="button" variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
+          <Pill type="submit" form="admin-user-form" disabled={saving} variant="primary">
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {user ? t`Save` : t`Create`}
+          </Pill>
+        </>
+      }
+    >
+      <form id="admin-user-form" onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+        <div>
+          <FormLabel htmlFor="admin-user-name"><Trans>Username</Trans></FormLabel>
+          <Input id="admin-user-name" value={username} onChange={e => setUsername(e.target.value)} required placeholder={t`username`} />
         </div>
-        <form onSubmit={handleSubmit} className="px-5 pb-5 pt-2 flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-[13px] text-muted-foreground"><Trans>Username</Trans></label>
-            <input value={username} onChange={e => setUsername(e.target.value)} required
-              className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder="username" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[13px] text-muted-foreground"><Trans>Email</Trans></label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder="user@example.com" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[13px] text-muted-foreground">
-              <Trans>Password</Trans> {user && <span className="text-muted-foreground/60"><Trans>(leave blank to keep)</Trans></span>}
-            </label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required={!user}
-              className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder={user ? '••••••••' : t`password`} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[13px] text-muted-foreground"><Trans>Role</Trans></label>
-            <div className="flex gap-1 rounded-full bg-secondary p-1">
-              {roles.map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setRole(value)}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 h-7 px-2 rounded-full text-[13px] font-medium transition-colors',
-                    role === value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {user && !isSelf && (
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <div onClick={() => setIsActive(v => !v)}
-                className={cn('w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer',
-                  isActive ? 'bg-primary border-primary' : 'border-border')}>
-                {isActive && <Check className="w-3 h-3 text-primary-foreground" />}
-              </div>
-              <span className="text-sm"><Trans>Active</Trans></span>
-            </label>
-          )}
-          {error && <p className="text-[13px] text-destructive">{error}</p>}
-          <div className="flex justify-end gap-2 mt-1">
-            <Pill type="button" onClick={onClose}
-              variant="secondary"><Trans>Cancel</Trans></Pill>
-            <Pill type="submit" disabled={saving}
-              variant="primary">
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {user ? t`Save` : t`Create`}
-            </Pill>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div>
+          <FormLabel htmlFor="admin-user-email"><Trans>Email</Trans></FormLabel>
+          <Input id="admin-user-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="user@example.com" />
+        </div>
+        <div>
+          <FormLabel htmlFor="admin-user-password" hint={user ? t`(leave blank to keep)` : undefined}><Trans>Password</Trans></FormLabel>
+          <Input id="admin-user-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required={!user}
+            placeholder={user ? '••••••••' : t`password`} />
+        </div>
+        <div>
+          <FormLabel><Trans>Role</Trans></FormLabel>
+          <PillGroup value={role} onChange={setRole} options={roles} aria-label={t`Role`} />
+        </div>
+        {user && !isSelf && (
+          <Checkbox checked={isActive} onChange={e => setIsActive(e.target.checked)} label={<Trans>Active</Trans>} />
+        )}
+        {error && <p className="text-[13px] text-destructive">{error}</p>}
+      </form>
+    </ModalShell>
   )
 }
 
@@ -228,23 +195,22 @@ function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: Use
     <div className="mt-4 flex flex-col gap-3 max-w-xl">
       <div className="flex flex-col gap-1">
         <label className="text-[13px] text-muted-foreground">
-          <Trans>Hidden tags — books carrying any of these tags are invisible to this user (comma-separated)</Trans>
+          <Trans>Hidden tags: books carrying any of these tags are invisible to this user (comma-separated)</Trans>
         </label>
-        <input
+        <Input
           value={tags}
           onChange={(e) => { setTags(e.target.value); setSaved(false) }}
           placeholder={t`e.g. adult, mature`}
-          className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <label className="text-[13px] text-muted-foreground shrink-0"><Trans>Downloads per day</Trans></label>
-        <input
+        <Input
           value={limit}
           onChange={(e) => { setLimit(e.target.value); setSaved(false) }}
           inputMode="numeric"
           placeholder={t`unlimited`}
-          className="w-28 h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-28"
         />
         <span className="text-[13px] text-muted-foreground"><Trans>blank = unlimited, 0 = downloads disabled</Trans></span>
 
@@ -253,7 +219,7 @@ function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: Use
         <Pill
           onClick={save}
           disabled={saving}
-          variant="primary"
+          variant="secondary"
         >
           {saving ? t`Saving…` : t`Save restrictions`}
         </Pill>
@@ -331,7 +297,6 @@ function UsersTab() {
 
   return (
     <PanelSection
-      title={<Trans>Users</Trans>}
       description={
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
           <Plural value={users.length} one="# user" other="# users" />
@@ -347,7 +312,7 @@ function UsersTab() {
       }
       action={
         <Pill variant="primary" onClick={() => { setModalUser(null); setModalOpen(true) }}>
-          <Plus className="w-4 h-4" /> <Trans>New User</Trans>
+          <Plus className="w-4 h-4" /> <Trans>New user</Trans>
         </Pill>
       }
     >
@@ -507,16 +472,15 @@ function ScannerTab() {
   const typeSelector = (
     <div className="max-w-md">
       <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Assign type to new books</Trans></label>
-      <select
+      <Select
         value={defaultTypeId}
         onChange={e => setDefaultTypeId(e.target.value ? Number(e.target.value) : '')}
-        className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       >
         <option value="">{t`No type (staging / admin only)`}</option>
         {bookTypes.map(t => (
           <option key={t.id} value={t.id}>{t.label}</option>
         ))}
-      </select>
+      </Select>
       {!defaultTypeId && (
         <p className="text-[13px] text-warning mt-1.5">
           <Trans>Without a type, new books are only visible to admins until assigned.</Trans>
@@ -528,7 +492,7 @@ function ScannerTab() {
   return (
     <>
       <PanelSection
-        title={<Trans>Scan Library</Trans>}
+        title={<Trans>Scan library</Trans>}
         description={<Trans>Walk the library directory and add any new book files found.</Trans>}
       >
         {scanning ? (
@@ -541,21 +505,21 @@ function ScannerTab() {
             {typeSelector}
             <Pill variant="primary" onClick={handleScan} disabled={scanning || importing}>
               <RefreshCw className="w-4 h-4" />
-              <Trans>Scan Now</Trans>
+              <Trans>Scan now</Trans>
             </Pill>
           </div>
         )}
       </PanelSection>
 
       <PanelSection
-        title={<Trans>Import from Incoming</Trans>}
+        title={<Trans>Import from incoming</Trans>}
         description={<Trans>Process files dropped into the <code className="text-[13px] bg-secondary px-1 rounded">incoming/</code> directory and move them into the library.</Trans>}
       >
         <div className="flex flex-col items-start gap-4">
           {typeSelector}
-          <Pill variant="primary" onClick={handleImport} disabled={importing || scanning}>
+          <Pill variant="secondary" onClick={handleImport} disabled={importing || scanning}>
             {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-            {importing ? t`Importing…` : t`Import Now`}
+            {importing ? t`Importing…` : t`Import now`}
           </Pill>
         </div>
       </PanelSection>
@@ -616,7 +580,7 @@ function ServerTab() {
 
   return (
     <>
-      <PanelSection title={<Trans>Server</Trans>}>
+      <PanelSection>
         <StatStrip cols={4}>
           <Stat size={30} label={t`Books`} value={stats?.book_count ?? 0} />
           <Stat size={30} label={t`Users`} value={stats?.user_count ?? 0} />
@@ -652,7 +616,7 @@ function ServerTab() {
       <InstanceBackup />
 
       <section>
-        <h2 className="font-display text-[20px] leading-none font-bold text-destructive"><Trans>Danger Zone</Trans></h2>
+        <h2 className="font-display text-[20px] leading-none font-bold text-destructive"><Trans>Danger zone</Trans></h2>
         <div className="mt-5 border-y border-destructive/30 py-4">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
@@ -856,88 +820,78 @@ function TypeLayoutField({
       : null
 
   return (
-    <div className="col-span-2 space-y-2">
-      <label className="text-xs text-muted-foreground block"><Trans>Layout</Trans></label>
-      <div className={cn('space-y-1.5', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
+    <div className="sm:col-span-2 space-y-3">
+      <FormLabel className="mb-0"><Trans>Layout</Trans></FormLabel>
+      <div className={cn('flex flex-col gap-3', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
         {LAYOUT_PRESETS.map(name => {
           const example = preview?.presets[name]?.paths[0]?.path
           return (
-            <label
+            <Radio
               key={name}
-              className={cn(
-                'flex items-start gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors',
-                form.layout_preset === name ? 'border-primary/60 bg-primary/5' : 'border-border hover:bg-muted/50',
-              )}
-            >
-              <input
-                type="radio"
-                name={`layout-${bookTypeId ?? 'new'}`}
-                value={name}
-                checked={form.layout_preset === name}
-                onChange={() => onChange({ layout_preset: name })}
-                className="mt-0.5 accent-primary"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="text-sm font-medium block">{presetText[name].label}</span>
-                <span className="text-xs text-muted-foreground block">{presetText[name].description}</span>
-                <span className="text-xs font-mono text-foreground/80 block mt-0.5 break-all">
-                  {example ?? '\u00a0'}
-                </span>
-              </span>
-            </label>
+              name={`layout-${bookTypeId ?? 'new'}`}
+              value={name}
+              checked={form.layout_preset === name}
+              onChange={() => onChange({ layout_preset: name })}
+              className="flex"
+              label={<span className="text-[14px] font-medium">{presetText[name].label}</span>}
+              description={
+                <>
+                  <span className="block">{presetText[name].description}</span>
+                  <span className="mt-0.5 block font-mono text-foreground/80 break-all">{example ?? ' '}</span>
+                </>
+              }
+            />
           )
         })}
       </div>
-      {sampleNote && <p className="text-xs text-muted-foreground">{sampleNote}</p>}
+      {sampleNote && <p className="text-[13px] text-muted-foreground">{sampleNote}</p>}
 
-      <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
-        <input
-          type="checkbox"
-          checked={form.advanced}
-          onChange={e => toggleAdvanced(e.target.checked)}
-          className="accent-primary"
-        />
-        <Trans>Advanced: custom template</Trans>
-      </label>
+      <Checkbox
+        checked={form.advanced}
+        onChange={e => toggleAdvanced(e.target.checked)}
+        label={<Trans>Advanced: custom template</Trans>}
+        className="pt-1"
+      />
 
       {form.advanced && (
-        <div className="space-y-2 pl-6">
-          <input
-            ref={templateRef}
-            value={form.layout_template}
-            onChange={e => onChange({ layout_template: e.target.value })}
-            maxLength={255}
-            spellCheck={false}
-            aria-label={t`Template`}
-            aria-invalid={error !== null}
-            className={cn(
-              'w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring font-mono',
-              error && 'border-destructive focus:ring-destructive',
-            )}
-          />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowReference(v => !v)}
-              aria-expanded={showReference}
-              className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Trans>Template reference</Trans>
-              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
-            </button>
+        <div className="space-y-4 sm:pl-7">
+          <div>
+            <FormLabel htmlFor={`layout-template-${bookTypeId ?? 'new'}`}><Trans>Template</Trans></FormLabel>
+            <Input
+              id={`layout-template-${bookTypeId ?? 'new'}`}
+              ref={templateRef}
+              value={form.layout_template}
+              onChange={e => onChange({ layout_template: e.target.value })}
+              maxLength={255}
+              spellCheck={false}
+              aria-invalid={error !== null}
+              invalid={error !== null}
+              className="font-mono"
+            />
+            {error && <p className="mt-1.5 text-[13px] text-destructive">{error}</p>}
+            <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
+                <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowReference(v => !v)}
+                aria-expanded={showReference}
+                className="shrink-0 flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Trans>Template reference</Trans>
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
+              </button>
+            </div>
           </div>
           {showReference && (
-            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5">
               {[
                 { heading: t`Fields`, rows: fieldRows },
                 { heading: t`Syntax`, rows: syntaxRows },
               ].map((group, gi) => (
                 <Fragment key={group.heading}>
-                  <p className={cn('col-span-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground', gi > 0 && 'pt-1.5')}>
+                  <p className={cn('col-span-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground', gi > 0 && 'pt-2')}>
                     {group.heading}
                   </p>
                   {group.rows.map(row => (
@@ -946,12 +900,12 @@ function TypeLayoutField({
                         type="button"
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => insertToken(row.token)}
-                        title={t`Insert ${row.token}`}
-                        className="justify-self-start font-mono text-[11px] leading-none px-1.5 py-1 rounded border border-border bg-muted text-foreground/90 hover:border-primary/50 hover:bg-primary/10 transition-colors"
+                        title={(() => { const token = row.token; return t`Insert ${token}` })()}
+                        className="justify-self-start font-mono text-[12px] leading-none px-2 py-1.5 rounded-md bg-secondary text-foreground/90 hover:bg-primary/10 hover:text-foreground transition-colors"
                       >
                         {row.token}
                       </button>
-                      <span className="text-xs text-muted-foreground">{row.description}</span>
+                      <span className="text-[13px] text-muted-foreground">{row.description}</span>
                     </Fragment>
                   ))}
                 </Fragment>
@@ -959,50 +913,116 @@ function TypeLayoutField({
             </div>
           )}
           {!error && preview && preview.paths.length > 0 && (
-            <div className="border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-xs table-fixed">
-                <thead className="bg-muted/50 text-muted-foreground">
-                  <tr>
-                    <th className="text-left font-medium px-3 py-1.5 w-1/3"><Trans>Book</Trans></th>
-                    <th className="text-left font-medium px-3 py-1.5"><Trans>Path</Trans></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {preview.paths.map((row, i) => (
-                    <tr key={i}>
-                      <td className="px-3 py-1.5 truncate" title={row.title}>{row.title}</td>
-                      <td className="px-3 py-1.5 font-mono break-all">{row.path}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div>
+              <FormLabel><Trans>Preview</Trans></FormLabel>
+              <div className="border-y border-border/70 divide-y divide-border/70">
+                {preview.paths.map((row, i) => (
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-0.5 py-2">
+                    <span className="truncate text-[13px] text-muted-foreground" title={row.title}>{row.title}</span>
+                    <span className="font-mono text-[13px] text-foreground break-all">{row.path}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        <Trans>Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them.</Trans>
+      <p className="text-[13px] text-muted-foreground">
+        <Trans>Saving never moves files. Changed layouts show as misplaced in Library health; use Dry run all and Reorganize all to move them.</Trans>
       </p>
     </div>
   )
 }
 
-function TypeFolderField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function TypeFolderField({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
   const { t } = useLingui()
   return (
-    <div className="col-span-2">
-      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Folder</Trans></label>
-      <input
+    <div className="sm:col-span-2">
+      <FormLabel htmlFor={id}><Trans>Folder</Trans></FormLabel>
+      <Input
+        id={id}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={t`e.g. Manga`}
         maxLength={64}
-        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
       />
-      <p className="text-xs text-muted-foreground mt-1">
-        <Trans>Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health.</Trans>
+      <p className="text-[13px] text-muted-foreground mt-1.5">
+        <Trans>Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library health.</Trans>
       </p>
+    </div>
+  )
+}
+
+/** The add and the edit form: the same inline panel on the list's hairlines. */
+function TypeForm({
+  heading, form, setForm, bookTypeId, saving, error, onLayoutError, saveDisabled, onCancel, onSave,
+}: {
+  heading: React.ReactNode
+  form: TypeFormState
+  setForm: (fn: (f: TypeFormState) => TypeFormState) => void
+  bookTypeId: number | null
+  saving: boolean
+  error: string | null
+  onLayoutError: (e: string | null) => void
+  saveDisabled: boolean
+  onCancel: () => void
+  onSave: () => void
+}) {
+  const { t } = useLingui()
+  const key = bookTypeId ?? 'new'
+  return (
+    <div className="py-5 space-y-4">
+      <p className="text-[15px] font-semibold text-foreground">{heading}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <FormLabel htmlFor={`type-label-${key}`}><Trans>Label</Trans></FormLabel>
+          <Input
+            id={`type-label-${key}`}
+            value={form.label}
+            onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
+            placeholder={t`e.g. Novel`}
+          />
+        </div>
+        <div>
+          <FormLabel htmlFor={`type-color-${key}`}><Trans>Color</Trans></FormLabel>
+          <Select
+            id={`type-color-${key}`}
+            value={form.color}
+            onChange={e => setForm(f => ({ ...f, color: e.target.value as ColorOption }))}
+          >
+            {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FormLabel><Trans>Icon</Trans></FormLabel>
+          <IconPicker value={form.icon} onChange={v => setForm(f => ({ ...f, icon: v }))} />
+        </div>
+        <div>
+          <FormLabel htmlFor={`type-sort-${key}`}><Trans>Sort order</Trans></FormLabel>
+          <Input
+            id={`type-sort-${key}`}
+            type="number"
+            value={form.sort_order}
+            onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
+          />
+        </div>
+        <TypeFolderField id={`type-folder-${key}`} value={form.folder} onChange={v => setForm(f => ({ ...f, folder: v }))} />
+        <TypeLayoutField
+          form={form}
+          bookTypeId={bookTypeId}
+          onChange={patch => setForm(f => ({ ...f, ...patch }))}
+          onError={onLayoutError}
+        />
+      </div>
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
+      <div className="flex items-center gap-2 justify-end">
+        <Pill onClick={onCancel} variant="quiet"><Trans>Cancel</Trans></Pill>
+        <Pill onClick={onSave} disabled={saveDisabled} variant="primary">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          <Trans>Save</Trans>
+        </Pill>
+      </div>
     </div>
   )
 }
@@ -1094,154 +1114,55 @@ function TypesTab() {
 
   return (
     <PanelSection
-      title={<Trans>Book Types</Trans>}
       action={
         <Pill
-          onClick={() => { setShowAdd(a => !a); setAddError(null) }}
+          onClick={() => { setShowAdd(a => !a); setAddError(null); setEditId(null) }}
           variant="secondary"
         >
-          <Plus className="w-3.5 h-3.5" /> <Trans>Add Type</Trans>
+          <Plus className="w-3.5 h-3.5" /> <Trans>Add type</Trans>
         </Pill>
       }
     >
-    <div className="space-y-5">
-
-      {/* Add form */}
-      {showAdd && (
-        <div className="rounded-[var(--radius-panel)] bg-card p-5 space-y-4">
-          <h3 className="text-[15px] font-semibold text-foreground"><Trans>New Type</Trans></h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Label</Trans></label>
-              <input
-                value={addForm.label}
-                onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
-                placeholder={t`e.g. Novel`}
-                className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-            <div>
-              <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Color</Trans></label>
-              <select
-                value={addForm.color}
-                onChange={e => setAddForm(f => ({ ...f, color: e.target.value as ColorOption }))}
-                className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Icon</Trans></label>
-              <IconPicker value={addForm.icon} onChange={v => setAddForm(f => ({ ...f, icon: v }))} />
-            </div>
-            <div>
-              <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Sort Order</Trans></label>
-              <input
-                type="number"
-                value={addForm.sort_order}
-                onChange={e => setAddForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-            <TypeFolderField value={addForm.folder} onChange={v => setAddForm(f => ({ ...f, folder: v }))} />
-            <TypeLayoutField
-              form={addForm}
-              bookTypeId={null}
-              onChange={patch => setAddForm(f => ({ ...f, ...patch }))}
-              onError={setAddLayoutError}
-            />
-          </div>
-          {addError && <p className="text-[13px] text-destructive">{addError}</p>}
-          <div className="flex items-center gap-2 justify-end">
-            <Pill onClick={() => setShowAdd(false)} variant="quiet"><Trans>Cancel</Trans></Pill>
-            <Pill
-              onClick={handleAdd}
-              disabled={addSaving || !addForm.label.trim() || layoutInvalid(addForm, addLayoutError)}
-              variant="primary"
-            >
-              {addSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              <Trans>Save</Trans>
-            </Pill>
-          </div>
-        </div>
-      )}
-
-      {/* Types list */}
-      {loading ? (
+      {loading && types.length === 0 && !showAdd ? (
         <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-      ) : types.length === 0 ? (
-        <p className="text-[14px] text-muted-foreground py-4"><Trans>No book types yet.</Trans></p>
       ) : (
-        <div className="border-y border-border/70 divide-y divide-border/70">
+        <div className={cn('border-y border-border/70 divide-y divide-border/70', loading && 'opacity-60')}>
+          {showAdd && (
+            <TypeForm
+              heading={<Trans>New type</Trans>}
+              form={addForm}
+              setForm={setAddForm}
+              bookTypeId={null}
+              saving={addSaving}
+              error={addError}
+              onLayoutError={setAddLayoutError}
+              saveDisabled={addSaving || !addForm.label.trim() || layoutInvalid(addForm, addLayoutError)}
+              onCancel={() => setShowAdd(false)}
+              onSave={handleAdd}
+            />
+          )}
+          {types.length === 0 && !showAdd && (
+            <p className="text-[14px] text-muted-foreground py-4"><Trans>No book types yet.</Trans></p>
+          )}
           {types.map(bt => (
             <div key={bt.id}>
               {editId === bt.id ? (
-                <div className="py-4 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Label</Trans></label>
-                      <input
-                        value={editForm.label}
-                        onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
-                        className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Color</Trans></label>
-                      <select
-                        value={editForm.color}
-                        onChange={e => setEditForm(f => ({ ...f, color: e.target.value as ColorOption }))}
-                        className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Icon</Trans></label>
-                      <IconPicker value={editForm.icon} onChange={v => setEditForm(f => ({ ...f, icon: v }))} />
-                    </div>
-                    <div>
-                      <label className="text-[13px] text-muted-foreground mb-1.5 block">
-<Trans>Sort Order</Trans></label>
-                      <input
-                        type="number"
-                        value={editForm.sort_order}
-                        onChange={e => setEditForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                        className="tome-select w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <TypeFolderField value={editForm.folder} onChange={v => setEditForm(f => ({ ...f, folder: v }))} />
-                    <TypeLayoutField
-                      form={editForm}
-                      bookTypeId={bt.id}
-                      onChange={patch => setEditForm(f => ({ ...f, ...patch }))}
-                      onError={setEditLayoutError}
-                    />
-                  </div>
-                  {editError && <p className="text-[13px] text-destructive">{editError}</p>}
-                  <div className="flex items-center gap-2 justify-end">
-                    <Pill onClick={() => setEditId(null)} variant="quiet"><Trans>Cancel</Trans></Pill>
-                    <Pill
-                      onClick={handleEdit}
-                      disabled={editSaving || !editForm.label.trim() || layoutInvalid(editForm, editLayoutError)}
-                      variant="primary"
-                    >
-                      {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      <Trans>Save</Trans>
-                    </Pill>
-                  </div>
-                </div>
+                <TypeForm
+                  heading={(() => { const label = bt.label; return <Trans>Edit {label}</Trans> })()}
+                  form={editForm}
+                  setForm={setEditForm}
+                  bookTypeId={bt.id}
+                  saving={editSaving}
+                  error={editError}
+                  onLayoutError={setEditLayoutError}
+                  saveDisabled={editSaving || !editForm.label.trim() || layoutInvalid(editForm, editLayoutError)}
+                  onCancel={() => setEditId(null)}
+                  onSave={handleEdit}
+                />
               ) : (
                 <div className="flex items-center gap-3 py-2.5">
                   <div className={cn('w-3 h-3 rounded-full shrink-0', COLOR_DOT[(bt.color ?? 'blue') as ColorOption] ?? 'bg-gray-400')} />
-                  <span className="text-[15px] font-medium text-foreground flex-1">{bt.label}</span>
+                  <span className="text-[15px] font-medium text-foreground flex-1 min-w-0 truncate">{bt.label}</span>
                   <span className="text-[13px] text-muted-foreground hidden sm:block">{bt.icon}</span>
                   {bt.folder && <span className="text-[13px] text-muted-foreground hidden sm:block font-mono">{`${bt.folder}/`}</span>}
                   <span className="text-[13px] text-muted-foreground hidden sm:block font-mono">{bt.slug}</span>
@@ -1263,7 +1184,7 @@ function TypesTab() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-0.5 shrink-0">
-                      <Pill variant="quiet" icon aria-label={t`Edit`} title={t`Edit`} onClick={() => startEdit(bt)}>
+                      <Pill variant="quiet" icon aria-label={t`Edit`} title={t`Edit`} onClick={() => { startEdit(bt); setShowAdd(false) }}>
                         <Pencil className="w-4 h-4" />
                       </Pill>
                       <Pill variant="destructive" icon aria-label={t`Delete`} title={t`Delete`} onClick={() => { setDeleteConfirmId(bt.id); setDeleteError(null) }}>
@@ -1277,7 +1198,6 @@ function TypesTab() {
           ))}
         </div>
       )}
-    </div>
     </PanelSection>
   )
 }
@@ -1358,24 +1278,21 @@ function AuditTab() {
   const totalPages = Math.ceil(total / perPage)
 
   return (
-    <PanelSection title={<Trans>Audit Log</Trans>}>
+    <PanelSection>
       <div className="flex items-end gap-3 flex-wrap mb-5">
         <div>
-          <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Action</Trans></label>
-          <select value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1) }}
-            className="tome-select h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+          <FormLabel htmlFor="audit-action"><Trans>Action</Trans></FormLabel>
+          <Select id="audit-action" value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1) }} className="w-auto min-w-[10rem]">
             {ACTION_CATEGORIES.map(c => <option key={c.value} value={c.value}>{i18n._(c.label)}</option>)}
-          </select>
+          </Select>
         </div>
         <div>
-          <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>From</Trans></label>
-          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }}
-            className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+          <FormLabel htmlFor="audit-from"><Trans>From</Trans></FormLabel>
+          <Input id="audit-from" type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }} className="w-auto [color-scheme:light] dark:[color-scheme:dark]" />
         </div>
         <div>
-          <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>To</Trans></label>
-          <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1) }}
-            className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+          <FormLabel htmlFor="audit-to"><Trans>To</Trans></FormLabel>
+          <Input id="audit-to" type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1) }} className="w-auto [color-scheme:light] dark:[color-scheme:dark]" />
         </div>
       </div>
 
@@ -1491,6 +1408,14 @@ function relativeTime(iso: string | null): string {
   const days = Math.floor(hrs / 24)
   if (days < 30) return t`${days}d ago`
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
+}
+
+/** Progress is stored as a fraction (0-1). A few rows written outside the
+ *  API (seed scripts, old clients) hold a percentage instead; read anything
+ *  above 1 as one, and never show more than 100%. */
+function formatSyncPct(v: number): string {
+  const pct = Math.min(100, Math.max(0, v > 1 ? v : v * 100))
+  return `${pct.toFixed(1)}%`
 }
 
 const SYNC_STATUS_LABELS: Record<string, MessageDescriptor> = {
@@ -1616,7 +1541,7 @@ function SyncStatusTab() {
 
   if (error) {
     return (
-      <PanelSection title={<Trans>Sync Status</Trans>}>
+      <PanelSection>
         <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
           {error}
         </div>
@@ -1626,7 +1551,6 @@ function SyncStatusTab() {
 
   return (
     <PanelSection
-      title={<Trans>Sync Status</Trans>}
       action={
         <span className="flex items-center gap-1.5 text-[13px] font-normal text-muted-foreground">
           <Activity className="w-3.5 h-3.5" />
@@ -1648,7 +1572,7 @@ function SyncStatusTab() {
                   <ColHeader label={t`User`} col="username" />
                   <ColHeader label={t`Status`} col="status" />
                   <ColHeader label={t`Progress`} col="progress_pct" />
-                  <ColHeader label={t`Last Synced`} col="last_synced" />
+                  <ColHeader label={t`Last synced`} col="last_synced" />
                   <ColHeader label={t`Device`} col="device" />
                   <ColHeader label={t`Source`} col="source" />
                   <th className="pl-3 pr-0 py-2.5 w-10" />
@@ -1675,9 +1599,7 @@ function SyncStatusTab() {
                     <td className="px-2.5 py-2.5 text-foreground font-medium whitespace-nowrap">{r.username}</td>
                     <td className="px-2.5 py-2.5"><StatusBadge status={r.status} /></td>
                     <td className="px-2.5 py-2.5 whitespace-nowrap">
-                      {r.progress_pct != null
-                        ? `${(r.progress_pct * 100).toFixed(1)}%`
-                        : '—'}
+                      {r.progress_pct != null ? formatSyncPct(r.progress_pct) : '—'}
                     </td>
                     <td className="px-2.5 py-2.5 whitespace-nowrap text-muted-foreground" title={r.last_synced ?? undefined}>
                       {relativeTime(r.last_synced)}
@@ -1864,7 +1786,7 @@ function DuplicatesTab() {
 
   if (error) {
     return (
-      <PanelSection title={<Trans>Duplicate Detection</Trans>}>
+      <PanelSection>
         <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
           {error}
         </div>
@@ -1874,10 +1796,10 @@ function DuplicatesTab() {
 
   return (
     <PanelSection
-      title={<Trans>Duplicate Detection</Trans>}
+
       description={groups.length > 0 ? <>
         {plural(groups.length, { one: '# duplicate group found.', other: '# duplicate groups found.' })}{' '}
-        <Trans>Pick which book to keep and an action per group — Merge, Delete Others, or Dismiss — then apply everything at once.</Trans>
+        <Trans>Pick which book to keep and an action per group (Merge, Delete others or Dismiss), then apply everything at once.</Trans>
       </> : undefined}
       action={
         <Pill
@@ -1938,7 +1860,7 @@ function DuplicatesTab() {
                           ? 'bg-foreground text-background'
                           : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
-                      title={t`Queue: not a duplicate — never show this group again`}
+                      title={t`Queue: not a duplicate, never show this group again`}
                     >
                       <X className="w-3.5 h-3.5" />
                       <Trans>Dismiss</Trans>
@@ -1966,10 +1888,10 @@ function DuplicatesTab() {
                           ? 'bg-destructive text-destructive-foreground'
                           : 'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
                       )}
-                      title={t`Queue: keep the selected book and delete the others — their files are removed from disk`}
+                      title={t`Queue: keep the selected book and delete the others. Their files are removed from disk.`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete Others`}
+                      {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete others`}
                     </button>
                   </div>
                 </div>
@@ -1990,13 +1912,13 @@ function DuplicatesTab() {
                       >
                         <div className="flex items-start gap-3">
                           {/* Radio */}
-                          <input
-                            type="radio"
+                          <Radio
                             name={`keep-${group.group_id}`}
                             value={book.id}
                             checked={isKeep}
                             onChange={() => setKeepIds(prev => ({ ...prev, [group.group_id]: book.id }))}
-                            className="mt-0.5 shrink-0 accent-primary"
+                            aria-label={t`Keep this one`}
+                            className="shrink-0"
                           />
                           {/* Cover */}
                           <div className="relative w-10 h-14 rounded-[6px] bg-muted shrink-0 overflow-hidden" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
@@ -2035,7 +1957,7 @@ function DuplicatesTab() {
                                 title={f.path_exists ? undefined : t`File is missing from disk`}
                               >
                                 {f.format.toUpperCase()} {formatBytes(f.file_size)}
-                                {!f.path_exists && t` — MISSING`}
+                                {!f.path_exists && t` (missing)`}
                               </span>
                             ))}
                           </div>
@@ -2095,8 +2017,8 @@ function DuplicatesTab() {
                     return applying
                       ? t`Applying ${done}/${total}…`
                       : confirmApply
-                      ? plural(n, { one: 'Confirm — apply # decision', other: 'Confirm — apply # decisions' })
-                      : t`Apply All (${n})`
+                      ? plural(n, { one: 'Confirm: apply # decision', other: 'Confirm: apply # decisions' })
+                      : t`Apply all (${n})`
                   })()}
                 </button>
               </div>
@@ -2217,15 +2139,15 @@ function FulfillPicker({
   if (isWholeSeries) {
     const n = wish.suggested_book_ids?.length ?? 0
     return (
-      <div className="rounded-[var(--radius-panel)] bg-card p-4 space-y-3">
+      <div className="border-t border-border/70 pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          {(() => { const title = wish.title; return <p className="text-[14px] font-semibold text-foreground"><Trans>Complete series: {title}</Trans></p> })()}
+          {(() => { const title = wish.title; return <p className="text-[15px] font-semibold text-foreground"><Trans>Complete series: {title}</Trans></p> })()}
           <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={onCancel}>
             <X className="w-4 h-4" />
           </Pill>
         </div>
         <p className="text-[13px] text-muted-foreground leading-relaxed">
-          <Trans>This is a whole-series wish — it stays open as volumes arrive.</Trans>{' '}
+          <Trans>This is a whole-series wish. It stays open as volumes arrive.</Trans>{' '}
           {n > 0
             ? plural(n, { one: '# matching volume currently in the library.', other: '# matching volumes currently in the library.' })
             : t`No matching volumes in the library yet.`}{' '}
@@ -2233,7 +2155,7 @@ function FulfillPicker({
         </p>
         {error && <p className="text-[13px] text-destructive">{error}</p>}
         <div className="flex items-center justify-end gap-2 pt-1">
-          <Pill onClick={onCancel} variant="secondary">
+          <Pill onClick={onCancel} variant="quiet">
             <Trans>Cancel</Trans>
           </Pill>
           <Pill
@@ -2250,9 +2172,9 @@ function FulfillPicker({
   }
 
   return (
-    <div className="rounded-[var(--radius-panel)] bg-card p-4 space-y-3">
+    <div className="border-t border-border/70 pt-4 space-y-3">
       <div className="flex items-center justify-between">
-        {(() => { const title = wish.title; return <p className="text-[14px] font-semibold text-foreground"><Trans>Fulfill: {title}</Trans></p> })()}
+        {(() => { const title = wish.title; return <p className="text-[15px] font-semibold text-foreground"><Trans>Fulfill: {title}</Trans></p> })()}
         <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={onCancel}>
           <X className="w-4 h-4" />
         </Pill>
@@ -2261,11 +2183,11 @@ function FulfillPicker({
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-        <input
+        <Input
           value={searchQuery}
           onChange={e => handleSearchChange(e.target.value)}
           placeholder={suggestedBooks.length > 0 ? t`Search for a different book…` : t`Search for a book in the library…`}
-          className="w-full pl-8 pr-3 h-9 rounded-lg bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="pl-8"
         />
         {searching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground animate-spin" />}
       </div>
@@ -2305,7 +2227,7 @@ function FulfillPicker({
       )}
 
       {!searchQuery && suggestedBooks.length === 0 && !searching && (
-        <p className="text-[13px] text-muted-foreground"><Trans>No suggested match yet — search for the book to link, or upload it first.</Trans></p>
+        <p className="text-[13px] text-muted-foreground"><Trans>No suggested match yet. Search for the book to link, or upload it first.</Trans></p>
       )}
       {searchQuery && !searching && searchResults.length === 0 && (
         <p className="text-[13px] text-muted-foreground"><Trans>No books found. Upload the book first, then fulfill.</Trans></p>
@@ -2314,7 +2236,7 @@ function FulfillPicker({
       {error && <p className="text-[13px] text-destructive">{error}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-1">
-        <Pill onClick={onCancel} variant="secondary">
+        <Pill onClick={onCancel} variant="quiet">
           <Trans>Cancel</Trans>
         </Pill>
         <Pill
@@ -2377,46 +2299,34 @@ function WishlistTab() {
     }
   }
 
-  const STATUS_TABS: { id: WishStatus; label: string }[] = [
-    { id: 'open', label: t`Open` },
-    { id: 'fulfilled', label: t`Fulfilled` },
-    { id: 'dismissed', label: t`Dismissed` },
+  const STATUS_TABS: { value: WishStatus; label: string }[] = [
+    { value: 'open', label: t`Open` },
+    { value: 'fulfilled', label: t`Fulfilled` },
+    { value: 'dismissed', label: t`Dismissed` },
   ]
 
   return (
     <PanelSection
-      title={<Trans>Wishlist</Trans>}
       description={
+        <span className="flex flex-wrap items-center gap-1.5">
+          <PillGroup size="sm" value={statusFilter} onChange={setStatusFilter} options={STATUS_TABS} aria-label={t`Wish status`} />
+          <Pill variant="quiet" icon onClick={load} aria-label={t`Refresh`} title={t`Refresh`}>
+            <RefreshCw className="w-4 h-4" />
+          </Pill>
+        </span>
+      }
+      action={
         <a
           href={docsLink(DOCS.wishlist)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
-          <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
+          <Trans>Learn more</Trans> <ExternalLink className="w-3.5 h-3.5" />
         </a>
       }
     >
     <div className="space-y-5">
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {STATUS_TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setStatusFilter(t.id)}
-            className={cn(
-              'inline-flex items-center h-8 px-3.5 rounded-full text-[13px] transition-colors',
-              statusFilter === t.id
-                ? 'bg-primary/10 text-foreground font-medium'
-                : 'bg-secondary text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-        <Pill variant="quiet" icon onClick={load} aria-label={t`Refresh`} title={t`Refresh`}>
-          <RefreshCw className="w-4 h-4" />
-        </Pill>
-      </div>
 
       {error && (
         <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
@@ -2465,7 +2375,7 @@ function WishlistTab() {
                         </p>
                       )}
                       {wish.series && wish.series_index == null && (
-                        <span className="mt-0.5 self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
+                        <span className="mt-1 self-start inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                           <Layers className="w-2.5 h-2.5" />
                           <Trans>Whole series</Trans>
                         </span>
@@ -2500,7 +2410,7 @@ function WishlistTab() {
                           ) : (
                             <Pill
                               onClick={() => { setDismissConfirmId(wish.id); setFulfillingId(null) }}
-                              variant="secondary"
+                              variant="quiet"
                               title={t`Dismiss wish`}
                             >
                               <X className="w-3 h-3" />
@@ -2513,7 +2423,7 @@ function WishlistTab() {
                               setDismissConfirmId(null)
                               setActionError(prev => { const n = { ...prev }; delete n[wish.id]; return n })
                             }}
-                            variant="primary"
+                            variant="secondary"
                           >
                             <Check className="w-3 h-3" />
                             {wish.series && wish.series_index == null ? t`Complete` : t`Fulfill`}
@@ -2538,7 +2448,7 @@ function WishlistTab() {
                   {/* Single-book wishes: suggested-match hint */}
                   {wish.suggested_book_ids && wish.suggested_book_ids.length > 0 && wish.status === 'open' && fulfillingId !== wish.id && !(wish.series && wish.series_index == null) && (
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning border border-warning/20 font-medium">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">
                         <Plural value={wish.suggested_book_ids.length} one="# suggested match" other="# suggested matches" />
                       </span>
                     </div>
@@ -2597,11 +2507,11 @@ export function AdminPage() {
     { id: 'scanner', label: t`Scanner` },
     { id: 'server', label: t`Server` },
     { id: 'types', label: t`Types` },
-    { id: 'audit', label: t`Audit Log` },
+    { id: 'audit', label: t`Audit log` },
     { id: 'metadata', label: t`Metadata` },
     { id: 'library', label: t`Library` },
-    { id: 'wordcount', label: t`Word Counts` },
-    { id: 'sync', label: t`Sync Status` },
+    { id: 'wordcount', label: t`Word counts` },
+    { id: 'sync', label: t`Sync status` },
     { id: 'duplicates', label: t`Duplicates` },
     { id: 'covers', label: t`Covers` },
     { id: 'email', label: t`Email` },
@@ -2612,13 +2522,19 @@ export function AdminPage() {
     <AppShell sidebar={<SectionSidebar title={<Trans>Admin</Trans>} />}>
       <SectionLayout
         sidebar
-        title={<Trans>Admin</Trans>}
-        eyebrow={tabs.find(x => x.id === tab)?.label}
+        wide={tab === 'metadata'}
+        title={tabs.find(x => x.id === tab)?.label}
+        eyebrow={<Trans>Admin</Trans>}
         nav={
           <SectionNav
             items={tabs}
             active={tab}
-            onSelect={id => setTab(id as Tab)}
+            onSelect={id => {
+              setTab(id as Tab)
+              // A new panel starts at its top, also when the old one was scrolled.
+              const main = document.querySelector('main')
+              if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })
+            }}
             label={t`Admin sections`}
             placement="sidebar"
           />
@@ -2631,17 +2547,17 @@ export function AdminPage() {
           {tab === 'types' && <TypesTab />}
           {tab === 'audit' && <AuditTab />}
           {tab === 'metadata' && (
-            <PanelSection title={<Trans>Metadata</Trans>}>
+            <PanelSection>
               <MetadataManager />
             </PanelSection>
           )}
           {tab === 'library' && (
-            <PanelSection title={<Trans>Library health</Trans>}>
+            <PanelSection>
               <LibraryHealthTab />
             </PanelSection>
           )}
           {tab === 'wordcount' && (
-            <PanelSection title={<Trans>Word counts</Trans>}>
+            <PanelSection>
               <WordCountTab />
             </PanelSection>
           )}
@@ -2649,7 +2565,6 @@ export function AdminPage() {
           {tab === 'duplicates' && <DuplicatesTab />}
           {tab === 'covers' && (
             <PanelSection
-              title={<Trans>Covers</Trans>}
               description={<Trans>Books with a missing or low-resolution cover.</Trans>}
             >
               <CoverAudit />
@@ -2741,10 +2656,10 @@ function EmailTab() {
     <>
       {/* SMTP Status */}
       <PanelSection
-        title={<Trans>SMTP Status</Trans>}
+        title={<Trans>SMTP status</Trans>}
         action={
-          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[14px] font-normal text-muted-foreground hover:text-primary transition-colors">
-            <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
+          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <Trans>Learn more</Trans> <ExternalLink className="w-3.5 h-3.5" />
           </a>
         }
       >
@@ -2752,7 +2667,7 @@ function EmailTab() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-xs font-medium text-success"><Trans>Configured</Trans></span>
+              <span className="text-[13px] font-medium text-success"><Trans>Configured</Trans></span>
             </div>
             <div className="border-y border-border/70 text-[14px] divide-y divide-border/70">
               <div className="flex items-center gap-3 py-2.5">
@@ -2772,13 +2687,13 @@ function EmailTab() {
             {/* Test email */}
             <form onSubmit={handleTestEmail} className="flex items-end gap-2 max-w-md pt-2">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Send test email</Trans></label>
-                <input
+                <FormLabel htmlFor="smtp-test-email"><Trans>Send test email</Trans></FormLabel>
+                <Input
+                  id="smtp-test-email"
                   type="email"
                   value={testEmail}
                   onChange={e => { setTestEmail(e.target.value); setTestResult(null) }}
                   placeholder="test@example.com"
-                  className="w-full h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
               <Pill
@@ -2794,22 +2709,37 @@ function EmailTab() {
             {testResult && !testResult.ok && <p className="text-[13px] text-destructive">{testResult.error}</p>}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-warning" />
-              <span className="text-xs font-medium text-warning dark:text-warning"><Trans>Not configured</Trans></span>
+              <span className="text-[13px] font-medium text-warning"><Trans>Not configured</Trans></span>
             </div>
-            <p className="text-[13px] text-muted-foreground">
-              <Trans>Set the following environment variables to enable Send to Device:</Trans>
+            <p className="text-[14px] text-muted-foreground">
+              <Trans>Set these environment variables to enable Send to device.</Trans>
             </p>
-            <code className="block text-[13px] font-mono rounded-[var(--radius-panel)] bg-card px-4 py-3 text-muted-foreground whitespace-pre-wrap">TOME_SMTP_HOST{'\n'}TOME_SMTP_USER{'\n'}TOME_SMTP_PASSWORD</code>
+            {/* eslint-disable lingui/no-unlocalized-strings -- env variable names */}
+            <div className="border-y border-border/70 divide-y divide-border/70 text-[14px]">
+              {[
+                { name: 'TOME_SMTP_HOST', note: t`Required. The mail server.` },
+                { name: 'TOME_SMTP_PORT', note: t`Optional. Defaults to 587.` },
+                { name: 'TOME_SMTP_USER', note: t`Optional. Set it together with the password when the server needs a login.` },
+                { name: 'TOME_SMTP_PASSWORD', note: t`Optional. Set it together with the user.` },
+                { name: 'TOME_SMTP_FROM', note: t`The sender address. Required when there is no user; otherwise the user is used.` },
+              ].map(row => (
+                <div key={row.name} className="grid grid-cols-1 sm:grid-cols-[13rem_minmax(0,1fr)] gap-x-4 gap-y-0.5 py-2.5">
+                  <code className="font-mono text-[13px] text-foreground">{row.name}</code>
+                  <span className="text-[13px] text-muted-foreground">{row.note}</span>
+                </div>
+              ))}
+            </div>
+            {/* eslint-enable lingui/no-unlocalized-strings */}
           </div>
         )}
       </PanelSection>
 
       {/* All Devices */}
       <PanelSection
-        title={<Trans>All Devices</Trans>}
+        title={<Trans>All devices</Trans>}
         action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{allDevices.length}</span>}
       >
         {allDevices.length > 0 ? (
@@ -2836,7 +2766,7 @@ function EmailTab() {
 
       {/* Send History */}
       <PanelSection
-        title={<Trans>Send History</Trans>}
+        title={<Trans>Send history</Trans>}
         action={<span className="text-[14px] font-normal text-muted-foreground"><Trans>(last 100)</Trans></span>}
       >
         {history.length > 0 ? (

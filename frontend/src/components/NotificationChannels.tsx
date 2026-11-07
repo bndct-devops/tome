@@ -9,7 +9,7 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { Pill } from '@/components/page'
+import { Input, Pill, Select } from '@/components/page'
 
 interface Channel {
   id: number
@@ -74,7 +74,7 @@ export function NotificationChannels() {
     <div>
       <p className="-mt-3 text-[14px] text-muted-foreground mb-5 max-w-[70ch]">
         <Trans>Push Tome&apos;s notifications (wish fulfilled, new volume detected, reading
-        goals) to ntfy, Gotify, or any webhook the moment they happen — the bell
+        goals) to ntfy, Gotify, or any webhook the moment they happen; the bell
         above only rings when you visit. Each channel can be tested, paused, or
         removed; tokens are stored server-side and never shown again.</Trans>
       </p>
@@ -85,35 +85,39 @@ export function NotificationChannels() {
             const testResult = testState[c.id]
             return (
               <li key={c.id} className="flex items-center gap-2 py-2.5">
-                <span className="w-16 shrink-0 text-xs font-semibold text-foreground">{KIND_LABEL[c.kind]}</span>
-                <span className={cn('min-w-0 flex-1 truncate text-xs', c.enabled ? 'text-muted-foreground' : 'text-muted-foreground/50 line-through')}>
+                <span className="w-16 shrink-0 text-[14px] font-semibold text-foreground">{KIND_LABEL[c.kind]}</span>
+                <span className={cn('min-w-0 flex-1 truncate text-[13px]', c.enabled ? 'text-muted-foreground' : 'text-muted-foreground/50 line-through')}>
                   {c.url}
                 </span>
                 {testResult === 'ok' && <CheckCircle className="h-3.5 w-3.5 shrink-0 text-success" />}
                 {testResult && testResult !== 'ok' && testResult !== 'testing' && (
                   <span title={testResult}><XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" /></span>
                 )}
-                <button
+                <Pill
+                  icon
+                  variant="quiet"
                   onClick={() => test(c)}
                   disabled={testResult === 'testing'}
                   title={t`Send a test notification`}
-                  className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                  aria-label={t`Send a test notification`}
                 >
-                  {testResult === 'testing' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                </button>
+                  {testResult === 'testing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Pill>
                 <Pill
                   onClick={() => api.post(`/notification-channels/${c.id}/toggle`).then(load)}
                   variant="secondary"
                 >
                   {c.enabled ? t`Pause` : t`Resume`}
                 </Pill>
-                <button
+                <Pill
+                  icon
+                  variant="destructive"
                   onClick={() => api.delete(`/notification-channels/${c.id}`).then(load)}
                   title={t`Remove channel`}
-                  className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+                  aria-label={t`Remove channel`}
                 >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                  <Trash2 className="h-4 w-4" />
+                </Pill>
               </li>
             )
           })}
@@ -121,29 +125,32 @@ export function NotificationChannels() {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <select
+        <Select
           value={kind}
           onChange={e => setKind(e.target.value as Channel['kind'])}
-          className="h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label={t`Channel type`}
+          className="w-auto min-w-[8rem]"
         >
           <option value="ntfy">ntfy</option>
           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product names */}
           <option value="gotify">Gotify</option>
           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product names */}
           <option value="webhook">Webhook</option>
-        </select>
-        <input
+        </Select>
+        <Input
           value={url}
           onChange={e => setUrl(e.target.value)}
           placeholder={URL_HINT[kind]}
-          className="min-w-[220px] flex-1 h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label={t`Channel URL`}
+          className="w-auto min-w-[220px] flex-1"
         />
         {kind !== 'webhook' && (
-          <input
+          <Input
             value={token}
             onChange={e => setToken(e.target.value)}
             placeholder={i18n._(TOKEN_HINT[kind])}
-            className="min-w-[180px] h-9 rounded-lg bg-secondary px-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label={t`Token`}
+            className="w-auto min-w-[180px] flex-1 sm:flex-none"
           />
         )}
         <Pill
