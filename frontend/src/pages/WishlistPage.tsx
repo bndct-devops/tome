@@ -99,7 +99,7 @@ function FollowingSection() {
       setQ(''); setResults([])
       invalidateFollows()
       load()
-    } catch { /* dup or offline — list stays as-is */ }
+    } catch { /* dup or offline - list stays as-is */ }
     finally { setBusy(false) }
   }
 

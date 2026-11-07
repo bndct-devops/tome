@@ -346,15 +346,15 @@ function UsersTab() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[15px] font-medium text-foreground truncate">{u.username}</span>
                       {u.role === 'admin' && (
-                        <span className="inline-flex items-center gap-0.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        <span className="inline-flex items-center gap-0.5 text-[12px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                           <Shield className="w-2.5 h-2.5" /> <Trans>Admin</Trans>
                         </span>
                       )}
                       {!u.is_active && (
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive"><Trans>Inactive</Trans></span>
+                        <span className="text-[12px] font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive"><Trans>Inactive</Trans></span>
                       )}
                       {u.id === me?.id && (
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-secondary text-muted-foreground"><Trans>You</Trans></span>
+                        <span className="text-[12px] font-medium px-2 py-0.5 rounded-full bg-secondary text-muted-foreground"><Trans>You</Trans></span>
                       )}
                     </div>
                     <p className="text-[13px] text-muted-foreground truncate">{u.email}</p>
@@ -606,7 +606,7 @@ function ServerTab() {
               <Folder className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[13px] text-muted-foreground">{label}</p>
-                <p className="text-[14px] text-foreground font-mono break-all">{path ?? '—'}</p>
+                <p className="text-[14px] text-foreground font-mono break-all">{path ?? '-'}</p>
               </div>
             </div>
           ))}
@@ -891,7 +891,7 @@ function TypeLayoutField({
                 { heading: t`Syntax`, rows: syntaxRows },
               ].map((group, gi) => (
                 <Fragment key={group.heading}>
-                  <p className={cn('col-span-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground', gi > 0 && 'pt-2')}>
+                  <p className={cn('col-span-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground', gi > 0 && 'pt-2')}>
                     {group.heading}
                   </p>
                   {group.rows.map(row => (
@@ -1114,6 +1114,7 @@ function TypesTab() {
 
   return (
     <PanelSection
+      description={<Trans>Book types sort the library into categories. Each type has its own library, icon, colour and folder layout.</Trans>}
       action={
         <Pill
           onClick={() => { setShowAdd(a => !a); setAddError(null); setEditId(null) }}
@@ -1215,21 +1216,21 @@ const ACTION_CATEGORIES: { value: string; label: MessageDescriptor }[] = [
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
 const ACTION_COLORS: Record<string, string> = {
   'auth.login': 'bg-success/10 text-success border-success/20',
-  'auth.login_failed': 'bg-destructive/10 text-destructive border-destructive/20',
-  'auth.logout': 'bg-muted text-muted-foreground border-border',
+  'auth.login_failed': 'bg-destructive/10 text-destructive',
+  'auth.logout': 'bg-secondary text-muted-foreground',
   'auth.password_changed': 'bg-info/10 text-info border-info/20',
   'auth.impersonated': 'bg-warning/10 text-warning border-warning/20',
   'books.downloaded': 'bg-primary/10 text-primary border-primary/20',
   'books.uploaded': 'bg-success/10 text-success border-success/20',
-  'books.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
+  'books.deleted': 'bg-destructive/10 text-destructive',
   'books.metadata_edited': 'bg-info/10 text-info border-info/20',
   'books.bulk_metadata_edited': 'bg-info/10 text-info border-info/20',
   'users.created': 'bg-success/10 text-success border-success/20',
   'users.updated': 'bg-info/10 text-info border-info/20',
-  'users.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
+  'users.deleted': 'bg-destructive/10 text-destructive',
   'libraries.created': 'bg-success/10 text-success border-success/20',
   'libraries.updated': 'bg-info/10 text-info border-info/20',
-  'libraries.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
+  'libraries.deleted': 'bg-destructive/10 text-destructive',
 }
 /* eslint-enable lingui/no-unlocalized-strings */
 
@@ -1313,7 +1314,7 @@ function AuditTab() {
           </div>
           {items.map(entry => {
             // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-            const colorClass = ACTION_COLORS[entry.action] ?? 'bg-muted text-muted-foreground border-border'
+            const colorClass = ACTION_COLORS[entry.action] ?? 'bg-secondary text-muted-foreground'
             const isExpanded = expandedId === entry.id
             const parsed = entry.details ? (() => { try { return JSON.parse(entry.details) } catch { return null } })() : null
             return (
@@ -1326,7 +1327,7 @@ function AuditTab() {
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     {/* Action badge */}
-                    <span className={cn('text-[11px] font-mono px-1.5 py-0.5 rounded border shrink-0', colorClass)}>
+                    <span className={cn('text-[12px] font-mono px-2 py-0.5 rounded-md shrink-0', colorClass)}>
                       {entry.action}
                     </span>
                     {/* Resource title */}
@@ -1336,7 +1337,7 @@ function AuditTab() {
                       </span>
                     )}
                   </div>
-                  <span className="w-28 text-[13px] text-muted-foreground hidden sm:block truncate">{entry.username ?? '—'}</span>
+                  <span className="w-28 text-[13px] text-muted-foreground hidden sm:block truncate">{entry.username ?? '-'}</span>
                   <span className="sm:w-40 text-[13px] text-muted-foreground tabular-nums shrink-0">{fmt(entry.created_at)}</span>
                   {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                 </button>
@@ -1398,7 +1399,7 @@ interface SyncRecord {
 type SyncSortKey = 'book_title' | 'username' | 'status' | 'progress_pct' | 'last_synced' | 'device' | 'source'
 
 function relativeTime(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
   if (mins < 1) return t`just now`
@@ -1428,13 +1429,13 @@ function StatusBadge({ status }: { status: SyncRecord['status'] }) {
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cls =
     status === 'read'
-      ? 'bg-success/10 text-success border-success/20'
+      ? 'bg-success/10 text-success'
       : status === 'reading'
-        ? 'bg-info/10 text-info border-info/20'
-        : 'bg-muted text-muted-foreground border-border'
+        ? 'bg-info/10 text-info'
+        : 'bg-secondary text-muted-foreground'
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap', cls)}>
+    <span className={cn('text-[12px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap', cls)}>
       {SYNC_STATUS_LABELS[status] ? i18n._(SYNC_STATUS_LABELS[status]) : status}
     </span>
   )
@@ -1445,11 +1446,11 @@ function SourceBadge({ source }: { source: SyncRecord['source'] }) {
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cls =
     source === 'tomesync'
-      ? 'bg-primary/10 text-primary border-primary/20'
-      : 'bg-muted text-muted-foreground border-border'
+      ? 'bg-primary/10 text-primary'
+      : 'bg-secondary text-muted-foreground'
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap', cls)}>
+    <span className={cn('text-[12px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap', cls)}>
       {source === 'tomesync' ? 'TomeSync' : t`Web`}
     </span>
   )
@@ -1478,7 +1479,7 @@ function SyncStatusTab() {
       await api.delete(`/admin/sync-status/${r.user_id}/${r.book_id}`)
       setRecords(prev => prev.filter(x => !(x.user_id === r.user_id && x.book_id === r.book_id)))
     } catch {
-      // silently ignore — user stays in list
+      // silently ignore - user stays in list
     } finally {
       setDeleting(null)
     }
@@ -1599,13 +1600,13 @@ function SyncStatusTab() {
                     <td className="px-2.5 py-2.5 text-foreground font-medium whitespace-nowrap">{r.username}</td>
                     <td className="px-2.5 py-2.5"><StatusBadge status={r.status} /></td>
                     <td className="px-2.5 py-2.5 whitespace-nowrap">
-                      {r.progress_pct != null ? formatSyncPct(r.progress_pct) : '—'}
+                      {r.progress_pct != null ? formatSyncPct(r.progress_pct) : '-'}
                     </td>
                     <td className="px-2.5 py-2.5 whitespace-nowrap text-muted-foreground" title={r.last_synced ?? undefined}>
                       {relativeTime(r.last_synced)}
                     </td>
                     <td className="px-2.5 py-2.5 text-muted-foreground max-w-[140px] truncate" title={r.device ?? undefined}>
-                      {r.device ?? '—'}
+                      {r.device ?? '-'}
                     </td>
                     <td className="px-2.5 py-2.5"><SourceBadge source={r.source} /></td>
                     <td className="pl-3 pr-0 py-1.5 text-right">
@@ -1661,15 +1662,15 @@ interface DuplicatesResponse {
 }
 
 const MATCH_REASON_LABEL: Record<DuplicateGroup['match_reason'], MessageDescriptor> = {
-  content_hash: msg`Exact Match`,
+  content_hash: msg`Exact match`,
   isbn: msg`Same ISBN`,
-  same_series_volume: msg`Same Series Volume`,
-  similar_title: msg`Similar Title`,
+  same_series_volume: msg`Same series volume`,
+  similar_title: msg`Similar title`,
 }
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
 const MATCH_REASON_STYLE: Record<DuplicateGroup['match_reason'], string> = {
-  content_hash: 'bg-destructive/10 text-destructive border-destructive/20',
+  content_hash: 'bg-destructive/10 text-destructive',
   isbn: 'bg-warning/10 text-warning border-warning/20',
   same_series_volume: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
   similar_title: 'bg-info/10 text-info border-info/20',
@@ -1677,7 +1678,7 @@ const MATCH_REASON_STYLE: Record<DuplicateGroup['match_reason'], string> = {
 /* eslint-enable lingui/no-unlocalized-strings */
 
 function formatBytes(bytes: number | null): string {
-  if (bytes == null) return '—'
+  if (bytes == null) return '-'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -1800,7 +1801,7 @@ function DuplicatesTab() {
       description={groups.length > 0 ? <>
         {plural(groups.length, { one: '# duplicate group found.', other: '# duplicate groups found.' })}{' '}
         <Trans>Pick which book to keep and an action per group (Merge, Delete others or Dismiss), then apply everything at once.</Trans>
-      </> : undefined}
+      </> : <Trans>No duplicates found. Your library looks clean.</Trans>}
       action={
         <Pill
           onClick={fetchGroups}
@@ -1831,11 +1832,7 @@ function DuplicatesTab() {
         </div>
       )}
 
-      {groups.length === 0 ? (
-        <div className="py-4 text-muted-foreground text-[14px]">
-          <Trans>No duplicates found. Your library looks clean.</Trans>
-        </div>
-      ) : (
+      {groups.length === 0 ? null : (
         <div className="flex flex-col border-t border-border/70">
           {groups.map(group => {
             const decision = decisions[group.group_id]
@@ -1949,10 +1946,10 @@ function DuplicatesTab() {
                               <span
                                 key={f.id}
                                 className={cn(
-                                  'text-[10px] px-1.5 py-0.5 rounded border font-mono',
+                                  'text-[12px] px-2 py-0.5 rounded-full font-mono',
                                   f.path_exists
-                                    ? 'bg-muted text-muted-foreground border-border'
-                                    : 'bg-destructive/10 text-destructive border-destructive/20',
+                                    ? 'bg-secondary text-muted-foreground'
+                                    : 'bg-destructive/10 text-destructive',
                                 )}
                                 title={f.path_exists ? undefined : t`File is missing from disk`}
                               >
@@ -2134,7 +2131,7 @@ function FulfillPicker({
 
   const displayBooks = searchQuery.trim() ? searchResults : suggestedBooks
 
-  // Whole-series wishes are standing wants — they are not fulfilled by a single
+  // Whole-series wishes are standing wants - they are not fulfilled by a single
   // volume. Instead of the book picker, offer a deliberate "mark complete".
   if (isWholeSeries) {
     const n = wish.suggested_book_ids?.length ?? 0
@@ -2375,7 +2372,7 @@ function WishlistTab() {
                         </p>
                       )}
                       {wish.series && wish.series_index == null && (
-                        <span className="mt-1 self-start inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
+                        <span className="mt-1 self-start inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                           <Layers className="w-2.5 h-2.5" />
                           <Trans>Whole series</Trans>
                         </span>
@@ -2448,7 +2445,7 @@ function WishlistTab() {
                   {/* Single-book wishes: suggested-match hint */}
                   {wish.suggested_book_ids && wish.suggested_book_ids.length > 0 && wish.status === 'open' && fulfillingId !== wish.id && !(wish.series && wish.series_index == null) && (
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">
+                      <span className="text-[12px] px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">
                         <Plural value={wish.suggested_book_ids.length} one="# suggested match" other="# suggested matches" />
                       </span>
                     </div>
@@ -2789,7 +2786,7 @@ function EmailTab() {
                 <span className="text-foreground truncate">{h.book_title}</span>
                 <span className="text-muted-foreground truncate">{h.device_name || h.device_email}</span>
                 <span className={cn(
-                  'text-xs font-medium',
+                  'text-[13px] font-medium',
                   h.status === 'ok' ? 'text-success' : 'text-destructive'
                 )}>
                   {h.status === 'ok' ? t`Sent` : t`Failed`}

@@ -1,4 +1,4 @@
-// Habits-tab stats widgets — chart/content-only, shared by StatsPage and the Lab.
+// Habits-tab stats widgets - chart/content-only, shared by StatsPage and the Lab.
 import {
   ResponsiveContainer,
   AreaChart,
@@ -51,11 +51,11 @@ export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] 
     <>
       <HourDowHeatmap data={data} />
       <div className="flex items-center gap-2 justify-end mt-1">
-        <span className="text-[10px] text-muted-foreground"><Trans>Less</Trans></span>
+        <span className="text-[12px] text-muted-foreground"><Trans>Less</Trans></span>
         {[0.15, 0.37, 0.58, 0.79, 1.0].map((o) => (
           <div key={o} className="w-3 h-3 rounded-sm border border-border/30" style={{ backgroundColor: accent, opacity: o }} />
         ))}
-        <span className="text-[10px] text-muted-foreground"><Trans>More</Trans></span>
+        <span className="text-[12px] text-muted-foreground"><Trans>More</Trans></span>
       </div>
     </>
   )
@@ -80,7 +80,7 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
       {dayEntries
         .map(([dateStr, daySessions]) => (
           <div key={dateStr} className="flex items-center gap-3 py-1">
-            <span className="text-[10px] text-muted-foreground w-16 shrink-0 text-right">{formatDate(dateStr)}</span>
+            <span className="text-[12px] text-muted-foreground w-16 shrink-0 text-right">{formatDate(dateStr)}</span>
             <div className="flex-1 relative h-6 bg-muted/30 rounded overflow-hidden">
               {daySessions.map((s) => {
                 const start = new Date(s.started_at)
@@ -114,7 +114,7 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
           </div>
         ))}
       </div>
-      <p className="shrink-0 pt-1 text-center text-[10px] text-muted-foreground">
+      <p className="shrink-0 pt-1 text-center text-[12px] text-muted-foreground">
         {plural(dayEntries.length, { one: '# active day in this window', other: '# active days in this window' })}
       </p>
     </div>
@@ -150,7 +150,7 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
           <Area dataKey="pages_per_min" fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
-      {(() => { const a = avg.toFixed(1); return <p className="text-xs text-muted-foreground text-center shrink-0"><Trans>avg {a} pages/min</Trans></p> })()}
+      {(() => { const a = avg.toFixed(1); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pages/min</Trans></p> })()}
     </div>
   )
 }
@@ -172,7 +172,7 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
         <span className={cn('text-sm font-semibold', trending === 'up' ? 'text-success' : trending === 'down' ? 'text-destructive' : 'text-muted-foreground')}>
           {(() => { const up = pctDiff; const down = Math.abs(pctDiff); return trending === 'up' ? t`Reading speed up ${up}%` : trending === 'down' ? t`Reading speed down ${down}%` : t`Reading speed steady` })()}
         </span>
-        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-xs text-muted-foreground ml-1"><Trans>({a} vs {b} pages/min)</Trans></span> })()}
+        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pages/min)</Trans></span> })()}
       </div>
       <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
         <AreaChart data={paceData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -221,14 +221,14 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
           </div>
           <div className="flex-1 min-w-0">
             <p className={cn('text-sm font-medium truncate group-hover:text-primary transition-colors', est.confidence === 'low' ? 'text-muted-foreground' : 'text-foreground')}>{est.title}</p>
-            {est.author && <p className="text-xs text-muted-foreground truncate">{est.author}</p>}
+            {est.author && <p className="text-[13px] text-muted-foreground truncate">{est.author}</p>}
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                 <div className="h-full rounded-full" style={{ width: `${Math.min(est.progress, 100)}%`, backgroundColor: accent }} />
               </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
+              <span className="text-[12px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
             </div>
-            <p className={cn('text-xs mt-1.5', est.confidence === 'high' ? 'text-foreground' : est.confidence === 'medium' ? 'text-muted-foreground' : 'text-muted-foreground/60')}>
+            <p className={cn('text-[13px] mt-1.5', est.confidence === 'high' ? 'text-foreground' : est.confidence === 'medium' ? 'text-muted-foreground' : 'text-muted-foreground/60')}>
               {est.progress >= 100 ? t`Finished` : est.estimated_days != null ? plural(est.estimated_days, { one: '~# day remaining', other: '~# days remaining' }) : t`Just started`}
               {est.progress < 100 && est.confidence === 'low' && est.estimated_days != null && <span className="ml-1 text-muted-foreground/50"><Trans>(low confidence)</Trans></span>}
             </p>
@@ -257,7 +257,7 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
             return up ? t`${pct}% more reading this period` : t`${pct}% less reading this period`
           })()}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-[13px] text-muted-foreground mt-1">
           {(() => { const cur = formatDuration(comparison.current_seconds); return <Trans>This period: <span className="text-foreground font-medium">{cur}</span></Trans> })()}
           {comparison.pct_change !== null && (() => { const prev = formatDuration(comparison.previous_seconds); return (
             <Trans> vs previous: <span className="text-foreground font-medium">{prev}</span></Trans>
@@ -320,7 +320,7 @@ export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: Sta
   )
 }
 
-// One-line duration y-tick — recharts wraps multi-word ticks like "1h 40m".
+// One-line duration y-tick - recharts wraps multi-word ticks like "1h 40m".
 function DurTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: { value?: number }; fill?: string }) {
   return (
     <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill={fill}>
@@ -338,7 +338,7 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
     byDow[c.dow] += c.seconds
     sessions[c.dow] += c.sessions
   }
-  // dow 0 = Sunday — rotate to Mon-first
+  // dow 0 = Sunday - rotate to Mon-first
   const LABELS = [msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`, msg`Sun`]
   const rows = LABELS.map((label, i) => {
     const dow = (i + 1) % 7

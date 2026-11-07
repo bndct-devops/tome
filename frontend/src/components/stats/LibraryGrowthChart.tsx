@@ -28,7 +28,7 @@ function formatMonth(m: string): string {
 
 function ChartTooltip({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs">
+    <div className="bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]">
       {children}
     </div>
   )

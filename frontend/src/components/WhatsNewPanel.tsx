@@ -100,7 +100,7 @@ export function WhatsNewPanel() {
       <div className="flex flex-col gap-6">
         {groups.map((kind) => (
           <section key={kind}>
-            <h3 className="border-b border-border/70 pb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <h3 className="border-b border-border/70 pb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               {kind}
             </h3>
             <ul>

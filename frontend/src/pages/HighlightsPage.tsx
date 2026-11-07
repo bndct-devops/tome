@@ -69,7 +69,7 @@ function groupByBook(items: Highlight[]): BookGroup[] {
 }
 
 function groupToMarkdown(g: BookGroup): string {
-  const lines = [`## ${g.title}${g.author ? ` — ${g.author}` : ''}`, '']
+  const lines = [`## ${g.title}${g.author ? ` - ${g.author}` : ''}`, '']
   for (const h of g.items) {
     if (h.chapter) lines.push(`*${h.chapter}*`)
     if (h.highlighted_text) lines.push(`> ${h.highlighted_text}`)
@@ -303,7 +303,7 @@ export function HighlightsPage() {
   }
 
   // Export everything that matches the current filters, not just loaded pages.
-  // 10000 matches the server's limit cap — anything above it is a 422, which
+  // 10000 matches the server's limit cap - anything above it is a 422, which
   // is how the old limit=2000 silently broke this export against the previous
   // le=1000 cap.
   async function fetchAllMatching(): Promise<HighlightsResponse> {
@@ -359,7 +359,7 @@ export function HighlightsPage() {
     // Was this the last loaded highlight for its book? If so the book drops off too.
     const lastOfBook = !items.some(x => x.book_id === h.book_id && x.id !== h.id)
     // With unloaded pages the book may still have highlights beyond what we see,
-    // so a local decrement would under-count — refetch the counts instead.
+    // so a local decrement would under-count - refetch the counts instead.
     const fullyLoaded = items.length >= total
     try {
       await api.delete(`/annotations/${h.id}`)

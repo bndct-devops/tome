@@ -1,4 +1,4 @@
-// Reading Timeline — your reading life as a horizontal ribbon. One lane per
+// Reading Timeline - your reading life as a horizontal ribbon. One lane per
 // series (standalones get their own), named in a frozen left rail; every book
 // is a bar spanning its first to last active day, daily ticks inside carrying
 // that day's minutes as intensity (one hue, sequential). Data is lifetime and
@@ -104,14 +104,14 @@ function buildLanes(books: TimelineBook[]): LaneGroup[] {
     })
   }
   // Most recently active on top: the view opens scrolled to today, so the
-  // top-right corner — the first thing seen — is the reading happening now.
+  // top-right corner - the first thing seen - is the reading happening now.
   lanes.sort((a, z) => z.lastDay - a.lastDay || z.firstDay - a.firstDay)
   return lanes
 }
 
 // Session-lived cache: switching tabs remounts the widget; the ribbon should
 // reappear instantly, not re-fetch and flash its loading state every visit.
-// Keyed by user id — logout/login and admin impersonation don't full-reload
+// Keyed by user id - logout/login and admin impersonation don't full-reload
 // the SPA, so an unkeyed cache would flash the previous account's timeline.
 let cachedData: TimelineResponse | null = null
 let cachedForUser: number | null = null
@@ -119,7 +119,7 @@ let cachedForUser: number | null = null
 const ZOOM_KEY = 'tome_timeline_zoom'
 const initialZoom = () => {
   const raw = localStorage.getItem(ZOOM_KEY)
-  if (raw === null) return 2 // Number(null) is 0 — don't let a fresh browser start zoomed out
+  if (raw === null) return 2 // Number(null) is 0 - don't let a fresh browser start zoomed out
   const z = Number(raw)
   return Number.isInteger(z) && z >= 0 && z < ZOOMS.length ? z : 2
 }
@@ -145,7 +145,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
   const scrollRef = useRef<HTMLDivElement>(null)
   const colors = useChartColors()
   const navigate = useNavigate()
-  // Touch: first tap on a bar shows the tooltip, second tap navigates —
+  // Touch: first tap on a bar shows the tooltip, second tap navigates  - 
   // tap-navigating instantly made "inspect" impossible on phones.
   // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
   const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
@@ -167,7 +167,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
 
   const lanes = useMemo(() => (data && data.books.length ? buildLanes(data.books) : null), [data])
 
-  // Panel width, live — zooming out floors at fit-width so the ribbon never
+  // Panel width, live - zooming out floors at fit-width so the ribbon never
   // leaves dead space to the right of today on a wide screen.
   const [containerW, setContainerW] = useState(0)
   useEffect(() => {
@@ -179,7 +179,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     return () => ro.disconnect()
   }, [data])
 
-  // Phones get a narrow rail — the full 200px rail ate half the viewport.
+  // Phones get a narrow rail - the full 200px rail ate half the viewport.
   const railW = containerW > 0 && containerW < NARROW_BELOW ? RAIL_W_NARROW : RAIL_W
 
   const model = useMemo(() => {
@@ -213,7 +213,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     }
   }, [data, lanes, zoom, containerW, railW])
 
-  // Land on the recent end — that's where the reading is.
+  // Land on the recent end - that's where the reading is.
   useEffect(() => {
     const el = scrollRef.current
     if (el && model) el.scrollLeft = el.scrollWidth
@@ -224,7 +224,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
   if (!model || !lanes) return <Empty text={t`No reading history yet. Sessions and imported KOReader history land here.`} />
 
   const ppd = model.ppd
-  const atFitFloor = ppd > ZOOMS[zoom] + 0.001 // preset already below fit — zooming out changes nothing
+  const atFitFloor = ppd > ZOOMS[zoom] + 0.001 // preset already below fit - zooming out changes nothing
 
   // Resolve the hovered/tapped position to the day under the cursor, so the
   // tooltip answers at day resolution, not just book totals.
@@ -280,7 +280,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
         }}
       >
         <div style={{ width: railW + model.width }}>
-          {/* axis row — sticky against vertical scroll; corner sticky both ways */}
+          {/* axis row - sticky against vertical scroll; corner sticky both ways */}
           <div className="sticky top-0 z-30 flex border-b border-border/70 bg-background" style={{ height: AXIS_H }}>
             <div className="sticky left-0 z-10 shrink-0 bg-background" style={{ width: railW }} />
             <div className="relative" style={{ width: model.width }}>
@@ -387,7 +387,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
           // re-anchor position:fixed to the tile and trap z-index in its stacking
           // context, putting the tooltip far from the cursor and behind siblings.
           <div
-            className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"
+            className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg bg-card px-3 py-2 text-[13px] shadow-lg ring-1 ring-panel-ring"
             style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
           >
             {hover.b.has_cover && (
@@ -397,7 +397,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
               <div className="truncate font-semibold">{hover.b.title}</div>
               {hover.b.author && <div className="truncate text-muted-foreground">{hover.b.author}</div>}
               <div className="mt-1 text-muted-foreground">
-                {formatDate(hover.b.first_day)} – {formatDate(hover.b.last_day)} · {plural(hover.b.days.length, { one: '# day', other: '# days' })}
+                {(() => { const first = formatDate(hover.b.first_day), last = formatDate(hover.b.last_day); return t`${first} to ${last}` })()} · {plural(hover.b.days.length, { one: '# day', other: '# days' })}
               </div>
               <div className="text-muted-foreground">
                 {formatDuration(hover.b.total_seconds)}

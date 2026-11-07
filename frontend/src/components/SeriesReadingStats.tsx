@@ -80,7 +80,7 @@ function VolumeChart({ volumes }: { volumes: PerVolume[] }) {
                 key={v.book_id}
                 className={cn(
                   'flex-1 min-w-px transition-colors',
-                  // Unread volumes are a hairline tick on the baseline — the old
+                  // Unread volumes are a hairline tick on the baseline - the old
                   // 8%-height rounded stubs read as clipped, half-loaded bars
                   // (UX sweep finding).
                   isRead
@@ -127,13 +127,13 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
   const supporting: { label: string; value: string }[] = [
     { label: t`finished`, value: `${own.books_finished}/${own.books_total} (${own.completion_pct}%)` },
     { label: t`sessions`, value: String(own.sessions) },
-    { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '—' },
+    { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '-' },
     ...(own.avg_volume_seconds > 0
       ? [{ label: t`avg / volume`, value: formatDuration(own.avg_volume_seconds) }] : []),
   ]
 
   // "Est. remaining" used to live here (avg finished volume × unfinished). The
-  // series header now carries the backlog forecast (#187) — one number, not two.
+  // series header now carries the backlog forecast (#187) - one number, not two.
   const bottomStats: { label: string; value: string }[] = []
   if (own.longest_volume != null) {
     bottomStats.push({
@@ -196,7 +196,7 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
             </div>
           )}
 
-          {/* Dates row — label over value, no boxes */}
+          {/* Dates row - label over value, no boxes */}
           {bottomStats.length > 0 && (
             <div className="mt-5 pt-4 border-t border-border/70 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
               {bottomStats.map(s => (

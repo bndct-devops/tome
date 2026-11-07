@@ -15,7 +15,7 @@ import { t } from '@lingui/core/macro'
 
 const POLL_INTERVAL_MS = 60_000 // 1 minute
 
-// Uses the core t macro (global i18n) — called during render, so a locale
+// Uses the core t macro (global i18n) - called during render, so a locale
 // switch re-renders it through I18nProvider like everything else.
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -42,7 +42,7 @@ export function NotificationBell() {
       const items = await listNotifications(true)
       setUnreadCount(items.length)
     } catch {
-      // silently ignore — bell is non-critical
+      // silently ignore - bell is non-critical
     }
   }, [])
 

@@ -239,7 +239,7 @@ export function DashboardPage() {
 
   // ── View / sort (persisted) ───────────────────────────────────────────────
   // Two view modes (grid/list) + a cover-size slider for the grid. Old installs
-  // stored 'large' | 'small' — those migrate to grid at the matching size.
+  // stored 'large' | 'small' - those migrate to grid at the matching size.
   const [view, setView] = useState<ViewPref>(() =>
     localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid')
   const [gridSize, setGridSize] = useState<number>(() => {
@@ -265,7 +265,7 @@ export function DashboardPage() {
     if (v) exitSelectionMode()
   }
 
-  // ── Tab (Home / Books / Series) — derived from URL ───────────────────────
+  // ── Tab (Home / Books / Series) - derived from URL ───────────────────────
   const tab = (searchParams.get('tab') || 'home') as 'home' | 'books' | 'series'
   const [seriesList, setSeriesList] = useState<SeriesItem[]>([])
   const [seriesLoading, setSeriesLoading] = useState(false)
@@ -275,7 +275,7 @@ export function DashboardPage() {
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   const [contentType, setContentType] = useState<string>('volume')
-  // Series meta (status badges) — keyed by series name
+  // Series meta (status badges) - keyed by series name
   const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
   // Arcs for the currently open series detail
   const [seriesArcs, setSeriesArcs] = useState<Arc[]>([])
@@ -296,7 +296,7 @@ export function DashboardPage() {
   }
 
   function fetchSeriesMetaForList(_list: SeriesItem[]) {
-    // Single batch call — previously fired one GET per series which
+    // Single batch call - previously fired one GET per series which
     // exhausted the DB connection pool on libraries with many series.
     api.get<Record<string, SeriesStatus>>('/series/meta-map')
       .then(map => setSeriesMetaMap(map))
@@ -415,7 +415,7 @@ export function DashboardPage() {
       return {
         arcId: arc.id,
         name,
-        label: t`${name} · Vol. ${start_index}–${end_index}`,
+        label: t`${name} · Vol. ${start_index}-${end_index}`,
         description: arc.description ?? null,
         volumes: books.filter(v =>
           v.series_index != null &&
@@ -447,7 +447,7 @@ export function DashboardPage() {
     return (
       <span className={cn(
         'inline-flex items-center font-semibold uppercase leading-none',
-        large ? 'h-7 px-3 rounded-full text-[12px] tracking-[0.08em]' : 'px-1.5 py-0.5 rounded text-[10px] tracking-wide',
+        large ? 'h-7 px-3 rounded-full text-[12px] tracking-[0.08em]' : 'px-1.5 py-0.5 rounded text-[12px] tracking-wide',
         cls,
       )}>
         {SERIES_STATUS_LABELS[status] ? i18n._(SERIES_STATUS_LABELS[status]) : status}
@@ -548,7 +548,7 @@ export function DashboardPage() {
 
   const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice)
 
-  // Grouping is bypassed while drilling into a specific series — the user
+  // Grouping is bypassed while drilling into a specific series - the user
   // explicitly asked for that series' volumes, so a single stack is useless.
   const groupActive = groupBySeries && !filterSeries
 
@@ -744,7 +744,7 @@ export function DashboardPage() {
 
   // ── Sidebar data ──────────────────────────────────────────────────────────
   const { libraries, savedFilters, loadLibraries, loadSavedFilters } = useSidebarLists(user?.id)
-  // Cached across page mounts (see useSidebarLists) — this refetch only
+  // Cached across page mounts (see useSidebarLists) - this refetch only
   // freshens the lists in the background, it never blanks them.
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
@@ -881,7 +881,7 @@ export function DashboardPage() {
       .finally(() => {
         if (reset) {
           // An aborted reset was superseded by a newer one that owns the
-          // loading flags — leave them alone.
+          // loading flags - leave them alone.
           if (signal?.aborted) return
           setLoading(false)
           setRefreshing(false)
@@ -1101,7 +1101,7 @@ export function DashboardPage() {
     ...(notOnDevices.length ? [{ label: (() => { const names = notOnDevices.join(', '); return t`Not on ${names}` })(), key: 'not_on_device' }] : []),
   ]
 
-  // Params to pass to SaveFilterButton (excludes library_id — that belongs in sidebar)
+  // Params to pass to SaveFilterButton (excludes library_id - that belongs in sidebar)
   const saveableParams: Record<string, string> = {}
   if (search) saveableParams.q = search
   if (filterSeries) saveableParams.series = filterSeries
@@ -1124,7 +1124,7 @@ export function DashboardPage() {
         'grid transition-[gap] duration-300 ease-out',
         gridSize < 150 ? 'gap-x-3 gap-y-5' : 'gap-x-5 gap-y-7'
       )
-  // min(size, 42vw) keeps phones at two columns regardless of the slider —
+  // min(size, 42vw) keeps phones at two columns regardless of the slider  - 
   // without it a 180px minimum fits only one track on a 390px screen
   const gridStyle = view === 'list'
     ? undefined
@@ -1445,7 +1445,7 @@ export function DashboardPage() {
                       the cover had scrolled away. */}
                   <SeriesReadingStats seriesName={seriesDetail.name} />
 
-                  {/* Volume grid — grouped by arc when arcs exist */}
+                  {/* Volume grid - grouped by arc when arcs exist */}
                   {sections.map((section, si) => (
                     <section key={si} id={section.arcId != null ? `series-arc-${section.arcId}` : undefined} className="scroll-mt-6">
                       {hasArcs ? (
@@ -1475,7 +1475,7 @@ export function DashboardPage() {
                                 alt={vol.title}
                                 iconClassName="w-4 h-4"
                               />
-                              {/* Quick-read play button — top-left corner on hover */}
+                              {/* Quick-read play button - top-left corner on hover */}
                               <button
                                 type="button"
                                 onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
@@ -1485,7 +1485,7 @@ export function DashboardPage() {
                               >
                                 <Play className="w-3 h-3 fill-current ml-px" />
                               </button>
-                              {/* Quick look — top-right corner on hover; the status dot steps aside */}
+                              {/* Quick look - top-right corner on hover; the status dot steps aside */}
                               <button
                                 type="button"
                                 onClick={e => { e.stopPropagation(); setQuickLookId(vol.id) }}
@@ -1641,7 +1641,7 @@ export function DashboardPage() {
             eyebrow={loading
               ? '…'
               : (() => {
-                  // Grouped rows are series stacks + standalones — "titles", not the
+                  // Grouped rows are series stacks + standalones - "titles", not the
                   // ambiguous "entries" (which read like a book count and never matched it).
                   const shown = books.length
                   if (totalCount !== null && totalCount > shown) {
@@ -1678,7 +1678,7 @@ export function DashboardPage() {
                   {/* Counts filter chips only: a search alone (hasFilters) is not
                       a filter and used to show a "0" badge. */}
                   {activeFilterChips.length > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-foreground text-background text-[11px] font-semibold tabular-nums">
+                    <span className="min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-foreground text-background text-[12px] font-semibold tabular-nums">
                       {activeFilterChips.length}
                     </span>
                   )}
@@ -1697,7 +1697,7 @@ export function DashboardPage() {
                   <span className="hidden xl:inline"><Trans>Group series</Trans></span>
                 </Pill>
 
-                {/* Select mode toggle — selection operates on individual books, hidden while grouped */}
+                {/* Select mode toggle - selection operates on individual books, hidden while grouped */}
                 {books.length > 0 && !groupActive && (
                   <>
                     <Pill
@@ -1797,7 +1797,7 @@ export function DashboardPage() {
                 </span>
               ))}
 
-              {/* Save filter button — only when content filters active (not library) */}
+              {/* Save filter button - only when content filters active (not library) */}
               <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
 
               <Pill variant="quiet" onClick={clearFilters}>
@@ -1902,7 +1902,7 @@ export function DashboardPage() {
                   })}
                 </div>
               )}
-              {/* Ownership filter — members only (not admin) */}
+              {/* Ownership filter - members only (not admin) */}
               {isMember(user) && !isAdmin(user) && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={rowLabel}><Trans>Books</Trans></span>
@@ -1917,7 +1917,7 @@ export function DashboardPage() {
                   ))}
                 </div>
               )}
-              {/* Uploader filter — admins only */}
+              {/* Uploader filter - admins only */}
               {isAdmin(user) && userList.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={rowLabel}><Trans>Uploader</Trans></span>
@@ -1987,7 +1987,7 @@ export function DashboardPage() {
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />
                       <div className="absolute right-0 top-full mt-2 z-20 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5 min-w-56 max-w-[calc(100vw-2rem)]">
-                        <p className="border-b border-border px-3 pb-2 pt-0.5 mb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                        <p className="border-b border-border px-3 pb-2 pt-0.5 mb-1 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                           <Trans>Add to library</Trans>
                         </p>
                         {libraries.filter(l => l.can_edit).map(lib => (

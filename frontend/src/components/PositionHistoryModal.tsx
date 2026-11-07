@@ -99,7 +99,7 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
                   <span className="block text-[13px] text-muted-foreground">{fmtWhen(h.created_at)}</span>
                 </span>
                 {isCurrent ? (
-                  <span className="shrink-0 px-3 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                  <span className="shrink-0 px-3 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                     <Trans>Current</Trans>
                   </span>
                 ) : (

@@ -43,7 +43,7 @@ function originFrom(typed: string): string | null {
 const ADDRESS_KEY = 'tome.connectPhone.address'
 
 /** Deep link the app understands. Server = the origin this page is served
-    from, which is the address the phone can reach too — unless that is
+    from, which is the address the phone can reach too - unless that is
     localhost, in which case the user types the computer's network address. */
 function payloadFor(issued: Issued, server: string): string {
   const params = new URLSearchParams({

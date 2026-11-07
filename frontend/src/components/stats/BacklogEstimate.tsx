@@ -55,7 +55,7 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
           </span>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[13px] text-muted-foreground">
         {plural(data.books, { one: '# book', other: '# books' })} &middot; {paceNote}
         {usesTypeAvg && <Trans> &middot; books without a word count use your average for that type</Trans>}
         {data.unestimated > 0 && (() => { const n = data.unestimated; return <Trans> &middot; {n} not estimated yet</Trans> })()}

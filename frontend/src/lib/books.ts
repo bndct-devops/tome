@@ -31,7 +31,7 @@ export interface Book {
   tags: BookTag[]
   library_ids: number[]
   book_type_id: number | null
-  // Only set by GET /books?group_by_series=true — matching volumes in this
+  // Only set by GET /books?group_by_series=true - matching volumes in this
   // series, and IDs of the next covered volumes for the stack fan effect
   series_count?: number | null
   stack_cover_ids?: number[] | null
@@ -44,9 +44,9 @@ export interface BookDetail extends Book {
   content_hash: string | null
   added_by: number | null
   updated_at: string
-  // Matched Hardcover edition's page count — font-size-agnostic "page X of Y"
+  // Matched Hardcover edition's page count - font-size-agnostic "page X of Y"
   hardcover_pages?: number | null
-  // Matched Hardcover record's slug — Details grid links to it
+  // Matched Hardcover record's slug - Details grid links to it
   hardcover_slug?: string | null
 }
 

@@ -1,6 +1,6 @@
 import { t } from '@lingui/core/macro'
 
-// Backlog completion estimates (#187) — shared types + formatting for the
+// Backlog completion estimates (#187) - shared types + formatting for the
 // book page cell, the series header line and the Stats "Backlog" tile.
 
 export interface EstimatePace {
@@ -44,7 +44,7 @@ export interface BacklogScope {
   group: 'Libraries' | 'Shelves' | null
 }
 
-/** "~45 min" / "~11 h" — coarse on purpose, these are estimates. */
+/** "~45 min" / "~11 h" - coarse on purpose, these are estimates. */
 export function formatEstimateHours(seconds: number): string {
   if (seconds < 3600) { const m = Math.max(1, Math.round(seconds / 60)); return t`~${m} min` }
   const h = Math.round(seconds / 3600)

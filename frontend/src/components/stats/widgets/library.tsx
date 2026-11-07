@@ -1,4 +1,4 @@
-// Library-tab stats widgets — chart/content-only, shared by StatsPage and the Lab.
+// Library-tab stats widgets - chart/content-only, shared by StatsPage and the Lab.
 import { Fragment, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -145,7 +145,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
   )
 }
 
-// One series, front and center — config picks which. Cover, progress, counts.
+// One series, front and center - config picks which. Cover, progress, counts.
 export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_completion']; series?: string }) {
   const { accent } = useChartColors()
   const entry = (series ? data.find((s) => s.series === series) : undefined) ?? data[0]
@@ -160,13 +160,13 @@ export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{entry.series}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
           {(() => { const read = entry.read; const total = entry.total; return <Trans>{read} of {total} read</Trans> })()}{entry.reading > 0 ? (() => { const n = entry.reading; return t` · ${n} reading` })() : ''}
         </p>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full" style={{ width: `${Math.min(entry.pct, 100)}%`, backgroundColor: accent }} />
         </div>
-        <p className="mt-1 text-right text-[10px] tabular-nums text-muted-foreground">{entry.pct}%</p>
+        <p className="mt-1 text-right text-[12px] tabular-nums text-muted-foreground">{entry.pct}%</p>
       </div>
     </div>
   )
@@ -204,9 +204,9 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="w-full text-[13px]">
         <thead>
-          <tr className="border-b border-border text-[11px] font-medium text-muted-foreground">
+          <tr className="border-b border-border text-[12px] font-medium text-muted-foreground">
             <th className="text-left py-2 px-2 w-10" />
             <th className="text-left py-2 px-2"><Trans>Title</Trans></th>
             <th className="text-left py-2 px-2 hidden sm:table-cell"><Trans>Author</Trans></th>
@@ -260,7 +260,7 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
         </tbody>
       </table>
       {hasMore && (
-        <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-center gap-1.5 py-2 text-xs text-primary hover:text-primary/80 transition-colors w-full">
+        <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-center gap-1.5 py-2 text-[13px] text-primary hover:text-primary/80 transition-colors w-full">
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
           <span>{expanded ? t`Show less` : (() => { const n = sorted.length; return t`Show all (${n} books)` })()}</span>
         </button>

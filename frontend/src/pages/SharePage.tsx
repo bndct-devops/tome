@@ -1,4 +1,4 @@
-// Public, read-only view of a shared shelf — /share/:token, no login.
+// Public, read-only view of a shared shelf - /share/:token, no login.
 // Deliberately minimal surface: covers, identity, tags, description, the
 // owner's rating and highlights. A shelf or series is a cover grid; a cover
 // opens the book in a sheet. No downloads, no reader, no links into the
@@ -109,7 +109,7 @@ const DAY_MS = 86400000
 // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO suffix
 const dayNum = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY_MS)
 
-/** The owner's reading of this book as a day-intensity strip — the same
+/** The owner's reading of this book as a day-intensity strip - the same
  *  visual language as the app's Timeline ticks. */
 function ActivityStrip({ stats }: { stats: SharedStats }) {
   if (!stats.activity.length || !stats.first_day || !stats.last_day) return null
@@ -424,7 +424,7 @@ export function SharePage() {
                       size={20}
                       action={g.arc ? (() => {
                         const a = g.arc.start_index, b = g.arc.end_index
-                        return <span className="text-[14px] font-normal text-muted-foreground"><Trans>Vol. {a}–{b}</Trans></span>
+                        return <span className="text-[14px] font-normal text-muted-foreground"><Trans>Vol. {a}-{b}</Trans></span>
                       })() : undefined}
                     >
                       {g.arc ? g.arc.name : t`Other volumes`}

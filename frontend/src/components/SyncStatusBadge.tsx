@@ -24,7 +24,7 @@ function formatRelative(iso: string | null): string {
   return t`Synced ${d}`
 }
 
-// Freshness tints the sync glyph itself — a bare colored dot next to "12h ago"
+// Freshness tints the sync glyph itself - a bare colored dot next to "12h ago"
 // never said what the chip was about.
 function iconColor(diff: number): string {
   if (diff < FRESH_MS) return 'text-success'

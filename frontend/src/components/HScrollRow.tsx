@@ -30,7 +30,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
    *  beyond the fade. */
   wrapClassName?: string
   /** Tailwind top-* class anchoring the chevrons. Defaults to the row's
-   *  vertical center — pass the cover's midline (e.g. 'top-24') for card rows
+   *  vertical center - pass the cover's midline (e.g. 'top-24') for card rows
    *  where text below the artwork would otherwise drag the chevrons low. */
   controlsTop?: string
 }) {
@@ -71,7 +71,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
       <div ref={ref} onScroll={update} className={cn('flex overflow-x-auto', className)} style={edgeMask(canLeft, canRight)}>
         {children}
       </div>
-      {/* Chevrons stay visible whenever content is hidden — the gradient alone
+      {/* Chevrons stay visible whenever content is hidden - the gradient alone
           is invisible over dark artwork, and at widths where the cutoff lands
           between cards it sits over empty gap, so a hover-only affordance
           meant off-screen books gave no signal at all. */}
@@ -81,7 +81,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
           aria-label={t`Scroll left`}
           onClick={() => nudge(-1)}
           className={cn(
-            'flex absolute left-1 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border border-border bg-card/95 shadow-sm text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 group-hover/hscroll:opacity-100 focus-visible:opacity-100 transition-opacity',
+            'flex absolute left-1 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full bg-card/95 shadow-sm ring-1 ring-panel-ring text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 group-hover/hscroll:opacity-100 focus-visible:opacity-100 transition-opacity',
             controlsTop ?? 'top-1/2'
           )}
         >
@@ -94,7 +94,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
           aria-label={t`Scroll right`}
           onClick={() => nudge(1)}
           className={cn(
-            'flex absolute right-1 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full border border-border bg-card/95 shadow-sm text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 group-hover/hscroll:opacity-100 focus-visible:opacity-100 transition-opacity',
+            'flex absolute right-1 -translate-y-1/2 w-8 h-8 items-center justify-center rounded-full bg-card/95 shadow-sm ring-1 ring-panel-ring text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 group-hover/hscroll:opacity-100 focus-visible:opacity-100 transition-opacity',
             controlsTop ?? 'top-1/2'
           )}
         >

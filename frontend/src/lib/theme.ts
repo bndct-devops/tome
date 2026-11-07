@@ -57,7 +57,7 @@ function getDerivedVars(values: string[]): Record<string, string> {
     '--destructive-foreground': values[4],  // = --primary-foreground
     // Brand-derived vars built-in themes set but the palette doesn't expose.
     // Charts read --chart-accent via getComputedStyle (raw value), so it must
-    // be a concrete colour, not var(--primary) — mirror the built-in themes
+    // be a concrete colour, not var(--primary) - mirror the built-in themes
     // where --chart-accent tracks the primary brand colour. (#55)
     '--chart-accent':           values[3],  // = --primary
     '--accent-soft':            `color-mix(in oklab, ${values[3]} 14%, transparent)`,

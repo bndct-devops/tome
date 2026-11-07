@@ -9,11 +9,11 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { Trans, useLingui } from '@lingui/react/macro'
 
 /**
- * The one top navbar — menu button, wordmark, a search slot, and the right-side
+ * The one top navbar - menu button, wordmark, a search slot, and the right-side
  * cluster (page actions, sync badge, bell, Upload). Rendered by AppShell for
  * the standalone pages and by DashboardPage directly, so the two can't drift
  * apart again (the AppShell copy once shipped an Upload button whose icon was
- * missing — a blank pill on phones).
+ * missing - a blank pill on phones).
  */
 export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
   onMenuClick: () => void
@@ -49,7 +49,7 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
             <button
               onClick={onUploadClick}
               aria-label={t`Upload`}
-              // The bar's one real action — solid accent so it anchors the right
+              // The bar's one real action - solid accent so it anchors the right
               // cluster instead of blending into the neutral chips around it.
               className="ml-1 inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all touch-feedback"
             >
@@ -59,16 +59,16 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
           )}
         </div>
       </div>
-      {/* Post-upgrade release-notes panel — mounted here because both shell
+      {/* Post-upgrade release-notes panel - mounted here because both shell
           variants (AppShell and DashboardPage) render this header. */}
       <WhatsNewPanel />
-      {/* Cmd+K palette — same reasoning: one mount that exists on every page. */}
+      {/* Cmd+K palette - same reasoning: one mount that exists on every page. */}
       <CommandPalette />
     </header>
   )
 }
 
-/** The header's search box. With `onSubmit` it's a form (Enter submits — the
+/** The header's search box. With `onSubmit` it's a form (Enter submits - the
  *  standalone pages jump to the dashboard results); without, a live filter. */
 export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, placeholder }: {
   value: string
@@ -86,8 +86,8 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         ref={inputRef}
         aria-label={t`Search books`}
         // On phones the box can shrink to a sliver (page actions squeeze it) and
-        // the placeholder clips mid-letter — hide it there; the icon says enough.
-        // Rests quiet (tinted fill, no border), sharpens on focus — filled AND
+        // the placeholder clips mid-letter - hide it there; the icon says enough.
+        // Rests quiet (tinted fill, no border), sharpens on focus - filled AND
         // bordered at rest made it the heaviest element in the whole bar.
         // The secondary fill in every theme: on black the panel colour equals
         // the frame, and the pill had no shape at all.
@@ -108,7 +108,7 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
           <X className="w-3.5 h-3.5" />
         </button>
       ) : (
-        // Discoverability for the command palette — nothing else in the UI
+        // Discoverability for the command palette - nothing else in the UI
         // hints that it exists. Hidden on phones (no hardware keyboard).
         <kbd className="pointer-events-none absolute right-3.5 top-1/2 hidden -translate-y-1/2 text-[11px] leading-none text-muted-foreground/70 sm:block">
           ⌘K

@@ -1,11 +1,11 @@
-// Tome brand mark — drop-in replacement for the Lucide <BookOpen> we used
+// Tome brand mark - drop-in replacement for the Lucide <BookOpen> we used
 // to use as the app logo. Stroke colour comes from currentColor so existing
 // text-* utility classes (e.g. text-primary) still work. Stroke-width follows
 // the brand size ladder: heavier at small render sizes.
 import type { SVGProps } from 'react'
 
 interface Props extends SVGProps<SVGSVGElement> {
-  /** Brand spec: 7 for ≤24px, 5 for 24–48px, 4 for ≥48px. Default 5. */
+  /** Brand spec: 7 for ≤24px, 5 for 24-48px, 4 for ≥48px. Default 5. */
   strokeWidth?: number
 }
 

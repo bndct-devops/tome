@@ -10,7 +10,7 @@ import type { Library, SavedFilter } from '@/lib/books'
  * from the cache paints the previous lists instantly; the mount-time refetch
  * then updates them silently.
  *
- * Keyed by user id — admin impersonation and re-login must not flash the
+ * Keyed by user id - admin impersonation and re-login must not flash the
  * previous user's libraries into the next user's first paint.
  */
 let cache: { userId: number | null; libraries: Library[]; savedFilters: SavedFilter[] } = {

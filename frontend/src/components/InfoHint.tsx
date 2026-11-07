@@ -11,7 +11,7 @@ export function InfoHint({ text, children, wide }: { text?: string; children?: R
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
   // iOS Safari doesn't focus buttons on tap, so onBlur alone never closes the
-  // popover there — close on any tap outside instead.
+  // popover there - close on any tap outside instead.
   useEffect(() => {
     if (!open) return
     const onPointerDown = (e: PointerEvent) => {
@@ -36,7 +36,7 @@ export function InfoHint({ text, children, wide }: { text?: string; children?: R
       {open && (
         <span
           role="tooltip"
-          className={`absolute left-0 top-5 z-20 ${wide ? 'w-80' : 'w-52'} rounded-md border border-border bg-background px-2.5 py-1.5 text-xs leading-snug text-muted-foreground shadow-lg`}
+          className={`absolute left-0 top-5 z-20 ${wide ? 'w-80' : 'w-52'} rounded-lg bg-card px-3 py-2 text-[13px] leading-snug text-muted-foreground shadow-lg ring-1 ring-panel-ring`}
         >
           {children ?? text}
         </span>

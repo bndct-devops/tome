@@ -72,7 +72,7 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
         onKeyDown={e => { if (e.key === 'Escape' && inline) { e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); setOpen(false) } }}
         placeholder={t`Search icons…`}
         aria-label={t`Search icons`}
-        className={inline ? 'w-full h-9 mb-2 rounded-lg bg-secondary px-3 text-[14px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring' : 'w-full mb-2 px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring'}
+        className={inline ? 'w-full h-9 mb-2 rounded-lg bg-secondary px-3 text-[14px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring' : 'w-full h-9 mb-2 rounded-lg bg-secondary px-3 text-[14px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring'}
       />
       {!allIcons ? (
         <div className={cn('flex items-center justify-center gap-2 text-[13px] text-muted-foreground', inline ? 'h-[156px]' : 'h-[120px]')}>
@@ -99,7 +99,7 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
           ))}
         </div>
       )}
-      {!search && allIcons && <p className={cn('text-muted-foreground text-center mt-1.5', inline ? 'text-[12px]' : 'text-[10px]')}><Trans>Search to find more icons</Trans></p>}
+      {!search && allIcons && <p className={cn('text-muted-foreground text-center mt-1.5', 'text-[12px]')}><Trans>Search to find more icons</Trans></p>}
     </>
   )
 
@@ -125,11 +125,11 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setSearch('') }}
-        className="flex items-center justify-center w-7 h-7 rounded-md border border-border bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
         title={t`Choose icon`}
         aria-label={t`Choose icon`}
       >
-        <NamedIcon icon={value} className="w-3.5 h-3.5" />
+        <NamedIcon icon={value} className="w-4 h-4" />
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-2 w-72">
@@ -144,7 +144,7 @@ interface Props {
   libraries: Library[]
   savedFilters: SavedFilter[]
   // 'none' = a non-dashboard page (Stats/Highlights/…) is open, so none of the
-  // Home/All Books/Series items highlight — the active route item does instead.
+  // Home/All Books/Series items highlight - the active route item does instead.
   activeTab: 'home' | 'books' | 'series' | 'none'
   onLibrariesChange: () => void
   onSavedFiltersChange: () => void
@@ -235,7 +235,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   }
 
   // Navigate to the dashboard (pathname '/') with these params. Using navigate
-  // (not setSearchParams) means these work from a non-dashboard page too — the
+  // (not setSearchParams) means these work from a non-dashboard page too - the
   // sidebar is now shared by Stats/Highlights/… via AppShell. On the dashboard
   // itself the resulting URL is identical, so behaviour there is unchanged.
   function goToBooks(params: Record<string, string>) {
@@ -489,7 +489,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           </nav>
         )}
 
-        {/* User profile footer — single trigger, popover on click */}
+        {/* User profile footer - single trigger, popover on click */}
         {open && (
           <UserMenu user={user} logout={logout} onCollapse={toggleOpen} />
         )}
@@ -654,7 +654,7 @@ function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: numbe
   // The rail is icon-only, too narrow for a number.
   if (variant === 'rail') return <span className={cn('absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary', pulseClassName)} />
   return (
-    <span className={cn('ml-auto min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold tabular-nums', pulseClassName)}>
+    <span className={cn('ml-auto min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[12px] font-semibold tabular-nums', pulseClassName)}>
       {count}
     </span>
   )
@@ -931,7 +931,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
           <Lock className="w-3 h-3 text-muted-foreground/50" />
         </span>
       )}
-      {/* A ghost "0" on an empty library was pure noise — no count reads cleaner. */}
+      {/* A ghost "0" on an empty library was pure noise - no count reads cleaner. */}
       {count != null && count > 0 && !isPrivate && (
         <span className="text-[12px] tabular-nums shrink-0 text-muted-foreground/70 group-hover:hidden group-focus-within:hidden">
           {count}

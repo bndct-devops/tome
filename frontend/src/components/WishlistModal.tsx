@@ -78,7 +78,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
   useEffect(() => {
     if (!open) return
     inputRef.current?.focus()
-    // Series search is Hardcover-only — only offer the Series tab when available.
+    // Series search is Hardcover-only - only offer the Series tab when available.
     seriesSearchAvailable().then(r => setSeriesAvailable(!!r.available)).catch(() => {})
   }, [open])
 

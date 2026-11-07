@@ -49,7 +49,7 @@ interface FoliateViewElement extends HTMLElement {
   next(): void
 }
 
-// KOReader wall-clock format — annotations compare timestamps as strings.
+// KOReader wall-clock format - annotations compare timestamps as strings.
 function koNow(): string {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
@@ -226,7 +226,7 @@ function StreamingComicReader({
       // Check double-tap
       const now = Date.now()
       if (now - lastTapTime.current < 300) {
-        // Double tap — toggle zoom
+        // Double tap - toggle zoom
         const nextZoom = zoomRef.current > 1 ? 1 : 2
         setZoom(nextZoom)
         zoomRef.current = nextZoom
@@ -275,7 +275,7 @@ function StreamingComicReader({
     else goPrev()
   }, [isRTL, goNext, goPrev])
 
-  // Keyboard shortcuts handled by parent (ReaderPage) — expose navigation via callback
+  // Keyboard shortcuts handled by parent (ReaderPage) - expose navigation via callback
   // We expose goNext/goPrev on a ref so the parent can call them
   // (Actually keyboard handling is done in the parent for comic mode too)
 
@@ -408,7 +408,7 @@ function WebtoonReader({ bookId, totalPages, theme, onProgress, onReadComplete }
 // Continuous vertical scroll backed by pdf.js. Pages are virtualized: each page
 // is a fixed-size placeholder and only those near the viewport are rendered to a
 // canvas (others are torn down to bound memory on large PDFs). PDFs are fixed
-// layout, so unlike EPUB there is no font/size reflow — what's customizable is
+// layout, so unlike EPUB there is no font/size reflow - what's customizable is
 // the page tint (theme), fit mode (width/height) and zoom.
 
 interface PdfReaderHandle {
@@ -842,7 +842,7 @@ export default function ReaderPage() {
   //
   // Pages are 0-indexed (0..total-1); progress is 1-based so the last page = 100%.
   // When on the last page, persist status='read' directly instead of relying on
-  // a second call — otherwise the debounced save can overwrite the completion.
+  // a second call - otherwise the debounced save can overwrite the completion.
 
   const saveProgress = useCallback((page: number, total: number) => {
     if (!bookId || total <= 0) return
@@ -1101,7 +1101,7 @@ export default function ReaderPage() {
       const annotationsPromise = api
         .get<ReaderAnnotation[]>(`/books/${bookId}/annotations`)
         .catch(() => [] as ReaderAnnotation[])
-      // Pacing data for "time left in chapter" — non-blocking; the footer
+      // Pacing data for "time left in chapter" - non-blocking; the footer
       // simply stays quiet for books without a chapter map or word count.
       // Recompute on arrival: the initial relocate usually fires first.
       api
@@ -1155,7 +1155,7 @@ export default function ReaderPage() {
         if (detail.tocItem?.label) setChapterLabel(detail.tocItem.label.trim())
         if (detail.tocItem?.href) setCurrentTocHref(detail.tocItem.href)
 
-        // Chapter time-left from fraction boundaries — no pagination involved.
+        // Chapter time-left from fraction boundaries - no pagination involved.
         computeChapterLeft(detail.fraction ?? 0)
 
         if (!readyToSave.current) return
@@ -1742,7 +1742,7 @@ export default function ReaderPage() {
 
           {/* Selection toolbar: pick a colour to create a highlight */}
           {selText && !activeHighlight && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 rounded-xl bg-card shadow-lg ring-1 ring-border px-4 py-2.5">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring px-4 py-2.5">
               <span className="text-[13px] font-medium mr-1 text-muted-foreground"><Trans>Highlight</Trans></span>
               {HIGHLIGHT_COLORS.map(c => (
                 <button
@@ -1764,7 +1764,7 @@ export default function ReaderPage() {
           {activeHighlight && (
             <>
               <div className="absolute inset-0 z-20" onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} />
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[min(34rem,calc(100%-2rem))] rounded-xl bg-card shadow-lg ring-1 ring-border p-4">
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[min(34rem,calc(100%-2rem))] rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2 min-w-0 text-[13px] text-muted-foreground">
                     <span

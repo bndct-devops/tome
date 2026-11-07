@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { ModalShell } from '@/components/ModalShell'
+import { FormLabel, Input, Pill, PillGroup, Select } from '@/components/page'
 import { ProgressRing } from '@/components/stats/ProgressRing'
 import {
   ALLOWED_GOAL_KINDS,
@@ -52,7 +54,7 @@ export function GoalEditorModal({
 }: {
   /** Set = edit this goal; unset = create a new one. */
   goal?: Goal
-  /** Existing goals — used to grey out (kind, type) combos already taken. */
+  /** Existing goals, used to grey out (kind, type) combos already taken. */
   existing: Goal[]
   onSaved: (saved: Goal) => void
   onClose: () => void
@@ -84,48 +86,46 @@ export function GoalEditorModal({
     }
   }
 
+  // Portalled: the tile this opens from is transformed, which would trap a
+  // fixed dialog inside it.
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl shadow-accent-soft">
-        <div className="mb-4 flex items-start justify-between">
-          <div>
-            <h2 className="text-base font-semibold">{goal ? t`Edit goal` : t`Set a reading goal`}</h2>
-            <p className="text-xs text-muted-foreground">
-              {goal ? goalTitle(goal) : t`Pick a rhythm. Progress counts automatically.`}
-            </p>
-          </div>
-          <button type="button" onClick={onClose} aria-label={t`Close`} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      title={goal ? t`Edit goal` : t`Set a reading goal`}
+      subtitle={goal ? goalTitle(goal) : t`Pick a rhythm. Progress counts automatically.`}
+      footer={
+        <>
+          <Pill variant="quiet" onClick={onClose}>
+            <Trans>Cancel</Trans>
+          </Pill>
+          <Pill variant="primary" onClick={save} disabled={!valid || saving}>
+            {goal ? t`Save` : t`Set goal`}
+          </Pill>
+        </>
+      }
+    >
+      <div className="space-y-5">
         {!goal && (
           <>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground"><Trans>Goal</Trans></p>
-            <div className="mb-4 grid grid-cols-2 gap-1.5">
-              {ALLOWED_GOAL_KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setKind(k)}
-                  className={cn(
-                    'rounded-lg border px-2.5 py-1.5 text-left text-xs transition',
-                    kind === k ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {goalMeta(k).label}
-                </button>
-              ))}
+            <div>
+              <FormLabel><Trans>Goal</Trans></FormLabel>
+              <PillGroup
+                size="sm"
+                value={kind}
+                onChange={setKind}
+                options={ALLOWED_GOAL_KINDS.map((k) => ({ value: k, label: goalMeta(k).label }))}
+              />
             </div>
 
             {bookTypes.length > 0 && (
-              <>
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground"><Trans>Counts</Trans></p>
-                <select
+              <div>
+                <FormLabel htmlFor="goal-counts"><Trans>Counts</Trans></FormLabel>
+                <Select
+                  id="goal-counts"
                   value={bookTypeId ?? ''}
                   onChange={(e) => setBookTypeId(e.target.value === '' ? null : Number(e.target.value))}
-                  className="mb-4 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
                 >
                   <option value="">{t`All books`}</option>
                   {bookTypes.map((bt) => (
@@ -133,61 +133,41 @@ export function GoalEditorModal({
                       {(() => { const label = bt.label; return t`${label} only` })()}
                     </option>
                   ))}
-                </select>
-              </>
+                </Select>
+              </div>
             )}
           </>
         )}
 
-        <p className="mb-1.5 text-xs font-medium text-muted-foreground"><Trans>Target</Trans></p>
-        <div className="mb-2 flex gap-1.5">
-          {meta.presets.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setTarget(String(p))}
-              className={cn(
-                'rounded-lg border px-2.5 py-1.5 text-xs tabular-nums transition',
-                target === String(p) ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-        <div className="mb-4 flex items-center gap-2">
-          <input
-            type="number"
-            min={1}
+        <div>
+          <FormLabel htmlFor="goal-target"><Trans>Target</Trans></FormLabel>
+          <PillGroup
+            size="sm"
             value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-            placeholder={String(meta.placeholder)}
-            className="w-24 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            onChange={setTarget}
+            options={meta.presets.map((p) => ({ value: String(p), label: <span className="tabular-nums">{p}</span> }))}
           />
-          <span className="text-xs text-muted-foreground">{meta.inputUnit}</span>
+          <div className="mt-2.5 flex items-center gap-2">
+            <Input
+              id="goal-target"
+              type="number"
+              min={1}
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+              placeholder={String(meta.placeholder)}
+              className="w-28 tabular-nums"
+            />
+            <span className="text-[14px] text-muted-foreground">{meta.inputUnit}</span>
+          </div>
         </div>
 
         {!goal && taken(kind, bookTypeId) && (
-          <p className="mb-3 text-xs text-muted-foreground"><Trans>You already have this goal. Edit it from its tile instead.</Trans></p>
+          <p className="text-[14px] text-muted-foreground"><Trans>You already have this goal. Edit it from its tile instead.</Trans></p>
         )}
-        {error && <p className="mb-3 text-xs text-destructive">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">
-            <Trans>Cancel</Trans>
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!valid || saving}
-            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {goal ? t`Save` : t`Set goal`}
-          </button>
-        </div>
+        {error && <p className="text-[14px] text-destructive">{error}</p>}
       </div>
-    </div>,
+    </ModalShell>,
     document.body,
   )
 }
@@ -195,7 +175,7 @@ export function GoalEditorModal({
 // ── Dashboard tile body ───────────────────────────────────────────────────────
 
 /**
- * The "Reading Goals" tile shows ALL of the user's goals — one card per goal,
+ * The "Reading Goals" tile shows ALL of the user's goals, one card per goal,
  * managed in place. One surface, local effects: the trash on a card deletes
  * exactly that goal, the add-card creates one. No per-tile goal pointers.
  */
@@ -210,20 +190,16 @@ export function GoalWidgetBody({
   const [creating, setCreating] = useState(false)
 
   if (goals === null) {
-    return <div className="flex h-full items-center justify-center text-xs text-muted-foreground"><Trans>Loading…</Trans></div>
+    return <div className="flex h-full items-center justify-center text-[14px] text-muted-foreground"><Trans>Loading…</Trans></div>
   }
 
   if (goals.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
         <p className="text-[14px] text-muted-foreground"><Trans>Set a target and watch the ring fill as you read.</Trans></p>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover"
-        >
+        <Pill onClick={() => setCreating(true)}>
           <Trans>Set a goal</Trans>
-        </button>
+        </Pill>
         {creating && <GoalEditorModal existing={[]} onSaved={onChanged} onClose={() => setCreating(false)} />}
       </div>
     )
@@ -232,30 +208,30 @@ export function GoalWidgetBody({
   return (
     <div
       // Fixed equal columns (auto-fill) so cards are uniform and rows always
-      // line up — no ragged content-width wrapping. New-goal cell matches.
+      // line up, no ragged content-width wrapping. New-goal cell matches.
       className="grid items-stretch gap-2.5"
       style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(11.5rem, 1fr))' }}
     >
       {goals.map((goal) => {
-        const caption = goal.period === 'year' && goal.year ? (() => { const y = goal.year; return t`${y} Challenge` })() : goalMeta(goal.kind).caption
+        const caption = goal.period === 'year' && goal.year ? (() => { const y = goal.year; return t`${y} challenge` })() : goalMeta(goal.kind).caption
         const sub = goal.book_type_label ? `${goal.book_type_label} · ${goalSubtext(goal)}` : goalSubtext(goal)
         return (
           <div
             key={goal.id}
-            className="group/goal relative flex items-center gap-2.5 overflow-hidden rounded-lg border border-border bg-muted/30 p-2.5"
+            className="group/goal relative flex items-center gap-3 overflow-hidden rounded-lg bg-secondary/50 p-2.5"
           >
             <GoalRing goal={goal} size={48} compact />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <p className="truncate text-xs font-medium leading-tight text-foreground">{caption}</p>
-              <p className="truncate text-[11px] leading-tight text-muted-foreground">{sub}</p>
+              <p className="truncate text-[14px] font-medium leading-tight text-foreground">{caption}</p>
+              <p className="truncate text-[13px] leading-tight text-muted-foreground">{sub}</p>
             </div>
-            {/* edit/delete reveal on hover — New goal is the always-visible action */}
-            <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-md bg-card/80 opacity-0 backdrop-blur-sm transition-opacity group-hover/goal:opacity-100">
+            {/* edit/delete reveal on hover; New goal is the always-visible action */}
+            <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-card/90 opacity-0 transition-opacity group-hover/goal:opacity-100 focus-within:opacity-100">
               <button
                 type="button"
                 onClick={() => setEditing(goal)}
                 title={t`Edit goal`}
-                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 <Pencil className="h-3 w-3" />
               </button>
@@ -263,7 +239,7 @@ export function GoalWidgetBody({
                 type="button"
                 onClick={() => deleteGoal(goal.id).then(onChanged).catch(() => {})}
                 title={t`Delete this goal`}
-                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3 w-3" />
               </button>
@@ -272,7 +248,7 @@ export function GoalWidgetBody({
         )
       })}
 
-      {/* always-visible creation cell — matches a goal card's footprint */}
+      {/* always-visible creation cell, matches a goal card's footprint */}
       <button
         type="button"
         onClick={() => setCreating(true)}

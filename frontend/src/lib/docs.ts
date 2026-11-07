@@ -6,14 +6,14 @@ export const DOCS_BASE = 'https://tome.bndct.sh'
 export const docsUrl = (path = ''): string => `${DOCS_BASE}${path}`
 
 // Resolve the current Tome theme so we can pass it to the docs site as a
-// query param — picks up where the app left off without a flash.
+// query param - picks up where the app left off without a flash.
 function currentTheme(): 'light' | 'dark' | 'amber' | null {
   if (typeof document === 'undefined') return null
   const cl = document.documentElement.classList
   if (cl.contains('theme-amber')) return 'amber'
   if (cl.contains('theme-dark')) return 'dark'
   if (cl.contains('theme-light')) return 'light'
-  // Custom themes — fall back to whatever Tailwind's dark class says.
+  // Custom themes - fall back to whatever Tailwind's dark class says.
   return cl.contains('dark') ? 'dark' : 'light'
 }
 
@@ -26,7 +26,7 @@ export function docsLink(url: string): string {
   return `${url}${sep}theme=${theme}`
 }
 
-// Named pages — keeps deep-links typo-safe.
+// Named pages - keeps deep-links typo-safe.
 export const DOCS = {
   home:           docsUrl('/docs'),
   installation:   docsUrl('/docs/installation'),

@@ -91,7 +91,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const btn = variant === 'bulk'
     ? 'flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-surface-hover disabled:opacity-50 transition-colors'
-    : 'flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all duration-200'
+    : 'flex items-center justify-center gap-2 h-9 px-4 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-surface-hover disabled:opacity-50 transition-colors'
   /* eslint-enable lingui/no-unlocalized-strings */
 
   if (variant === 'pill') {
@@ -168,7 +168,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <Send className="w-3.5 h-3.5 text-muted-foreground" />}
           <Trans>Send to KOReader</Trans>
-          <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border border-border rounded px-1 leading-tight">
+          <span className="ml-1 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <Trans>Beta</Trans>
           </span>
         </button>

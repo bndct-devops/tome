@@ -11,7 +11,7 @@ import { t } from '@lingui/core/macro'
  * Follow/unfollow a series from its detail page (release detection). Renders
  * nothing when TOME_RELEASE_DETECTION is off (the follows endpoint 403s) or on
  * the "No Series" bucket. While followed, shows the tracker's latest volume +
- * release date under the button — labelled "Next" when the date is upcoming.
+ * release date under the button - labelled "Next" when the date is upcoming.
  */
 
 export function SeriesFollowButton({ seriesName, onLatest }: {
@@ -20,7 +20,7 @@ export function SeriesFollowButton({ seriesName, onLatest }: {
   onLatest?: (text: string | null) => void
 }) {
   const { toast } = useToast()
-  // undefined = follows not resolved yet (render NOTHING — an optimistic
+  // undefined = follows not resolved yet (render NOTHING - an optimistic
   // button flickered on instances where release detection is disabled).
   const [rows, setRows] = useState<FollowOut[] | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)

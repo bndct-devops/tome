@@ -55,7 +55,7 @@ export function SeriesRating({ seriesName, isUnserialized }: { seriesName: strin
   return (
     <div className="mt-2 flex items-center gap-2.5">
       {/* Show the explicit rating if set, else the volume average. A derived
-          fill renders muted ("computed, tap to make it yours") — and because
+          fill renders muted ("computed, tap to make it yours") - and because
           `selected` is only the explicit rating, clicking a derived value SETS
           it rather than clearing nothing. */}
       <StarRating
@@ -64,7 +64,7 @@ export function SeriesRating({ seriesName, isUnserialized }: { seriesName: strin
         onChange={save}
         derived={rating == null && data.display != null}
       />
-      <span className="text-xs text-muted-foreground">{hint}</span>
+      <span className="text-[13px] text-muted-foreground">{hint}</span>
     </div>
   )
 }

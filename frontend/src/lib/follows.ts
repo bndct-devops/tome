@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
  * Release detection is opt-in (TOME_RELEASE_DETECTION); when it's off the
  * follows endpoint 403s. Every consumer (Wishlist Following section, the
  * series-page Follow button, the Home Upcoming-releases card) must render
- * NOTHING until this resolves — rendering optimistically caused a visible
+ * NOTHING until this resolves - rendering optimistically caused a visible
  * flicker on instances with the feature disabled. A disabled verdict is cached
  * for the session so later navigations neither flicker nor re-fire the 403.
  */
@@ -41,14 +41,14 @@ let inflight: Promise<FollowOut[] | null> | null = null
 
 /** Follows list, or null when release detection is disabled. */
 export function getFollows(force = false): Promise<FollowOut[] | null> {
-  if (cached === null) return Promise.resolve(null)         // disabled — final for the session
+  if (cached === null) return Promise.resolve(null)         // disabled - final for the session
   if (!force && cached !== undefined) return Promise.resolve(cached)
   if (!force && inflight) return inflight
   inflight = api.get<FollowOut[]>('/wishlist/follows')
     .then(rows => { cached = rows; return rows as FollowOut[] | null })
     .catch((e: Error) => {
       // Our own endpoint's 403 detail mentions "disabled"; anything else
-      // (network blip) is transient — don't latch the feature off for it.
+      // (network blip) is transient - don't latch the feature off for it.
       if (/disabled/i.test(e.message ?? '')) { cached = null; storeDisabled() }
       return cached ?? null
     })

@@ -332,7 +332,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                           />
                         ) : <div className="h-12 w-8 shrink-0 rounded-[6px] bg-secondary" />}
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{sourceName(match.source)}</p>
+                          <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{sourceName(match.source)}</p>
                           <p className="line-clamp-2 text-[15px] font-medium leading-snug text-foreground">{match.title}</p>
                           <p className="text-[13px] text-primary">
                             {adds.length > 0
@@ -393,7 +393,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                             ) : <div className="h-9 w-6 shrink-0 rounded-[4px] bg-secondary" />}
                             <div className="min-w-0 flex-1">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                              <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                                 {sourceName(c.source)}{c.year ? ` · ${c.year}` : ''}
                               </p>
                               <p className="line-clamp-1 text-[14px] font-medium text-foreground">

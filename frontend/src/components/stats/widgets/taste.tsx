@@ -1,4 +1,4 @@
-// Taste-tab stats widgets (ratings) — chart/content-only, shared by StatsPage and the Lab.
+// Taste-tab stats widgets (ratings) - chart/content-only, shared by StatsPage and the Lab.
 import {
   ResponsiveContainer,
   BarChart,
@@ -51,7 +51,7 @@ function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string 
   )
 }
 
-// 1 ── How you rate: 1–5★ histogram ─────────────────────────────────────────────
+// 1 ── How you rate: 1-5★ histogram ─────────────────────────────────────────────
 export function RatingDistribution({ data }: { data: Ratings['distribution'] }) {
   const { accent, tick, cursor } = useChartColors()
   const total = data.reduce((s, d) => s + d.count, 0)
@@ -85,7 +85,7 @@ export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
       <div className="flex h-full flex-col justify-center gap-3">
         {data.map((d) => (
           <div key={d.category}>
-            <div className="mb-1 flex items-center justify-between text-xs">
+            <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{d.category}</span>
               <span className="tabular-nums text-muted-foreground">{d.avg.toFixed(1)} · {d.count}</span>
             </div>
@@ -123,7 +123,7 @@ function RatedRow({ b }: { b: Ratings['books'][number] }) {
       <Cover id={b.book_id} has={b.has_cover} alt="" />
       <div className="min-w-0 flex-1">
         <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground hover:text-primary transition-colors">{b.title}</a>
-        {b.author && <p className="truncate text-xs text-muted-foreground">{b.author}</p>}
+        {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
       <Stars value={b.rating} />
     </div>
@@ -141,12 +141,12 @@ export function TopRatedBooks({ books }: { books: Ratings['books'] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5">
-        {low.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Highest</Trans></p>}
+        {low.length > 0 && <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Highest</Trans></p>}
         {top.map((b) => <RatedRow key={b.book_id} b={b} />)}
       </div>
       {low.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Lowest</Trans></p>
+          <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Lowest</Trans></p>
           {low.map((b) => <RatedRow key={b.book_id} b={b} />)}
         </div>
       )}
