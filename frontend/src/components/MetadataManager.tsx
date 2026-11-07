@@ -1333,7 +1333,7 @@ export function MetadataManager() {
       {/* Table: rows on hairlines */}
       {!loading && (
         <div className="overflow-auto max-h-[calc(100vh-220px)] border-y border-border/70">
-          <table className="w-full min-w-[960px] table-fixed text-[13px]">
+          <table className="w-full min-w-[1120px] table-fixed text-[13px]">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="border-b border-border/70">
                 <th className="w-9 pl-0 pr-2 py-2.5 text-left">
