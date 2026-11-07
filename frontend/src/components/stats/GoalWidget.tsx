@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { ModalShell } from '@/components/ModalShell'
 import { FormLabel, Input, Pill, PillGroup, Select } from '@/components/page'
@@ -85,7 +86,9 @@ export function GoalEditorModal({
     }
   }
 
-  return (
+  // Portalled: the tile this opens from is transformed, which would trap a
+  // fixed dialog inside it.
+  return createPortal(
     <ModalShell
       open
       onClose={onClose}
@@ -164,7 +167,8 @@ export function GoalEditorModal({
         )}
         {error && <p className="text-[14px] text-destructive">{error}</p>}
       </div>
-    </ModalShell>
+    </ModalShell>,
+    document.body,
   )
 }
 

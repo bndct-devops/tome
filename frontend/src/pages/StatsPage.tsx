@@ -6,6 +6,7 @@ import ReactGridLayout, {
 } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { Input, PageBody, PageHeader, Pill, PillGroup, Select } from '@/components/page'
@@ -925,11 +926,40 @@ function ConfigPopover({
       document.removeEventListener('keydown', onKey)
     }
   }, [onClose])
+  // The tile clips its content, so the panel is portalled to the body and
+  // placed from an anchor where it used to sit; a scroll of the page closes it.
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<React.CSSProperties | null>(null)
+  useLayoutEffect(() => {
+    const place = () => {
+      const r = anchorRef.current?.getBoundingClientRect()
+      if (!r) return
+      const right = Math.max(8, window.innerWidth - r.right)
+      const below = window.innerHeight - r.top - 12
+      // Near the bottom of the window it opens upwards, above the tile header.
+      setPos(below >= 280
+        ? { top: r.top, right, maxHeight: below }
+        : { bottom: window.innerHeight - r.top + 40, right, maxHeight: Math.max(160, r.top - 52) })
+    }
+    place()
+    const main = document.querySelector('main')
+    const close = () => onClose()
+    main?.addEventListener('scroll', close, { passive: true })
+    window.addEventListener('resize', place)
+    return () => {
+      main?.removeEventListener('scroll', close)
+      window.removeEventListener('resize', place)
+    }
+  }, [onClose])
   const label = 'mb-1.5 text-[13px] font-medium text-muted-foreground'
   return (
+    <>
+    <span ref={anchorRef} aria-hidden className="pointer-events-none absolute right-2 top-9 h-0 w-0" />
+    {pos && createPortal(
     <div
       ref={popRef}
-      className="no-drag absolute right-2 top-9 z-50 w-64 max-w-[calc(100vw-48px)] rounded-xl bg-card p-3 text-[13px] shadow-lg ring-1 ring-panel-ring"
+      style={pos}
+      className="no-drag fixed z-[60] w-64 max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-xl bg-card p-3 text-[13px] shadow-lg ring-1 ring-panel-ring"
       onPointerDown={(e) => e.stopPropagation()}
       >
         {def.scopePicker && (
@@ -1037,7 +1067,10 @@ function ConfigPopover({
             </p>
           </div>
         )}
-    </div>
+    </div>,
+    document.body,
+    )}
+    </>
   )
 }
 
@@ -1106,12 +1139,14 @@ function AddWidgetModal({
                 {group.ids.map((id) => {
                   const w = defById(id)
                   return (
-                    <button
+                    <div
                       key={id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onAdd(id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAdd(id) } }}
                       title={WIDGET_DESC[id] ? i18n._(WIDGET_DESC[id]) : undefined}
-                      className="group/card flex flex-col gap-2 rounded-xl bg-secondary/60 p-2 text-left transition hover:bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="group/card flex cursor-pointer flex-col gap-2 rounded-xl bg-secondary/60 p-2 text-left transition hover:bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {/* live mini-preview. Number/text widgets render at natural size so
                           they fill the box; charts render at a real tile size and scale down
@@ -1131,7 +1166,7 @@ function AddWidgetModal({
                           <span className="ml-auto shrink-0 text-[12px] text-muted-foreground"><Trans>on board</Trans></span>
                         )}
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
