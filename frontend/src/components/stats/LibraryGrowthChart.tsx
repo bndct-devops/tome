@@ -39,7 +39,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
   const { tick, cursor } = useChartColors()
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No library growth data.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No library growth data.</Trans></p>
     )
   }
 
@@ -49,7 +49,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
 
   if (categories.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No library growth data.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No library growth data.</Trans></p>
     )
   }
 

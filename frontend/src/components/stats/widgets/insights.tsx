@@ -154,7 +154,7 @@ export function ReadingByLanguage({ data }: { data: StatsResponse['language'] })
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1">
         <p className="text-xl font-bold text-foreground">{pts[0].language}</p>
-        {(() => { const dur = formatDuration(pts[0].seconds); const books = pts[0].books; return <p className="text-xs text-muted-foreground"><Trans>{dur} · {books} books — your only language</Trans></p> })()}
+        {(() => { const dur = formatDuration(pts[0].seconds); const books = pts[0].books; return <p className="text-xs text-muted-foreground"><Trans>{dur} · {books} books, your only language</Trans></p> })()}
       </div>
     )
   }

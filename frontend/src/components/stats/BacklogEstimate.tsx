@@ -24,9 +24,9 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
     return () => { alive = false }
   }, [scope])
 
-  if (error) return <p className="text-sm text-muted-foreground text-center py-4"><Trans>Could not load this scope.</Trans></p>
-  if (!data) return <p className="text-sm text-muted-foreground text-center py-4"><Trans>Loading…</Trans></p>
-  if (data.books === 0) return <p className="text-sm text-muted-foreground text-center py-4"><Trans>No unstarted books in this scope.</Trans></p>
+  if (error) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Could not load this scope.</Trans></p>
+  if (!data) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Loading…</Trans></p>
+  if (data.books === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No unstarted books in this scope.</Trans></p>
 
   const { pace } = data
   const usesTypeAvg = data.by_type.some(x => x.type_avg > 0)

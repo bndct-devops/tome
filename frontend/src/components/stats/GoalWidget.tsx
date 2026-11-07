@@ -79,7 +79,7 @@ export function GoalEditorModal({
       onSaved(saved)
       onClose()
     } catch {
-      setError(goal ? t`Could not update the goal.` : t`Could not create the goal — it may already exist.`)
+      setError(goal ? t`Could not update the goal.` : t`Could not create the goal. It may already exist.`)
       setSaving(false)
     }
   }
@@ -92,7 +92,7 @@ export function GoalEditorModal({
           <div>
             <h2 className="text-base font-semibold">{goal ? t`Edit goal` : t`Set a reading goal`}</h2>
             <p className="text-xs text-muted-foreground">
-              {goal ? goalTitle(goal) : t`Pick a rhythm — progress counts automatically.`}
+              {goal ? goalTitle(goal) : t`Pick a rhythm. Progress counts automatically.`}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label={t`Close`} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
@@ -169,7 +169,7 @@ export function GoalEditorModal({
         </div>
 
         {!goal && taken(kind, bookTypeId) && (
-          <p className="mb-3 text-xs text-muted-foreground"><Trans>You already have this goal — edit it from its tile instead.</Trans></p>
+          <p className="mb-3 text-xs text-muted-foreground"><Trans>You already have this goal. Edit it from its tile instead.</Trans></p>
         )}
         {error && <p className="mb-3 text-xs text-destructive">{error}</p>}
 

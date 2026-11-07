@@ -20,17 +20,17 @@ export function SessionLogHint() {
       <span className="flex flex-col gap-1.5 text-left font-normal normal-case">
         <span><Trans>Each row is one reading session.</Trans></span>
         <span>
-          <Trans><span className="font-medium text-foreground">Device name</span> (e.g. Kindle) — recorded
+          <Trans><span className="font-medium text-foreground">Device name</span> (e.g. Kindle): recorded
           live by the KOReader plugin. <span className="font-medium text-foreground">web</span> /{' '}
-          <span className="font-medium text-foreground">manual</span> — the web reader, or logged by
+          <span className="font-medium text-foreground">manual</span>: the web reader, or logged by
           hand.</Trans>
         </span>
         <span>
-          <Trans><span className="font-medium text-foreground">imported</span> — from KOReader&apos;s synced
+          <Trans><span className="font-medium text-foreground">imported</span>: from KOReader&apos;s synced
           reading history. Delete only: KOReader already caps idle time, so there is nothing to trim.</Trans>
         </span>
         <span>
-          <Trans><span className="font-medium text-foreground">not counted</span> — a live device session
+          <Trans><span className="font-medium text-foreground">not counted</span>: a live device session
           whose sitting is also described by imported history. Listed for completeness,
           excluded from the totals so nothing is counted twice.</Trans>
         </span>
@@ -178,15 +178,15 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
               className="text-muted-foreground truncate"
               title={
                 s.kind === 'imported'
-                  ? 'Imported from KOReader reading history'
+                  ? t`Imported from KOReader reading history`
                   : !s.counted
-                    ? 'Not in totals — this book’s imported KOReader history already covers this reading'
+                    ? t`Not in totals. This book’s imported KOReader history already covers this reading`
                     : undefined
               }
             >
               {s.device || '--'}
               {s.kind === 'imported' ? (
-                <span className="block text-[10px] text-muted-foreground/70">imported</span>
+                <span className="block text-[10px] text-muted-foreground/70"><Trans>imported</Trans></span>
               ) : !s.counted ? (
                 <span className="block text-[10px] text-muted-foreground/70"><Trans>not counted</Trans></span>
               ) : null}
@@ -214,7 +214,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
           {trimId === s.id && (
             <div className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-2 text-xs">
               <span className="text-muted-foreground"><Trans>New duration</Trans></span>
-              <InfoHint text={t`Trimming only shortens this session's length and end time — page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace.`} />
+              <InfoHint text={t`Trimming only shortens this session's length and end time. Page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace.`} />
               <input
                 type="number"
                 min={1}

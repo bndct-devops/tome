@@ -15,7 +15,7 @@ export function PaceByFormat({ data }: { data: FormatPace[] }) {
   const accent = useChartAccent()
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4"><Trans>No pace data by format.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No pace data by format.</Trans></p>
     )
   }
 

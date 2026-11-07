@@ -1,11 +1,10 @@
 // Overview-tab stats widgets — chart-only (no card frame, no fixed height), so the
 // same component renders inside a StatsPage ChartCard and inside a resizable Lab tile.
 import { Trans } from '@lingui/react/macro'
-import { t } from '@lingui/core/macro'
+import { t, plural } from '@lingui/core/macro'
 import {
   ResponsiveContainer,
   ComposedChart,
-  BarChart,
   Bar,
   Line,
   Area,
@@ -24,15 +23,18 @@ export type ChartKind = 'bar' | 'line' | 'area'
 
 // Bare headline-stat body (value + sub) for use as a standalone dashboard tile —
 // the tile itself provides the card frame + the label (in its header).
-export function HeadlineStatBody({ value, sub }: { value: string; sub?: string }) {
-  // Uniform value size + an always-present sub line keep the figure on the same
-  // baseline across every headline tile (mixed sizes / optional subs misalign a
-  // row). truncate over wrap so a long value (e.g. "568h 28m") never spills onto
-  // a second line and clips inside the fixed-height tile.
+export function HeadlineStatBody({ value, unit, sub }: { value: string; unit?: string; sub?: string }) {
+  // The Stat look without its label (the tile header is the label): display
+  // number, optional unit, one foot line. The foot line is always present so
+  // every number in the row sits on the same baseline; truncate over wrap so a
+  // long value ("568h 28m") never spills onto a second line in a 1-row tile.
   return (
-    <div className="flex h-full flex-col justify-center">
-      <p className="truncate font-display text-[26px] font-bold leading-none text-foreground tabular-nums">{value}</p>
-      <p className="mt-1 truncate text-[13px] leading-4 text-muted-foreground">{sub ?? ' '}</p>
+    <div className="flex h-full flex-col">
+      <div className="flex min-w-0 items-baseline gap-1.5 text-foreground">
+        <span className="truncate font-display text-[40px] font-bold leading-none tabular-nums">{value}</span>
+        {unit && <span className="shrink-0 text-[16px] font-semibold">{unit}</span>}
+      </div>
+      <p className="mt-1.5 truncate text-[14px] leading-[18px] text-muted-foreground">{sub ?? '\u00a0'}</p>
     </div>
   )
 }
@@ -41,7 +43,7 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
   const { accent } = useChartColors()
   if (books.length === 0) {
     return (
-      <div className="flex h-full min-h-[3.5rem] flex-col items-center justify-center gap-1 py-3 text-center">
+      <div className="flex flex-col gap-1 py-2">
         <p className="text-[14px] text-muted-foreground"><Trans>No books in progress</Trans></p>
         <p className="text-xs text-muted-foreground/60"><Trans>Start reading one and it'll show up here</Trans></p>
       </div>
@@ -120,50 +122,38 @@ export function ReadingTimePerDay({ daily, chartType = 'bar' }: { daily: StatsRe
   )
 }
 
-// Single-line, truncated y-axis label — recharts' default tick wraps long book
-// titles across several lines (and then drops some), which looks broken.
-function TitleTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: { value?: string }; fill?: string }) {
-  const t = String(payload?.value ?? '')
-  const s = t.length > 20 ? t.slice(0, 19) + '…' : t
-  return (
-    <text x={x} y={y} dy={4} textAnchor="end" fontSize={10} fill={fill}>
-      {s}
-    </text>
-  )
-}
-
 export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_books'] }) {
-  const { accent, tick, cursor } = useChartColors()
+  const { accent } = useChartColors()
   if (topBooks.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No reading sessions recorded.</Trans></p>
+    return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No reading sessions recorded.</Trans></p>
   }
+  // A ranked bar list rather than a chart: one book reads as one short row
+  // instead of a single bar stretched over the whole tile.
+  const max = Math.max(...topBooks.map((b) => b.seconds), 1)
   return (
-    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-      <BarChart data={topBooks} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
-        <XAxis type="number" tickFormatter={formatDuration} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
-        <YAxis type="category" dataKey="title" width={140} tick={<TitleTick fill={tick} />} axisLine={false} tickLine={false} interval={0} />
-        <Tooltip
-          cursor={cursor}
-          wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
-          isAnimationActive={false}
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null
-            const d = payload[0].payload
-            return (
-              <ChartTooltip>
-                <div className="font-medium">{d.title}</div>
-                <div>{formatDuration(d.seconds)}</div>
-                <div className="text-muted-foreground">
-                  {d.sessions} session{d.sessions !== 1 ? 's' : ''}
-                  {d.sessions > 0 ? (() => { const avg = formatDuration(Math.round(d.seconds / d.sessions)); return t` · avg ${avg}` })() : ''}
-                </div>
-              </ChartTooltip>
-            )
-          }}
-        />
-        <Bar dataKey="seconds" fill={accent} fillOpacity={0.85} radius={[0, 3, 3, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="flex flex-col">
+      {topBooks.map((b) => {
+        const sessions = plural(b.sessions, { one: '# session', other: '# sessions' })
+        const avg = b.sessions > 0 ? formatDuration(Math.round(b.seconds / b.sessions)) : null
+        return (
+          <a
+            key={b.book_id}
+            href={`/books/${b.book_id}`}
+            title={avg ? t`${sessions}, avg ${avg}` : sessions}
+            className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border/70 py-2 last:border-b-0"
+          >
+            <span className="truncate text-[14px] font-medium text-foreground transition-colors group-hover:text-primary">{b.title}</span>
+            <span className="text-[13px] tabular-nums text-muted-foreground">{formatDuration(b.seconds)}</span>
+            <span className="col-span-2 h-1.5 overflow-hidden rounded-full" style={{ background: `color-mix(in oklch, ${accent} 22%, transparent)` }}>
+              <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (b.seconds / max) * 100)}%`, backgroundColor: accent }} />
+            </span>
+          </a>
+        )
+      })}
+      {topBooks.length === 1 && (
+        <p className="pt-2 text-[13px] text-muted-foreground"><Trans>Only one book read in this range.</Trans></p>
+      )}
+    </div>
   )
 }
 
@@ -203,10 +193,31 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
       return { date, titles, daily: titles.length, count }
     })
 
+  // A single day of finishes draws one dot in an empty box: say it instead.
+  if (cumulative.length === 0) {
+    return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Nothing finished in this range.</Trans></p>
+  }
+  if (cumulative.length === 1) {
+    const only = cumulative[0]
+    const when = formatDate(only.date)
+    const titles = only.titles.join(', ')
+    return (
+      <div className="py-1">
+        <p className="text-[15px] text-foreground">{titles}</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {only.daily === 1
+            ? t`Finished ${when}, the only finish in this range.`
+            : (() => { const n = only.daily; return t`${n} finished ${when}, the only finishes in this range.` })()}
+        </p>
+      </div>
+    )
+  }
+
   // Bar mode shows finishes per day; line/area show the cumulative count.
   const dataKey = chartType === 'bar' ? 'daily' : 'count'
 
   return (
+    <div className="h-full min-h-[176px]">
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={cumulative} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
@@ -234,6 +245,7 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
         {chartType === 'area' && <Area type="monotone" dataKey={dataKey} fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} isAnimationActive={false} />}
       </ComposedChart>
     </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -241,7 +253,7 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
 export function RecentlyFinished({ booksFinished }: { booksFinished: StatsResponse['books_finished'] }) {
   const rows = [...booksFinished].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12)
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8"><Trans>Nothing finished in this range.</Trans></p>
+    return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Nothing finished in this range.</Trans></p>
   }
   return (
     <div className="flex flex-col gap-1">
@@ -297,7 +309,7 @@ export function StreakCalendar({ heatmap }: { heatmap: StatsResponse['heatmap_da
           return (
             <div
               key={i}
-              title={`${formatDate(dIso)}${secs > 0 ? ` — ${formatDuration(secs)}` : ''}`}
+              title={`${formatDate(dIso)}${secs > 0 ? `: ${formatDuration(secs)}` : ''}`}
               className={cn(
                 'flex aspect-square items-center justify-center rounded text-[9px] tabular-nums',
                 secs > 0 ? 'font-semibold text-primary-foreground' : future ? 'text-muted-foreground/40' : 'bg-muted/40 text-muted-foreground',

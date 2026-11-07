@@ -14,7 +14,7 @@ import { Plus, RotateCcw, X, HelpCircle, Sparkles, SlidersHorizontal, Pencil, Ch
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
-import { t, msg } from '@lingui/core/macro'
+import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { BookAnimation } from '@/components/BookAnimation'
@@ -142,15 +142,15 @@ const newId = (prefix: string) => `${prefix}--${Date.now().toString(36)}${(_uid+
 
 // Metrics the Custom Stat tile can show — all derived from the /stats payload.
 const METRICS = [
-  { id: 'avg-session', label: msg`Avg Session` },
-  { id: 'time-per-day', label: msg`Time / Day` },
-  { id: 'pages-per-day', label: msg`Pages / Day` },
-  { id: 'pages-per-hour', label: msg`Pages / Hour` },
-  { id: 'best-day', label: msg`Best Day` },
-  { id: 'longest-session', label: msg`Longest Session` },
-  { id: 'books-started', label: msg`Books Started` },
-  { id: 'longest-streak', label: msg`Longest Streak` },
-  { id: 'weekly-streak', label: msg`Weekly Streak` },
+  { id: 'avg-session', label: msg`Avg session` },
+  { id: 'time-per-day', label: msg`Time per day` },
+  { id: 'pages-per-day', label: msg`Pages per day` },
+  { id: 'pages-per-hour', label: msg`Pages per hour` },
+  { id: 'best-day', label: msg`Best day` },
+  { id: 'longest-session', label: msg`Longest session` },
+  { id: 'books-started', label: msg`Books started` },
+  { id: 'longest-streak', label: msg`Longest streak` },
+  { id: 'weekly-streak', label: msg`Weekly streak` },
 ]
 
 function metricValue(stats: StatsResponse, id: string): { value: string; sub?: string } {
@@ -192,6 +192,26 @@ function metricValue(stats: StatsResponse, id: string): { value: string; sub?: s
   }
 }
 
+// The 1y range is a year: the server clips the span to whole days and can
+// answer 364, which sends no year summary. Build it from the same payload then
+// (top genre by reading time, since finished books carry no category here).
+function yearSummaryFrom(stats: StatsResponse): StatsResponse['year_summary'] {
+  if (stats.range_days < 364) return null
+  const months = new Map<string, number>()
+  for (const d of stats.daily) if (d.seconds > 0) months.set(d.date.slice(0, 7), (months.get(d.date.slice(0, 7)) ?? 0) + d.seconds)
+  let best: string | null = null
+  for (const [k, v] of months) if (best === null || v > (months.get(best) ?? 0)) best = k
+  const topCat = [...stats.by_category].sort((a, b) => b.seconds - a.seconds)[0]
+  return {
+    books_finished: stats.headline.books_finished,
+    total_hours: Math.round(stats.headline.total_reading_seconds / 360) / 10,
+    top_genre: topCat?.category ?? null,
+    longest_streak_days: stats.headline.longest_streak_days,
+    total_sessions: stats.headline.total_sessions,
+    most_active_month: best ? new Date(best + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long' }) : null,
+  }
+}
+
 // Per-tile timeframe slicing. `daily` is gap-filled (one row per day), so the last
 // N rows are the last N days; books_finished is sparse, so cut by the same date.
 const lastDays = (stats: StatsResponse, days: number) => (days > 0 ? stats.daily.slice(-days) : stats.daily)
@@ -207,7 +227,7 @@ const WIDGETS: WidgetDef[] = [
   // Headline figures — one tile each (separately movable / removable).
   {
     id: 'stat-time',
-    title: msg`Reading Time`,
+    title: msg`Reading time`,
     icon: Clock,
     size: STAT_SIZE,
     render: ({ stats }) => (
@@ -233,11 +253,11 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Streak`,
     icon: Flame,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={`${stats.headline.current_streak_days}d`} sub={(() => { const d = stats.headline.longest_streak_days; return t`Longest: ${d}d` })()} />,
+    render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.current_streak_days)} unit={plural(stats.headline.current_streak_days, { one: 'day', other: 'days' })} sub={(() => { const d = stats.headline.longest_streak_days; return t`Longest: ${d}d` })()} />,
   },
   {
     id: 'stat-pages',
-    title: msg`Pages Turned`,
+    title: msg`Pages turned`,
     icon: FileText,
     size: STAT_SIZE,
     render: ({ stats }) => <HeadlineStatBody value={stats.headline.pages_turned.toLocaleString()} />,
@@ -247,16 +267,16 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Completion`,
     icon: Target,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={`${stats.completion_rate.pct}%`} sub={(() => { const fin = stats.completion_rate.finished, st = stats.completion_rate.started; return t`${fin} of ${st} started` })()} />,
+    render: ({ stats }) => <HeadlineStatBody value={String(stats.completion_rate.pct)} unit="%" sub={(() => { const fin = stats.completion_rate.finished, st = stats.completion_rate.started; return t`${fin} of ${st} started` })()} />,
   },
   {
     id: 'stat-metric',
-    title: msg`Custom Stat`,
+    title: msg`Custom stat`,
     icon: Gauge,
     size: STAT_SIZE,
     metrics: METRICS,
     defaultConfig: { chartType: 'bar', days: 0, metric: 'avg-session' },
-    titleFor: (cfg) => { const hit = METRICS.find((m) => m.id === cfg.metric); return hit ? i18n._(hit.label) : t`Custom Stat` },
+    titleFor: (cfg) => { const hit = METRICS.find((m) => m.id === cfg.metric); return hit ? i18n._(hit.label) : t`Custom stat` },
     render: ({ stats }, cfg) => {
       const v = metricValue(stats, cfg.metric ?? 'avg-session')
       return <HeadlineStatBody value={v.value} sub={v.sub} />
@@ -264,15 +284,15 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'goal',
-    title: msg`Reading Goals`,
+    title: msg`Reading goals`,
     icon: Target,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
     autoH: true,
     render: ({ goals, reloadGoals }) => <GoalWidgetBody goals={goals} onChanged={reloadGoals} />,
   },
   {
     id: 'currently-reading',
-    title: msg`Currently Reading`,
+    title: msg`Currently reading`,
     size: { w: 6, h: 2, minW: 3, minH: 1 },
     autoH: true,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
@@ -280,7 +300,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'daily',
-    title: msg`Reading Time per Day`,
+    title: msg`Reading time per day`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     chartTypes: ['bar', 'line', 'area'],
     defaultConfig: { chartType: 'bar', days: 0 },
@@ -288,28 +308,32 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'top-books',
-    title: msg`Top Books by Reading Time`,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    title: msg`Top books by reading time`,
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
+    autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <TopBooksByTime topBooks={stats.top_books} />,
   },
   {
     id: 'books-finished',
-    title: msg`Books Finished`,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    title: msg`Books finished`,
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
     chartTypes: ['area', 'line', 'bar'],
-    defaultConfig: { chartType: 'area', days: 0 },
+    // autoH: one finish is a line of text, not a dot in an empty 2-row box.
+    autoH: true,
+    defaultConfig: { chartType: 'area', days: 0, autoFit: true },
     render: ({ stats }, cfg) => <BooksFinishedArea booksFinished={finishedSince(stats, cfg.days)} chartType={cfg.chartType} />,
   },
   {
     id: 'activity-365',
-    title: msg`Reading Activity — Last 365 Days`,
+    title: msg`Reading activity, last 365 days`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
     fixedWindow: msg`365 d`,
     render: ({ stats }) => <ReadingActivity365 heatmap={stats.heatmap_daily} />,
   },
   {
     id: 'session-log',
-    title: msg`Recent Sessions`,
+    title: msg`Recent sessions`,
     size: { w: 12, h: 6, minW: 5, minH: 2 },
     autoH: true,
     infoHint: SessionLogHint,
@@ -317,78 +341,80 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'recently-finished',
-    title: msg`Recently Finished`,
+    title: msg`Recently finished`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     autoH: true,
     render: ({ stats }) => <RecentlyFinished booksFinished={stats.books_finished} />,
   },
   {
     id: 'streak-calendar',
-    title: msg`This Month`,
+    title: msg`This month`,
     size: { w: 3, h: 2, minW: 2, minH: 2 },
     fixedWindow: msg`current`,
     render: ({ stats }) => <StreakCalendar heatmap={stats.heatmap_daily} />,
   },
   {
     id: 'dow-bar',
-    title: msg`Reading by Weekday`,
+    title: msg`Reading by weekday`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <DayOfWeekBar data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'time-of-day',
-    title: msg`Time of Day Split`,
+    title: msg`Time of day split`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <TimeOfDaySplit data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'time-by-format',
-    title: msg`Time by Format`,
+    title: msg`Time by format`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <TimeByFormat data={stats.pace_by_format} />,
   },
   // Habits tab
   {
     id: 'hour-dow',
-    title: msg`Reading Intensity by Hour and Day`,
+    title: msg`Reading intensity by hour and day`,
     size: { w: 12, h: 2, minW: 5, minH: 2 },
     render: ({ stats }) => <HourDowCard data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'session-timeline',
-    title: msg`Session Timeline`,
+    title: msg`Session timeline`,
     size: { w: 6, h: 3, minW: 4, minH: 2 },
     render: ({ stats }) => <SessionTimeline sessions={stats.session_timeline} />,
   },
   {
     id: 'reading-timeline',
-    title: msg`Reading Timeline`,
+    title: msg`Reading timeline`,
     size: { w: 12, h: 7, minW: 6, minH: 3 },
     fixedWindow: msg`lifetime`,
     render: () => <TimelineRibbon />,
   },
   {
     id: 'reading-pace',
-    title: msg`Reading Pace`,
+    title: msg`Reading pace`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <ReadingPaceChart pace={stats.reading_pace} />,
   },
   {
     id: 'pace-by-format',
-    title: msg`Pace by Format`,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    title: msg`Pace by format`,
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
+    autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <PaceByFormat data={stats.pace_by_format} />,
   },
   {
     id: 'speed-trend',
-    title: msg`Reading Speed Trend`,
+    title: msg`Reading speed trend`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <ReadingSpeedTrend pace={stats.reading_pace} />,
   },
   {
     id: 'estimates',
-    title: msg`Completion Estimates`,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    title: msg`Completion estimates`,
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
     autoH: true,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ estimates }) => <CompletionEstimatesList estimates={estimates} />,
@@ -404,14 +430,14 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'period-comparison',
-    title: msg`Period Comparison`,
+    title: msg`Period comparison`,
     size: { w: 6, h: 1, minW: 3, minH: 1 },
     render: ({ stats }) =>
       stats.period_comparison ? <PeriodComparison comparison={stats.period_comparison} /> : <p className="text-sm text-muted-foreground"><Trans>No comparison data.</Trans></p>,
   },
   {
     id: 'monthly-comparison',
-    title: msg`Reading Hours & Books Finished — Last 12 Months`,
+    title: msg`Reading hours and books finished, last 12 months`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
     fixedWindow: msg`12 mo`,
     chartTypes: ['bar', 'line', 'area'],
@@ -421,14 +447,16 @@ const WIDGETS: WidgetDef[] = [
   // Library tab
   {
     id: 'year-in-review',
-    title: msg`Year in Review`,
+    title: msg`Year in review`,
     size: { w: 6, h: 2, minW: 4, minH: 1 },
-    render: ({ stats }) => <YearInReview summary={stats.year_summary} />,
+    autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
+    render: ({ stats }) => <YearInReview summary={stats.year_summary ?? yearSummaryFrom(stats)} />,
   },
   {
     id: 'series-completion',
-    title: msg`Series Completion`,
-    size: { w: 6, h: 3, minW: 3, minH: 2 },
+    title: msg`Series completion`,
+    size: { w: 6, h: 3, minW: 3, minH: 1 },
     autoH: true,
     defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <SeriesCompletionGrid data={stats.series_completion} />,
@@ -436,7 +464,7 @@ const WIDGETS: WidgetDef[] = [
   {
     id: 'backlog-estimate',
     title: msg`Backlog`,
-    size: { w: 12, h: 2, minW: 4, minH: 2 },
+    size: { w: 12, h: 2, minW: 4, minH: 1 },
     autoH: true,
     scopePicker: true,
     // eslint-disable-next-line lingui/no-unlocalized-strings -- persisted default; UI shows the live scope label
@@ -446,25 +474,29 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'author-affinity',
-    title: msg`Top Authors by Reading Time`,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    title: msg`Top authors by reading time`,
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
+    autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <AuthorAffinity data={stats.author_affinity} />,
   },
   {
     id: 'completion-by-type',
-    title: msg`Finish Rate per Book Category`,
-    size: { w: 6, h: 2, minW: 3, minH: 2 },
+    title: msg`Finish rate per book category`,
+    size: { w: 6, h: 2, minW: 3, minH: 1 },
+    autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <CompletionByType data={stats.completion_by_type} />,
   },
   {
     id: 'category-breakdown',
-    title: msg`Category Breakdown`,
+    title: msg`Category breakdown`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     render: ({ stats }) => <CategoryBreakdown data={stats.by_category} />,
   },
   {
     id: 'genre-over-time',
-    title: msg`Reading by Category — Last 12 Months`,
+    title: msg`Reading by category, last 12 months`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     fixedWindow: msg`12 mo`,
     chartTypes: ['area', 'bar'],
@@ -473,7 +505,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'library-growth',
-    title: msg`Cumulative Books Added — Last 24 Months`,
+    title: msg`Cumulative books added, last 24 months`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
     fixedWindow: msg`24 mo`,
     chartTypes: ['area', 'bar'],
@@ -482,23 +514,24 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'per-book-table',
-    title: msg`All Books by Reading Time`,
-    size: { w: 12, h: 3, minW: 5, minH: 2 },
+    title: msg`All books by reading time`,
+    size: { w: 12, h: 3, minW: 5, minH: 1 },
     autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     render: ({ stats }) => <PerBookTimeTable data={stats.per_book_time} />,
   },
   {
     id: 'series-spotlight',
-    title: msg`Series Spotlight`,
+    title: msg`Series spotlight`,
     size: { w: 3, h: 2, minW: 2, minH: 2 },
     seriesPicker: true,
-    titleFor: (cfg) => cfg.series ?? t`Series Spotlight`,
+    titleFor: (cfg) => cfg.series ?? t`Series spotlight`,
     render: ({ stats }, cfg) => <SeriesSpotlight data={stats.series_completion} series={cfg.series} />,
   },
   // Taste tab — ratings (all-time, ignore the date range)
   {
     id: 'rating-distribution',
-    title: msg`Rating Distribution`,
+    title: msg`Rating distribution`,
     icon: Star,
     size: { w: 4, h: 2, minW: 3, minH: 2 },
     fixedWindow: msg`all`,
@@ -506,7 +539,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'taste-by-genre',
-    title: msg`Taste by Genre`,
+    title: msg`Taste by genre`,
     icon: Sparkles,
     size: { w: 4, h: 2, minW: 3, minH: 2 },
     fixedWindow: msg`all`,
@@ -514,16 +547,17 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'top-rated',
-    title: msg`Highest & Lowest Rated`,
+    title: msg`Highest and lowest rated`,
     icon: Star,
-    size: { w: 4, h: 3, minW: 3, minH: 2 },
+    size: { w: 4, h: 3, minW: 3, minH: 1 },
     autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     fixedWindow: msg`all`,
     render: ({ stats }) => <TopRatedBooks books={stats.ratings.books} />,
   },
   {
     id: 'rating-vs-time',
-    title: msg`Rating vs Time Spent`,
+    title: msg`Rating vs time spent`,
     icon: ScatterIcon,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     fixedWindow: msg`all`,
@@ -531,16 +565,17 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'best-rated-series',
-    title: msg`Best-Rated Series`,
+    title: msg`Best-rated series`,
     icon: Star,
-    size: { w: 4, h: 3, minW: 3, minH: 2 },
+    size: { w: 4, h: 3, minW: 3, minH: 1 },
     autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     fixedWindow: msg`all`,
     render: ({ stats }) => <BestRatedSeries series={stats.ratings.series} />,
   },
   {
     id: 'rating-trend',
-    title: msg`Rating Trend`,
+    title: msg`Rating trend`,
     icon: TrendingUp,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
     fixedWindow: msg`all`,
@@ -549,7 +584,7 @@ const WIDGETS: WidgetDef[] = [
   // Batch-2 insights
   {
     id: 'lifetime-totals',
-    title: msg`Lifetime Totals`,
+    title: msg`Lifetime totals`,
     icon: InfinityIcon,
     size: { w: 6, h: 2, minW: 4, minH: 1 },
     fixedWindow: msg`all`,
@@ -557,32 +592,34 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'personal-records',
-    title: msg`Personal Records`,
+    title: msg`Personal records`,
     icon: Trophy,
-    size: { w: 4, h: 3, minW: 3, minH: 2 },
+    size: { w: 4, h: 3, minW: 3, minH: 1 },
     autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     fixedWindow: msg`all`,
     render: ({ stats }) => <PersonalRecords data={stats.records} streaks={stats.headline.streaks} />,
   },
   {
     id: 'library-completion',
-    title: msg`Library Completion`,
+    title: msg`Library completion`,
     icon: LibraryIcon,
-    size: { w: 4, h: 3, minW: 3, minH: 2 },
+    size: { w: 4, h: 3, minW: 3, minH: 1 },
     autoH: true,
+    defaultConfig: { chartType: 'bar', days: 0, autoFit: true },
     fixedWindow: msg`all`,
     render: ({ stats }) => <LibraryCompletion data={stats.tbr} />,
   },
   {
     id: 'reading-clock',
-    title: msg`Reading Clock`,
+    title: msg`Reading clock`,
     icon: Clock3,
     size: { w: 4, h: 3, minW: 3, minH: 2 },
     render: ({ stats }) => <ReadingClock data={stats.hour_dow_heatmap} />,
   },
   {
     id: 'reading-by-language',
-    title: msg`Reading by Language`,
+    title: msg`Reading by language`,
     icon: Globe,
     size: { w: 4, h: 2, minW: 3, minH: 2 },
     fixedWindow: msg`all`,
@@ -591,7 +628,7 @@ const WIDGETS: WidgetDef[] = [
   // Phase 4 — word-count powered (all-time)
   {
     id: 'words-read',
-    title: msg`Words Read`,
+    title: msg`Words read`,
     icon: Type,
     size: { w: 6, h: 2, minW: 3, minH: 1 },
     autoH: true,
@@ -601,7 +638,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'true-wpm',
-    title: msg`Reading Speed`,
+    title: msg`Reading speed`,
     icon: Gauge,
     size: { w: 6, h: 3, minW: 3, minH: 2 },
     autoH: true,
@@ -611,7 +648,7 @@ const WIDGETS: WidgetDef[] = [
   },
   {
     id: 'book-length',
-    title: msg`Book Length`,
+    title: msg`Book length`,
     icon: Ruler,
     size: { w: 6, h: 3, minW: 3, minH: 2 },
     fixedWindow: msg`all`,
@@ -643,18 +680,18 @@ const WIDGET_DESC: Record<string, MessageDescriptor> = {
   'top-books': msg`Most-read books by time`,
   'books-finished': msg`Cumulative finishes over time`,
   'activity-365': msg`A year of reading, heatmap`,
-  'session-log': msg`Every session — paginated, deletable`,
-  'stat-metric': msg`Pick your own metric — avg session, pages/day, best day…`,
-  goal: msg`All your reading goals — rings fill as you read, managed in place`,
+  'session-log': msg`Every session, paginated and deletable`,
+  'stat-metric': msg`Pick your own metric: avg session, pages per day, best day…`,
+  goal: msg`All your reading goals: rings fill as you read, managed in place`,
   'recently-finished': msg`Latest finishes, newest first`,
   'streak-calendar': msg`This month, read days filled`,
   'dow-bar': msg`Which weekday you read most`,
   'time-of-day': msg`Morning vs evening reader?`,
   'time-by-format': msg`EPUB vs CBZ time split`,
-  'series-spotlight': msg`One series front and center — you pick which`,
-  'hour-dow': msg`When you read — hour × weekday`,
+  'series-spotlight': msg`One series front and center, you pick which`,
+  'hour-dow': msg`When you read, by hour and weekday`,
   'session-timeline': msg`Daily sessions on a 24h track`,
-  'reading-timeline': msg`Your reading life — every book a bar in time`,
+  'reading-timeline': msg`Your reading life, every book a bar in time`,
   'reading-pace': msg`Pages per minute over time`,
   'pace-by-format': msg`Speed by book format`,
   'speed-trend': msg`Are you getting faster?`,
@@ -682,10 +719,13 @@ const WIDGET_DESC: Record<string, MessageDescriptor> = {
   'reading-clock': msg`A 24-hour radial of when you read`,
   'reading-by-language': msg`Reading time split by language`,
   'words-read': msg`Lifetime words read, by year`,
-  'true-wpm': msg`Your real reading speed — words ÷ time`,
+  'true-wpm': msg`Your real reading speed: words ÷ time`,
   'book-length': msg`How long the books you finish are`,
   'rereads': msg`Books whose pages you revisit`,
 }
+
+// Number tiles: a small label over a display number, no section title.
+const KPI_IDS = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric'])
 
 // Widgets that are a number/short text — render their preview at natural size (no scale).
 const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'period-comparison'])
@@ -693,7 +733,7 @@ const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 
 // List/table widgets whose content is a vertical list that can exceed the tile → scroll
 // internally. Everything else (charts) clips (overflow-hidden) so nothing spills out.
 const SCROLL_IDS = new Set([
-  'currently-reading', 'estimates', 'session-timeline', 'series-completion', 'per-book-table',
+  'currently-reading', 'top-books', 'estimates', 'session-timeline', 'series-completion', 'per-book-table',
   'author-affinity', 'completion-by-type', 'pace-by-format', 'session-log', 'recently-finished', 'backlog-estimate',
   'goal',
 ])
@@ -718,6 +758,13 @@ const GALLERY_GROUPS: { label: MessageDescriptor; ids: string[] }[] = [
 ]
 
 type Tile = { id: string; defId: string; config: TileConfig }
+
+// Auto-fit falls back to the widget's default when a saved tile never set it,
+// so list tiles that gained auto-fit later size to their content on old boards.
+const withAutoFit = (tile: Tile): TileConfig => ({
+  ...tile.config,
+  autoFit: tile.config.autoFit ?? defById(tile.defId).defaultConfig?.autoFit ?? false,
+})
 
 const DEFAULT_CFG: TileConfig = { chartType: 'bar', days: 0 }
 
@@ -1052,7 +1099,7 @@ function AddWidgetModal({
         <div className="mb-3 flex items-start justify-between">
           <div>
             <h2 className="text-base font-semibold"><Trans>Add a widget</Trans></h2>
-            <p className="text-xs text-muted-foreground"><Trans>Removed a tile? Add it back — or add another copy.</Trans></p>
+            <p className="text-xs text-muted-foreground"><Trans>Removed a tile? Add it back, or add another copy.</Trans></p>
           </div>
           <button type="button" onClick={onClose} aria-label={t`Close`} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
@@ -1182,13 +1229,15 @@ function TileShell({
     const box = contentRef.current
     if (!box) return
     const check = () => {
-      if (box.clientWidth > 0 && box.clientHeight > 0) setBodySized(true)
+      // The phone column gives auto-fit tiles no fixed height, so there the
+      // width alone says the body is laid out.
+      if (box.clientWidth > 0 && (box.clientHeight > 0 || stacked)) setBodySized(true)
     }
     check()
     const ro = new ResizeObserver(check)
     ro.observe(box)
     return () => ro.disconnect()
-  }, [])
+  }, [stacked])
   // Measure after every commit: data loads, range/config changes, and grid width
   // changes all re-render this tree, and each can change the content's height.
   // scrollHeight sees the intrinsic height even when the box clips it.
@@ -1214,6 +1263,7 @@ function TileShell({
     onMeasure(Math.max(1, Math.round(((desired + 2 + 16) / 120) * 100) / 100))
   })
   const configurable = !!def.chartTypes || !!def.metrics || !!def.seriesPicker || !!def.scopePicker || !!def.autoH
+  const kpi = KPI_IDS.has(def.id)
   const tiltOn = editMode && !dragging && !cfgOpen
 
   function onMove(e: MouseEvent<HTMLDivElement>) {
@@ -1242,12 +1292,13 @@ function TileShell({
           : 'transform 0.3s ease-out, box-shadow 0.2s ease-out',
       }}
       className={cn(
-        'group/tile relative flex h-full w-full flex-col rounded-[var(--radius-panel)] border bg-card px-5 py-3.5',
-        dragging ? 'shadow-2xl ring-1 ring-primary/30' : editMode ? 'shadow-sm' : '',
-        // a hairline on light themes; dark themes let the card's ground do the work
-        // (the .dark rule lives in the page's style block below)
-        editMode ? 'border-primary/30' : 'stats-tile-quiet border-border/60',
-        editMode && !dragging && 'hover:z-10 hover:shadow-lg hover:shadow-accent-soft',
+        'group/tile relative flex h-full w-full flex-col',
+        // View mode: no card. The tile begins on a hairline and its content
+        // aligns with the page column. Edit mode outlines the tile as an object.
+        editMode
+          ? cn('rounded-[var(--radius-panel)] outline-dashed outline-1 outline-primary/40', kpi ? 'px-3 pt-2' : 'px-4 py-3')
+          : cn('border-t border-border/70', kpi ? 'pt-3' : 'pt-4'),
+        dragging && 'bg-card shadow-2xl',
         // marks the grid item so it stacks above siblings while the popover is open
         // (each grid item is transformed = its own stacking context, so the
         // popover's own z-index can't escape without raising the item itself)
@@ -1265,14 +1316,17 @@ function TileShell({
       )}
       <div
         {...(editMode && !stacked ? dragHandleProps : {})}
-        className={cn('mb-2 flex items-center gap-1.5', editMode && !stacked && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
+        className={cn('flex items-center gap-1.5', kpi ? 'mb-1' : 'mb-3', editMode && !stacked && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
       >
         {editMode && !stacked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
-        {def.icon && !editMode && <def.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-        {/* truncate, don't wrap — a wrapped title pushes the body out of 1-row tiles.
-            12px + a 12px icon keeps long labels ("Reading Time") on one line in a
-            narrow ~126px stat tile instead of clipping to "Reading Ti…". */}
-        <h3 className="min-w-0 truncate font-sans text-[15px] font-semibold leading-5 text-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
+        {/* truncate, don't wrap: a wrapped title pushes the body out of 1-row tiles.
+            Number tiles carry a small label (the Stat look); every other tile a
+            20px section title in the display face. */}
+        {kpi ? (
+          <h3 className="min-w-0 truncate text-[13px] leading-[18px] text-muted-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
+        ) : (
+          <h3 className="min-w-0 truncate font-display text-[20px] font-bold leading-6 text-foreground">{def.titleFor?.(config) ?? i18n._(def.title)}</h3>
+        )}
         {def.infoHint && <def.infoHint />}
         {def.fixedWindow && (
           <span title={t`This tile uses a fixed window and ignores the range picker`} className="shrink-0 text-[13px] text-muted-foreground">
@@ -1280,7 +1334,7 @@ function TileShell({
           </span>
         )}
         {editMode && def.autoH && config.autoFit && (
-          <span title={t`Height auto-fits the content — only width is resizable`} className="shrink-0 text-[13px] text-muted-foreground">
+          <span title={t`Height auto-fits the content, only width is resizable`} className="shrink-0 text-[13px] text-muted-foreground">
             <Trans>Auto</Trans>
           </span>
         )}
@@ -1382,7 +1436,7 @@ function FreeGrid({
   // you get), but its transient fractional height is never persisted: onLayoutChange
   // restores each auto-fit tile's saved integer height before saving.
   const autoFitIds = useMemo(
-    () => new Set(tiles.filter((t) => defById(t.defId).autoH && t.config.autoFit).map((t) => t.id)),
+    () => new Set(tiles.filter((t) => defById(t.defId).autoH && withAutoFit(t).autoFit).map((t) => t.id)),
     [tiles],
   )
   const [autoRows, setAutoRows] = useState<Record<string, number>>({})
@@ -1401,9 +1455,13 @@ function FreeGrid({
       if (!auto) return base
       const rows = autoRows[it.i]
       if (!rows) return base
-      return { ...base, h: Math.max(rows, it.minH ?? 1) }
+      // The floor comes from the widget as it is now, not the minH baked into
+      // a saved layout, so a list tile can shrink to one short row.
+      const tile = tiles.find((x) => x.id === it.i)
+      const minH = tile ? defById(tile.defId).size.minH : (it.minH ?? 1)
+      return { ...base, minH, h: Math.max(rows, minH) }
     })
-  }, [layout, autoRows, autoFitIds])
+  }, [layout, autoRows, autoFitIds, tiles])
 
   // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
   // edge, which makes a bottom-of-page tile impossible to grow — the pointer just
@@ -1488,19 +1546,34 @@ function FreeGrid({
       const lb = posOf(b.id)
       return (la?.y ?? 0) - (lb?.y ?? 0) || (la?.x ?? 0) - (lb?.x ?? 0)
     })
-    return (
-      <div ref={containerRef} className="flex w-full flex-col gap-4">
-        {ordered.map((t) => {
+    // Runs of number tiles sit two to a row, like a StatStrip on a phone.
+    const runs: Tile[][] = []
+    for (const t of ordered) {
+      const last = runs[runs.length - 1]
+      if (KPI_IDS.has(t.defId) && last && KPI_IDS.has(last[0].defId)) last.push(t)
+      else runs.push([t])
+    }
+    const renderStacked = (t: Tile) => {
           const def = defById(t.defId)
           const h = posOf(t.id)?.h ?? def.size.h
+          // Auto-fit tiles take their content's height in the column; the
+          // floor keeps the body measurable before its content mounts.
+          const fit = def.autoH && withAutoFit(t).autoFit
           return (
-            <div key={t.id} style={{ height: h * 104 + (h - 1) * 16 }}>
-              <TileShell def={def} config={t.config} editMode={editMode} stacked seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+            <div key={t.id} style={fit ? { minHeight: 72 } : { height: h * 104 + (h - 1) * 16 }}>
+              <TileShell def={def} config={withAutoFit(t)} editMode={editMode} stacked seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
                 {def.render(ctx, t.config)}
               </TileShell>
             </div>
           )
-        })}
+    }
+    return (
+      <div ref={containerRef} className="flex w-full flex-col gap-4">
+        {runs.map((run) =>
+          KPI_IDS.has(run[0].defId)
+            ? <div key={run[0].id} className="grid grid-cols-2 gap-x-6 gap-y-4">{run.map(renderStacked)}</div>
+            : renderStacked(run[0]),
+        )}
       </div>
     )
   }
@@ -1537,7 +1610,7 @@ function FreeGrid({
             const def = defById(t.defId)
             return (
               <div key={t.id}>
-                <TileShell def={def} config={t.config} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={def.autoH && t.config.autoFit ? (rows: number) => reportRows(t.id, rows) : undefined}>
+                <TileShell def={def} config={withAutoFit(t)} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={def.autoH && withAutoFit(t).autoFit ? (rows: number) => reportRows(t.id, rows) : undefined}>
                   {def.render(ctx, t.config)}
                 </TileShell>
               </div>
@@ -1587,7 +1660,7 @@ function FullBleedTimeline() {
     return () => window.removeEventListener('resize', measure)
   }, [])
   return (
-    <div ref={ref} style={{ height: h ?? 480 }}>
+    <div ref={ref} className="border-t border-border/70 pt-4" style={{ height: h ?? 480 }}>
       {h !== null && <TimelineRibbon standalone />}
     </div>
   )
@@ -1863,11 +1936,18 @@ export function StatsPage() {
     const cached = statsCache.get(range)
     if (cached) setStats(cached)
     else setLoading(true)
+    // A slow answer for a range the user has already left must not paint over
+    // the current one: only the latest request may set state.
+    let current = true
     api
       .get<StatsResponse>(`/stats?${range}&tz_offset=${tzOffset}`)
-      .then(r => { statsCache.set(range, r); setStats(r) })
+      .then(r => {
+        statsCache.set(range, r)
+        if (current) setStats(r)
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => { if (current) setLoading(false) })
+    return () => { current = false }
   }, [days, custom])
 
   useEffect(() => {
@@ -2134,7 +2214,6 @@ export function StatsPage() {
         .lab-editing .react-grid-item > .react-resizable-handle-e::after, .lab-editing .react-grid-item > .react-resizable-handle-s::after { display: none; }
         .lab-editing .react-grid-item { perspective: 1000px; }
         .react-grid-item:has(> .cfg-popover-open) { z-index: 40; }
-        .dark .stats-tile-quiet { border-color: transparent; }
       `}</style>
 
       {/* edit mode gets extra bottom room so the last tile's resize handles have
@@ -2159,7 +2238,7 @@ export function StatsPage() {
             </span>
           }
           actions={
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex max-w-[calc(100vw-2.5rem)] flex-wrap items-center gap-1">
               {/* range selector: presets + custom date range; refetches /stats */}
               <RangeControl
                 days={days}
@@ -2170,8 +2249,9 @@ export function StatsPage() {
                 }}
                 onCustom={setCustom}
               />
-              {/* board tools: hidden below sm, where the stacked view can't arrange anyway */}
-              <div className="hidden items-center gap-1 sm:flex">
+              {/* board tools: on phones too (the stacked view can still add,
+                  remove and configure tiles; dragging needs the wide grid) */}
+              <div className="flex items-center gap-1">
                 {saveState !== 'idle' && (
                   <span
                     title={saveState === 'error' ? t`Saving to the server failed. Changes are kept locally.` : undefined}
@@ -2207,10 +2287,10 @@ export function StatsPage() {
         />
 
         {/* board tabs as a pill row, plus the edit-mode board tools */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 max-sm:flex-wrap">
           {/* Only the tabs scroll horizontally; the + and board tools stay pinned
               and reachable however many boards you add. */}
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-5 [scrollbar-width:none]">
           {tabs.map((t) => (
             <div
               key={t.id}
@@ -2345,8 +2425,8 @@ export function StatsPage() {
           )}
 
           {editMode && (
-            <div className="ml-auto hidden shrink-0 items-center gap-1 pl-3 sm:flex">
-              <div className="flex items-center gap-0.5">
+            <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1 pl-3 max-sm:w-full max-sm:pl-0">
+              <div className="hidden items-center gap-0.5 sm:flex">
                 <span className="px-2 text-[13px] text-muted-foreground"><Trans>Padding</Trans></span>
                 {(['none', 'bit', 'lot'] as const).map((w) => (
                   <Pill key={w} variant={pad === w ? 'secondary' : 'quiet'} onClick={() => setPad(w)} className="px-3">
@@ -2406,7 +2486,7 @@ export function StatsPage() {
         <div className="flex flex-col items-center justify-center gap-3 py-32 text-muted-foreground">
           <p className="text-[15px] font-semibold text-foreground"><Trans>No reading data yet</Trans></p>
           <p className="max-w-sm text-center text-[14px]">
-            <Trans>Reading stats appear once sessions arrive — synced from the TomeSync
+            <Trans>Reading stats appear once sessions arrive: synced from the TomeSync
             KOReader plugin, logged by hand on a book page, or imported from a
             KOReader statistics file.</Trans>
           </p>

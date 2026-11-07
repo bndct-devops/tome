@@ -11,7 +11,7 @@ import { t, plural } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
 
 function Empty({ text }: { text?: string }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{text ?? t`No word counts yet.`}</p>
+  return <p className="py-2 text-[14px] text-muted-foreground">{text ?? t`No word counts yet.`}</p>
 }
 
 // Compact number: 1_240_000 -> "1.2M", 84_300 -> "84k", 932 -> "932".
@@ -114,7 +114,7 @@ export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
 
 // 4 ── Re-reads: books whose pages you've revisited on a later day ──────────────
 export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
-  if (!data || data.books.length === 0) return <Empty text={t`No re-reads yet — pages you revisit on a later day show up here.`} />
+  if (!data || data.books.length === 0) return <Empty text={t`No re-reads yet. Pages you revisit on a later day show up here.`} />
   return (
     <div className="flex flex-col gap-2.5">
       {data.books.slice(0, 8).map((b) => (
