@@ -49,8 +49,7 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
   </table>
 
   <Callout variant="info" title="Roles replace the old permission flags">
-    Tome used to ship with 14 granular permission booleans. They're deprecated — the
-    <code>role</code> field is the source of truth now. The flags are still in the schema for
+    Tome used to ship with 14 granular permission booleans. They're deprecated — the <code>role</code> field is the source of truth now. The flags are still in the schema for
     backwards-compatibility but new permission logic should branch on role.
   </Callout>
 
@@ -153,8 +152,7 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
 
   <h2>Force password change</h2>
   <p>
-    When an admin creates a new user, they pick a temporary password and Tome flags the user
-    <code>must_change_password</code>. On first login, the user can't access anything until they
+    When an admin creates a new user, they pick a temporary password and Tome flags the user <code>must_change_password</code>. On first login, the user can't access anything until they
     pick a new password. Reduces the "I sent it in Slack and forgot" risk.
   </p>
 

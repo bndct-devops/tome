@@ -9,8 +9,7 @@ import { withBase } from '../../lib/path'
   <SectionHero section="reference" />
   <h1>Configuration</h1>
   <p>
-    Tome is configured entirely through environment variables. None are strictly required — even
-    <code>TOME_SECRET_KEY</code> is auto-generated to <code>/data/secret.key</code> on first boot
+    Tome is configured entirely through environment variables. None are strictly required — even <code>TOME_SECRET_KEY</code> is auto-generated to <code>/data/secret.key</code> on first boot
     if you don't set one. Everything else has a sensible default.
   </p>
   <DocsMeta />
@@ -56,17 +55,13 @@ import { withBase } from '../../lib/path'
     </tbody>
   </table>
   <p>
-    Secrets can also be read from a file (Docker/Kubernetes secrets): <code>TOME_SECRET_KEY</code>,
-    <code>TOME_HARDCOVER_TOKEN</code>, <code>TOME_GOOGLE_BOOKS_KEY</code>, <code>TOME_SMTP_USER</code>,
-    <code>TOME_SMTP_PASSWORD</code> and <code>TOME_OIDC_CLIENT_SECRET</code> each accept a <code>_FILE</code>
-    variant, e.g. <code>TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key</code>. Set one or the other, not both.
+    Secrets can also be read from a file (Docker/Kubernetes secrets): <code>TOME_SECRET_KEY</code>, <code>TOME_HARDCOVER_TOKEN</code>, <code>TOME_GOOGLE_BOOKS_KEY</code>, <code>TOME_SMTP_USER</code>, <code>TOME_SMTP_PASSWORD</code> and <code>TOME_OIDC_CLIENT_SECRET</code> each accept a <code>_FILE</code> variant, e.g. <code>TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key</code>. Set one or the other, not both.
   </p>
 
   <h2>The secret key</h2>
   <p>
     <code>TOME_SECRET_KEY</code> signs every JWT and every API token. If unset, Tome generates a
-    cryptographically random 64-byte key on first boot and writes it to
-    <code>{`<data_dir>/secret.key`}</code> with mode <code>0600</code>. Subsequent boots reuse it.
+    cryptographically random 64-byte key on first boot and writes it to <code>{`<data_dir>/secret.key`}</code> with mode <code>0600</code>. Subsequent boots reuse it.
   </p>
 
   <Callout variant="warning" title="Rotating the key invalidates everything">
@@ -83,21 +78,18 @@ import { withBase } from '../../lib/path'
 
   <h2 id="file-ownership">File ownership (PUID / PGID)</h2>
   <p>
-    Inside the container Tome runs as an unprivileged user. <code>PUID</code> and <code>PGID</code>
-    set that user's numeric UID and GID (the same convention as LinuxServer.io images), so
+    Inside the container Tome runs as an unprivileged user. <code>PUID</code> and <code>PGID</code> set that user's numeric UID and GID (the same convention as LinuxServer.io images), so
     the bind-mounted <code>/data</code>, <code>/books</code> and <code>/bindery</code> are read
     and written as the user that owns them on the host. The default is <code>1000:1000</code>,
     which is what the image always ran as, so an existing install needs no change.
   </p>
   <p>
-    Set them when the logs show <code>PermissionError</code> on <code>/books</code> or
-    <code>/bindery</code>. On Synology, QNAP and TrueNAS the share ACL is granted to your
+    Set them when the logs show <code>PermissionError</code> on <code>/books</code> or <code>/bindery</code>. On Synology, QNAP and TrueNAS the share ACL is granted to your
     docker user, not to uid 1000; run <code>id &lt;user&gt;</code> on the host and pass those
     ids. On Unraid shares are usually <code>99:100</code>.
   </p>
   <p>
-    On start the container fixes ownership of <code>/data</code> to match, so switching
-    <code>PUID</code> on an existing install works without a manual <code>chown</code>. It never
+    On start the container fixes ownership of <code>/data</code> to match, so switching <code>PUID</code> on an existing install works without a manual <code>chown</code>. It never
     touches <code>/books</code> or <code>/bindery</code> — those are your files (and may be
     read-only mounts). If Tome already created files there under the old uid, chown those
     yourself. Compose files that pass <code>user: "uid:gid"</code> instead still work; in
@@ -116,16 +108,14 @@ import { withBase } from '../../lib/path'
   </ul>
 
   <Callout variant="info" title="Local-dev defaults differ">
-    Outside Docker, the defaults are <code>./data</code>, <code>./library</code>, and
-    <code>./bindery</code> (relative to the working directory). The Docker image sets the
+    Outside Docker, the defaults are <code>./data</code>, <code>./library</code>, and <code>./bindery</code> (relative to the working directory). The Docker image sets the
     container-friendly absolute paths.
   </Callout>
 
   <h2>Hardcover metadata</h2>
   <p>
     <code>TOME_HARDCOVER_TOKEN</code> turns on the Hardcover lookup path during metadata fetch.
-    Hardcover has the best coverage for modern fiction and manga. Grab a free token from
-    <a href="https://hardcover.app/account/api">hardcover.app/account/api</a> and pass it in.
+    Hardcover has the best coverage for modern fiction and manga. Grab a free token from <a href="https://hardcover.app/account/api">hardcover.app/account/api</a> and pass it in.
   </p>
   <p>
     With no token set, Tome still fetches metadata via Google Books and Open Library — Hardcover
@@ -151,29 +141,23 @@ import { withBase } from '../../lib/path'
   </ul>
   <p>
     Even with auto-import on, books land marked <code>is_reviewed=false</code> and surface in the
-    "Unreviewed" queue so an admin can sanity-check the detected metadata. See
-    <a href={withBase("/docs/bindery")}>Bindery</a>.
+    "Unreviewed" queue so an admin can sanity-check the detected metadata. See <a href={withBase("/docs/bindery")}>Bindery</a>.
   </p>
 
   <h2>SMTP (Send to Device)</h2>
   <p>
     The <code>TOME_SMTP_*</code> variables enable <a href={withBase("/docs/send-to-device")}>Send to
-    Device</a> — emailing books to e-readers. The feature stays hidden until
-    <code>TOME_SMTP_HOST</code> is set together with either <code>TOME_SMTP_USER</code> and
-    <code>TOME_SMTP_PASSWORD</code>, or <code>TOME_SMTP_FROM</code> for a server that needs no
-    authentication. Credentials live only in the environment, never the database. See the
-    <a href={withBase("/docs/send-to-device")}>Send to Device</a> page for provider-specific
+    Device</a> — emailing books to e-readers. The feature stays hidden until <code>TOME_SMTP_HOST</code> is set together with either <code>TOME_SMTP_USER</code> and <code>TOME_SMTP_PASSWORD</code>, or <code>TOME_SMTP_FROM</code> for a server that needs no
+    authentication. Credentials live only in the environment, never the database. See the <a href={withBase("/docs/send-to-device")}>Send to Device</a> page for provider-specific
     examples (Gmail, Fastmail) and the Kindle approved-sender step.
   </p>
 
   <h2>Sign-in lifetime</h2>
   <p>
-    Browsers and the Tome app stay signed in until they sign out. Each sign-in is listed under
-    <strong>Settings &gt; Connected devices</strong>, where it can be signed out at any time;
+    Browsers and the Tome app stay signed in until they sign out. Each sign-in is listed under <strong>Settings &gt; Connected devices</strong>, where it can be signed out at any time;
     changing a password signs out every other sign-in of that user. A browser that is not used
     for <code>TOME_WEB_SESSION_IDLE_DAYS</code> days (default 90, <code>0</code> = never) is
-    signed out on its own; the Tome app is not affected.
-    <code>TOME_JWT_EXPIRE_MINUTES</code> now only sets how long an admin's "view as user"
+    signed out on its own; the Tome app is not affected. <code>TOME_JWT_EXPIRE_MINUTES</code> now only sets how long an admin's "view as user"
     (impersonation) token lasts. Default is one week. <code>TOME_JWT_ALGORITHM</code> is the JWS algorithm (default <code>HS256</code>);
     leave it alone unless you have a very specific reason.
   </p>

@@ -81,8 +81,7 @@ const seriesSnippet = `# Fill series-level metadata (status + arcs) from LLM kno
   <h2>Authentication</h2>
   <p>
     Scribe needs an <a href={withBase("/docs/api-tokens")}>API token</a> to talk to your Tome server. Issue
-    one in <strong>Settings → API tokens</strong>, then drop it into
-    <code>~/.config/tome/scribe.json</code>.
+    one in <strong>Settings → API tokens</strong>, then drop it into <code>~/.config/tome/scribe.json</code>.
   </p>
 
   <pre><code>{configSnippet}</code></pre>
@@ -105,8 +104,7 @@ const seriesSnippet = `# Fill series-level metadata (status + arcs) from LLM kno
   <p>
     Walks a folder, extracts metadata from each file (EPUB OPF, CBZ ComicInfo.xml, PDF info),
     deduplicates against existing books by content hash, looks up canonical
-    author/series/book-type from siblings already in your library, then POSTs each new book to
-    <code>/api/books/ingest</code>. Per book, Scribe fetches description and cover candidates
+    author/series/book-type from siblings already in your library, then POSTs each new book to <code>/api/books/ingest</code>. Per book, Scribe fetches description and cover candidates
     from Hardcover / Google Books / Open Library — high-confidence matches auto-apply, ambiguous
     ones get surfaced for your review.
   </p>
@@ -133,8 +131,7 @@ const seriesSnippet = `# Fill series-level metadata (status + arcs) from LLM kno
   </p>
   <p>
     Two specialised passes: <code>/scribe audit years</code> compares stored years against Open
-    Library's first-publication year (catching reprint years on classics), and
-    <code>/scribe audit editions</code> finds books whose stored ISBN belongs to the <em>wrong
+    Library's first-publication year (catching reprint years on classics), and <code>/scribe audit editions</code> finds books whose stored ISBN belongs to the <em>wrong
     edition</em> of their series — a light novel carrying its manga adaptation's ISBN — and
     proposes the correct edition's ISBN, publisher, year and description.
   </p>

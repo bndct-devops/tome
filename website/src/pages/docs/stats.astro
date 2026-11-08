@@ -23,8 +23,7 @@ import { withBase } from '../../lib/path'
   <h2>Make it yours</h2>
   <p>
     Hit <strong>Edit</strong> and the grid opens up: drag tiles by their header, resize them by
-    the corner handle, remove or duplicate them, and undo a removal straight from the toast.
-    <strong>Add tile</strong> opens a gallery of 50 widgets with live previews — everything
+    the corner handle, remove or duplicate them, and undo a removal straight from the toast. <strong>Add tile</strong> opens a gallery of 50 widgets with live previews — everything
     documented below, plus extras like a paginated session log, reading by weekday, a
     time-of-day split, time by format, recently finished, a monthly streak calendar, and the
     word-count tiles (words read, reading speed, book length).
@@ -54,10 +53,8 @@ import { withBase } from '../../lib/path'
 
   <h2>Where the data comes from</h2>
   <p>
-    Two writers, one table. The web reader and the
-    <a href={withBase("/docs/koreader")}>TomeSync plugin</a> both POST to <code>reading_sessions</code>: start
-    time, end time, pages turned, device. The stats endpoints aggregate from there. The
-    <code>UserBookStatus</code> table provides finished-book counts (<code>status = "read"</code>)
+    Two writers, one table. The web reader and the <a href={withBase("/docs/koreader")}>TomeSync plugin</a> both POST to <code>reading_sessions</code>: start
+    time, end time, pages turned, device. The stats endpoints aggregate from there. The <code>UserBookStatus</code> table provides finished-book counts (<code>status = "read"</code>)
     and the <code>TomeSyncPosition</code> table provides current-progress percentages.
   </p>
 
@@ -84,8 +81,7 @@ import { withBase } from '../../lib/path'
   <h2>Fixing a runaway session</h2>
   <p>
     A device that never actually went to sleep can sync a session hours longer than the reading
-    it contains — 15 minutes of pages, then a night of idle screen. The
-    <a href={withBase("/docs/koreader")}>TomeSync plugin</a> prevents this at the source with its
+    it contains — 15 minutes of pages, then a night of idle screen. The <a href={withBase("/docs/koreader")}>TomeSync plugin</a> prevents this at the source with its
     idle time cap, but sessions from older plugin builds (or other clients) are sanity-checked
     on arrival: anything implausibly long, or averaging many minutes per page turn, is flagged
     with a warning icon and raises a bell notification.
@@ -115,8 +111,7 @@ import { withBase } from '../../lib/path'
     Tome existed, if you enabled the <a href={withBase("/docs/koreader")}>reading-history
     backfill</a> — appears in the same session lists as everything else. The raw per-page
     timings are grouped into sittings the way KOReader itself thinks about sessions (a gap of
-    more than 30 minutes starts a new one), and each sitting shows as a row tagged
-    <strong>imported</strong>.
+    more than 30 minutes starts a new one), and each sitting shows as a row tagged <strong>imported</strong>.
   </p>
   <p>
     Imported sittings can be deleted individually — the fix for a book opened by accident,
@@ -124,8 +119,7 @@ import { withBase } from '../../lib/path'
     history. Deleting one removes exactly that sitting's page timings and the totals drop with
     it. They can't be trimmed: KOReader already caps idle time at the source, so there is
     nothing to cut. Two labels tell the rest of the story: when imported history describes a
-    sitting the plugin also recorded as a live session, that live session stays listed with a
-    <strong>not counted</strong> tag while the imported row carries the totals — nothing is
+    sitting the plugin also recorded as a live session, that live session stays listed with a <strong>not counted</strong> tag while the imported row carries the totals — nothing is
     ever counted twice, and nothing silently disappears. The rule is per sitting, not per
     book: reading the same book on a second device that never synced its history still
     counts through its live sessions. The small info icon next to every
@@ -179,8 +173,7 @@ import { withBase } from '../../lib/path'
     Series Progress, and the completion stats, but <em>keeps your exact position</em> (progress and
     CFI), so picking it back up later resumes where you left off. It's the middle ground between
     leaving a stalled book cluttering your "reading" list and marking it <strong>Unread</strong>
-    — which clears your progress entirely. Find shelved titles again with the <strong>Shelved</strong>
-    filter in the library. Reading the book again on any device automatically moves it back to
+    — which clears your progress entirely. Find shelved titles again with the <strong>Shelved</strong> filter in the library. Reading the book again on any device automatically moves it back to
     Reading.
   </Callout>
 
@@ -198,8 +191,7 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="stats-top-books" alt="Top 10 books by reading time" />
   </div>
   <p>
-    Top 10 books by total reading time in the period. Joins <code>reading_sessions</code> against
-    <code>books</code> and groups by book_id. The big numbers usually surface a book you've been
+    Top 10 books by total reading time in the period. Joins <code>reading_sessions</code> against <code>books</code> and groups by book_id. The big numbers usually surface a book you've been
     chewing on for weeks.
   </p>
 
@@ -220,8 +212,7 @@ import { withBase } from '../../lib/path'
   <p>
     Your
     reading personality as an archetype plus the trait spectrums that produced it (short reads vs.
-    long epics, focused vs. eclectic, early bird vs. night owl, …). Add it from
-    <strong>Add tile</strong> under Habits.
+    long epics, focused vs. eclectic, early bird vs. night owl, …). Add it from <strong>Add tile</strong> under Habits.
   </p>
 
   <h3>Hour × day-of-week heatmap</h3>
@@ -255,8 +246,7 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="stats-pace" alt="Pages-per-minute over recent sessions" />
   </div>
   <p>
-    Pages per minute, computed per-session from sessions with
-    <code>duration_seconds &gt; 60</code> and <code>pages_turned &gt; 0</code>.
+    Pages per minute, computed per-session from sessions with <code>duration_seconds &gt; 60</code> and <code>pages_turned &gt; 0</code>.
   </p>
   <p>
     Two things this catches: format effects (manga clocks 5+ ppm, dense literary fiction
@@ -332,8 +322,7 @@ import { withBase } from '../../lib/path'
   <p>
     How long the pile would take at your own pace. The tile sums an estimate for every book you
     haven't started in its scope and shows the total in hours and in days, with a per-type
-    breakdown underneath. The scope is picked in the tile's edit-mode settings: your
-    <strong>Want to read</strong> queue (the default), everything unread, a library, or a shelf.
+    breakdown underneath. The scope is picked in the tile's edit-mode settings: your <strong>Want to read</strong> queue (the default), everything unread, a library, or a shelf.
   </p>
   <ul>
     <li><strong>Hours</strong> come from the book's word count at your measured words per minute.
@@ -389,16 +378,14 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="stats-words-read" alt="Words read tile: lifetime word count and a per-year breakdown" />
   </div>
   <p>
-    <strong>Words read</strong> totals the words in every book you've finished, and
-    <strong>Reading speed</strong> is your true words-per-minute — word count divided by the time
+    <strong>Words read</strong> totals the words in every book you've finished, and <strong>Reading speed</strong> is your true words-per-minute — word count divided by the time
     KOReader actually recorded — with your fastest and slowest books.
   </p>
   <div class="docs-shot-bare">
     <ThemedShot client:load name="stats-reading-speed" alt="Reading speed tile: overall words-per-minute with fastest and slowest books" />
   </div>
   <p>
-    <strong>Book length</strong> shows how long the books you finish tend to be, and
-    <strong>Re-reads</strong> ranks the books whose pages you keep coming back to.
+    <strong>Book length</strong> shows how long the books you finish tend to be, and <strong>Re-reads</strong> ranks the books whose pages you keep coming back to.
   </p>
   <div class="docs-shot-bare">
     <ThemedShot client:load name="stats-book-length" alt="Book length tile: a word-count distribution of finished books" />
@@ -416,9 +403,7 @@ import { withBase } from '../../lib/path'
   </div>
   <p>
     The same per-book view carries a full <strong>reading log</strong>: every session with device,
-    duration and pages, your day-by-day progress, and a per-book time total. You can
-    <strong>log a session by hand</strong> (paper reading, or a device that wasn't synced) and
-    <strong>export</strong> a book's log to CSV or JSON.
+    duration and pages, your day-by-day progress, and a per-book time total. You can <strong>log a session by hand</strong> (paper reading, or a device that wasn't synced) and <strong>export</strong> a book's log to CSV or JSON.
   </p>
 
   <h2>Charts that aren't here yet</h2>

@@ -47,16 +47,13 @@ import { withBase } from '../../lib/path'
 
   <h2>Scanning the library folder</h2>
   <p>
-    If you add files directly to the <code>/books</code> volume (or however you mounted
-    <code>TOME_LIBRARY_DIR</code>), click <strong>Scan</strong> in the top bar to pick them up.
+    If you add files directly to the <code>/books</code> volume (or however you mounted <code>TOME_LIBRARY_DIR</code>), click <strong>Scan</strong> in the top bar to pick them up.
     Tome walks the folder tree, skips files it already knows about (by content hash), and imports
     new ones with metadata extracted from the filename and embedded file data.
   </p>
 
   <Callout variant="info" title="Filename parsing">
-    Tome understands patterns like <code>Berserk v01 (1990).cbz</code> and
-    <code>Title - Author (Year).epub</code>. See <a href={withBase("/docs/series")}>Series & arcs</a>
-    for the full list of supported patterns.
+    Tome understands patterns like <code>Berserk v01 (1990).cbz</code> and <code>Title - Author (Year).epub</code>. See <a href={withBase("/docs/series")}>Series & arcs</a> for the full list of supported patterns.
   </Callout>
 
   <h2>Editing metadata</h2>
@@ -73,8 +70,7 @@ import { withBase } from '../../lib/path'
   <h2>Fetching metadata</h2>
   <p>
     Click <strong>Fetch metadata</strong> on a book's detail page. Tome queries Hardcover, Google
-    Books, and Open Library in parallel — and for manga, comics and other sequential-art types,
-    <strong>AniList</strong> too (no API key needed), which knows series, staff, genres and covers
+    Books, and Open Library in parallel — and for manga, comics and other sequential-art types, <strong>AniList</strong> too (no API key needed), which knows series, staff, genres and covers
     far better than the prose-first sources. Then it shows a side-by-side diff of each candidate
     against your current data. You pick which fields to apply — nothing changes until you confirm.
   </p>
@@ -116,31 +112,26 @@ import { withBase } from '../../lib/path'
   </ul>
 
   <Callout variant="warning" title="Bulk fetch limit">
-    Bulk metadata fetch is capped at 100 books per request. For larger batches, consider
-    <a href={withBase("/docs/scribe")}>Scribe</a> which handles thousands.
+    Bulk metadata fetch is capped at 100 books per request. For larger batches, consider <a href={withBase("/docs/scribe")}>Scribe</a> which handles thousands.
   </Callout>
 
   <h2>Command palette</h2>
   <p>
     Press <kbd>Cmd</kbd>+<kbd>K</kbd> (<kbd>Ctrl</kbd>+<kbd>K</kbd>) anywhere in Tome to
     jump straight to a book, series, author, or page — full-text search with covers,
-    entirely keyboard-driven. The header search box hints it, and it's listed in the
-    <kbd>?</kbd> shortcuts help.
+    entirely keyboard-driven. The header search box hints it, and it's listed in the <kbd>?</kbd> shortcuts help.
   </p>
 
   <h2>Filtering</h2>
   <p>
-    The dashboard filter bar narrows the grid by <strong>series</strong>, <strong>author</strong>,
-    <strong>tag</strong>, <strong>format</strong>, and <strong>language</strong>, plus reading status
+    The dashboard filter bar narrows the grid by <strong>series</strong>, <strong>author</strong>, <strong>tag</strong>, <strong>format</strong>, and <strong>language</strong>, plus reading status
     and rating. Filters combine, show as removable chips, and live in the URL, so any filtered view
     can be saved as a <a href={withBase("/docs/libraries")}>Shelf</a> that re-populates itself.
   </p>
   <p>
     The <strong>Language</strong> dropdown appears once your catalogue holds more than one language.
-    Tome doesn't detect language from a book's text — it reads the language each file <em>declares</em>
-    in its embedded metadata (an EPUB's <code>&lt;dc:language&gt;</code>, a CBZ's <code>LanguageISO</code>)
-    when it's scanned or uploaded. Those declared values are inconsistent across files, so
-    <code>en</code>, <code>eng</code>, <code>en-US</code>, and <code>English</code> are all folded to a
+    Tome doesn't detect language from a book's text — it reads the language each file <em>declares</em> in its embedded metadata (an EPUB's <code>&lt;dc:language&gt;</code>, a CBZ's <code>LanguageISO</code>)
+    when it's scanned or uploaded. Those declared values are inconsistent across files, so <code>en</code>, <code>eng</code>, <code>en-US</code>, and <code>English</code> are all folded to a
     single "English" entry. Matching is a fixed lookup of ISO-639 codes and English names; an
     unrecognized language still groups correctly but shows as a short code until it's added to the
     table.
@@ -148,8 +139,7 @@ import { withBase } from '../../lib/path'
 
   <h2>Reading status</h2>
   <p>
-    Every book has a per-user reading status: <strong>unread</strong>, <strong>reading</strong>, or
-    <strong>read</strong>. Click the status badge on a book card or the detail page to cycle through
+    Every book has a per-user reading status: <strong>unread</strong>, <strong>reading</strong>, or <strong>read</strong>. Click the status badge on a book card or the detail page to cycle through
     them. If you're using <a href={withBase("/docs/koreader")}>TomeSync</a>, status updates
     automatically based on your reading sessions.
   </p>
@@ -157,8 +147,7 @@ import { withBase } from '../../lib/path'
   <h2>Ratings &amp; reviews</h2>
   <p>
     Rate books on a 1–5 star scale in <strong>half-star steps</strong> — click the left or right
-    half of a star for a 3.5 or 4.5 — with an optional written review. Ratings are
-    <strong>per user and private to you</strong> — everyone keeps their own.
+    half of a star for a 3.5 or 4.5 — with an optional written review. Ratings are <strong>per user and private to you</strong> — everyone keeps their own.
   </p>
   <ul>
     <li><strong>Per book</strong> — the detail page has a star rating and a review field; both auto-save, and the review collapses to a tidy quote (with an edit affordance) once written.</li>
@@ -166,8 +155,7 @@ import { withBase } from '../../lib/path'
     <li><strong>Per series</strong> — rate a whole series from its page. A series rating is inherited by every volume you haven't rated individually (your own volume rating always wins); a series' shown rating is your explicit rating if set, otherwise the average of your volume ratings. The "No Series" group can't be rated.</li>
   </ul>
   <p>
-    Ratings also sync both ways with KOReader's native Book status screen — see the
-    <a href={withBase("/docs/koreader")}>KOReader plugin</a> docs (KOReader itself is whole-star:
+    Ratings also sync both ways with KOReader's native Book status screen — see the <a href={withBase("/docs/koreader")}>KOReader plugin</a> docs (KOReader itself is whole-star:
     the plugin rounds a pulled half-star for the device but never pushes the rounded value back).
     And with a linked <a href={withBase("/docs/hardcover")}>Hardcover account</a>, ratings — half-stars
     included — flow to your public profile too.

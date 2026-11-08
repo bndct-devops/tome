@@ -9,10 +9,8 @@ import { withBase } from '../../lib/path'
   <SectionHero section="reference" />
   <h1>Troubleshooting</h1>
   <p>
-    Common problems and how to fix them. If yours isn't here, search
-    <a href="https://github.com/bndct-devops/tome/issues">existing issues</a>,
-    ask in <a href="https://github.com/bndct-devops/tome/discussions/categories/q-a">Discussions</a>, or
-    <a href="https://github.com/bndct-devops/tome/issues/new">open an issue</a> if it looks like a bug.
+    Common problems and how to fix them. If yours isn't here, search <a href="https://github.com/bndct-devops/tome/issues">existing issues</a>,
+    ask in <a href="https://github.com/bndct-devops/tome/discussions/categories/q-a">Discussions</a>, or <a href="https://github.com/bndct-devops/tome/issues/new">open an issue</a> if it looks like a bug.
   </p>
   <DocsMeta />
 
@@ -42,8 +40,7 @@ import { withBase } from '../../lib/path'
     <li>The API key was revoked from Tome's Settings page.</li>
   </ul>
   <p>
-    Fix: re-download the plugin from <strong>Settings → KOReader</strong>. The new
-    <code>.koplugin</code> gets your current URL and a fresh key baked in. Replace the file in
+    Fix: re-download the plugin from <strong>Settings → KOReader</strong>. The new <code>.koplugin</code> gets your current URL and a fresh key baked in. Replace the file in
     KOReader's <code>plugins/</code> folder and restart.
   </p>
 
@@ -97,8 +94,7 @@ import { withBase } from '../../lib/path'
   <pre><code>docker exec -it tome sqlite3 /data/tome.db "UPDATE users SET role='admin', is_admin=1 WHERE username='&lt;username&gt;';"</code></pre>
   <p>
     Refresh the page — no restart or re-login needed, since the role is read from the database on
-    every request. Not on Docker? Point <code>sqlite3</code> at <code>tome.db</code> under your
-    <code>TOME_DATA_DIR</code> instead.
+    every request. Not on Docker? Point <code>sqlite3</code> at <code>tome.db</code> under your <code>TOME_DATA_DIR</code> instead.
   </p>
 
   <h2>Reverse proxy 502 / 504</h2>
@@ -122,10 +118,8 @@ import { withBase } from '../../lib/path'
   <h2>Permission errors on /books or /bindery</h2>
   <p>
     The container runs as UID 1000 (user <code>tome</code>) unless told otherwise. If the
-    host-side owner of your library or bindery folder is different, you'll see
-    <code>PermissionError</code> in the logs, books won't import, and Bindery accepts fail
-    with <code>Permission denied</code> on the source file. Set <code>PUID</code> and
-    <code>PGID</code> in your compose file to the host user that owns those folders
+    host-side owner of your library or bindery folder is different, you'll see <code>PermissionError</code> in the logs, books won't import, and Bindery accepts fail
+    with <code>Permission denied</code> on the source file. Set <code>PUID</code> and <code>PGID</code> in your compose file to the host user that owns those folders
     (<code>id &lt;user&gt;</code>), then recreate the container:
   </p>
   <pre><code>environment:
@@ -135,10 +129,8 @@ import { withBase } from '../../lib/path'
     Synology is the common case: File Station grants the share ACL to your docker user, and
     uid 1000 typically ends up able to <em>create</em> files in the bindery but not delete
     them, so an accept copies the book into <code>/books</code> and then fails removing the
-    original. Use the docker user's ids from <em>Control Panel → User</em> (or
-    <code>id</code> over SSH). Ownership of <code>/data</code> is fixed automatically on
-    start; <code>/books</code> and <code>/bindery</code> are never chowned by Tome. See
-    <a href={withBase("/docs/configuration#file-ownership")}>Configuration → File ownership</a>.
+    original. Use the docker user's ids from <em>Control Panel → User</em> (or <code>id</code> over SSH). Ownership of <code>/data</code> is fixed automatically on
+    start; <code>/books</code> and <code>/bindery</code> are never chowned by Tome. See <a href={withBase("/docs/configuration#file-ownership")}>Configuration → File ownership</a>.
   </p>
 
   <Callout variant="info" title="Still stuck?">

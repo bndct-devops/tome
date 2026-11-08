@@ -107,8 +107,7 @@ end`
 
       <p>
         Every other self-hosted library that supports KOReader does it the same way: implement
-        the <a href="https://github.com/koreader/koreader/tree/master/plugins/kosync.koplugin">KOSync protocol</a>
-        on the server, point KOReader's built-in sync plugin at it, done. Kavita, Komga, and
+        the <a href="https://github.com/koreader/koreader/tree/master/plugins/kosync.koplugin">KOSync protocol</a> on the server, point KOReader's built-in sync plugin at it, done. Kavita, Komga, and
         Stump all take this path. Calibre-Web Automated ships a plugin, but it's a lightly
         modified clone of the stock KOSync code with different auth.
       </p>
@@ -134,17 +133,13 @@ end`
       <h2 id="how-koreader-plugins-work">How KOReader plugins work</h2>
 
       <p>
-        KOReader is a Lua application. Plugins are Lua modules that live in
-        <code>koreader/plugins/&lt;name&gt;.koplugin/</code>. At minimum, you need two files:
+        KOReader is a Lua application. Plugins are Lua modules that live in <code>koreader/plugins/&lt;name&gt;.koplugin/</code>. At minimum, you need two files:
       </p>
 
       <pre><code set:text={codeStructure} /></pre>
 
       <p>
-        <code>_meta.lua</code> is trivial — a table with <code>name</code>,
-        <code>fullname</code>, and <code>description</code>. The real work is
-        <code>main.lua</code>, which must return a class that extends
-        <code>WidgetContainer</code>.
+        <code>_meta.lua</code> is trivial — a table with <code>name</code>, <code>fullname</code>, and <code>description</code>. The real work is <code>main.lua</code>, which must return a class that extends <code>WidgetContainer</code>.
       </p>
 
       <pre><code set:text={codePlugin} /></pre>
@@ -198,10 +193,8 @@ end`
 
       <p>
         KOReader bundles <code>rapidjson</code>. Standard <code>encode</code> /
-        <code>decode</code>. One quirk: empty Lua tables are ambiguous (array or object?).
-        <code>rapidjson.encode({})</code> produces <code>[]</code>, not <code>{}</code>.
-        If your API expects an empty JSON object, you need <code>rapidjson.encode(rapidjson.object())</code>
-        or just send the literal string <code>"{}"</code>.
+        <code>decode</code>. One quirk: empty Lua tables are ambiguous (array or object?). <code>rapidjson.encode({})</code> produces <code>[]</code>, not <code>{}</code>.
+        If your API expects an empty JSON object, you need <code>rapidjson.encode(rapidjson.object())</code> or just send the literal string <code>"{}"</code>.
       </p>
 
       <h3 id="persistence">Persistence</h3>
@@ -230,8 +223,7 @@ end`
       <pre><code set:text={codeMenu} /></pre>
 
       <p>
-        This inserts TomeSync right after Calibre in the tools section. The <code>do...end</code>
-        block runs once when the module loads (Lua's <code>require</code> caches the result).
+        This inserts TomeSync right after Calibre in the tools section. The <code>do...end</code> block runs once when the module loads (Lua's <code>require</code> caches the result).
         I tried <code>sorting_hint</code> first — it didn't work reliably across KOReader
         versions.
       </p>
@@ -244,8 +236,7 @@ end`
 
       <p>
         KOReader reports reading progress as a float between 0 and 1. The web reader (foliate-js)
-        reports it as a percentage between 0 and 100. I stored both in the same
-        <code>progress_pct</code> column.
+        reports it as a percentage between 0 and 100. I stored both in the same <code>progress_pct</code> column.
       </p>
 
       <div class="blog-scale-box">
@@ -267,8 +258,7 @@ end`
       </div>
 
       <p>
-        A book at 50% was stored as <code>0.5</code> from KOReader and <code>50</code>
-        from the browser. The stats system thought the web reader user had read the book 50 times
+        A book at 50% was stored as <code>0.5</code> from KOReader and <code>50</code> from the browser. The stats system thought the web reader user had read the book 50 times
         over. The "mark as read" threshold (<code>progress_pct >= 0.99</code>) never triggered
         from the web because 50 != 0.5. Bidirectional sync showed nonsense positions.
       </p>
@@ -282,8 +272,7 @@ end`
       <h3 id="xpointer-crash">XPointer vs epubcfi: the white-page crash</h3>
 
       <p>
-        KOReader stores reading positions as XPointer strings:
-        <code>/body/DocFragment[7]/body/div/p[3]</code>. The web reader (foliate-js) expects
+        KOReader stores reading positions as XPointer strings: <code>/body/DocFragment[7]/body/div/p[3]</code>. The web reader (foliate-js) expects
         EPUB CFI format: <code>epubcfi(/6/124!/4/2/4,...)</code>. They're completely different
         position encodings for the same concept.
       </p>
@@ -295,8 +284,7 @@ end`
       </p>
 
       <p>
-        The fix: detect the format (does it start with <code>epubcfi(</code>?) and fall back to
-        <code>goToFraction(progress_pct)</code> when the CFI isn't in the right format. You lose
+        The fix: detect the format (does it start with <code>epubcfi(</code>?) and fall back to <code>goToFraction(progress_pct)</code> when the CFI isn't in the right format. You lose
         sub-page precision but the book opens at approximately the right spot instead of crashing.
       </p>
 
@@ -304,13 +292,11 @@ end`
 
       <p>
         Foliate fires a <code>relocate</code> event as soon as the book loads — before navigating
-        to the saved position. The save handler caught that event and happily wrote
-        <code>progress_pct=0</code> to the server, overwriting the position KOReader had synced.
+        to the saved position. The save handler caught that event and happily wrote <code>progress_pct=0</code> to the server, overwriting the position KOReader had synced.
       </p>
 
       <p>
-        You open a book you were reading on your Kobo at 73%. The web reader loads, fires
-        <code>relocate</code> at page 1 (progress=0), saves it to the server, then navigates to
+        You open a book you were reading on your Kobo at 73%. The web reader loads, fires <code>relocate</code> at page 1 (progress=0), saves it to the server, then navigates to
         your saved CFI at 73%. Next time you open KOReader, it pulls progress=0 from the server
         and jumps back to the beginning.
       </p>
@@ -331,8 +317,7 @@ end`
 
       <p>
         Worse: the completion handler fires on the last page and marks the book as "read". But
-        the debounced progress save fires 1.5 seconds later with <code>status='reading'</code>
-        at 95% and overwrites the completion. A race condition between two save paths.
+        the debounced progress save fires 1.5 seconds later with <code>status='reading'</code> at 95% and overwrites the completion. A race condition between two save paths.
       </p>
 
       <p>
@@ -346,21 +331,18 @@ end`
       <p>
         KOReader boots WiFi lazily. When you open a book, WiFi might not be connected yet. The
         resolve call (matching the local filename to a Tome book ID) fails silently. The book
-        opens fine — you can read — but sync is broken for the entire session because
-        <code>book_id</code> is nil.
+        opens fine — you can read — but sync is broken for the entire session because <code>book_id</code> is nil.
       </p>
 
       <p>
         The fix: retry resolution on every page turn until it succeeds. Once the book is
-        resolved, the retry stops. Sounds wasteful but the check is a single
-        <code>if not self.book_id</code> guard — zero cost when WiFi connected promptly.
+        resolved, the retry stops. Sounds wasteful but the check is a single <code>if not self.book_id</code> guard — zero cost when WiFi connected promptly.
       </p>
 
       <h3 id="timezone-naive">Naive datetimes and timezone ghosts</h3>
 
       <p>
-        The server returned ISO timestamps without a timezone suffix:
-        <code>2026-05-24T14:30:00</code>. JavaScript's <code>new Date()</code> parses
+        The server returned ISO timestamps without a timezone suffix: <code>2026-05-24T14:30:00</code>. JavaScript's <code>new Date()</code> parses
         timezone-naive strings as local time. A sync that happened 5 minutes ago displayed as
         "2 hours ago" for a user in CEST (UTC+2).
       </p>

@@ -42,8 +42,7 @@ const detectionSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagram
 
   <Callout variant="tip" title="Organise on disk by series, not by author">
     For manga and light novels, name your library folder after the <em>series</em>, not the
-    author: <code>library/Berserk/Berserk v01.cbz</code>, not
-    <code>library/Kentaro Miura/Berserk v01.cbz</code>. Tome handles both, but series-grouping
+    author: <code>library/Berserk/Berserk v01.cbz</code>, not <code>library/Kentaro Miura/Berserk v01.cbz</code>. Tome handles both, but series-grouping
     is what most multi-volume books actually want.
   </Callout>
 
@@ -65,8 +64,7 @@ const detectionSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagram
 
   <h2>Arcs</h2>
   <p>
-    Arcs are how you subdivide a long series. Berserk's 40+ volumes split naturally into
-    <em>Black Swordsman</em>, <em>Golden Age</em>, <em>Conviction</em>, etc. — defining those as
+    Arcs are how you subdivide a long series. Berserk's 40+ volumes split naturally into <em>Black Swordsman</em>, <em>Golden Age</em>, <em>Conviction</em>, etc. — defining those as
     arcs lets readers see structure instead of an undifferentiated wall of 40 covers.
   </p>
 
@@ -90,8 +88,7 @@ const detectionSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagram
 
   <h2>Series status</h2>
   <p>
-    A series can be marked <code>ongoing</code>, <code>finished</code>, <code>hiatus</code>, or
-    <code>unknown</code>. The badge appears on the series page and on the dashboard's series
+    A series can be marked <code>ongoing</code>, <code>finished</code>, <code>hiatus</code>, or <code>unknown</code>. The badge appears on the series page and on the dashboard's series
     grid. Admins set status manually, or let <a href={withBase("/docs/scribe")}>Scribe</a> populate it from
     LLM knowledge via <code>/scribe series &lt;name&gt;</code>.
   </p>
@@ -103,9 +100,7 @@ const detectionSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagram
   </p>
 
   <Callout variant="warning" title="If your series shows wrong volumes">
-    Re-scanning is non-destructive. If a series is grouping incorrectly, edit the
-    <code>series</code> + <code>series_index</code> fields on the offending books directly
-    (Edit metadata on the book detail page), or use Scribe to bulk-fix:
-    <code>/scribe update &lt;query&gt;</code>.
+    Re-scanning is non-destructive. If a series is grouping incorrectly, edit the <code>series</code> + <code>series_index</code> fields on the offending books directly
+    (Edit metadata on the book detail page), or use Scribe to bulk-fix: <code>/scribe update &lt;query&gt;</code>.
   </Callout>
 </DocsLayout>

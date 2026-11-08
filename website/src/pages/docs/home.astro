@@ -19,8 +19,7 @@ import { withBase } from '../../lib/path'
   <h2>The book you are reading</h2>
   <p>
     The top of the page is your most recently synced in-progress book: its cover, the series and
-    volume above the title, the author, the start of the description, and your progress.
-    <strong>Resume</strong> opens it in the <a href={withBase("/docs/reader")}>web reader</a> at your
+    volume above the title, the author, the start of the description, and your progress. <strong>Resume</strong> opens it in the <a href={withBase("/docs/reader")}>web reader</a> at your
     position; the line beside it says where the position came from and when (for example
     "Synced from KOReader · 2 hours ago"). The series name links to the series page, the cover and
     the title to the book page.
@@ -30,8 +29,7 @@ import { withBase } from '../../lib/path'
   <p>
     Under the hero, <strong>Also reading</strong> is a row of your other books in progress, each
     with a thin progress bar. Click a cover to bring that book up as the hero; when there are more
-    than fit, the last tile takes you to the Library filtered to books you are reading.
-    <strong>Up next</strong> sits beside it and shows the next volumes of the hero's series, with a
+    than fit, the last tile takes you to the Library filtered to books you are reading. <strong>Up next</strong> sits beside it and shows the next volumes of the hero's series, with a
     count of how many are still ahead.
   </p>
   <div class="docs-shot">
@@ -41,8 +39,7 @@ import { withBase } from '../../lib/path'
   <h2>The numbers</h2>
   <p>
     A strip of four numbers: your reading <strong>streak</strong> (days, or weeks when you read
-    every week but not every day, with your best), time read <strong>this month</strong>, books
-    <strong>finished</strong> in the last 30 days, and the size of the <strong>library</strong>. If
+    every week but not every day, with your best), time read <strong>this month</strong>, books <strong>finished</strong> in the last 30 days, and the size of the <strong>library</strong>. If
     you have set <a href={withBase("/docs/stats")}>reading goals</a>, their progress rings sit under
     the strip; click one to open Stats.
   </p>
@@ -50,18 +47,14 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="home-numbers" alt="The four numbers on Home: streak, time read this month, books finished in the last 30 days, and library size" />
   </div>
   <p>
-    The fuller picture, including the Reading DNA reading personality, is on the
-    <a href={withBase("/docs/stats")}>Stats</a> page (Reading DNA is a tile you add from
-    <strong>Add tile</strong> under Habits).
+    The fuller picture, including the Reading DNA reading personality, is on the <a href={withBase("/docs/stats")}>Stats</a> page (Reading DNA is a tile you add from <strong>Add tile</strong> under Habits).
   </p>
 
   <h2>Recently added and the quick look</h2>
   <p>
-    <strong>Recently added</strong> is a row of the newest books in the library; <strong>See all</strong>
-    opens the Library sorted by date added. Clicking a cover here, in Up next, or in any grid or row
+    <strong>Recently added</strong> is a row of the newest books in the library; <strong>See all</strong> opens the Library sorted by date added. Clicking a cover here, in Up next, or in any grid or row
     in Tome opens the <strong>quick look</strong>: the cover, series, title, author and description,
-    your progress and reading time when you have started the book, and <strong>Resume</strong> (or
-    <strong>Read</strong>) and <strong>Open page</strong>, without leaving the page you are on.
+    your progress and reading time when you have started the book, and <strong>Resume</strong> (or <strong>Read</strong>) and <strong>Open page</strong>, without leaving the page you are on.
     Escape or a click outside closes it.
   </p>
   <div class="docs-shot">
@@ -70,9 +63,7 @@ import { withBase } from '../../lib/path'
 
   <h2>Upcoming releases</h2>
   <p>
-    When a series you follow has a next volume with a known release date, Home lists it under
-    <strong>Upcoming releases</strong>, soonest first. Following itself lives on the
-    <a href={withBase("/docs/wishlist")}>Wishlist</a> page's <strong>Following</strong> strip and on
+    When a series you follow has a next volume with a known release date, Home lists it under <strong>Upcoming releases</strong>, soonest first. Following itself lives on the <a href={withBase("/docs/wishlist")}>Wishlist</a> page's <strong>Following</strong> strip and on
     each series page's <strong>Follow</strong> button; it needs release detection to be on.
   </p>
 
@@ -80,20 +71,17 @@ import { withBase } from '../../lib/path'
   <p>
     Home shows one of your highlights: one you made on this day in an earlier month or year when
     there is one (<strong>On this day</strong>), otherwise a random one (<strong>From your
-    highlights</strong>). The shuffle button shows another, <strong>All</strong> opens your
-    <a href={withBase("/docs/highlights")}>commonplace book</a>.
+    highlights</strong>). The shuffle button shows another, <strong>All</strong> opens your <a href={withBase("/docs/highlights")}>commonplace book</a>.
   </p>
 
   <h2>Recent activity</h2>
   <p>
     The last reading sessions as plain rows: the book, the number of sessions, time and pages, and
-    how long ago. Back-to-back sessions of the same book on the same day share one row.
-    <strong>See all</strong> opens <a href={withBase("/docs/stats")}>Stats</a>.
+    how long ago. Back-to-back sessions of the same book on the same day share one row. <strong>See all</strong> opens <a href={withBase("/docs/stats")}>Stats</a>.
   </p>
 
   <Callout variant="note" title="Which books count as 'in progress'?">
-    The hero and Also reading draw from per-user reading status: books marked
-    <strong>reading</strong>, whether that status came from the web reader, KOReader sync, or a
+    The hero and Also reading draw from per-user reading status: books marked <strong>reading</strong>, whether that status came from the web reader, KOReader sync, or a
     manual change on the book page.
   </Callout>
 </DocsLayout>
