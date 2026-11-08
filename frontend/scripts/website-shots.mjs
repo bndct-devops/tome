@@ -65,6 +65,10 @@ for (const theme of themes) {
       if (scene.setup) await scene.setup({ page, ctx, api, token, theme, BASE })
       // park the cursor so no hover state ends up in the shot (unless a scene wants it)
       if (!scene.keepMouse) { await page.mouse.move(0, 0); await page.waitForTimeout(120) }
+      // and drop keyboard focus: a 1px focus ring on an autofocused field aliases at 1x and reads as a clipped edge
+      if (!scene.keepFocus) { await page.evaluate(() => { const el = document.activeElement; if (el && el !== document.body && typeof el.blur === 'function') el.blur() }); await page.waitForTimeout(120) }
+      // and drop keyboard focus: an autofocused search field must not wear its ring in a still (unless a scene keeps it)
+      if (!scene.keepFocus) { await page.evaluate(() => { const el = document.activeElement; if (el && el !== document.body && typeof el.blur === 'function') el.blur() }); await page.waitForTimeout(120) }
       const file = path.join(OUT, theme, `${scene.name}.png`)
       if (scene.clip) {
         const target = await scene.clip({ page })
