@@ -45,8 +45,28 @@ const KO_FILL: Record<string, string> = {
   gray: 'rgba(148,163,184,0.38)',
   grey: 'rgba(148,163,184,0.38)',
 }
-export const fillForColor = (color: string | null): string =>
-  KO_FILL[(color ?? '').toLowerCase()] ?? 'rgba(234,179,8,0.35)'
+// Sepia page (#f7f3e9): the fills above vanish into the cream (a pale yellow
+// on pale yellow), so the sepia page gets deeper, ochre-leaning variants with
+// a higher alpha. The overlayer still paints them at its group opacity, so the
+// text stays readable. Light and dark keep KO_FILL.
+const KO_FILL_SEPIA: Record<string, string> = {
+  red: 'rgba(190,52,40,0.8)',
+  orange: 'rgba(205,98,12,0.85)',
+  yellow: 'rgba(196,128,0,0.95)',
+  green: 'rgba(58,132,52,0.8)',
+  olive: 'rgba(112,122,22,0.85)',
+  cyan: 'rgba(12,128,150,0.75)',
+  blue: 'rgba(42,92,186,0.7)',
+  purple: 'rgba(124,62,168,0.7)',
+  gray: 'rgba(104,94,78,0.7)',
+  grey: 'rgba(104,94,78,0.7)',
+}
+
+/** The fill for a highlight colour on the given reader page theme. */
+export const fillForColor = (color: string | null, theme?: string): string => {
+  const map = theme === 'sepia' ? KO_FILL_SEPIA : KO_FILL
+  return map[(color ?? '').toLowerCase()] ?? map.yellow
+}
 
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
 
@@ -79,6 +99,7 @@ export class AnnotationPainter {
   private tocLabels = new Set<string>()              // all normalized labels
   private matcher: Matcher | null = null
   private onShow: (a: ReaderAnnotation) => void
+  private theme: string | undefined
   // Section loads can fire before the annotation fetch / TOC mapping finish  - 
   // scanning waits on this so the first chapter isn't scanned against an empty set.
   private ready: Promise<void>
@@ -96,7 +117,7 @@ export class AnnotationPainter {
       }
       const a = this.byCfi.get(annotation.value)
       foliate('overlayer').then(({ Overlayer }) => {
-        draw(Overlayer.highlight, { color: fillForColor(a?.color ?? annotation.color ?? null) })
+        draw(Overlayer.highlight, { color: fillForColor(a?.color ?? annotation.color ?? null, this.theme) })
       })
     })
 
@@ -126,6 +147,13 @@ export class AnnotationPainter {
     } finally {
       this.markReady()
     }
+  }
+
+  /** The reader page theme the fills are picked for; repaints on a change. */
+  setTheme(theme: string) {
+    if (theme === this.theme) return
+    this.theme = theme
+    this.paintResolved(-1)
   }
 
   /** Paint a highlight just created in this session (already has its CFI). */

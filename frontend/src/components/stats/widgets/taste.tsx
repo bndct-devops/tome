@@ -18,7 +18,8 @@ import {
   CartesianGrid,
 } from 'recharts'
 import { FileText } from 'lucide-react'
-import { formatDuration } from '@/lib/utils'
+import { formatDate, formatDuration, formatLongDate } from '@/lib/utils'
+import { dayIso, evenDateTicks, isoDay } from '@/components/stats/axis'
 import { StarRating } from '@/components/StarRating'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
@@ -203,28 +204,43 @@ export function BestRatedSeries({ series }: { series: Ratings['series'] }) {
 export function RatingTrend({ trend }: { trend: Ratings['trend'] }) {
   const { accent, tick, cursor } = useChartColors()
   if (trend.length < 2) return <Empty text={t`Rate a few books to see a trend.`} />
-  const fmt = (d: string) => {
-    try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }) } catch { return d }
-  }
-  // Several ratings in one month share a label: tick only the first of each.
-  const ticks: string[] = []
-  const seen = new Set<string>()
-  for (const p of trend) {
-    const label = fmt(p.date)
-    if (!seen.has(label)) { seen.add(label); ticks.push(p.date) }
+  // A real time axis: points sit at their day, ticks are the shared even
+  // day intervals (as on the pace chart), so the gaps between labels match time.
+  const points = trend
+    .map((p) => ({ ...p, day: isoDay(p.date) }))
+    .sort((a, b) => a.day - b.day)
+  const first = points[0].date
+  const last = points[points.length - 1].date
+  const span = points[points.length - 1].day - points[0].day
+  const xTicks = span > 0 ? evenDateTicks(first, last).map(isoDay) : [points[0].day]
+  // Over ~13 months the ticks are a quarter apart: month and year read better.
+  const tickLabel = (day: number) => {
+    const iso = dayIso(day)
+    if (span <= 400) return formatDate(iso)
+    return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
   }
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-      <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+      <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} vertical={false} />
-        <XAxis dataKey="date" ticks={ticks} tickFormatter={fmt} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} minTickGap={28} />
+        <XAxis
+          dataKey="day"
+          type="number"
+          domain={[points[0].day, points[points.length - 1].day]}
+          ticks={xTicks}
+          interval={0}
+          tickFormatter={tickLabel}
+          tick={{ fontSize: 10, fill: tick }}
+          axisLine={false}
+          tickLine={false}
+        />
         <YAxis domain={[0, 5.5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: tick }} width={24} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor} wrapperStyle={{ outline: 'none' }} isAnimationActive={false}
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const d = payload[0].payload
-            return <ChartTooltip><div className="font-medium">{d.rating}★</div><div className="text-muted-foreground">{fmt(d.date)}</div></ChartTooltip>
+            return <ChartTooltip><div className="font-medium">{d.rating}★</div><div className="text-muted-foreground">{formatLongDate(d.date)}</div></ChartTooltip>
           }}
         />
         <Line type="monotone" dataKey="rating" stroke={accent} strokeWidth={2} dot={{ r: 2.5, fill: accent }} isAnimationActive={false} />

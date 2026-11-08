@@ -27,24 +27,6 @@ import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
-import { useEffect, useState } from 'react'
-
-// The theme's info hue, resolved for SVG attributes: the second series of a
-// two-series chart, so it never reads as a paler copy of the accent.
-function readInfo(): string {
-  if (typeof window === 'undefined') return '#3b82f6'
-  return getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#3b82f6'
-}
-function useInfoColor(): string {
-  const [c, setC] = useState(readInfo)
-  useEffect(() => {
-    const obs = new MutationObserver(() => setC(readInfo()))
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
-    return () => obs.disconnect()
-  }, [])
-  return c
-}
-
 
 export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
   const { accent } = useChartColors()
@@ -305,8 +287,8 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
 }
 
 export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: StatsResponse['monthly_comparison']; chartType?: ChartKind }) {
-  const { accent, tick, cursor } = useChartColors()
-  const info = useInfoColor()
+  // Books finished take the success hue (finished = done), never a stray blue.
+  const { accent, tick, cursor, success: booksColor } = useChartColors()
   const hoursName = t`Reading hours`
   const booksName = t`Books finished`
   return (
@@ -338,7 +320,7 @@ export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: Sta
           wrapperStyle={{ paddingTop: 8 }}
           content={() => (
             <div className="flex justify-center gap-4 text-[11px]">
-              {[{ name: hoursName, color: accent }, { name: booksName, color: info }].map((it) => (
+              {[{ name: hoursName, color: accent }, { name: booksName, color: booksColor }].map((it) => (
                 <span key={it.name} className="inline-flex items-center gap-1.5" style={{ color: it.color }}>
                   <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: it.color }} />
                   {it.name}
@@ -350,19 +332,19 @@ export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: Sta
         {chartType === 'bar' && (
           <>
             <Bar yAxisId="hours" dataKey="reading_hours" name={hoursName} fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-            <Bar yAxisId="books" dataKey="books_finished" name={booksName} fill={info} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            <Bar yAxisId="books" dataKey="books_finished" name={booksName} fill={booksColor} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
           </>
         )}
         {chartType === 'line' && (
           <>
             <Line yAxisId="hours" type="monotone" dataKey="reading_hours" name={hoursName} stroke={accent} strokeWidth={2} dot={false} isAnimationActive={false} />
-            <Line yAxisId="books" type="monotone" dataKey="books_finished" name={booksName} stroke={info} strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line yAxisId="books" type="monotone" dataKey="books_finished" name={booksName} stroke={booksColor} strokeWidth={2} dot={false} isAnimationActive={false} />
           </>
         )}
         {chartType === 'area' && (
           <>
             <Area yAxisId="hours" type="monotone" dataKey="reading_hours" name={hoursName} fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} isAnimationActive={false} />
-            <Area yAxisId="books" type="monotone" dataKey="books_finished" name={booksName} fill={info} fillOpacity={0.12} stroke={info} strokeWidth={2} isAnimationActive={false} />
+            <Area yAxisId="books" type="monotone" dataKey="books_finished" name={booksName} fill={booksColor} fillOpacity={0.12} stroke={booksColor} strokeWidth={2} isAnimationActive={false} />
           </>
         )}
       </ComposedChart>

@@ -101,6 +101,11 @@ All notable changes to Tome are documented here. Format loosely follows
   2026". The calendar's out-of-month days line up with the rest, the phone
   drawer lists libraries and shelves again, the Word counts tab says what it
   will count, and fetched descriptions drop stray markdown marks.
+- **Highlights are visible in the sepia reader.** Each highlight colour has a
+  sepia variant with enough contrast on the cream page; the colour picker and
+  the highlight card use the same. Stats charts take their colours from the
+  theme instead of a fixed indigo and violet set, and the rating trend sits on
+  a real time axis.
 - **Smaller fixes:** the "Read on the web" line on Home no longer looks like a
   button; the hero book is not repeated in Also reading; Quick look keeps
   paragraph breaks; "0 book" plurals in French; a gap after the digit 1 in

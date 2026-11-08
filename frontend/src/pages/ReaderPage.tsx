@@ -712,6 +712,12 @@ export default function ReaderPage() {
     () => (localStorage.getItem('reader_theme') as ReaderTheme) ?? 'light'
   )
   const [showSettings, setShowSettings] = useState(false)
+  // The painter is built once per book; it reads the live page theme from here.
+  const themeRef = useRef(theme)
+  useEffect(() => {
+    themeRef.current = theme
+    painterRef.current?.setTheme(theme)
+  }, [theme])
 
   // ── EPUB-only state ─────────────────────────────────────────────────────────
   const [chapterLabel, setChapterLabel] = useState('')
@@ -1098,6 +1104,7 @@ export default function ReaderPage() {
         a => setActiveHighlight(a),
       )
       painterRef.current = painter
+      painter.setTheme(themeRef.current)
       const annotationsPromise = api
         .get<ReaderAnnotation[]>(`/books/${bookId}/annotations`)
         .catch(() => [] as ReaderAnnotation[])
@@ -1752,7 +1759,7 @@ export default function ReaderPage() {
                   aria-label={t`Highlight in ${c}`}
                   className="w-6 h-6 rounded-full transition-transform hover:scale-110 disabled:opacity-50"
                   style={{
-                    background: fillForColor(c).replace(/[\d.]+\)$/, '0.9)'),
+                    background: fillForColor(c, theme).replace(/[\d.]+\)$/, '0.9)'),
                     border: '1px solid rgba(128,128,128,0.35)',
                   }}
                 />
@@ -1769,7 +1776,7 @@ export default function ReaderPage() {
                   <div className="flex items-center gap-2 min-w-0 text-[13px] text-muted-foreground">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ background: fillForColor(activeHighlight.color).replace(/[\d.]+\)$/, '1)') }}
+                      style={{ background: fillForColor(activeHighlight.color, theme).replace(/[\d.]+\)$/, '1)') }}
                     />
                     {activeHighlight.chapter && <span className="truncate">{activeHighlight.chapter}</span>}
                     {(() => {
@@ -1789,7 +1796,7 @@ export default function ReaderPage() {
                 {activeHighlight.highlighted_text && (
                   <p
                     className="text-[14px] leading-relaxed max-h-40 overflow-y-auto border-l-2 pl-2.5"
-                    style={{ borderColor: fillForColor(activeHighlight.color).replace(/[\d.]+\)$/, '0.9)') }}
+                    style={{ borderColor: fillForColor(activeHighlight.color, theme).replace(/[\d.]+\)$/, '0.9)') }}
                   >
                     {activeHighlight.highlighted_text}
                   </p>
