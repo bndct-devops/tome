@@ -309,8 +309,11 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   // Days of the neighbouring months that complete the first and last week; they jump there.
   const outside = (iso: string, n: number, col: number) => (
     <button key={iso} onClick={() => onJump(iso)} disabled={iso > today} aria-label={shortDay(iso)}
-      className={cn(CELL, cellBg(col), 'flex flex-col items-start text-left transition-colors enabled:hover:bg-muted/40 disabled:cursor-default')}>
-      <span className="font-display text-xs leading-none text-muted-foreground/40 sm:text-sm">{n}</span>
+      className={cn(CELL, cellBg(col), 'flex flex-col items-stretch gap-1 text-left transition-colors enabled:hover:bg-muted/40 disabled:cursor-default')}>
+      {/* Same wrapper and number box as an in-month day, so the numbers line up across a row. */}
+      <span className="flex items-start justify-between gap-1">
+        <span className="grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none text-muted-foreground/40 sm:text-sm">{n}</span>
+      </span>
     </button>
   )
 
@@ -486,7 +489,8 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
 
   const quip = (() => {
     const mainTitle = main.title
-    const dur = formatDuration(data.seconds)
+    // A duration never breaks across lines ("2h / 0m").
+    const dur = formatDuration(data.seconds).replace(/ /g, '\u00a0')
     if (finished[0] && started[0]) { const a = finished[0].title, b = started[0].title; return t`Finished ${a} and went straight into ${b}.` }
     if (finished[0]) { const a = finished[0].title; return t`Finished ${a}.` }
     if (data.is_month_best) return t`Your biggest reading day this month: ${dur} with ${mainTitle}.`
@@ -534,7 +538,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
       <div className="grid grid-cols-4 gap-3">
         {stats.map(s => (
           <div key={s.label} className="min-w-0">
-            <p className="font-display text-lg leading-tight text-foreground tabular-nums">{s.value}</p>
+            <p className="whitespace-nowrap font-display text-lg leading-tight text-foreground tabular-nums">{s.value}</p>
             <p className="truncate text-[11px] text-muted-foreground">{s.label}</p>
           </div>
         ))}
@@ -562,7 +566,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
           ))}
         </div>
         <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-          {data.sittings.map(s => `${hhmm(s.start)} (${formatDuration(s.end - s.start)})`).join(', ')}
+          {data.sittings.map(s => `${hhmm(s.start)}\u00a0(${formatDuration(s.end - s.start).replace(/ /g, '\u00a0')})`).join(', ')}
         </p>
       </div>
     </div>

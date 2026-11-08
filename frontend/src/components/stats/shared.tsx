@@ -232,12 +232,13 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
     }
   })
 
-  const svgW = 30 + weeks.length * (CELL + GAP)
+  // + 16: room for the last month label, which starts on the final column.
+  const svgW = 30 + weeks.length * (CELL + GAP) + 16
   const svgH = 20 + 7 * (CELL + GAP)
 
   return (
     <div ref={scrollRef} className="relative overflow-x-auto">
-      <svg width={svgW} height={svgH} className="mx-auto" style={{ display: 'block', minWidth: svgW }}>
+      <svg width={svgW} height={svgH} style={{ display: 'block', minWidth: svgW }}>
         {monthLabels.map(({ x, label }) => (
           <text key={label + x} x={x} y={10} fontSize={9} fill={tick}>{label}</text>
         ))}

@@ -21,7 +21,7 @@ import { Pill, Input, Select, Checkbox, FormLabel, Textarea } from '@/components
 import { ModalShell } from '@/components/ModalShell'
 import { api } from '@/lib/api'
 import { SUPPORTERS } from '@/lib/supporters'
-import { cn } from '@/lib/utils'
+import { cn, formatLongDate } from '@/lib/utils'
 import {
   listTokens, createToken, revokeToken,
   type ApiTokenListItem,
@@ -1726,8 +1726,8 @@ export function SettingsPage() {
                 <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                   {/* Header */}
                   <div className={cn(
-                    'hidden sm:grid px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground',
-                    apiTokensAllUsers && user?.is_admin ? 'grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'grid-cols-[1fr_7rem_7rem_6rem_2rem]'
+                    'hidden sm:grid gap-x-4 px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground',
+                    apiTokensAllUsers && user?.is_admin ? 'grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_5rem_2rem]' : 'grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_2rem]'
                   )}>
                     <span><Trans>Name</Trans></span>
                     <span><Trans>Prefix</Trans></span>
@@ -1742,8 +1742,8 @@ export function SettingsPage() {
                       <div
                         key={tok.id}
                         className={cn(
-                          'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                          apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'sm:grid-cols-[1fr_7rem_7rem_6rem_2rem]',
+                          'flex sm:grid items-center gap-2 sm:gap-x-4 px-3 py-2.5 transition-colors',
+                          apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_5rem_2rem]' : 'sm:grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_2rem]',
                           isRevoked && 'opacity-50'
                         )}
                       >
@@ -1760,14 +1760,14 @@ export function SettingsPage() {
                             </span>
                           )}
                         </span>
-                        <span className="font-mono text-muted-foreground shrink-0">
+                        <span className="font-mono text-muted-foreground shrink-0 min-w-0 truncate" title={`tome_${tok.prefix}`}>
                           tome_{tok.prefix}…
                         </span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                        <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
                           {tok.last_used_at ? relativeTime(tok.last_used_at) : t`Never`}
                         </span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {new Date(tok.created_at).toLocaleDateString(i18n.locale)}
+                        <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
+                          {formatLongDate(tok.created_at)}
                         </span>
                         {apiTokensAllUsers && user?.is_admin && (
                           <span className="text-muted-foreground hidden sm:block shrink-0 truncate">

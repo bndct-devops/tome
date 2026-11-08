@@ -28,8 +28,8 @@ export function Stat({ label, value, unit, foot, tone = 'foreground', size = 40,
   return (
     <div className={className}>
       <div className="text-[14px] text-muted-foreground">{label}</div>
-      <div className={cn('mt-1.5 flex items-baseline gap-1.5', TONE[tone])}>
-        <span className={cn('font-display leading-none font-bold tabular-nums', size === 40 ? 'text-[40px]' : 'text-[30px]')}>{value}</span>
+      <div className={cn('mt-1.5 flex items-baseline', unit === '%' ? 'gap-0' : 'gap-1.5', TONE[tone])}>
+        <span className={cn('font-display leading-none font-bold', size === 40 ? 'text-[40px]' : 'text-[30px]')}>{value}</span>
         {unit && <span className={cn('font-semibold', size === 40 ? 'text-[16px]' : 'text-[14px] text-muted-foreground')}>{unit}</span>}
       </div>
       {foot && <div className="text-[14px] text-muted-foreground mt-1.5">{foot}</div>}

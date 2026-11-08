@@ -24,7 +24,7 @@ import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, formatLongDate } from '@/lib/utils'
 import { IconPicker } from '@/components/Sidebar'
 import { CoverImage } from '@/components/CoverImage'
 import type { BookType } from '@/lib/books'
@@ -231,7 +231,7 @@ function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: Use
 }
 
 function UsersTab() {
-  const { t, i18n } = useLingui()
+  const { t } = useLingui()
   const { user: me, impersonate } = useAuth()
   const navigate = useNavigate()
   const [users, setUsers] = useState<UserData[]>([])
@@ -360,10 +360,10 @@ function UsersTab() {
                     <p className="text-[13px] text-muted-foreground truncate">{u.email}</p>
                   </div>
                 </div>
-                <div className="hidden sm:block w-24 text-[13px] text-muted-foreground shrink-0 tabular-nums">
-                  {new Date(u.created_at).toLocaleDateString(i18n.locale)}
+                <div className="hidden sm:block w-24 text-[13px] text-muted-foreground shrink-0 whitespace-nowrap">
+                  {formatLongDate(u.created_at)}
                 </div>
-                <div className="flex items-center justify-end gap-0.5 shrink-0 sm:w-[164px]">
+                <div className="flex items-center justify-end sm:justify-start gap-0.5 shrink-0 sm:w-[164px]">
                   {u.id !== me?.id && deleteConfirm === u.id ? (
                     <>
                       <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={() => handleDelete(u.id)} disabled={deleting === u.id}>
@@ -1273,7 +1273,7 @@ function AuditTab() {
 
   function fmt(iso: string) {
     const d = new Date(iso)
-    return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' })
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   }
 
   const totalPages = Math.ceil(total / perPage)
@@ -1309,7 +1309,7 @@ function AuditTab() {
             <span className="w-7" />
             <span className="flex-1"><Trans>Action</Trans></span>
             <span className="w-28"><Trans>User</Trans></span>
-            <span className="w-40"><Trans>Time</Trans></span>
+            <span className="w-44"><Trans>Time</Trans></span>
             <span className="w-3.5" />
           </div>
           {items.map(entry => {
@@ -1338,7 +1338,7 @@ function AuditTab() {
                     )}
                   </div>
                   <span className="w-28 text-[13px] text-muted-foreground hidden sm:block truncate">{entry.username ?? '-'}</span>
-                  <span className="sm:w-40 text-[13px] text-muted-foreground tabular-nums shrink-0">{fmt(entry.created_at)}</span>
+                  <span className="sm:w-44 text-[13px] text-muted-foreground whitespace-nowrap shrink-0">{fmt(entry.created_at)}</span>
                   {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                 </button>
                 {isExpanded && (
@@ -2200,10 +2200,11 @@ function FulfillPicker({
             <button
               key={book.id}
               onClick={() => setSelectedId(book.id)}
+              // The ring is inset: the list scrolls, and an outer ring is clipped to its corners.
               className={cn(
                 'w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors',
                 selectedId === book.id
-                  ? 'bg-primary/10 ring-1 ring-primary/40'
+                  ? 'bg-secondary ring-1 ring-inset ring-foreground/25'
                   : 'hover:bg-secondary'
               )}
             >
@@ -2218,6 +2219,7 @@ function FulfillPicker({
                 <p className="text-[14px] font-medium text-foreground truncate">{book.title}</p>
                 {book.author && <p className="text-[12px] text-muted-foreground truncate">{book.author}</p>}
               </div>
+              {selectedId === book.id && <Check className="w-4 h-4 text-foreground shrink-0 mr-1" />}
             </button>
           ))}
         </div>
@@ -2421,6 +2423,8 @@ function WishlistTab() {
                               setActionError(prev => { const n = { ...prev }; delete n[wish.id]; return n })
                             }}
                             variant="secondary"
+                            // Fixed width: "Fulfill" and "Complete" differ, and the row's meta and Dismiss would shift.
+                            className="min-w-[7.5rem]"
                           >
                             <Check className="w-3 h-3" />
                             {wish.series && wish.series_index == null ? t`Complete` : t`Fulfill`}
@@ -2741,18 +2745,18 @@ function EmailTab() {
       >
         {allDevices.length > 0 ? (
           <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
-            <div className="hidden sm:grid grid-cols-[8rem_1fr_1fr_7rem] py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <div className="hidden sm:grid grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_7rem] gap-x-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               <span><Trans>User</Trans></span>
               <span><Trans>Device</Trans></span>
               <span><Trans>Email</Trans></span>
               <span><Trans>Added</Trans></span>
             </div>
             {allDevices.map(d => (
-              <div key={d.id} className="flex sm:grid sm:grid-cols-[8rem_1fr_1fr_7rem] items-center gap-2 sm:gap-0 py-2.5">
+              <div key={d.id} className="flex sm:grid sm:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_7rem] items-center gap-2 sm:gap-x-3 py-2.5">
                 <span className="text-foreground font-medium truncate">{d.username}</span>
                 <span className="text-foreground truncate">{d.device_name}</span>
                 <span className="text-muted-foreground font-mono truncate">{d.device_email}</span>
-                <span className="text-muted-foreground hidden sm:block">{new Date(d.created_at).toLocaleDateString(i18n.locale)}</span>
+                <span className="text-muted-foreground hidden sm:block whitespace-nowrap">{formatLongDate(d.created_at)}</span>
               </div>
             ))}
           </div>
@@ -2768,7 +2772,7 @@ function EmailTab() {
       >
         {history.length > 0 ? (
           <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
-            <div className="hidden sm:grid grid-cols-[10rem_6rem_1fr_1fr_5rem] py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <div className="hidden sm:grid grid-cols-[10rem_6rem_minmax(0,1fr)_minmax(0,1fr)_5rem] gap-x-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               <span><Trans>Time</Trans></span>
               <span><Trans>User</Trans></span>
               <span><Trans>Book</Trans></span>
@@ -2776,7 +2780,7 @@ function EmailTab() {
               <span><Trans>Status</Trans></span>
             </div>
             {history.map(h => (
-              <div key={h.id} className="flex sm:grid sm:grid-cols-[10rem_6rem_1fr_1fr_5rem] items-center gap-2 sm:gap-0 py-2.5">
+              <div key={h.id} className="flex sm:grid sm:grid-cols-[10rem_6rem_minmax(0,1fr)_minmax(0,1fr)_5rem] items-center gap-2 sm:gap-x-3 py-2.5">
                 <span className="text-muted-foreground shrink-0">
                   {new Date(h.created_at).toLocaleString(i18n.locale, {
                     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',

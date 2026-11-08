@@ -7,7 +7,7 @@ import { Loader2, BookOpen, ExternalLink, Check, ChevronLeft, Search } from 'luc
 import { BookAnimation } from '@/components/BookAnimation'
 import { ModalShell } from '@/components/ModalShell'
 import { Checkbox, Input, Pill } from '@/components/page'
-import { cn } from '@/lib/utils'
+import { cn, stripMarkdown } from '@/lib/utils'
 import type { BookDetail, MetadataCandidate } from '@/lib/books'
 
 const API = import.meta.env.VITE_API_URL ?? ''
@@ -38,7 +38,7 @@ function candidateToFields(book: BookDetail, c: MetadataCandidate): FieldRow[] {
   return [
     { key: 'title', label: msg`Title`, current: book.title, incoming: c.title, checked: true },
     { key: 'author', label: msg`Author`, current: book.author, incoming: c.author, checked: true },
-    { key: 'description', label: msg`Description`, current: book.description, incoming: c.description, checked: true },
+    { key: 'description', label: msg`Description`, current: book.description, incoming: c.description ? stripMarkdown(c.description) : null, checked: true },
     { key: 'publisher', label: msg`Publisher`, current: book.publisher, incoming: c.publisher, checked: true },
     { key: 'year', label: msg`Year`, current: book.year?.toString() ?? null, incoming: c.year?.toString() ?? null, checked: true },
     { key: 'language', label: msg`Language`, current: book.language, incoming: c.language, checked: true },
@@ -150,7 +150,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
 
       if (checkedKeys.has('title') && selected.title) body.title = selected.title
       if (checkedKeys.has('author') && selected.author) body.author = selected.author
-      if (checkedKeys.has('description') && selected.description) body.description = selected.description
+      if (checkedKeys.has('description') && selected.description) body.description = stripMarkdown(selected.description)
       if (checkedKeys.has('publisher') && selected.publisher) body.publisher = selected.publisher
       if (checkedKeys.has('year') && selected.year != null) body.year = selected.year
       if (checkedKeys.has('language') && selected.language) body.language = selected.language
@@ -278,7 +278,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
                           </p>
                         )}
                         {c.description && (
-                          <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{c.description}</p>
+                          <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{stripMarkdown(c.description)}</p>
                         )}
                         {c.tags.length > 0 && (
                           <p className="mt-1 truncate text-[13px] text-muted-foreground/80">

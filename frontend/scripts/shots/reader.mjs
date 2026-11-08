@@ -58,6 +58,16 @@ async function textRect(page, needle, { select = false, length } = {}) {
   }, { needle, select, length })
 }
 
+// The runner pads a crop by 48px; clamp a box so its padded bottom stops 14px above the
+// reader footer ("Letter 1 · ~10 min left", progress bar) instead of slicing through it.
+const PAD = 48
+async function aboveFooter(page, box) {
+  const f = await page.getByText(/min left/).first().boundingBox()
+  if (!f) return box
+  const maxBottom = f.y - 14 - PAD
+  return { ...box, height: Math.min(box.height, maxBottom - box.y) }
+}
+
 export const scenes = [
   {
     name: 'reader-epub', route: FRANKENSTEIN, before: readerTheme, settle: 2500,
@@ -82,7 +92,7 @@ export const scenes = [
     },
     clip: async ({ page }) => {
       const bar = await page.getByText('Highlight', { exact: true }).locator('..').boundingBox()
-      return { x: 90, y: bar.y - 330, width: 1420, height: bar.height + 330 }
+      return aboveFooter(page, { x: 90, y: bar.y - 330, width: 1420, height: bar.height + 330 })
     },
   },
   {
@@ -98,7 +108,7 @@ export const scenes = [
     clip: async ({ page }) => {
       const card = await page.locator('div.ring-panel-ring', { hasText: 'Synced from KOReader' }).last().boundingBox()
       const hl = await textRect(page, HIGHLIGHT_START)
-      return { x: 90, y: hl.y - 24, width: 1420, height: card.y + card.height - hl.y + 24 }
+      return aboveFooter(page, { x: 90, y: hl.y - 24, width: 1420, height: card.y + card.height - hl.y + 24 })
     },
   },
   {

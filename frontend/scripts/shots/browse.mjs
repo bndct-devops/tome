@@ -69,7 +69,8 @@ export const scenes = [
     clip: async ({ page }) => dialog(page),
   },
   {
-    name: 'book-detail-edit', route: `/books/${BERSERK_1}`, fullPage: true, maxHeight: 1160,
+    // 1245 tall: ends just under the Reading section's Activity chart (whole chart, no Progress row).
+    name: 'book-detail-edit', route: `/books/${BERSERK_1}`, fullPage: true, maxHeight: 1245,
     setup: async ({ page }) => { await page.getByRole('button', { name: 'Edit', exact: true }).first().click(); await pause(page) },
   },
   {
@@ -114,7 +115,8 @@ export const scenes = [
       } }))
     },
     setup: async ({ page }) => { await page.getByRole('button', { name: 'Link KOReader sync' }).click(); await pause(page, 500) },
-    clip: async ({ page }) => actionBlock(page, page.getByLabel('Synced document')),
+    // effective top padding 12: the label above the status pills stays out of frame
+    clip: async ({ page }) => { const b = await actionBlock(page, page.getByLabel('Synced document')); return { ...b, y: b.y + 12, height: b.height - 12 } },
   },
   {
     name: 'book-intensity', route: `/books/${BERSERK_1}`, pad: 32,
@@ -140,7 +142,8 @@ export const scenes = [
   {
     name: 'koreader-highlights', route: `/books/${PHM}`, pad: 32,
     setup: async ({ page }) => { await scrollTo(page, page.getByText('Highlights and notes'), 160) },
-    clip: async ({ page }) => sectionOf(page, 'Highlights and notes'),
+    // start at the section title with 16px above it: the Sessions heading sits ~30px higher
+    clip: async ({ page }) => { const b = await sectionOf(page, 'Highlights and notes').boundingBox(); return { ...b, y: b.y + 16, height: b.height - 16 } },
   },
 
   // ── Highlights + Calendar ─────────────────────────────────────────────────

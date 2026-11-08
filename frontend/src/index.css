@@ -51,7 +51,9 @@
   --popover-foreground: oklch(0.21 0.012 60);
   --primary: oklch(0.45 0.115 18);
   --primary-foreground: oklch(0.98 0.005 85);
-  --secondary: oklch(0.94 0.004 85);
+  /* A clear step below --frame (0.945): the header search pill sits on the
+     frame and vanished into it at 0.94. */
+  --secondary: oklch(0.925 0.005 85);
   --secondary-foreground: oklch(0.27 0.012 60);
   --muted: oklch(0.94 0.004 85);
   --muted-foreground: oklch(0.50 0.010 70);
@@ -164,7 +166,8 @@
   --popover-foreground: oklch(0.17 0.022 52);
   --primary: oklch(0.50 0.155 52);
   --primary-foreground: oklch(0.99 0.003 70);
-  --secondary: oklch(0.935 0.012 70);
+  /* A clear step below --frame (0.94), as in Light. */
+  --secondary: oklch(0.918 0.014 70);
   --secondary-foreground: oklch(0.30 0.02 52);
   --muted: oklch(0.935 0.01 70);
   --muted-foreground: oklch(0.47 0.022 52);

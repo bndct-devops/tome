@@ -27,7 +27,7 @@ function GoalRing({ goal, size, compact }: { goal: Goal; size: number; compact?:
   return (
     <ProgressRing pct={goal.pct} size={size} stroke={compact ? 5 : 7}>
       <div className="flex flex-col items-center leading-none">
-        <span className={cn('font-bold tabular-nums text-foreground', compact ? 'text-sm' : 'text-lg')}>
+        <span className={cn('font-bold text-foreground', compact ? 'text-sm' : 'text-lg')}>
           {Math.round(goal.current)}
         </span>
         <span className={cn('text-muted-foreground', compact ? 'text-[9px]' : 'text-[10px]')}>

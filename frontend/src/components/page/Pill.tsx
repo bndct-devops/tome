@@ -8,7 +8,9 @@ export type PillSize = 'md' | 'lg'
 // Every variant has a visible hover: primary brightens, secondary steps up to
 // the hover surface, quiet gains a surface, destructive tints red.
 const VARIANT: Record<PillVariant, string> = {
-  primary: 'bg-primary text-primary-foreground hover:brightness-110 active:brightness-95',
+  // Disabled primary drops its fill instead of fading it: a half-transparent
+  // accent still reads as a live button on the warm themes (amber).
+  primary: 'bg-primary text-primary-foreground hover:brightness-110 active:brightness-95 disabled:bg-secondary disabled:text-muted-foreground disabled:opacity-100',
   secondary: 'bg-secondary text-foreground hover:bg-surface-hover',
   quiet: 'text-muted-foreground hover:text-foreground hover:bg-secondary',
   destructive: 'text-muted-foreground hover:text-destructive hover:bg-destructive/10',

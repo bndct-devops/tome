@@ -27,7 +27,7 @@ export function PaceByFormat({ data }: { data: FormatPace[] }) {
         <ProgressRow
           key={f.format}
           label={f.format.toUpperCase()}
-          value={`${f.pages_per_min} p/min`}
+          value={`${f.pages_per_min} pg/min`}
           pct={(f.pages_per_min / maxPpm) * 100}
           sub={(() => { const pages = f.pages; return plural(f.sessions, { one: `# session · ${pages} pages`, other: `# sessions · ${pages} pages` }) })()}
           color={accent}

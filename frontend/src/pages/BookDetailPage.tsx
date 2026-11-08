@@ -1127,7 +1127,7 @@ export function BookDetailPage() {
             className="w-auto max-w-[18rem]">
             {kosyncUnlinked.map(d => (
               <option key={d.document} value={d.document}>
-                {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {new Date(d.timestamp * 1000).toLocaleDateString(i18n.locale)} · {d.document.slice(0, 8)}
+                {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {shortDay(new Date(d.timestamp * 1000))}
               </option>
             ))}
           </Select>

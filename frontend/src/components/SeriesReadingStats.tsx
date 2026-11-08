@@ -126,8 +126,8 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
 
   const supporting: { label: string; value: string }[] = [
     { label: t`finished`, value: `${own.books_finished}/${own.books_total} (${own.completion_pct}%)` },
-    { label: t`sessions`, value: String(own.sessions) },
-    { label: t`pages`, value: own.pages_turned > 0 ? String(own.pages_turned) : '-' },
+    { label: t`sessions`, value: own.sessions.toLocaleString() },
+    { label: t`pages`, value: own.pages_turned > 0 ? own.pages_turned.toLocaleString() : '-' },
     ...(own.avg_volume_seconds > 0
       ? [{ label: t`avg / volume`, value: formatDuration(own.avg_volume_seconds) }] : []),
   ]

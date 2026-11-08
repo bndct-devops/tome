@@ -455,7 +455,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               <Eyebrow className="mb-2">
                 {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
               </Eyebrow>
-              <div className="flex gap-4 py-1.5">
+              <div className="flex gap-4 pb-2">
                 {focus.upcoming!.slice(0, 5).map(u => { const title = u.title; return (
                   <div key={u.book_id} className="shrink-0 w-[104px]">
                     <button

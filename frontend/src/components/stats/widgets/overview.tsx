@@ -16,6 +16,7 @@ import { FileText } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, HeatmapChart, type StatsResponse } from '@/components/stats/shared'
+import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
 
 // Chart style a configurable widget can render as (per-tile setting in the Lab).
@@ -29,9 +30,14 @@ export function HeadlineStatBody({ value, unit, sub }: { value: string; unit?: s
   // every number in the row sits on the same baseline; truncate over wrap so a
   // long value ("568h 28m") never spills onto a second line in a 1-row tile.
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex min-w-0 items-baseline gap-1.5 text-foreground">
-        <span className="truncate font-display text-[40px] font-bold leading-none tabular-nums">{value}</span>
+    // @container + the inline font size: a long value ("37h 20m") steps down
+    // from 40px so it keeps clear air before the next tile in the strip.
+    <div className="@container flex h-full flex-col">
+      <div className={cn('flex min-w-0 items-baseline text-foreground', unit === '%' ? 'gap-0' : 'gap-1.5')}>
+        <span
+          className="truncate font-display text-[40px] font-bold leading-none"
+          style={value.length > 4 ? { fontSize: `min(40px, calc((100cqw - 28px) / ${(value.length * 0.6).toFixed(2)}))` } : undefined}
+        >{value}</span>
         {unit && <span className="shrink-0 text-[16px] font-semibold">{unit}</span>}
       </div>
       <p className="mt-1.5 truncate text-[14px] leading-[18px] text-muted-foreground">{sub ?? '\u00a0'}</p>
@@ -63,14 +69,19 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
             )}
           </div>
+          {/* Title and author share the first line, the bar gets the whole
+              second line: every bar starts at the same x whatever the author
+              length, and the fixed-width percent keeps the ends aligned too. */}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{b.title}</div>
-            <div className="mt-0.5 flex items-center gap-2">
-              {b.author && <span className="max-w-[45%] shrink-0 truncate text-[13px] text-muted-foreground">{b.author}</span>}
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="min-w-0 shrink truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">{b.title}</span>
+              {b.author && <span className="min-w-0 max-w-[45%] shrink-0 truncate text-[13px] text-muted-foreground">{b.author}</span>}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
               <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(b.progress, 100)}%`, backgroundColor: accent }} />
               </div>
-              <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">{b.progress}%</span>
+              <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">{Math.round(b.progress)}%</span>
             </div>
           </div>
         </a>
@@ -83,18 +94,23 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
 function DurationYTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: { value?: number }; fill?: string }) {
   return (
     <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill={fill}>
-      {formatDuration(payload?.value ?? 0)}
+      {axisDuration(payload?.value ?? 0)}
     </text>
   )
 }
 
 export function ReadingTimePerDay({ daily, chartType = 'bar' }: { daily: StatsResponse['daily']; chartType?: ChartKind }) {
   const { accent, tick, cursor } = useChartColors()
+  // Round-number y ticks and an even x interval: recharts' own picks land on
+  // values like "1h 31m" and drop or crowd date labels.
+  const yTicks = niceDurationTicks(Math.max(0, ...daily.map((d) => d.seconds)))
+  const yWidth = Math.max(24, ...yTicks.map((v) => axisDuration(v).length * 6 + 10))
+  const xTicks = daily.length ? evenDateTicks(daily[0].date, daily[daily.length - 1].date) : []
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-      <ComposedChart data={daily} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-        <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
-        <YAxis tick={<DurationYTick fill={tick} />} width={52} axisLine={false} tickLine={false} />
+      <ComposedChart data={daily} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+        <XAxis dataKey="date" ticks={xTicks} interval={0} tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
+        <YAxis ticks={yTicks} domain={[0, yTicks[yTicks.length - 1]]} interval={0} tick={<DurationYTick fill={tick} />} width={yWidth} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor}
           wrapperStyle={{ outline: 'none', background: 'none', border: 'none', boxShadow: 'none' }}
@@ -143,7 +159,7 @@ export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_book
             className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border/70 py-2 last:border-b-0"
           >
             <span className="truncate text-[14px] font-medium text-foreground transition-colors group-hover:text-primary">{b.title}</span>
-            <span className="text-[13px] tabular-nums text-muted-foreground">{formatDuration(b.seconds)}</span>
+            <span className="text-[13px] text-muted-foreground">{formatDuration(b.seconds)}</span>
             <span className="col-span-2 h-1.5 overflow-hidden rounded-full" style={{ background: `color-mix(in oklch, ${accent} 22%, transparent)` }}>
               <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (b.seconds / max) * 100)}%`, backgroundColor: accent }} />
             </span>
@@ -190,7 +206,7 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, titles]) => {
       count += titles.length
-      return { date, titles, daily: titles.length, count }
+      return { date, day: isoDay(date), titles, daily: titles.length, count }
     })
 
   // A single day of finishes draws one dot in an empty box: say it instead.
@@ -215,12 +231,26 @@ export function BooksFinishedArea({ booksFinished, chartType = 'area' }: { books
 
   // Bar mode shows finishes per day; line/area show the cumulative count.
   const dataKey = chartType === 'bar' ? 'daily' : 'count'
+  const firstDay = cumulative[0].day
+  const lastDay = cumulative[cumulative.length - 1].day
 
   return (
     <div className="h-full min-h-[176px]">
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-      <ComposedChart data={cumulative} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-        <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
+      <ComposedChart data={cumulative} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+        {/* A time axis, not one slot per finish: finishes a day apart and a
+            month apart no longer sit the same distance from each other. */}
+        <XAxis
+          dataKey="day"
+          type="number"
+          domain={[firstDay, lastDay]}
+          ticks={evenDateTicks(cumulative[0].date, cumulative[cumulative.length - 1].date).map(isoDay)}
+          interval={0}
+          tickFormatter={(v: number) => formatDate(dayIso(v))}
+          tick={{ fontSize: 10, fill: tick }}
+          axisLine={false}
+          tickLine={false}
+        />
         <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tick }} width={30} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor}
@@ -311,7 +341,7 @@ export function StreakCalendar({ heatmap }: { heatmap: StatsResponse['heatmap_da
               key={i}
               title={`${formatDate(dIso)}${secs > 0 ? `: ${formatDuration(secs)}` : ''}`}
               className={cn(
-                'flex aspect-square items-center justify-center rounded text-[9px] tabular-nums',
+                'flex aspect-square items-center justify-center rounded text-[9px]',
                 secs > 0 ? 'font-semibold text-primary-foreground' : future ? 'text-muted-foreground/40' : 'bg-muted/40 text-muted-foreground',
                 isToday && 'ring-1 ring-primary',
               )}

@@ -182,14 +182,14 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                   )}
                 </div>
               )}
-              <div className={cn('tabular-nums', showBook ? 'text-[14px] text-muted-foreground' : 'text-[15px] text-foreground')}>
+              <div className={cn(showBook ? 'text-[14px] text-muted-foreground' : 'text-[15px] text-foreground')}>
                 {when(s)}
               </div>
               <div className="text-[13px] text-muted-foreground sm:hidden">
                 {dur(s)}{' · '}{sourceLabel(s.device)}
                 {deviceNote(s) && <> · {deviceNote(s)}</>}
               </div>
-              <div className="hidden items-center gap-1.5 text-[14px] tabular-nums text-muted-foreground sm:inline-flex">
+              <div className="hidden items-center gap-1.5 text-[14px] text-muted-foreground sm:inline-flex">
                 {dur(s)}
                 {s.suspect && (
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t`Unusually long session`} />

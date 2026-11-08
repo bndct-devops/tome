@@ -20,6 +20,7 @@ import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { axisDuration, niceDurationTicks } from '@/components/stats/axis'
 import { SessionLog } from '@/components/stats/SessionLog'
 import { coverSrc } from '@/lib/covers'
 
@@ -45,7 +46,7 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
       {items.map((it) => (
         <div key={it.label} className="min-w-0">
           <div className="truncate text-[13px] text-muted-foreground">{it.label}</div>
-          <p className="mt-1.5 truncate font-display text-[30px] font-bold leading-none tabular-nums text-foreground">{it.value}</p>
+          <p className="mt-1.5 truncate font-display text-[30px] font-bold leading-none text-foreground">{it.value}</p>
         </div>
       ))}
     </div>
@@ -97,6 +98,9 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
     for (const cat of categories) entry[cat] = Math.round(((d[cat] as number) || 0) / 60)
     return entry
   })
+  // Stacked: the top tick covers the busiest month's total, in round hours.
+  const stackMax = Math.max(0, ...chartData.map((e) => categories.reduce((sum, c) => sum + ((e[c] as number) || 0), 0)))
+  const yTicks = niceDurationTicks(stackMax * 60).map((sec) => sec / 60)
   const formatMonth = (m: string) => {
     try {
       return new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'short' })
@@ -108,7 +112,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />
+        <YAxis ticks={yTicks} domain={[0, yTicks[yTicks.length - 1]]} interval={0} tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => axisDuration(v * 60)} />
         <Tooltip
           cursor={cursor}
           wrapperStyle={{ outline: 'none' }}
@@ -166,7 +170,7 @@ export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full" style={{ width: `${Math.min(entry.pct, 100)}%`, backgroundColor: accent }} />
         </div>
-        <p className="mt-1 text-right text-[12px] tabular-nums text-muted-foreground">{entry.pct}%</p>
+        <p className="mt-1 text-right text-[12px] text-muted-foreground">{entry.pct}%</p>
       </div>
     </div>
   )
@@ -235,9 +239,9 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
                   <a href={`/books/${b.book_id}`} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">{b.title}</a>
                 </td>
                 <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">{b.author || '--'}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{formatDuration(b.seconds)}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.sessions}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.pages_turned}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{formatDuration(b.seconds)}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{b.sessions}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{b.pages_turned}</td>
                 <td className="py-1.5 px-2">
                   <button
                     onClick={() => setOpenBook(openBook === b.book_id ? null : b.book_id)}

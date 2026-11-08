@@ -14,7 +14,7 @@ export function StatTile({ icon, label, value }: StatTileProps) {
         {icon}
         <p className="text-[13px]">{label}</p>
       </div>
-      <p className="text-[15px] font-semibold text-foreground tabular-nums">{value}</p>
+      <p className="text-[15px] font-semibold text-foreground">{value}</p>
     </div>
   )
 }

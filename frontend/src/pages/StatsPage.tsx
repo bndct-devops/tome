@@ -330,7 +330,6 @@ const WIDGETS: WidgetDef[] = [
     id: 'activity-365',
     title: msg`Reading activity, last 365 days`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    fixedWindow: msg`365 d`,
     render: ({ stats }) => <ReadingActivity365 heatmap={stats.heatmap_daily} />,
   },
   {
@@ -441,7 +440,6 @@ const WIDGETS: WidgetDef[] = [
     id: 'monthly-comparison',
     title: msg`Reading hours and books finished, last 12 months`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    fixedWindow: msg`12 mo`,
     chartTypes: ['bar', 'line', 'area'],
     defaultConfig: { chartType: 'bar', days: 0 },
     render: ({ stats }, cfg) => <MonthlyComparison monthly={stats.monthly_comparison} chartType={cfg.chartType} />,
@@ -500,7 +498,6 @@ const WIDGETS: WidgetDef[] = [
     id: 'genre-over-time',
     title: msg`Reading by category, last 12 months`,
     size: { w: 6, h: 2, minW: 3, minH: 2 },
-    fixedWindow: msg`12 mo`,
     chartTypes: ['area', 'bar'],
     defaultConfig: { chartType: 'area', days: 0 },
     render: ({ stats }, cfg) => <GenreOverTime data={stats.genre_over_time} chartType={cfg.chartType === 'bar' ? 'bar' : 'area'} />,
@@ -509,7 +506,6 @@ const WIDGETS: WidgetDef[] = [
     id: 'library-growth',
     title: msg`Cumulative books added, last 24 months`,
     size: { w: 12, h: 2, minW: 4, minH: 2 },
-    fixedWindow: msg`24 mo`,
     chartTypes: ['area', 'bar'],
     defaultConfig: { chartType: 'area', days: 0 },
     render: ({ stats }, cfg) => <LibraryGrowthChart data={stats.library_growth} height="100%" chartType={cfg.chartType === 'bar' ? 'bar' : 'area'} />,
@@ -951,6 +947,7 @@ function ConfigPopover({
       window.removeEventListener('resize', place)
     }
   }, [onClose])
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- class names, not copy
   const label = 'mb-1.5 text-[13px] font-medium text-muted-foreground'
   return (
     <>
@@ -1742,7 +1739,7 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
               type="button"
               onClick={() => onPick(iso)}
               className={cn(
-                'flex h-8 items-center justify-center rounded-full text-[13px] tabular-nums transition',
+                'flex h-8 items-center justify-center rounded-full text-[13px] transition',
                 isEnd ? 'bg-primary font-semibold text-primary-foreground' : between ? 'bg-primary/15 text-foreground' : 'text-foreground hover:bg-secondary',
               )}
             >
@@ -2291,7 +2288,10 @@ export function StatsPage() {
         <div className="flex items-center gap-1 max-sm:flex-wrap">
           {/* Only the tabs scroll horizontally; the + and board tools stay pinned
               and reachable however many boards you add. */}
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-5 [scrollbar-width:none]">
+          {/* Phones: the row runs to the screen edge under a right-hand fade, so a
+              cut-off last tab reads as "scroll for more"; the end padding is as
+              wide as the fade so the last tab sits clear of it once scrolled. */}
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]">
           {tabs.map((t) => (
             <div
               key={t.id}

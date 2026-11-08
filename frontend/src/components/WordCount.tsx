@@ -116,6 +116,17 @@ export function WordCountTab() {
   const running = state?.status === 'running'
   const terminal = state ? TERMINAL.has(state.status) : false
   const pending = preflight?.pending ?? 0
+  // The pending total mixes two jobs: EPUB word counts and PDF/CBZ/CBR page
+  // counts. Show them apart so "EPUBs 11, counted 11, to count 30" never happens.
+  const pendingEpubs = preflight?.pending_epubs ?? pending
+  const pendingPages = preflight?.pending_page_counts ?? 0
+  const startLabel = pending === 0
+    ? t`Everything is counted`
+    : pendingPages === 0
+      ? plural(pendingEpubs, { one: 'Count words in # EPUB', other: 'Count words in # EPUBs' })
+      : pendingEpubs === 0
+        ? plural(pendingPages, { one: 'Count pages in # file', other: 'Count pages in # files' })
+        : plural(pending, { one: 'Count # file', other: 'Count # files' })
   const pct = state && state.total_bytes > 0
     ? Math.min(100, (state.done_bytes / state.total_bytes) * 100)
     : 0
@@ -125,18 +136,19 @@ export function WordCountTab() {
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <p className="min-w-0 flex-1 basis-[320px] text-[14px] text-muted-foreground leading-relaxed max-w-[70ch]">
           <Trans>Parse each EPUB to store its word count. New uploads get this automatically; this
-          backfills books added before the feature. It only reads the files and writes one
-          number per book; nothing on disk is modified. Word counts power words-read and
-          reading-speed stats. PDF and CBZ are skipped.</Trans>
+          backfills books added before the feature. PDF, CBZ and CBR files get their page
+          count instead. It only reads the files and writes one number per book; nothing on
+          disk is modified. Word counts power words-read and reading-speed stats.</Trans>
         </p>
         {!running && !terminal && (
           <Pill
             onClick={handleStart}
             disabled={busy || pending === 0}
             variant="primary"
-            className="shrink-0">
+            className="shrink-0"
+            title={preflight && pending > 0 ? (() => { const size = formatBytes(preflight.pending_bytes); return t`${size} to read` })() : undefined}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {pending === 0 ? t`Every EPUB is counted` : plural(pending, { one: 'Count # EPUB', other: 'Count # EPUBs' })}
+            {startLabel}
           </Pill>
         )}
         {running && state && (
@@ -157,10 +169,11 @@ export function WordCountTab() {
       {!running && !terminal && (
         <>
           <StatStrip cols={3}>
-            <Stat size={30} label={t`EPUBs`} value={preflight ? formatCount(preflight.epub_total) : '-'} />
-            <Stat size={30} label={t`Already counted`} value={preflight ? formatCount(preflight.already_counted) : '-'} />
-            <Stat size={30} label={t`To count`} value={preflight ? formatCount(pending) : '-'} tone={pending > 0 ? 'primary' : 'foreground'}
-              foot={preflight ? formatBytes(preflight.pending_bytes) : undefined} />
+            <Stat size={30} label={t`EPUBs with word counts`} value={preflight ? formatCount(preflight.already_counted) : '-'}
+              foot={preflight ? (() => { const n = formatCount(preflight.epub_total); return t`of ${n} EPUBs` })() : undefined} />
+            <Stat size={30} label={t`EPUBs to count`} value={preflight ? formatCount(pendingEpubs) : '-'} tone={pendingEpubs > 0 ? 'primary' : 'foreground'} />
+            <Stat size={30} label={t`Page counts to read`} value={preflight ? formatCount(pendingPages) : '-'} tone={pendingPages > 0 ? 'primary' : 'foreground'}
+              foot={t`PDF, CBZ and CBR`} />
           </StatStrip>
         </>
       )}

@@ -57,7 +57,7 @@ export const Checkbox = forwardRef<HTMLInputElement, ChoiceProps>(function Check
     <label className={cn('inline-flex items-start gap-2.5 cursor-pointer select-none', disabled && 'opacity-50 cursor-not-allowed', className)}>
       <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0">
         <input ref={ref} type="checkbox" disabled={disabled} className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
-        <span className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-[5px] bg-secondary ring-1 ring-border transition-colors peer-checked:bg-primary peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
+        <span className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-[5px] bg-card ring-1 ring-muted-foreground/45 transition-colors peer-checked:bg-primary peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
           <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
         </span>
       </span>
@@ -77,7 +77,7 @@ export const Radio = forwardRef<HTMLInputElement, ChoiceProps>(function Radio({ 
     <label className={cn('inline-flex items-start gap-2.5 cursor-pointer select-none', disabled && 'opacity-50 cursor-not-allowed', className)}>
       <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0">
         <input ref={ref} type="radio" disabled={disabled} className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
-        <span className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-full bg-secondary ring-1 ring-border transition-colors peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>span]:scale-0 peer-checked:[&>span]:scale-100">
+        <span className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-full bg-card ring-1 ring-muted-foreground/45 transition-colors peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>span]:scale-0 peer-checked:[&>span]:scale-100">
           <span className="h-2 w-2 rounded-full bg-primary transition-transform" />
         </span>
       </span>

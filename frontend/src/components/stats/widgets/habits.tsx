@@ -25,6 +25,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
 import { useEffect, useState } from 'react'
 
@@ -108,11 +109,23 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
                 <div key={h} className="absolute top-0 bottom-0 border-l border-border/40" style={{ left: `${(h / 24) * 100}%` }} />
               ))}
             </div>
-            <div className="flex gap-3 text-[9px] text-muted-foreground shrink-0 w-20">
-              <span>6</span><span>12</span><span>18</span><span>24</span>
-            </div>
           </div>
         ))}
+      </div>
+      {/* One shared hour axis under the tracks, aligned to them (w-16 + gap-3). */}
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="w-16 shrink-0" />
+        <div className="relative h-3 flex-1 text-[10px] text-muted-foreground">
+          {[0, 6, 12, 18, 24].map((h) => (
+            <span
+              key={h}
+              className={cn('absolute top-0 leading-3', h === 0 ? '' : h === 24 ? '-translate-x-full' : '-translate-x-1/2')}
+              style={{ left: `${(h / 24) * 100}%` }}
+            >
+              {h}
+            </span>
+          ))}
+        </div>
       </div>
       <p className="shrink-0 pt-1 text-center text-[12px] text-muted-foreground">
         {plural(dayEntries.length, { one: '# active day in this window', other: '# active days in this window' })}
@@ -121,42 +134,84 @@ export function SessionTimeline({ sessions }: { sessions: StatsResponse['session
   )
 }
 
-export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace'] }) {
+// Sessions folded into one point per day (pages over minutes for the day), so a
+// day with three sessions is one point, not three repeats of its date label.
+type PaceDay = { day: number; date: string; ppm: number; pages: number; seconds: number; sessions: number }
+function paceByDay(pace: StatsResponse['reading_pace']): PaceDay[] {
+  const byDate = new Map<string, PaceDay>()
+  for (const p of pace) {
+    const date = (p.date ?? '').slice(0, 10)
+    if (!date) continue
+    const d = byDate.get(date) ?? { day: isoDay(date), date, ppm: 0, pages: 0, seconds: 0, sessions: 0 }
+    d.pages += p.pages_turned
+    d.seconds += p.duration_seconds
+    d.sessions += 1
+    byDate.set(date, d)
+  }
+  return [...byDate.values()]
+    .map((d) => ({ ...d, ppm: d.seconds > 0 ? Math.round((d.pages / (d.seconds / 60)) * 100) / 100 : 0 }))
+    .sort((x, y) => x.day - y.day)
+}
+
+// A pace area on a real time axis: even day ticks, one label per date.
+function PaceArea({ days }: { days: PaceDay[] }) {
   const { accent, tick, cursor } = useChartColors()
+  if (days.length === 0) return null
+  const first = days[0].date
+  const last = days[days.length - 1].date
+  const xTicks = evenDateTicks(first, last).map(isoDay)
+  return (
+    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
+      <AreaChart data={days} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+        <XAxis
+          dataKey="day"
+          type="number"
+          domain={[isoDay(first), isoDay(last)]}
+          ticks={xTicks}
+          interval={0}
+          tickFormatter={(v: number) => formatDate(dayIso(v))}
+          tick={{ fontSize: 10, fill: tick }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
+        <Tooltip
+          cursor={cursor}
+          wrapperStyle={{ outline: 'none' }}
+          isAnimationActive={false}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const d = payload[0].payload as PaceDay
+            return (
+              <ChartTooltip>
+                <div className="font-medium">{formatDate(d.date)}</div>
+                {(() => { const ppm = d.ppm; return <div><Trans>{ppm} pg/min</Trans></div> })()}
+                {(() => { const pages = d.pages; const dur = formatDuration(d.seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
+                <div className="text-muted-foreground">{plural(d.sessions, { one: '# session', other: '# sessions' })}</div>
+              </ChartTooltip>
+            )
+          }}
+        />
+        <Area dataKey="ppm" fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} isAnimationActive={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace'] }) {
   if (pace.length === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No paced sessions.</Trans></p>
   const avg = pace.reduce((s, p) => s + p.pages_per_min, 0) / pace.length
   return (
     <div className="flex h-full flex-col">
-      <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-        <AreaChart data={[...pace].reverse()} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
-          <Tooltip
-            cursor={cursor}
-            wrapperStyle={{ outline: 'none' }}
-            isAnimationActive={false}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null
-              const d = payload[0].payload
-              return (
-                <ChartTooltip>
-                  <div className="font-medium">{d.title}</div>
-                  {(() => { const ppm = d.pages_per_min; return <div><Trans>{ppm} pages/min</Trans></div> })()}
-                  {(() => { const pages = d.pages_turned; const dur = formatDuration(d.duration_seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
-                </ChartTooltip>
-              )
-            }}
-          />
-          <Area dataKey="pages_per_min" fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} />
-        </AreaChart>
-      </ResponsiveContainer>
-      {(() => { const a = avg.toFixed(1); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pages/min</Trans></p> })()}
+      <div className="min-h-0 flex-1">
+        <PaceArea days={paceByDay(pace)} />
+      </div>
+      {(() => { const a = avg.toFixed(1); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pg/min</Trans></p> })()}
     </div>
   )
 }
 
 export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'] }) {
-  const { accent, tick, cursor } = useChartColors()
   if (pace.length < 4) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Not enough sessions yet.</Trans></p>
   const paceData = [...pace].reverse()
   const half = Math.floor(paceData.length / 2)
@@ -172,30 +227,11 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
         <span className={cn('text-sm font-semibold', trending === 'up' ? 'text-success' : trending === 'down' ? 'text-destructive' : 'text-muted-foreground')}>
           {(() => { const up = pctDiff; const down = Math.abs(pctDiff); return trending === 'up' ? t`Reading speed up ${up}%` : trending === 'down' ? t`Reading speed down ${down}%` : t`Reading speed steady` })()}
         </span>
-        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pages/min)</Trans></span> })()}
+        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pg/min)</Trans></span> })()}
       </div>
-      <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-        <AreaChart data={paceData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 10, fill: tick }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
-          <Tooltip
-            cursor={cursor}
-            wrapperStyle={{ outline: 'none' }}
-            isAnimationActive={false}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null
-              const d = payload[0].payload
-              return (
-                <ChartTooltip>
-                  <div className="font-medium">{d.title}</div>
-                  {(() => { const ppm = d.pages_per_min; return <div><Trans>{ppm} pages/min</Trans></div> })()}
-                </ChartTooltip>
-              )
-            }}
-          />
-          <Area dataKey="pages_per_min" fill={accent} fillOpacity={0.15} stroke={accent} strokeWidth={2} />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div className="min-h-0 flex-1">
+        <PaceArea days={paceByDay(pace)} />
+      </div>
     </div>
   )
 }
@@ -226,7 +262,7 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                 <div className="h-full rounded-full" style={{ width: `${Math.min(est.progress, 100)}%`, backgroundColor: accent }} />
               </div>
-              <span className="text-[12px] text-muted-foreground tabular-nums shrink-0">{est.progress}%</span>
+              <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">{Math.round(est.progress)}%</span>
             </div>
             <p className={cn('text-[13px] mt-1.5', est.confidence === 'high' ? 'text-foreground' : est.confidence === 'medium' ? 'text-muted-foreground' : 'text-muted-foreground/60')}>
               {est.progress >= 100 ? t`Finished` : est.estimated_days != null ? plural(est.estimated_days, { one: '~# day remaining', other: '~# days remaining' }) : t`Just started`}
@@ -253,7 +289,7 @@ export function PeriodComparison({ comparison }: { comparison: NonNullable<Stats
             if (comparison.pct_change === null) return t`No previous data to compare`
             if (comparison.pct_change === 0 && comparison.current_seconds === 0) return t`No reading data`
             if (comparison.pct_change === 0) return t`Same as previous period`
-            const pct = up ? comparison.pct_change : Math.abs(comparison.pct_change!)
+            const pct = Math.round(Math.abs(comparison.pct_change!))
             return up ? t`${pct}% more reading this period` : t`${pct}% less reading this period`
           })()}
         </p>
@@ -296,7 +332,21 @@ export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: Sta
             )
           }}
         />
-        <Legend formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+        {/* Own legend: recharts' default lists the series in reverse here, the
+            opposite of the bar order. */}
+        <Legend
+          wrapperStyle={{ paddingTop: 8 }}
+          content={() => (
+            <div className="flex justify-center gap-4 text-[11px]">
+              {[{ name: hoursName, color: accent }, { name: booksName, color: info }].map((it) => (
+                <span key={it.name} className="inline-flex items-center gap-1.5" style={{ color: it.color }}>
+                  <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: it.color }} />
+                  {it.name}
+                </span>
+              ))}
+            </div>
+          )}
+        />
         {chartType === 'bar' && (
           <>
             <Bar yAxisId="hours" dataKey="reading_hours" name={hoursName} fill={accent} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
@@ -324,7 +374,7 @@ export function MonthlyComparison({ monthly, chartType = 'bar' }: { monthly: Sta
 function DurTick({ x, y, payload, fill }: { x?: number; y?: number; payload?: { value?: number }; fill?: string }) {
   return (
     <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill={fill}>
-      {formatDuration(payload?.value ?? 0)}
+      {axisDuration(payload?.value ?? 0)}
     </text>
   )
 }
@@ -347,11 +397,12 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
   if (rows.every((r) => r.seconds === 0)) {
     return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No session data.</Trans></p>
   }
+  const yTicks = niceDurationTicks(Math.max(...rows.map((r) => r.seconds)))
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <BarChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
-        <YAxis tick={<DurTick fill={tick} />} width={52} axisLine={false} tickLine={false} />
+        <YAxis ticks={yTicks} domain={[0, yTicks[yTicks.length - 1]]} interval={0} tick={<DurTick fill={tick} />} width={Math.max(24, ...yTicks.map((v) => axisDuration(v).length * 6 + 10))} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor}
           wrapperStyle={{ outline: 'none' }}

@@ -19,6 +19,24 @@ export function formatDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+/** Format an ISO date or timestamp as a medium date with the year ("Nov 7, 2026"). */
+export function formatLongDate(iso: string): string {
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso + 'T00:00:00' : iso)
+  return d.toLocaleDateString(undefined, { dateStyle: 'medium' })
+}
+
+/** Drop markdown emphasis and heading markers from provider text
+ *  ("***Project Hail Mary***" -> "Project Hail Mary"). Book descriptions are
+ *  shown as plain text, so the markers would otherwise show up literally. */
+export function stripMarkdown(text: string): string {
+  return text
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')               // headings
+    .replace(/(\*{1,3})(?=\S)([^*\n]*?\S)\1/g, '$2')     // *em*, **strong**, ***both***
+    .replace(/(^|\W)(_{1,3})(?=\S)([^_\n]*?\S)\2(?!\w)/g, '$1$3') // _em_, not snake_case
+    .replace(/~~(?=\S)([^~\n]*?\S)~~/g, '$1')           // ~~strike~~
+    .replace(/^\s{0,3}(?:\*\s*){3,}$/gm, '')            // *** rules
+}
+
 /** Copy text to the clipboard, working outside secure contexts too.
  *
  * navigator.clipboard only exists on HTTPS/localhost - on a LAN-IP dev page

@@ -39,12 +39,13 @@ export async function mockSmtpConfigured(page) {
 }
 
 // MOCK: the showcase has no valid Hardcover token, so /hardcover/status is answered with a
-// linked account ("benedict") and plausible counts.
+// linked account ("benedict") and counts matching the Hardcover page mock (hardcover.mjs):
+// 20 books = 18 synced + 1 not matched + 1 excluded.
 export async function mockHardcoverLinked(page) {
   await page.route('**/api/hardcover/status', r => r.fulfill({ json: {
     linked: true, username: 'benedict', token_status: 'ok', sync_enabled: true,
     linked_at: '2026-09-02T09:14:00', last_synced_at: '2026-11-07T18:20:00',
-    matched_count: 54, unmatched_count: 4, error_count: 0, sync_running: false,
+    matched_count: 18, unmatched_count: 1, error_count: 0, sync_running: false,
   } }))
 }
 
@@ -56,7 +57,15 @@ export const scenes = [
   },
   {
     name: 'settings-opds', route: '/settings', viewport: { width: 1600, height: 1200 },
-    setup: scrollMainTo('#koreader'),
+    setup: async (ctx) => {
+      await scrollMainTo('#koreader')(ctx)
+      // The OPDS URL is built from window.location.origin in the page (TOME_PUBLIC_URL does
+      // not reach it), so the showcase's localhost origin is swapped for a public-looking one.
+      await ctx.page.evaluate((origin) => {
+        const w = document.createTreeWalker(document.querySelector('#koreader'), NodeFilter.SHOW_TEXT)
+        for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.split(origin).join('https://tome.example.com')
+      }, new URL(ctx.page.url()).origin)
+    },
     // Section heading + the OPDS block, stopping before the divider to Progress sync.
     clip: async ({ page }) => {
       const sec = await page.locator('#koreader').boundingBox()
@@ -74,7 +83,15 @@ export const scenes = [
     // mocked: Hardcover status (linked as benedict), see mockHardcoverLinked
     name: 'settings-hardcover', route: '/settings',
     before: async ({ page }) => { await mockHardcoverLinked(page) },
-    setup: scrollMainTo('#hardcover'),
+    setup: async (ctx) => {
+      await scrollMainTo('#hardcover')(ctx)
+      // The app prints the sync time with toLocaleString() (seconds included); drop the
+      // ":00" seconds in the rendered text so the shot reads "7:20 PM".
+      await ctx.page.evaluate(() => {
+        const w = document.createTreeWalker(document.querySelector('#hardcover'), NodeFilter.SHOW_TEXT)
+        for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.replace(/(\d{1,2}:\d{2}):\d{2}/g, '$1')
+      })
+    },
     clip: async ({ page }) => page.locator('#hardcover'),
   },
   {

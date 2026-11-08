@@ -13,7 +13,9 @@ interface StarRatingProps {
    */
   selected?: number | null
   onChange?: (v: number | null) => void
-  /** Render the fill muted - it's computed, not the user's own rating. */
+  /** The fill is computed (e.g. a volume average), not the user's own rating.
+   *  It renders the same solid fill as a rating, so an average of 4.75 does
+   *  not look like empty outlines; the caller labels it as an average. */
   derived?: boolean
   /** Display-only: no hover, no clicks, renders spans instead of buttons. */
   readOnly?: boolean
@@ -28,7 +30,7 @@ interface StarRatingProps {
  * clears it. Half fills render via a clipped overlay star.
  */
 export function StarRating({
-  value, selected, onChange, derived = false, readOnly = false,
+  value, selected, onChange, readOnly = false,
   starClassName = 'w-5 h-5', className,
 }: StarRatingProps) {
   const [hover, setHover] = useState<number | null>(null)
@@ -51,10 +53,7 @@ export function StarRating({
             className={cn('pointer-events-none absolute inset-0', !readOnly && 'p-0.5')}
             style={fill >= 1 ? undefined : { clipPath: 'inset(0 50% 0 0)' }}
           >
-            <Star className={cn(
-              starClassName, 'fill-rating text-rating transition-colors',
-              derived && hover == null && 'opacity-40',
-            )} />
+            <Star className={cn(starClassName, 'fill-rating text-rating transition-colors')} />
           </span>
         )}
       </>

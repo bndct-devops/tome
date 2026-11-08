@@ -46,11 +46,11 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline gap-2 flex-wrap" title={describePace(pace, usesTypeAvg ? 'type_avg' : (pace.wpm ? 'words' : 'default'))}>
-        <span className="text-3xl font-semibold tabular-nums text-foreground leading-none">{formatEstimateHours(data.seconds)}</span>
+        <span className="text-3xl font-semibold text-foreground leading-none">{formatEstimateHours(data.seconds)}</span>
         {data.days != null && (
           <span className="text-sm text-muted-foreground">
             {(() => { const d = formatEstimateDays(data.days).replace(/^~/, ''); return (
-              <Trans>about <span className="text-foreground font-medium tabular-nums">{d}</span> at your pace</Trans>
+              <Trans>about <span className="text-foreground font-medium">{d}</span> at your pace</Trans>
             ) })()}
           </span>
         )}

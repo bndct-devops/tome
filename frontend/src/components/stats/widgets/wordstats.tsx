@@ -53,7 +53,7 @@ export function WordsRead({ data }: { data: StatsResponse['words'] }) {
             <div key={y.year}>
               <div className="mb-0.5 flex items-center justify-between text-[13px]">
                 <span className="font-medium text-foreground">{y.year}</span>
-                <span className="tabular-nums text-muted-foreground">{compact(y.words)}</span>
+                <span className="text-muted-foreground">{compact(y.words)}</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full" style={{ width: `${(y.words / maxYear) * 100}%`, backgroundColor: accent }} />
@@ -77,7 +77,7 @@ function WpmRow({ b }: { b: StatsResponse['wpm']['books'][number] }) {
         <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
         {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
-      <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">{b.wpm.toLocaleString()}<span className="ml-0.5 text-[12px] font-normal text-muted-foreground">wpm</span></span>
+      <span className="shrink-0 text-sm font-bold text-foreground">{Math.round(b.wpm).toLocaleString()}<span className="ml-0.5 text-[12px] font-normal text-muted-foreground">wpm</span></span>
     </div>
   )
 }
@@ -93,7 +93,7 @@ export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
   return (
     <div className="@container flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-bold leading-none text-foreground">{data.overall.toLocaleString()}</span>
+        <span className="text-3xl font-bold leading-none text-foreground">{Math.round(data.overall).toLocaleString()}</span>
         <span className="text-[13px] text-muted-foreground">{plural(data.books_counted, { one: 'words/min · across # book', other: 'words/min · across # books' })}</span>
       </div>
       <div className="grid grid-cols-1 gap-x-8 gap-y-2.5 @md:grid-cols-2">
@@ -124,7 +124,7 @@ export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
             <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
             {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
           </div>
-          <span className="shrink-0 text-right text-sm font-bold tabular-nums text-foreground">
+          <span className="shrink-0 text-right text-sm font-bold text-foreground">
             {b.reread_pages.toLocaleString()}
             <span className="ml-0.5 text-[12px] font-normal text-muted-foreground">pages{b.pct ? ` · ${b.pct}%` : ''}</span>
           </span>

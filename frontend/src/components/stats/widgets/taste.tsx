@@ -87,7 +87,7 @@ export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
           <div key={d.category}>
             <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{d.category}</span>
-              <span className="tabular-nums text-muted-foreground">{d.avg.toFixed(1)} · {d.count}</span>
+              <span className="text-muted-foreground">{d.avg.toFixed(1)} · {d.count}</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full" style={{ width: `${(d.avg / 5) * 100}%`, backgroundColor: accent }} />
@@ -159,11 +159,15 @@ export function RatingVsTime({ books }: { books: Ratings['books'] }) {
   const { accent, tick, cursor } = useChartColors()
   const pts = books.filter((b) => b.seconds > 0).map((b) => ({ hours: +(b.seconds / 3600).toFixed(1), rating: b.rating, title: b.title }))
   if (pts.length === 0) return <Empty text={t`No rated books with reading time yet.`} />
+  // Round hour ticks (5h, 10h, 20h steps), not recharts' 7h / 14h / 21h.
+  const maxH = Math.max(1, ...pts.map((p) => p.hours))
+  const stepH = [1, 2, 5, 10, 20, 50, 100].find((st) => Math.ceil(maxH / st) <= 6) ?? 200
+  const xTicks = Array.from({ length: Math.ceil(maxH / stepH) + 1 }, (_, i) => i * stepH)
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} />
-        <XAxis type="number" dataKey="hours" name="Hours" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
+        <XAxis type="number" dataKey="hours" name="Hours" domain={[0, xTicks[xTicks.length - 1]]} ticks={xTicks} interval={0} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
         <YAxis type="number" dataKey="rating" domain={[0, 5.5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: tick }} width={24} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor} wrapperStyle={{ outline: 'none' }} isAnimationActive={false}

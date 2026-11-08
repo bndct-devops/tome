@@ -94,6 +94,13 @@ All notable changes to Tome are documented here. Format loosely follows
   it; Tome now adds the prefix once itself, for the token you paste in
   Settings and for `TOME_HARDCOVER_TOKEN`, so both forms work everywhere
   (metadata fetch, release detection and sync).
+- **Charts and tables read cleanly.** Stats charts use round ticks (whole
+  hours, even day spacing, no repeated dates), the session timeline has one
+  shared axis, percentages are whole numbers, and figures in running text no
+  longer show a gap after a 1 ("1 1h"). Dates in admin tables read "Nov 7,
+  2026". The calendar's out-of-month days line up with the rest, the phone
+  drawer lists libraries and shelves again, the Word counts tab says what it
+  will count, and fetched descriptions drop stray markdown marks.
 - **Smaller fixes:** the "Read on the web" line on Home no longer looks like a
   button; the hero book is not repeated in Also reading; Quick look keeps
   paragraph breaks; "0 book" plurals in French; a gap after the digit 1 in

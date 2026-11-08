@@ -1772,9 +1772,15 @@ export default function ReaderPage() {
                       style={{ background: fillForColor(activeHighlight.color).replace(/[\d.]+\)$/, '1)') }}
                     />
                     {activeHighlight.chapter && <span className="truncate">{activeHighlight.chapter}</span>}
-                    {activeHighlight.datetime && (
-                      <span className="shrink-0">· {activeHighlight.datetime.slice(0, 10)}</span>
-                    )}
+                    {(() => {
+                      // KOReader stamps "YYYY-MM-DD HH:MM:SS"; shown like the Highlights page's cards.
+                      const d = activeHighlight.datetime ? new Date(activeHighlight.datetime.replace(' ', 'T')) : null
+                      if (!d || isNaN(d.getTime())) return null
+                      return <>
+                        {activeHighlight.chapter && <span className="shrink-0" aria-hidden>·</span>}
+                        <span className="shrink-0">{d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+                      </>
+                    })()}
                   </div>
                   <ChromeIcon className="-mr-2 -mt-2" onClick={() => { setActiveHighlight(null); setNoteDraft(null) }} title={t`Close`}>
                     <X />

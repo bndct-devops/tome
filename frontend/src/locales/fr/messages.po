@@ -241,8 +241,12 @@ msgstr ""
 #~ msgstr "· p. {page} sur {totalPages}"
 
 #: src/components/stats/widgets/habits.tsx
-msgid "({a} vs {b} pages/min)"
-msgstr "({a} contre {b} pages/min)"
+#~ msgid "({a} vs {b} pages/min)"
+#~ msgstr "({a} contre {b} pages/min)"
+
+#: src/components/stats/widgets/habits.tsx
+msgid "({a} vs {b} pg/min)"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 #~ msgid "(enables dark: variants)"
@@ -1211,16 +1215,32 @@ msgid "{pct}% more reading this period"
 msgstr "{pct} % de lecture en plus sur cette période"
 
 #: src/components/WordCount.tsx
-msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
-msgstr "{pending, plural, one {Compter les mots de # EPUB} other {Compter les mots de # EPUB}}"
+#~ msgid "{pending, plural, one {Count # EPUB} other {Count # EPUBs}}"
+#~ msgstr "{pending, plural, one {Compter les mots de # EPUB} other {Compter les mots de # EPUB}}"
+
+#: src/components/WordCount.tsx
+msgid "{pending, plural, one {Count # file} other {Count # files}}"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "{pendingEpubs, plural, one {Count words in # EPUB} other {Count words in # EPUBs}}"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "{pendingPages, plural, one {Count pages in # file} other {Count pages in # files}}"
+msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{pph} p/h"
 msgstr "{pph} p/h"
 
 #: src/components/stats/widgets/habits.tsx
-msgid "{ppm} pages/min"
-msgstr "{ppm} pages/min"
+#~ msgid "{ppm} pages/min"
+#~ msgstr "{ppm} pages/min"
+
+#: src/components/stats/widgets/habits.tsx
+msgid "{ppm} pg/min"
+msgstr ""
 
 #: src/components/SeriesCoverageStrip.tsx
 msgid "{presentCount} of {maxN} present"
@@ -1284,6 +1304,10 @@ msgstr "{shown, plural, one {# titre} other {# titres}}"
 
 #: src/components/MetadataManager.tsx
 msgid "{shown} of {all} books"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "{size} to read"
 msgstr ""
 
 #: src/components/UploadModal.tsx
@@ -1472,8 +1496,8 @@ msgid "10 hex values, comma-separated"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
-msgid "12 mo"
-msgstr "12 mois"
+#~ msgid "12 mo"
+#~ msgstr "12 mois"
 
 #: src/pages/StatsPage.tsx
 msgid "14d"
@@ -1484,8 +1508,8 @@ msgid "1y"
 msgstr "1 an"
 
 #: src/pages/StatsPage.tsx
-msgid "24 mo"
-msgstr "24 mois"
+#~ msgid "24 mo"
+#~ msgstr "24 mois"
 
 #: src/components/ShareShelfModal.tsx
 msgid "30 days"
@@ -1496,8 +1520,8 @@ msgid "30d"
 msgstr "30 j"
 
 #: src/pages/StatsPage.tsx
-msgid "365 d"
-msgstr "365 j"
+#~ msgid "365 d"
+#~ msgstr "365 j"
 
 #: src/components/ShareShelfModal.tsx
 msgid "7 days"
@@ -1946,8 +1970,8 @@ msgid "All-time hours, pages, books, streak"
 msgstr "Heures, pages, livres et jours consécutifs depuis le début"
 
 #: src/components/WordCount.tsx
-msgid "Already counted"
-msgstr "Déjà comptabilisé"
+#~ msgid "Already counted"
+#~ msgstr "Déjà comptabilisé"
 
 #: src/components/SendButton.tsx
 msgid "Already in your KOReader inbox"
@@ -2260,8 +2284,12 @@ msgid "Average rating per book type"
 msgstr "Note moyenne par type de livre"
 
 #: src/components/stats/widgets/habits.tsx
-msgid "avg {a} pages/min"
-msgstr "moyenne de {a} pages/min"
+#~ msgid "avg {a} pages/min"
+#~ msgstr "moyenne de {a} pages/min"
+
+#: src/components/stats/widgets/habits.tsx
+msgid "avg {a} pg/min"
+msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "avg {avg}"
@@ -3830,8 +3858,16 @@ msgid "EPUB vs CBZ time split"
 msgstr "Répartition du temps entre EPUB et CBZ"
 
 #: src/components/WordCount.tsx
-msgid "EPUBs"
-msgstr "EPUB"
+#~ msgid "EPUBs"
+#~ msgstr "EPUB"
+
+#: src/components/WordCount.tsx
+msgid "EPUBs to count"
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "EPUBs with word counts"
+msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "Error"
@@ -3857,8 +3893,8 @@ msgstr "Temps restant estimé"
 #~ msgstr "Every day you read, and what it looked like."
 
 #: src/components/WordCount.tsx
-msgid "Every EPUB is counted"
-msgstr "Les mots de tous les EPUB ont été comptés"
+#~ msgid "Every EPUB is counted"
+#~ msgstr "Les mots de tous les EPUB ont été comptés"
 
 #: src/components/ShareLinksOverview.tsx
 #~ msgid "Every public link you've shared — shelves, series, and books. Links show metadata, your ratings, highlights, and reading stats; never files. Revoking kills a link instantly."
@@ -3882,6 +3918,10 @@ msgstr "Tous les widgets sont déjà présents sur ce tableau."
 
 #: src/components/Sidebar.tsx
 msgid "Everyone on this server can see its books."
+msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Everything is counted"
 msgstr ""
 
 #: src/components/InstanceBackup.tsx
@@ -6405,6 +6445,10 @@ msgstr "Notifications"
 msgid "Number of reading sessions"
 msgstr "Nombre de sessions de lecture"
 
+#: src/components/WordCount.tsx
+msgid "of {n} EPUBs"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "of {totalPages} pages"
 msgstr "sur {totalPages} pages"
@@ -6713,6 +6757,10 @@ msgstr "Page {collected} sur {total} lue. Touchez l’appareil pour afficher la 
 msgid "Page {n}"
 msgstr "Page {n}"
 
+#: src/components/WordCount.tsx
+msgid "Page counts to read"
+msgstr ""
+
 #: src/pages/ReaderPage.tsx
 msgid "Page thumbnails (T)"
 msgstr "Miniatures des pages (T)"
@@ -6772,7 +6820,11 @@ msgstr "Pages tournées"
 #~ msgstr "Analyse chaque EPUB pour enregistrer son nombre de mots. Les nouveaux téléversements en bénéficient automatiquement — cette opération complète les livres ajoutés avant cette fonctionnalité. Elle lit uniquement les fichiers et enregistre un nombre par livre ; rien n’est modifié sur le disque. Le nombre de mots alimente les statistiques de mots lus et de vitesse de lecture. Les PDF et CBZ sont ignorés."
 
 #: src/components/WordCount.tsx
-msgid "Parse each EPUB to store its word count. New uploads get this automatically; this backfills books added before the feature. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats. PDF and CBZ are skipped."
+#~ msgid "Parse each EPUB to store its word count. New uploads get this automatically; this backfills books added before the feature. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats. PDF and CBZ are skipped."
+#~ msgstr ""
+
+#: src/components/WordCount.tsx
+msgid "Parse each EPUB to store its word count. New uploads get this automatically; this backfills books added before the feature. PDF, CBZ and CBR files get their page count instead. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -6827,6 +6879,10 @@ msgstr "Suspendre"
 #: src/components/TelemetryConsentCard.tsx
 msgid "Paused, the report changed in this version. Review it to resume."
 msgstr "En pause : le rapport a changé dans cette version. Consultez-le pour reprendre."
+
+#: src/components/WordCount.tsx
+msgid "PDF, CBZ and CBR"
+msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 msgid "Peak hour: <0>{peak}:00-{peakEnd}:00</0> · {dur} total"
@@ -9556,8 +9612,8 @@ msgid "To"
 msgstr ""
 
 #: src/components/WordCount.tsx
-msgid "To count"
-msgstr "À compter"
+#~ msgid "To count"
+#~ msgstr "À compter"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/ReadingCalendarPage.tsx

@@ -531,13 +531,17 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 py-3 overscroll-contain">
+            {/* One scroll area for the nav and the account block. A pinned
+                footer took half a phone screen, leaving the nav a sliver that
+                ended at the Libraries header with the lists scrolled out of view. */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <nav className="px-3 py-3">
               {renderGroups('drawer', onMobileClose)}
               {libraryAndShelfSections}
             </nav>
 
             {/* Mobile user footer */}
-            <div className="shrink-0">
+            <div className="mt-4 border-t border-border/70">
               {/* User info */}
               <div className="flex items-center gap-3 px-5 py-3">
                 <div className="flex w-9 h-9 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground shrink-0">
@@ -588,6 +592,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   <Trans>Log out</Trans>
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </div>

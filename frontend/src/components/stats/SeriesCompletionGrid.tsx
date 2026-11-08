@@ -66,8 +66,8 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
                   }}
                 />
               </div>
-              <span className="text-[12px] text-muted-foreground tabular-nums shrink-0">
-                {s.pct}%
+              <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">
+                {Math.round(s.pct)}%
               </span>
             </div>
           </div>

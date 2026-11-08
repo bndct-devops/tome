@@ -53,13 +53,31 @@ const scrollTo = (title) => async ({ page }) => {
   await page.waitForTimeout(700)
 }
 
-// Half-width tiles pass pad 12: their neighbour starts ~16px to the side.
+// Tiles sit 16px apart (grid gap). A pad of 7 keeps the crop inside the gap on every side,
+// so no neighbour's hairline or edge leaks in.
+const PAD = 7
+
+// Clip to the tile's content: a tile taller than its content (a short list) ends at its
+// last painted descendant instead of a block of empty space.
+const contentClip = (title) => async ({ page }) => {
+  const t = tile(page, title)
+  const b = await t.boundingBox()
+  // bottom of the last text or image (layout wrappers stretch to the tile's height)
+  const bottom = await t.evaluate((el) => {
+    const rects = [...el.querySelectorAll('img, svg')].map((n) => n.getBoundingClientRect())
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.trim()) { const r = document.createRange(); r.selectNodeContents(n); rects.push(r.getBoundingClientRect()) }
+    return Math.max(...rects.filter((r) => r.width > 0 && r.height > 0).map((r) => r.bottom))
+  })
+  return { ...b, height: Math.min(b.height, bottom - b.y + 8) }
+}
+
 const tileScene = (name, activeTabId, days, title, extra = {}, grow) => ({
   name, route: '/stats', settle: 1800,
   before: board(activeTabId, days, grow),
   setup: scrollTo(title),
   clip: async ({ page }) => tile(page, title),
-  pad: 20, // tiles sit 24px apart on hairlines: keep neighbours' headings out of the crop
+  pad: PAD,
   ...extra,
 })
 
@@ -81,7 +99,7 @@ export const scenes = [
 
   // The six KPI tiles of the Overview's first row, as one strip.
   {
-    name: 'stats-totals', route: '/stats', settle: 1800, before: board('overview', 30), pad: 20,
+    name: 'stats-totals', route: '/stats', settle: 1800, before: board('overview', 30), pad: PAD,
     clip: async ({ page }) => {
       const boxes = []
       for (const t of ['Reading time', 'Sessions', 'Finished', 'Streak', 'Pages turned', 'Completion']) boxes.push(await tile(page, t).boundingBox())
@@ -92,8 +110,8 @@ export const scenes = [
 
   // Overview tiles
   tileScene('stats-currently-reading', 'overview', 30, 'Currently reading'),
-  tileScene('stats-time-per-day', 'overview', 30, 'Reading time per day', { pad: 12 }),
-  tileScene('stats-top-books', 'overview', 365, 'Top books by reading time', { pad: 12 }),
+  tileScene('stats-time-per-day', 'overview', 30, 'Reading time per day'),
+  tileScene('stats-top-books', 'overview', 365, 'Top books by reading time'),
   tileScene('stats-activity-grid', 'overview', 30, 'Reading activity, last 365 days'),
 
   // Habits tiles
@@ -106,7 +124,7 @@ export const scenes = [
       return { ...b, height: f.y + f.height - b.y }
     },
   }, { 'session-timeline': 4 }),
-  tileScene('stats-pace', 'habits', 90, 'Reading pace', { pad: 12 }),
+  tileScene('stats-pace', 'habits', 90, 'Reading pace'),
   tileScene('stats-monthly-comparison', 'habits', 0, 'Reading hours and books finished, last 12 months'),
 
   // Library tiles
@@ -120,5 +138,5 @@ export const scenes = [
   tileScene('stats-words-read', 'words', 0, 'Words read'),
   tileScene('stats-reading-speed', 'words', 0, 'Reading speed'),
   tileScene('stats-book-length', 'words', 0, 'Book length'),
-  tileScene('stats-rereads', 'words', 0, 'Re-reads'),
+  tileScene('stats-rereads', 'words', 0, 'Re-reads', { clip: contentClip('Re-reads') }),
 ]

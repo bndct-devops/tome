@@ -32,7 +32,7 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
             <it.icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate text-[13px]">{it.label}</span>
           </div>
-          <p className="mt-1 truncate font-display text-[24px] font-bold leading-none tabular-nums text-foreground">{it.value}</p>
+          <p className="mt-1 truncate font-display text-[24px] font-bold leading-none text-foreground">{it.value}</p>
         </div>
       ))}
     </div>
@@ -74,7 +74,7 @@ export function PersonalRecords({ data, streaks }: { data: StatsResponse['record
             <p className="text-[14px] text-foreground">{r.label}</p>
             {r.sub && <p className="truncate text-[13px] text-muted-foreground">{r.sub}</p>}
           </div>
-          <p className="shrink-0 text-[15px] font-bold tabular-nums text-foreground">{r.value}</p>
+          <p className="shrink-0 text-[15px] font-bold text-foreground">{r.value}</p>
         </div>
       ))}
     </div>
@@ -96,7 +96,7 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
           <div key={t.type}>
             <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{t.type}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{t.read}/{t.owned} · {t.pct}%</span>
+              <span className="shrink-0 text-muted-foreground">{t.read}/{t.owned} · {t.pct}%</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full" style={{ width: `${Math.min(t.pct, 100)}%`, backgroundColor: accent }} />
