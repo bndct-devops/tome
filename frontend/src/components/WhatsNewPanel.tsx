@@ -9,6 +9,7 @@ import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
 import { ModalShell } from '@/components/ModalShell'
 import { Pill } from '@/components/page'
+import { MessageSquare } from 'lucide-react'
 
 interface WhatsNewEntry {
   kind: string
@@ -18,6 +19,7 @@ interface WhatsNewEntry {
 interface WhatsNewResponse {
   version: string
   entries: WhatsNewEntry[]
+  feedback_url?: string | null
 }
 
 const SEEN_KEY = 'tome_seen_version'
@@ -95,7 +97,22 @@ export function WhatsNewPanel() {
       eyebrow={<Trans>Just updated</Trans>}
       title={<Trans>What&apos;s new in Tome {version}</Trans>}
       size="md"
-      footer={<Pill variant="primary" onClick={dismiss}><Trans>Got it</Trans></Pill>}
+      footer={
+        <>
+          {data.feedback_url && (
+            <a
+              href={data.feedback_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mr-auto inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[14px] font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+            >
+              <MessageSquare className="h-4 w-4" />
+              <Trans>Something broken or missing?</Trans>
+            </a>
+          )}
+          <Pill variant="primary" onClick={dismiss}><Trans>Got it</Trans></Pill>
+        </>
+      }
     >
       <div className="flex flex-col gap-6">
         {groups.map((kind) => (

@@ -29,7 +29,9 @@ from the last release tag).
 1. Branch `release/vX.Y.0` off `origin/main`.
 2. One commit `release: vX.Y.0 "Name"`:
    - move `## [Unreleased]` to `## [X.Y.0] - date - "Name"` and leave an
-     empty `## [Unreleased]` above it;
+     empty `## [Unreleased]` above it; a `Feedback: <url>` line right under
+     the header (the release's discussion thread) shows up as a link in the
+     in-app What's new panel;
    - `pyproject.toml` version;
    - `docs/release-notes-X.Y.0.md` (format below) and a hero screenshot in
      `docs/screenshots/` if the release has something visual;

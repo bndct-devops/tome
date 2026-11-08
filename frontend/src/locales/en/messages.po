@@ -1064,6 +1064,10 @@ msgstr "{n, plural, one {# matching volume currently in the library.} other {# m
 msgid "{n, plural, one {# series} other {# series}}"
 msgstr "{n, plural, one {# series} other {# series}}"
 
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {# title} other {# titles}}"
+msgstr "{n, plural, one {# title} other {# titles}}"
+
 #: src/pages/BinderyPage.tsx
 msgid "{n, plural, one {Accepted # volume of {seriesName}} other {Accepted # volumes of {seriesName}}}"
 msgstr "{n, plural, one {Accepted # volume of {seriesName}} other {Accepted # volumes of {seriesName}}}"
@@ -1305,12 +1309,12 @@ msgid "{sessions}, avg {avg}"
 msgstr "{sessions}, avg {avg}"
 
 #: src/pages/DashboardPage.tsx
-msgid "{shown, plural, one {# book} other {# books}}"
-msgstr "{shown, plural, one {# book} other {# books}}"
+#~ msgid "{shown, plural, one {# book} other {# books}}"
+#~ msgstr "{shown, plural, one {# book} other {# books}}"
 
 #: src/pages/DashboardPage.tsx
-msgid "{shown, plural, one {# title} other {# titles}}"
-msgstr "{shown, plural, one {# title} other {# titles}}"
+#~ msgid "{shown, plural, one {# title} other {# titles}}"
+#~ msgstr "{shown, plural, one {# title} other {# titles}}"
 
 #: src/components/MetadataManager.tsx
 msgid "{shown} of {all} books"
@@ -1365,12 +1369,12 @@ msgid "{total, plural, one {book} other {books}}"
 msgstr "{total, plural, one {book} other {books}}"
 
 #: src/pages/DashboardPage.tsx
-msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
-msgstr "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
+#~ msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
+#~ msgstr "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
 
 #: src/pages/DashboardPage.tsx
-msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
-msgstr "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
+#~ msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
+#~ msgstr "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
 
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
@@ -8970,6 +8974,10 @@ msgstr "Some books had no usable candidate or failed to apply. Open them and use
 #: src/components/MetadataManager.tsx
 msgid "Some changes failed to apply."
 msgstr "Some changes failed to apply."
+
+#: src/components/WhatsNewPanel.tsx
+msgid "Something broken or missing?"
+msgstr "Something broken or missing?"
 
 #: src/components/library/SortMenu.tsx
 msgid "Sort by {current}"

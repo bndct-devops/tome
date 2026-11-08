@@ -1064,6 +1064,10 @@ msgstr ""
 msgid "{n, plural, one {# series} other {# series}}"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {# title} other {# titles}}"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "{n, plural, one {Accepted # volume of {seriesName}} other {Accepted # volumes of {seriesName}}}"
 msgstr ""
@@ -1305,12 +1309,12 @@ msgid "{sessions}, avg {avg}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "{shown, plural, one {# book} other {# books}}"
-msgstr ""
+#~ msgid "{shown, plural, one {# book} other {# books}}"
+#~ msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "{shown, plural, one {# title} other {# titles}}"
-msgstr ""
+#~ msgid "{shown, plural, one {# title} other {# titles}}"
+#~ msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "{shown} of {all} books"
@@ -1365,12 +1369,12 @@ msgid "{total, plural, one {book} other {books}}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
-msgstr ""
+#~ msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
+#~ msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
-msgstr ""
+#~ msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
+#~ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
@@ -8969,6 +8973,10 @@ msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "Some changes failed to apply."
+msgstr ""
+
+#: src/components/WhatsNewPanel.tsx
+msgid "Something broken or missing?"
 msgstr ""
 
 #: src/components/library/SortMenu.tsx

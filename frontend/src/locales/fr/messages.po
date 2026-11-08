@@ -1061,6 +1061,10 @@ msgstr "{n, plural, one {# tome correspondant actuellement dans la bibliothèque
 msgid "{n, plural, one {# series} other {# series}}"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {# title} other {# titles}}"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "{n, plural, one {Accepted # volume of {seriesName}} other {Accepted # volumes of {seriesName}}}"
 msgstr "{n, plural, one {# tome de {seriesName} accepté} other {# tomes de {seriesName} acceptés}}"
@@ -1302,12 +1306,12 @@ msgid "{sessions}, avg {avg}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "{shown, plural, one {# book} other {# books}}"
-msgstr "{shown, plural, one {# livre} other {# livres}}"
+#~ msgid "{shown, plural, one {# book} other {# books}}"
+#~ msgstr "{shown, plural, one {# livre} other {# livres}}"
 
 #: src/pages/DashboardPage.tsx
-msgid "{shown, plural, one {# title} other {# titles}}"
-msgstr "{shown, plural, one {# titre} other {# titres}}"
+#~ msgid "{shown, plural, one {# title} other {# titles}}"
+#~ msgstr "{shown, plural, one {# titre} other {# titres}}"
 
 #: src/components/MetadataManager.tsx
 msgid "{shown} of {all} books"
@@ -1362,12 +1366,12 @@ msgid "{total, plural, one {book} other {books}}"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
-msgstr "{totalCount, plural, one {{shown} sur # livre} other {{shown} sur # livres}}"
+#~ msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
+#~ msgstr "{totalCount, plural, one {{shown} sur # livre} other {{shown} sur # livres}}"
 
 #: src/pages/DashboardPage.tsx
-msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
-msgstr "{totalCount, plural, one {{shown} sur # titre} other {{shown} sur # titres}}"
+#~ msgid "{totalCount, plural, one {{shown} of # title} other {{shown} of # titles}}"
+#~ msgstr "{totalCount, plural, one {{shown} sur # titre} other {{shown} sur # titres}}"
 
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
@@ -8934,6 +8938,10 @@ msgstr ""
 #: src/components/MetadataManager.tsx
 msgid "Some changes failed to apply."
 msgstr "Certaines modifications n’ont pas pu être appliquées."
+
+#: src/components/WhatsNewPanel.tsx
+msgid "Something broken or missing?"
+msgstr ""
 
 #: src/components/library/SortMenu.tsx
 msgid "Sort by {current}"
