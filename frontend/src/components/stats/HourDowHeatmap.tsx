@@ -44,7 +44,8 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
 
   function getFillOpacity(seconds: number): number {
     if (seconds === 0) return 0.08
-    return 0.2 + (seconds / maxSeconds) * 0.8
+    // The lowest reading level starts well clear of empty, so it reads in amber too.
+    return 0.36 + (seconds / maxSeconds) * 0.64
   }
 
   const CELL = 14

@@ -725,6 +725,27 @@ const WIDGET_DESC: Record<string, MessageDescriptor> = {
 // Number tiles: a small label over a display number, no section title.
 const KPI_IDS = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric'])
 
+// A chart preview renders at a real tile size (360 x 152) and scales down to
+// whatever width the gallery box has, so its text never clips at the edge.
+function ScaledPreview({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.58)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setScale(Math.min(el.clientWidth / 360, el.clientHeight / 152)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div ref={ref} className="h-full w-full overflow-hidden">
+      <div className="origin-top-left p-2.5" style={{ width: 360, height: 152, transform: `scale(${scale})` }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 // Widgets that are a number/short text - render their preview at natural size (no scale).
 const NATURAL_PREVIEW = new Set(['stat-time', 'stat-sessions', 'stat-finished', 'stat-streak', 'stat-pages', 'stat-completion', 'stat-metric', 'period-comparison'])
 
@@ -1152,9 +1173,7 @@ function AddWidgetModal({
                         {NATURAL_PREVIEW.has(id) ? (
                           <div className="h-full w-full p-3">{w.render(ctx, w.defaultConfig ?? DEFAULT_CFG)}</div>
                         ) : (
-                          <div className="origin-top-left p-2.5" style={{ width: 360, height: 152, transform: 'scale(0.62)' }}>
-                            {w.render(ctx, w.defaultConfig ?? DEFAULT_CFG)}
-                          </div>
+                          <ScaledPreview>{w.render(ctx, w.defaultConfig ?? DEFAULT_CFG)}</ScaledPreview>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 px-1 pb-0.5">

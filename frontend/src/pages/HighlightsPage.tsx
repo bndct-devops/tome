@@ -442,7 +442,7 @@ export function HighlightsPage() {
                   ref={searchRef}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder={t`Search your highlights…`}
+                  placeholder={t`Search your highlights`}
                   aria-label={t`Search your highlights`}
                   className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />

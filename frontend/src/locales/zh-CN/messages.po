@@ -703,7 +703,11 @@ msgid "{all, plural, one {# book} other {# books}}"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
-msgid "{base} · Vol. {idx}"
+#~ msgid "{base} · Vol. {idx}"
+#~ msgstr ""
+
+#: src/pages/HardcoverPage.tsx
+msgid "{base} · Vol. {idx}"
 msgstr ""
 
 #: src/lib/goals.ts
@@ -784,6 +788,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/lib/deviceBooks.ts
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -967,6 +972,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/lib/deviceBooks.ts
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr ""
@@ -1019,6 +1025,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/lib/deviceBooks.ts
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr ""
@@ -2761,8 +2768,8 @@ msgid "Channel URL"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
-msgid "chapter"
-msgstr ""
+#~ msgid "chapter"
+#~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -4990,6 +4997,7 @@ msgstr ""
 
 #: src/components/home/HomeTab.tsx
 #: src/components/NotificationBell.tsx
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 msgid "just now"
@@ -7436,6 +7444,11 @@ msgstr ""
 msgid "read {span}"
 msgstr ""
 
+#: src/components/QuickLook.tsx
+#: src/pages/BookDetailPage.tsx
+msgid "Read again"
+msgstr ""
+
 #: src/components/BookCard.tsx
 msgid "Read book"
 msgstr ""
@@ -8316,8 +8329,8 @@ msgid "Search your highlights"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
-msgid "Search your highlights…"
-msgstr ""
+#~ msgid "Search your highlights…"
+#~ msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "Searching {n} books…"
@@ -10109,8 +10122,8 @@ msgid "Vol. {volIdx}"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
-msgid "volume"
-msgstr ""
+#~ msgid "volume"
+#~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -10126,6 +10139,8 @@ msgid "Volume {n}, not in the library"
 msgstr ""
 
 #: src/components/home/HomeTab.tsx
+#: src/components/QuickLook.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Volume {v}"
 msgstr ""
 
@@ -10395,6 +10410,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/home/HomeTab.tsx
+#: src/lib/utils.ts
 msgid "yesterday"
 msgstr ""
 

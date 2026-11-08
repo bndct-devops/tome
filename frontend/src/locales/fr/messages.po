@@ -700,7 +700,11 @@ msgid "{all, plural, one {# book} other {# books}}"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
-msgid "{base} · Vol. {idx}"
+#~ msgid "{base} · Vol. {idx}"
+#~ msgstr "{base} · Tome {idx}"
+
+#: src/pages/HardcoverPage.tsx
+msgid "{base} · Vol. {idx}"
 msgstr "{base} · Tome {idx}"
 
 #: src/lib/goals.ts
@@ -781,6 +785,7 @@ msgstr "{days, plural, one {sur # jour de lecture en {monthName}} other {sur # j
 
 #: src/components/NotificationBell.tsx
 #: src/lib/deviceBooks.ts
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -964,6 +969,7 @@ msgstr "Il y a {hours} h"
 
 #: src/components/NotificationBell.tsx
 #: src/lib/deviceBooks.ts
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 msgid "{hrs}h ago"
 msgstr "Il y a {hrs} h"
@@ -1016,6 +1022,7 @@ msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/lib/deviceBooks.ts
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 msgid "{mins}m ago"
 msgstr "Il y a {mins} min"
@@ -2755,8 +2762,8 @@ msgid "Channel URL"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
-msgid "chapter"
-msgstr "chapitre"
+#~ msgid "chapter"
+#~ msgstr "chapitre"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -4976,6 +4983,7 @@ msgstr "Aller à aujourd’hui"
 
 #: src/components/home/HomeTab.tsx
 #: src/components/NotificationBell.tsx
+#: src/lib/utils.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 msgid "just now"
@@ -7410,6 +7418,11 @@ msgstr ""
 msgid "read {span}"
 msgstr "lu {span}"
 
+#: src/components/QuickLook.tsx
+#: src/pages/BookDetailPage.tsx
+msgid "Read again"
+msgstr ""
+
 #: src/components/BookCard.tsx
 msgid "Read book"
 msgstr "Lire le livre"
@@ -8283,8 +8296,8 @@ msgid "Search your highlights"
 msgstr "Rechercher dans vos surlignages…"
 
 #: src/pages/HighlightsPage.tsx
-msgid "Search your highlights…"
-msgstr "Rechercher dans vos surlignages…"
+#~ msgid "Search your highlights…"
+#~ msgstr "Rechercher dans vos surlignages…"
 
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "Searching {n} books…"
@@ -10069,8 +10082,8 @@ msgid "Vol. {volIdx}"
 msgstr "Tome {volIdx}"
 
 #: src/pages/BinderyPage.tsx
-msgid "volume"
-msgstr "tome"
+#~ msgid "volume"
+#~ msgstr "tome"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -10086,6 +10099,8 @@ msgid "Volume {n}, not in the library"
 msgstr ""
 
 #: src/components/home/HomeTab.tsx
+#: src/components/QuickLook.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Volume {v}"
 msgstr ""
 
@@ -10355,6 +10370,7 @@ msgstr "Bilan annuel"
 #~ msgstr "Bilan annuel"
 
 #: src/components/home/HomeTab.tsx
+#: src/lib/utils.ts
 msgid "yesterday"
 msgstr "Hier"
 

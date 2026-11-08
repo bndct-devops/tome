@@ -181,7 +181,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-foreground">
                 {(() => { const username = status.username; return <Trans>Linked as <span className="font-medium">@{username}</span></Trans> })()}
-                {status.last_synced_at && (() => { const when = new Date(status.last_synced_at + 'Z').toLocaleString(); return (
+                {status.last_synced_at && (() => { const d = new Date(status.last_synced_at + 'Z'); const when = d.toLocaleString(undefined, { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}), hour: 'numeric', minute: '2-digit' }); return (
                   <span className="ml-2 text-[13px] text-muted-foreground">
                     <Trans>last synced {when}</Trans>
                   </span>

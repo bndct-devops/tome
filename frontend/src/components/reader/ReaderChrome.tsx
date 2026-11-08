@@ -37,7 +37,8 @@ export function readerVars(theme: ReaderTheme): CSSProperties {
     '--card': bg,
     '--secondary': mix(text, dark ? 10 : 7, bg),
     '--surface-hover': mix(text, dark ? 16 : 12, bg),
-    '--muted-foreground': mix(text, 60, bg),
+    // Strong enough for the footer caption and card footers on the sepia page.
+    '--muted-foreground': mix(text, dark ? 70 : 80, bg),
     '--border': mix(text, 12, bg),
     '--primary': primary,
     '--primary-foreground': 'oklch(0.98 0.005 85)',
@@ -115,7 +116,7 @@ export function ReaderBottomBar({ onPrev, onNext, caption, progress, className }
         <div className="h-1 w-16 overflow-hidden rounded-full bg-secondary sm:w-24">
           <div className="h-full rounded-full bg-foreground/50 transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
-        <span className="w-9 text-right text-[13px] tabular-nums text-muted-foreground">{progress}%</span>
+        <span className="w-9 text-right text-[13px] proportional-nums text-muted-foreground">{progress}%</span>
       </div>
       <ChromeIcon onClick={onNext} title={t`Next page`}><ChevronRight /></ChromeIcon>
     </div>

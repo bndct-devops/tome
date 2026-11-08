@@ -75,7 +75,8 @@ function displayTitle(b: HcBook): string {
     const alreadyThere = new RegExp(`vol(?:ume)?\\.?\\s*0*${idx.replace('.', '\\.')}\\b`, 'i').test(b.title)
     if (alreadyThere) return b.title
     const base = b.title === b.series ? b.series : b.title
-    return t`${base} · Vol. ${idx}`
+    // Non-breaking spaces keep "· Vol. N" together; the title part wraps.
+    return t`${base} · Vol. ${idx}`
   }
   return b.title
 }

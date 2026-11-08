@@ -7,7 +7,7 @@ import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { Eye, Play, RefreshCw, Shuffle } from 'lucide-react'
 import { api } from '@/lib/api'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, shortAgo } from '@/lib/utils'
 import { coverSrc } from '@/lib/covers'
 import { listGoals, goalMeta, goalTitle, goalSubtext, type Goal } from '@/lib/goals'
 import { getFollows, type FollowOut } from '@/lib/follows'
@@ -398,7 +398,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               {b.last_sync && (
                 <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
                   <RefreshCw className="w-3.5 h-3.5" />
-                  {deviceLabel(b.device)} · {relativeTime(b.last_sync, i18n.locale)}
+                  {deviceLabel(b.device)} · {shortAgo(b.last_sync)}
                 </span>
               )}
             </div>

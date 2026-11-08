@@ -986,7 +986,7 @@ export function BookDetailPage() {
       {book.series && (
         <button type="button" onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
           className={cn(smallCaps, 'block text-left text-primary hover:underline underline-offset-4')}>
-          {book.series}{book.series_index != null ? ` · ${book.series_index}` : ''}
+          {book.series}{book.series_index != null && (() => { const v = book.series_index; return <> · <Trans>Volume {v}</Trans></> })()}
         </button>
       )}
       <h1 className="mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground">
@@ -1037,7 +1037,7 @@ export function BookDetailPage() {
           <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
             style={{ width: progressAnimated ? `${Math.min(100, pctShown)}%` : '0%' }} />
         </div>
-        <span className="text-[17px] font-bold tabular-nums text-foreground">{pctShown}%</span>
+        <span className="min-w-[3.25em] text-right text-[17px] font-bold proportional-nums text-foreground">{pctShown}%</span>
       </div>
       {book.hardcover_pages != null && book.hardcover_pages > 0 && (() => {
         // Print-edition pagination (from the matched Hardcover edition):
@@ -1078,7 +1078,7 @@ export function BookDetailPage() {
       {readable && (
         <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${book.id}`)}>
           <Play className="h-4 w-4 fill-current" />
-          {showProgress ? <Trans>Resume</Trans> : <Trans context="action">Read</Trans>}
+          {bookStatus === 'read' && pctShown >= 100 ? <Trans>Read again</Trans> : showProgress ? <Trans>Resume</Trans> : <Trans context="action">Read</Trans>}
         </Pill>
       )}
       {readable && (
@@ -1561,7 +1561,7 @@ export function ActivityChart({ timeline, bookId, onChange }: {
               <InfoHint text={t`How far through the book you'd read by each date.`} />
             </span>
             {lastProgress != null && (
-              <p className="text-[13px] tabular-nums text-muted-foreground/60">{Math.round(lastProgress)}%</p>
+              <p className="min-w-[3em] text-right text-[13px] proportional-nums text-muted-foreground/60">{Math.round(lastProgress)}%</p>
             )}
           </div>
           <div className="relative h-7">
@@ -1993,7 +1993,7 @@ function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground/70"><Trans>Progress</Trans></span>
-              <span className="text-[13px] font-medium tabular-nums text-foreground">{Math.round(own.progress * 100)}%</span>
+              <span className="min-w-[3em] text-right text-[13px] font-medium proportional-nums text-foreground">{Math.round(own.progress * 100)}%</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(Math.round(own.progress * 100), 100)}%` }} />

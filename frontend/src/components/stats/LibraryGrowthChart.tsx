@@ -20,7 +20,9 @@ interface GrowthEntry {
 
 function formatMonth(m: string): string {
   try {
-    return new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+    // "Dec '24", not "Dec 24", which reads as a day of the month
+    const d = new Date(m + '-01T00:00:00')
+    return `${d.toLocaleDateString(undefined, { month: 'short' })} '${String(d.getFullYear()).slice(-2)}`
   } catch {
     return m
   }

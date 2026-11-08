@@ -15,7 +15,9 @@ import {
 import { FileText } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
-import { ChartTooltip, HeatmapChart, type StatsResponse } from '@/components/stats/shared'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
 
@@ -81,7 +83,7 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
               <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(b.progress, 100)}%`, backgroundColor: accent }} />
               </div>
-              <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">{Math.round(b.progress)}%</span>
+              <span className="w-9 shrink-0 text-right text-[12px] proportional-nums text-muted-foreground">{Math.round(b.progress)}%</span>
             </div>
           </div>
         </a>
@@ -173,14 +175,158 @@ export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_book
   )
 }
 
+// Opacity per intensity level: empty first, then four reading levels. The first
+// reading level sits well clear of empty so a short day still reads in amber.
+const ACTIVITY_LEVELS = [0.12, 0.4, 0.58, 0.78, 1]
+function activityLevel(secs: number) {
+  if (secs === 0) return 0
+  if (secs < 900) return 1
+  if (secs < 1800) return 2
+  if (secs < 3600) return 3
+  return 4
+}
+
+// The 365-day grid, sized from the tile: 53 week columns plus gaps fill the
+// available width, capped at a sensible cell size on very wide tiles.
+function ActivityGrid({ data, maxHeight }: { data: { date: string; seconds: number }[]; maxHeight: number }) {
+  const { accent, tick } = useChartColors()
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; date: string; seconds: number } | null>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth))
+    ro.observe(el)
+    setWidth(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+
+  const map = new Map(data.map((d) => [d.date, d.seconds]))
+  // Local-date keys, NOT toISOString (= UTC): the backend buckets sessions into
+  // local days via tz_offset.
+  const localIso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const days: string[] = []
+  let firstDow = 0
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    if (i === 364) firstDow = d.getDay()
+    days.push(localIso(d))
+  }
+  const padBefore = firstDow === 0 ? 6 : firstDow - 1
+  const weeks: (string | null)[][] = []
+  let week: (string | null)[] = Array(padBefore).fill(null)
+  for (const day of days) {
+    week.push(day)
+    if (week.length === 7) { weeks.push(week); week = [] }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(null)
+    weeks.push(week)
+  }
+
+  const LABEL_W = 22
+  const TOP = 18
+  const MIN_CELL = 8
+  const MAX_CELL = 22
+  const cols = weeks.length
+  // Gap scales a little with the cell so big cells do not look crammed.
+  const fitW = width > 0 ? (width - LABEL_W) / (cols * 1.25 - 0.25) : 12
+  // In a fixed-height tile the grid also has to fit the height (7 rows).
+  const fitH = maxHeight > 0 ? (maxHeight - TOP) / (7 * 1.25 - 0.25) : Infinity
+  // Columns always fill the width; when the tile is short the rows get a
+  // little flatter rather than leaving a third of the tile empty.
+  const cellW = Math.max(MIN_CELL, Math.min(MAX_CELL, fitW))
+  const cellH = Math.max(MIN_CELL, Math.min(cellW, fitH))
+  const gap = Math.min(cellW, cellH) * 0.25
+  const stepX = cellW + gap
+  const stepY = cellH + gap
+  const gridW = LABEL_W + cols * stepX - gap
+  const svgH = TOP + 7 * stepY - gap
+
+  const monthLabels: { x: number; label: string }[] = []
+  let lastMonth = ''
+  weeks.forEach((wk, wi) => {
+    const firstDay = wk.find((d) => d !== null)
+    if (firstDay) {
+      const m = new Date(firstDay + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })
+      if (m !== lastMonth) {
+        monthLabels.push({ x: LABEL_W + wi * stepX, label: m })
+        lastMonth = m
+      }
+    }
+  })
+
+  return (
+    <div ref={boxRef} className="relative w-full overflow-x-auto">
+      <svg width={gridW} height={svgH} style={{ display: 'block', overflow: 'visible' }}>
+        {monthLabels.map(({ x, label }) => (
+          <text key={label + x} x={Math.min(x, gridW - 18)} y={10} fontSize={10} fill={tick}>{label}</text>
+        ))}
+        {['M', '', 'W', '', 'F', '', ''].map((d, i) =>
+          d ? <text key={i} x={0} y={TOP + i * stepY + cellH / 2 + 3.5} fontSize={10} fill={tick}>{d}</text> : null,
+        )}
+        {weeks.map((wk, wi) =>
+          wk.map((day, di) => {
+            if (!day) return null
+            const secs = map.get(day) ?? 0
+            const lvl = activityLevel(secs)
+            return (
+              <rect
+                key={day}
+                x={LABEL_W + wi * stepX}
+                y={TOP + di * stepY}
+                width={cellW}
+                height={cellH}
+                rx={Math.min(3, Math.min(cellW, cellH) / 5)}
+                fill={lvl === 0 ? tick : accent}
+                fillOpacity={ACTIVITY_LEVELS[lvl]}
+                onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, date: day, seconds: secs })}
+                onMouseLeave={() => setTooltip(null)}
+              />
+            )
+          }),
+        )}
+      </svg>
+      {tooltip &&
+        createPortal(
+          <div
+            className="fixed z-50 pointer-events-none bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]"
+            style={{ left: Math.min(tooltip.x + 12, window.innerWidth - 180), top: tooltip.y - 44 }}
+          >
+            <div className="font-medium">{formatDate(tooltip.date)}</div>
+            <div className="text-muted-foreground">{formatDuration(tooltip.seconds)}</div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  )
+}
+
 export function ReadingActivity365({ heatmap }: { heatmap: StatsResponse['heatmap_daily'] }) {
   const { accent, tick } = useChartColors()
+  // The tile body has a definite height; the grid gets what the legend leaves.
+  // Outside a sized box the measured height is the content's own, which keeps
+  // the width-fitted size (heights under 60px are ignored).
+  const outerRef = useRef<HTMLDivElement>(null)
+  const [outerH, setOuterH] = useState(0)
+  useEffect(() => {
+    const el = outerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setOuterH(el.clientHeight))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const LEGEND_H = 24
+  const maxHeight = outerH >= 60 ? outerH - LEGEND_H : 0
   return (
-    <>
-      <HeatmapChart data={heatmap} />
+    <div ref={outerRef} className="flex h-full flex-col">
+      <ActivityGrid data={heatmap} maxHeight={maxHeight} />
       <div className="flex items-center gap-2 justify-end mt-1">
         <span className="text-[12px] text-muted-foreground"><Trans>Less</Trans></span>
-        {[0.12, 0.25, 0.45, 0.7, 1].map((op, i) => (
+        {ACTIVITY_LEVELS.map((op, i) => (
           <div
             key={i}
             className="w-3 h-3 rounded-sm border border-border/30"
@@ -189,7 +335,7 @@ export function ReadingActivity365({ heatmap }: { heatmap: StatsResponse['heatma
         ))}
         <span className="text-[12px] text-muted-foreground"><Trans>More</Trans></span>
       </div>
-    </>
+    </div>
   )
 }
 

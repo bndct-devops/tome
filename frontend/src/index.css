@@ -409,6 +409,10 @@ html {
    Safari *tab* always allows it for accessibility). */
 html,
 body {
+  /* Onest ships tabular digits by default, which pads every "1" in running
+     text ("1 1h", "2 1%"). Proportional everywhere; columns and stat numbers
+     opt back in with the tabular-nums utility. */
+  font-variant-numeric: proportional-nums;
   /* No scroll chaining out of the document: stops the edge bounce and
      Android's pull-to-refresh. The app shell scrolls internally anyway. */
   overscroll-behavior: none;

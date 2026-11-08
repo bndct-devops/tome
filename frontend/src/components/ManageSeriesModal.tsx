@@ -8,7 +8,7 @@ import { api } from '@/lib/api'
 import { ModalShell } from '@/components/ModalShell'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
-import { Pill, PillGroup, Input, Select, FormLabel } from '@/components/page'
+import { Pill, PillGroup, Input, Textarea, Select, FormLabel } from '@/components/page'
 
 interface Props {
   seriesName: string
@@ -286,7 +286,9 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                         <Trash2 className="w-4 h-4" />
                       </Pill>
                     </div>
-                    <Input
+                    <Textarea
+                      rows={2}
+                      className="min-h-0"
                       value={row.description}
                       onChange={e => updateRow(originalIdx, { description: e.target.value })}
                       placeholder={t`Description (optional)`}

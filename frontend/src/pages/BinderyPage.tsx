@@ -168,7 +168,7 @@ function FormatBadge({ format }: { format: string }) {
   return <span className={cn(BADGE_CLS, 'text-muted-foreground')}>{format}</span>
 }
 
-const CONTENT_TYPE_LABELS: Record<string, MessageDescriptor> = { volume: msg`volume`, chapter: msg`chapter` }
+const CONTENT_TYPE_LABELS: Record<string, MessageDescriptor> = { volume: msg`Volume`, chapter: msg`Chapter` }
 
 function ContentTypeBadge({ type }: { type: string }) {
   const { i18n } = useLingui()
@@ -963,9 +963,15 @@ export function BinderyPage() {
     setFormData(forms)
     setCandidates([])
     setSearchQuery('')
-    setBatchSeries(toReview[0]?.series ?? '')
-    setBatchAuthor('')
-    setBatchBookTypeId(forms[toReview[0]?.path ?? '']?.book_type_id ?? '')
+    // A shared field is prefilled only when every file in the batch agrees;
+    // otherwise it stays empty with its placeholder.
+    const agreed = (key: 'series' | 'author' | 'book_type_id') => {
+      const vals = new Set(toReview.map(i => (forms[i.path]?.[key] ?? '').trim()))
+      return vals.size === 1 ? [...vals][0] : ''
+    }
+    setBatchSeries(agreed('series'))
+    setBatchAuthor(agreed('author'))
+    setBatchBookTypeId(agreed('book_type_id'))
     setBatchLibraryIds([...listLibraryIds])
     setListLibraryIds([])
     setExpandedRows(new Set())
@@ -1083,10 +1089,8 @@ export function BinderyPage() {
         },
       }
     })
-    const embeddedSeries = str('series')
-    if (embeddedSeries) setBatchSeries(prev => prev || embeddedSeries)
-    const embeddedAuthor = str('author')
-    if (embeddedAuthor) setBatchAuthor(prev => prev || embeddedAuthor)
+    // Batch shared fields are not filled from one file's metadata: the other
+    // files may disagree (prefill happens in enterReview only on agreement).
   }
 
   function applyCandidate(c: MetadataCandidate, targetPath?: string) {
@@ -1115,9 +1119,6 @@ export function BinderyPage() {
         },
       }
     })
-    // Also fill batch shared fields when applicable
-    if (c.author) setBatchAuthor(prev => prev || c.author!)
-    if (c.series) setBatchSeries(prev => prev || c.series!)
   }
 
   // Wrapper that triggers flash on candidate apply

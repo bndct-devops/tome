@@ -312,7 +312,7 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
       className={cn(CELL, cellBg(col), 'flex flex-col items-stretch gap-1 text-left transition-colors enabled:hover:bg-muted/40 disabled:cursor-default')}>
       {/* Same wrapper and number box as an in-month day, so the numbers line up across a row. */}
       <span className="flex items-start justify-between gap-1">
-        <span className="grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none text-muted-foreground/40 sm:text-sm">{n}</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none text-muted-foreground/70 sm:text-sm">{n}</span>
       </span>
     </button>
   )
@@ -348,16 +348,18 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
                 // The highlights are marked important so they beat the weekend tint,
                 // whose theme variant would otherwise sort after them.
                 future ? 'cursor-default' : !isSelected && 'hover:bg-muted/50!',
-                selected === iso && 'bg-muted/70!',
+                // Selected: full muted plus an inset hairline, so it stays apart
+                // from the weekend tint (which is itself a muted mix) in every theme.
+                selected === iso && 'bg-muted! shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
                 // The desktop panel opens on a default day; only mark it where the panel shows.
-                !selected && fallback === iso && 'lg:bg-muted/70!',
+                !selected && fallback === iso && 'lg:bg-muted! lg:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
                 'focus-visible:bg-muted/70!',
               )}
             >
               <span className="flex items-start justify-between gap-1">
                 <span className={cn(
                   'grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none sm:text-sm',
-                  future ? 'text-muted-foreground/40' : 'text-foreground',
+                  future ? 'text-muted-foreground/70' : 'text-foreground',
                   // Today is the accent circle, as on every calendar.
                   isToday && 'bg-primary text-primary-foreground',
                 )}>{i + 1}</span>
@@ -480,7 +482,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
   const axisStart = new Date(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8), 4).getTime() / 1000
   const midnight = axisStart + 20 * 3600
   const pos = (e: number) => Math.min(100, Math.max(0, ((e - axisStart) / 86400) * 100))
-  const hhmm = (e: number) => new Date(e * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const hhmm = (e: number) => new Date(e * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
   const bookIdx = new Map(data.books.map((b, i) => [b.book_id, i]))
   const pastMidnight = data.sittings.some(s => s.end > midnight)
   const main = data.books[0]
@@ -560,12 +562,12 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
               style={{ left: `${pos(s.start)}%`, width: `${Math.max(0.6, pos(s.end) - pos(s.start))}%`, background: shades[Math.min(bookIdx.get(s.book_id) ?? 0, 2)] }} />
           ))}
         </div>
-        <div className="relative mt-1 h-4 text-[10.5px] text-muted-foreground tabular-nums">
+        <div className="relative mt-1 h-4 text-[10.5px] text-muted-foreground proportional-nums">
           {[2, 8, 14, 20].map(h => (
             <span key={h} className="absolute -translate-x-1/2" style={{ left: `${(h / 24) * 100}%` }}>{hhmm(axisStart + h * 3600)}</span>
           ))}
         </div>
-        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+        <p className="mt-1 text-xs text-muted-foreground proportional-nums">
           {data.sittings.map(s => `${hhmm(s.start)}\u00a0(${formatDuration(s.end - s.start).replace(/ /g, '\u00a0')})`).join(', ')}
         </p>
       </div>

@@ -1,8 +1,25 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { t } from "@lingui/core/macro"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/** Short relative time in the sync badge's style ("5m ago", "18h ago",
+ *  "yesterday", "3d ago", then the date). */
+export function shortAgo(iso: string): string {
+  const ts = new Date(iso).getTime()
+  if (Number.isNaN(ts)) return ''
+  const mins = Math.floor((Date.now() - ts) / 60_000)
+  if (mins < 1) return t`just now`
+  if (mins < 60) return t`${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return t`${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return t`yesterday`
+  if (days < 7) return t`${days}d ago`
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 /** Format a duration given in seconds to a human-readable "Xh Ym" string. */

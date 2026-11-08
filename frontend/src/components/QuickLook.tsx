@@ -86,7 +86,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
         </div>
         <div className="min-w-0 flex-1 flex flex-col">
           {book?.series && book.series_index != null && (
-            <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-primary">{book.series} · {book.series_index}</div>
+            <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-primary">{book.series} · {(() => { const v = Number.isInteger(book.series_index) ? String(book.series_index) : book.series_index.toFixed(1); return <Trans>Volume {v}</Trans> })()}</div>
           )}
           <h2 className="font-display text-[26px] sm:text-[30px] leading-[1.1] font-bold text-foreground mt-1.5 pr-8">{book?.title ?? ''}</h2>
           {book?.author && <div className="mt-1 text-[15px] text-muted-foreground">{book.author}</div>}
@@ -109,7 +109,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
           <div className="mt-auto pt-5 flex items-center gap-2">
             <Pill variant="primary" onClick={() => navigate(`/reader/${bookId}`)}>
               <Play className="w-4 h-4 fill-current" />
-              {pct > 0 ? <Trans>Resume</Trans> : <Trans>Read</Trans>}
+              {status?.status === 'read' && pct >= 100 ? <Trans>Read again</Trans> : pct > 0 ? <Trans>Resume</Trans> : <Trans>Read</Trans>}
             </Pill>
             <Pill onClick={() => { onClose(); navigate(`/books/${bookId}`) }}>
               <Trans>Open page</Trans>

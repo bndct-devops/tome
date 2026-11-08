@@ -3,14 +3,14 @@ import { t } from '@lingui/core/macro'
 import type { WishCoverageVolume } from '@/lib/wishlist'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
-const PILL_BASE = 'inline-flex items-center justify-center min-w-9 h-7 px-2.5 rounded-full text-[13px] font-medium tabular-nums transition-colors'
+const PILL_BASE = 'inline-flex items-center justify-center min-w-9 h-7 px-2.5 rounded-full text-[13px] font-medium proportional-nums transition-colors'
 const PILL_PRESENT = 'bg-success/15 text-success hover:bg-success/25'
-const PILL_MISSING = 'ring-1 ring-inset ring-border text-muted-foreground/60'
+const PILL_MISSING = 'bg-secondary ring-1 ring-inset ring-input text-muted-foreground'
 /* eslint-enable lingui/no-unlocalized-strings */
 
 // The refreshed look (Wishlist): round chips on the neutral fill, present
 // volumes filled in the success colour.
-const CHIP_BASE = 'inline-flex items-center h-7 px-2.5 rounded-full text-[12px] font-semibold tabular-nums transition-colors'
+const CHIP_BASE = 'inline-flex items-center h-7 px-2.5 rounded-full text-[12px] font-semibold proportional-nums transition-colors'
 const CHIP_PRESENT = 'bg-success/15 text-success hover:bg-success/25'
 const CHIP_MISSING = 'bg-secondary text-muted-foreground'
 
