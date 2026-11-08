@@ -51,7 +51,7 @@ strings that only changed case were carried over; the strings the new
 interface added are in English until the community catalogs catch up.
 
 Found something broken or missing? Tell us in the discussion:
-https://github.com/bndct-devops/tome/discussions/THREAD_NUMBER
+https://github.com/bndct-devops/tome/discussions/292
 
 ---
 

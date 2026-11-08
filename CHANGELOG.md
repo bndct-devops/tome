@@ -8,7 +8,7 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 
-Feedback: https://github.com/bndct-devops/tome/discussions/THREAD_NUMBER
+Feedback: https://github.com/bndct-devops/tome/discussions/292
 
 ### Added
 - **Preview a book without touching your progress.** The book page has a
