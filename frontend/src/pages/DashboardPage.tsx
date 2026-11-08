@@ -1643,15 +1643,12 @@ export function DashboardPage() {
               : (() => {
                   // Grouped rows are series stacks + standalones - "titles", not the
                   // ambiguous "entries" (which read like a book count and never matched it).
-                  const shown = books.length
-                  if (totalCount !== null && totalCount > shown) {
-                    return groupActive
-                      ? plural(totalCount, { one: `${shown} of # title`, other: `${shown} of # titles` })
-                      : plural(totalCount, { one: `${shown} of # book`, other: `${shown} of # books` })
-                  }
+                  // The total of the current view (filters included); how many rows have
+                  // loaded so far is paging, not information for the header.
+                  const n = totalCount ?? books.length
                   return groupActive
-                    ? plural(shown, { one: '# title', other: '# titles' })
-                    : plural(shown, { one: '# book', other: '# books' })
+                    ? plural(n, { one: '# title', other: '# titles' })
+                    : plural(n, { one: '# book', other: '# books' })
                 })()}
             title={activeLibraryName ?? <Trans>Library</Trans>}
             actions={

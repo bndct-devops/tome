@@ -33,10 +33,11 @@ zout.close()
 `
 // [file, [title, author, gutenberg id, extra KB]]: the two retitled copies would otherwise
 // share one size, so The Time Machine carries 23 KB of padding.
+// Books the showcase library does not have, so the queue reads as new arrivals.
 const FILES = [
-  ['Frankenstein - Mary Shelley.epub', null],
-  ['Romeo and Juliet - William Shakespeare.epub', ['Romeo and Juliet', 'William Shakespeare', '1513', '0']],
-  ['The Time Machine - H. G. Wells.epub', ['The Time Machine', 'H. G. Wells', '35', '23']],
+  ['Dracula - Bram Stoker (1897).epub', ['Dracula', 'Bram Stoker', '345', '11']],
+  ['Pride and Prejudice - Jane Austen (1813).epub', ['Pride and Prejudice', 'Jane Austen', '1342', '0']],
+  ['The Time Machine - H. G. Wells (1895).epub', ['The Time Machine', 'H. G. Wells', '35', '23']],
 ]
 const HAS_PADDING = "import sys, zipfile; sys.exit(0 if 'META-INF/padding.bin' in zipfile.ZipFile(sys.argv[1]).namelist() else 1)"
 

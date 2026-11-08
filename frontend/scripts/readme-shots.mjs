@@ -24,7 +24,7 @@ console.log('book for detail:', berserk?.title, '| epub for reader:', epub?.titl
 const browser = await chromium.launch()
 async function ctx(w, h) {
   const c = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
-  await c.addInitScript(([t, th]) => { localStorage.setItem('tome_token', t); localStorage.setItem('tome_theme', th); localStorage.setItem('tome_sidebar', 'open'); localStorage.setItem('tome_seen_version', '1.0.0'); sessionStorage.setItem('tome_follows_disabled', '1') }, [token, THEME])
+  await c.addInitScript(([t, th]) => { localStorage.setItem('tome_token', t); localStorage.setItem('tome_theme', th); localStorage.setItem('tome_sidebar', 'open'); localStorage.setItem('tome_seen_version', '1.0.0'); localStorage.setItem('tome_stats_hint', '1'); sessionStorage.setItem('tome_follows_disabled', '1') }, [token, THEME])
   return c.newPage()
 }
 async function go(p, u, settle = 1200) { await p.goto(`${BASE}${u}`); await p.waitForLoadState('networkidle').catch(() => {}); await p.waitForTimeout(settle) }

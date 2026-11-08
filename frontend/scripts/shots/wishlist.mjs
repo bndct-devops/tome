@@ -6,8 +6,8 @@ const cover = (id) => `/api/books/${id}/cover?w=160`
 
 // Showcase series as Hardcover-style series hits (used by the series search mocks below).
 const SERIES_HITS = [
-  { source: 'hardcover', source_id: '35135', name: 'The Good Guys', author: 'Eric Ugland', total: 16, slug: 'the-good-guys', cover_url: cover(31) },
-  { source: 'hardcover', source_id: '41270', name: 'The Bad Guys', author: 'Eric Ugland', total: 11, slug: 'the-bad-guys', cover_url: cover(34) },
+  { source: 'hardcover', source_id: '35135', name: 'Dungeon Crawler Carl', author: 'Matt Dinniman', total: 7, slug: 'dungeon-crawler-carl', cover_url: null },
+  { source: 'hardcover', source_id: '41270', name: 'Cradle', author: 'Will Wight', total: 12, slug: 'cradle', cover_url: null },
 ]
 
 // MOCK: release detection is off on the copy (the follows endpoint 403s), so
@@ -44,7 +44,7 @@ export const scenes = [
       await page.getByRole('button', { name: 'Wish', exact: true }).click()
       await page.waitForTimeout(700)
       await page.locator('[role="dialog"]').getByRole('button', { name: 'Series', exact: true }).click()
-      await page.locator('[role="dialog"] input').first().fill('Ugland')
+      await page.locator('[role="dialog"] input').first().fill('Carl')
       await page.waitForTimeout(1200)
     },
     clip: async ({ page }) => page.locator('[role="dialog"]'),
@@ -53,7 +53,19 @@ export const scenes = [
     // Real data: the single-book wish (The Hitchhiker's Guide to the Galaxy). The two
     // whole-series wishes are follows, shown in the Following strip (mocked, see FOLLOWS).
     name: 'wishlist', route: '/wishlist',
-    before: async ({ page }) => { await mockFollows(page) },
+    // The Hitchhiker's wish exists for the admin fulfil shot (its book is in the library); the member
+    // list is served without it here (pass-through mock, count and rows agree).
+    before: async ({ page }) => {
+      await mockFollows(page)
+      await page.route(u => /\/api\/wishlist(\?|$)/.test(u.pathname + u.search), async route => {
+        if (route.request().method() !== 'GET') return route.continue()
+        const res = await route.fetch(); let body = await res.json()
+        const drop = w => /hitchhiker/i.test(w?.title ?? '')
+        if (Array.isArray(body)) body = body.filter(w => !drop(w))
+        else if (body && Array.isArray(body.items)) body = { ...body, items: body.items.filter(w => !drop(w)), total: Math.max(0, (body.total ?? body.items.length) - 1) }
+        await route.fulfill({ response: res, json: body })
+      })
+    },
   },
   {
     // MOCK: see FOLLOWS; /wishlist/search-series returns a Frieren hit for the typed search.

@@ -2449,7 +2449,7 @@ function WishlistTab() {
                   {/* Single-book wishes: suggested-match hint */}
                   {wish.suggested_book_ids && wish.suggested_book_ids.length > 0 && wish.status === 'open' && fulfillingId !== wish.id && !(wish.series && wish.series_index == null) && (
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      <span className="text-[12px] px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">
+                      <span className="text-[12px] px-2 py-0.5 rounded-full bg-warning/20 text-foreground font-medium">
                         <Plural value={wish.suggested_book_ids.length} one="# suggested match" other="# suggested matches" />
                       </span>
                     </div>

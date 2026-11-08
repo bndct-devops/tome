@@ -7,12 +7,12 @@ export const openAdminSection = (id) => async ({ page }) => {
   await page.waitForTimeout(900)
 }
 
-// Real users on the showcase copy: a member "reader" and a guest "visitor" next to the admin.
+// Real users on the showcase copy: a member "mika" and a guest "sam" next to the admin.
 async function ensureUsers(api) {
   const users = await api('/users')
   const have = new Set((Array.isArray(users) ? users : []).map(u => u.username))
-  if (!have.has('reader')) await api('/users', { method: 'POST', body: JSON.stringify({ username: 'reader', email: 'reader@tome.local', password: 'showcase-reader', role: 'member' }) })
-  if (!have.has('visitor')) await api('/users', { method: 'POST', body: JSON.stringify({ username: 'visitor', email: 'visitor@tome.local', password: 'showcase-visitor', role: 'guest' }) })
+  if (!have.has('mika')) await api('/users', { method: 'POST', body: JSON.stringify({ username: 'mika', email: 'mika@example.com', password: 'showcase-reader', role: 'member' }) })
+  if (!have.has('sam')) await api('/users', { method: 'POST', body: JSON.stringify({ username: 'sam', email: 'sam@example.com', password: 'showcase-visitor', role: 'guest' }) })
 }
 
 // The panel to the right of the section list: from the page header down to the end of the content.

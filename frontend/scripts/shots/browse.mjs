@@ -54,9 +54,9 @@ export const scenes = [
     setup: async ({ page }) => {
       await page.getByRole('button', { name: 'Upload' }).first().click(); await pause(page)
       await dialog(page).locator('input[type="file"]').setInputFiles([
-        file('Frankenstein.epub', 480, 'application/epub+zip'),
-        file('Dune.epub', 1200, 'application/epub+zip'),
-        file('Watchmen #1.cbz', 2400, 'application/zip'),
+        file('Dracula.epub', 480, 'application/epub+zip'),
+        file('Pride and Prejudice.epub', 1200, 'application/epub+zip'),
+        file('Sandman #1.cbz', 2400, 'application/zip'),
       ])
       await pause(page, 600)
       // Per-file type pickers (the first select is "Set all to").
@@ -155,8 +155,10 @@ export const scenes = [
   {
     name: 'mobile-calendar-day', route: '/calendar', viewport: 'phone', settle: 1800,
     setup: async ({ page }) => {
-      // Tap today (it always has reading in the showcase).
-      await page.locator('button[aria-pressed]').filter({ has: page.locator('span.rounded-full.bg-primary.text-primary-foreground') }).first().click()
+      // Tap yesterday: today may have no reading yet, yesterday always has in the showcase.
+      const y = String(new Date(Date.now() - 86400000).getDate())
+      const cells = page.locator('button[aria-pressed]').filter({ has: page.getByText(y, { exact: true }) })
+      await (await cells.count() > 1 ? cells.nth(cells.count() > 2 ? 1 : 0) : cells.first()).click()
       await pause(page, 900)
     },
   },
