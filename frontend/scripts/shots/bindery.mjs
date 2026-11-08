@@ -66,9 +66,13 @@ async function cleanSuggestions(page) {
     const res = await route.fetch()
     const data = await res.json().catch(() => null)
     if (!data?.candidates) return route.fulfill({ response: res })
+    const OURS = ['dracula', 'pride and prejudice', 'the time machine']
+    const exact = (c) => OURS.includes(String(c.title ?? '').trim().toLowerCase()) ? 0 : 1
     data.candidates = data.candidates
       .filter((c) => c.year !== 0 && !/https?:\/\//.test(c.description ?? ''))
       .map((c) => ({ ...c, tags: (c.tags ?? []).filter((t) => !RAW_SUBJECT.test(t)) }))
+      // the exact edition first, so the prefilled title is the book's own and not a ranking accident
+      .sort((a, b) => exact(a) - exact(b))
       .slice(0, 4)
     await route.fulfill({ response: res, json: data })
   })
